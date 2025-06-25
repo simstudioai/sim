@@ -1,8 +1,14 @@
 import { AgentIcon } from '@/components/icons'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
-import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
-import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
+import {
+  getAllModelProviders,
+  getBaseModelProviders,
+  getHostedModels,
+  MODELS_TEMP_RANGE_0_1,
+  MODELS_TEMP_RANGE_0_2,
+  providers,
+} from '@/providers/utils'
 import { useOllamaStore } from '@/stores/ollama/store'
 import type { ToolResponse } from '@/tools/types'
 import type { BlockConfig } from '../types'
@@ -121,30 +127,39 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
-      // Hide API key for all OpenAI and Claude models when running on hosted version
+      // Hide API key for all hosted models when running on hosted version
       condition: isHosted
         ? {
             field: 'model',
-            // Include all OpenAI models and Claude models for which we don't show the API key field
-            value: [
-              // OpenAI models
-              'gpt-4o',
-              'o1',
-              'o1-mini',
-              'o1-preview',
-              'o3',
-              'o3-preview',
-              'o4-mini',
-              'gpt-4.1',
-              // Claude models
-              'claude-sonnet-4-20250514',
-              'claude-opus-4-20250514',
-              'claude-3-7-sonnet-20250219',
-              'claude-3-5-sonnet-20240620',
-            ],
+            value: getHostedModels(),
             not: true, // Show for all models EXCEPT those listed
           }
         : undefined, // Show for all models in non-hosted environments
+    },
+    {
+      id: 'azureEndpoint',
+      title: 'Azure OpenAI Endpoint',
+      type: 'short-input',
+      layout: 'full',
+      password: true,
+      placeholder: 'https://your-resource.openai.azure.com',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'azureApiVersion',
+      title: 'Azure API Version',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '2024-07-01-preview',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
     },
     {
       id: 'tools',
@@ -237,6 +252,8 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     memories: { type: 'json', required: false },
     model: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
+    azureEndpoint: { type: 'string', required: false },
+    azureApiVersion: { type: 'string', required: false },
     responseFormat: {
       type: 'json',
       required: false,

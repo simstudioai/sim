@@ -2,20 +2,35 @@ import { getCostMultiplier, isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { anthropicProvider } from './anthropic'
+import { azureOpenAIProvider } from './azure-openai'
 import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'
 import { googleProvider } from './google'
 import { groqProvider } from './groq'
+import {
+  getComputerUseModels,
+  getHostedModels as getHostedModelsFromDefinitions,
+  getMaxTemperature as getMaxTempFromDefinitions,
+  getModelPricing as getModelPricingFromDefinitions,
+  getModelsWithTemperatureSupport,
+  getModelsWithTempRange01,
+  getModelsWithTempRange02,
+  getProviderModels as getProviderModelsFromDefinitions,
+  getProvidersWithToolUsageControl,
+  PROVIDER_DEFINITIONS,
+  supportsTemperature as supportsTemperatureFromDefinitions,
+  supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
+  updateOllamaModels as updateOllamaModelsInDefinitions,
+} from './models'
 import { ollamaProvider } from './ollama'
 import { openaiProvider } from './openai'
-import { getModelPricing } from './pricing'
 import type { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
 
 const logger = createLogger('ProviderUtils')
 
 /**
- * Provider configurations with associated model names/patterns
+ * Provider configurations - built from the comprehensive definitions
  */
 export const providers: Record<
   ProviderId,
@@ -27,54 +42,52 @@ export const providers: Record<
 > = {
   openai: {
     ...openaiProvider,
-    models: ['gpt-4o', 'o1', 'o3', 'o4-mini', 'gpt-4.1'],
+    models: getProviderModelsFromDefinitions('openai'),
     computerUseModels: ['computer-use-preview'],
-    modelPatterns: [/^gpt/, /^o1/],
+    modelPatterns: PROVIDER_DEFINITIONS.openai.modelPatterns,
   },
   anthropic: {
     ...anthropicProvider,
-    models: [
-      'claude-sonnet-4-20250514',
-      'claude-opus-4-20250514',
-      'claude-3-7-sonnet-20250219',
-      'claude-3-5-sonnet-20240620',
-    ],
-    computerUseModels: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
-    modelPatterns: [/^claude/],
+    models: getProviderModelsFromDefinitions('anthropic'),
+    computerUseModels: getComputerUseModels().filter((model) =>
+      getProviderModelsFromDefinitions('anthropic').includes(model)
+    ),
+    modelPatterns: PROVIDER_DEFINITIONS.anthropic.modelPatterns,
   },
   google: {
     ...googleProvider,
-    models: ['gemini-2.5-pro-exp-03-25', 'gemini-2.5-flash-preview-04-17'],
-    modelPatterns: [/^gemini/],
+    models: getProviderModelsFromDefinitions('google'),
+    modelPatterns: PROVIDER_DEFINITIONS.google.modelPatterns,
   },
   deepseek: {
     ...deepseekProvider,
-    models: ['deepseek-v3', 'deepseek-r1'],
-    modelPatterns: [],
+    models: getProviderModelsFromDefinitions('deepseek'),
+    modelPatterns: PROVIDER_DEFINITIONS.deepseek.modelPatterns,
   },
   xai: {
     ...xAIProvider,
-    models: ['grok-3-latest', 'grok-3-fast-latest'],
-    modelPatterns: [/^grok/],
+    models: getProviderModelsFromDefinitions('xai'),
+    modelPatterns: PROVIDER_DEFINITIONS.xai.modelPatterns,
   },
   cerebras: {
     ...cerebrasProvider,
-    models: ['cerebras/llama-3.3-70b'],
-    modelPatterns: [/^cerebras/],
+    models: getProviderModelsFromDefinitions('cerebras'),
+    modelPatterns: PROVIDER_DEFINITIONS.cerebras.modelPatterns,
   },
   groq: {
     ...groqProvider,
-    models: [
-      'groq/meta-llama/llama-4-scout-17b-16e-instruct',
-      'groq/deepseek-r1-distill-llama-70b',
-      'groq/qwen-2.5-32b',
-    ],
-    modelPatterns: [/^groq/],
+    models: getProviderModelsFromDefinitions('groq'),
+    modelPatterns: PROVIDER_DEFINITIONS.groq.modelPatterns,
+  },
+  'azure-openai': {
+    ...azureOpenAIProvider,
+    models: getProviderModelsFromDefinitions('azure-openai'),
+    modelPatterns: PROVIDER_DEFINITIONS['azure-openai'].modelPatterns,
   },
   ollama: {
     ...ollamaProvider,
-    models: [],
-    modelPatterns: [],
+    models: getProviderModelsFromDefinitions('ollama'),
+    modelPatterns: PROVIDER_DEFINITIONS.ollama.modelPatterns,
   },
 }
 
@@ -91,7 +104,8 @@ Object.entries(providers).forEach(([id, provider]) => {
 
 // Function to update Ollama provider models
 export function updateOllamaProviderModels(models: string[]): void {
-  providers.ollama.models = models
+  updateOllamaModelsInDefinitions(models)
+  providers.ollama.models = getProviderModelsFromDefinitions('ollama')
   logger.info('Updated Ollama provider models', { models })
 }
 
@@ -161,11 +175,13 @@ export function getAllProviderIds(): ProviderId[] {
 }
 
 export function getProviderModels(providerId: ProviderId): string[] {
-  const provider = providers[providerId]
-  return provider?.models || []
+  return getProviderModelsFromDefinitions(providerId)
 }
 
 export function generateStructuredOutputInstructions(responseFormat: any): string {
+  // Handle null/undefined input
+  if (!responseFormat) return ''
+
   // If using the new JSON Schema format, don't add additional instructions
   // This is necessary because providers now handle the schema directly
   if (responseFormat.schema || (responseFormat.type === 'object' && responseFormat.properties)) {
@@ -173,7 +189,7 @@ export function generateStructuredOutputInstructions(responseFormat: any): strin
   }
 
   // Handle legacy format with fields array
-  if (!responseFormat?.fields) return ''
+  if (!responseFormat.fields) return ''
 
   function generateFieldStructure(field: any): string {
     if (field.type === 'object' && field.properties) {
@@ -420,7 +436,23 @@ export function calculateCost(
   completionTokens = 0,
   useCachedInput = false
 ) {
-  const pricing = getModelPricing(model)
+  const pricing = getModelPricingFromDefinitions(model)
+
+  // If no pricing found, return default pricing
+  if (!pricing) {
+    const defaultPricing = {
+      input: 1.0,
+      cachedInput: 0.5,
+      output: 5.0,
+      updatedAt: '2025-03-21',
+    }
+    return {
+      input: 0,
+      output: 0,
+      total: 0,
+      pricing: defaultPricing,
+    }
+  }
 
   // Calculate costs in USD
   // Convert from "per million tokens" to "per token" by dividing by 1,000,000
@@ -471,6 +503,14 @@ export function formatCost(cost: number): string {
     return `$${cost.toFixed(places)}`
   }
   return '$0'
+}
+
+/**
+ * Get the list of models that are hosted by the platform (don't require user API keys)
+ * These are the models for which we hide the API key field in the hosted environment
+ */
+export function getHostedModels(): string[] {
+  return getHostedModelsFromDefinitions()
 }
 
 /**
@@ -787,4 +827,31 @@ export function trackForcedToolUsage(
         : originalToolChoice
       : undefined,
   }
+}
+
+export const MODELS_TEMP_RANGE_0_2 = getModelsWithTempRange02()
+export const MODELS_TEMP_RANGE_0_1 = getModelsWithTempRange01()
+export const MODELS_WITH_TEMPERATURE_SUPPORT = getModelsWithTemperatureSupport()
+export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
+
+/**
+ * Check if a model supports temperature parameter
+ */
+export function supportsTemperature(model: string): boolean {
+  return supportsTemperatureFromDefinitions(model)
+}
+
+/**
+ * Get the maximum temperature value for a model
+ * @returns Maximum temperature value (1 or 2) or undefined if temperature not supported
+ */
+export function getMaxTemperature(model: string): number | undefined {
+  return getMaxTempFromDefinitions(model)
+}
+
+/**
+ * Check if a provider supports tool usage control
+ */
+export function supportsToolUsageControl(provider: string): boolean {
+  return supportsToolUsageControlFromDefinitions(provider)
 }

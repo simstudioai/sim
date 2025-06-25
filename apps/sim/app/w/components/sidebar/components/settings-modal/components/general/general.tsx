@@ -1,18 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -25,18 +13,15 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { resetAllStores } from '@/stores'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
 const TOOLTIPS = {
   debugMode: 'Enable visual debugging information during execution.',
   autoConnect: 'Automatically connect nodes.',
   autoFillEnvVars: 'Automatically fill API keys.',
-  resetData: 'Permanently delete all workflows, settings, and stored data.',
 }
 
 export function General() {
-  const router = useRouter()
   const [retryCount, setRetryCount] = useState(0)
 
   const isLoading = useGeneralStore((state) => state.isLoading)
@@ -79,11 +64,6 @@ export function General() {
     if (checked !== isAutoFillEnvVarsEnabled) {
       toggleAutoFillEnvVars()
     }
-  }
-
-  const handleResetData = () => {
-    resetAllStores()
-    router.push('/w/1') // Redirect to home page after reset
   }
 
   const handleRetry = () => {
@@ -222,56 +202,6 @@ export function General() {
               </div>
             </>
           )}
-        </div>
-      </div>
-
-      {/* Danger Zone Section */}
-      <div>
-        <div className='flex items-center justify-between py-1'>
-          <div className='flex items-center gap-2'>
-            <Label className='font-medium'>Reset all data</Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  className='h-7 p-1 text-gray-500'
-                  aria-label='Learn more about resetting all data'
-                  disabled={isLoading}
-                >
-                  <Info className='h-5 w-5' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top' className='max-w-[300px] p-3'>
-                <p className='text-sm'>{TOOLTIPS.resetData}</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant='destructive' size='sm' disabled={isLoading}>
-                Reset Data
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete all your workflows,
-                  settings, and stored data.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleResetData}
-                  className='bg-red-600 hover:bg-red-700'
-                >
-                  Reset Data
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       </div>
     </div>

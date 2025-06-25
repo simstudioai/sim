@@ -1,0 +1,89 @@
+name: Publish Python SDK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/python-sdk/**'
+
+jobs:
+  publish-pypi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine pytest requests tomli
+
+      - name: Run tests
+        working-directory: packages/python-sdk
+        run: |
+          PYTHONPATH=. pytest tests/ -v
+
+      - name: Get package version
+        id: package_version
+        working-directory: packages/python-sdk
+        run: echo "version=$(python -c "import tomli; print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")" >> $GITHUB_OUTPUT
+
+      - name: Check if version already exists
+        id: version_check
+        run: |
+          if pip index versions simstudio-sdk | grep -q "${{ steps.package_version.outputs.version }}"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build package
+        if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/python-sdk
+        run: python -m build
+
+      - name: Check package
+        if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/python-sdk
+        run: twine check dist/*
+
+      - name: Publish to PyPI
+        if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/python-sdk
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
+
+      - name: Log skipped publish
+        if: steps.version_check.outputs.exists == 'true'
+        run: echo "Skipped publishing because version ${{ steps.package_version.outputs.version }} already exists on PyPI"
+
+      - name: Create GitHub Release
+        if: steps.version_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: python-sdk-v${{ steps.package_version.outputs.version }}
+          name: Python SDK v${{ steps.package_version.outputs.version }}
+          body: |
+            ## Python SDK v${{ steps.package_version.outputs.version }}
+            
+            Published simstudio-sdk==${{ steps.package_version.outputs.version }} to PyPI.
+            
+            ### Installation
+            ```bash
+            pip install simstudio-sdk==${{ steps.package_version.outputs.version }}
+            ```
+            
+            ### Documentation
+            See the [README](https://github.com/simstudio/sim/tree/main/packages/python-sdk) for usage instructions.
+          draft: false
+          prerelease: false 

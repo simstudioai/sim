@@ -35,6 +35,7 @@ interface ConditionInputProps {
   isConnecting: boolean
   isPreview?: boolean
   previewValue?: string | null
+  disabled?: boolean
 }
 
 // Generate a stable ID based on the blockId and a suffix
@@ -48,6 +49,7 @@ export function ConditionInput({
   isConnecting,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: ConditionInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const editorRef = useRef<HTMLDivElement>(null)
@@ -235,7 +237,7 @@ export function ConditionInput({
     newValue: string,
     textarea: HTMLTextAreaElement | null
   ) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
 
     try {
       setConditionalBlocks((blocks) =>
@@ -364,7 +366,7 @@ export function ConditionInput({
 
   // Handle drops from connection blocks - updated for individual blocks
   const handleDrop = (blockId: string, e: React.DragEvent) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     e.preventDefault()
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'))
@@ -406,7 +408,7 @@ export function ConditionInput({
 
   // Handle tag selection - updated for individual blocks
   const handleTagSelect = (blockId: string, newValue: string) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     setConditionalBlocks((blocks) =>
       blocks.map((block) =>
         block.id === blockId
@@ -423,7 +425,7 @@ export function ConditionInput({
 
   // Handle environment variable selection - updated for individual blocks
   const handleEnvVarSelect = (blockId: string, newValue: string) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     setConditionalBlocks((blocks) =>
       blocks.map((block) =>
         block.id === blockId
@@ -448,7 +450,7 @@ export function ConditionInput({
 
   // Update these functions to use updateBlockTitles and stable IDs
   const addBlock = (afterId: string) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
 
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === afterId)
 
@@ -482,7 +484,7 @@ export function ConditionInput({
   }
 
   const removeBlock = (id: string) => {
-    if (isPreview) return
+    if (isPreview || disabled || conditionalBlocks.length <= 2) return
 
     // Remove any associated edges before removing the block
     edges.forEach((edge) => {
@@ -496,7 +498,7 @@ export function ConditionInput({
   }
 
   const moveBlock = (id: string, direction: 'up' | 'down') => {
-    if (isPreview) return
+    if (isPreview || disabled) return
 
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === id)
     if (
@@ -605,7 +607,7 @@ export function ConditionInput({
                     variant='ghost'
                     size='sm'
                     onClick={() => addBlock(block.id)}
-                    disabled={isPreview}
+                    disabled={isPreview || disabled}
                     className='h-8 w-8'
                   >
                     <Plus className='h-4 w-4' />
@@ -622,7 +624,7 @@ export function ConditionInput({
                       variant='ghost'
                       size='sm'
                       onClick={() => moveBlock(block.id, 'up')}
-                      disabled={isPreview || index === 0}
+                      disabled={isPreview || index === 0 || disabled}
                       className='h-8 w-8'
                     >
                       <ChevronUp className='h-4 w-4' />
@@ -638,7 +640,7 @@ export function ConditionInput({
                       variant='ghost'
                       size='sm'
                       onClick={() => moveBlock(block.id, 'down')}
-                      disabled={isPreview || index === conditionalBlocks.length - 1}
+                      disabled={isPreview || index === conditionalBlocks.length - 1 || disabled}
                       className='h-8 w-8'
                     >
                       <ChevronDown className='h-4 w-4' />
@@ -655,7 +657,7 @@ export function ConditionInput({
                     variant='ghost'
                     size='sm'
                     onClick={() => removeBlock(block.id)}
-                    disabled={isPreview || conditionalBlocks.length === 1}
+                    disabled={isPreview || conditionalBlocks.length === 1 || disabled}
                     className='h-8 w-8 text-destructive hover:text-destructive'
                   >
                     <Trash className='h-4 w-4' />

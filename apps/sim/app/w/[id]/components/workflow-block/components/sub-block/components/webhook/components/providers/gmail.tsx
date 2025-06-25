@@ -25,6 +25,7 @@ const TOOLTIPS = {
   labels: 'Select which email labels to monitor.',
   labelFilter: 'Choose whether to include or exclude the selected labels.',
   markAsRead: 'Emails will be marked as read after being processed by your workflow.',
+  includeRawEmail: 'Include the complete, unprocessed email data from Gmail.',
 }
 
 const FALLBACK_GMAIL_LABELS = [
@@ -55,31 +56,74 @@ const formatLabelName = (label: GmailLabel): string => {
   return formattedName
 }
 
-const exampleEmailEvent = {
-  email: {
-    id: '18e0ffabd5b5a0f4',
-    threadId: '18e0ffabd5b5a0f4',
-    subject: 'Monthly Report - April 2025',
-    from: 'sender@example.com',
-    to: 'recipient@example.com',
-    cc: 'team@example.com',
-    date: '2025-05-10T10:15:23.000Z',
-    bodyText:
-      'Hello,\n\nPlease find attached the monthly report for April 2025.\n\nBest regards,\nSender',
-    bodyHtml:
-      '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
-    snippet: 'Hello, Please find attached the monthly report for April 2025...',
-    labels: ['INBOX', 'IMPORTANT'],
-    hasAttachments: true,
-    attachments: [
-      {
-        filename: 'report-april-2025.pdf',
-        mimeType: 'application/pdf',
-        size: 2048576,
+const getExampleEmailEvent = (includeRawEmail: boolean) => {
+  const baseExample = {
+    email: {
+      id: '18e0ffabd5b5a0f4',
+      threadId: '18e0ffabd5b5a0f4',
+      subject: 'Monthly Report - April 2025',
+      from: 'sender@example.com',
+      to: 'recipient@example.com',
+      cc: 'team@example.com',
+      date: '2025-05-10T10:15:23.000Z',
+      bodyText:
+        'Hello,\n\nPlease find attached the monthly report for April 2025.\n\nBest regards,\nSender',
+      bodyHtml:
+        '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
+      labels: ['INBOX', 'IMPORTANT'],
+      hasAttachments: true,
+      attachments: [
+        {
+          filename: 'report-april-2025.pdf',
+          mimeType: 'application/pdf',
+          size: 2048576,
+        },
+      ],
+    },
+    timestamp: '2025-05-10T10:15:30.123Z',
+  }
+
+  if (includeRawEmail) {
+    return {
+      ...baseExample,
+      rawEmail: {
+        id: '18e0ffabd5b5a0f4',
+        threadId: '18e0ffabd5b5a0f4',
+        labelIds: ['INBOX', 'IMPORTANT'],
+        snippet: 'Hello, Please find attached the monthly report...',
+        historyId: '123456',
+        internalDate: '1715337323000',
+        payload: {
+          partId: '',
+          mimeType: 'multipart/mixed',
+          filename: '',
+          headers: [
+            { name: 'From', value: 'sender@example.com' },
+            { name: 'To', value: 'recipient@example.com' },
+            { name: 'Subject', value: 'Monthly Report - April 2025' },
+            { name: 'Date', value: 'Fri, 10 May 2025 10:15:23 +0000' },
+            { name: 'Message-ID', value: '<abc123@example.com>' },
+          ],
+          body: { size: 0 },
+          parts: [
+            {
+              partId: '0',
+              mimeType: 'text/plain',
+              filename: '',
+              headers: [{ name: 'Content-Type', value: 'text/plain; charset=UTF-8' }],
+              body: {
+                size: 85,
+                data: 'SGVsbG8sDQoNClBsZWFzZSBmaW5kIGF0dGFjaGVkIHRoZSBtb250aGx5IHJlcG9ydA==',
+              },
+            },
+          ],
+        },
+        sizeEstimate: 4156,
       },
-    ],
-  },
-  timestamp: '2025-05-10T10:15:30.123Z',
+    }
+  }
+
+  return baseExample
 }
 
 interface GmailConfigProps {
@@ -89,6 +133,8 @@ interface GmailConfigProps {
   setLabelFilterBehavior: (behavior: 'INCLUDE' | 'EXCLUDE') => void
   markAsRead?: boolean
   setMarkAsRead?: (markAsRead: boolean) => void
+  includeRawEmail?: boolean
+  setIncludeRawEmail?: (includeRawEmail: boolean) => void
 }
 
 export function GmailConfig({
@@ -98,6 +144,8 @@ export function GmailConfig({
   setLabelFilterBehavior,
   markAsRead = false,
   setMarkAsRead = () => {},
+  includeRawEmail = false,
+  setIncludeRawEmail = () => {},
 }: GmailConfigProps) {
   const [labels, setLabels] = useState<GmailLabel[]>([])
   const [isLoadingLabels, setIsLoadingLabels] = useState(false)
@@ -286,6 +334,34 @@ export function GmailConfig({
               </Tooltip>
             </div>
           </div>
+
+          <div className='flex items-center'>
+            <div className='flex flex-1 items-center gap-2'>
+              <Checkbox
+                id='include-raw-email'
+                checked={includeRawEmail}
+                onCheckedChange={(checked) => setIncludeRawEmail(checked as boolean)}
+              />
+              <Label htmlFor='include-raw-email' className='cursor-pointer font-normal text-sm'>
+                Include raw email data
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='h-6 w-6 p-1 text-gray-500'
+                    aria-label='Learn more about raw email data'
+                  >
+                    <Info className='h-4 w-4' />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side='top' align='center' className='z-[100] max-w-[300px] p-3'>
+                  <p className='text-sm'>{TOOLTIPS.includeRawEmail}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
         </div>
       </ConfigSection>
 
@@ -296,7 +372,7 @@ export function GmailConfig({
         title='Gmail Event Payload Example'
       >
         <div className='overflow-wrap-anywhere mt-2 whitespace-normal break-normal font-mono text-sm'>
-          <JSONView data={exampleEmailEvent} />
+          <JSONView data={getExampleEmailEvent(includeRawEmail)} />
         </div>
       </Notice>
     </div>

@@ -26,7 +26,6 @@ const desktopNavContainerVariants = {
     transition: {
       delay: 0.2,
       duration: 0.3,
-      ease: 'easeOut',
     },
   },
 }
@@ -35,23 +34,17 @@ const mobileSheetContainerVariants = {
   hidden: { x: '100%' },
   visible: {
     x: 0,
-    transition: { duration: 0.3, ease: 'easeInOut' },
+    transition: { duration: 0.3 },
   },
   exit: {
     x: '100%',
-    transition: { duration: 0.2, ease: 'easeIn' },
+    transition: { duration: 0.2 },
   },
 }
 
 const mobileNavItemsContainerVariants = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      delayChildren: 0.1, // Delay before starting stagger
-      staggerChildren: 0.08, // Stagger delay between items
-    },
-  },
+  visible: { opacity: 1 },
 }
 
 const mobileNavItemVariants = {
@@ -59,7 +52,7 @@ const mobileNavItemVariants = {
   visible: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.3, ease: 'easeOut' },
+    transition: { duration: 0.3 },
   },
 }
 
@@ -68,7 +61,7 @@ const mobileButtonVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.3, ease: 'easeOut' },
+    transition: { duration: 0.3 },
   },
 }
 // --- End Framer Motion Variants ---
@@ -218,6 +211,7 @@ export default function NavClient({
             variants={desktopNavContainerVariants}
             initial='hidden'
             animate='visible'
+            transition={{ delay: 0.2, duration: 0.3, ease: 'easeOut' }}
           >
             <NavLinks currentPath={currentPath} onContactClick={onContactClick} />
           </motion.div>
@@ -232,7 +226,7 @@ export default function NavClient({
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeOut', delay: 0.4 }}
+                  transition={{ duration: 0.3, delay: 0.4 }}
                 >
                   <Link
                     href='https://form.typeform.com/to/jqCO12pF'
@@ -266,6 +260,7 @@ export default function NavClient({
                       initial='hidden'
                       animate='visible'
                       exit='exit'
+                      transition={{ duration: 0.3, ease: 'easeInOut' }}
                       className='fixed inset-y-0 right-0 z-50'
                     >
                       <SheetContent
@@ -282,6 +277,10 @@ export default function NavClient({
                           variants={mobileNavItemsContainerVariants}
                           initial='hidden'
                           animate='visible'
+                          transition={{
+                            delayChildren: 0.1,
+                            staggerChildren: 0.08,
+                          }}
                         >
                           <NavLinks
                             mobile

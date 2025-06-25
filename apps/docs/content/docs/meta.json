@@ -12,7 +12,10 @@
     "---Execution---",
     "execution",
     "---Advanced---",
-    "./variables/index"
+    "./variables/index",
+    "---SDKs---",
+    "./sdks/python",
+    "./sdks/typescript"
   ],
   "defaultOpen": true
 }

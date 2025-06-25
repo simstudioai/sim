@@ -11,7 +11,7 @@ import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import type { BlockLog } from '@/executor/types'
 import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/utils'
+import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 declare global {
@@ -21,12 +21,10 @@ declare global {
 const logger = createLogger('ChatAuthUtils')
 const isDevelopment = env.NODE_ENV === 'development'
 
-// Simple encryption for the auth token
 export const encryptAuthToken = (subdomainId: string, type: string): string => {
   return Buffer.from(`${subdomainId}:${type}:${Date.now()}`).toString('base64')
 }
 
-// Decrypt and validate the auth token
 export const validateAuthToken = (token: string, subdomainId: string): boolean => {
   try {
     const decoded = Buffer.from(token, 'base64').toString()
@@ -211,32 +209,6 @@ export async function validateChatAuth(
 }
 
 /**
- * Extract a specific output from a block using the blockId and path
- * This mimics how the chat panel extracts outputs from blocks
- */
-function _extractBlockOutput(logs: any[], blockId: string, path?: string) {
-  // Find the block in logs
-  const blockLog = logs.find((log) => log.blockId === blockId)
-  if (!blockLog || !blockLog.output) return null
-
-  // If no specific path, return the full output
-  if (!path) return blockLog.output
-
-  // Navigate the path to extract the specific output
-  let result = blockLog.output
-  const pathParts = path.split('.')
-
-  for (const part of pathParts) {
-    if (result === null || result === undefined || typeof result !== 'object') {
-      return null
-    }
-    result = result[part]
-  }
-
-  return result
-}
-
-/**
  * Executes a workflow for a chat request and returns the formatted output.
  *
  * When workflows reference <start.response.input>, they receive a structured JSON
@@ -251,11 +223,13 @@ export async function executeWorkflowForChat(
   chatId: string,
   message: string,
   conversationId?: string
-) {
+): Promise<any> {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   logger.debug(
-    `[${requestId}] Executing workflow for chat: ${chatId}${conversationId ? `, conversationId: ${conversationId}` : ''}`
+    `[${requestId}] Executing workflow for chat: ${chatId}${
+      conversationId ? `, conversationId: ${conversationId}` : ''
+    }`
   )
 
   // Find the chat deployment
@@ -431,373 +405,108 @@ export async function executeWorkflowForChat(
     {} as Record<string, Record<string, any>>
   )
 
-  // Create and execute the workflow - mimicking use-workflow-execution.ts
-  const executor = new Executor({
-    workflow: serializedWorkflow,
-    currentBlockStates: processedBlockStates,
-    envVarValues: decryptedEnvVars,
-    workflowInput: { input: message, conversationId },
-    workflowVariables,
-    contextExtensions: {
-      // Always request streaming – the executor will downgrade gracefully if unsupported
-      stream: true,
-      selectedOutputIds: outputBlockIds,
-      edges: edges.map((e: any) => ({ source: e.source, target: e.target })),
-    },
-  })
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder()
+      const streamedContent = new Map<string, string>()
 
-  // Execute and capture the result
-  const result = await executor.execute(workflowId)
+      const onStream = async (streamingExecution: any): Promise<void> => {
+        if (!streamingExecution.stream) return
 
-  // If the executor returned a ReadableStream, forward it directly for streaming
-  if (result instanceof ReadableStream) {
-    return result
-  }
-
-  // Handle StreamingExecution format (combined stream + execution data)
-  if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
-    // We need to stream the response to the client while *also* capturing the full
-    // content so that we can persist accurate logs once streaming completes.
-
-    // Duplicate the original stream – one copy goes to the client, the other we read
-    // server-side for log enrichment.
-    const [clientStream, loggingStream] = (result.stream as ReadableStream).tee()
-
-    // Kick off background processing to read the stream and persist enriched logs
-    const processingPromise = (async () => {
-      try {
-        // The stream is only used to properly drain it and prevent memory leaks
-        // All the execution data is already provided from the agent handler
-        // through the X-Execution-Data header
-        await drainStream(loggingStream)
-
-        // No need to wait for a processing promise
-        // The execution-logger.ts will handle token estimation
-
-        // We can use the execution data as-is since it's already properly structured
-        const executionData = result.execution as any
-
-        // Before persisting, clean up any response objects with zero tokens in agent blocks
-        // This prevents confusion in the console logs
-        if (executionData.logs && Array.isArray(executionData.logs)) {
-          executionData.logs.forEach((log: BlockLog) => {
-            if (log.blockType === 'agent' && log.output?.response) {
-              const response = log.output.response
-
-              // Check for zero tokens that will be estimated later
-              if (
-                response.tokens &&
-                (!response.tokens.completion || response.tokens.completion === 0) &&
-                (!response.toolCalls ||
-                  !response.toolCalls.list ||
-                  response.toolCalls.list.length === 0)
-              ) {
-                // Remove tokens from console display to avoid confusion
-                // They'll be properly estimated in the execution logger
-                response.tokens = undefined
-              }
+        const blockId = streamingExecution.execution?.blockId
+        const reader = streamingExecution.stream.getReader()
+        if (blockId) {
+          streamedContent.set(blockId, '')
+        }
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) {
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ blockId, event: 'end' })}\n\n`)
+              )
+              break
             }
-          })
+            const chunk = new TextDecoder().decode(value)
+            if (blockId) {
+              streamedContent.set(blockId, (streamedContent.get(blockId) || '') + chunk)
+            }
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ blockId, chunk })}\n\n`))
+          }
+        } catch (error) {
+          logger.error('Error while reading from stream:', error)
+          controller.error(error)
         }
+      }
 
-        // Build trace spans and persist
-        const { traceSpans, totalDuration } = buildTraceSpans(executionData)
-        const enrichedResult = {
-          ...executionData,
-          traceSpans,
-          totalDuration,
-        }
+      const executor = new Executor({
+        workflow: serializedWorkflow,
+        currentBlockStates: processedBlockStates,
+        envVarValues: decryptedEnvVars,
+        workflowInput: { input: message, conversationId },
+        workflowVariables,
+        contextExtensions: {
+          stream: true,
+          selectedOutputIds: outputBlockIds,
+          edges: edges.map((e: any) => ({
+            source: e.source,
+            target: e.target,
+          })),
+          onStream,
+        },
+      })
 
-        // Add conversationId to metadata if available
+      const result = await executor.execute(workflowId)
+
+      if (result && 'success' in result) {
+        result.logs?.forEach((log: BlockLog) => {
+          if (streamedContent.has(log.blockId)) {
+            if (log.output?.response) {
+              log.output.response.content = streamedContent.get(log.blockId)
+            }
+          }
+        })
+
+        const { traceSpans, totalDuration } = buildTraceSpans(result)
+        const enrichedResult = { ...result, traceSpans, totalDuration }
         if (conversationId) {
           if (!enrichedResult.metadata) {
             enrichedResult.metadata = {
               duration: totalDuration,
+              startTime: new Date().toISOString(),
             }
           }
           ;(enrichedResult.metadata as any).conversationId = conversationId
         }
-
         const executionId = uuidv4()
         await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
-        logger.debug(
-          `[${requestId}] Persisted execution logs for streaming chat with ID: ${executionId}${
-            conversationId ? `, conversationId: ${conversationId}` : ''
-          }`
-        )
+        logger.debug(`Persisted logs for deployed chat: ${executionId}`)
 
-        // Update user stats for successful streaming chat execution
-        if (executionData.success) {
+        if (result.success) {
           try {
-            // Find the workflow to get the user ID
-            const workflowData = await db
-              .select({ userId: workflow.userId })
-              .from(workflow)
-              .where(eq(workflow.id, workflowId))
-              .limit(1)
-
-            if (workflowData.length > 0) {
-              const userId = workflowData[0].userId
-
-              // Update the user stats
-              await db
-                .update(userStats)
-                .set({
-                  totalChatExecutions: sql`total_chat_executions + 1`,
-                  lastActive: new Date(),
-                })
-                .where(eq(userStats.userId, userId))
-
-              logger.debug(
-                `[${requestId}] Updated user stats: incremented totalChatExecutions for streaming chat`
-              )
-            }
+            await db
+              .update(userStats)
+              .set({
+                totalChatExecutions: sql`total_chat_executions + 1`,
+                lastActive: new Date(),
+              })
+              .where(eq(userStats.userId, deployment.userId))
+            logger.debug(`Updated user stats for deployed chat: ${deployment.userId}`)
           } catch (error) {
-            // Don't fail if stats update fails
-            logger.error(`[${requestId}] Failed to update streaming chat execution stats:`, error)
+            logger.error(`Failed to update user stats for deployed chat:`, error)
           }
         }
-
-        return { success: true }
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to persist streaming chat execution logs:`, error)
-        return { success: false, error }
-      } finally {
-        // Ensure the stream is properly closed even if an error occurs
-        try {
-          const controller = new AbortController()
-          const _signal = controller.signal
-          controller.abort()
-        } catch (cleanupError) {
-          logger.debug(`[${requestId}] Error during stream cleanup: ${cleanupError}`)
-        }
-      }
-    })()
-
-    // Register this processing promise with a global handler or tracker if needed
-    // This allows the background task to be monitored or waited for in testing
-    if (typeof global.__chatStreamProcessingTasks !== 'undefined') {
-      global.__chatStreamProcessingTasks.push(
-        processingPromise as Promise<{ success: boolean; error?: any }>
-      )
-    }
-
-    // Return the client-facing stream
-    return clientStream
-  }
-
-  // Mark as chat execution in metadata
-  if (result) {
-    ;(result as any).metadata = {
-      ...(result.metadata || {}),
-      source: 'chat',
-    }
-
-    // Add conversationId to metadata if available
-    if (conversationId) {
-      ;(result as any).metadata.conversationId = conversationId
-    }
-  }
-
-  // Update user stats to increment totalChatExecutions if the execution was successful
-  if (result.success) {
-    try {
-      // Find the workflow to get the user ID
-      const workflowData = await db
-        .select({ userId: workflow.userId })
-        .from(workflow)
-        .where(eq(workflow.id, workflowId))
-        .limit(1)
-
-      if (workflowData.length > 0) {
-        const userId = workflowData[0].userId
-
-        // Update the user stats
-        await db
-          .update(userStats)
-          .set({
-            totalChatExecutions: sql`total_chat_executions + 1`,
-            lastActive: new Date(),
-          })
-          .where(eq(userStats.userId, userId))
-
-        logger.debug(`[${requestId}] Updated user stats: incremented totalChatExecutions`)
-      }
-    } catch (error) {
-      // Don't fail the chat response if stats update fails
-      logger.error(`[${requestId}] Failed to update chat execution stats:`, error)
-    }
-  }
-
-  // Persist execution logs using the 'chat' trigger type for non-streaming results
-  try {
-    // Build trace spans to enrich the logs (same as in use-workflow-execution.ts)
-    const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-    // Create enriched result with trace data
-    const enrichedResult = {
-      ...result,
-      traceSpans,
-      totalDuration,
-    }
-
-    // Add conversation ID to metadata if available
-    if (conversationId) {
-      if (!enrichedResult.metadata) {
-        enrichedResult.metadata = {
-          duration: totalDuration,
-        }
-      }
-      ;(enrichedResult.metadata as any).conversationId = conversationId
-    }
-
-    // Generate a unique execution ID for this chat interaction
-    const executionId = uuidv4()
-
-    // Persist the logs with 'chat' trigger type
-    await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
-
-    logger.debug(
-      `[${requestId}] Persisted execution logs for chat with ID: ${executionId}${
-        conversationId ? `, conversationId: ${conversationId}` : ''
-      }`
-    )
-  } catch (error) {
-    // Don't fail the chat response if logging fails
-    logger.error(`[${requestId}] Failed to persist chat execution logs:`, error)
-  }
-
-  if (!result.success) {
-    logger.error(`[${requestId}] Workflow execution failed:`, result.error)
-    throw new Error(`Workflow execution failed: ${result.error}`)
-  }
-
-  logger.debug(
-    `[${requestId}] Workflow executed successfully, blocks executed: ${result.logs?.length || 0}`
-  )
-
-  // Get the outputs from all selected blocks
-  const outputs: { content: any }[] = []
-  let hasFoundOutputs = false
-
-  if (outputBlockIds.length > 0 && result.logs) {
-    logger.debug(
-      `[${requestId}] Looking for outputs from ${outputBlockIds.length} configured blocks`
-    )
-
-    // Extract outputs from each selected block
-    for (let i = 0; i < outputBlockIds.length; i++) {
-      const blockId = outputBlockIds[i]
-      const path = outputPaths[i] || undefined
-
-      logger.debug(
-        `[${requestId}] Looking for output from block ${blockId} with path ${path || 'none'}`
-      )
-
-      // Find the block log entry
-      const blockLog = result.logs.find((log) => log.blockId === blockId)
-      if (!blockLog || !blockLog.output) {
-        logger.debug(`[${requestId}] No output found for block ${blockId}`)
-        continue
       }
 
-      // Extract the specific path if provided
-      let specificOutput = blockLog.output
-      if (path) {
-        logger.debug(`[${requestId}] Extracting path ${path} from output`)
-        const pathParts = path.split('.')
-        for (const part of pathParts) {
-          if (
-            specificOutput === null ||
-            specificOutput === undefined ||
-            typeof specificOutput !== 'object'
-          ) {
-            logger.debug(`[${requestId}] Cannot extract path ${part}, output is not an object`)
-            specificOutput = null
-            break
-          }
-          specificOutput = specificOutput[part]
-        }
+      if (!(result && typeof result === 'object' && 'stream' in result)) {
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
+        )
       }
 
-      if (specificOutput !== null && specificOutput !== undefined) {
-        logger.debug(`[${requestId}] Found output for block ${blockId}`)
-        outputs.push({
-          content: specificOutput,
-        })
-        hasFoundOutputs = true
-      }
-    }
-  }
+      controller.close()
+    },
+  })
 
-  // If no specific outputs were found, use the final result
-  if (!hasFoundOutputs) {
-    logger.debug(`[${requestId}] No specific outputs found, using final output`)
-    if (result.output) {
-      if (result.output.response) {
-        outputs.push({
-          content: result.output.response,
-        })
-      } else {
-        outputs.push({
-          content: result.output,
-        })
-      }
-    }
-  }
-
-  // Simplify the response format to match what the chat panel expects
-  if (outputs.length === 1) {
-    const content = outputs[0].content
-    // Don't wrap strings in an object
-    if (typeof content === 'string') {
-      return {
-        id: uuidv4(),
-        content: content,
-        timestamp: new Date().toISOString(),
-        type: 'workflow',
-      }
-    }
-    // Return the content directly - avoid extra nesting
-    return {
-      id: uuidv4(),
-      content: content,
-      timestamp: new Date().toISOString(),
-      type: 'workflow',
-    }
-  }
-  if (outputs.length > 1) {
-    // For multiple outputs, create a structured object that can be handled better by the client
-    // This approach allows the client to decide how to render multiple outputs
-    return {
-      id: uuidv4(),
-      multipleOutputs: true,
-      contents: outputs.map((o) => o.content),
-      timestamp: new Date().toISOString(),
-      type: 'workflow',
-    }
-  }
-  // Fallback for no outputs - should rarely happen
-  return {
-    id: uuidv4(),
-    content: 'No output returned from workflow',
-    timestamp: new Date().toISOString(),
-    type: 'workflow',
-  }
-}
-
-/**
- * Utility function to properly drain a stream to prevent memory leaks
- */
-async function drainStream(stream: ReadableStream): Promise<void> {
-  const reader = stream.getReader()
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      // We don't need to do anything with the value, just drain the stream
-    }
-  } finally {
-    reader.releaseLock()
-  }
+  return stream
 }

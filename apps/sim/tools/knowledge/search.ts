@@ -4,13 +4,14 @@ import type { KnowledgeSearchResponse } from './types'
 export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
   id: 'knowledge_search',
   name: 'Knowledge Search',
-  description: 'Search for similar content in a knowledge base using vector similarity',
+  description: 'Search for similar content in one or more knowledge bases using vector similarity',
   version: '1.0.0',
   params: {
-    knowledgeBaseId: {
+    knowledgeBaseIds: {
       type: 'string',
       required: true,
-      description: 'ID of the knowledge base to search in',
+      description:
+        'ID of the knowledge base to search in, or comma-separated IDs for multiple knowledge bases',
     },
     query: {
       type: 'string',
@@ -29,11 +30,30 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      knowledgeBaseId: params.knowledgeBaseId,
-      query: params.query,
-      topK: params.topK ? Number.parseInt(params.topK.toString()) : 10,
-    }),
+    body: (params) => {
+      const workflowId = params._context?.workflowId
+
+      // Handle multiple knowledge base IDs
+      let knowledgeBaseIds = params.knowledgeBaseIds
+      if (typeof knowledgeBaseIds === 'string' && knowledgeBaseIds.includes(',')) {
+        // Split comma-separated string into array
+        knowledgeBaseIds = knowledgeBaseIds
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0)
+      }
+
+      const requestBody = {
+        knowledgeBaseIds,
+        query: params.query,
+        topK: params.topK
+          ? Math.max(1, Math.min(100, Number.parseInt(params.topK.toString()) || 10))
+          : 10,
+        ...(workflowId && { workflowId }),
+      }
+
+      return requestBody
+    },
     isInternalRoute: true,
   },
   transformResponse: async (response): Promise<KnowledgeSearchResponse> => {
@@ -53,10 +73,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         output: {
           results: data.results || [],
           query: data.query,
-          knowledgeBaseId: data.knowledgeBaseId,
-          topK: data.topK,
           totalResults: data.totalResults || 0,
-          message: `Found ${data.totalResults || 0} similar results`,
         },
       }
     } catch (error: any) {
@@ -65,10 +82,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         output: {
           results: [],
           query: '',
-          knowledgeBaseId: '',
-          topK: 0,
           totalResults: 0,
-          message: `Vector search failed: ${error.message || 'Unknown error'}`,
         },
         error: `Vector search failed: ${error.message || 'Unknown error'}`,
       }
@@ -81,10 +95,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       output: {
         results: [],
         query: '',
-        knowledgeBaseId: '',
-        topK: 0,
         totalResults: 0,
-        message: errorMessage,
       },
       error: errorMessage,
     }

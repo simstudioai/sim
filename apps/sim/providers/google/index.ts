@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
+import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
 const logger = createLogger('GoogleProvider')
@@ -90,8 +91,8 @@ export const googleProvider: ProviderConfig = {
   name: 'Google',
   description: "Google's Gemini models",
   version: '1.0.0',
-  models: ['gemini-2.5-pro-exp-03-25', 'gemini-2.5-flash-preview-04-17'],
-  defaultModel: 'gemini-2.5-pro-exp-03-25',
+  models: getProviderModels('google'),
+  defaultModel: getProviderDefaultModel('google'),
 
   executeRequest: async (
     request: ProviderRequest
@@ -101,7 +102,7 @@ export const googleProvider: ProviderConfig = {
     }
 
     logger.info('Preparing Google Gemini request', {
-      model: request.model || 'gemini-2.5-pro-exp-03-25',
+      model: request.model || 'gemini-2.5-pro',
       hasSystemPrompt: !!request.systemPrompt,
       hasMessages: !!request.messages?.length,
       hasTools: !!request.tools?.length,
@@ -118,7 +119,7 @@ export const googleProvider: ProviderConfig = {
       // Convert messages to Gemini format
       const { contents, tools, systemInstruction } = convertToGeminiFormat(request)
 
-      const requestedModel = request.model || 'gemini-2.5-pro-exp-03-25'
+      const requestedModel = request.model || 'gemini-2.5-pro'
 
       // Build request payload
       const payload: any = {

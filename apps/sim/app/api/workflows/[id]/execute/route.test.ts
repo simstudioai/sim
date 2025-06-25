@@ -109,6 +109,7 @@ describe('Workflow Execution API Route', () => {
     // Mock workflow run counts
     vi.doMock('@/lib/workflows/utils', () => ({
       updateWorkflowRunCounts: vi.fn().mockResolvedValue(undefined),
+      workflowHasResponseBlock: vi.fn().mockReturnValue(false),
     }))
 
     // Mock database

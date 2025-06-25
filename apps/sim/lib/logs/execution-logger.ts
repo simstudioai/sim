@@ -87,7 +87,7 @@ export async function persistExecutionLogs(
 
     const userId = workflowRecord.userId
 
-    // Track accumulated cost data across all agent blocks
+    // Track accumulated cost data across all LLM blocks (agent, router, and evaluator)
     let totalCost = 0
     let totalInputCost = 0
     let totalOutputCost = 0
@@ -102,11 +102,17 @@ export async function persistExecutionLogs(
       // Check for agent block and tool calls
       let metadata: ToolCallMetadata | undefined
 
-      // If this is an agent block
-      if (log.blockType === 'agent' && log.output) {
-        logger.debug('Processing agent block output for tool calls', {
+      // If this is an agent, router, or evaluator block (all use LLM providers and generate costs)
+      if (
+        (log.blockType === 'agent' ||
+          log.blockType === 'router' ||
+          log.blockType === 'evaluator') &&
+        log.output
+      ) {
+        logger.debug('Processing LLM-based block output for tool calls and cost tracking', {
           blockId: log.blockId,
           blockName: log.blockName,
+          blockType: log.blockType,
           outputKeys: Object.keys(log.output),
           hasToolCalls: !!log.output.toolCalls,
           hasResponse: !!log.output.response,
@@ -165,7 +171,7 @@ export async function persistExecutionLogs(
           }
         }
 
-        // Special case for streaming responses from agent blocks
+        // Special case for streaming responses from LLM blocks (agent, router, and evaluator)
         // This format has both stream and executionData properties
         if (log.output.stream && log.output.executionData) {
           logger.debug('Found streaming response with executionData', {

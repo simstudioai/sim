@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -24,10 +24,11 @@ interface CodeProps {
   isConnecting: boolean
   placeholder?: string
   language?: 'javascript' | 'json'
-  generationType?: 'javascript-function-body' | 'json-schema'
+  generationType?: 'javascript-function-body' | 'json-schema' | 'json-object'
   value?: string
   isPreview?: boolean
   previewValue?: string | null
+  disabled?: boolean
 }
 
 if (typeof document !== 'undefined') {
@@ -58,12 +59,19 @@ export function Code({
   value: propValue,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
-  const aiPromptPlaceholder =
-    language === 'json'
-      ? 'Describe the JSON schema to generate...'
-      : 'Describe the JavaScript code to generate...'
+  const aiPromptPlaceholder = useMemo(() => {
+    switch (generationType) {
+      case 'json-schema':
+        return 'Describe the JSON schema to generate...'
+      case 'json-object':
+        return 'Describe the JSON object to generate...'
+      default:
+        return 'Describe the JavaScript code to generate...'
+    }
+  }, [generationType])
 
   // State management
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
@@ -81,7 +89,8 @@ export function Code({
     (useSubBlockStore((state) => state.getValue(blockId, collapsedStateKey)) as boolean) ?? false
   const setCollapsedValue = useSubBlockStore((state) => state.setValue)
 
-  const showCollapseButton = subBlockId === 'responseFormat' && code.split('\n').length > 5
+  const showCollapseButton =
+    (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5
 
   const editorRef = useRef<HTMLDivElement>(null)
 
@@ -101,7 +110,7 @@ export function Code({
 
   const handleGeneratedContent = (generatedCode: string) => {
     setCode(generatedCode)
-    if (!isPreview) {
+    if (!isPreview && !disabled) {
       setStoreValue(generatedCode)
     }
   }
@@ -110,7 +119,7 @@ export function Code({
   const handleStreamChunk = (chunk: string) => {
     setCode((currentCode) => {
       const newCode = currentCode + chunk
-      if (!isPreview) {
+      if (!isPreview && !disabled) {
         setStoreValue(newCode)
       }
       return newCode
@@ -377,7 +386,7 @@ export function Code({
           <Editor
             value={code}
             onValueChange={(newCode) => {
-              if (!isCollapsed && !isAiStreaming && !isPreview) {
+              if (!isCollapsed && !isAiStreaming && !isPreview && !disabled) {
                 setCode(newCode)
                 setStoreValue(newCode)
 

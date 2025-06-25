@@ -8,7 +8,6 @@ export interface ChunkingConfig {
   minCharactersPerChunk?: number
   recipe?: string
   lang?: string
-  overlapTokens?: number
   strategy?: 'recursive' | 'semantic' | 'sentence' | 'paragraph'
   [key: string]: unknown
 }
@@ -33,7 +32,6 @@ export interface DocumentData {
   fileUrl: string
   fileSize: number
   mimeType: string
-  fileHash?: string | null
   chunkCount: number
   tokenCount: number
   characterCount: number
@@ -54,10 +52,7 @@ export interface ChunkData {
   enabled: boolean
   startOffset: number
   endOffset: number
-  overlapTokens: number
   metadata: Record<string, unknown>
-  searchRank: string
-  qualityScore: string | null
   createdAt: string
   updatedAt: string
 }
@@ -288,9 +283,14 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   ) => {
     const state = get()
 
-    // Return cached chunks if they exist and match the search criteria
+    // Return cached chunks if they exist and match the exact search criteria AND offset
     const cached = state.chunks[documentId]
-    if (cached && cached.searchQuery === options?.search) {
+    if (
+      cached &&
+      cached.searchQuery === options?.search &&
+      cached.pagination.offset === (options?.offset || 0) &&
+      cached.pagination.limit === (options?.limit || 50)
+    ) {
       return cached.chunks
     }
 
@@ -331,7 +331,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         chunks: {
           ...state.chunks,
           [documentId]: {
-            chunks,
+            chunks, // Always replace chunks for traditional pagination
             pagination: {
               total: pagination?.total || chunks.length,
               limit: pagination?.limit || options?.limit || 50,
@@ -571,11 +571,11 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         loadingChunks: new Set([...state.loadingChunks, documentId]),
       }))
 
-      // Build query parameters
+      // Build query parameters - for refresh, always start from offset 0
       const params = new URLSearchParams()
       if (options?.search) params.set('search', options.search)
       if (options?.limit) params.set('limit', options.limit.toString())
-      if (options?.offset) params.set('offset', options.offset.toString())
+      params.set('offset', '0') // Always start fresh on refresh
 
       const response = await fetch(
         `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks?${params.toString()}`
@@ -598,11 +598,11 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         chunks: {
           ...state.chunks,
           [documentId]: {
-            chunks, // Use server data as source of truth
+            chunks, // Replace all chunks with fresh data
             pagination: {
               total: pagination?.total || chunks.length,
               limit: pagination?.limit || options?.limit || 50,
-              offset: pagination?.offset || options?.offset || 0,
+              offset: 0, // Reset to start
               hasMore: pagination?.hasMore || false,
             },
             searchQuery: options?.search,
@@ -671,7 +671,16 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   addPendingDocuments: (knowledgeBaseId: string, newDocuments: DocumentData[]) => {
     set((state) => {
       const existingDocuments = state.documents[knowledgeBaseId] || []
-      const updatedDocuments = [...existingDocuments, ...newDocuments]
+
+      const existingIds = new Set(existingDocuments.map((doc) => doc.id))
+      const uniqueNewDocuments = newDocuments.filter((doc) => !existingIds.has(doc.id))
+
+      if (uniqueNewDocuments.length === 0) {
+        logger.warn(`No new documents to add - all ${newDocuments.length} documents already exist`)
+        return state
+      }
+
+      const updatedDocuments = [...existingDocuments, ...uniqueNewDocuments]
 
       return {
         documents: {
@@ -681,7 +690,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       }
     })
     logger.info(
-      `Added ${newDocuments.length} pending documents for knowledge base: ${knowledgeBaseId}`
+      `Added ${newDocuments.filter((doc) => !get().documents[knowledgeBaseId]?.some((existing) => existing.id === doc.id)).length} pending documents for knowledge base: ${knowledgeBaseId}`
     )
   },
 

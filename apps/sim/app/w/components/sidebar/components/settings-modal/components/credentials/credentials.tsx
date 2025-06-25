@@ -9,9 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { client, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
-import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
+import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
-import { loadFromStorage, removeFromStorage, saveToStorage } from '@/stores/workflows/persistence'
 
 const logger = createLogger('Credentials')
 
@@ -141,7 +140,30 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 
     // Handle OAuth callback
     if (code && state) {
-      // This is an OAuth callback - set success flag
+      // This is an OAuth callback - try to restore state from localStorage
+      try {
+        const stored = localStorage.getItem('pending_oauth_state')
+        if (stored) {
+          const oauthState = JSON.parse(stored)
+          logger.info('OAuth callback with restored state:', oauthState)
+
+          // Mark as pending if we have context about what service was being connected
+          if (oauthState.serviceId) {
+            setPendingService(oauthState.serviceId)
+            setShowActionRequired(true)
+          }
+
+          // Clean up the state (one-time use)
+          localStorage.removeItem('pending_oauth_state')
+        } else {
+          logger.warn('OAuth callback but no state found in localStorage')
+        }
+      } catch (error) {
+        logger.error('Error loading OAuth state from localStorage:', error)
+        localStorage.removeItem('pending_oauth_state') // Clean up corrupted state
+      }
+
+      // Set success flag
       setAuthSuccess(true)
 
       // Refresh connections to show the new connection
@@ -157,50 +179,6 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     }
   }, [searchParams, router, userId])
 
-  // Check for pending OAuth connections and return URL
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    // Check if there's a pending OAuth connection
-    const serviceId = loadFromStorage<string>('pending_service_id')
-    const scopes = loadFromStorage<string[]>('pending_oauth_scopes') || []
-    const returnUrl = loadFromStorage<string>('pending_oauth_return_url')
-    const fromOAuthModal = loadFromStorage<boolean>('from_oauth_modal')
-
-    if (serviceId) {
-      setPendingService(serviceId)
-      setPendingScopes(scopes)
-
-      // Only show action required notification if navigated from the OAuth modal
-      setShowActionRequired(!!fromOAuthModal)
-
-      // Clear the pending connection after a short delay
-      // This gives the user time to see the highlighted connection
-      setTimeout(() => {
-        removeFromStorage('pending_service_id')
-        removeFromStorage('pending_oauth_scopes')
-        removeFromStorage('from_oauth_modal')
-      }, 500)
-    }
-
-    // Handle successful authentication return
-    if (authSuccess && returnUrl && onOpenChange) {
-      // Clear the success flag
-      setAuthSuccess(false)
-      removeFromStorage('pending_oauth_return_url')
-
-      // Close the settings modal and return to workflow
-      setTimeout(() => {
-        onOpenChange(false)
-
-        // Navigate back to the workflow if needed
-        if (returnUrl !== window.location.href) {
-          router.push(returnUrl)
-        }
-      }, 1500) // Slightly longer delay to show the connected state
-    }
-  }, [authSuccess, onOpenChange, router])
-
   // Fetch services on mount
   useEffect(() => {
     if (userId) {
@@ -212,12 +190,6 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   const handleConnect = async (service: ServiceInfo) => {
     try {
       setIsConnecting(service.id)
-
-      // Store information about the connection
-      saveToStorage<string>('pending_service_id', service.id)
-      saveToStorage<string[]>('pending_oauth_scopes', service.scopes)
-      saveToStorage<string>('pending_oauth_return_url', window.location.href)
-      saveToStorage<string>('pending_oauth_provider_id', service.providerId)
 
       logger.info('Connecting service:', {
         serviceId: service.id,

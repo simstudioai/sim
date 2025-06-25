@@ -2,7 +2,13 @@ import { stripe } from '@better-auth/stripe'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
-import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
+import {
+  createAuthMiddleware,
+  emailOTP,
+  genericOAuth,
+  oneTimeToken,
+  organization,
+} from 'better-auth/plugins'
 import { and, eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { Resend } from 'resend'
@@ -16,7 +22,8 @@ import {
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
-import { env } from './env'
+import { getBaseURL } from './auth-client'
+import { env, isTruthy } from './env'
 import { getEmailDomain } from './urls/utils'
 
 const logger = createLogger('Auth')
@@ -55,6 +62,12 @@ const resend = validResendAPIKEY
     }
 
 export const auth = betterAuth({
+  baseURL: getBaseURL(),
+  trustedOrigins: [
+    env.NEXT_PUBLIC_APP_URL,
+    ...(env.NEXT_PUBLIC_VERCEL_URL ? [`https://${env.NEXT_PUBLIC_VERCEL_URL}`] : []),
+    ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
+  ].filter(Boolean),
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema,
@@ -93,10 +106,15 @@ export const auth = betterAuth({
                 },
               }
             }
-            logger.info('No organizations found for user', { userId: session.userId })
+            logger.info('No organizations found for user', {
+              userId: session.userId,
+            })
             return { data: session }
           } catch (error) {
-            logger.error('Error setting active organization', { error, userId: session.userId })
+            logger.error('Error setting active organization', {
+              error,
+              userId: session.userId,
+            })
             return { data: session }
           }
         },
@@ -158,8 +176,19 @@ export const auth = betterAuth({
       }
     },
   },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path.startsWith('/sign-up') && isTruthy(env.DISABLE_REGISTRATION))
+        throw new Error('Registration is disabled, please contact your admin.')
+
+      return
+    }),
+  },
   plugins: [
     nextCookies(),
+    oneTimeToken({
+      expiresIn: 10, // 10 minutes - enough time for socket connection
+    }),
     emailOTP({
       sendVerificationOTP: async (data: {
         email: string
@@ -469,7 +498,9 @@ export const auth = betterAuth({
                     userId = decodedToken.sub
                   }
                 } catch (e) {
-                  logger.warn('Failed to decode Supabase ID token', { error: e })
+                  logger.warn('Failed to decode Supabase ID token', {
+                    error: e,
+                  })
                 }
               }
 
@@ -952,7 +983,7 @@ export const auth = betterAuth({
                   name: 'free',
                   priceId: env.STRIPE_FREE_PRICE_ID || '',
                   limits: {
-                    cost: env.FREE_TIER_COST_LIMIT ? Number.parseInt(env.FREE_TIER_COST_LIMIT) : 5,
+                    cost: env.FREE_TIER_COST_LIMIT ?? 5,
                     sharingEnabled: 0,
                     multiplayerEnabled: 0,
                     workspaceCollaborationEnabled: 0,
@@ -962,7 +993,7 @@ export const auth = betterAuth({
                   name: 'pro',
                   priceId: env.STRIPE_PRO_PRICE_ID || '',
                   limits: {
-                    cost: env.PRO_TIER_COST_LIMIT ? Number.parseInt(env.PRO_TIER_COST_LIMIT) : 20,
+                    cost: env.PRO_TIER_COST_LIMIT ?? 20,
                     sharingEnabled: 1,
                     multiplayerEnabled: 0,
                     workspaceCollaborationEnabled: 0,
@@ -972,7 +1003,7 @@ export const auth = betterAuth({
                   name: 'team',
                   priceId: env.STRIPE_TEAM_PRICE_ID || '',
                   limits: {
-                    cost: env.TEAM_TIER_COST_LIMIT ? Number.parseInt(env.TEAM_TIER_COST_LIMIT) : 40, // $40 per seat
+                    cost: env.TEAM_TIER_COST_LIMIT ?? 40, // $40 per seat
                     sharingEnabled: 1,
                     multiplayerEnabled: 1,
                     workspaceCollaborationEnabled: 1,

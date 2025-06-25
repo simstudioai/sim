@@ -288,6 +288,48 @@
       "when": 1749514555378,
       "tag": "0041_sparkling_ma_gnuci",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1749784177503,
+      "tag": "0042_breezy_miracleman",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1750193663357,
+      "tag": "0043_silent_the_anarchist",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1750369626350,
+      "tag": "0044_uneven_killer_shrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1750379637336,
+      "tag": "0045_sour_chameleon",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1750527995274,
+      "tag": "0046_loose_blizzard",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1750794256278,
+      "tag": "0047_new_triathlon",
+      "breakpoints": true
     }
   ]
 }

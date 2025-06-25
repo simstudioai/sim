@@ -2,6 +2,7 @@ import { Groq } from 'groq-sdk'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
+import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
 const logger = createLogger('GroqProvider')
@@ -32,12 +33,8 @@ export const groqProvider: ProviderConfig = {
   name: 'Groq',
   description: "Groq's LLM models with high-performance inference",
   version: '1.0.0',
-  models: [
-    'groq/meta-llama/llama-4-scout-17b-16e-instruct',
-    'groq/deepseek-r1-distill-llama-70b',
-    'groq/qwen-2.5-32b',
-  ],
-  defaultModel: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+  models: getProviderModels('groq'),
+  defaultModel: getProviderDefaultModel('groq'),
 
   executeRequest: async (
     request: ProviderRequest

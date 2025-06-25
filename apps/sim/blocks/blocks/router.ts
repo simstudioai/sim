@@ -1,6 +1,7 @@
 import { ConnectIcon } from '@/components/icons'
+import { isHosted } from '@/lib/environment'
 import type { ProviderId } from '@/providers/types'
-import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
+import { getAllModelProviders, getBaseModelProviders, getHostedModels } from '@/providers/utils'
 import { useOllamaStore } from '@/stores/ollama/store'
 import type { ToolResponse } from '@/tools/types'
 import type { BlockConfig } from '../types'
@@ -13,6 +14,11 @@ interface RouterResponse extends ToolResponse {
       prompt?: number
       completion?: number
       total?: number
+    }
+    cost?: {
+      input: number
+      output: number
+      total: number
     }
     selectedPath: {
       blockId: string
@@ -125,6 +131,14 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
+      // Hide API key for all hosted models when running on hosted version
+      condition: isHosted
+        ? {
+            field: 'model',
+            value: getHostedModels(),
+            not: true, // Show for all models EXCEPT those listed
+          }
+        : undefined, // Show for all models in non-hosted environments
     },
     {
       id: 'systemPrompt',
@@ -171,6 +185,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
         content: 'string',
         model: 'string',
         tokens: 'any',
+        cost: 'any',
         selectedPath: 'json',
       },
     },

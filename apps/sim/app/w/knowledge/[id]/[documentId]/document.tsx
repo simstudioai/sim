@@ -1,11 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Circle, CircleOff, FileText, Plus, Search, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  CircleOff,
+  FileText,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { ActionBar } from '@/app/w/knowledge/[id]/components/action-bar/action-bar'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -27,7 +38,7 @@ interface DocumentProps {
 function getStatusBadgeStyles(enabled: boolean) {
   return enabled
     ? 'inline-flex items-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-    : 'inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+    : 'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
 }
 
 function truncateContent(content: string, maxLength = 150): string {
@@ -54,22 +65,58 @@ export function Document({
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isBulkOperating, setIsBulkOperating] = useState(false)
 
   const [document, setDocument] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Use the new chunks hook
+  // Use the updated chunks hook with pagination
   const {
     chunks,
     isLoading: isLoadingChunks,
     error: chunksError,
+    currentPage,
+    totalPages,
+    hasNextPage,
+    hasPrevPage,
+    goToPage,
+    nextPage,
+    prevPage,
     refreshChunks,
     updateChunk,
   } = useDocumentChunks(knowledgeBaseId, documentId)
 
   // Combine errors
   const combinedError = error || chunksError
+
+  // Handle pagination navigation
+  const handlePrevPage = useCallback(() => {
+    if (hasPrevPage && !isLoadingChunks) {
+      prevPage()?.catch((err) => {
+        logger.error('Previous page failed:', err)
+      })
+    }
+  }, [hasPrevPage, isLoadingChunks, prevPage])
+
+  const handleNextPage = useCallback(() => {
+    if (hasNextPage && !isLoadingChunks) {
+      nextPage()?.catch((err) => {
+        logger.error('Next page failed:', err)
+      })
+    }
+  }, [hasNextPage, isLoadingChunks, nextPage])
+
+  const handleGoToPage = useCallback(
+    (page: number) => {
+      if (page !== currentPage && !isLoadingChunks) {
+        goToPage(page)?.catch((err) => {
+          logger.error('Go to page failed:', err)
+        })
+      }
+    },
+    [currentPage, isLoadingChunks, goToPage]
+  )
 
   // Try to get document from store cache first, then fetch if needed
   useEffect(() => {
@@ -222,6 +269,83 @@ export function Document({
     await refreshChunks()
   }
 
+  // Shared utility function for bulk chunk operations
+  const performBulkChunkOperation = async (
+    operation: 'enable' | 'disable' | 'delete',
+    chunks: ChunkData[]
+  ) => {
+    if (chunks.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const response = await fetch(
+        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            operation,
+            chunkIds: chunks.map((chunk) => chunk.id),
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Failed to ${operation} chunks`)
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        if (operation === 'delete') {
+          // Refresh chunks list to reflect deletions
+          await refreshChunks()
+        } else {
+          // Update successful chunks in the store for enable/disable operations
+          result.data.results.forEach((opResult: any) => {
+            if (opResult.operation === operation) {
+              opResult.chunkIds.forEach((chunkId: string) => {
+                updateChunk(chunkId, { enabled: operation === 'enable' })
+              })
+            }
+          })
+        }
+
+        logger.info(`Successfully ${operation}d ${result.data.successCount} chunks`)
+      }
+
+      // Clear selection after successful operation
+      setSelectedChunks(new Set())
+    } catch (err) {
+      logger.error(`Error ${operation}ing chunks:`, err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  const handleBulkEnable = async () => {
+    const chunksToEnable = chunks.filter((chunk) => selectedChunks.has(chunk.id) && !chunk.enabled)
+    await performBulkChunkOperation('enable', chunksToEnable)
+  }
+
+  const handleBulkDisable = async () => {
+    const chunksToDisable = chunks.filter((chunk) => selectedChunks.has(chunk.id) && chunk.enabled)
+    await performBulkChunkOperation('disable', chunksToDisable)
+  }
+
+  const handleBulkDelete = async () => {
+    const chunksToDelete = chunks.filter((chunk) => selectedChunks.has(chunk.id))
+    await performBulkChunkOperation('delete', chunksToDelete)
+  }
+
+  // Calculate bulk operation counts
+  const selectedChunksList = chunks.filter((chunk) => selectedChunks.has(chunk.id))
+  const enabledCount = selectedChunksList.filter((chunk) => chunk.enabled).length
+  const disabledCount = selectedChunksList.filter((chunk) => !chunk.enabled).length
+
   const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
 
   if (isLoadingDocument || isLoadingChunks) {
@@ -308,7 +432,7 @@ export function Document({
                   onClick={() => setIsCreateChunkModalOpen(true)}
                   disabled={document?.processingStatus === 'failed'}
                   size='sm'
-                  className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
+                  className='flex items-center gap-1 bg-[#701FFC] font-[480] text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
                 >
                   <Plus className='h-3.5 w-3.5' />
                   <span>Create Chunk</span>
@@ -566,6 +690,64 @@ export function Document({
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {document?.processingStatus === 'completed' && totalPages > 1 && (
+                  <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
+                    <div className='flex items-center gap-1'>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={handlePrevPage}
+                        disabled={!hasPrevPage || isLoadingChunks}
+                        className='h-8 w-8 p-0'
+                      >
+                        <ChevronLeft className='h-4 w-4' />
+                      </Button>
+
+                      {/* Page numbers - show a few around current page */}
+                      <div className='mx-4 flex items-center gap-6'>
+                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                          let page: number
+                          if (totalPages <= 5) {
+                            page = i + 1
+                          } else if (currentPage <= 3) {
+                            page = i + 1
+                          } else if (currentPage >= totalPages - 2) {
+                            page = totalPages - 4 + i
+                          } else {
+                            page = currentPage - 2 + i
+                          }
+
+                          if (page < 1 || page > totalPages) return null
+
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => handleGoToPage(page)}
+                              disabled={isLoadingChunks}
+                              className={`font-medium text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 ${
+                                page === currentPage ? 'text-foreground' : 'text-muted-foreground'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={handleNextPage}
+                        disabled={!hasNextPage || isLoadingChunks}
+                        className='h-8 w-8 p-0'
+                      >
+                        <ChevronRight className='h-4 w-4' />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -602,6 +784,17 @@ export function Document({
         isOpen={isDeleteModalOpen}
         onClose={handleCloseDeleteModal}
         onChunkDeleted={handleChunkDeleted}
+      />
+
+      {/* Bulk Action Bar */}
+      <ActionBar
+        selectedCount={selectedChunks.size}
+        onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
+        onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
+        onDelete={handleBulkDelete}
+        enabledCount={enabledCount}
+        disabledCount={disabledCount}
+        isLoading={isBulkOperating}
       />
     </div>
   )

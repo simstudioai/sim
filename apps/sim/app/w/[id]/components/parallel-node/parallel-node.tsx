@@ -6,7 +6,7 @@ import { StartIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { ParallelBadges } from './components/parallel-badges'
 
 const ParallelNodeStyles: React.FC = () => {
@@ -86,6 +86,7 @@ const ParallelNodeStyles: React.FC = () => {
 
 export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) => {
   const { getNodes } = useReactFlow()
+  const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
   const blockRef = useRef<HTMLDivElement>(null)
 
   // Check if this is preview mode
@@ -111,7 +112,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   const getNestedStyles = () => {
     // Base styles
     const styles: Record<string, string> = {
-      backgroundColor: 'transparent',
+      backgroundColor: 'rgba(0, 0, 0, 0.02)',
     }
 
     // Apply nested styles
@@ -140,7 +141,8 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             'z-[20]',
             data?.state === 'valid',
             nestingLevel > 0 &&
-              `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`
+              `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`,
+            data?.hasNestedError && 'border-2 border-red-500 bg-red-50/50'
           )}
           style={{
             width: data.width || 500,
@@ -187,7 +189,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
                 size='sm'
                 onClick={(e) => {
                   e.stopPropagation()
-                  useWorkflowStore.getState().removeBlock(id)
+                  collaborativeRemoveBlock(id)
                 }}
                 className='absolute top-2 right-2 z-20 text-gray-500 opacity-0 transition-opacity duration-200 hover:text-red-600 group-hover:opacity-100'
                 style={{ pointerEvents: 'auto' }}

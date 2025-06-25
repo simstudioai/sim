@@ -19,6 +19,9 @@ import { useChatStreaming } from './hooks/use-chat-streaming'
 
 const logger = createLogger('ChatClient')
 
+// Chat timeout configuration (5 minutes)
+const CHAT_REQUEST_TIMEOUT_MS = 300000
+
 interface ChatConfig {
   id: string
   title: string
@@ -285,172 +288,174 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       scrollToMessage(userMessage.id, true)
     }, 100)
 
+    // Create abort controller for request cancellation
+    const abortController = new AbortController()
+    const timeoutId = setTimeout(() => {
+      abortController.abort()
+    }, CHAT_REQUEST_TIMEOUT_MS)
+
     try {
       // Send structured payload to maintain chat context
       const payload = {
-        message: userMessage.content,
+        message:
+          typeof userMessage.content === 'string'
+            ? userMessage.content
+            : JSON.stringify(userMessage.content),
         conversationId,
       }
 
-      // Create a new AbortController for this request
-      abortControllerRef.current = new AbortController()
-
-      // Use relative URL with credentials
       const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
-        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(payload),
-        signal: abortControllerRef.current.signal,
+        credentials: 'same-origin',
+        signal: abortController.signal,
       })
 
+      // Clear timeout since request succeeded
+      clearTimeout(timeoutId)
+
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to get response')
       }
 
-      // Detect streaming response via content-type (text/plain) or absence of JSON content-type
-      const contentType = response.headers.get('Content-Type') || ''
+      if (!response.body) {
+        throw new Error('Response body is missing')
+      }
 
-      if (contentType.includes('text/plain')) {
-        const shouldPlayAudio = isVoiceInput || isVoiceFirstMode
+      const messageIdMap = new Map<string, string>()
 
-        const audioStreamHandler = shouldPlayAudio
-          ? createAudioStreamHandler(streamTextToAudio, DEFAULT_VOICE_SETTINGS.voiceId)
-          : undefined
+      // Get reader with proper cleanup
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
 
-        // Handle streaming response with audio support
-        await handleStreamedResponse(
-          response,
-          setMessages,
-          setIsLoading,
-          scrollToBottom,
-          userHasScrolled,
-          {
-            voiceSettings: {
-              isVoiceEnabled: true,
-              voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-              autoPlayResponses: isVoiceInput || isVoiceFirstMode,
-            },
-            audioStreamHandler,
+      const processStream = async () => {
+        let streamAborted = false
+
+        // Add cleanup handler for abort
+        const cleanup = () => {
+          streamAborted = true
+          try {
+            reader.releaseLock()
+          } catch (error) {
+            // Reader might already be released
+            logger.debug('Reader already released:', error)
           }
-        )
-      } else {
-        // Fallback to JSON response handling
-        const responseData = await response.json()
-        logger.info('Message response:', responseData)
+          setIsLoading(false)
+        }
 
-        // Handle different response formats from API
-        if (
-          responseData.multipleOutputs &&
-          responseData.contents &&
-          Array.isArray(responseData.contents)
-        ) {
-          // For multiple outputs, create separate assistant messages for each
-          const assistantMessages = responseData.contents.map((content: any) => {
-            // Format the content appropriately
-            let formattedContent = content
+        // Listen for abort events
+        abortController.signal.addEventListener('abort', cleanup)
 
-            // Convert objects to strings for display
-            if (typeof formattedContent === 'object' && formattedContent !== null) {
-              try {
-                formattedContent = JSON.stringify(formattedContent)
-              } catch (_e) {
-                formattedContent = 'Received structured data response'
-              }
+        try {
+          while (!streamAborted) {
+            const { done, value } = await reader.read()
+
+            if (done) {
+              setIsLoading(false)
+              break
             }
 
-            return {
-              id: crypto.randomUUID(),
-              content: formattedContent || 'No content found',
-              type: 'assistant' as const,
-              timestamp: new Date(),
+            if (streamAborted) {
+              break
             }
-          })
 
-          // Add all messages at once
-          setMessages((prev) => [...prev, ...assistantMessages])
+            const chunk = decoder.decode(value, { stream: true })
+            const lines = chunk.split('\n\n')
 
-          // Play audio for the full response if voice mode is enabled
-          if (isVoiceInput || isVoiceFirstMode) {
-            const fullContent = assistantMessages.map((m: ChatMessage) => m.content).join(' ')
-            if (fullContent.trim()) {
-              try {
-                await streamTextToAudio(fullContent, {
-                  voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                  onError: (error) => {
-                    logger.error('Audio playback error:', error)
-                  },
-                })
-              } catch (error) {
-                logger.error('TTS error:', error)
-              }
-            }
-          }
-        } else {
-          // Handle single output as before
-          let messageContent = responseData.output
-
-          if (!messageContent && responseData.content) {
-            if (typeof responseData.content === 'object') {
-              if (responseData.content.text) {
-                messageContent = responseData.content.text
-              } else {
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
                 try {
-                  messageContent = JSON.stringify(responseData.content)
-                } catch (_e) {
-                  messageContent = 'Received structured data response'
+                  const json = JSON.parse(line.substring(6))
+                  const { blockId, chunk: contentChunk, event: eventType } = json
+
+                  if (eventType === 'final') {
+                    setIsLoading(false)
+                    return
+                  }
+
+                  if (blockId && contentChunk) {
+                    if (!messageIdMap.has(blockId)) {
+                      const newMessageId = crypto.randomUUID()
+                      messageIdMap.set(blockId, newMessageId)
+                      setMessages((prev) => [
+                        ...prev,
+                        {
+                          id: newMessageId,
+                          content: contentChunk,
+                          type: 'assistant',
+                          timestamp: new Date(),
+                          isStreaming: true,
+                        },
+                      ])
+                    } else {
+                      const messageId = messageIdMap.get(blockId)
+                      if (messageId) {
+                        setMessages((prev) =>
+                          prev.map((msg) =>
+                            msg.id === messageId
+                              ? { ...msg, content: msg.content + contentChunk }
+                              : msg
+                          )
+                        )
+                      }
+                    }
+                  } else if (blockId && eventType === 'end') {
+                    const messageId = messageIdMap.get(blockId)
+                    if (messageId) {
+                      setMessages((prev) =>
+                        prev.map((msg) =>
+                          msg.id === messageId ? { ...msg, isStreaming: false } : msg
+                        )
+                      )
+                    }
+                  }
+                } catch (parseError) {
+                  logger.error('Error parsing stream data:', parseError)
+                  // Continue processing other lines even if one fails
                 }
               }
-            } else {
-              messageContent = responseData.content
             }
           }
-
-          const assistantMessage: ChatMessage = {
-            id: crypto.randomUUID(),
-            content: messageContent || "Sorry, I couldn't process your request.",
-            type: 'assistant',
-            timestamp: new Date(),
+        } catch (streamError: unknown) {
+          if (streamError instanceof Error && streamError.name === 'AbortError') {
+            logger.info('Stream processing aborted by user')
+            return
           }
 
-          setMessages((prev) => [...prev, assistantMessage])
-
-          // Play audio for the response if voice mode is enabled
-          if ((isVoiceInput || isVoiceFirstMode) && assistantMessage.content) {
-            const contentString =
-              typeof assistantMessage.content === 'string'
-                ? assistantMessage.content
-                : JSON.stringify(assistantMessage.content)
-
-            try {
-              await streamTextToAudio(contentString, {
-                voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                onError: (error) => {
-                  logger.error('Audio playback error:', error)
-                },
-              })
-            } catch (error) {
-              logger.error('TTS error:', error)
-            }
-          }
+          logger.error('Error processing stream:', streamError)
+          throw streamError
+        } finally {
+          // Ensure cleanup always happens
+          cleanup()
+          abortController.signal.removeEventListener('abort', cleanup)
         }
       }
-    } catch (error) {
-      logger.error('Error sending message:', error)
 
+      await processStream()
+    } catch (error: any) {
+      // Clear timeout in case of error
+      clearTimeout(timeoutId)
+
+      if (error.name === 'AbortError') {
+        logger.info('Request aborted by user or timeout')
+        setIsLoading(false)
+        return
+      }
+
+      logger.error('Error sending message:', error)
+      setIsLoading(false)
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         content: 'Sorry, there was an error processing your message. Please try again.',
         type: 'assistant',
         timestamp: new Date(),
       }
-
       setMessages((prev) => [...prev, errorMessage])
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -570,8 +575,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       />
 
       {/* Input area (free-standing at the bottom) */}
-      <div className='relative p-4 pb-6'>
-        <div className='relative mx-auto max-w-3xl'>
+      <div className='relative p-3 pb-4 md:p-4 md:pb-6'>
+        <div className='relative mx-auto max-w-3xl md:max-w-[748px]'>
           <ChatInput
             onSubmit={(value, isVoiceInput) => {
               void handleSendMessage(value, isVoiceInput)

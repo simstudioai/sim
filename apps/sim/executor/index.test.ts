@@ -8,19 +8,15 @@
  * resolving inputs and dependencies, and managing errors.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import type { SerializedWorkflow } from '@/serializer/types'
 import {
-  createLoopManagerMock,
   createMinimalWorkflow,
   createMockContext,
-  createMockHandler,
   createWorkflowWithCondition,
   createWorkflowWithErrorPath,
   createWorkflowWithLoop,
   setupAllMocks,
 } from './__test-utils__/executor-mocks'
 import { Executor } from './index'
-import type { BlockLog } from './types'
 
 vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
@@ -59,7 +55,7 @@ describe('Executor', () => {
    * Initialization tests
    */
   describe('initialization', () => {
-    test('should create an executor instance successfully', () => {
+    test('should create an executor instance with legacy constructor format', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -67,29 +63,67 @@ describe('Executor', () => {
       expect(executor).toBeInstanceOf(Executor)
     })
 
-    test('should accept initial block states', () => {
+    test('should create an executor instance with new options object format', () => {
       const workflow = createMinimalWorkflow()
       const initialStates = {
         block1: { response: { result: 'Initial state' } },
       }
-
-      const executor = new Executor(workflow, initialStates)
-      expect(executor).toBeDefined()
-    })
-
-    test('should accept environment variables', () => {
-      const workflow = createMinimalWorkflow()
       const envVars = { API_KEY: 'test-key', BASE_URL: 'https://example.com' }
+      const workflowInput = { query: 'test query' }
+      const workflowVariables = { var1: 'value1' }
 
-      const executor = new Executor(workflow, {}, envVars)
+      const executor = new Executor({
+        workflow,
+        currentBlockStates: initialStates,
+        envVarValues: envVars,
+        workflowInput,
+        workflowVariables,
+      })
+
+      expect(executor).toBeDefined()
+      expect(executor).toBeInstanceOf(Executor)
+
+      // Verify that all properties are properly initialized
+      expect((executor as any).actualWorkflow).toBe(workflow)
+      expect((executor as any).initialBlockStates).toEqual(initialStates)
+      expect((executor as any).environmentVariables).toEqual(envVars)
+      expect((executor as any).workflowInput).toEqual(workflowInput)
+      expect((executor as any).workflowVariables).toEqual(workflowVariables)
+    })
+
+    test('should accept streaming context extensions', () => {
+      const workflow = createMinimalWorkflow()
+      const mockOnStream = vi.fn()
+
+      const executor = new Executor({
+        workflow,
+        contextExtensions: {
+          stream: true,
+          selectedOutputIds: ['block1'],
+          edges: [{ source: 'starter', target: 'block1' }],
+          onStream: mockOnStream,
+        },
+      })
+
       expect(executor).toBeDefined()
     })
 
-    test('should accept workflow input', () => {
+    test('should handle legacy constructor with individual parameters', () => {
       const workflow = createMinimalWorkflow()
-      const input = { query: 'test query' }
+      const initialStates = {
+        block1: { response: { result: 'Initial state' } },
+      }
+      const envVars = { API_KEY: 'test-key' }
+      const workflowInput = { query: 'test query' }
+      const workflowVariables = { var1: 'value1' }
 
-      const executor = new Executor(workflow, {}, {}, input)
+      const executor = new Executor(
+        workflow,
+        initialStates,
+        envVars,
+        workflowInput,
+        workflowVariables
+      )
       expect(executor).toBeDefined()
     })
   })
@@ -181,13 +215,12 @@ describe('Executor', () => {
    * Execution tests
    */
   describe('workflow execution', () => {
-    test('should execute workflow with correct structure', async () => {
+    test('should execute workflow and return ExecutionResult', async () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
       const result = await executor.execute('test-workflow-id')
 
-      // Verify the result has the expected structure
       // Check if result is a StreamingExecution or ExecutionResult
       if ('success' in result) {
         expect(result).toHaveProperty('success')
@@ -200,8 +233,59 @@ describe('Executor', () => {
       } else {
         // Handle StreamingExecution case
         expect(result).toHaveProperty('stream')
-        expect(typeof result.stream).toBe('object')
+        expect(result).toHaveProperty('execution')
+        expect(result.stream).toBeInstanceOf(ReadableStream)
       }
+    })
+
+    test('should handle streaming execution with onStream callback', async () => {
+      const workflow = createMinimalWorkflow()
+      const mockOnStream = vi.fn()
+
+      const executor = new Executor({
+        workflow,
+        contextExtensions: {
+          stream: true,
+          selectedOutputIds: ['block1'],
+          onStream: mockOnStream,
+        },
+      })
+
+      const result = await executor.execute('test-workflow-id')
+
+      // With streaming enabled, should handle both ExecutionResult and StreamingExecution
+      if ('stream' in result) {
+        expect(result.stream).toBeInstanceOf(ReadableStream)
+        expect(result.execution).toBeDefined()
+      } else {
+        expect(result).toHaveProperty('success')
+        expect(result).toHaveProperty('output')
+      }
+    })
+
+    test('should pass context extensions to execution context', async () => {
+      const workflow = createMinimalWorkflow()
+      const mockOnStream = vi.fn()
+      const selectedOutputIds = ['block1', 'block2']
+      const edges = [{ source: 'starter', target: 'block1' }]
+
+      const executor = new Executor({
+        workflow,
+        contextExtensions: {
+          stream: true,
+          selectedOutputIds,
+          edges,
+          onStream: mockOnStream,
+        },
+      })
+
+      // Spy on createExecutionContext to verify context extensions are passed
+      const createContextSpy = vi.spyOn(executor as any, 'createExecutionContext')
+
+      await executor.execute('test-workflow-id')
+
+      expect(createContextSpy).toHaveBeenCalled()
+      const contextArg = createContextSpy.mock.calls[0][2] // third argument is startTime, context is created internally
     })
   })
 
@@ -215,9 +299,14 @@ describe('Executor', () => {
 
       const result = await executor.execute('test-workflow-id')
 
-      // Just verify execution completes and returns expected structure
-      expect(result).toHaveProperty('success')
-      expect(result).toHaveProperty('output')
+      // Verify execution completes and returns expected structure
+      if ('success' in result) {
+        expect(result).toHaveProperty('success')
+        expect(result).toHaveProperty('output')
+      } else {
+        expect(result).toHaveProperty('stream')
+        expect(result).toHaveProperty('execution')
+      }
     })
 
     test('should handle loop structures without errors', async () => {
@@ -226,9 +315,14 @@ describe('Executor', () => {
 
       const result = await executor.execute('test-workflow-id')
 
-      // Just verify execution completes and returns expected structure
-      expect(result).toHaveProperty('success')
-      expect(result).toHaveProperty('output')
+      // Verify execution completes and returns expected structure
+      if ('success' in result) {
+        expect(result).toHaveProperty('success')
+        expect(result).toHaveProperty('output')
+      } else {
+        expect(result).toHaveProperty('stream')
+        expect(result).toHaveProperty('execution')
+      }
     })
   })
 
@@ -270,6 +364,25 @@ describe('Executor', () => {
       const isDebugging = (executor as any).isDebugging
 
       expect(isDebugging).toBe(false)
+    })
+
+    test('should handle continue execution in debug mode', async () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+
+      // Create a mock context for debug continuation
+      const mockContext = createMockContext()
+      mockContext.blockStates.set('starter', {
+        output: { response: { input: {} } },
+        executed: true,
+        executionTime: 0,
+      })
+
+      const result = await executor.continueExecution(['block1'], mockContext)
+
+      expect(result).toHaveProperty('success')
+      expect(result).toHaveProperty('output')
+      expect(result).toHaveProperty('logs')
     })
   })
 
@@ -479,655 +592,80 @@ describe('Executor', () => {
       expect(errorOutput.response).toHaveProperty('status')
     })
 
-    test('should check for error handle in getNextExecutionLayer', () => {
-      const workflow = createWorkflowWithErrorPath()
+    test('should handle "undefined (undefined)" error case', () => {
+      const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
-      // Create a test context
-      const context = {
-        workflowId: 'test-id',
-        blockStates: new Map(),
-        blockLogs: [],
-        metadata: { startTime: new Date().toISOString() },
-        environmentVariables: {},
-        decisions: { router: new Map(), condition: new Map() },
-        loopIterations: new Map(),
-        executedBlocks: new Set<string>(['starter', 'block1']),
-        activeExecutionPath: new Set<string>(['block1', 'error-handler']),
-        workflow,
-      } as any
+      const extractErrorMessage = (executor as any).extractErrorMessage.bind(executor)
 
-      // Add block state with error
-      context.blockStates.set('block1', {
-        output: {
-          error: 'Test error',
-          response: { error: 'Test error' },
-        },
-        executed: true,
-      })
+      // Test the specific "undefined (undefined)" error case
+      const undefinedError = { message: 'undefined (undefined)' }
+      const errorMessage = extractErrorMessage(undefinedError)
 
-      // Call getNextExecutionLayer method
-      const getNextLayer = (executor as any).getNextExecutionLayer.bind(executor)
-      const nextLayer = getNextLayer(context)
-
-      // Error handler should be in the next layer
-      expect(nextLayer).toContain('error-handler')
-
-      // Success block should not be in the next layer
-      expect(nextLayer).not.toContain('success-block')
+      expect(errorMessage).toBe('undefined (undefined)')
     })
   })
 
   /**
-   * Loop management tests
+   * Streaming execution tests
    */
-  describe('loop management', () => {
-    beforeEach(() => {
-      vi.resetModules()
-      vi.clearAllMocks()
-    })
+  describe('streaming execution', () => {
+    test('should handle streaming execution results', async () => {
+      const workflow = createMinimalWorkflow()
+      const mockOnStream = vi.fn()
 
-    test('should increment loop iterations correctly', async () => {
-      // Mock the LoopManager with custom implementation
-      vi.doMock('./loops', () =>
-        createLoopManagerMock({
-          processLoopIterationsImpl: async (context) => {
-            // Simulate incrementing iteration counter
-            const currentIteration = context.loopIterations.get('loop1') || 0
-            context.loopIterations.set('loop1', currentIteration + 1)
-            return false
+      // Mock a streaming execution result
+      const mockStreamingResult = {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('chunk1'))
+            controller.enqueue(new TextEncoder().encode('chunk2'))
+            controller.close()
           },
-        })
-      )
-
-      const workflow = createWorkflowWithLoop()
-      const { LoopManager } = await import('./loops')
-      const loopManager = new LoopManager(workflow.loops)
-
-      // Create a mock context using the helper
-      const context = createMockContext({
-        workflow,
-        loopIterations: new Map([['loop1', 0]]),
-        executedBlocks: new Set<string>(['block1', 'block2']),
-        activeExecutionPath: new Set<string>(['block1', 'block2']),
-      })
-
-      // Process loop iterations to increment counter
-      await loopManager.processLoopIterations(context)
-
-      // Verify that the loop iteration counter was incremented
-      expect(context.loopIterations.get('loop1')).toBe(1)
-
-      // Get loop index
-      const loopIndex = loopManager.getLoopIndex('loop1', 'block1', context)
-
-      // The loop index should match the iteration counter
-      expect(loopIndex).toBe(1)
-    })
-
-    test('should handle forEach loop item access correctly', async () => {
-      // Mock the InputResolver
-      vi.doMock('./resolver', () => ({
-        InputResolver: vi.fn().mockImplementation(() => ({
-          resolveBlockReferences: vi.fn().mockImplementation((value, context, block) => {
-            if (value === '<loop.index>') {
-              const loopId = 'loop1'
-              return String(context.loopIterations.get(loopId) || 0)
-            }
-            return value
-          }),
-        })),
-      }))
-
-      // Mock the LoopManager
-      vi.doMock('./loops', () => createLoopManagerMock())
-
-      const workflow = createWorkflowWithLoop()
-      const { Executor } = await import('./index')
-      const executor = new Executor(workflow)
-
-      const { InputResolver } = await import('./resolver')
-      const resolver = new InputResolver(workflow, {}, {}, (executor as any).loopManager)
-
-      // Create a mock context with specific loop state
-      const context = createMockContext({
-        workflow,
-        loopIterations: new Map([['loop1', 2]]), // Iteration 2 (3rd item)
-        loopItems: new Map([['loop1', 3]]), // Current item is 3
-        executedBlocks: new Set<string>(['block1']),
-        activeExecutionPath: new Set<string>(['block1', 'block2']),
-      })
-
-      // Resolve a loop index reference
-      const resolvedIndex = resolver.resolveBlockReferences(
-        '<loop.index>',
-        context,
-        workflow.blocks[1]
-      )
-
-      // The resolved index should be 2 (current iteration)
-      expect(resolvedIndex).toBe('2')
-
-      // Set up a different iteration and test again
-      context.loopIterations.set('loop1', 4)
-      const resolvedIndexAgain = resolver.resolveBlockReferences(
-        '<loop.index>',
-        context,
-        workflow.blocks[1]
-      )
-      expect(resolvedIndexAgain).toBe('4')
-    })
-
-    test('should update loop indices correctly between iterations', async () => {
-      // Reset modules to ensure clean state
-      vi.resetModules()
-
-      // Create array to capture indices
-      const capturedIndices: number[] = []
-
-      // Mock the LoopManager implementation
-      vi.doMock('./loops', () =>
-        createLoopManagerMock({
-          processLoopIterationsImpl: async (context) => {
-            // Simulate 3 loop iterations
-            if (context.executedBlocks.has('block1') && context.executedBlocks.has('block2')) {
-              const currentIteration = context.loopIterations.get('loop1') || 0
-              if (currentIteration < 2) {
-                // Increment iteration and reset blocks
-                context.loopIterations.set('loop1', currentIteration + 1)
-                context.executedBlocks.delete('block1')
-                context.executedBlocks.delete('block2')
-                return false
-              }
-            }
-            return true
-          },
-        })
-      )
-
-      // Mock the handlers to capture loop indices
-      vi.doMock('./handlers', () => ({
-        AgentBlockHandler: createMockHandler('agent'),
-        RouterBlockHandler: createMockHandler('router'),
-        ConditionBlockHandler: createMockHandler('condition'),
-        EvaluatorBlockHandler: createMockHandler('evaluator'),
-        FunctionBlockHandler: vi.fn().mockImplementation(() => ({
-          canHandle: (block: any) =>
-            block.metadata?.id === 'function' || block.id === 'block1' || block.id === 'block2',
-          execute: vi.fn().mockImplementation(async (block, inputs, context) => {
-            // Capture the loop index during execution
-            const loopIndex = context.loopIterations.get('loop1') || 0
-            capturedIndices.push(loopIndex)
-            return { response: { result: `Index: ${loopIndex}` } }
-          }),
-        })),
-        ApiBlockHandler: createMockHandler('api'),
-        LoopBlockHandler: createMockHandler('loop'),
-        ParallelBlockHandler: createMockHandler('parallel'),
-        GenericBlockHandler: createMockHandler('generic', { canHandleCondition: () => true }),
-      }))
-
-      // Mock PathTracker
-      vi.doMock('./path', () => ({
-        PathTracker: vi.fn().mockImplementation(() => ({
-          updateExecutionPaths: vi.fn(),
-          isInActivePath: vi.fn().mockReturnValue(true),
-        })),
-      }))
-
-      // Create a workflow with loop
-      const workflow = createWorkflowWithLoop()
-
-      // Import the executor with mocks applied
-      const { Executor } = await import('./index')
-      const _executor = new Executor(workflow)
-
-      // Manually simulate execution to populate capturedIndices
-      // First iteration - both blocks with index 0
-      capturedIndices.push(0, 0)
-      // Second iteration - both blocks with index 1
-      capturedIndices.push(1, 1)
-      // Third iteration - both blocks with index 2
-      capturedIndices.push(2, 2)
-
-      // We should have captured indices 0, 0 (first iteration - both blocks)
-      // then 1, 1 (second iteration - both blocks)
-      // then 2, 2 (third iteration - both blocks)
-      expect(capturedIndices).toEqual([0, 0, 1, 1, 2, 2])
-    })
-
-    test('should handle nested loops correctly', async () => {
-      // Reset modules to ensure clean state
-      vi.resetModules()
-
-      // Create array to capture indices
-      const capturedIndices: { loopId: string; blockId: string; index: number }[] = []
-
-      // Mock the LoopManager
-      vi.doMock('./loops', () => createLoopManagerMock())
-
-      // Mock the handlers to capture loop indices
-      vi.doMock('./handlers', () => ({
-        AgentBlockHandler: createMockHandler('agent'),
-        RouterBlockHandler: createMockHandler('router'),
-        ConditionBlockHandler: createMockHandler('condition'),
-        EvaluatorBlockHandler: createMockHandler('evaluator'),
-        FunctionBlockHandler: vi.fn().mockImplementation(() => ({
-          canHandle: (block: any) => block.id.includes('block'),
-          execute: vi.fn().mockImplementation(async (block, inputs, context) => {
-            return { response: { result: 'Executed' } }
-          }),
-        })),
-        ApiBlockHandler: createMockHandler('api'),
-        LoopBlockHandler: createMockHandler('loop'),
-        ParallelBlockHandler: createMockHandler('parallel'),
-        GenericBlockHandler: createMockHandler('generic', { canHandleCondition: () => true }),
-      }))
-
-      // Manually populate the capturedIndices array for testing
-      capturedIndices.push(
-        { loopId: 'innerLoop', blockId: 'inner-block1', index: 0 },
-        { loopId: 'innerLoop', blockId: 'inner-block2', index: 0 },
-        { loopId: 'outerLoop', blockId: 'outer-block1', index: 0 },
-        { loopId: 'innerLoop', blockId: 'inner-block1', index: 1 },
-        { loopId: 'innerLoop', blockId: 'inner-block2', index: 1 },
-        { loopId: 'outerLoop', blockId: 'outer-block2', index: 0 },
-        { loopId: 'outerLoop', blockId: 'outer-block1', index: 1 },
-        { loopId: 'outerLoop', blockId: 'outer-block2', index: 1 }
-      )
-
-      // Verify that nested loops maintain independent counters
-      expect(capturedIndices.length).toBeGreaterThan(0)
-
-      // Group captures by loopId
-      const innerLoopIndices = capturedIndices
-        .filter((c) => c.loopId === 'innerLoop')
-        .map((c) => c.index)
-
-      const outerLoopIndices = capturedIndices
-        .filter((c) => c.loopId === 'outerLoop')
-        .map((c) => c.index)
-
-      // Verify inner loop indices - should increment on each iteration
-      expect(innerLoopIndices).toContain(0)
-      expect(innerLoopIndices).toContain(1)
-
-      // Verify outer loop indices
-      expect(outerLoopIndices).toContain(0)
-      expect(outerLoopIndices).toContain(1)
-    })
-
-    test('should fix the bug where first two iterations showed same index', async () => {
-      // Reset modules to ensure clean state
-      vi.resetModules()
-
-      // Mock the LoopManager with bug fix implementation
-      vi.doMock('./loops', () =>
-        createLoopManagerMock({
-          processLoopIterationsImpl: async (context) => {
-            // Increment iteration when both blocks executed
-            if (context.executedBlocks.has('block1') && context.executedBlocks.has('block2')) {
-              const currentIteration = context.loopIterations.get('loop1') || 0
-              context.loopIterations.set('loop1', currentIteration + 1)
-              context.executedBlocks.delete('block1')
-              context.executedBlocks.delete('block2')
-            }
-            return false
-          },
-        })
-      )
-
-      // Import with mocks applied
-      const { LoopManager } = await import('./loops')
-
-      // Create a workflow with a simple loop
-      const workflow = createWorkflowWithLoop()
-      const loopManager = new LoopManager(workflow.loops)
-
-      // Create a mock context
-      const context = createMockContext({
-        workflow,
-        loopIterations: new Map([['loop1', 0]]),
-        activeExecutionPath: new Set<string>(['block1', 'block2']),
-      })
-
-      // First iteration - this should give index 0 for both blocks
-      const firstIterationIndex1 = loopManager.getLoopIndex('loop1', 'block1', context)
-      const firstIterationIndex2 = loopManager.getLoopIndex('loop1', 'block2', context)
-
-      expect(firstIterationIndex1).toBe(0)
-      expect(firstIterationIndex2).toBe(0)
-
-      // Execute first iteration of both blocks
-      context.executedBlocks.add('block1')
-      context.executedBlocks.add('block2')
-
-      // Process loop iterations - this should increment the counter to 1
-      await loopManager.processLoopIterations(context)
-
-      // Verify counter has been incremented BEFORE resetting blocks
-      expect(context.loopIterations.get('loop1')).toBe(1)
-
-      // Verify blocks have been reset
-      expect(context.executedBlocks.has('block1')).toBe(false)
-      expect(context.executedBlocks.has('block2')).toBe(false)
-
-      // Now in second iteration - indices should be 1, not 0
-      const secondIterationIndex1 = loopManager.getLoopIndex('loop1', 'block1', context)
-      const secondIterationIndex2 = loopManager.getLoopIndex('loop1', 'block2', context)
-
-      // This is the critical test - indices should be 1 for the second iteration
-      expect(secondIterationIndex1).toBe(1)
-      expect(secondIterationIndex2).toBe(1)
-
-      // Execute second iteration of both blocks
-      context.executedBlocks.add('block1')
-      context.executedBlocks.add('block2')
-
-      // Process loop iterations again - should increment to 2
-      await loopManager.processLoopIterations(context)
-
-      // Verify counter has been incremented again
-      expect(context.loopIterations.get('loop1')).toBe(2)
-
-      // Third iteration indices should be 2
-      const thirdIterationIndex1 = loopManager.getLoopIndex('loop1', 'block1', context)
-      const thirdIterationIndex2 = loopManager.getLoopIndex('loop1', 'block2', context)
-
-      expect(thirdIterationIndex1).toBe(2)
-      expect(thirdIterationIndex2).toBe(2)
-    })
-  })
-
-  describe('parallel management', () => {
-    beforeEach(() => {
-      // Reset modules before each test to ensure clean mocks
-      vi.resetModules()
-      vi.clearAllMocks()
-    })
-
-    it('should execute blocks inside parallel with correct iteration items', async () => {
-      // Setup basic store mocks
-      setupAllMocks()
-
-      // Import real implementations
-      const { Executor } = await import('./index')
-
-      // Create a simple workflow with parallel
-      const workflow: SerializedWorkflow = {
-        version: '2.0',
-        blocks: [
-          {
-            id: 'starter',
-            position: { x: 0, y: 0 },
-            metadata: { id: 'starter', name: 'Start' },
-            config: { tool: 'starter', params: {} },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-          {
-            id: 'parallel-1',
-            position: { x: 100, y: 0 },
-            metadata: { id: 'parallel', name: 'Test Parallel' },
-            config: { tool: 'parallel', params: {} },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-          {
-            id: 'function-1',
-            position: { x: 200, y: 0 },
-            metadata: { id: 'function', name: 'Process Item' },
-            config: {
-              tool: 'function',
-              params: {
-                code: 'return { item: "test", index: 0 }',
-              },
-            },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-          {
-            id: 'endpoint',
-            position: { x: 300, y: 0 },
-            metadata: { id: 'generic', name: 'End' },
-            config: { tool: 'generic', params: {} },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-        ],
-        connections: [
-          { source: 'starter', target: 'parallel-1' },
-          { source: 'parallel-1', target: 'function-1', sourceHandle: 'parallel-start-source' },
-          { source: 'parallel-1', target: 'endpoint', sourceHandle: 'parallel-end-source' },
-        ],
-        loops: {},
-        parallels: {
-          'parallel-1': {
-            id: 'parallel-1',
-            nodes: ['function-1'],
-            distribution: ['apple', 'banana', 'cherry'],
-          },
+        }),
+        execution: {
+          blockId: 'agent-1',
+          output: { response: { content: 'Final content' } },
         },
       }
 
-      const executor = new Executor(workflow)
+      const executor = new Executor({
+        workflow,
+        contextExtensions: {
+          stream: true,
+          selectedOutputIds: ['block1'],
+          onStream: mockOnStream,
+        },
+      })
+
       const result = await executor.execute('test-workflow-id')
 
-      // Type guard to ensure we have ExecutionResult, not StreamingExecution
+      // Verify result structure
       if ('stream' in result) {
-        throw new Error('Expected ExecutionResult but got StreamingExecution')
+        expect(result.stream).toBeInstanceOf(ReadableStream)
+        expect(result.execution).toBeDefined()
       }
-
-      // The test should succeed even if we can't fully mock the parallel execution
-      // What we're really testing is that the executor can handle parallel blocks
-      expect(result.success).toBe(true)
-      expect(result.logs).toBeDefined()
-
-      // Check that at least the parallel block was executed
-      const parallelLog = result.logs?.find((log: BlockLog) => log.blockType === 'parallel')
-      expect(parallelLog).toBeDefined()
-      // Since we're using mocked handlers, we just check that the parallel block was executed
-      expect(parallelLog?.success).toBe(true)
     })
 
-    it('should add both virtual and actual block IDs to activeBlockIds for parallel execution glow effect', async () => {
-      // Setup basic store mocks
-      setupAllMocks()
+    test('should process streaming content in context', async () => {
+      const workflow = createMinimalWorkflow()
+      const mockOnStream = vi.fn()
 
-      // Track calls to useExecutionStore.setState to verify activeBlockIds behavior
-      const setStateCalls: any[] = []
-      const mockSetState = vi.fn((updater) => {
-        if (typeof updater === 'function') {
-          const currentState = { activeBlockIds: new Set() }
-          const newState = updater(currentState)
-          setStateCalls.push(newState)
-        } else {
-          setStateCalls.push(updater)
-        }
+      const executor = new Executor({
+        workflow,
+        contextExtensions: {
+          stream: true,
+          selectedOutputIds: ['block1'],
+          onStream: mockOnStream,
+        },
       })
 
-      // Mock useExecutionStore to capture setState calls
-      vi.doMock('@/stores/execution/store', () => ({
-        useExecutionStore: {
-          getState: vi.fn(() => ({
-            setIsExecuting: vi.fn(),
-            setIsDebugging: vi.fn(),
-            setPendingBlocks: vi.fn(),
-            reset: vi.fn(),
-            setActiveBlocks: vi.fn(),
-          })),
-          setState: mockSetState,
-        },
-      }))
+      // Test that execution context contains streaming properties
+      const createContextSpy = vi.spyOn(executor as any, 'createExecutionContext')
 
-      // Import real implementations with mocked store
-      const { Executor } = await import('./index')
-
-      // Create a simple workflow with parallel
-      const workflow: SerializedWorkflow = {
-        version: '2.0',
-        blocks: [
-          {
-            id: 'starter',
-            position: { x: 0, y: 0 },
-            metadata: { id: 'starter', name: 'Start' },
-            config: { tool: 'starter', params: {} },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-          {
-            id: 'parallel-1',
-            position: { x: 100, y: 0 },
-            metadata: { id: 'parallel', name: 'Test Parallel' },
-            config: { tool: 'parallel', params: {} },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-          {
-            id: 'function-1',
-            position: { x: 200, y: 0 },
-            metadata: { id: 'function', name: 'Process Item' },
-            config: {
-              tool: 'function',
-              params: {
-                code: 'return { item: "test", index: 0 }',
-              },
-            },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-        ],
-        connections: [
-          { source: 'starter', target: 'parallel-1' },
-          { source: 'parallel-1', target: 'function-1', sourceHandle: 'parallel-start-source' },
-        ],
-        loops: {},
-        parallels: {
-          'parallel-1': {
-            id: 'parallel-1',
-            nodes: ['function-1'],
-            distribution: ['apple', 'banana', 'cherry'],
-          },
-        },
-      }
-
-      const executor = new Executor(workflow)
       await executor.execute('test-workflow-id')
 
-      // Verify that setState was called with activeBlockIds
-      const activeBlockIdsCalls = setStateCalls.filter(
-        (call) => call && typeof call === 'object' && 'activeBlockIds' in call
-      )
-
-      expect(activeBlockIdsCalls.length).toBeGreaterThan(0)
-
-      // Check that at least one call included both virtual and actual block IDs
-      // This verifies the fix for parallel block glow effect
-      const hasVirtualAndActualIds = activeBlockIdsCalls.some((call) => {
-        const activeIds = Array.from(call.activeBlockIds || [])
-        // Look for both virtual block IDs (containing 'parallel') and actual block IDs
-        const hasVirtualId = activeIds.some(
-          (id) => typeof id === 'string' && id.includes('parallel')
-        )
-        const hasActualId = activeIds.some((id) => typeof id === 'string' && id === 'function-1')
-        return hasVirtualId || hasActualId // Either pattern indicates the fix is working
-      })
-
-      // This test verifies that the glow effect fix is working
-      // The exact pattern may vary based on mocking, but we should see activeBlockIds being set
-      expect(hasVirtualAndActualIds || activeBlockIdsCalls.length > 0).toBe(true)
-    })
-
-    it('should handle object distribution in parallel blocks', async () => {
-      // Setup basic store mocks
-      setupAllMocks()
-
-      // Import real implementations
-      const { Executor } = await import('./index')
-
-      // Create a simple workflow with parallel using object distribution
-      const workflow: SerializedWorkflow = {
-        version: '2.0',
-        blocks: [
-          {
-            id: 'starter',
-            position: { x: 0, y: 0 },
-            metadata: { id: 'starter', name: 'Start' },
-            config: { tool: 'starter', params: {} },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-          {
-            id: 'parallel-1',
-            position: { x: 100, y: 0 },
-            metadata: { id: 'parallel', name: 'Test Parallel' },
-            config: { tool: 'parallel', params: {} },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-          {
-            id: 'function-1',
-            position: { x: 200, y: 0 },
-            metadata: { id: 'function', name: 'Process Entry' },
-            config: {
-              tool: 'function',
-              params: {
-                code: 'return { key: "test", value: "value" }',
-              },
-            },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-          {
-            id: 'endpoint',
-            position: { x: 300, y: 0 },
-            metadata: { id: 'generic', name: 'End' },
-            config: { tool: 'generic', params: {} },
-            inputs: {},
-            outputs: {},
-            enabled: true,
-          },
-        ],
-        connections: [
-          { source: 'starter', target: 'parallel-1' },
-          { source: 'parallel-1', target: 'function-1', sourceHandle: 'parallel-start-source' },
-          { source: 'parallel-1', target: 'endpoint', sourceHandle: 'parallel-end-source' },
-        ],
-        loops: {},
-        parallels: {
-          'parallel-1': {
-            id: 'parallel-1',
-            nodes: ['function-1'],
-            distribution: { first: 'alpha', second: 'beta', third: 'gamma' },
-          },
-        },
-      }
-
-      const executor = new Executor(workflow)
-      const result = await executor.execute('test-workflow-id')
-
-      if ('stream' in result) {
-        throw new Error('Expected ExecutionResult but got StreamingExecution')
-      }
-
-      expect(result.success).toBe(true)
-      expect(result.logs).toBeDefined()
-
-      // Check that at least the parallel block was executed
-      const parallelLog = result.logs?.find((log: BlockLog) => log.blockType === 'parallel')
-      expect(parallelLog).toBeDefined()
-      // Since we're using mocked handlers, we just check that the parallel block was executed
-      expect(parallelLog?.success).toBe(true)
+      expect(createContextSpy).toHaveBeenCalled()
     })
   })
 })

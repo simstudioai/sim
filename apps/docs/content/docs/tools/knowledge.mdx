@@ -1,6 +1,6 @@
 ---
 title: Knowledge
-description: Search knowledge
+description: Use vector search
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -49,7 +49,7 @@ In Sim Studio, the Knowledge Base block enables your agents to perform intellige
 
 ## Usage Instructions
 
-Perform semantic vector search across your knowledge base to find the most relevant content. Uses advanced AI embeddings to understand meaning and context, returning the most similar documents to your search query.
+Perform semantic vector search across one or more knowledge bases or upload new chunks to documents. Uses advanced AI embeddings to understand meaning and context for search operations.
 
 
 
@@ -57,13 +57,13 @@ Perform semantic vector search across your knowledge base to find the most relev
 
 ### `knowledge_search`
 
-Search for similar content in a knowledge base using vector similarity
+Search for similar content in one or more knowledge bases using vector similarity
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `knowledgeBaseId` | string | Yes | ID of the knowledge base to search in |
+| `knowledgeBaseIds` | string | Yes | ID of the knowledge base to search in, or comma-separated IDs for multiple knowledge bases |
 | `query` | string | Yes | Search query text |
 | `topK` | number | No | Number of most similar results to return \(1-100\) |
 
@@ -73,10 +73,32 @@ Search for similar content in a knowledge base using vector similarity
 | --------- | ---- |
 | `results` | string |
 | `query` | string |
-| `knowledgeBaseId` | string |
-| `topK` | string |
 | `totalResults` | string |
-| `message` | string |
+
+### `knowledge_upload_chunk`
+
+Upload a new chunk to a document in a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
+| `documentId` | string | Yes | ID of the document to upload the chunk to |
+| `content` | string | Yes | Content of the chunk to upload |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `data` | string |
+| `chunkIndex` | string |
+| `content` | string |
+| `contentLength` | string |
+| `tokenCount` | string |
+| `enabled` | string |
+| `createdAt` | string |
+| `updatedAt` | string |
 
 
 
@@ -86,7 +108,7 @@ Search for similar content in a knowledge base using vector similarity
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `knowledgeBaseId` | string | Yes | Knowledge Base - Select knowledge base |
+| `operation` | string | Yes | Operation |
 
 
 
@@ -97,10 +119,7 @@ Search for similar content in a knowledge base using vector similarity
 | `response` | object | Output from response |
 | ↳ `results` | json | results of the response |
 | ↳ `query` | string | query of the response |
-| ↳ `knowledgeBaseId` | string | knowledgeBaseId of the response |
-| ↳ `topK` | number | topK of the response |
 | ↳ `totalResults` | number | totalResults of the response |
-| ↳ `message` | string | message of the response |
 
 
 ## Notes

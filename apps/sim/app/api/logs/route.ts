@@ -17,6 +17,7 @@ const QueryParamsSchema = z.object({
   offset: z.coerce.number().optional().default(0),
   level: z.string().optional(),
   workflowIds: z.string().optional(), // Comma-separated list of workflow IDs
+  folderIds: z.string().optional(), // Comma-separated list of folder IDs
   triggers: z.string().optional(), // Comma-separated list of trigger types
   startDate: z.string().optional(),
   endDate: z.string().optional(),
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
       const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
       const userWorkflows = await db
-        .select({ id: workflow.id })
+        .select({ id: workflow.id, folderId: workflow.folderId })
         .from(workflow)
         .where(eq(workflow.userId, userId))
 
@@ -49,6 +50,36 @@ export async function GET(request: NextRequest) {
 
       if (userWorkflowIds.length === 0) {
         return NextResponse.json({ data: [], total: 0 }, { status: 200 })
+      }
+
+      // Handle folder filtering
+      let targetWorkflowIds = userWorkflowIds
+      if (params.folderIds) {
+        const requestedFolderIds = params.folderIds.split(',').map((id) => id.trim())
+
+        // Filter workflows by folder IDs (including 'root' for workflows without folders)
+        const workflowsInFolders = userWorkflows.filter((w) => {
+          if (requestedFolderIds.includes('root')) {
+            return requestedFolderIds.includes('root') && w.folderId === null
+          }
+          return w.folderId && requestedFolderIds.includes(w.folderId)
+        })
+
+        // Handle 'root' folder (workflows without folders)
+        if (requestedFolderIds.includes('root')) {
+          const rootWorkflows = userWorkflows.filter((w) => w.folderId === null)
+          const folderWorkflows = userWorkflows.filter(
+            (w) =>
+              w.folderId && requestedFolderIds.filter((id) => id !== 'root').includes(w.folderId!)
+          )
+          targetWorkflowIds = [...rootWorkflows, ...folderWorkflows].map((w) => w.id)
+        } else {
+          targetWorkflowIds = workflowsInFolders.map((w) => w.id)
+        }
+
+        if (targetWorkflowIds.length === 0) {
+          return NextResponse.json({ data: [], total: 0 }, { status: 200 })
+        }
       }
 
       // Build the conditions for the query
@@ -65,13 +96,21 @@ export async function GET(request: NextRequest) {
           })
           return NextResponse.json({ error: 'Unauthorized access to workflows' }, { status: 403 })
         }
-        conditions = or(...requestedWorkflowIds.map((id) => eq(workflowLogs.workflowId, id)))
+        // Further filter by folder constraints if both filters are active
+        const finalWorkflowIds = params.folderIds
+          ? requestedWorkflowIds.filter((id) => targetWorkflowIds.includes(id))
+          : requestedWorkflowIds
+
+        if (finalWorkflowIds.length === 0) {
+          return NextResponse.json({ data: [], total: 0 }, { status: 200 })
+        }
+        conditions = or(...finalWorkflowIds.map((id) => eq(workflowLogs.workflowId, id)))
       } else {
-        // No specific workflows requested, filter by all user workflows
-        if (userWorkflowIds.length === 1) {
-          conditions = eq(workflowLogs.workflowId, userWorkflowIds[0])
+        // No specific workflows requested, filter by target workflows (considering folder filter)
+        if (targetWorkflowIds.length === 1) {
+          conditions = eq(workflowLogs.workflowId, targetWorkflowIds[0])
         } else {
-          conditions = or(...userWorkflowIds.map((id) => eq(workflowLogs.workflowId, id)))
+          conditions = or(...targetWorkflowIds.map((id) => eq(workflowLogs.workflowId, id)))
         }
       }
 

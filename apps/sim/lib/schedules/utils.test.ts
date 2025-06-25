@@ -15,27 +15,27 @@ import {
 
 describe('Schedule Utilities', () => {
   describe('parseTimeString', () => {
-    it('should parse valid time strings', () => {
+    it.concurrent('should parse valid time strings', () => {
       expect(parseTimeString('09:30')).toEqual([9, 30])
       expect(parseTimeString('23:45')).toEqual([23, 45])
       expect(parseTimeString('00:00')).toEqual([0, 0])
     })
 
-    it('should return default values for invalid inputs', () => {
+    it.concurrent('should return default values for invalid inputs', () => {
       expect(parseTimeString('')).toEqual([9, 0])
       expect(parseTimeString(null)).toEqual([9, 0])
       expect(parseTimeString(undefined)).toEqual([9, 0])
       expect(parseTimeString('invalid')).toEqual([9, 0])
     })
 
-    it('should handle malformed time strings', () => {
+    it.concurrent('should handle malformed time strings', () => {
       expect(parseTimeString('9:30')).toEqual([9, 30])
       expect(parseTimeString('9:3')).toEqual([9, 3])
       expect(parseTimeString('9:')).toEqual([9, 0])
       expect(parseTimeString(':30')).toEqual([0, 30]) // Only has minutes
     })
 
-    it('should handle out-of-range time values', () => {
+    it.concurrent('should handle out-of-range time values', () => {
       expect(parseTimeString('25:30')).toEqual([25, 30]) // Hours > 24
       expect(parseTimeString('10:75')).toEqual([10, 75]) // Minutes > 59
       expect(parseTimeString('99:99')).toEqual([99, 99]) // Both out of range
@@ -43,7 +43,7 @@ describe('Schedule Utilities', () => {
   })
 
   describe('getSubBlockValue', () => {
-    it('should get values from block subBlocks', () => {
+    it.concurrent('should get values from block subBlocks', () => {
       const block: BlockState = {
         type: 'starter',
         subBlocks: {
@@ -61,7 +61,7 @@ describe('Schedule Utilities', () => {
       expect(getSubBlockValue(block, 'nonExistent')).toBe('')
     })
 
-    it('should handle missing subBlocks', () => {
+    it.concurrent('should handle missing subBlocks', () => {
       const block = {
         type: 'starter',
         subBlocks: {}, // Empty subBlocks
@@ -72,7 +72,7 @@ describe('Schedule Utilities', () => {
   })
 
   describe('getScheduleTimeValues', () => {
-    it('should extract all time values from a block', () => {
+    it.concurrent('should extract all time values from a block', () => {
       const block: BlockState = {
         type: 'starter',
         subBlocks: {
@@ -105,7 +105,7 @@ describe('Schedule Utilities', () => {
       })
     })
 
-    it('should use default values for missing fields', () => {
+    it.concurrent('should use default values for missing fields', () => {
       const block: BlockState = {
         type: 'starter',
         subBlocks: {
@@ -132,7 +132,7 @@ describe('Schedule Utilities', () => {
   })
 
   describe('generateCronExpression', () => {
-    it('should generate correct cron expressions for different schedule types', () => {
+    it.concurrent('should generate correct cron expressions for different schedule types', () => {
       const scheduleValues = {
         scheduleTime: '09:30',
         minutesInterval: 15,
@@ -161,7 +161,7 @@ describe('Schedule Utilities', () => {
       expect(generateCronExpression('monthly', scheduleValues)).toBe('30 14 15 * *')
     })
 
-    it('should handle custom cron expressions', () => {
+    it.concurrent('should handle custom cron expressions', () => {
       // For this simplified test, let's skip the complex mocking
       // and just verify the 'custom' case is in the switch statement
 
@@ -201,7 +201,7 @@ describe('Schedule Utilities', () => {
       expect(generateCronExpression('minutes', standardScheduleValues)).toBe('*/15 * * * *')
     })
 
-    it('should throw for invalid schedule types', () => {
+    it.concurrent('should throw for invalid schedule types', () => {
       const scheduleValues = {} as any
       expect(() => generateCronExpression('invalid-type', scheduleValues)).toThrow()
     })
@@ -218,7 +218,7 @@ describe('Schedule Utilities', () => {
       vi.useRealTimers()
     })
 
-    it('should calculate next run for minutes schedule', () => {
+    it.concurrent('should calculate next run for minutes schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
         scheduleStartAt: '',
@@ -242,7 +242,7 @@ describe('Schedule Utilities', () => {
       expect(nextRun.getMinutes() % 15).toBe(0)
     })
 
-    it('should respect scheduleTime for minutes schedule', () => {
+    it.concurrent('should respect scheduleTime for minutes schedule', () => {
       const scheduleValues = {
         scheduleTime: '14:30', // Specific start time
         scheduleStartAt: '',
@@ -263,7 +263,7 @@ describe('Schedule Utilities', () => {
       expect(nextRun.getMinutes()).toBe(30)
     })
 
-    it('should calculate next run for hourly schedule', () => {
+    it.concurrent('should calculate next run for hourly schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
         scheduleStartAt: '',
@@ -285,7 +285,7 @@ describe('Schedule Utilities', () => {
       expect(nextRun.getMinutes()).toBe(30)
     })
 
-    it('should calculate next run for daily schedule', () => {
+    it.concurrent('should calculate next run for daily schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
         scheduleStartAt: '',
@@ -308,7 +308,7 @@ describe('Schedule Utilities', () => {
       expect(nextRun.getMinutes()).toBe(0)
     })
 
-    it('should calculate next run for weekly schedule', () => {
+    it.concurrent('should calculate next run for weekly schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
         scheduleStartAt: '',
@@ -330,7 +330,7 @@ describe('Schedule Utilities', () => {
       expect(nextRun.getMinutes()).toBe(0)
     })
 
-    it('should calculate next run for monthly schedule', () => {
+    it.concurrent('should calculate next run for monthly schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
         scheduleStartAt: '',
@@ -354,7 +354,7 @@ describe('Schedule Utilities', () => {
       expect(nextRun.getMinutes()).toBe(30)
     })
 
-    it('should consider lastRanAt for better interval calculation', () => {
+    it.concurrent('should consider lastRanAt for better interval calculation', () => {
       const scheduleValues = {
         scheduleTime: '',
         scheduleStartAt: '',
@@ -381,7 +381,7 @@ describe('Schedule Utilities', () => {
       expect(nextRun.getMinutes()).toBe(expectedNextRun.getMinutes())
     })
 
-    it('should respect future scheduleStartAt date', () => {
+    it.concurrent('should respect future scheduleStartAt date', () => {
       const scheduleValues = {
         scheduleStartAt: '2025-04-22T20:50:00.000Z', // April 22, 2025 at 8:50 PM
         scheduleTime: '',
@@ -401,7 +401,7 @@ describe('Schedule Utilities', () => {
       expect(nextRun.toISOString()).toBe('2025-04-22T20:50:00.000Z')
     })
 
-    it('should ignore past scheduleStartAt date', () => {
+    it.concurrent('should ignore past scheduleStartAt date', () => {
       const scheduleValues = {
         scheduleStartAt: '2025-04-10T20:50:00.000Z', // April 10, 2025 at 8:50 PM (in the past)
         scheduleTime: '',
@@ -424,7 +424,7 @@ describe('Schedule Utilities', () => {
   })
 
   describe('parseCronToHumanReadable', () => {
-    it('should parse common cron patterns', () => {
+    it.concurrent('should parse common cron patterns', () => {
       expect(parseCronToHumanReadable('* * * * *')).toBe('Every minute')
       expect(parseCronToHumanReadable('*/15 * * * *')).toBe('Every 15 minutes')
       expect(parseCronToHumanReadable('30 * * * *')).toBe('Hourly at 30 minutes past the hour')
@@ -434,14 +434,14 @@ describe('Schedule Utilities', () => {
       expect(parseCronToHumanReadable('30 14 15 * *')).toMatch(/Monthly on the 15th at 2:30 PM/)
     })
 
-    it('should handle complex patterns', () => {
+    it.concurrent('should handle complex patterns', () => {
       // Test with various combinations
       expect(parseCronToHumanReadable('* */2 * * *')).toMatch(/Runs/)
       expect(parseCronToHumanReadable('0 9 * * 1-5')).toMatch(/Runs/)
       expect(parseCronToHumanReadable('0 9 1,15 * *')).toMatch(/Runs/)
     })
 
-    it('should return a fallback for unrecognized patterns', () => {
+    it.concurrent('should return a fallback for unrecognized patterns', () => {
       const result = parseCronToHumanReadable('*/10 */6 31 2 *') // Invalid (Feb 31)
       // Just check that we get something back that's not empty
       expect(result.length).toBeGreaterThan(5)
@@ -449,7 +449,7 @@ describe('Schedule Utilities', () => {
   })
 
   describe('createDateWithTimezone', () => {
-    it('should correctly handle UTC timezone', () => {
+    it.concurrent('should correctly handle UTC timezone', () => {
       const date = createDateWithTimezone(
         '2025-04-21T00:00:00.000Z',
         '14:00', // 2:00 PM
@@ -458,7 +458,7 @@ describe('Schedule Utilities', () => {
       expect(date.toISOString()).toBe('2025-04-21T14:00:00.000Z')
     })
 
-    it('should correctly handle America/Los_Angeles (UTC-7 during DST)', () => {
+    it.concurrent('should correctly handle America/Los_Angeles (UTC-7 during DST)', () => {
       // April 21, 2025 is during DST for Los Angeles (PDT = UTC-7)
       const date = createDateWithTimezone(
         '2025-04-21', // Using date string without time/zone
@@ -469,7 +469,7 @@ describe('Schedule Utilities', () => {
       expect(date.toISOString()).toBe('2025-04-21T21:00:00.000Z')
     })
 
-    it('should correctly handle America/Los_Angeles (UTC-8 outside DST)', () => {
+    it.concurrent('should correctly handle America/Los_Angeles (UTC-8 outside DST)', () => {
       // January 10, 2025 is outside DST for Los Angeles (PST = UTC-8)
       const date = createDateWithTimezone(
         '2025-01-10',
@@ -480,7 +480,7 @@ describe('Schedule Utilities', () => {
       expect(date.toISOString()).toBe('2025-01-10T22:00:00.000Z')
     })
 
-    it('should correctly handle America/New_York (UTC-4 during DST)', () => {
+    it.concurrent('should correctly handle America/New_York (UTC-4 during DST)', () => {
       // June 15, 2025 is during DST for New York (EDT = UTC-4)
       const date = createDateWithTimezone(
         '2025-06-15',
@@ -491,7 +491,7 @@ describe('Schedule Utilities', () => {
       expect(date.toISOString()).toBe('2025-06-15T14:30:00.000Z')
     })
 
-    it('should correctly handle America/New_York (UTC-5 outside DST)', () => {
+    it.concurrent('should correctly handle America/New_York (UTC-5 outside DST)', () => {
       // December 20, 2025 is outside DST for New York (EST = UTC-5)
       const date = createDateWithTimezone(
         '2025-12-20',
@@ -502,7 +502,7 @@ describe('Schedule Utilities', () => {
       expect(date.toISOString()).toBe('2025-12-20T15:30:00.000Z')
     })
 
-    it('should correctly handle Europe/London (UTC+1 during DST)', () => {
+    it.concurrent('should correctly handle Europe/London (UTC+1 during DST)', () => {
       // August 5, 2025 is during DST for London (BST = UTC+1)
       const date = createDateWithTimezone(
         '2025-08-05',
@@ -513,7 +513,7 @@ describe('Schedule Utilities', () => {
       expect(date.toISOString()).toBe('2025-08-05T08:15:00.000Z')
     })
 
-    it('should correctly handle Europe/London (UTC+0 outside DST)', () => {
+    it.concurrent('should correctly handle Europe/London (UTC+0 outside DST)', () => {
       // February 10, 2025 is outside DST for London (GMT = UTC+0)
       const date = createDateWithTimezone(
         '2025-02-10',
@@ -524,7 +524,7 @@ describe('Schedule Utilities', () => {
       expect(date.toISOString()).toBe('2025-02-10T09:15:00.000Z')
     })
 
-    it('should correctly handle Asia/Tokyo (UTC+9)', () => {
+    it.concurrent('should correctly handle Asia/Tokyo (UTC+9)', () => {
       // Tokyo does not observe DST (JST = UTC+9)
       const date = createDateWithTimezone(
         '2025-07-01',
@@ -535,14 +535,14 @@ describe('Schedule Utilities', () => {
       expect(date.toISOString()).toBe('2025-07-01T08:00:00.000Z')
     })
 
-    it('should handle date object input', () => {
+    it.concurrent('should handle date object input', () => {
       // Using a Date object that represents midnight UTC on the target day
       const dateInput = new Date(Date.UTC(2025, 3, 21)) // April 21, 2025
       const date = createDateWithTimezone(dateInput, '14:00', 'America/Los_Angeles')
       expect(date.toISOString()).toBe('2025-04-21T21:00:00.000Z')
     })
 
-    it('should handle time crossing midnight due to timezone offset', () => {
+    it.concurrent('should handle time crossing midnight due to timezone offset', () => {
       // Test case: 1:00 AM local time in Sydney (UTC+10/11)
       // This might result in a UTC date that is the *previous* day.
       const date = createDateWithTimezone(

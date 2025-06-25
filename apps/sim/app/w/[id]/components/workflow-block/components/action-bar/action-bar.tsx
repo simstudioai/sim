@@ -2,16 +2,17 @@ import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Trash2 } from 'lu
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface ActionBarProps {
   blockId: string
   blockType: string
+  disabled?: boolean
 }
 
-export function ActionBar({ blockId, blockType }: ActionBarProps) {
-  const removeBlock = useWorkflowStore((state) => state.removeBlock)
-  const toggleBlockEnabled = useWorkflowStore((state) => state.toggleBlockEnabled)
+export function ActionBar({ blockId, blockType, disabled = false }: ActionBarProps) {
+  const { collaborativeRemoveBlock, collaborativeToggleBlockEnabled } = useCollaborativeWorkflow()
   const toggleBlockHandles = useWorkflowStore((state) => state.toggleBlockHandles)
   const duplicateBlock = useWorkflowStore((state) => state.duplicateBlock)
   const isEnabled = useWorkflowStore((state) => state.blocks[blockId]?.enabled ?? true)
@@ -52,48 +53,19 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
           <Button
             variant='ghost'
             size='sm'
-            onClick={() => toggleBlockEnabled(blockId)}
-            className='text-gray-500'
+            onClick={() => {
+              if (!disabled) {
+                collaborativeToggleBlockEnabled(blockId)
+              }
+            }}
+            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+            disabled={disabled}
           >
             {isEnabled ? <Circle className='h-4 w-4' /> : <CircleOff className='h-4 w-4' />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side='right'>{isEnabled ? 'Disable Block' : 'Enable Block'}</TooltipContent>
-      </Tooltip>
-
-      {!isStarterBlock && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => duplicateBlock(blockId)}
-              className='text-gray-500'
-            >
-              <Copy className='h-4 w-4' />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side='right'>Duplicate Block</TooltipContent>
-        </Tooltip>
-      )}
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => toggleBlockHandles(blockId)}
-            className='text-gray-500'
-          >
-            {horizontalHandles ? (
-              <ArrowLeftRight className='h-4 w-4' />
-            ) : (
-              <ArrowUpDown className='h-4 w-4' />
-            )}
-          </Button>
-        </TooltipTrigger>
         <TooltipContent side='right'>
-          {horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports'}
+          {disabled ? 'Read-only mode' : isEnabled ? 'Disable Block' : 'Enable Block'}
         </TooltipContent>
       </Tooltip>
 
@@ -103,13 +75,71 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
             <Button
               variant='ghost'
               size='sm'
-              onClick={() => removeBlock(blockId)}
-              className='text-gray-500 hover:text-red-600'
+              onClick={() => {
+                if (!disabled) {
+                  duplicateBlock(blockId)
+                }
+              }}
+              className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+              disabled={disabled}
+            >
+              <Copy className='h-4 w-4' />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side='right'>
+            {disabled ? 'Read-only mode' : 'Duplicate Block'}
+          </TooltipContent>
+        </Tooltip>
+      )}
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={() => {
+              if (!disabled) {
+                toggleBlockHandles(blockId)
+              }
+            }}
+            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+            disabled={disabled}
+          >
+            {horizontalHandles ? (
+              <ArrowLeftRight className='h-4 w-4' />
+            ) : (
+              <ArrowUpDown className='h-4 w-4' />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side='right'>
+          {disabled ? 'Read-only mode' : horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports'}
+        </TooltipContent>
+      </Tooltip>
+
+      {!isStarterBlock && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={() => {
+                if (!disabled) {
+                  collaborativeRemoveBlock(blockId)
+                }
+              }}
+              className={cn(
+                'text-gray-500 hover:text-red-600',
+                disabled && 'cursor-not-allowed opacity-50'
+              )}
+              disabled={disabled}
             >
               <Trash2 className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side='right'>Delete Block</TooltipContent>
+          <TooltipContent side='right'>
+            {disabled ? 'Read-only mode' : 'Delete Block'}
+          </TooltipContent>
         </Tooltip>
       )}
     </div>

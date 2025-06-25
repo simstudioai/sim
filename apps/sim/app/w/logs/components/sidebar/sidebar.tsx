@@ -556,7 +556,8 @@ export function Sidebar({
                     {isWorkflowWithCost && (
                       <div className='border-t bg-muted p-3 text-muted-foreground text-xs'>
                         <p>
-                          This is the total cost for all agent blocks in this workflow execution.
+                          This is the total cost for all LLM-based blocks in this workflow
+                          execution.
                         </p>
                       </div>
                     )}

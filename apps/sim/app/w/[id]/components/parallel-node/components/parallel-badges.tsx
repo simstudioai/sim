@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import Editor from 'react-simple-code-editor'
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -39,13 +40,29 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   // Check if this is preview mode
   const isPreview = data?.isPreview || false
 
-  // State
-  const [parallelType, setParallelType] = useState<'count' | 'collection'>(
-    data?.parallelType || 'collection'
-  )
-  const [iterations, setIterations] = useState(data?.count || 5)
-  const [inputValue, setInputValue] = useState((data?.count || 5).toString())
-  const [editorValue, setEditorValue] = useState('')
+  // Get parallel configuration from the workflow store (single source of truth)
+  const { parallels } = useWorkflowStore()
+  const parallelConfig = parallels[nodeId]
+
+  // Use parallel config as primary source, fallback to data for backward compatibility
+  const configCount = parallelConfig?.count ?? data?.count ?? 5
+  const configDistribution = parallelConfig?.distribution ?? data?.collection ?? ''
+  // For parallel type, use the block's parallelType data property as the source of truth
+  // Don't infer it from whether distribution exists, as that causes unwanted switching
+  const configParallelType = data?.parallelType || 'collection'
+
+  // Derive values directly from props - no useState needed for synchronized data
+  const parallelType = configParallelType
+  const iterations = configCount
+  const distributionString =
+    typeof configDistribution === 'string'
+      ? configDistribution
+      : JSON.stringify(configDistribution) || ''
+
+  // Use actual values directly for display, temporary state only for active editing
+  const [tempInputValue, setTempInputValue] = useState<string | null>(null)
+  const inputValue = tempInputValue ?? iterations.toString()
+  const editorValue = distributionString
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
@@ -53,78 +70,24 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Get store methods
-  const updateParallelCount = useWorkflowStore((state) => state.updateParallelCount)
-  const updateParallelCollection = useWorkflowStore((state) => state.updateParallelCollection)
-
-  // Update node data to include parallel type
-  const updateNodeData = useCallback(
-    (updates: Partial<ParallelNodeData>) => {
-      if (isPreview) return // Don't update in preview mode
-
-      useWorkflowStore.setState((state) => ({
-        blocks: {
-          ...state.blocks,
-          [nodeId]: {
-            ...state.blocks[nodeId],
-            data: {
-              ...state.blocks[nodeId].data,
-              ...updates,
-            },
-          },
-        },
-      }))
-    },
-    [nodeId, isPreview]
-  )
-
-  // Initialize state from data when it changes
-  useEffect(() => {
-    if (data?.parallelType && data.parallelType !== parallelType) {
-      setParallelType(data.parallelType)
-    }
-    if (data?.count && data.count !== iterations) {
-      setIterations(data.count)
-      setInputValue(data.count.toString())
-    }
-
-    if (data?.collection) {
-      if (typeof data.collection === 'string') {
-        setEditorValue(data.collection)
-      } else if (Array.isArray(data.collection) || typeof data.collection === 'object') {
-        setEditorValue(JSON.stringify(data.collection))
-      }
-    }
-  }, [data?.parallelType, data?.count, data?.collection, parallelType, iterations])
+  // Get collaborative functions
+  const {
+    collaborativeUpdateParallelCount,
+    collaborativeUpdateParallelCollection,
+    collaborativeUpdateParallelType,
+  } = useCollaborativeWorkflow()
 
   // Handle parallel type change
   const handleParallelTypeChange = useCallback(
     (newType: 'count' | 'collection') => {
       if (isPreview) return // Don't allow changes in preview mode
 
-      setParallelType(newType)
-      updateNodeData({ parallelType: newType })
-
-      // Reset values based on type
-      if (newType === 'count') {
-        updateParallelCollection(nodeId, '')
-        updateParallelCount(nodeId, iterations)
-      } else {
-        updateParallelCount(nodeId, 1)
-        updateParallelCollection(nodeId, editorValue || '[]')
-      }
+      // Use single collaborative function that handles all the state changes atomically
+      collaborativeUpdateParallelType(nodeId, newType)
 
       setTypePopoverOpen(false)
     },
-    [
-      nodeId,
-      iterations,
-      editorValue,
-      updateNodeData,
-      updateParallelCount,
-      updateParallelCollection,
-      isPreview,
-    ]
+    [nodeId, collaborativeUpdateParallelType, isPreview]
   )
 
   // Handle iterations input change
@@ -136,9 +99,9 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
       const numValue = Number.parseInt(sanitizedValue)
 
       if (!Number.isNaN(numValue)) {
-        setInputValue(Math.min(20, numValue).toString())
+        setTempInputValue(Math.min(20, numValue).toString())
       } else {
-        setInputValue(sanitizedValue)
+        setTempInputValue(sanitizedValue)
       }
     },
     [isPreview]
@@ -152,22 +115,21 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
 
     if (!Number.isNaN(value)) {
       const newValue = Math.min(20, Math.max(1, value))
-      setIterations(newValue)
-      updateParallelCount(nodeId, newValue)
-      setInputValue(newValue.toString())
-    } else {
-      setInputValue(iterations.toString())
+      // Update the collaborative state - this will cause iterations to be derived from props
+      collaborativeUpdateParallelCount(nodeId, newValue)
     }
+    // Clear temporary input state to show the actual value
+    setTempInputValue(null)
     setConfigPopoverOpen(false)
-  }, [inputValue, iterations, nodeId, updateParallelCount, isPreview])
+  }, [inputValue, nodeId, collaborativeUpdateParallelCount, isPreview])
 
   // Handle editor change and check for tag trigger
   const handleEditorChange = useCallback(
     (value: string) => {
       if (isPreview) return // Don't allow changes in preview mode
 
-      setEditorValue(value)
-      updateParallelCollection(nodeId, value)
+      // Update collaborative state directly - no local state needed
+      collaborativeUpdateParallelCollection(nodeId, value)
 
       // Get the textarea element and cursor position
       const textarea = editorContainerRef.current?.querySelector('textarea')
@@ -181,7 +143,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         setShowTagDropdown(tagTrigger.show)
       }
     },
-    [nodeId, updateParallelCollection, isPreview]
+    [nodeId, collaborativeUpdateParallelCollection, isPreview]
   )
 
   // Handle tag selection
@@ -189,8 +151,8 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
     (newValue: string) => {
       if (isPreview) return // Don't allow changes in preview mode
 
-      setEditorValue(newValue)
-      updateParallelCollection(nodeId, newValue)
+      // Update collaborative state directly - no local state needed
+      collaborativeUpdateParallelCollection(nodeId, newValue)
       setShowTagDropdown(false)
 
       // Focus back on the editor after selection
@@ -201,7 +163,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         }
       }, 0)
     },
-    [nodeId, updateParallelCollection, isPreview]
+    [nodeId, collaborativeUpdateParallelCollection, isPreview]
   )
 
   // Handle key events

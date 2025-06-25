@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateApiKey } from '@/lib/utils'
 import { db } from '@/db'
-import { apiKey, workflow } from '@/db/schema'
+import { apiKey, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Get the workflow to find the user and current state
+    // Get the workflow to find the user
     const workflowData = await db
       .select({
         userId: workflow.userId,
@@ -142,8 +142,92 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const userId = workflowData[0].userId
-    const currentState = workflowData[0].state
+
+    // Get the current live state from normalized tables instead of stale JSON
+    logger.debug(`[${requestId}] Getting current workflow state for deployment`)
+
+    // Get blocks from normalized table
+    const blocks = await db.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, id))
+
+    // Get edges from normalized table
+    const edges = await db.select().from(workflowEdges).where(eq(workflowEdges.workflowId, id))
+
+    // Get subflows from normalized table
+    const subflows = await db
+      .select()
+      .from(workflowSubflows)
+      .where(eq(workflowSubflows.workflowId, id))
+
+    // Build current state from normalized data
+    const blocksMap: Record<string, any> = {}
+    const loops: Record<string, any> = {}
+    const parallels: Record<string, any> = {}
+
+    // Process blocks
+    blocks.forEach((block) => {
+      blocksMap[block.id] = {
+        id: block.id,
+        type: block.type,
+        name: block.name,
+        position: { x: Number(block.positionX), y: Number(block.positionY) },
+        data: block.data,
+        enabled: block.enabled,
+        subBlocks: block.subBlocks || {},
+      }
+    })
+
+    // Process subflows (loops and parallels)
+    subflows.forEach((subflow) => {
+      const config = (subflow.config as any) || {}
+      if (subflow.type === 'loop') {
+        loops[subflow.id] = {
+          nodes: config.nodes || [],
+          iterationCount: config.iterationCount || 1,
+          iterationType: config.iterationType || 'fixed',
+          collection: config.collection || '',
+        }
+      } else if (subflow.type === 'parallel') {
+        parallels[subflow.id] = {
+          nodes: config.nodes || [],
+          parallelCount: config.parallelCount || 2,
+          collection: config.collection || '',
+        }
+      }
+    })
+
+    // Convert edges to the expected format
+    const edgesArray = edges.map((edge) => ({
+      id: edge.id,
+      source: edge.sourceBlockId,
+      target: edge.targetBlockId,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
+      type: 'default',
+      data: {},
+    }))
+
+    const currentState = {
+      blocks: blocksMap,
+      edges: edgesArray,
+      loops,
+      parallels,
+      lastSaved: Date.now(),
+    }
+
+    logger.debug(`[${requestId}] Current state retrieved from normalized tables:`, {
+      blocksCount: Object.keys(blocksMap).length,
+      edgesCount: edgesArray.length,
+      loopsCount: Object.keys(loops).length,
+      parallelsCount: Object.keys(parallels).length,
+    })
+
+    if (!currentState || !currentState.blocks) {
+      logger.error(`[${requestId}] Invalid workflow state retrieved`, { currentState })
+      throw new Error('Invalid workflow state: missing blocks')
+    }
+
     const deployedAt = new Date()
+    logger.debug(`[${requestId}] Proceeding with deployment at ${deployedAt.toISOString()}`)
 
     // Check if the user already has an API key
     const userApiKey = await db
@@ -191,7 +275,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
     return createSuccessResponse({ apiKey: userKey, isDeployed: true, deployedAt })
   } catch (error: any) {
-    logger.error(`[${requestId}] Error deploying workflow: ${id}`, error)
+    logger.error(`[${requestId}] Error deploying workflow: ${id}`, {
+      error: error.message,
+      stack: error.stack,
+      name: error.name,
+      cause: error.cause,
+      fullError: error,
+    })
     return createErrorResponse(error.message || 'Failed to deploy workflow', 500)
   }
 }

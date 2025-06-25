@@ -7,12 +7,16 @@ import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/executio
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
-import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import {
+  createHttpResponseFromBlock,
+  updateWorkflowRunCounts,
+  workflowHasResponseBlock,
+} from '@/lib/workflows/utils'
 import { db } from '@/db'
 import { environment, userStats } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/utils'
+import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
@@ -304,6 +308,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const result = await executeWorkflow(validation.workflow, requestId)
+
+    // Check if the workflow execution contains a response block output
+    const hasResponseBlock = workflowHasResponseBlock(result)
+    if (hasResponseBlock) {
+      return createHttpResponseFromBlock(result)
+    }
+
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
@@ -357,6 +368,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Execute workflow with the structured input
     const result = await executeWorkflow(validation.workflow, requestId, input)
+
+    // Check if the workflow execution contains a response block output
+    const hasResponseBlock = workflowHasResponseBlock(result)
+    if (hasResponseBlock) {
+      return createHttpResponseFromBlock(result)
+    }
+
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)

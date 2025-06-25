@@ -61,10 +61,6 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     url: 'https://api.mistral.ai/v1/ocr',
     method: 'POST',
     headers: (params) => {
-      logger.info(
-        'Setting up headers with API key:',
-        params.apiKey ? `${params.apiKey.substring(0, 5)}...` : 'Missing'
-      )
       return {
         'Content-Type': 'application/json',
         Accept: 'application/json',

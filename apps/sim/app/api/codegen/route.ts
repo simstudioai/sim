@@ -25,6 +25,7 @@ type GenerationType =
   | 'javascript-function-body'
   | 'typescript-function-body'
   | 'custom-tool-schema'
+  | 'json-object'
 
 // Define the structure for a single message in the history
 interface ChatMessage {
@@ -281,6 +282,24 @@ if (!response.ok) {
 const data: unknown = await response.json()
 // Add type checking/assertion if necessary
 return data // Ensure you return a value if expected`,
+
+  'json-object': `You are an expert JSON programmer.
+Generate ONLY the raw JSON object based on the user's request.
+The output MUST be a single, valid JSON object, starting with { and ending with }.
+
+Do not include any explanations, markdown formatting, or other text outside the JSON object.
+
+You have access to the following variables you can use to generate the JSON body:
+- 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
+- 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or env.
+
+Example:
+{
+  "name": "<block.agent.response.content>",
+  "age": <block.function.output.age>,
+  "success": true
+}
+`,
 }
 
 export async function POST(req: NextRequest) {

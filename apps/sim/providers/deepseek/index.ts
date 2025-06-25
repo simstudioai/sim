@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
+import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
@@ -34,8 +35,8 @@ export const deepseekProvider: ProviderConfig = {
   name: 'Deepseek',
   description: "Deepseek's chat models",
   version: '1.0.0',
-  models: ['deepseek-chat'],
-  defaultModel: 'deepseek-chat',
+  models: getProviderModels('deepseek'),
+  defaultModel: getProviderDefaultModel('deepseek'),
 
   executeRequest: async (
     request: ProviderRequest

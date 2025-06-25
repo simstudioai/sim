@@ -12,7 +12,7 @@ import { db } from '@/db'
 import { environment, userStats, webhook } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
+import { mergeSubblockStateAsync } from '@/stores/workflows/server-utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WebhookUtils')
@@ -674,7 +674,7 @@ export async function executeWorkflowFromPayload(
       serializedWorkflow,
       processedBlockStates,
       decryptedEnvVars,
-      input, // Use the provided input (might be single event or batch)
+      input,
       workflowVariables
     )
 
@@ -882,7 +882,9 @@ export function verifyProviderWebhook(
           logger.warn(
             `[${requestId}] Forbidden webhook access attempt - IP not allowed: ${clientIp}`
           )
-          return new NextResponse('Forbidden - IP not allowed', { status: 403 })
+          return new NextResponse('Forbidden - IP not allowed', {
+            status: 403,
+          })
         }
       }
       break
@@ -915,7 +917,9 @@ export async function fetchAndProcessAirtablePayloads(
   let apiCallCount = 0
   // Use a Map to consolidate changes per record ID
   const consolidatedChangesMap = new Map<string, AirtableChange>()
-  const localProviderConfig = { ...((webhookData.providerConfig as Record<string, any>) || {}) } // Local copy
+  const localProviderConfig = {
+    ...((webhookData.providerConfig as Record<string, any>) || {}),
+  } // Local copy
 
   // DEBUG: Log start of function execution with critical info
   logger.debug(`[${requestId}] TRACE: fetchAndProcessAirtablePayloads started`, {
@@ -959,7 +963,10 @@ export async function fetchAndProcessAirtablePayloads(
         await db
           .update(webhook)
           .set({
-            providerConfig: { ...localProviderConfig, externalWebhookCursor: null },
+            providerConfig: {
+              ...localProviderConfig,
+              externalWebhookCursor: null,
+            },
             updatedAt: new Date(),
           })
           .where(eq(webhook.id, webhookData.id))
@@ -1056,7 +1063,10 @@ export async function fetchAndProcessAirtablePayloads(
         const fetchStartTime = Date.now()
         const response = await fetch(fullUrl, {
           method: 'GET',
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
         })
 
         // DEBUG: Log API response time
@@ -1076,7 +1086,11 @@ export async function fetchAndProcessAirtablePayloads(
             `Airtable API error Status ${response.status}`
           logger.error(
             `[${requestId}] Airtable API request to /payloads failed (Call ${apiCallCount})`,
-            { webhookId: webhookData.id, status: response.status, error: errorMessage }
+            {
+              webhookId: webhookData.id,
+              status: response.status,
+              error: errorMessage,
+            }
           )
           await persistExecutionError(
             workflowData.id,
@@ -1206,7 +1220,10 @@ export async function fetchAndProcessAirtablePayloads(
           currentCursor = nextCursor
 
           // Follow exactly the old implementation - use awaited update instead of parallel
-          const updatedConfig = { ...localProviderConfig, externalWebhookCursor: currentCursor }
+          const updatedConfig = {
+            ...localProviderConfig,
+            externalWebhookCursor: currentCursor,
+          }
           try {
             // Force a complete object update to ensure consistency in serverless env
             await db
@@ -1504,6 +1521,7 @@ export async function configureGmailPolling(
           maxEmailsPerPoll,
           pollingInterval,
           markAsRead: providerConfig.markAsRead || false,
+          includeRawEmail: providerConfig.includeRawEmail || false,
           labelIds: providerConfig.labelIds || ['INBOX'],
           labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
           lastCheckedTimestamp: now.toISOString(),

@@ -4,8 +4,8 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { document } from '@/db/schema'
-import { checkDocumentAccess } from '../../../utils'
+import { document, embedding } from '@/db/schema'
+import { checkDocumentAccess, processDocumentAsync } from '../../../utils'
 
 const logger = createLogger('DocumentByIdAPI')
 
@@ -15,6 +15,10 @@ const UpdateDocumentSchema = z.object({
   chunkCount: z.number().min(0).optional(),
   tokenCount: z.number().min(0).optional(),
   characterCount: z.number().min(0).optional(),
+  processingStatus: z.enum(['pending', 'processing', 'completed', 'failed']).optional(),
+  processingError: z.string().optional(),
+  markFailedDueToTimeout: z.boolean().optional(),
+  retryProcessing: z.boolean().optional(),
 })
 
 export async function GET(
@@ -96,12 +100,113 @@ export async function PUT(
 
       const updateData: any = {}
 
-      if (validatedData.filename !== undefined) updateData.filename = validatedData.filename
-      if (validatedData.enabled !== undefined) updateData.enabled = validatedData.enabled
-      if (validatedData.chunkCount !== undefined) updateData.chunkCount = validatedData.chunkCount
-      if (validatedData.tokenCount !== undefined) updateData.tokenCount = validatedData.tokenCount
-      if (validatedData.characterCount !== undefined)
-        updateData.characterCount = validatedData.characterCount
+      // Handle special operations first
+      if (validatedData.markFailedDueToTimeout) {
+        // Mark document as failed due to timeout (replaces mark-failed endpoint)
+        const doc = accessCheck.document
+
+        if (doc.processingStatus !== 'processing') {
+          return NextResponse.json(
+            { error: `Document is not in processing state (current: ${doc.processingStatus})` },
+            { status: 400 }
+          )
+        }
+
+        if (!doc.processingStartedAt) {
+          return NextResponse.json(
+            { error: 'Document has no processing start time' },
+            { status: 400 }
+          )
+        }
+
+        const now = new Date()
+        const processingDuration = now.getTime() - new Date(doc.processingStartedAt).getTime()
+        const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000
+
+        if (processingDuration <= DEAD_PROCESS_THRESHOLD_MS) {
+          return NextResponse.json(
+            { error: 'Document has not been processing long enough to be considered dead' },
+            { status: 400 }
+          )
+        }
+
+        updateData.processingStatus = 'failed'
+        updateData.processingError =
+          'Processing timed out - background process may have been terminated'
+        updateData.processingCompletedAt = now
+
+        logger.info(
+          `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(processingDuration / 1000)}s)`
+        )
+      } else if (validatedData.retryProcessing) {
+        // Retry processing (replaces retry endpoint)
+        const doc = accessCheck.document
+
+        if (doc.processingStatus !== 'failed') {
+          return NextResponse.json({ error: 'Document is not in failed state' }, { status: 400 })
+        }
+
+        // Clear existing embeddings and reset document state
+        await db.transaction(async (tx) => {
+          await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+
+          await tx
+            .update(document)
+            .set({
+              processingStatus: 'pending',
+              processingStartedAt: null,
+              processingCompletedAt: null,
+              processingError: null,
+              chunkCount: 0,
+              tokenCount: 0,
+              characterCount: 0,
+            })
+            .where(eq(document.id, documentId))
+        })
+
+        const processingOptions = {
+          chunkSize: 1024,
+          minCharactersPerChunk: 24,
+          recipe: 'default',
+          lang: 'en',
+        }
+
+        const docData = {
+          filename: doc.filename,
+          fileUrl: doc.fileUrl,
+          fileSize: doc.fileSize,
+          mimeType: doc.mimeType,
+        }
+
+        processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions).catch(
+          (error: unknown) => {
+            logger.error(`[${requestId}] Background retry processing error:`, error)
+          }
+        )
+
+        logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            documentId,
+            status: 'pending',
+            message: 'Document retry processing started',
+          },
+        })
+      } else {
+        // Regular field updates
+        if (validatedData.filename !== undefined) updateData.filename = validatedData.filename
+        if (validatedData.enabled !== undefined) updateData.enabled = validatedData.enabled
+        if (validatedData.chunkCount !== undefined) updateData.chunkCount = validatedData.chunkCount
+        if (validatedData.tokenCount !== undefined) updateData.tokenCount = validatedData.tokenCount
+        if (validatedData.characterCount !== undefined)
+          updateData.characterCount = validatedData.characterCount
+        if (validatedData.processingStatus !== undefined)
+          updateData.processingStatus = validatedData.processingStatus
+        if (validatedData.processingError !== undefined)
+          updateData.processingError = validatedData.processingError
+      }
 
       await db.update(document).set(updateData).where(eq(document.id, documentId))
 

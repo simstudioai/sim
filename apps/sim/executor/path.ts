@@ -180,13 +180,13 @@ export class PathTracker {
 
     context.decisions.condition.set(block.id, selectedConditionId)
 
-    const targetConnection = this.workflow.connections.find(
+    const targetConnections = this.workflow.connections.filter(
       (conn) => conn.source === block.id && conn.sourceHandle === `condition-${selectedConditionId}`
     )
 
-    if (targetConnection) {
-      context.activeExecutionPath.add(targetConnection.target)
-      logger.debug(`Condition ${block.id} selected: ${selectedConditionId}`)
+    for (const conn of targetConnections) {
+      context.activeExecutionPath.add(conn.target)
+      logger.debug(`Condition ${block.id} activated path to: ${conn.target}`)
     }
   }
 

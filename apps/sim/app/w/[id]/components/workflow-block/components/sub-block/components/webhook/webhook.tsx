@@ -69,6 +69,7 @@ export interface GmailConfig {
   labelIds?: string[]
   labelFilterBehavior?: 'INCLUDE' | 'EXCLUDE'
   markAsRead?: boolean
+  includeRawEmail?: boolean
   maxEmailsPerPoll?: number
 }
 
@@ -144,6 +145,12 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         label: 'Mark As Read',
         defaultValue: false,
         description: 'Mark emails as read after processing.',
+      },
+      includeRawEmail: {
+        type: 'boolean',
+        label: 'Include Raw Email Data',
+        defaultValue: false,
+        description: 'Include the complete, unprocessed email data from Gmail.',
       },
       maxEmailsPerPoll: {
         type: 'string',
@@ -286,6 +293,7 @@ interface WebhookConfigProps {
     webhookPath?: string
     providerConfig?: ProviderConfig
   }
+  disabled?: boolean
 }
 
 export function WebhookConfig({
@@ -294,6 +302,7 @@ export function WebhookConfig({
   isConnecting,
   isPreview = false,
   value: propValue,
+  disabled = false,
 }: WebhookConfigProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -394,6 +403,7 @@ export function WebhookConfig({
   ])
 
   const handleOpenModal = () => {
+    if (isPreview || disabled) return
     setIsModalOpen(true)
     setError(null)
   }
@@ -403,8 +413,7 @@ export function WebhookConfig({
   }
 
   const handleSaveWebhook = async (path: string, config: ProviderConfig) => {
-    // Prevent saving in preview mode
-    if (isPreview) return false
+    if (isPreview || disabled) return false
 
     try {
       setIsSaving(true)
@@ -469,8 +478,7 @@ export function WebhookConfig({
   }
 
   const handleDeleteWebhook = async () => {
-    // Prevent deletion in preview mode
-    if (isPreview || !webhookId) return false
+    if (isPreview || disabled) return false
 
     try {
       setIsDeleting(true)
@@ -545,6 +553,7 @@ export function WebhookConfig({
   const isWebhookConnected = webhookId && webhookProvider === actualProvider
 
   const handleCredentialChange = (credentialId: string) => {
+    if (isPreview || disabled) return
     setGmailCredentialId(credentialId)
   }
 
@@ -564,7 +573,7 @@ export function WebhookConfig({
               'https://www.googleapis.com/auth/gmail.labels',
             ]}
             label='Select Gmail account'
-            disabled={isConnecting || isSaving || isDeleting || isPreview}
+            disabled={isConnecting || isSaving || isDeleting || isPreview || disabled}
           />
         </div>
 
@@ -574,7 +583,9 @@ export function WebhookConfig({
             size='sm'
             className='flex h-10 w-full items-center bg-background font-normal text-sm'
             onClick={handleOpenModal}
-            disabled={isConnecting || isSaving || isDeleting || !gmailCredentialId || isPreview}
+            disabled={
+              isConnecting || isSaving || isDeleting || !gmailCredentialId || isPreview || disabled
+            }
           >
             {isLoading ? (
               <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
@@ -626,7 +637,7 @@ export function WebhookConfig({
           size='sm'
           className='flex h-10 w-full items-center bg-background font-normal text-sm'
           onClick={handleOpenModal}
-          disabled={isConnecting || isSaving || isDeleting || isPreview}
+          disabled={isConnecting || isSaving || isDeleting || isPreview || disabled}
         >
           {isLoading ? (
             <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />

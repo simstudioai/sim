@@ -63,7 +63,7 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
 
       // Create a local copy of the marketplace workflow
       if (workflow.workflowState) {
-        const newWorkflowId = createWorkflow({
+        const newWorkflowId = await createWorkflow({
           name: `${workflow.name} (Copy)`,
           description: workflow.description,
           marketplaceId: workflow.id,

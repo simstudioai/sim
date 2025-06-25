@@ -2,6 +2,7 @@ import type { StreamingExecution } from '@/executor/types'
 
 export type ProviderId =
   | 'openai'
+  | 'azure-openai'
   | 'anthropic'
   | 'google'
   | 'deepseek'
@@ -148,6 +149,9 @@ export interface ProviderRequest {
   workflowId?: string // Optional workflow ID for authentication context
   stream?: boolean
   environmentVariables?: Record<string, string> // Environment variables for tool execution
+  // Azure OpenAI specific parameters
+  azureEndpoint?: string
+  azureApiVersion?: string
 }
 
 // Map of provider IDs to their configurations

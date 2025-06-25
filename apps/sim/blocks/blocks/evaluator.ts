@@ -1,7 +1,8 @@
 import { ChartBarIcon } from '@/components/icons'
+import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { ProviderId } from '@/providers/types'
-import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
+import { getAllModelProviders, getBaseModelProviders, getHostedModels } from '@/providers/utils'
 import { useOllamaStore } from '@/stores/ollama/store'
 import type { ToolResponse } from '@/tools/types'
 import type { BlockConfig, ParamType } from '../types'
@@ -25,6 +26,11 @@ interface EvaluatorResponse extends ToolResponse {
       prompt?: number
       completion?: number
       total?: number
+    }
+    cost?: {
+      input: number
+      output: number
+      total: number
     }
     [metricName: string]: any // Allow dynamic metric fields
   }
@@ -181,6 +187,13 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
+      condition: isHosted
+        ? {
+            field: 'model',
+            value: getHostedModels(),
+            not: true,
+          }
+        : undefined,
     },
     {
       id: 'systemPrompt',
@@ -299,6 +312,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
         content: 'string',
         model: 'string',
         tokens: 'any',
+        cost: 'any',
       },
       dependsOn: {
         subBlockId: 'metrics',
@@ -307,6 +321,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
             content: 'string',
             model: 'string',
             tokens: 'any',
+            cost: 'any',
           },
           whenFilled: 'json',
         },

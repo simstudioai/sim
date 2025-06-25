@@ -2,26 +2,12 @@ import { useEffect, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization, useSession, useSubscription } from '@/lib/auth-client'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { TeamSeatsDialog } from './components/team-seats-dialog'
 
 const logger = createLogger('Subscription')
 
@@ -332,7 +318,7 @@ export function Subscription({
     setIsTeamDialogOpen(true)
   }
 
-  const confirmTeamUpgrade = async () => {
+  const confirmTeamUpgrade = async (selectedSeats?: number) => {
     if (!session?.user) {
       setError('You need to be logged in to upgrade your team subscription')
       return
@@ -341,10 +327,12 @@ export function Subscription({
     setIsUpgradingTeam(true)
     setError(null)
 
+    const seatsToUse = selectedSeats || seats
+
     try {
       const result = await subscription.upgrade({
         plan: 'team',
-        seats,
+        seats: seatsToUse,
         successUrl: window.location.href,
         cancelUrl: window.location.href,
       })
@@ -816,54 +804,19 @@ export function Subscription({
             </div>
           )}
 
-          <Dialog open={isTeamDialogOpen} onOpenChange={setIsTeamDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Team Subscription</DialogTitle>
-                <DialogDescription>
-                  Set up a team workspace with collaborative features. Each seat costs $40/month and
-                  gets $40 of inference credits.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className='py-4'>
-                <Label htmlFor='seats'>Number of seats</Label>
-                <Select
-                  value={seats.toString()}
-                  onValueChange={(value) => setSeats(Number.parseInt(value))}
-                >
-                  <SelectTrigger id='seats'>
-                    <SelectValue placeholder='Select number of seats' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => (
-                      <SelectItem key={num} value={num.toString()}>
-                        {num} {num === 1 ? 'seat' : 'seats'} (${num * 40}/month)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <p className='mt-2 text-muted-foreground text-sm'>
-                  Your team will have {seats} {seats === 1 ? 'seat' : 'seats'} with a total of $
-                  {seats * 40} inference credits per month.
-                </p>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant='outline'
-                  onClick={() => setIsTeamDialogOpen(false)}
-                  disabled={isUpgradingTeam}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={confirmTeamUpgrade} disabled={isUpgradingTeam}>
-                  {isUpgradingTeam ? <ButtonSkeleton /> : <span>Upgrade to Team Plan</span>}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <TeamSeatsDialog
+            open={isTeamDialogOpen}
+            onOpenChange={setIsTeamDialogOpen}
+            title='Team Subscription'
+            description={`Set up a team workspace with collaborative features. Each seat costs $${env.TEAM_TIER_COST_LIMIT}/month and gets $${env.TEAM_TIER_COST_LIMIT} of inference credits.`}
+            initialSeats={seats}
+            isLoading={isUpgradingTeam}
+            onConfirm={async (selectedSeats: number) => {
+              setSeats(selectedSeats)
+              await confirmTeamUpgrade(selectedSeats)
+            }}
+            confirmButtonText='Upgrade to Team Plan'
+          />
         </>
       )}
     </div>

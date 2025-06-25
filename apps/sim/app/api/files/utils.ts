@@ -111,13 +111,42 @@ export function isS3Path(path: string): boolean {
 }
 
 /**
+ * Check if a path is a Blob path
+ */
+export function isBlobPath(path: string): boolean {
+  return path.includes('/api/files/serve/blob/')
+}
+
+/**
+ * Check if a path points to cloud storage (S3, Blob, or generic cloud)
+ */
+export function isCloudPath(path: string): boolean {
+  return isS3Path(path) || isBlobPath(path)
+}
+
+/**
+ * Generic function to extract storage key from a path
+ */
+export function extractStorageKey(path: string, storageType: 's3' | 'blob'): string {
+  const prefix = `/api/files/serve/${storageType}/`
+  if (path.includes(prefix)) {
+    return decodeURIComponent(path.split(prefix)[1])
+  }
+  return path
+}
+
+/**
  * Extract S3 key from a path
  */
 export function extractS3Key(path: string): string {
-  if (isS3Path(path)) {
-    return decodeURIComponent(path.split('/api/files/serve/s3/')[1])
-  }
-  return path
+  return extractStorageKey(path, 's3')
+}
+
+/**
+ * Extract Blob key from a path
+ */
+export function extractBlobKey(path: string): string {
+  return extractStorageKey(path, 'blob')
 }
 
 /**

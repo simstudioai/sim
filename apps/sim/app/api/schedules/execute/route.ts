@@ -19,7 +19,7 @@ import { db } from '@/db'
 import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/utils'
+import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 // Add dynamic export to prevent caching

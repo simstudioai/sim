@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, ChevronDown, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
 import { PackageSearchIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,7 +21,7 @@ interface KnowledgeBaseSelectorProps {
   blockId: string
   subBlock: SubBlockConfig
   disabled?: boolean
-  onKnowledgeBaseSelect?: (knowledgeBaseId: string) => void
+  onKnowledgeBaseSelect?: (knowledgeBaseId: string | string[]) => void
   isPreview?: boolean
   previewValue?: string | null
 }
@@ -42,15 +42,16 @@ export function KnowledgeBaseSelector({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBaseData | null>(null)
+  const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBaseData[]>([])
   const [initialFetchDone, setInitialFetchDone] = useState(false)
-  const [knowledgeBaseInfo, setKnowledgeBaseInfo] = useState<KnowledgeBaseData | null>(null)
 
   // Get the current value from the store
   const storeValue = getValue(blockId, subBlock.id)
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
+
+  const isMultiSelect = subBlock.multiSelect === true
 
   // Fetch knowledge bases
   const fetchKnowledgeBases = useCallback(async () => {
@@ -82,12 +83,11 @@ export function KnowledgeBaseSelector({
     }
   }
 
-  // Handle knowledge base selection
-  const handleSelectKnowledgeBase = (knowledgeBase: KnowledgeBaseData) => {
+  // Handle single knowledge base selection (for backward compatibility)
+  const handleSelectSingleKnowledgeBase = (knowledgeBase: KnowledgeBaseData) => {
     if (isPreview) return
 
-    setSelectedKnowledgeBase(knowledgeBase)
-    setKnowledgeBaseInfo(knowledgeBase)
+    setSelectedKnowledgeBases([knowledgeBase])
 
     if (!isPreview) {
       setValue(blockId, subBlock.id, knowledgeBase.id)
@@ -97,20 +97,65 @@ export function KnowledgeBaseSelector({
     setOpen(false)
   }
 
-  // Sync selected knowledge base with value prop
+  // Handle multi-select knowledge base selection
+  const handleToggleKnowledgeBase = (knowledgeBase: KnowledgeBaseData) => {
+    if (isPreview) return
+
+    const isCurrentlySelected = selectedKnowledgeBases.some((kb) => kb.id === knowledgeBase.id)
+    let newSelected: KnowledgeBaseData[]
+
+    if (isCurrentlySelected) {
+      // Remove from selection
+      newSelected = selectedKnowledgeBases.filter((kb) => kb.id !== knowledgeBase.id)
+    } else {
+      // Add to selection
+      newSelected = [...selectedKnowledgeBases, knowledgeBase]
+    }
+
+    setSelectedKnowledgeBases(newSelected)
+
+    if (!isPreview) {
+      const selectedIds = newSelected.map((kb) => kb.id)
+      const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
+      setValue(blockId, subBlock.id, valueToStore)
+    }
+
+    onKnowledgeBaseSelect?.(newSelected.map((kb) => kb.id))
+  }
+
+  // Remove selected knowledge base (for multi-select tags)
+  const handleRemoveKnowledgeBase = (knowledgeBaseId: string) => {
+    if (isPreview) return
+
+    const newSelected = selectedKnowledgeBases.filter((kb) => kb.id !== knowledgeBaseId)
+    setSelectedKnowledgeBases(newSelected)
+
+    if (!isPreview) {
+      const selectedIds = newSelected.map((kb) => kb.id)
+      const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
+      setValue(blockId, subBlock.id, valueToStore)
+    }
+
+    onKnowledgeBaseSelect?.(newSelected.map((kb) => kb.id))
+  }
+
+  // Sync selected knowledge bases with value prop
   useEffect(() => {
     if (value && knowledgeBases.length > 0) {
-      const kbInfo = knowledgeBases.find((kb) => kb.id === value)
-      if (kbInfo) {
-        setSelectedKnowledgeBase(kbInfo)
-        setKnowledgeBaseInfo(kbInfo)
-      } else {
-        setSelectedKnowledgeBase(null)
-        setKnowledgeBaseInfo(null)
-      }
+      const selectedIds =
+        typeof value === 'string'
+          ? value.includes(',')
+            ? value
+                .split(',')
+                .map((id) => id.trim())
+                .filter((id) => id.length > 0)
+            : [value]
+          : []
+
+      const selectedKbs = knowledgeBases.filter((kb) => selectedIds.includes(kb.id))
+      setSelectedKnowledgeBases(selectedKbs)
     } else if (!value) {
-      setSelectedKnowledgeBase(null)
-      setKnowledgeBaseInfo(null)
+      setSelectedKnowledgeBases([])
     }
   }, [value, knowledgeBases])
 
@@ -124,10 +169,23 @@ export function KnowledgeBaseSelector({
 
   // If we have a value but no knowledge base info and haven't fetched yet, fetch
   useEffect(() => {
-    if (value && !selectedKnowledgeBase && !loading && !initialFetchDone && !isPreview) {
+    if (
+      value &&
+      selectedKnowledgeBases.length === 0 &&
+      !loading &&
+      !initialFetchDone &&
+      !isPreview
+    ) {
       fetchKnowledgeBases()
     }
-  }, [value, selectedKnowledgeBase, loading, initialFetchDone, fetchKnowledgeBases, isPreview])
+  }, [
+    value,
+    selectedKnowledgeBases.length,
+    loading,
+    initialFetchDone,
+    fetchKnowledgeBases,
+    isPreview,
+  ])
 
   const formatKnowledgeBaseName = (knowledgeBase: KnowledgeBaseData) => {
     return knowledgeBase.name
@@ -141,10 +199,38 @@ export function KnowledgeBaseSelector({
     return knowledgeBase.description || 'No description'
   }
 
-  const label = subBlock.placeholder || 'Select knowledge base'
+  const isKnowledgeBaseSelected = (knowledgeBaseId: string) => {
+    return selectedKnowledgeBases.some((kb) => kb.id === knowledgeBaseId)
+  }
+
+  const label =
+    subBlock.placeholder || (isMultiSelect ? 'Select knowledge bases' : 'Select knowledge base')
 
   return (
     <div className='w-full'>
+      {/* Selected knowledge bases display (for multi-select) */}
+      {isMultiSelect && selectedKnowledgeBases.length > 0 && (
+        <div className='mb-2 flex flex-wrap gap-1'>
+          {selectedKnowledgeBases.map((kb) => (
+            <div
+              key={kb.id}
+              className='inline-flex items-center rounded-md border border-[#00B0B0]/20 bg-[#00B0B0]/10 px-2 py-1 text-xs'
+            >
+              <PackageSearchIcon className='mr-1 h-3 w-3 text-[#00B0B0]' />
+              <span className='font-medium text-[#00B0B0]'>{formatKnowledgeBaseName(kb)}</span>
+              {!disabled && !isPreview && (
+                <button
+                  onClick={() => handleRemoveKnowledgeBase(kb.id)}
+                  className='ml-1 text-[#00B0B0]/60 hover:text-[#00B0B0]'
+                >
+                  <X className='h-3 w-3' />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
@@ -156,9 +242,11 @@ export function KnowledgeBaseSelector({
           >
             <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
               <PackageSearchIcon className='h-4 w-4 text-[#00B0B0]' />
-              {selectedKnowledgeBase ? (
+              {selectedKnowledgeBases.length > 0 ? (
                 <span className='truncate font-normal'>
-                  {formatKnowledgeBaseName(selectedKnowledgeBase)}
+                  {isMultiSelect
+                    ? `${selectedKnowledgeBases.length} selected`
+                    : formatKnowledgeBaseName(selectedKnowledgeBases[0])}
                 </span>
               ) : (
                 <span className='truncate text-muted-foreground'>{label}</span>
@@ -196,27 +284,37 @@ export function KnowledgeBaseSelector({
                   <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                     Knowledge Bases
                   </div>
-                  {knowledgeBases.map((knowledgeBase) => (
-                    <CommandItem
-                      key={knowledgeBase.id}
-                      value={`kb-${knowledgeBase.id}-${knowledgeBase.name}`}
-                      onSelect={() => handleSelectKnowledgeBase(knowledgeBase)}
-                      className='cursor-pointer'
-                    >
-                      <div className='flex items-center gap-2 overflow-hidden'>
-                        <PackageSearchIcon className='h-4 w-4 text-[#00B0B0]' />
-                        <div className='min-w-0 flex-1 overflow-hidden'>
-                          <div className='truncate font-normal'>
-                            {formatKnowledgeBaseName(knowledgeBase)}
-                          </div>
-                          <div className='truncate text-muted-foreground text-xs'>
-                            {getKnowledgeBaseDescription(knowledgeBase)}
+                  {knowledgeBases.map((knowledgeBase) => {
+                    const isSelected = isKnowledgeBaseSelected(knowledgeBase.id)
+
+                    return (
+                      <CommandItem
+                        key={knowledgeBase.id}
+                        value={`kb-${knowledgeBase.id}-${knowledgeBase.name}`}
+                        onSelect={() => {
+                          if (isMultiSelect) {
+                            handleToggleKnowledgeBase(knowledgeBase)
+                          } else {
+                            handleSelectSingleKnowledgeBase(knowledgeBase)
+                          }
+                        }}
+                        className='cursor-pointer'
+                      >
+                        <div className='flex items-center gap-2 overflow-hidden'>
+                          <PackageSearchIcon className='h-4 w-4 text-[#00B0B0]' />
+                          <div className='min-w-0 flex-1 overflow-hidden'>
+                            <div className='truncate font-normal'>
+                              {formatKnowledgeBaseName(knowledgeBase)}
+                            </div>
+                            <div className='truncate text-muted-foreground text-xs'>
+                              {getKnowledgeBaseDescription(knowledgeBase)}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      {knowledgeBase.id === value && <Check className='ml-auto h-4 w-4' />}
-                    </CommandItem>
-                  ))}
+                        {isSelected && <Check className='ml-auto h-4 w-4' />}
+                      </CommandItem>
+                    )
+                  })}
                 </CommandGroup>
               )}
             </CommandList>

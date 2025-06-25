@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { DeployModal } from '../deploy-modal/deploy-modal'
@@ -16,6 +17,7 @@ interface DeploymentControlsProps {
   deployedState: WorkflowState | null
   isLoadingDeployedState: boolean
   refetchDeployedState: () => Promise<void>
+  userPermissions: WorkspaceUserPermissions
 }
 
 export function DeploymentControls({
@@ -25,6 +27,7 @@ export function DeploymentControls({
   deployedState,
   isLoadingDeployedState,
   refetchDeployedState,
+  userPermissions,
 }: DeploymentControlsProps) {
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(activeWorkflowId)
@@ -52,6 +55,31 @@ export function DeploymentControls({
     } catch (error) {}
   }
 
+  const canDeploy = userPermissions.canAdmin
+  const isDisabled = isDeploying || !canDeploy
+
+  const handleDeployClick = useCallback(() => {
+    if (canDeploy) {
+      setIsModalOpen(true)
+    }
+  }, [canDeploy, setIsModalOpen])
+
+  const getTooltipText = () => {
+    if (!canDeploy) {
+      return 'Admin permissions required to deploy workflows'
+    }
+    if (isDeploying) {
+      return 'Deploying...'
+    }
+    if (isDeployed && workflowNeedsRedeployment) {
+      return 'Workflow changes detected'
+    }
+    if (isDeployed) {
+      return 'Deployment Settings'
+    }
+    return 'Deploy as API'
+  }
+
   return (
     <>
       <Tooltip>
@@ -60,9 +88,13 @@ export function DeploymentControls({
             <Button
               variant='ghost'
               size='icon'
-              onClick={() => setIsModalOpen(true)}
-              disabled={isDeploying}
-              className={cn('hover:text-[#802FFF]', isDeployed && 'text-[#802FFF]')}
+              onClick={handleDeployClick}
+              disabled={isDisabled}
+              className={cn(
+                'hover:text-[#802FFF]',
+                isDeployed && 'text-[#802FFF]',
+                isDisabled && 'cursor-not-allowed opacity-50'
+              )}
             >
               {isDeploying ? (
                 <Loader2 className='h-5 w-5 animate-spin' />
@@ -83,15 +115,7 @@ export function DeploymentControls({
             )}
           </div>
         </TooltipTrigger>
-        <TooltipContent>
-          {isDeploying
-            ? 'Deploying...'
-            : isDeployed && workflowNeedsRedeployment
-              ? 'Workflow changes detected'
-              : isDeployed
-                ? 'Deployment Settings'
-                : 'Deploy as API'}
-        </TooltipContent>
+        <TooltipContent>{getTooltipText()}</TooltipContent>
       </Tooltip>
 
       <DeployModal

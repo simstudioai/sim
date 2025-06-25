@@ -1,17 +1,14 @@
 import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
+import { devtools } from 'zustand/middleware'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useEnvironmentStore } from '../../settings/environment/store'
 import { useGeneralStore } from '../../settings/general/store'
-import { loadSubblockValues, saveSubblockValues } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
-import { workflowSync } from '../sync'
+// Removed workflowSync import - Socket.IO handles real-time sync
 import type { SubBlockStore } from './types'
 import { extractEnvVarName, findMatchingEnvVar, isEnvVarReference } from './utils'
 
-// Add debounce utility for syncing
-let syncDebounceTimer: NodeJS.Timeout | null = null
-const DEBOUNCE_DELAY = 500 // 500ms delay for sync
+// Removed debounce sync - Socket.IO handles real-time sync immediately
 
 /**
  * SubBlockState stores values for all subblocks in workflows
@@ -26,307 +23,249 @@ const DEBOUNCE_DELAY = 500 // 500ms delay for sync
  */
 
 export const useSubBlockStore = create<SubBlockStore>()(
-  devtools(
-    persist(
-      (set, get) => ({
-        workflowValues: {},
-        // Initialize tool params-related state
-        toolParams: {},
-        clearedParams: {},
+  devtools((set, get) => ({
+    workflowValues: {},
+    // Initialize tool params-related state
+    toolParams: {},
+    clearedParams: {},
 
-        setValue: (blockId: string, subBlockId: string, value: any) => {
-          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-          if (!activeWorkflowId) return
+    setValue: (blockId: string, subBlockId: string, value: any) => {
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (!activeWorkflowId) return
 
-          set((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [activeWorkflowId]: {
-                ...state.workflowValues[activeWorkflowId],
-                [blockId]: {
-                  ...state.workflowValues[activeWorkflowId]?.[blockId],
-                  [subBlockId]: value,
-                },
-              },
+      set((state) => ({
+        workflowValues: {
+          ...state.workflowValues,
+          [activeWorkflowId]: {
+            ...state.workflowValues[activeWorkflowId],
+            [blockId]: {
+              ...state.workflowValues[activeWorkflowId]?.[blockId],
+              [subBlockId]: value,
             },
-          }))
-
-          // Persist to localStorage for backup
-          const currentValues = get().workflowValues[activeWorkflowId] || {}
-          saveSubblockValues(activeWorkflowId, currentValues)
-
-          // Trigger debounced sync to DB
-          get().syncWithDB()
+          },
         },
+      }))
 
-        getValue: (blockId: string, subBlockId: string) => {
-          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-          if (!activeWorkflowId) return null
+      // Trigger debounced sync to DB
+      get().syncWithDB()
+    },
 
-          return get().workflowValues[activeWorkflowId]?.[blockId]?.[subBlockId] ?? null
+    getValue: (blockId: string, subBlockId: string) => {
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (!activeWorkflowId) return null
+
+      return get().workflowValues[activeWorkflowId]?.[blockId]?.[subBlockId] ?? null
+    },
+
+    clear: () => {
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (!activeWorkflowId) return
+
+      set((state) => ({
+        workflowValues: {
+          ...state.workflowValues,
+          [activeWorkflowId]: {},
         },
+      }))
 
-        clear: () => {
-          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-          if (!activeWorkflowId) return
+      // Note: Socket.IO handles real-time sync automatically
+    },
 
-          set((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [activeWorkflowId]: {},
-            },
-          }))
+    initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => {
+      // Initialize from blocks
+      const values: Record<string, Record<string, any>> = {}
+      Object.entries(blocks).forEach(([blockId, block]) => {
+        values[blockId] = {}
+        Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
+          values[blockId][subBlockId] = (subBlock as SubBlockConfig).value
+        })
+      })
 
-          saveSubblockValues(activeWorkflowId, {})
-
-          // Trigger sync to DB immediately on clear
-          workflowSync.sync()
+      set((state) => ({
+        workflowValues: {
+          ...state.workflowValues,
+          [workflowId]: values,
         },
+      }))
+    },
 
-        initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => {
-          // First, try to load from localStorage
-          const savedValues = loadSubblockValues(workflowId)
+    // Removed syncWithDB - Socket.IO handles real-time sync automatically
+    syncWithDB: () => {
+      // No-op: Socket.IO handles real-time sync
+    },
 
-          if (savedValues) {
-            set((state) => ({
-              workflowValues: {
-                ...state.workflowValues,
-                [workflowId]: savedValues,
-              },
-            }))
-            return
+    // Tool params related functionality
+    setToolParam: (toolId: string, paramId: string, value: string) => {
+      // If setting a non-empty value, we should remove it from clearedParams if it exists
+      if (value.trim() !== '') {
+        set((state) => {
+          const newClearedParams = { ...state.clearedParams }
+          if (newClearedParams[toolId]?.[paramId]) {
+            delete newClearedParams[toolId][paramId]
+            // Clean up empty objects
+            if (Object.keys(newClearedParams[toolId]).length === 0) {
+              delete newClearedParams[toolId]
+            }
           }
 
-          // If no saved values, initialize from blocks
-          const values: Record<string, Record<string, any>> = {}
-          Object.entries(blocks).forEach(([blockId, block]) => {
-            values[blockId] = {}
-            Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
-              values[blockId][subBlockId] = (subBlock as SubBlockConfig).value
-            })
-          })
+          return { clearedParams: newClearedParams }
+        })
+      }
 
-          set((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [workflowId]: values,
-            },
-          }))
-
-          // Save to localStorage
-          saveSubblockValues(workflowId, values)
+      // Set the parameter value
+      set((state) => ({
+        toolParams: {
+          ...state.toolParams,
+          [toolId]: {
+            ...(state.toolParams[toolId] || {}),
+            [paramId]: value,
+          },
         },
+      }))
 
-        // Debounced sync function to trigger DB sync
-        syncWithDB: () => {
-          // Clear any existing timeout
-          if (syncDebounceTimer) {
-            clearTimeout(syncDebounceTimer)
-          }
+      // For API keys, also store under a normalized tool name for cross-referencing
+      // This allows both blocks and tools to share the same parameters
+      if (paramId.toLowerCase() === 'apikey' || paramId.toLowerCase() === 'api_key') {
+        // Extract the tool name part (e.g., "exa" from "exa-search")
+        const baseTool = toolId.split('-')[0].toLowerCase()
 
-          // Set new timeout
-          syncDebounceTimer = setTimeout(() => {
-            // Trigger workflow sync to DB
-            workflowSync.sync()
-          }, DEBOUNCE_DELAY)
-        },
-
-        // Tool params related functionality
-        setToolParam: (toolId: string, paramId: string, value: string) => {
-          // If setting a non-empty value, we should remove it from clearedParams if it exists
-          if (value.trim() !== '') {
-            set((state) => {
-              const newClearedParams = { ...state.clearedParams }
-              if (newClearedParams[toolId]?.[paramId]) {
-                delete newClearedParams[toolId][paramId]
-                // Clean up empty objects
-                if (Object.keys(newClearedParams[toolId]).length === 0) {
-                  delete newClearedParams[toolId]
-                }
-              }
-
-              return { clearedParams: newClearedParams }
-            })
-          }
-
-          // Set the parameter value
+        if (baseTool !== toolId) {
+          // Set the same value for the base tool to enable cross-referencing
           set((state) => ({
             toolParams: {
               ...state.toolParams,
-              [toolId]: {
-                ...(state.toolParams[toolId] || {}),
+              [baseTool]: {
+                ...(state.toolParams[baseTool] || {}),
                 [paramId]: value,
               },
             },
           }))
+        }
+      }
+    },
 
-          // For API keys, also store under a normalized tool name for cross-referencing
-          // This allows both blocks and tools to share the same parameters
-          if (paramId.toLowerCase() === 'apikey' || paramId.toLowerCase() === 'api_key') {
-            // Extract the tool name part (e.g., "exa" from "exa-search")
-            const baseTool = toolId.split('-')[0].toLowerCase()
+    markParamAsCleared: (instanceId: string, paramId: string) => {
+      // Mark this specific instance as cleared
+      set((state) => ({
+        clearedParams: {
+          ...state.clearedParams,
+          [instanceId]: {
+            ...(state.clearedParams[instanceId] || {}),
+            [paramId]: true,
+          },
+        },
+      }))
+    },
 
-            if (baseTool !== toolId) {
-              // Set the same value for the base tool to enable cross-referencing
-              set((state) => ({
-                toolParams: {
-                  ...state.toolParams,
-                  [baseTool]: {
-                    ...(state.toolParams[baseTool] || {}),
-                    [paramId]: value,
-                  },
-                },
-              }))
-            }
+    unmarkParamAsCleared: (instanceId: string, paramId: string) => {
+      // Remove the cleared flag for this parameter
+      set((state) => {
+        const newClearedParams = { ...state.clearedParams }
+        if (newClearedParams[instanceId]?.[paramId]) {
+          delete newClearedParams[instanceId][paramId]
+          // Clean up empty objects
+          if (Object.keys(newClearedParams[instanceId]).length === 0) {
+            delete newClearedParams[instanceId]
           }
-        },
+        }
+        return { clearedParams: newClearedParams }
+      })
+    },
 
-        markParamAsCleared: (instanceId: string, paramId: string) => {
-          // Mark this specific instance as cleared
-          set((state) => ({
-            clearedParams: {
-              ...state.clearedParams,
-              [instanceId]: {
-                ...(state.clearedParams[instanceId] || {}),
-                [paramId]: true,
-              },
-            },
-          }))
-        },
+    isParamCleared: (instanceId: string, paramId: string) => {
+      // Only check this specific instance
+      return !!get().clearedParams[instanceId]?.[paramId]
+    },
 
-        unmarkParamAsCleared: (instanceId: string, paramId: string) => {
-          // Remove the cleared flag for this parameter
-          set((state) => {
-            const newClearedParams = { ...state.clearedParams }
-            if (newClearedParams[instanceId]?.[paramId]) {
-              delete newClearedParams[instanceId][paramId]
-              // Clean up empty objects
-              if (Object.keys(newClearedParams[instanceId]).length === 0) {
-                delete newClearedParams[instanceId]
-              }
-            }
-            return { clearedParams: newClearedParams }
-          })
-        },
+    getToolParam: (toolId: string, paramId: string) => {
+      // Check for direct match first
+      const directValue = get().toolParams[toolId]?.[paramId]
+      if (directValue) return directValue
 
-        isParamCleared: (instanceId: string, paramId: string) => {
-          // Only check this specific instance
-          return !!get().clearedParams[instanceId]?.[paramId]
-        },
+      // Try base tool name if it's a compound tool ID
+      if (toolId.includes('-')) {
+        const baseTool = toolId.split('-')[0].toLowerCase()
+        return get().toolParams[baseTool]?.[paramId]
+      }
 
-        getToolParam: (toolId: string, paramId: string) => {
-          // Check for direct match first
-          const directValue = get().toolParams[toolId]?.[paramId]
-          if (directValue) return directValue
+      // Try matching against any stored tool that starts with this ID
+      // This helps match "exa" with "exa-search" etc.
+      const matchingToolIds = Object.keys(get().toolParams).filter(
+        (id) => id.startsWith(toolId) || id.split('-')[0] === toolId
+      )
 
-          // Try base tool name if it's a compound tool ID
-          if (toolId.includes('-')) {
-            const baseTool = toolId.split('-')[0].toLowerCase()
-            return get().toolParams[baseTool]?.[paramId]
-          }
+      for (const id of matchingToolIds) {
+        const value = get().toolParams[id]?.[paramId]
+        if (value) return value
+      }
 
-          // Try matching against any stored tool that starts with this ID
-          // This helps match "exa" with "exa-search" etc.
-          const matchingToolIds = Object.keys(get().toolParams).filter(
-            (id) => id.startsWith(toolId) || id.split('-')[0] === toolId
-          )
+      return undefined
+    },
 
-          for (const id of matchingToolIds) {
-            const value = get().toolParams[id]?.[paramId]
-            if (value) return value
-          }
+    getToolParams: (toolId: string) => {
+      return get().toolParams[toolId] || {}
+    },
 
-          return undefined
-        },
+    isEnvVarReference,
 
-        getToolParams: (toolId: string) => {
-          return get().toolParams[toolId] || {}
-        },
+    resolveToolParamValue: (toolId: string, paramId: string, instanceId?: string) => {
+      // If this is a specific instance that has been deliberately cleared, don't auto-fill it
+      if (instanceId && get().isParamCleared(instanceId, paramId)) {
+        return undefined
+      }
 
-        isEnvVarReference,
+      // Check if auto-fill environment variables is enabled
+      const isAutoFillEnvVarsEnabled = useGeneralStore.getState().isAutoFillEnvVarsEnabled
+      if (!isAutoFillEnvVarsEnabled) {
+        // When auto-fill is disabled, we still return existing stored values, but don't
+        // attempt to resolve environment variables or set new values
+        return get().toolParams[toolId]?.[paramId]
+      }
 
-        resolveToolParamValue: (toolId: string, paramId: string, instanceId?: string) => {
-          // If this is a specific instance that has been deliberately cleared, don't auto-fill it
-          if (instanceId && get().isParamCleared(instanceId, paramId)) {
-            return undefined
-          }
+      const envStore = useEnvironmentStore.getState()
 
-          // Check if auto-fill environment variables is enabled
-          const isAutoFillEnvVarsEnabled = useGeneralStore.getState().isAutoFillEnvVarsEnabled
-          if (!isAutoFillEnvVarsEnabled) {
-            // When auto-fill is disabled, we still return existing stored values, but don't
-            // attempt to resolve environment variables or set new values
-            return get().toolParams[toolId]?.[paramId]
-          }
+      // First check params store for previously entered value
+      const storedValue = get().getToolParam(toolId, paramId)
 
-          const envStore = useEnvironmentStore.getState()
+      if (storedValue) {
+        // If the stored value is an environment variable reference like {{EXA_API_KEY}}
+        if (isEnvVarReference(storedValue)) {
+          // Extract variable name from {{VAR_NAME}}
+          const envVarName = extractEnvVarName(storedValue)
+          if (!envVarName) return undefined
 
-          // First check params store for previously entered value
-          const storedValue = get().getToolParam(toolId, paramId)
+          // Check if this environment variable still exists
+          const envValue = envStore.getVariable(envVarName)
 
-          if (storedValue) {
-            // If the stored value is an environment variable reference like {{EXA_API_KEY}}
-            if (isEnvVarReference(storedValue)) {
-              // Extract variable name from {{VAR_NAME}}
-              const envVarName = extractEnvVarName(storedValue)
-              if (!envVarName) return undefined
-
-              // Check if this environment variable still exists
-              const envValue = envStore.getVariable(envVarName)
-
-              if (envValue) {
-                // Environment variable exists, return the reference
-                return storedValue
-              }
-              // Environment variable no longer exists
-              return undefined
-            }
-
-            // Return the stored value directly if it's not an env var reference
+          if (envValue) {
+            // Environment variable exists, return the reference
             return storedValue
           }
-
-          // If no stored value, try to guess based on parameter name
-          // This handles cases where the user hasn't entered a value yet
-          if (paramId.toLowerCase() === 'apikey' || paramId.toLowerCase() === 'api_key') {
-            const matchingVar = findMatchingEnvVar(toolId)
-            if (matchingVar) {
-              const envReference = `{{${matchingVar}}}`
-              get().setToolParam(toolId, paramId, envReference)
-              return envReference
-            }
-          }
-
-          // No value found
+          // Environment variable no longer exists
           return undefined
-        },
+        }
 
-        clearToolParams: () => {
-          set({ toolParams: {}, clearedParams: {} })
-        },
-      }),
-      {
-        name: 'subblock-store',
-        partialize: (state) => ({
-          workflowValues: state.workflowValues,
-          toolParams: state.toolParams,
-          clearedParams: state.clearedParams,
-        }),
-        // Use default storage
-        storage: {
-          getItem: (name) => {
-            const value = localStorage.getItem(name)
-            return value ? JSON.parse(value) : null
-          },
-          setItem: (name, value) => {
-            localStorage.setItem(name, JSON.stringify(value))
-          },
-          removeItem: (name) => {
-            localStorage.removeItem(name)
-          },
-        },
+        // Return the stored value directly if it's not an env var reference
+        return storedValue
       }
-    ),
-    { name: 'subblock-store' }
-  )
+
+      // If no stored value, try to guess based on parameter name
+      // This handles cases where the user hasn't entered a value yet
+      if (paramId.toLowerCase() === 'apikey' || paramId.toLowerCase() === 'api_key') {
+        const matchingVar = findMatchingEnvVar(toolId)
+        if (matchingVar) {
+          const envReference = `{{${matchingVar}}}`
+          get().setToolParam(toolId, paramId, envReference)
+          return envReference
+        }
+      }
+
+      // No value found
+      return undefined
+    },
+
+    clearToolParams: () => {
+      set({ toolParams: {}, clearedParams: {} })
+    },
+  }))
 )

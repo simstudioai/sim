@@ -1,10 +1,10 @@
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { embedding, knowledgeBase } from '@/db/schema'
 
@@ -20,9 +20,11 @@ class APIError extends Error {
   }
 }
 
-// Schema for vector search request
 const VectorSearchSchema = z.object({
-  knowledgeBaseId: z.string().min(1, 'Knowledge base ID is required'),
+  knowledgeBaseIds: z.union([
+    z.string().min(1, 'Knowledge base ID is required'),
+    z.array(z.string().min(1)).min(1, 'At least one knowledge base ID is required'),
+  ]),
   query: z.string().min(1, 'Search query is required'),
   topK: z.number().min(1).max(100).default(10),
 })
@@ -34,7 +36,7 @@ async function generateSearchEmbedding(query: string): Promise<number[]> {
   }
 
   try {
-    return await retryWithExponentialBackoff(
+    const embedding = await retryWithExponentialBackoff(
       async () => {
         const response = await fetch('https://api.openai.com/v1/embeddings', {
           method: 'POST',
@@ -69,10 +71,12 @@ async function generateSearchEmbedding(query: string): Promise<number[]> {
       {
         maxRetries: 5,
         initialDelayMs: 1000,
-        maxDelayMs: 30000, // Max 30 seconds delay for search queries
+        maxDelayMs: 30000,
         backoffMultiplier: 2,
       }
     )
+
+    return embedding
   } catch (error) {
     logger.error('Failed to generate search embedding:', error)
     throw new Error(
@@ -81,73 +85,164 @@ async function generateSearchEmbedding(query: string): Promise<number[]> {
   }
 }
 
+function getQueryStrategy(kbCount: number, topK: number) {
+  const useParallel = kbCount > 4 || (kbCount > 2 && topK > 50)
+  const distanceThreshold = kbCount > 3 ? 0.8 : 1.0
+  const parallelLimit = Math.ceil(topK / kbCount) + 5
+
+  return {
+    useParallel,
+    distanceThreshold,
+    parallelLimit,
+    singleQueryOptimized: kbCount <= 2,
+  }
+}
+
+async function executeParallelQueries(
+  knowledgeBaseIds: string[],
+  queryVector: string,
+  topK: number,
+  distanceThreshold: number
+) {
+  const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
+
+  const queryPromises = knowledgeBaseIds.map(async (kbId) => {
+    const results = await db
+      .select({
+        id: embedding.id,
+        content: embedding.content,
+        documentId: embedding.documentId,
+        chunkIndex: embedding.chunkIndex,
+        metadata: embedding.metadata,
+        distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
+        knowledgeBaseId: embedding.knowledgeBaseId,
+      })
+      .from(embedding)
+      .where(
+        and(
+          eq(embedding.knowledgeBaseId, kbId),
+          eq(embedding.enabled, true),
+          sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
+        )
+      )
+      .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
+      .limit(parallelLimit)
+
+    return results
+  })
+
+  const parallelResults = await Promise.all(queryPromises)
+  return parallelResults.flat()
+}
+
+async function executeSingleQuery(
+  knowledgeBaseIds: string[],
+  queryVector: string,
+  topK: number,
+  distanceThreshold: number
+) {
+  return await db
+    .select({
+      id: embedding.id,
+      content: embedding.content,
+      documentId: embedding.documentId,
+      chunkIndex: embedding.chunkIndex,
+      metadata: embedding.metadata,
+      distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
+    })
+    .from(embedding)
+    .where(
+      and(
+        inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+        eq(embedding.enabled, true),
+        sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
+      )
+    )
+    .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
+    .limit(topK)
+}
+
+function mergeAndRankResults(results: any[], topK: number) {
+  return results.sort((a, b) => a.distance - b.distance).slice(0, topK)
+}
+
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    logger.info(`[${requestId}] Processing vector search request`)
+    const body = await request.json()
+    const { workflowId, ...searchParams } = body
 
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized vector search attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const userId = await getUserId(requestId, workflowId)
+
+    if (!userId) {
+      const errorMessage = workflowId ? 'Workflow not found' : 'Unauthorized'
+      const statusCode = workflowId ? 404 : 401
+      return NextResponse.json({ error: errorMessage }, { status: statusCode })
     }
 
-    const body = await request.json()
-
     try {
-      const validatedData = VectorSearchSchema.parse(body)
+      const validatedData = VectorSearchSchema.parse(searchParams)
 
-      // Verify the knowledge base exists and user has access
-      const kb = await db
-        .select()
-        .from(knowledgeBase)
-        .where(
-          and(
-            eq(knowledgeBase.id, validatedData.knowledgeBaseId),
-            eq(knowledgeBase.userId, session.user.id),
-            isNull(knowledgeBase.deletedAt)
-          )
-        )
-        .limit(1)
+      const knowledgeBaseIds = Array.isArray(validatedData.knowledgeBaseIds)
+        ? validatedData.knowledgeBaseIds
+        : [validatedData.knowledgeBaseIds]
+
+      const [kb, queryEmbedding] = await Promise.all([
+        db
+          .select()
+          .from(knowledgeBase)
+          .where(
+            and(
+              inArray(knowledgeBase.id, knowledgeBaseIds),
+              eq(knowledgeBase.userId, userId),
+              isNull(knowledgeBase.deletedAt)
+            )
+          ),
+        generateSearchEmbedding(validatedData.query),
+      ])
 
       if (kb.length === 0) {
-        logger.warn(
-          `[${requestId}] Knowledge base not found or access denied: ${validatedData.knowledgeBaseId}`
-        )
         return NextResponse.json(
           { error: 'Knowledge base not found or access denied' },
           { status: 404 }
         )
       }
 
-      // Generate embedding for the search query
-      logger.info(`[${requestId}] Generating embedding for search query`)
-      const queryEmbedding = await generateSearchEmbedding(validatedData.query)
+      const foundKbIds = kb.map((k) => k.id)
+      const missingKbIds = knowledgeBaseIds.filter((id) => !foundKbIds.includes(id))
 
-      // Perform vector similarity search using pgvector cosine similarity
-      logger.info(`[${requestId}] Performing vector search with topK=${validatedData.topK}`)
-
-      const results = await db
-        .select({
-          id: embedding.id,
-          content: embedding.content,
-          documentId: embedding.documentId,
-          chunkIndex: embedding.chunkIndex,
-          metadata: embedding.metadata,
-          similarity: sql<number>`1 - (${embedding.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
-        })
-        .from(embedding)
-        .where(
-          and(
-            eq(embedding.knowledgeBaseId, validatedData.knowledgeBaseId),
-            eq(embedding.enabled, true)
-          )
+      if (missingKbIds.length > 0) {
+        return NextResponse.json(
+          { error: `Knowledge bases not found: ${missingKbIds.join(', ')}` },
+          { status: 404 }
         )
-        .orderBy(sql`${embedding.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
-        .limit(validatedData.topK)
+      }
 
-      logger.info(`[${requestId}] Vector search completed. Found ${results.length} results`)
+      // Adaptive query strategy based on KB count and parameters
+      const strategy = getQueryStrategy(foundKbIds.length, validatedData.topK)
+      const queryVector = JSON.stringify(queryEmbedding)
+
+      let results: any[]
+
+      if (strategy.useParallel) {
+        // Execute parallel queries for better performance with many KBs
+        const parallelResults = await executeParallelQueries(
+          foundKbIds,
+          queryVector,
+          validatedData.topK,
+          strategy.distanceThreshold
+        )
+        results = mergeAndRankResults(parallelResults, validatedData.topK)
+      } else {
+        // Execute single optimized query for fewer KBs
+        results = await executeSingleQuery(
+          foundKbIds,
+          queryVector,
+          validatedData.topK,
+          strategy.distanceThreshold
+        )
+      }
 
       return NextResponse.json({
         success: true,
@@ -158,19 +253,17 @@ export async function POST(request: NextRequest) {
             documentId: result.documentId,
             chunkIndex: result.chunkIndex,
             metadata: result.metadata,
-            similarity: result.similarity,
+            similarity: 1 - result.distance,
           })),
           query: validatedData.query,
-          knowledgeBaseId: validatedData.knowledgeBaseId,
+          knowledgeBaseIds: foundKbIds,
+          knowledgeBaseId: foundKbIds[0],
           topK: validatedData.topK,
           totalResults: results.length,
         },
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid vector search data`, {
-          errors: validationError.errors,
-        })
         return NextResponse.json(
           { error: 'Invalid request data', details: validationError.errors },
           { status: 400 }
@@ -179,7 +272,6 @@ export async function POST(request: NextRequest) {
       throw validationError
     }
   } catch (error) {
-    logger.error(`[${requestId}] Error performing vector search`, error)
     return NextResponse.json(
       {
         error: 'Failed to perform vector search',

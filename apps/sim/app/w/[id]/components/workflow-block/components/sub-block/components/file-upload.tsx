@@ -18,6 +18,7 @@ interface FileUploadProps {
   multiple?: boolean // whether to allow multiple file uploads
   isPreview?: boolean
   previewValue?: any | null
+  disabled?: boolean
 }
 
 interface UploadedFile {
@@ -41,6 +42,7 @@ export function FileUpload({
   multiple = false, // Default to single file for backward compatibility
   isPreview = false,
   previewValue,
+  disabled = false,
 }: FileUploadProps) {
   // State management - handle both single file and array of files
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
@@ -68,6 +70,8 @@ export function FileUpload({
     e.preventDefault()
     e.stopPropagation()
 
+    if (disabled) return
+
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
       fileInputRef.current.click()
@@ -87,7 +91,7 @@ export function FileUpload({
    * Handles file upload when new file(s) are selected
    */
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
 
     e.stopPropagation()
 
@@ -170,12 +174,19 @@ export function FileUpload({
             // Use direct upload method
             useDirectUpload = true
 
-            // Upload directly to S3 using the pre-signed URL
+            const uploadHeaders: Record<string, string> = {
+              'Content-Type': file.type,
+            }
+
+            // Add Azure-specific headers if provided
+            if (presignedData.uploadHeaders) {
+              Object.assign(uploadHeaders, presignedData.uploadHeaders)
+            }
+
+            // Upload directly to cloud storage using the pre-signed URL
             const uploadResponse = await fetch(presignedData.presignedUrl, {
               method: 'PUT',
-              headers: {
-                'Content-Type': file.type,
-              },
+              headers: uploadHeaders, // Use the merged headers
               body: file,
             })
 

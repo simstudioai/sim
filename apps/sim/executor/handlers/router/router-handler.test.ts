@@ -152,6 +152,11 @@ describe('RouterBlockHandler', () => {
         content: 'Choose the best option.',
         model: 'mock-model',
         tokens: { prompt: 100, completion: 5, total: 105 },
+        cost: {
+          input: 0,
+          output: 0,
+          total: 0,
+        },
         selectedPath: {
           blockId: 'target-block-1',
           blockType: 'target',

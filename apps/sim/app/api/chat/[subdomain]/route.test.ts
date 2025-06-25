@@ -7,20 +7,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('Chat Subdomain API Route', () => {
-  const mockWorkflowSingleOutput = {
-    id: 'response-id',
-    content: 'Test response',
-    timestamp: new Date().toISOString(),
-    type: 'workflow',
+  const createMockStream = () => {
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode('data: {"blockId":"agent-1","chunk":"Hello"}\n\n')
+        )
+        controller.enqueue(
+          new TextEncoder().encode('data: {"blockId":"agent-1","chunk":" world"}\n\n')
+        )
+        controller.enqueue(
+          new TextEncoder().encode('data: {"event":"final","data":{"success":true}}\n\n')
+        )
+        controller.close()
+      },
+    })
   }
 
-  // Mock functions
   const mockAddCorsHeaders = vi.fn().mockImplementation((response) => response)
   const mockValidateChatAuth = vi.fn().mockResolvedValue({ authorized: true })
   const mockSetChatAuthCookie = vi.fn()
-  const mockExecuteWorkflowForChat = vi.fn().mockResolvedValue(mockWorkflowSingleOutput)
+  const mockExecuteWorkflowForChat = vi.fn().mockResolvedValue(createMockStream())
 
-  // Mock database return values
   const mockChatResult = [
     {
       id: 'chat-id',
@@ -41,13 +49,24 @@ describe('Chat Subdomain API Route', () => {
   const mockWorkflowResult = [
     {
       isDeployed: true,
+      state: {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      deployedState: {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
     },
   ]
 
   beforeEach(() => {
     vi.resetModules()
 
-    // Mock chat API utils
     vi.doMock('../utils', () => ({
       addCorsHeaders: mockAddCorsHeaders,
       validateChatAuth: mockValidateChatAuth,
@@ -56,7 +75,6 @@ describe('Chat Subdomain API Route', () => {
       executeWorkflowForChat: mockExecuteWorkflowForChat,
     }))
 
-    // Mock logger
     vi.doMock('@/lib/logs/console-logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         debug: vi.fn(),
@@ -66,32 +84,35 @@ describe('Chat Subdomain API Route', () => {
       }),
     }))
 
-    // Mock database
     vi.doMock('@/db', () => {
-      const mockLimitChat = vi.fn().mockReturnValue(mockChatResult)
-      const mockWhereChat = vi.fn().mockReturnValue({ limit: mockLimitChat })
-
-      const mockLimitWorkflow = vi.fn().mockReturnValue(mockWorkflowResult)
-      const mockWhereWorkflow = vi.fn().mockReturnValue({ limit: mockLimitWorkflow })
-
-      const mockFrom = vi.fn().mockImplementation((table) => {
-        // Check which table is being queried
-        if (table === 'workflow') {
-          return { where: mockWhereWorkflow }
+      const mockSelect = vi.fn().mockImplementation((fields) => {
+        if (fields && fields.isDeployed !== undefined) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue(mockWorkflowResult),
+              }),
+            }),
+          }
         }
-        return { where: mockWhereChat }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(mockChatResult),
+            }),
+          }),
+        }
       })
-
-      const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
 
       return {
         db: {
           select: mockSelect,
         },
+        chat: {},
+        workflow: {},
       }
     })
 
-    // Mock API response helpers
     vi.doMock('@/app/api/workflows/utils', () => ({
       createErrorResponse: vi.fn().mockImplementation((message, status, code) => {
         return new Response(
@@ -277,37 +298,47 @@ describe('Chat Subdomain API Route', () => {
     })
 
     it('should return 503 when workflow is not available', async () => {
+      // Override the default workflow result to return non-deployed
       vi.doMock('@/db', () => {
-        const mockLimitChat = vi.fn().mockReturnValue([
-          {
-            id: 'chat-id',
-            workflowId: 'unavailable-workflow',
-            isActive: true,
-            authType: 'public',
-          },
-        ])
-        const mockWhereChat = vi.fn().mockReturnValue({ limit: mockLimitChat })
+        // Track call count to return different results
+        let callCount = 0
 
-        // Second call returns non-deployed workflow
-        const mockLimitWorkflow = vi.fn().mockReturnValue([
-          {
-            isDeployed: false,
-          },
-        ])
-        const mockWhereWorkflow = vi.fn().mockReturnValue({ limit: mockLimitWorkflow })
+        const mockLimit = vi.fn().mockImplementation(() => {
+          callCount++
+          if (callCount === 1) {
+            // First call - chat query
+            return [
+              {
+                id: 'chat-id',
+                workflowId: 'unavailable-workflow',
+                userId: 'user-id',
+                isActive: true,
+                authType: 'public',
+                outputConfigs: [{ blockId: 'block-1', path: 'output' }],
+              },
+            ]
+          }
+          if (callCount === 2) {
+            // Second call - workflow query
+            return [
+              {
+                isDeployed: false,
+              },
+            ]
+          }
+          return []
+        })
 
-        // Mock from function to return different where implementations
-        const mockFrom = vi
-          .fn()
-          .mockImplementationOnce(() => ({ where: mockWhereChat })) // First call (chat)
-          .mockImplementationOnce(() => ({ where: mockWhereWorkflow })) // Second call (workflow)
-
+        const mockWhere = vi.fn().mockReturnValue({ limit: mockLimit })
+        const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
         const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
 
         return {
           db: {
             select: mockSelect,
           },
+          chat: {},
+          workflow: {},
         }
       })
 
@@ -325,6 +356,48 @@ describe('Chat Subdomain API Route', () => {
       expect(data).toHaveProperty('message', 'Chat workflow is not available')
     })
 
+    it('should return streaming response for valid chat messages', async () => {
+      const req = createMockRequest('POST', { message: 'Hello world', conversationId: 'conv-123' })
+      const params = Promise.resolve({ subdomain: 'test-chat' })
+
+      const { POST } = await import('./route')
+
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('text/event-stream')
+      expect(response.headers.get('Cache-Control')).toBe('no-cache')
+      expect(response.headers.get('Connection')).toBe('keep-alive')
+
+      // Verify executeWorkflowForChat was called with correct parameters
+      expect(mockExecuteWorkflowForChat).toHaveBeenCalledWith('chat-id', 'Hello world', 'conv-123')
+    })
+
+    it('should handle streaming response body correctly', async () => {
+      const req = createMockRequest('POST', { message: 'Hello world' })
+      const params = Promise.resolve({ subdomain: 'test-chat' })
+
+      const { POST } = await import('./route')
+
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(200)
+      expect(response.body).toBeInstanceOf(ReadableStream)
+
+      // Test that we can read from the response stream
+      if (response.body) {
+        const reader = response.body.getReader()
+        const { value, done } = await reader.read()
+
+        if (!done && value) {
+          const chunk = new TextDecoder().decode(value)
+          expect(chunk).toMatch(/^data: /)
+        }
+
+        reader.releaseLock()
+      }
+    })
+
     it('should handle workflow execution errors gracefully', async () => {
       const originalExecuteWorkflow = mockExecuteWorkflowForChat.getMockImplementation()
       mockExecuteWorkflowForChat.mockImplementationOnce(async () => {
@@ -338,15 +411,64 @@ describe('Chat Subdomain API Route', () => {
 
       const response = await POST(req, { params })
 
-      expect(response.status).toBe(503)
+      expect(response.status).toBe(500)
 
       const data = await response.json()
       expect(data).toHaveProperty('error')
-      expect(data).toHaveProperty('message', 'Chat workflow is not available')
+      expect(data).toHaveProperty('message', 'Execution failed')
 
       if (originalExecuteWorkflow) {
         mockExecuteWorkflowForChat.mockImplementation(originalExecuteWorkflow)
       }
+    })
+
+    it('should handle invalid JSON in request body', async () => {
+      // Create a request with invalid JSON
+      const req = {
+        method: 'POST',
+        json: vi.fn().mockRejectedValue(new Error('Invalid JSON')),
+      } as any
+
+      const params = Promise.resolve({ subdomain: 'test-chat' })
+
+      const { POST } = await import('./route')
+
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(400)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('error')
+      expect(data).toHaveProperty('message', 'Invalid request body')
+    })
+
+    it('should pass conversationId to executeWorkflowForChat when provided', async () => {
+      const req = createMockRequest('POST', {
+        message: 'Hello world',
+        conversationId: 'test-conversation-123',
+      })
+      const params = Promise.resolve({ subdomain: 'test-chat' })
+
+      const { POST } = await import('./route')
+
+      await POST(req, { params })
+
+      expect(mockExecuteWorkflowForChat).toHaveBeenCalledWith(
+        'chat-id',
+        'Hello world',
+        'test-conversation-123'
+      )
+    })
+
+    it('should handle missing conversationId gracefully', async () => {
+      const req = createMockRequest('POST', { message: 'Hello world' })
+      const params = Promise.resolve({ subdomain: 'test-chat' })
+
+      const { POST } = await import('./route')
+
+      await POST(req, { params })
+
+      expect(mockExecuteWorkflowForChat).toHaveBeenCalledWith('chat-id', 'Hello world', undefined)
     })
   })
 })

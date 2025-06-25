@@ -7,19 +7,10 @@ import { Send, Square } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VoiceInput } from './voice-input'
 
-const PLACEHOLDER = 'Enter a message or click the mic to speak'
-const MAX_TEXTAREA_HEIGHT = 160 // Max height in pixels (e.g., for about 4-5 lines)
-
-const containerVariants = {
-  collapsed: {
-    height: '56px', // Fixed height when collapsed
-    boxShadow: '0 1px 6px 0 rgba(0,0,0,0.05)',
-  },
-  expanded: {
-    height: 'auto',
-    boxShadow: '0 2px 10px 0 rgba(0,0,0,0.1)',
-  },
-} as const
+const PLACEHOLDER_MOBILE = 'Enter a message'
+const PLACEHOLDER_DESKTOP = 'Enter a message or click the mic to speak'
+const MAX_TEXTAREA_HEIGHT = 120 // Max height in pixels (e.g., for about 3-4 lines)
+const MAX_TEXTAREA_HEIGHT_MOBILE = 100 // Smaller for mobile
 
 export const ChatInput: React.FC<{
   onSubmit?: (value: string, isVoiceInput?: boolean) => void
@@ -44,8 +35,12 @@ export const ChatInput: React.FC<{
       el.style.height = 'auto' // Reset height to correctly calculate scrollHeight
       const scrollHeight = el.scrollHeight
 
-      if (scrollHeight > MAX_TEXTAREA_HEIGHT) {
-        el.style.height = `${MAX_TEXTAREA_HEIGHT}px`
+      // Use mobile height on mobile devices, desktop height on desktop
+      const isMobile = window.innerWidth < 768
+      const maxHeight = isMobile ? MAX_TEXTAREA_HEIGHT_MOBILE : MAX_TEXTAREA_HEIGHT
+
+      if (scrollHeight > maxHeight) {
+        el.style.height = `${maxHeight}px`
         el.style.overflowY = 'auto'
       } else {
         el.style.height = `${scrollHeight}px`
@@ -135,32 +130,28 @@ export const ChatInput: React.FC<{
 
   return (
     <>
-      <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-white to-transparent pb-4 text-black'>
-        <motion.div
-          ref={wrapperRef}
-          className='w-full max-w-3xl px-4'
-          variants={containerVariants}
-          animate={'expanded'}
-          initial='collapsed'
-          style={{
-            overflow: 'hidden',
-            borderRadius: 32,
-            background: '#fff',
-            border: '1px solid rgba(0,0,0,0.1)',
-            marginLeft: 'auto',
-            marginRight: 'auto',
-          }}
-          onClick={handleActivate}
-        >
-          <div className='flex h-full w-full items-center rounded-full p-2'>
-            {/* Voice Input with Tooltip */}
-            {isSttAvailable && (
-              <div className='mr-2'>
+      <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-white to-transparent px-4 pb-4 text-black md:px-0 md:pb-4'>
+        <div ref={wrapperRef} className='w-full max-w-3xl md:max-w-[748px]'>
+          {/* Text Input Area with Controls */}
+          <motion.div
+            className='rounded-2xl border border-gray-200 bg-white shadow-sm md:rounded-3xl'
+            onClick={handleActivate}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className='flex items-center gap-2 p-3 md:p-4'>
+              {/* Voice Input */}
+              {isSttAvailable && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div>
-                        <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} />
+                        <VoiceInput
+                          onVoiceStart={handleVoiceStart}
+                          disabled={isStreaming}
+                          minimal
+                        />
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side='top'>
@@ -169,78 +160,87 @@ export const ChatInput: React.FC<{
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-              </div>
-            )}
+              )}
 
-            {/* Text Input & Placeholder */}
-            <div className='relative min-h-[40px] flex-1'>
-              <textarea
-                ref={textareaRef}
-                value={inputValue}
-                onChange={handleInputChange}
-                className='w-full resize-none overflow-hidden bg-transparent px-3 py-3 text-base outline-none placeholder:text-gray-400'
-                placeholder={isActive ? '' : ''}
-                rows={1}
-                style={{
-                  minHeight: '40px',
-                  lineHeight: '1.4',
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
+              {/* Text Input Container */}
+              <div className='relative flex-1'>
+                <textarea
+                  ref={textareaRef}
+                  value={inputValue}
+                  onChange={handleInputChange}
+                  className='flex w-full resize-none items-center overflow-hidden bg-transparent text-sm outline-none placeholder:text-gray-400 md:font-[330] md:text-base'
+                  placeholder={isActive ? '' : ''}
+                  rows={1}
+                  style={{
+                    minHeight: window.innerWidth >= 768 ? '24px' : '28px',
+                    lineHeight: '1.4',
+                    paddingTop: window.innerWidth >= 768 ? '4px' : '3px',
+                    paddingBottom: window.innerWidth >= 768 ? '4px' : '3px',
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSubmit()
+                    }
+                  }}
+                />
+
+                {/* Placeholder */}
+                <div className='pointer-events-none absolute top-0 left-0 flex h-full w-full items-center'>
+                  {!isActive && !inputValue && (
+                    <>
+                      {/* Mobile placeholder */}
+                      <div
+                        className='-translate-y-1/2 absolute top-1/2 left-0 transform select-none text-gray-400 text-sm md:hidden md:text-base'
+                        style={{ paddingTop: '3px', paddingBottom: '3px' }}
+                      >
+                        {PLACEHOLDER_MOBILE}
+                      </div>
+                      {/* Desktop placeholder */}
+                      <div
+                        className='-translate-y-1/2 absolute top-1/2 left-0 hidden transform select-none font-[330] text-gray-400 text-sm md:block md:text-base'
+                        style={{ paddingTop: '4px', paddingBottom: '4px' }}
+                      >
+                        {PLACEHOLDER_DESKTOP}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Send Button */}
+              <button
+                className={`flex items-center justify-center rounded-full p-1.5 text-white transition-colors md:p-2 ${
+                  inputValue.trim()
+                    ? 'bg-black hover:bg-zinc-700'
+                    : 'cursor-default bg-gray-300 hover:bg-gray-400'
+                }`}
+                title={isStreaming ? 'Stop' : 'Send'}
+                type='button'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (isStreaming) {
+                    onStopStreaming?.()
+                  } else {
                     handleSubmit()
                   }
                 }}
-              />
-
-              <div className='pointer-events-none absolute top-0 left-0 flex h-full w-full items-center'>
-                {!isActive && !inputValue && (
-                  <div
-                    className='-translate-y-1/2 absolute top-1/2 left-3 select-none text-gray-400'
-                    style={{
-                      whiteSpace: 'nowrap',
-                      zIndex: 0,
-                      background:
-                        'linear-gradient(90deg, rgba(150,150,150,0.2) 0%, rgba(150,150,150,0.8) 50%, rgba(150,150,150,0.2) 100%)',
-                      backgroundSize: '200% 100%',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      animation: 'shimmer 10s infinite linear',
-                    }}
-                  >
-                    {PLACEHOLDER}
-                    <style jsx global>{`
-                      @keyframes shimmer {
-                        0% {
-                          background-position: 200% 0;
-                        }
-                        100% {
-                          background-position: -200% 0;
-                        }
-                      }
-                    `}</style>
-                  </div>
+              >
+                {isStreaming ? (
+                  <>
+                    <Square size={16} className='md:hidden' />
+                    <Square size={18} className='hidden md:block' />
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} className='md:hidden' />
+                    <Send size={18} className='hidden md:block' />
+                  </>
                 )}
-              </div>
+              </button>
             </div>
-
-            <button
-              className='flex items-center justify-center rounded-full bg-black p-3 text-white hover:bg-zinc-700'
-              title={isStreaming ? 'Stop' : 'Send'}
-              type='button'
-              onClick={(e) => {
-                e.stopPropagation()
-                if (isStreaming) {
-                  onStopStreaming?.()
-                } else {
-                  handleSubmit()
-                }
-              }}
-            >
-              {isStreaming ? <Square size={18} /> : <Send size={18} />}
-            </button>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </>
   )

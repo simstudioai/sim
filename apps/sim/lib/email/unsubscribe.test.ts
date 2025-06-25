@@ -13,7 +13,7 @@ describe('unsubscribe utilities', () => {
   const testEmailType = 'marketing'
 
   describe('generateUnsubscribeToken', () => {
-    it('should generate a token with salt:hash:emailType format', () => {
+    it.concurrent('should generate a token with salt:hash:emailType format', () => {
       const token = generateUnsubscribeToken(testEmail, testEmailType)
       const parts = token.split(':')
 
@@ -23,21 +23,24 @@ describe('unsubscribe utilities', () => {
       expect(parts[2]).toBe(testEmailType)
     })
 
-    it('should generate different tokens for the same email (due to random salt)', () => {
-      const token1 = generateUnsubscribeToken(testEmail, testEmailType)
-      const token2 = generateUnsubscribeToken(testEmail, testEmailType)
+    it.concurrent(
+      'should generate different tokens for the same email (due to random salt)',
+      () => {
+        const token1 = generateUnsubscribeToken(testEmail, testEmailType)
+        const token2 = generateUnsubscribeToken(testEmail, testEmailType)
 
-      expect(token1).not.toBe(token2)
-    })
+        expect(token1).not.toBe(token2)
+      }
+    )
 
-    it('should default to marketing email type', () => {
+    it.concurrent('should default to marketing email type', () => {
       const token = generateUnsubscribeToken(testEmail)
       const parts = token.split(':')
 
       expect(parts[2]).toBe('marketing')
     })
 
-    it('should generate different tokens for different email types', () => {
+    it.concurrent('should generate different tokens for different email types', () => {
       const marketingToken = generateUnsubscribeToken(testEmail, 'marketing')
       const updatesToken = generateUnsubscribeToken(testEmail, 'updates')
 
@@ -46,7 +49,7 @@ describe('unsubscribe utilities', () => {
   })
 
   describe('verifyUnsubscribeToken', () => {
-    it('should verify a valid token', () => {
+    it.concurrent('should verify a valid token', () => {
       const token = generateUnsubscribeToken(testEmail, testEmailType)
       const result = verifyUnsubscribeToken(testEmail, token)
 
@@ -54,7 +57,7 @@ describe('unsubscribe utilities', () => {
       expect(result.emailType).toBe(testEmailType)
     })
 
-    it('should reject an invalid token', () => {
+    it.concurrent('should reject an invalid token', () => {
       const invalidToken = 'invalid:token:format'
       const result = verifyUnsubscribeToken(testEmail, invalidToken)
 
@@ -62,14 +65,14 @@ describe('unsubscribe utilities', () => {
       expect(result.emailType).toBe('format')
     })
 
-    it('should reject a token for wrong email', () => {
+    it.concurrent('should reject a token for wrong email', () => {
       const token = generateUnsubscribeToken(testEmail, testEmailType)
       const result = verifyUnsubscribeToken('wrong@example.com', token)
 
       expect(result.valid).toBe(false)
     })
 
-    it('should handle legacy tokens (2 parts) and default to marketing', () => {
+    it.concurrent('should handle legacy tokens (2 parts) and default to marketing', () => {
       // Generate a real legacy token using the actual hashing logic to ensure backward compatibility
       const salt = 'abc123'
       const { createHash } = require('crypto')
@@ -84,7 +87,7 @@ describe('unsubscribe utilities', () => {
       expect(result.emailType).toBe('marketing') // Should default to marketing for legacy tokens
     })
 
-    it('should reject malformed tokens', () => {
+    it.concurrent('should reject malformed tokens', () => {
       const malformedTokens = ['', 'single-part', 'too:many:parts:here:invalid', ':empty:parts:']
 
       malformedTokens.forEach((token) => {
@@ -95,11 +98,11 @@ describe('unsubscribe utilities', () => {
   })
 
   describe('isTransactionalEmail', () => {
-    it('should identify transactional emails correctly', () => {
+    it.concurrent('should identify transactional emails correctly', () => {
       expect(isTransactionalEmail('transactional')).toBe(true)
     })
 
-    it('should identify non-transactional emails correctly', () => {
+    it.concurrent('should identify non-transactional emails correctly', () => {
       const nonTransactionalTypes: EmailType[] = ['marketing', 'updates', 'notifications']
 
       nonTransactionalTypes.forEach((type) => {

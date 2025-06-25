@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { GithubIcon } from '@/components/icons'
 
 interface ChatHeaderProps {
@@ -19,7 +18,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
   const primaryColor = chatConfig?.customizations?.primaryColor || '#701FFC'
 
   return (
-    <div className='flex items-center justify-between border-border border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
+    <div className='flex items-center justify-between bg-background/95 px-5 py-3 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:px-6 md:pt-3'>
       <div className='flex items-center gap-3'>
         {chatConfig?.customizations?.logoUrl && (
           <img
@@ -32,21 +31,17 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
           {chatConfig?.customizations?.headerText || chatConfig?.title || 'Chat'}
         </h2>
       </div>
-      <div className='flex items-center gap-1'>
-        <motion.a
+      <div className='flex items-center gap-2'>
+        <a
           href='https://github.com/simstudioai/sim'
-          className='flex items-center gap-1 rounded-md px-1.5 py-1 text-foreground/70 transition-colors duration-200 hover:bg-foreground/5 hover:text-foreground'
+          className='flex items-center gap-1 text-foreground'
           aria-label='GitHub'
           target='_blank'
           rel='noopener noreferrer'
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          whileHover={{ scale: 1.02 }}
         >
           <GithubIcon className='h-[18px] w-[18px]' />
           <span className='hidden font-medium text-xs sm:inline-block'>{starCount}</span>
-        </motion.a>
+        </a>
         <a
           href='https://simstudio.ai'
           target='_blank'

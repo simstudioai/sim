@@ -5,7 +5,13 @@ import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
@@ -494,11 +500,11 @@ export default function LoginPage({
             <DialogTitle className='font-semibold text-white text-xl tracking-tight'>
               Reset Password
             </DialogTitle>
+            <DialogDescription className='text-neutral-300 text-sm'>
+              Enter your email address and we'll send you a link to reset your password.
+            </DialogDescription>
           </DialogHeader>
           <div className='space-y-4'>
-            <div className='text-neutral-300 text-sm'>
-              Enter your email address and we'll send you a link to reset your password.
-            </div>
             <div className='space-y-2'>
               <Label htmlFor='reset-email' className='text-neutral-300'>
                 Email

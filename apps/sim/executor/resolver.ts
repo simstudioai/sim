@@ -1082,7 +1082,7 @@ export class InputResolver {
             if (!value || typeof value !== 'object') {
               throw new Error(`Invalid path "${pathParts[i]}" in loop item reference`)
             }
-            value = value[pathParts[i]]
+            value = (value as any)[pathParts[i] as any]
             if (value === undefined) {
               throw new Error(`No value found at path "loop.${pathParts.join('.')}" in loop item`)
             }
@@ -1226,7 +1226,7 @@ export class InputResolver {
             if (!value || typeof value !== 'object') {
               throw new Error(`Invalid path "${pathParts[i]}" in parallel item reference`)
             }
-            value = value[pathParts[i]]
+            value = (value as any)[pathParts[i] as any]
             if (value === undefined) {
               throw new Error(
                 `No value found at path "parallel.${pathParts.join('.')}" in parallel item`

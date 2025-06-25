@@ -1,8 +1,4 @@
-export const STORAGE_KEYS = {
-  REGISTRY: 'workflow-registry',
-  WORKFLOW: (id: string) => `workflow-${id}`,
-  SUBBLOCK: (id: string) => `subblock-values-${id}`,
-}
+// localStorage persistence removed - STORAGE_KEYS no longer needed
 
 export const API_ENDPOINTS = {
   SYNC: '/api/workflows/sync',
@@ -10,8 +6,7 @@ export const API_ENDPOINTS = {
   SCHEDULE: '/api/schedules',
   SETTINGS: '/api/settings',
   WORKFLOWS: '/api/workflows',
+  WORKSPACE_PERMISSIONS: (id: string) => `/api/workspaces/${id}/permissions`,
 }
 
-export const SYNC_INTERVALS = {
-  DEFAULT: 30000, // 30 seconds
-}
+// Removed SYNC_INTERVALS - Socket.IO handles real-time sync

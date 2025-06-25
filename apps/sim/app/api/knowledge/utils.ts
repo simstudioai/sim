@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { processDocuments } from '@/lib/documents/document-processor'
+import { processDocument } from '@/lib/documents/document-processor'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -8,6 +8,12 @@ import { db } from '@/db'
 import { document, embedding, knowledgeBase } from '@/db/schema'
 
 const logger = createLogger('KnowledgeUtils')
+
+// Timeout constants (in milliseconds)
+const TIMEOUTS = {
+  OVERALL_PROCESSING: 150000, // 150 seconds (2.5 minutes)
+  EMBEDDINGS_API: 60000, // 60 seconds per batch
+} as const
 
 class APIError extends Error {
   public status: number
@@ -17,6 +23,22 @@ class APIError extends Error {
     this.name = 'APIError'
     this.status = status
   }
+}
+
+/**
+ * Create a timeout wrapper for async operations
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  operation = 'Operation'
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${operation} timed out after ${timeoutMs}ms`)), timeoutMs)
+    ),
+  ])
 }
 
 export interface KnowledgeBaseData {
@@ -41,7 +63,6 @@ export interface DocumentData {
   fileUrl: string
   fileSize: number
   mimeType: string
-  fileHash?: string | null
   chunkCount: number
   tokenCount: number
   characterCount: number
@@ -67,12 +88,7 @@ export interface EmbeddingData {
   embeddingModel: string
   startOffset: number
   endOffset: number
-  overlapTokens: number
   metadata: unknown
-  searchRank?: string | null
-  accessCount: number
-  lastAccessedAt?: Date | null
-  qualityScore?: string | null
   enabled: boolean
   createdAt: Date
   updatedAt: Date
@@ -179,7 +195,11 @@ export async function checkDocumentAccess(
     .limit(1)
 
   if (kb.length === 0) {
-    return { hasAccess: false, notFound: true, reason: 'Knowledge base not found' }
+    return {
+      hasAccess: false,
+      notFound: true,
+      reason: 'Knowledge base not found',
+    }
   }
 
   const kbData = kb[0]
@@ -204,7 +224,11 @@ export async function checkDocumentAccess(
     return { hasAccess: false, notFound: true, reason: 'Document not found' }
   }
 
-  return { hasAccess: true, document: doc[0] as DocumentData, knowledgeBase: kbData }
+  return {
+    hasAccess: true,
+    document: doc[0] as DocumentData,
+    knowledgeBase: kbData,
+  }
 }
 
 /**
@@ -226,7 +250,11 @@ export async function checkChunkAccess(
     .limit(1)
 
   if (kb.length === 0) {
-    return { hasAccess: false, notFound: true, reason: 'Knowledge base not found' }
+    return {
+      hasAccess: false,
+      notFound: true,
+      reason: 'Knowledge base not found',
+    }
   }
 
   const kbData = kb[0]
@@ -304,30 +332,44 @@ export async function generateEmbeddings(
 
       const batchEmbeddings = await retryWithExponentialBackoff(
         async () => {
-          const response = await fetch('https://api.openai.com/v1/embeddings', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              input: batch,
-              model: embeddingModel,
-              encoding_format: 'float',
-            }),
-          })
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.EMBEDDINGS_API)
 
-          if (!response.ok) {
-            const errorText = await response.text()
-            const error = new APIError(
-              `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
-              response.status
-            )
+          try {
+            const response = await fetch('https://api.openai.com/v1/embeddings', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                input: batch,
+                model: embeddingModel,
+                encoding_format: 'float',
+              }),
+              signal: controller.signal,
+            })
+
+            clearTimeout(timeoutId)
+
+            if (!response.ok) {
+              const errorText = await response.text()
+              const error = new APIError(
+                `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
+                response.status
+              )
+              throw error
+            }
+
+            const data: OpenAIEmbeddingResponse = await response.json()
+            return data.data.map((item) => item.embedding)
+          } catch (error) {
+            clearTimeout(timeoutId)
+            if (error instanceof Error && error.name === 'AbortError') {
+              throw new Error('OpenAI API request timed out')
+            }
             throw error
           }
-
-          const data: OpenAIEmbeddingResponse = await response.json()
-          return data.data.map((item) => item.embedding)
         },
         {
           maxRetries: 5,
@@ -358,13 +400,13 @@ export async function processDocumentAsync(
     fileUrl: string
     fileSize: number
     mimeType: string
-    fileHash?: string | null
   },
   processingOptions: {
     chunkSize?: number
     minCharactersPerChunk?: number
     recipe?: string
     lang?: string
+    chunkOverlap?: number
   }
 ): Promise<void> {
   const startTime = Date.now()
@@ -383,88 +425,78 @@ export async function processDocumentAsync(
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
-    const processedDocuments = await processDocuments(
-      [
-        {
-          fileUrl: docData.fileUrl,
-          filename: docData.filename,
-          mimeType: docData.mimeType,
-          fileSize: docData.fileSize,
-        },
-      ],
-      {
-        knowledgeBaseId,
-        ...processingOptions,
-      }
+    // Wrap the entire processing operation with a 5-minute timeout
+    await withTimeout(
+      (async () => {
+        const processed = await processDocument(
+          docData.fileUrl,
+          docData.filename,
+          docData.mimeType,
+          processingOptions.chunkSize || 1000,
+          processingOptions.chunkOverlap || 200
+        )
+
+        const now = new Date()
+
+        logger.info(
+          `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
+        )
+
+        const chunkTexts = processed.chunks.map((chunk) => chunk.text)
+        const embeddings = chunkTexts.length > 0 ? await generateEmbeddings(chunkTexts) : []
+
+        logger.info(`[${documentId}] Embeddings generated, updating document record`)
+
+        const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
+          id: crypto.randomUUID(),
+          knowledgeBaseId,
+          documentId,
+          chunkIndex,
+          chunkHash: crypto.createHash('sha256').update(chunk.text).digest('hex'),
+          content: chunk.text,
+          contentLength: chunk.text.length,
+          tokenCount: Math.ceil(chunk.text.length / 4),
+          embedding: embeddings[chunkIndex] || null,
+          embeddingModel: 'text-embedding-3-small',
+          startOffset: chunk.metadata.startIndex,
+          endOffset: chunk.metadata.endIndex,
+          metadata: {},
+          createdAt: now,
+          updatedAt: now,
+        }))
+
+        await db.transaction(async (tx) => {
+          if (embeddingRecords.length > 0) {
+            await tx.insert(embedding).values(embeddingRecords)
+          }
+
+          await tx
+            .update(document)
+            .set({
+              chunkCount: processed.metadata.chunkCount,
+              tokenCount: processed.metadata.tokenCount,
+              characterCount: processed.metadata.characterCount,
+              processingStatus: 'completed',
+              processingCompletedAt: now,
+              processingError: null,
+            })
+            .where(eq(document.id, documentId))
+
+          await tx
+            .update(knowledgeBase)
+            .set({
+              tokenCount: sql`${knowledgeBase.tokenCount} + ${processed.metadata.tokenCount}`,
+              updatedAt: now,
+            })
+            .where(eq(knowledgeBase.id, knowledgeBaseId))
+        })
+      })(),
+      TIMEOUTS.OVERALL_PROCESSING,
+      'Document processing'
     )
-
-    if (processedDocuments.length === 0) {
-      throw new Error('No document was processed')
-    }
-
-    const processed = processedDocuments[0]
-    const now = new Date()
-
-    logger.info(
-      `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
-    )
-
-    const chunkTexts = processed.chunks.map((chunk) => chunk.text)
-    const embeddings = chunkTexts.length > 0 ? await generateEmbeddings(chunkTexts) : []
-
-    logger.info(`[${documentId}] Embeddings generated, updating document record`)
-
-    await db
-      .update(document)
-      .set({
-        chunkCount: processed.metadata.chunkCount,
-        tokenCount: processed.metadata.tokenCount,
-        characterCount: processed.metadata.characterCount,
-        processingStatus: 'completed',
-        processingCompletedAt: now,
-        processingError: null,
-      })
-      .where(eq(document.id, documentId))
-
-    const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
-      id: crypto.randomUUID(),
-      knowledgeBaseId,
-      documentId,
-      chunkIndex,
-      chunkHash: crypto.createHash('sha256').update(chunk.text).digest('hex'),
-      content: chunk.text,
-      contentLength: chunk.text.length,
-      tokenCount: Math.ceil(chunk.text.length / 4),
-      embedding: embeddings[chunkIndex] || null,
-      embeddingModel: 'text-embedding-3-small',
-      startOffset: chunk.startIndex || 0,
-      endOffset: chunk.endIndex || chunk.text.length,
-      overlapTokens: 0,
-      metadata: {},
-      searchRank: '1.0',
-      accessCount: 0,
-      lastAccessedAt: null,
-      qualityScore: null,
-      createdAt: now,
-      updatedAt: now,
-    }))
-
-    if (embeddingRecords.length > 0) {
-      await db.insert(embedding).values(embeddingRecords)
-    }
-
-    await db
-      .update(knowledgeBase)
-      .set({
-        tokenCount: sql`${knowledgeBase.tokenCount} + ${processed.metadata.tokenCount}`,
-        updatedAt: now,
-      })
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
 
     const processingTime = Date.now() - startTime
-    logger.info(
-      `[${documentId}] Successfully processed document with ${processed.metadata.chunkCount} chunks in ${processingTime}ms`
-    )
+    logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
   } catch (error) {
     const processingTime = Date.now() - startTime
     logger.error(`[${documentId}] Failed to process document after ${processingTime}ms:`, {

@@ -1,7 +1,9 @@
 import { eq } from 'drizzle-orm'
+import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { userStats, workflow as workflowTable } from '@/db/schema'
+import type { ExecutionResult } from '@/executor/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { env } from '../env'
 
@@ -316,4 +318,37 @@ export function hasWorkflowChanged(
 
 export function stripCustomToolPrefix(name: string) {
   return name.startsWith('custom_') ? name.replace('custom_', '') : name
+}
+
+export const workflowHasResponseBlock = (executionResult: ExecutionResult): boolean => {
+  if (
+    !executionResult?.logs ||
+    !Array.isArray(executionResult.logs) ||
+    !executionResult.success ||
+    !executionResult.output.response
+  ) {
+    return false
+  }
+
+  const responseBlock = executionResult.logs.find(
+    (log) => log?.blockType === 'response' && log?.success
+  )
+
+  return responseBlock !== undefined
+}
+
+// Create a HTTP response from response block
+export const createHttpResponseFromBlock = (executionResult: ExecutionResult): NextResponse => {
+  const output = executionResult.output.response
+  const { data = {}, status = 200, headers = {} } = output
+
+  const responseHeaders = new Headers({
+    'Content-Type': 'application/json',
+    ...headers,
+  })
+
+  return NextResponse.json(data, {
+    status: status,
+    headers: responseHeaders,
+  })
 }

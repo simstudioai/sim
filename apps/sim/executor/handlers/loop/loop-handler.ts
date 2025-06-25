@@ -29,6 +29,11 @@ export class LoopBlockHandler implements BlockHandler {
     // Get the loop configuration from the workflow
     const loop = context.workflow?.loops?.[block.id]
     if (!loop) {
+      logger.error(`Loop configuration not found for block ${block.id}`, {
+        blockId: block.id,
+        availableLoops: Object.keys(context.workflow?.loops || {}),
+        workflowLoops: context.workflow?.loops,
+      })
       throw new Error(`Loop configuration not found for block ${block.id}`)
     }
 

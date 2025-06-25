@@ -22,7 +22,6 @@ interface DocumentData {
   fileUrl: string
   fileSize: number
   mimeType: string
-  fileHash: string | null
   chunkCount: number
   tokenCount: number
   characterCount: number

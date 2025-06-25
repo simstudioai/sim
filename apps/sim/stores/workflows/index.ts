@@ -1,7 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { loadWorkflowState } from './persistence'
 import { useWorkflowRegistry } from './registry/store'
-import { useSubBlockStore } from './subblock/store'
 import { mergeSubblockState } from './utils'
 import { useWorkflowStore } from './workflow/store'
 import type { BlockState, WorkflowState } from './workflow/types'
@@ -10,8 +8,9 @@ const logger = createLogger('Workflows')
 
 /**
  * Get a workflow with its state merged in by ID
+ * Note: Since localStorage has been removed, this only works for the active workflow
  * @param workflowId ID of the workflow to retrieve
- * @returns The workflow with merged state values or null if not found
+ * @returns The workflow with merged state values or null if not found/not active
  */
 export function getWorkflowWithValues(workflowId: string) {
   const { workflows } = useWorkflowRegistry.getState()
@@ -23,39 +22,26 @@ export function getWorkflowWithValues(workflowId: string) {
     return null
   }
 
+  // Since localStorage persistence has been removed, only return data for active workflow
+  if (workflowId !== activeWorkflowId) {
+    logger.warn(`Cannot get state for non-active workflow ${workflowId} - localStorage removed`)
+    return null
+  }
+
   const metadata = workflows[workflowId]
 
   // Get deployment status from registry
   const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)
 
-  // Load the specific state for this workflow
-  let workflowState: WorkflowState
-
-  if (workflowId === activeWorkflowId) {
-    // For the active workflow, use the current state from the store
-    workflowState = {
-      blocks: currentState.blocks,
-      edges: currentState.edges,
-      loops: currentState.loops,
-      parallels: currentState.parallels,
-      isDeployed: deploymentStatus?.isDeployed || false,
-      deployedAt: deploymentStatus?.deployedAt,
-      lastSaved: currentState.lastSaved,
-    }
-  } else {
-    // For other workflows, load their state from localStorage
-    const savedState = loadWorkflowState(workflowId)
-    if (!savedState) {
-      logger.warn(`No saved state found for workflow ${workflowId}`)
-      return null
-    }
-
-    // Use registry deployment status instead of relying on saved state
-    workflowState = {
-      ...savedState,
-      isDeployed: deploymentStatus?.isDeployed || savedState.isDeployed || false,
-      deployedAt: deploymentStatus?.deployedAt || savedState.deployedAt,
-    }
+  // Use the current state from the store (only available for active workflow)
+  const workflowState: WorkflowState = {
+    blocks: currentState.blocks,
+    edges: currentState.edges,
+    loops: currentState.loops,
+    parallels: currentState.parallels,
+    isDeployed: deploymentStatus?.isDeployed || false,
+    deployedAt: deploymentStatus?.deployedAt,
+    lastSaved: currentState.lastSaved,
   }
 
   // Merge the subblock values for this specific workflow
@@ -67,6 +53,8 @@ export function getWorkflowWithValues(workflowId: string) {
     description: metadata.description,
     color: metadata.color || '#3972F6',
     marketplaceData: metadata.marketplaceData || null,
+    workspaceId: metadata.workspaceId,
+    folderId: metadata.folderId,
     state: {
       blocks: mergedBlocks,
       edges: workflowState.edges,
@@ -96,8 +84,8 @@ export function getBlockWithValues(blockId: string): BlockState | null {
 
 /**
  * Get all workflows with their values merged
- * Used for sync operations to prepare the payload
- * @returns An object containing all workflows with their merged state values
+ * Note: Since localStorage has been removed, this only includes the active workflow state
+ * @returns An object containing workflows, with state only for the active workflow
  */
 export function getAllWorkflowsWithValues() {
   const { workflows, activeWorkspaceId } = useWorkflowRegistry.getState()
@@ -105,62 +93,47 @@ export function getAllWorkflowsWithValues() {
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   const currentState = useWorkflowStore.getState()
 
-  for (const [id, metadata] of Object.entries(workflows)) {
-    // Skip workflows that don't belong to the active workspace
+  // Only sync the active workflow to ensure we always send valid state data
+  if (activeWorkflowId && workflows[activeWorkflowId]) {
+    const metadata = workflows[activeWorkflowId]
+
+    // Skip if workflow doesn't belong to the active workspace
     if (activeWorkspaceId && metadata.workspaceId !== activeWorkspaceId) {
       logger.debug(
-        `Skipping workflow ${id} - belongs to workspace ${metadata.workspaceId}, not active workspace ${activeWorkspaceId}`
+        `Skipping active workflow ${activeWorkflowId} - belongs to workspace ${metadata.workspaceId}, not active workspace ${activeWorkspaceId}`
       )
-      continue
+      return result
     }
 
     // Get deployment status from registry
-    const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(id)
+    const deploymentStatus = useWorkflowRegistry
+      .getState()
+      .getWorkflowDeploymentStatus(activeWorkflowId)
 
-    // Load the specific state for this workflow
-    let workflowState: WorkflowState
-
-    if (id === activeWorkflowId) {
-      // For the active workflow, use the current state from the store
-      workflowState = {
-        blocks: currentState.blocks,
-        edges: currentState.edges,
-        loops: currentState.loops,
-        parallels: currentState.parallels,
-        isDeployed: deploymentStatus?.isDeployed || false,
-        deployedAt: deploymentStatus?.deployedAt,
-        lastSaved: currentState.lastSaved,
-      }
-    } else {
-      // For other workflows, load their state from localStorage
-      const savedState = loadWorkflowState(id)
-      if (!savedState) {
-        // Skip workflows with no saved state
-        logger.warn(`No saved state found for workflow ${id}`)
-        continue
-      }
-
-      // Use registry deployment status instead of relying on saved state
-      workflowState = {
-        ...savedState,
-        isDeployed: deploymentStatus?.isDeployed || savedState.isDeployed || false,
-        deployedAt: deploymentStatus?.deployedAt || savedState.deployedAt,
-      }
+    // Ensure state has all required fields for Zod validation
+    const workflowState: WorkflowState = {
+      blocks: currentState.blocks || {},
+      edges: currentState.edges || [],
+      loops: currentState.loops || {},
+      parallels: currentState.parallels || {},
+      isDeployed: deploymentStatus?.isDeployed || false,
+      deployedAt: deploymentStatus?.deployedAt,
+      lastSaved: currentState.lastSaved || Date.now(),
     }
 
     // Merge the subblock values for this specific workflow
-    const mergedBlocks = mergeSubblockState(workflowState.blocks, id)
+    const mergedBlocks = mergeSubblockState(workflowState.blocks, activeWorkflowId)
 
     // Include the API key in the state if it exists in the deployment status
     const apiKey = deploymentStatus?.apiKey
 
-    result[id] = {
-      id,
+    result[activeWorkflowId] = {
+      id: activeWorkflowId,
       name: metadata.name,
       description: metadata.description,
       color: metadata.color || '#3972F6',
       marketplaceData: metadata.marketplaceData || null,
-      workspaceId: metadata.workspaceId, // Include workspaceId in the result
+      folderId: metadata.folderId,
       state: {
         blocks: mergedBlocks,
         edges: workflowState.edges,
@@ -169,23 +142,32 @@ export function getAllWorkflowsWithValues() {
         lastSaved: workflowState.lastSaved,
         isDeployed: workflowState.isDeployed,
         deployedAt: workflowState.deployedAt,
+        marketplaceData: metadata.marketplaceData || null,
       },
       // Include API key if available
       apiKey,
+    }
+
+    // Only include workspaceId if it's not null/undefined
+    if (metadata.workspaceId) {
+      result[activeWorkflowId].workspaceId = metadata.workspaceId
     }
   }
 
   return result
 }
 
-/**
- * Convenience function to mark workflows as dirty and initiate a sync
- * This is a shortcut for other files to trigger sync operations
- */
-export function syncWorkflows() {
-  const workflowStore = useWorkflowStore.getState()
-  workflowStore.sync.markDirty()
-  workflowStore.sync.forceSync()
-}
+// Removed syncWorkflows - Socket.IO handles real-time sync automatically
 
-export { useWorkflowRegistry, useWorkflowStore, useSubBlockStore }
+// Workflows store exports - localStorage persistence removed
+
+export { useWorkflowRegistry } from './registry/store'
+export type { WorkflowMetadata } from './registry/types'
+export { useSubBlockStore } from './subblock/store'
+export type { SubBlockStore } from './subblock/types'
+// Re-export utilities
+export { mergeSubblockState } from './utils'
+// Re-export store hooks
+export { useWorkflowStore } from './workflow/store'
+// Re-export types
+export type { WorkflowState } from './workflow/types'

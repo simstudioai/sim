@@ -11,11 +11,10 @@ import {
 } from '@/components/ui/select'
 import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { OAuthProvider } from '@/lib/oauth'
+import type { OAuthProvider } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
-import { supportsToolUsageControl } from '@/providers/model-capabilities'
-import { getProviderFromModel } from '@/providers/utils'
+import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -33,6 +32,7 @@ interface ToolInputProps {
   subBlockId: string
   isPreview?: boolean
   previewValue?: any
+  disabled?: boolean
 }
 
 interface StoredTool {
@@ -340,6 +340,7 @@ export function ToolInput({
   subBlockId,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: ToolInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -393,6 +394,8 @@ export function ToolInput({
   }
 
   const handleSelectTool = (toolBlock: (typeof toolBlocks)[0]) => {
+    if (isPreview || disabled) return
+
     const hasOperations = hasMultipleOperations(toolBlock.type)
     const operationOptions = hasOperations ? getOperationOptions(toolBlock.type) : []
     const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
@@ -439,6 +442,8 @@ export function ToolInput({
   }
 
   const handleAddCustomTool = (customTool: CustomTool) => {
+    if (isPreview || disabled) return
+
     // Check if a tool with the same name already exists
     if (
       selectedTools.some(
@@ -506,6 +511,8 @@ export function ToolInput({
   }
 
   const handleSaveCustomTool = (customTool: CustomTool) => {
+    if (isPreview || disabled) return
+
     if (editingToolIndex !== null) {
       // Update existing tool
       setStoreValue(
@@ -528,6 +535,7 @@ export function ToolInput({
   }
 
   const handleRemoveTool = (toolType: string, toolIndex: number) => {
+    if (isPreview || disabled) return
     setStoreValue(selectedTools.filter((_, index) => index !== toolIndex))
   }
 
@@ -557,6 +565,8 @@ export function ToolInput({
   }
 
   const handleParamChange = (toolIndex: number, paramId: string, paramValue: string) => {
+    if (isPreview || disabled) return
+
     // Store the value in the tool params store for future use
     const tool = selectedTools[toolIndex]
     const toolId =
@@ -586,6 +596,8 @@ export function ToolInput({
   }
 
   const handleOperationChange = (toolIndex: number, operation: string) => {
+    if (isPreview || disabled) return
+
     const tool = selectedTools[toolIndex]
     const subBlockStore = useSubBlockStore.getState()
 
@@ -614,6 +626,8 @@ export function ToolInput({
   }
 
   const handleCredentialChange = (toolIndex: number, credentialId: string) => {
+    if (isPreview || disabled) return
+
     setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
@@ -630,6 +644,8 @@ export function ToolInput({
   }
 
   const handleUsageControlChange = (toolIndex: number, usageControl: string) => {
+    if (isPreview || disabled) return
+
     setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
@@ -643,6 +659,8 @@ export function ToolInput({
   }
 
   const toggleToolExpansion = (toolIndex: number) => {
+    if (isPreview || disabled) return
+
     setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex ? { ...tool, isExpanded: !tool.isExpanded } : tool

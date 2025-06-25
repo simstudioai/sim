@@ -106,11 +106,13 @@ export function WebhookModal({
     selectedLabels: ['INBOX'] as string[],
     labelFilterBehavior: 'INCLUDE',
     markAsRead: false,
+    includeRawEmail: false,
   })
 
   const [selectedLabels, setSelectedLabels] = useState<string[]>(['INBOX'])
   const [labelFilterBehavior, setLabelFilterBehavior] = useState<'INCLUDE' | 'EXCLUDE'>('INCLUDE')
   const [markAsRead, setMarkAsRead] = useState<boolean>(false)
+  const [includeRawEmail, setIncludeRawEmail] = useState<boolean>(false)
 
   // Get the current provider configuration
   const _provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
@@ -249,6 +251,14 @@ export function WebhookModal({
                   setMarkAsRead(config.markAsRead)
                   setOriginalValues((prev) => ({ ...prev, markAsRead: config.markAsRead }))
                 }
+
+                if (config.includeRawEmail !== undefined) {
+                  setIncludeRawEmail(config.includeRawEmail)
+                  setOriginalValues((prev) => ({
+                    ...prev,
+                    includeRawEmail: config.includeRawEmail,
+                  }))
+                }
               }
             }
           }
@@ -292,7 +302,8 @@ export function WebhookModal({
         (!selectedLabels.every((label) => originalValues.selectedLabels.includes(label)) ||
           !originalValues.selectedLabels.every((label) => selectedLabels.includes(label)) ||
           labelFilterBehavior !== originalValues.labelFilterBehavior ||
-          markAsRead !== originalValues.markAsRead))
+          markAsRead !== originalValues.markAsRead ||
+          includeRawEmail !== originalValues.includeRawEmail))
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -315,6 +326,7 @@ export function WebhookModal({
     selectedLabels,
     labelFilterBehavior,
     markAsRead,
+    includeRawEmail,
   ])
 
   // Validate required fields for current provider
@@ -389,6 +401,7 @@ export function WebhookModal({
           labelIds: selectedLabels,
           labelFilterBehavior,
           markAsRead,
+          includeRawEmail,
           maxEmailsPerPoll: 25,
         }
       case 'generic': {
@@ -472,6 +485,7 @@ export function WebhookModal({
             selectedLabels,
             labelFilterBehavior,
             markAsRead,
+            includeRawEmail,
           })
           setHasUnsavedChanges(false)
           setTestResult({
@@ -641,6 +655,8 @@ export function WebhookModal({
             setLabelFilterBehavior={setLabelFilterBehavior}
             markAsRead={markAsRead}
             setMarkAsRead={setMarkAsRead}
+            includeRawEmail={includeRawEmail}
+            setIncludeRawEmail={setIncludeRawEmail}
           />
         )
       case 'discord':

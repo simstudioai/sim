@@ -86,7 +86,8 @@
     "rules": {
       "recommended": true,
       "nursery": {
-        "useSortedClasses": "error"
+        "useSortedClasses": "warn",
+        "noNestedComponentDefinitions": "off"
       },
       "a11y": {
         "noSvgWithoutTitle": "off",
@@ -133,7 +134,8 @@
       },
       "complexity": {
         "noForEach": "off",
-        "noUselessFragments": "off"
+        "noUselessFragments": "off",
+        "noStaticOnlyClass": "off"
       },
       "performance": {
         "noAccumulatingSpread": "off",

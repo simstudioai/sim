@@ -4,10 +4,9 @@ import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { pushHistory, type WorkflowStoreWithHistory, withHistory } from '../middleware'
-import { saveWorkflowState } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
-import { markWorkflowsDirty, workflowSync } from '../sync'
+// import { markWorkflowsDirty, workflowSync } from '../sync' // Disabled for socket-based sync
 import { mergeSubblockState } from '../utils'
 import type { Position, SubBlockState, SyncControl, WorkflowState } from './types'
 import { generateLoopBlocks, generateParallelBlocks } from './utils'
@@ -47,31 +46,18 @@ const initialState = {
 
 // Create a consolidated sync control implementation
 /**
- * The SyncControl implementation provides a clean, centralized way to handle workflow syncing.
- *
- * This pattern offers several advantages:
- * 1. It encapsulates sync logic through a clear, standardized interface
- * 2. It allows components to mark workflows as dirty without direct dependencies
- * 3. It prevents race conditions by ensuring changes are properly tracked before syncing
- * 4. It centralizes sync decisions to avoid redundant or conflicting operations
- *
- * Usage:
- * - Call markDirty() when workflow state changes but sync can be deferred
- * - Call forceSync() when an immediate sync to the server is needed
- * - Use isDirty() to check if there are unsaved changes
+ * Socket-based SyncControl implementation (replaces HTTP sync)
  */
 const createSyncControl = (): SyncControl => ({
   markDirty: () => {
-    markWorkflowsDirty()
+    // No-op: Socket-based sync handles this automatically
   },
   isDirty: () => {
-    // This calls into the sync module to check dirty status
-    // Actual implementation in sync.ts
-    return true // Always return true as the sync module will do the actual checking
+    // Always return false since socket sync is real-time
+    return false
   },
   forceSync: () => {
-    markWorkflowsDirty() // Always mark as dirty before forcing a sync
-    workflowSync.sync()
+    // No-op: Socket-based sync is always in sync
   },
 })
 
@@ -135,7 +121,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           set(newState)
           pushHistory(set, get, newState, `Add ${type} node`)
           get().updateLastSaved()
-          workflowSync.sync()
+          // get().sync.markDirty() // Disabled: Using socket-based sync
           return
         }
 
@@ -184,8 +170,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Add ${type} block`)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       updateBlockPosition: (id: string, position: Position) => {
@@ -200,8 +185,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           edges: [...state.edges],
         }))
         get().updateLastSaved()
-
-        // No sync here as this is a frequent operation during dragging
+        // No sync for position updates to avoid excessive syncing during drag
       },
 
       updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
@@ -220,7 +204,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           edges: [...state.edges],
         }))
         get().updateLastSaved()
-        workflowSync.sync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateParentId: (id: string, parentId: string, extent: 'parent') => {
@@ -291,7 +275,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           parentId ? `Set parent for ${block.name}` : `Remove parent for ${block.name}`
         )
         get().updateLastSaved()
-        workflowSync.sync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       removeBlock: (id: string) => {
@@ -362,8 +346,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove block and children')
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       addEdge: (edge: Edge) => {
@@ -391,7 +374,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         const newEdges = [...get().edges, newEdge]
 
-        // Use the new loop generation approach
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
@@ -402,8 +384,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Add connection')
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       removeEdge: (edgeId: string) => {
@@ -416,7 +397,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         const newEdges = get().edges.filter((edge) => edge.id !== edgeId)
 
-        // Use the new loop generation approach instead of cycle detection
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
@@ -427,8 +407,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       clear: () => {
@@ -436,6 +415,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: {},
           edges: [],
           loops: {},
+          parallels: {},
           history: {
             past: [],
             present: {
@@ -460,39 +440,13 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           hasActiveWebhook: false,
         }
         set(newState)
-        get().sync.markDirty()
-        get().sync.forceSync()
-
+        // Note: Socket.IO handles real-time sync automatically
         return newState
       },
 
       updateLastSaved: () => {
         set({ lastSaved: Date.now() })
-
-        // Save current state to localStorage
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (activeWorkflowId) {
-          const currentState = get()
-          const generatedLoops = currentState.generateLoopBlocks()
-          const generatedParallels = currentState.generateParallelBlocks()
-          saveWorkflowState(activeWorkflowId, {
-            blocks: currentState.blocks,
-            edges: currentState.edges,
-            loops: generatedLoops,
-            parallels: generatedParallels,
-            history: currentState.history,
-            // Include both legacy and new deployment status fields
-            isDeployed: currentState.isDeployed,
-            deployedAt: currentState.deployedAt,
-            deploymentStatuses: currentState.deploymentStatuses,
-            lastSaved: Date.now(),
-          })
-
-          // Note: Scheduling changes are automatically handled by the workflowSync
-          // When the workflow is synced to the database, the sync system checks if
-          // the starter block has scheduling enabled and updates or cancels the
-          // schedule accordingly.
-        }
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       toggleBlockEnabled: (id: string) => {
@@ -506,12 +460,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: { ...get().loops },
+          parallels: { ...get().parallels },
         }
 
         set(newState)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       duplicateBlock: (id: string) => {
@@ -580,8 +534,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Duplicate ${block.type} block`)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       toggleBlockHandles: (id: string) => {
@@ -599,8 +552,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateBlockName: (id: string, name: string) => {
@@ -629,6 +581,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           // workflowValues: {[block_id]:{[subblock_id]:[subblock_value]}}
           const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
           const updatedWorkflowValues = { ...workflowValues }
+          const changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }> = []
 
           // Loop through blocks
           Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
@@ -641,11 +594,17 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
 
               // Use a recursive function to handle all object types
-              updatedWorkflowValues[blockId][subBlockId] = updateReferences(
-                value,
-                regex,
-                `<${newBlockName}.`
-              )
+              const updatedValue = updateReferences(value, regex, `<${newBlockName}.`)
+
+              // Check if the value actually changed
+              if (JSON.stringify(updatedValue) !== JSON.stringify(value)) {
+                updatedWorkflowValues[blockId][subBlockId] = updatedValue
+                changedSubblocks.push({
+                  blockId,
+                  subBlockId,
+                  newValue: updatedValue,
+                })
+              }
 
               // Helper function to recursively update references in any data structure
               function updateReferences(value: any, regex: RegExp, replacement: string): any {
@@ -681,13 +640,18 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               [activeWorkflowId]: updatedWorkflowValues,
             },
           })
+
+          // Store changed subblocks for collaborative sync
+          if (changedSubblocks.length > 0) {
+            // Store the changed subblocks for the collaborative function to pick up
+            ;(window as any).__pendingSubblockUpdates = changedSubblocks
+          }
         }
 
         set(newState)
         pushHistory(set, get, newState, `${name} block name updated`)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       toggleBlockWide: (id: string) => {
@@ -703,8 +667,39 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           loops: { ...state.loops },
         }))
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
+      setBlockWide: (id: string, isWide: boolean) => {
+        set((state) => ({
+          blocks: {
+            ...state.blocks,
+            [id]: {
+              ...state.blocks[id],
+              isWide,
+            },
+          },
+          edges: [...state.edges],
+          loops: { ...state.loops },
+        }))
+        get().updateLastSaved()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
+      setBlockAdvancedMode: (id: string, advancedMode: boolean) => {
+        set((state) => ({
+          blocks: {
+            ...state.blocks,
+            [id]: {
+              ...state.blocks[id],
+              advancedMode,
+            },
+          },
+          edges: [...state.edges],
+          loops: { ...state.loops },
+        }))
+        get().updateLastSaved()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateBlockHeight: (id: string, height: number) => {
@@ -809,7 +804,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         if (get().hasActiveSchedule !== hasActiveSchedule) {
           set({ hasActiveSchedule })
           get().updateLastSaved()
-          get().sync.markDirty()
+          // Note: Socket.IO handles real-time sync automatically
         }
       },
 
@@ -823,7 +818,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
           set({ hasActiveWebhook })
           get().updateLastSaved()
-          get().sync.markDirty()
+          // Note: Socket.IO handles real-time sync automatically
         }
       },
 
@@ -890,8 +885,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         pushHistory(set, get, newState, 'Reverted to deployed state')
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       toggleBlockAdvancedMode: (id: string) => {
@@ -942,8 +936,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         get().triggerUpdate()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       // Parallel block methods implementation
@@ -972,8 +965,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Update parallel count`)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateParallelCollection: (parallelId: string, collection: string) => {
@@ -1001,8 +993,35 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Update parallel collection`)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
+      updateParallelType: (parallelId: string, parallelType: 'count' | 'collection') => {
+        const block = get().blocks[parallelId]
+        if (!block || block.type !== 'parallel') return
+
+        const newBlocks = {
+          ...get().blocks,
+          [parallelId]: {
+            ...block,
+            data: {
+              ...block.data,
+              parallelType,
+            },
+          },
+        }
+
+        const newState = {
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, `Update parallel type`)
+        get().updateLastSaved()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       // Function to convert UI parallel blocks to execution format

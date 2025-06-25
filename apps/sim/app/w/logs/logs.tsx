@@ -72,6 +72,7 @@ export default function Logs() {
     timeRange,
     level,
     workflowIds,
+    folderIds,
     searchQuery,
     triggers,
   } = useFilterStore()
@@ -225,6 +226,7 @@ export default function Logs() {
     timeRange,
     level,
     workflowIds,
+    folderIds,
     searchQuery,
     triggers,
     setPage,

@@ -16,6 +16,39 @@ const logger = createLogger('FunctionExecuteAPI')
  * @param envVars - Environment variables from the workflow
  * @returns Resolved code
  */
+/**
+ * Safely serialize a value to JSON string with proper escaping
+ * This prevents JavaScript syntax errors when the serialized data is injected into code
+ */
+function safeJSONStringify(value: any): string {
+  try {
+    // Use JSON.stringify with proper escaping
+    // The key is to let JSON.stringify handle the escaping properly
+    return JSON.stringify(value)
+  } catch (error) {
+    // If JSON.stringify fails (e.g., circular references), return a safe fallback
+    try {
+      // Try to create a safe representation by removing circular references
+      const seen = new WeakSet()
+      const cleanValue = JSON.parse(
+        JSON.stringify(value, (key, val) => {
+          if (typeof val === 'object' && val !== null) {
+            if (seen.has(val)) {
+              return '[Circular Reference]'
+            }
+            seen.add(val)
+          }
+          return val
+        })
+      )
+      return JSON.stringify(cleanValue)
+    } catch {
+      // If that also fails, return a safe string representation
+      return JSON.stringify(String(value))
+    }
+  }
+}
+
 function resolveCodeVariables(
   code: string,
   params: Record<string, any>,
@@ -29,19 +62,32 @@ function resolveCodeVariables(
     const varName = match.slice(2, -2).trim()
     // Priority: 1. Environment variables from workflow, 2. Params
     const varValue = envVars[varName] || params[varName] || ''
-    // Wrap the value in quotes to ensure it's treated as a string literal
-    resolvedCode = resolvedCode.replace(match, JSON.stringify(varValue))
+    // Use safe JSON stringify to prevent syntax errors
+    resolvedCode = resolvedCode.replace(
+      new RegExp(escapeRegExp(match), 'g'),
+      safeJSONStringify(varValue)
+    )
   }
 
   // Resolve tags with <tag_name> syntax
-  const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
+  const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_]*)>/g) || []
   for (const match of tagMatches) {
     const tagName = match.slice(1, -1).trim()
     const tagValue = params[tagName] || ''
-    resolvedCode = resolvedCode.replace(match, JSON.stringify(tagValue))
+    resolvedCode = resolvedCode.replace(
+      new RegExp(escapeRegExp(match), 'g'),
+      safeJSONStringify(tagValue)
+    )
   }
 
   return resolvedCode
+}
+
+/**
+ * Escape special regex characters in a string
+ */
+function escapeRegExp(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 export async function POST(req: NextRequest) {
@@ -61,17 +107,17 @@ export async function POST(req: NextRequest) {
       isCustomTool = false,
     } = body
 
+    // Extract internal parameters that shouldn't be passed to the execution context
+    const executionParams = { ...params }
+    executionParams._context = undefined
+
     logger.info(`[${requestId}] Function execution request`, {
       hasCode: !!code,
-      paramsCount: Object.keys(params).length,
+      paramsCount: Object.keys(executionParams).length,
       timeout,
       workflowId,
       isCustomTool,
     })
-
-    // Extract internal parameters that shouldn't be passed to the execution context
-    const executionParams = { ...params }
-    executionParams._context = undefined
 
     // Resolve variables in the code with workflow environment variables
     const resolvedCode = resolveCodeVariables(code, executionParams, envVars)
@@ -115,7 +161,7 @@ export async function POST(req: NextRequest) {
           ? `export default async () => { 
               // For custom tools, directly declare parameters as variables
               ${Object.entries(executionParams)
-                .map(([key, value]) => `const ${key} = ${JSON.stringify(value)};`)
+                .map(([key, value]) => `const ${key} = ${safeJSONStringify(value)};`)
                 .join('\n              ')}
               ${resolvedCode} 
             }`
@@ -152,7 +198,10 @@ export async function POST(req: NextRequest) {
             errorMessage,
             stdout,
           })
-          throw errorMessage
+          // Create a proper Error object to be caught by the outer handler
+          const scriptError = new Error(errorMessage)
+          scriptError.name = 'FreestyleScriptError'
+          throw scriptError
         }
 
         // If no errors, execution was successful
@@ -163,7 +212,7 @@ export async function POST(req: NextRequest) {
         })
       } catch (error: any) {
         // Check if the error came from our explicit throw above due to script errors
-        if (error instanceof Error) {
+        if (error.name === 'FreestyleScriptError') {
           throw error // Re-throw to be caught by the outer handler
         }
 

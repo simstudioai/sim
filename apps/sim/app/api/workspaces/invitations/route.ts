@@ -9,12 +9,20 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
-import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
+import {
+  type permissionTypeEnum,
+  user,
+  workspace,
+  workspaceInvitation,
+  workspaceMember,
+} from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkspaceInvitationsAPI')
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
+
+type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 // Get all invitations for the user's workspaces
 export async function GET(req: NextRequest) {
@@ -66,10 +74,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { workspaceId, email, role = 'member' } = await req.json()
+    const { workspaceId, email, role = 'member', permission = 'read' } = await req.json()
 
     if (!workspaceId || !email) {
       return NextResponse.json({ error: 'Workspace ID and email are required' }, { status: 400 })
+    }
+
+    // Validate permission type
+    const validPermissions: PermissionType[] = ['admin', 'write', 'read']
+    if (!validPermissions.includes(permission)) {
+      return NextResponse.json(
+        { error: `Invalid permission: must be one of ${validPermissions.join(', ')}` },
+        { status: 400 }
+      )
     }
 
     // Check if user is authorized to invite to this workspace (must be owner)
@@ -160,22 +177,22 @@ export async function POST(req: NextRequest) {
     expiresAt.setDate(expiresAt.getDate() + 7) // 7 days expiry
 
     // Create the invitation
-    const invitation = await db
-      .insert(workspaceInvitation)
-      .values({
-        id: randomUUID(),
-        workspaceId,
-        email,
-        inviterId: session.user.id,
-        role,
-        status: 'pending',
-        token,
-        expiresAt,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning()
-      .then((rows) => rows[0])
+    const invitationData = {
+      id: randomUUID(),
+      workspaceId,
+      email,
+      inviterId: session.user.id,
+      role,
+      status: 'pending',
+      token,
+      permissions: permission,
+      expiresAt,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    // Create invitation
+    await db.insert(workspaceInvitation).values(invitationData)
 
     // Send the invitation email
     await sendInvitationEmail({
@@ -185,7 +202,7 @@ export async function POST(req: NextRequest) {
       token: token,
     })
 
-    return NextResponse.json({ success: true, invitation })
+    return NextResponse.json({ success: true, invitation: invitationData })
   } catch (error) {
     console.error('Error creating workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })

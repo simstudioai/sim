@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { client } from '@/lib/auth-client'
@@ -104,7 +104,10 @@ describe('LoginPage', () => {
     it('should show loading state during form submission', async () => {
       const mockSignIn = vi.mocked(client.signIn.email)
       mockSignIn.mockImplementation(
-        () => new Promise((resolve) => resolve({ data: { user: { id: '1' } }, error: null }))
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ data: { user: { id: '1' } }, error: null }), 100)
+          )
       )
 
       render(<LoginPage {...defaultProps} />)
@@ -113,12 +116,16 @@ describe('LoginPage', () => {
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'password123' } })
-      fireEvent.click(submitButton)
+      await act(async () => {
+        fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+        fireEvent.change(passwordInput, { target: { value: 'password123' } })
+        fireEvent.click(submitButton)
+      })
 
-      expect(screen.getByText('Signing in...')).toBeInTheDocument()
-      expect(submitButton).toBeDisabled()
+      await waitFor(() => {
+        expect(screen.getByText('Signing in...')).toBeInTheDocument()
+        expect(submitButton).toBeDisabled()
+      })
     })
   })
 

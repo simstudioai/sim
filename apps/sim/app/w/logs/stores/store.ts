@@ -6,6 +6,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   timeRange: 'All time',
   level: 'all',
   workflowIds: [],
+  folderIds: [],
   searchQuery: '',
   triggers: [],
   loading: true,
@@ -53,6 +54,25 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     get().resetPagination()
   },
 
+  setFolderIds: (folderIds) => {
+    set({ folderIds })
+    get().resetPagination()
+  },
+
+  toggleFolderId: (folderId) => {
+    const currentFolderIds = [...get().folderIds]
+    const index = currentFolderIds.indexOf(folderId)
+
+    if (index === -1) {
+      currentFolderIds.push(folderId)
+    } else {
+      currentFolderIds.splice(index, 1)
+    }
+
+    set({ folderIds: currentFolderIds })
+    get().resetPagination()
+  },
+
   setSearchQuery: (searchQuery) => {
     set({ searchQuery })
     get().resetPagination()
@@ -91,7 +111,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   // Build query parameters for server-side filtering
   buildQueryParams: (page: number, limit: number) => {
-    const { timeRange, level, workflowIds, searchQuery, triggers } = get()
+    const { timeRange, level, workflowIds, folderIds, searchQuery, triggers } = get()
     const params = new URLSearchParams()
 
     params.set('includeWorkflow', 'true')
@@ -111,6 +131,11 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     // Add workflow filter
     if (workflowIds.length > 0) {
       params.set('workflowIds', workflowIds.join(','))
+    }
+
+    // Add folder filter
+    if (folderIds.length > 0) {
+      params.set('folderIds', folderIds.join(','))
     }
 
     // Add time range filter

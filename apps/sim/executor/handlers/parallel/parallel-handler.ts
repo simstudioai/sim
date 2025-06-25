@@ -28,6 +28,11 @@ export class ParallelBlockHandler implements BlockHandler {
     // Get the parallel configuration from the workflow
     const parallel = context.workflow?.parallels?.[block.id]
     if (!parallel) {
+      logger.error(`Parallel configuration not found for block ${block.id}`, {
+        blockId: block.id,
+        availableParallels: Object.keys(context.workflow?.parallels || {}),
+        workflowParallels: context.workflow?.parallels,
+      })
       throw new Error(`Parallel configuration not found for block ${block.id}`)
     }
 
@@ -112,9 +117,21 @@ export class ParallelBlockHandler implements BlockHandler {
     if (!parallelState) {
       logger.info(`Initializing parallel block ${block.id}`)
 
-      // Get the parallel type and count from block data
-      const parallelType = block.config?.params?.parallelType || 'collection'
-      const countValue = block.config?.params?.count || 5
+      // Get the parallel type from the parallel config (explicit type to avoid inference bugs)
+      // If no explicit parallelType is set, infer it based on whether distribution exists
+      let parallelType = parallel.parallelType
+      if (!parallelType) {
+        // If there's a distribution, default to 'collection', otherwise default to 'count'
+        parallelType = parallel.distribution ? 'collection' : 'count'
+      }
+      const countValue = parallel.count || block.config?.params?.count || 1
+
+      logger.info(`Parallel ${block.id} configuration:`, {
+        parallelType,
+        countValue,
+        distribution: parallel.distribution,
+        configSource: parallel.count ? 'workflow_subflows' : 'block.config',
+      })
 
       // Evaluate distribution items if provided and type is collection
       let distributionItems: any[] | Record<string, any> | null = null
@@ -133,7 +150,7 @@ export class ParallelBlockHandler implements BlockHandler {
         // Use the count value for count-based parallel
         parallelCount = Math.min(20, Math.max(1, countValue))
         logger.info(`Parallel ${block.id} will execute ${parallelCount} times based on count`)
-      } else if (distributionItems) {
+      } else if (parallelType === 'collection' && distributionItems) {
         // Use distribution items length for collection-based parallel
         parallelCount = Array.isArray(distributionItems)
           ? distributionItems.length
@@ -141,6 +158,10 @@ export class ParallelBlockHandler implements BlockHandler {
         logger.info(
           `Parallel ${block.id} will execute ${parallelCount} times based on distribution items`
         )
+      } else {
+        // Simple parallel - single execution
+        parallelCount = 1
+        logger.info(`Parallel ${block.id} will execute ${parallelCount} time (simple mode)`)
       }
 
       // Initialize parallel execution state
@@ -153,16 +174,18 @@ export class ParallelBlockHandler implements BlockHandler {
         currentIteration: 1, // Start at 1 to indicate activation
         parallelType,
       }
+
+      // Initialize parallelExecutions if it doesn't exist
+      if (!context.parallelExecutions) {
+        context.parallelExecutions = new Map()
+      }
       context.parallelExecutions.set(block.id, parallelState)
 
       // Store the distribution items for access by child blocks
       if (distributionItems) {
         context.loopItems.set(`${block.id}_items`, distributionItems)
-      } else if (parallelType === 'count') {
-        // For count-based parallel, create an array of indices
-        const indices = Array.from({ length: parallelCount }, (_, i) => i)
-        context.loopItems.set(`${block.id}_items`, indices)
       }
+      // Note: For simple count-based parallels without distribution, we don't store items
 
       // Activate all child nodes (the executor will handle creating virtual instances)
       const parallelStartConnections =
@@ -179,10 +202,9 @@ export class ParallelBlockHandler implements BlockHandler {
         response: {
           parallelId: block.id,
           parallelCount,
-          distributionType:
-            parallelType === 'count' ? 'count' : distributionItems ? 'distributed' : 'simple',
+          distributionType: parallelType === 'count' ? 'count' : 'distributed',
           started: true,
-          message: `Initialized ${parallelCount} parallel executions`,
+          message: `Initialized ${parallelCount} parallel execution${parallelCount > 1 ? 's' : ''}`,
         },
       }
     }

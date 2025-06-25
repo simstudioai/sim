@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
+import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
@@ -34,8 +35,8 @@ export const xAIProvider: ProviderConfig = {
   name: 'xAI',
   description: "xAI's Grok models",
   version: '1.0.0',
-  models: ['grok-3-latest', 'grok-3-fast-latest'],
-  defaultModel: 'grok-3-latest',
+  models: getProviderModels('xai'),
+  defaultModel: getProviderDefaultModel('xai'),
 
   executeRequest: async (
     request: ProviderRequest

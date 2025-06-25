@@ -1,7 +1,7 @@
 import path from 'path'
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
-import { env } from './lib/env'
+import { env, isTruthy } from './lib/env'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -13,12 +13,12 @@ const nextConfig: NextConfig = {
     ],
   },
   typescript: {
-    ignoreBuildErrors: env.DOCKER_BUILD,
+    ignoreBuildErrors: isTruthy(env.DOCKER_BUILD),
   },
   eslint: {
-    ignoreDuringBuilds: env.DOCKER_BUILD,
+    ignoreDuringBuilds: isTruthy(env.DOCKER_BUILD),
   },
-  output: env.DOCKER_BUILD ? 'standalone' : undefined,
+  output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
@@ -99,7 +99,10 @@ const nextConfig: NextConfig = {
         source: '/api/workflows/:id/execute',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS,PUT' },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET,POST,OPTIONS,PUT',
+          },
           {
             key: 'Access-Control-Allow-Headers',
             value:
@@ -114,12 +117,12 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Apply Cross-Origin Isolation headers to all routes except those that use the Google Drive Picker
-        source: '/((?!w/.*|api/tools/drive).*)',
+        // Exclude Vercel internal resources and static assets from strict COEP
+        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|api/tools/drive).*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            value: 'credentialless',
           },
           {
             key: 'Cross-Origin-Opener-Policy',
@@ -128,9 +131,13 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // For routes that use the Google Drive Picker, only apply COOP but not COEP
-        source: '/(w/.*|api/tools/drive)',
+        // For main app routes, Google Drive Picker, and Vercel resources - use permissive policies
+        source: '/(w/.*|api/tools/drive|_next/.*|_vercel/.*)',
         headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'unsafe-none',
+          },
           {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin',
@@ -151,7 +158,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://*.vercel-scripts.com https://*.vercel-insights.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${process.env.NEXT_PUBLIC_APP_URL || ''} ${env.OLLAMA_URL || 'http://localhost:11434'} https://api.browser-use.com https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.vercel-insights.com https://*.atlassian.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app; frame-src https://drive.google.com https://*.google.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://*.vercel-scripts.com https://*.vercel-insights.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app https://vitals.vercel-insights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${process.env.NEXT_PUBLIC_APP_URL || ''} ${env.OLLAMA_URL || 'http://localhost:11434'} ${process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'} ${process.env.NEXT_PUBLIC_SOCKET_URL?.replace('http://', 'ws://').replace('https://', 'wss://') || 'ws://localhost:3002'} https://*.up.railway.app wss://*.up.railway.app https://api.browser-use.com https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://*.vercel-insights.com https://vitals.vercel-insights.com https://*.atlassian.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app wss://*.vercel.app; frame-src https://drive.google.com https://*.google.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'`,
           },
         ],
       },

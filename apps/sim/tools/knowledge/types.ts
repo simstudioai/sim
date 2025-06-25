@@ -12,16 +12,13 @@ export interface KnowledgeSearchResponse {
   output: {
     results: KnowledgeSearchResult[]
     query: string
-    knowledgeBaseId: string
-    topK: number
     totalResults: number
-    message: string
   }
   error?: string
 }
 
 export interface KnowledgeSearchParams {
-  knowledgeBaseId: string
+  knowledgeBaseIds: string | string[]
   query: string
   topK?: number
 }
@@ -51,6 +48,4 @@ export interface KnowledgeUploadChunkParams {
   documentId: string
   content: string
   enabled?: boolean
-  searchRank?: number
-  qualityScore?: number
 }

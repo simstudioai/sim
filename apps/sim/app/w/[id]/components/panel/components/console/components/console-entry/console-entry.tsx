@@ -4,7 +4,6 @@ import {
   AlertCircle,
   AlertTriangle,
   Calendar,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -66,14 +65,6 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
 
   const BlockIcon = blockConfig?.icon
 
-  const _statusIcon = entry.error ? (
-    <AlertCircle className='h-4 w-4 text-destructive' />
-  ) : entry.warning ? (
-    <AlertTriangle className='h-4 w-4 text-warning' />
-  ) : (
-    <CheckCircle2 className='h-4 w-4 text-muted-foreground' />
-  )
-
   // Helper function to check if data has nested objects or arrays
   const hasNestedStructure = (data: any): boolean => {
     if (data === null || typeof data !== 'object') return false
@@ -93,9 +84,9 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
   return (
     <div
       className={`border-border border-b transition-colors ${
-        !entry.error && !entry.warning ? 'cursor-pointer hover:bg-accent/50' : ''
+        !entry.error && !entry.warning && entry.success ? 'cursor-pointer hover:bg-accent/50' : ''
       }`}
-      onClick={() => !entry.error && !entry.warning && setIsExpanded(!isExpanded)}
+      onClick={() => !entry.error && !entry.warning && entry.success && setIsExpanded(!isExpanded)}
     >
       <div className='space-y-4 p-4'>
         <div
@@ -120,11 +111,11 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           >
             <div className='flex items-center gap-2'>
               <Calendar className='h-4 w-4' />
-              <span>{format(new Date(entry.startedAt), 'HH:mm:ss')}</span>
+              <span>{entry.startedAt ? format(new Date(entry.startedAt), 'HH:mm:ss') : 'N/A'}</span>
             </div>
             <div className='flex items-center gap-2'>
               <Clock className='h-4 w-4' />
-              <span>Duration: {entry.durationMs}ms</span>
+              <span>Duration: {entry.durationMs ?? 0}ms</span>
             </div>
           </div>
         </div>

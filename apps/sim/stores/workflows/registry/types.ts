@@ -18,6 +18,7 @@ export interface WorkflowMetadata {
   color: string
   marketplaceData?: MarketplaceData | null
   workspaceId?: string
+  folderId?: string | null
 }
 
 export interface WorkflowRegistryState {
@@ -32,10 +33,14 @@ export interface WorkflowRegistryState {
 export interface WorkflowRegistryActions {
   setLoading: (loading: boolean) => void
   setActiveWorkflow: (id: string) => Promise<void>
-  setActiveWorkspace: (id: string) => void
+  switchToWorkspace: (id: string) => void
+  setActiveWorkspaceId: (id: string) => void
+  loadLastActiveWorkspace: () => Promise<void>
+  loadWorkspaceFromWorkflowId: (workflowId: string | null) => Promise<void>
+  loadWorkflows: () => Promise<void>
   handleWorkspaceDeletion: (newWorkspaceId: string) => void
-  removeWorkflow: (id: string) => void
-  updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => void
+  removeWorkflow: (id: string) => Promise<void>
+  updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => Promise<void>
   createWorkflow: (options?: {
     isInitial?: boolean
     marketplaceId?: string
@@ -43,8 +48,14 @@ export interface WorkflowRegistryActions {
     name?: string
     description?: string
     workspaceId?: string
-  }) => string
-  duplicateWorkflow: (sourceId: string) => string | null
+    folderId?: string | null
+  }) => Promise<string>
+  createMarketplaceWorkflow: (
+    marketplaceId: string,
+    state: any,
+    metadata: Partial<WorkflowMetadata>
+  ) => Promise<string>
+  duplicateWorkflow: (sourceId: string) => Promise<string | null>
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setDeploymentStatus: (
     workflowId: string | null,

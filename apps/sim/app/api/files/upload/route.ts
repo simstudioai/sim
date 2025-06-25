@@ -3,8 +3,8 @@ import { join } from 'path'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { uploadToS3 } from '@/lib/uploads/s3-client'
-import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { isUsingCloudStorage, uploadFile } from '@/lib/uploads'
+import { UPLOAD_DIR } from '@/lib/uploads/setup'
 // Import to ensure the uploads directory is created
 import '@/lib/uploads/setup.server'
 
@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Log storage mode
-    logger.info(`Using storage mode: ${USE_S3_STORAGE ? 'S3' : 'Local'} for file upload`)
+    const usingCloudStorage = isUsingCloudStorage()
+    logger.info(`Using storage mode: ${usingCloudStorage ? 'Cloud' : 'Local'} for file upload`)
 
     const uploadResults = []
 
@@ -36,15 +37,15 @@ export async function POST(request: NextRequest) {
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
-      if (USE_S3_STORAGE) {
-        // Upload to S3 in production
+      if (usingCloudStorage) {
+        // Upload to cloud storage (S3 or Azure Blob)
         try {
-          logger.info(`Uploading file to S3: ${originalName}`)
-          const result = await uploadToS3(buffer, originalName, file.type, file.size)
-          logger.info(`Successfully uploaded to S3: ${result.key}`)
+          logger.info(`Uploading file to cloud storage: ${originalName}`)
+          const result = await uploadFile(buffer, originalName, file.type, file.size)
+          logger.info(`Successfully uploaded to cloud storage: ${result.key}`)
           uploadResults.push(result)
         } catch (error) {
-          logger.error('Error uploading to S3:', error)
+          logger.error('Error uploading to cloud storage:', error)
           throw error
         }
       } else {
@@ -67,10 +68,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Return all file information
-    return NextResponse.json(files.length === 1 ? uploadResults[0] : uploadResults)
+    if (uploadResults.length === 1) {
+      return NextResponse.json(uploadResults[0])
+    }
+    return NextResponse.json({ files: uploadResults })
   } catch (error) {
-    logger.error('Error uploading files:', error)
-    return createErrorResponse(error instanceof Error ? error : new Error('Failed to upload files'))
+    logger.error('Error in file upload:', error)
+    return createErrorResponse(error instanceof Error ? error : new Error('File upload failed'))
   }
 }
 

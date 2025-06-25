@@ -1,8 +1,7 @@
 import { readFile } from 'fs/promises'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { downloadFromS3, getPresignedUrl } from '@/lib/uploads/s3-client'
-import { USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
 import '@/lib/uploads/setup.server'
 
 import {
@@ -25,81 +24,76 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    // Extract params
     const { path } = await params
 
-    // Join the path segments to get the filename or S3 key
-    const pathString = path.join('/')
-    logger.info(`Serving file: ${pathString}`)
-
-    // Check if this is an S3 file (path starts with 's3/')
-    const isS3Path = path[0] === 's3'
-
-    try {
-      // Use S3 handler if in production or path explicitly specifies S3
-      if (USE_S3_STORAGE || isS3Path) {
-        return await handleS3File(path, isS3Path, pathString)
-      }
-
-      // Use local handler for local files
-      return await handleLocalFile(path)
-    } catch (error) {
-      logger.error('Error serving file:', error)
-      return createErrorResponse(error as Error)
+    if (!path || path.length === 0) {
+      throw new FileNotFoundError('No file path provided')
     }
+
+    logger.info('File serve request:', { path })
+
+    // Join the path segments to get the filename or cloud key
+    const fullPath = path.join('/')
+
+    // Check if this is a cloud file (path starts with 's3/' or 'blob/')
+    const isS3Path = path[0] === 's3'
+    const isBlobPath = path[0] === 'blob'
+    const isCloudPath = isS3Path || isBlobPath
+
+    // Use cloud handler if in production, path explicitly specifies cloud storage, or we're using cloud storage
+    if (isUsingCloudStorage() || isCloudPath) {
+      // Extract the actual key (remove 's3/' or 'blob/' prefix if present)
+      const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
+      return await handleCloudProxy(cloudKey)
+    }
+
+    // Use local handler for local files
+    return await handleLocalFile(fullPath)
   } catch (error) {
     logger.error('Error serving file:', error)
-    return createErrorResponse(error as Error)
+
+    if (error instanceof FileNotFoundError) {
+      return createErrorResponse(error)
+    }
+
+    return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
   }
 }
 
 /**
- * Handle S3 file serving
+ * Handle local file serving
  */
-async function handleS3File(
-  path: string[],
-  isS3Path: boolean,
-  pathString: string
-): Promise<NextResponse> {
-  // If path starts with s3/, remove that prefix to get the actual key
-  const s3Key = isS3Path ? decodeURIComponent(path.slice(1).join('/')) : pathString
-  logger.info(`Serving file from S3: ${s3Key}`)
-
+async function handleLocalFile(filename: string): Promise<NextResponse> {
   try {
-    // First try direct access via presigned URL (most efficient)
-    return await handleS3PresignedUrl(s3Key)
-  } catch (_error) {
-    logger.info('Falling back to proxy method for S3 file')
-    // Fall back to proxy method if presigned URL fails
-    return await handleS3Proxy(s3Key)
-  }
-}
+    const filePath = findLocalFile(filename)
 
-/**
- * Generate a presigned URL and redirect to it
- */
-async function handleS3PresignedUrl(s3Key: string): Promise<NextResponse> {
-  try {
-    // Generate a presigned URL for direct S3 access
-    const presignedUrl = await getPresignedUrl(s3Key)
+    if (!filePath) {
+      throw new FileNotFoundError(`File not found: ${filename}`)
+    }
 
-    // Redirect to the presigned URL for direct S3 access
-    return NextResponse.redirect(presignedUrl)
+    const fileBuffer = await readFile(filePath)
+    const contentType = getContentType(filename)
+
+    return createFileResponse({
+      buffer: fileBuffer,
+      contentType,
+      filename,
+    })
   } catch (error) {
-    logger.error('Error generating presigned URL:', error)
+    logger.error('Error reading local file:', error)
     throw error
   }
 }
 
 /**
- * Proxy S3 file through our server
+ * Proxy cloud file through our server
  */
-async function handleS3Proxy(s3Key: string): Promise<NextResponse> {
+async function handleCloudProxy(cloudKey: string): Promise<NextResponse> {
   try {
-    const fileBuffer = await downloadFromS3(s3Key)
+    const fileBuffer = await downloadFile(cloudKey)
 
     // Extract the original filename from the key (last part after last /)
-    const originalFilename = s3Key.split('/').pop() || 'download'
+    const originalFilename = cloudKey.split('/').pop() || 'download'
     const contentType = getContentType(originalFilename)
 
     return createFileResponse({
@@ -108,35 +102,7 @@ async function handleS3Proxy(s3Key: string): Promise<NextResponse> {
       filename: originalFilename,
     })
   } catch (error) {
-    logger.error('Error downloading from S3:', error)
+    logger.error('Error downloading from cloud storage:', error)
     throw error
   }
-}
-
-/**
- * Handle local file serving
- */
-async function handleLocalFile(path: string[]): Promise<NextResponse> {
-  // Join as a path for findLocalFile
-  const pathString = path.join('/')
-  const filePath = findLocalFile(pathString)
-
-  // Handle file not found
-  if (!filePath) {
-    logger.error(`File not found in any checked paths for: ${pathString}`)
-    throw new FileNotFoundError(`File not found: ${pathString}`)
-  }
-
-  // Read the file
-  const fileBuffer = await readFile(filePath)
-
-  // Get filename for content type detection and response
-  const filename = path[path.length - 1]
-  const contentType = getContentType(filename)
-
-  return createFileResponse({
-    buffer: fileBuffer,
-    contentType,
-    filename,
-  })
 }

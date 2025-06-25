@@ -23,6 +23,7 @@ interface LongInputProps {
   previewValue?: string | null
   value?: string
   onChange?: (value: string) => void
+  disabled?: boolean
 }
 
 // Constants
@@ -41,6 +42,7 @@ export function LongInput({
   previewValue,
   value: propValue,
   onChange,
+  disabled,
 }: LongInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -81,6 +83,9 @@ export function LongInput({
 
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    // Don't allow changes if disabled
+    if (disabled) return
+
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
 
@@ -288,7 +293,7 @@ export function LongInput({
           setShowTags(false)
           setSearchTerm('')
         }}
-        disabled={isPreview}
+        disabled={isPreview || disabled}
         style={{
           fontFamily: 'inherit',
           lineHeight: 'inherit',

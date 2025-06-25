@@ -38,12 +38,23 @@ describe('Workflow Logs API Route', () => {
       trigger: 'api',
       createdAt: new Date('2024-01-01T10:02:00.000Z'),
     },
+    {
+      id: 'log-4',
+      workflowId: 'workflow-3',
+      executionId: 'exec-3',
+      level: 'info',
+      message: 'Root workflow executed',
+      duration: '0.8s',
+      trigger: 'webhook',
+      createdAt: new Date('2024-01-01T10:03:00.000Z'),
+    },
   ]
 
   const mockWorkflows = [
     {
       id: 'workflow-1',
       userId: 'user-123',
+      folderId: 'folder-1',
       name: 'Test Workflow 1',
       color: '#3972F6',
       description: 'First test workflow',
@@ -54,9 +65,21 @@ describe('Workflow Logs API Route', () => {
     {
       id: 'workflow-2',
       userId: 'user-123',
+      folderId: 'folder-2',
       name: 'Test Workflow 2',
       color: '#FF6B6B',
       description: 'Second test workflow',
+      state: {},
+      createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+    },
+    {
+      id: 'workflow-3',
+      userId: 'user-123',
+      folderId: null,
+      name: 'Test Workflow 3',
+      color: '#22C55E',
+      description: 'Third test workflow (no folder)',
       state: {},
       createdAt: new Date('2024-01-01T00:00:00.000Z'),
       updatedAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -123,7 +146,9 @@ describe('Workflow Logs API Route', () => {
 
           // First call: get user workflows
           if (dbCallCount === 1) {
-            return createChainableMock(userWorkflows.map((w) => ({ id: w.id })))
+            return createChainableMock(
+              userWorkflows.map((w) => ({ id: w.id, folderId: w.folderId }))
+            )
           }
 
           // Second call: get logs
@@ -195,12 +220,12 @@ describe('Workflow Logs API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data).toHaveProperty('data')
-      expect(data).toHaveProperty('total', 3)
+      expect(data).toHaveProperty('total', 4)
       expect(data).toHaveProperty('page', 1)
       expect(data).toHaveProperty('pageSize', 100)
       expect(data).toHaveProperty('totalPages', 1)
       expect(Array.isArray(data.data)).toBe(true)
-      expect(data.data).toHaveLength(3)
+      expect(data.data).toHaveLength(4)
     })
 
     it('should include workflow data when includeWorkflow=true', async () => {
@@ -252,7 +277,11 @@ describe('Workflow Logs API Route', () => {
     })
 
     it('should filter logs by multiple workflow IDs', async () => {
-      setupDatabaseMock()
+      // Only get logs for workflow-1 and workflow-2 (not workflow-3)
+      const filteredLogs = mockWorkflowLogs.filter(
+        (log) => log.workflowId === 'workflow-1' || log.workflowId === 'workflow-2'
+      )
+      setupDatabaseMock({ logs: filteredLogs })
 
       const url = new URL('http://localhost:3000/api/logs?workflowIds=workflow-1,workflow-2')
       const req = new Request(url.toString())
@@ -280,7 +309,7 @@ describe('Workflow Logs API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.data).toHaveLength(2)
+      expect(data.data).toHaveLength(filteredLogs.length)
     })
 
     it('should search logs by message content', async () => {
@@ -526,6 +555,168 @@ describe('Workflow Logs API Route', () => {
       expect(data.data[0].trigger).toBe('manual')
       expect(data.data[0].level).toBe('info')
       expect(data.data[0].workflowId).toBe('workflow-1')
+    })
+
+    it('should filter logs by single folder ID', async () => {
+      const folder1Logs = mockWorkflowLogs.filter((log) => log.workflowId === 'workflow-1')
+      setupDatabaseMock({ logs: folder1Logs })
+
+      const url = new URL('http://localhost:3000/api/logs?folderIds=folder-1')
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(2)
+      expect(data.data.every((log: any) => log.workflowId === 'workflow-1')).toBe(true)
+    })
+
+    it('should filter logs by multiple folder IDs', async () => {
+      const folder1And2Logs = mockWorkflowLogs.filter(
+        (log) => log.workflowId === 'workflow-1' || log.workflowId === 'workflow-2'
+      )
+      setupDatabaseMock({ logs: folder1And2Logs })
+
+      const url = new URL('http://localhost:3000/api/logs?folderIds=folder-1,folder-2')
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(3)
+      expect(
+        data.data.every((log: any) => ['workflow-1', 'workflow-2'].includes(log.workflowId))
+      ).toBe(true)
+    })
+
+    it('should filter logs by root folder (workflows without folders)', async () => {
+      const rootLogs = mockWorkflowLogs.filter((log) => log.workflowId === 'workflow-3')
+      setupDatabaseMock({ logs: rootLogs })
+
+      const url = new URL('http://localhost:3000/api/logs?folderIds=root')
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(1)
+      expect(data.data[0].workflowId).toBe('workflow-3')
+      expect(data.data[0].message).toContain('Root workflow executed')
+    })
+
+    it('should combine root folder with other folders', async () => {
+      const rootAndFolder1Logs = mockWorkflowLogs.filter(
+        (log) => log.workflowId === 'workflow-1' || log.workflowId === 'workflow-3'
+      )
+      setupDatabaseMock({ logs: rootAndFolder1Logs })
+
+      const url = new URL('http://localhost:3000/api/logs?folderIds=root,folder-1')
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(3)
+      expect(
+        data.data.every((log: any) => ['workflow-1', 'workflow-3'].includes(log.workflowId))
+      ).toBe(true)
+    })
+
+    it('should combine folder filter with workflow filter', async () => {
+      // Filter by folder-1 and specific workflow-1 (should return same results)
+      const filteredLogs = mockWorkflowLogs.filter((log) => log.workflowId === 'workflow-1')
+      setupDatabaseMock({ logs: filteredLogs })
+
+      const url = new URL(
+        'http://localhost:3000/api/logs?folderIds=folder-1&workflowIds=workflow-1'
+      )
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(2)
+      expect(data.data.every((log: any) => log.workflowId === 'workflow-1')).toBe(true)
+    })
+
+    it('should return empty when folder and workflow filters conflict', async () => {
+      // Try to filter by folder-1 but workflow-2 (which is in folder-2)
+      setupDatabaseMock({ logs: [] })
+
+      const url = new URL(
+        'http://localhost:3000/api/logs?folderIds=folder-1&workflowIds=workflow-2'
+      )
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toEqual([])
+      expect(data.total).toBe(0)
+    })
+
+    it('should combine folder filter with other filters', async () => {
+      const filteredLogs = mockWorkflowLogs.filter(
+        (log) => log.workflowId === 'workflow-1' && log.level === 'info'
+      )
+      setupDatabaseMock({ logs: filteredLogs })
+
+      const url = new URL('http://localhost:3000/api/logs?folderIds=folder-1&level=info')
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(1)
+      expect(data.data[0].workflowId).toBe('workflow-1')
+      expect(data.data[0].level).toBe('info')
+    })
+
+    it('should return empty result when no workflows match folder filter', async () => {
+      setupDatabaseMock({ logs: [] })
+
+      const url = new URL('http://localhost:3000/api/logs?folderIds=non-existent-folder')
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toEqual([])
+      expect(data.total).toBe(0)
+    })
+
+    it('should handle folder filter with includeWorkflow=true', async () => {
+      const folder1Logs = mockWorkflowLogs.filter((log) => log.workflowId === 'workflow-1')
+      setupDatabaseMock({ logs: folder1Logs })
+
+      const url = new URL('http://localhost:3000/api/logs?folderIds=folder-1&includeWorkflow=true')
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(2)
+      expect(data.data[0]).toHaveProperty('workflow')
+      expect(data.data[0].workflow).toHaveProperty('name')
+      expect(data.data.every((log: any) => log.workflowId === 'workflow-1')).toBe(true)
     })
   })
 })

@@ -29,7 +29,6 @@ sim-standalone.tar.gz
 # misc
 .DS_Store
 *.pem
-uploads/
 
 # env files
 .env
@@ -64,3 +63,6 @@ start-collector.sh
 
 # Turborepo
 .turbo
+
+# VSCode
+.vscode

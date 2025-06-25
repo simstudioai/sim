@@ -1,7 +1,6 @@
 import { afterAll, vi } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 
-// Mock global fetch
 global.fetch = vi.fn(() =>
   Promise.resolve({
     ok: true,
@@ -9,7 +8,6 @@ global.fetch = vi.fn(() =>
   })
 ) as any
 
-// Mock console-logger
 vi.mock('@/lib/logs/console-logger', () => {
   const createLogger = vi.fn(() => ({
     debug: vi.fn(),
@@ -22,7 +20,6 @@ vi.mock('@/lib/logs/console-logger', () => {
   return { createLogger }
 })
 
-// Mock stores
 vi.mock('@/stores/console/store', () => ({
   useConsoleStore: {
     getState: vi.fn().mockReturnValue({
@@ -43,18 +40,38 @@ vi.mock('@/stores/execution/store', () => ({
   },
 }))
 
-// Silence specific console errors during tests
+vi.mock('@/blocks/registry', () => ({
+  getBlock: vi.fn(() => ({
+    name: 'Mock Block',
+    description: 'Mock block description',
+    icon: () => null,
+    subBlocks: [],
+    outputs: {},
+  })),
+  getAllBlocks: vi.fn(() => ({})),
+}))
+
 const originalConsoleError = console.error
+const originalConsoleWarn = console.warn
+
 console.error = (...args: any[]) => {
-  // Filter out expected errors from test output
   if (args[0] === 'Workflow execution failed:' && args[1]?.message === 'Test error') {
+    return
+  }
+  if (typeof args[0] === 'string' && args[0].includes('[zustand persist middleware]')) {
     return
   }
   originalConsoleError(...args)
 }
 
-// Global teardown
+console.warn = (...args: any[]) => {
+  if (typeof args[0] === 'string' && args[0].includes('[zustand persist middleware]')) {
+    return
+  }
+  originalConsoleWarn(...args)
+}
+
 afterAll(() => {
-  // Restore console.error
   console.error = originalConsoleError
+  console.warn = originalConsoleWarn
 })

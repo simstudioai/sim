@@ -224,8 +224,37 @@ describe('workflow store', () => {
       expect(state.blocks.parallel1?.data?.count).toBe(1)
     })
 
+    it('should regenerate parallels when updateParallelType is called', () => {
+      const { addBlock, updateParallelType } = useWorkflowStore.getState()
+
+      // Add a parallel block with default collection type
+      addBlock(
+        'parallel1',
+        'parallel',
+        'Test Parallel',
+        { x: 0, y: 0 },
+        {
+          parallelType: 'collection',
+          count: 3,
+          collection: '["a", "b", "c"]',
+        }
+      )
+
+      // Update parallel type to count
+      updateParallelType('parallel1', 'count')
+
+      const state = useWorkflowStore.getState()
+
+      // Check that block data was updated
+      expect(state.blocks.parallel1?.data?.parallelType).toBe('count')
+
+      // Check that parallels were regenerated with new type
+      expect(state.parallels.parallel1).toBeDefined()
+      expect(state.parallels.parallel1.parallelType).toBe('count')
+    })
+
     it('should save to history when updating parallel properties', () => {
-      const { addBlock, updateParallelCollection, updateParallelCount } =
+      const { addBlock, updateParallelCollection, updateParallelCount, updateParallelType } =
         useWorkflowStore.getState()
 
       // Add a parallel block
@@ -254,6 +283,12 @@ describe('workflow store', () => {
 
       state = useWorkflowStore.getState()
       expect(state.history.past.length).toBe(initialHistoryLength + 2)
+
+      // Update parallel type
+      updateParallelType('parallel1', 'count')
+
+      state = useWorkflowStore.getState()
+      expect(state.history.past.length).toBe(initialHistoryLength + 3)
     })
   })
 

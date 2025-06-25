@@ -8,6 +8,8 @@ export interface AgentInputs {
   temperature?: number
   maxTokens?: number
   apiKey?: string
+  azureEndpoint?: string
+  azureApiVersion?: string
 }
 
 export interface ToolInput {

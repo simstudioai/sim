@@ -2,110 +2,186 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
 import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
-import { API_ENDPOINTS, STORAGE_KEYS } from '../../constants'
-import {
-  loadWorkflowState,
-  removeFromStorage,
-  saveRegistry,
-  saveSubblockValues,
-  saveWorkflowState,
-} from '../persistence'
+import { API_ENDPOINTS } from '../../constants'
 import { useSubBlockStore } from '../subblock/store'
-import { fetchWorkflowsFromDB, resetRegistryInitialization, workflowSync } from '../sync'
+// Removed fetchWorkflowsFromDB import - moved to local function
 import { useWorkflowStore } from '../workflow/store'
+import type { BlockState } from '../workflow/types'
 import type { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
 
 const logger = createLogger('WorkflowRegistry')
 
-// Storage key for active workspace
-const ACTIVE_WORKSPACE_KEY = 'active-workspace-id'
+// Simplified function to fetch workflows from DB (moved from sync.ts)
+let isFetching = false
+let lastFetchTimestamp = 0
+
+async function fetchWorkflowsFromDB(): Promise<void> {
+  if (typeof window === 'undefined') return
+
+  // Prevent concurrent fetch operations
+  if (isFetching) {
+    logger.info('Fetch already in progress, skipping duplicate request')
+    return
+  }
+
+  const fetchStartTime = Date.now()
+  isFetching = true
+
+  try {
+    useWorkflowRegistry.getState().setLoading(true)
+
+    const activeWorkspaceId = useWorkflowRegistry.getState().activeWorkspaceId
+    const url = new URL(API_ENDPOINTS.SYNC, window.location.origin)
+
+    if (activeWorkspaceId) {
+      url.searchParams.append('workspaceId', activeWorkspaceId)
+    }
+
+    const response = await fetch(url.toString(), { method: 'GET' })
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        logger.warn('User not authenticated for workflow fetch')
+        useWorkflowRegistry.setState({ workflows: {}, isLoading: false })
+        return
+      }
+      throw new Error(`Failed to fetch workflows: ${response.statusText}`)
+    }
+
+    // Check if this fetch is still relevant (not superseded by a newer fetch)
+    if (fetchStartTime < lastFetchTimestamp) {
+      logger.info('Fetch superseded by newer operation, discarding results')
+      return
+    }
+
+    // Update timestamp to mark this as the most recent fetch
+    lastFetchTimestamp = fetchStartTime
+
+    const { data } = await response.json()
+
+    if (!data || !Array.isArray(data)) {
+      logger.info('No workflows found in database')
+
+      // Only clear workflows if we're confident this is a legitimate empty state
+      const currentWorkflows = useWorkflowRegistry.getState().workflows
+      const hasExistingWorkflows = Object.keys(currentWorkflows).length > 0
+
+      if (hasExistingWorkflows) {
+        logger.warn(
+          'Received empty workflow data but local workflows exist - possible race condition, preserving local state'
+        )
+        useWorkflowRegistry.setState({ isLoading: false })
+        return
+      }
+
+      useWorkflowRegistry.setState({ workflows: {}, isLoading: false })
+      return
+    }
+
+    // Process workflows
+    const registryWorkflows: Record<string, WorkflowMetadata> = {}
+    const deploymentStatuses: Record<string, any> = {}
+
+    data.forEach((workflow) => {
+      const {
+        id,
+        name,
+        description,
+        color,
+        state,
+        createdAt,
+        marketplaceData,
+        workspaceId,
+        folderId,
+        isDeployed,
+        deployedAt,
+        apiKey,
+      } = workflow
+
+      // Skip if workflow doesn't belong to active workspace
+      if (activeWorkspaceId && workspaceId !== activeWorkspaceId) {
+        return
+      }
+
+      // Add to registry
+      registryWorkflows[id] = {
+        id,
+        name,
+        description: description || '',
+        color: color || '#3972F6',
+        lastModified: createdAt ? new Date(createdAt) : new Date(),
+        marketplaceData: marketplaceData || null,
+        workspaceId,
+        folderId: folderId || null,
+      }
+
+      // Extract deployment status from database
+      if (isDeployed || deployedAt) {
+        deploymentStatuses[id] = {
+          isDeployed: isDeployed || false,
+          deployedAt: deployedAt ? new Date(deployedAt) : undefined,
+          apiKey: apiKey || undefined,
+          needsRedeployment: false,
+        }
+      }
+
+      // Initialize subblock values
+      const subblockValues: Record<string, Record<string, any>> = {}
+      if (state?.blocks) {
+        Object.entries(state.blocks).forEach(([blockId, block]) => {
+          const blockState = block as BlockState
+          subblockValues[blockId] = {}
+
+          Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
+            subblockValues[blockId][subblockId] = subblock.value
+          })
+        })
+      }
+
+      // Update subblock store
+      useSubBlockStore.setState((state) => ({
+        workflowValues: {
+          ...state.workflowValues,
+          [id]: subblockValues,
+        },
+      }))
+    })
+
+    // Update registry with loaded workflows and deployment statuses
+    useWorkflowRegistry.setState({
+      workflows: registryWorkflows,
+      deploymentStatuses: deploymentStatuses,
+      isLoading: false,
+      error: null,
+    })
+
+    // Only set first workflow as active if no active workflow is set and we have workflows
+    const currentState = useWorkflowRegistry.getState()
+    if (!currentState.activeWorkflowId && Object.keys(registryWorkflows).length > 0) {
+      const firstWorkflowId = Object.keys(registryWorkflows)[0]
+      useWorkflowRegistry.setState({ activeWorkflowId: firstWorkflowId })
+      logger.info(`Set first workflow as active: ${firstWorkflowId}`)
+    }
+
+    logger.info(
+      `Successfully loaded ${Object.keys(registryWorkflows).length} workflows from database`
+    )
+  } catch (error) {
+    logger.error('Error fetching workflows from DB:', error)
+    useWorkflowRegistry.setState({
+      isLoading: false,
+      error: `Failed to load workflows: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    })
+    throw error
+  } finally {
+    isFetching = false
+  }
+}
 
 // Track workspace transitions to prevent race conditions
 let isWorkspaceTransitioning = false
 const TRANSITION_TIMEOUT = 5000 // 5 seconds maximum for workspace transitions
-
-// Helps clean up any localStorage data that isn't needed for the current workspace
-function cleanupLocalStorageForWorkspace(workspaceId: string): void {
-  if (typeof window === 'undefined') return
-
-  try {
-    const { workflows } = useWorkflowRegistry.getState()
-    const workflowIds = Object.keys(workflows)
-
-    // Find all localStorage keys that start with workflow- or subblock-values-
-    const localStorageKeys = Object.keys(localStorage)
-    const workflowKeys = localStorageKeys.filter(
-      (key) => key.startsWith('workflow-') || key.startsWith('subblock-values-')
-    )
-
-    // Extract the workflow ID from each key (remove the prefix)
-    for (const key of workflowKeys) {
-      let workflowId: string | null = null
-
-      if (key.startsWith('workflow-')) {
-        workflowId = key.replace('workflow-', '')
-      } else if (key.startsWith('subblock-values-')) {
-        workflowId = key.replace('subblock-values-', '')
-      }
-
-      if (workflowId) {
-        // Case 1: Clean up workflows not in the registry
-        if (!workflowIds.includes(workflowId)) {
-          // Check if this workflow exists in a different workspace
-          // We don't want to remove data for workflows in other workspaces
-          const exists = localStorage.getItem(`workflow-${workflowId}`)
-          if (exists) {
-            try {
-              const parsed = JSON.parse(exists)
-              // If we can't determine the workspace, leave it alone for safety
-              if (!parsed || !parsed.workspaceId) continue
-
-              // Only remove if it belongs to the current workspace
-              if (parsed.workspaceId === workspaceId) {
-                localStorage.removeItem(key)
-              }
-            } catch (_e) {}
-          } else {
-            // If we can't determine the workspace, remove it to be safe
-            localStorage.removeItem(key)
-          }
-        }
-        // Case 2: Clean up workflows that reference deleted workspaces
-        else {
-          const exists = localStorage.getItem(`workflow-${workflowId}`)
-          if (exists) {
-            try {
-              const parsed = JSON.parse(exists)
-              if (parsed?.workspaceId && parsed.workspaceId !== workspaceId) {
-                // Check if this workspace still exists in our list
-                const workspacesData = localStorage.getItem('workspaces')
-                if (workspacesData) {
-                  try {
-                    const workspaces = JSON.parse(workspacesData)
-                    const workspaceExists = workspaces.some((w: any) => w.id === parsed.workspaceId)
-
-                    if (!workspaceExists) {
-                      // Workspace doesn't exist, update the workflow to use current workspace
-                      parsed.workspaceId = workspaceId
-                      localStorage.setItem(`workflow-${workflowId}`, JSON.stringify(parsed))
-                    }
-                  } catch (_e) {
-                    // Skip if we can't parse workspaces data
-                  }
-                }
-              }
-            } catch (_e) {
-              // Skip if we can't parse the data
-            }
-          }
-        }
-      }
-    }
-  } catch (error) {
-    logger.error('Error cleaning up localStorage:', error)
-  }
-}
 
 // Resets workflow and subblock stores to prevent data leakage between workspaces
 function resetWorkflowStores() {
@@ -180,23 +256,26 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       // Store state
       workflows: {},
       activeWorkflowId: null,
-      activeWorkspaceId:
-        typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null,
-      isLoading: false,
+      activeWorkspaceId: null, // No longer persisted in localStorage
+      isLoading: true,
       error: null,
       // Initialize deployment statuses
       deploymentStatuses: {},
 
       // Set loading state
       setLoading: (loading: boolean) => {
-        // Only set loading to true if workflows is empty
-        if (!loading || Object.keys(get().workflows).length === 0) {
-          set({ isLoading: loading })
-        }
+        // Remove the broken logic that prevents loading when workflows exist
+        // This was causing race conditions during deletion and sync operations
+        set({ isLoading: loading })
+      },
+
+      // Simple method to load workflows (replaces sync system)
+      loadWorkflows: async () => {
+        await fetchWorkflowsFromDB()
       },
 
       // Handle cleanup on workspace deletion
-      handleWorkspaceDeletion: (newWorkspaceId: string) => {
+      handleWorkspaceDeletion: async (newWorkspaceId: string) => {
         const currentWorkspaceId = get().activeWorkspaceId
 
         if (!newWorkspaceId || newWorkspaceId === currentWorkspaceId) {
@@ -207,110 +286,211 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Set transition state
         setWorkspaceTransitioning(true)
 
-        logger.info(`Switching from deleted workspace ${currentWorkspaceId} to ${newWorkspaceId}`)
+        try {
+          logger.info(`Switching from deleted workspace ${currentWorkspaceId} to ${newWorkspaceId}`)
 
-        // Reset all workflow state
-        resetWorkflowStores()
+          // Reset all workflow state
+          resetWorkflowStores()
 
-        // Reset registry initialization state
-        resetRegistryInitialization()
+          // Set loading state while we fetch workflows
+          set({
+            isLoading: true,
+            workflows: {},
+            activeWorkspaceId: newWorkspaceId,
+            activeWorkflowId: null,
+          })
 
-        // Save to localStorage for persistence
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(ACTIVE_WORKSPACE_KEY, newWorkspaceId)
+          // Properly await workflow fetching to prevent race conditions
+          await fetchWorkflowsFromDB()
+
+          set({ isLoading: false })
+          logger.info(`Successfully switched to workspace after deletion: ${newWorkspaceId}`)
+        } catch (error) {
+          logger.error('Error fetching workflows after workspace deletion:', {
+            error,
+            workspaceId: newWorkspaceId,
+          })
+          set({ isLoading: false, error: 'Failed to load workspace data' })
+        } finally {
+          // End transition state
+          setWorkspaceTransitioning(false)
         }
-
-        // Set loading state while we fetch workflows
-        set({
-          isLoading: true,
-          workflows: {},
-          activeWorkspaceId: newWorkspaceId,
-          activeWorkflowId: null,
-        })
-
-        // Fetch workflows specifically for this workspace
-        fetchWorkflowsFromDB()
-          .then(() => {
-            set({ isLoading: false })
-
-            // Clean up any stale localStorage data
-            cleanupLocalStorageForWorkspace(newWorkspaceId)
-
-            // End transition state
-            setWorkspaceTransitioning(false)
-          })
-          .catch((error) => {
-            logger.error('Error fetching workflows after workspace deletion:', {
-              error,
-              workspaceId: newWorkspaceId,
-            })
-            set({ isLoading: false, error: 'Failed to load workspace data' })
-
-            // End transition state even on error
-            setWorkspaceTransitioning(false)
-          })
       },
 
-      // Set active workspace and update UI
-      setActiveWorkspace: (id: string) => {
-        const currentWorkspaceId = get().activeWorkspaceId
-
-        // Only perform the switch if the workspace is different
-        if (id === currentWorkspaceId) {
-          return
-        }
-
-        // Prevent multiple workspace transitions at once
+      // Switch to workspace with comprehensive error handling and loading states
+      switchToWorkspace: async (workspaceId: string) => {
+        // Prevent multiple simultaneous transitions
         if (isWorkspaceTransitioning) {
-          logger.warn('Workspace already transitioning, ignoring new request')
+          logger.warn(
+            `Ignoring workspace switch to ${workspaceId} - transition already in progress`
+          )
           return
         }
 
-        // Set transition state
+        const { activeWorkspaceId: currentWorkspaceId } = get()
+
+        // Early return if switching to the same workspace (before setting flag)
+        if (currentWorkspaceId === workspaceId) {
+          logger.info(`Already in workspace ${workspaceId}`)
+          return
+        }
+
+        // Only set transition flag AFTER validating the switch is needed
         setWorkspaceTransitioning(true)
 
-        logger.info(`Switching workspace from ${currentWorkspaceId} to ${id}`)
+        try {
+          logger.info(`Switching workspace from ${currentWorkspaceId || 'none'} to ${workspaceId}`)
 
-        // Reset all workflow state
-        resetWorkflowStores()
+          // Save to localStorage first before any async operations
+          get().setActiveWorkspaceId(workspaceId)
 
-        // Reset registry initialization state
-        resetRegistryInitialization()
+          // Clear current workspace state
+          resetWorkflowStores()
 
-        // Save to localStorage for persistence
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(ACTIVE_WORKSPACE_KEY, id)
+          // Update workspace in state
+          set({
+            activeWorkspaceId: workspaceId,
+            activeWorkflowId: null,
+            workflows: {},
+            isLoading: true,
+            error: null,
+          })
+
+          // Fetch workflows for the new workspace
+          await fetchWorkflowsFromDB()
+
+          logger.info(`Successfully switched to workspace: ${workspaceId}`)
+        } catch (error) {
+          logger.error(`Error switching to workspace ${workspaceId}:`, { error })
+          set({
+            error: `Failed to switch workspace: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            isLoading: false,
+          })
+        } finally {
+          setWorkspaceTransitioning(false)
         }
+      },
 
-        // Set loading state while we fetch workflows
-        set({
-          isLoading: true,
-          // Clear workflows to prevent showing old data during transition
-          workflows: {},
-          activeWorkspaceId: id,
-          // Reset active workflow when switching workspaces
-          activeWorkflowId: null,
-        })
+      // Load user's last active workspace from localStorage
+      loadLastActiveWorkspace: async () => {
+        try {
+          const savedWorkspaceId = localStorage.getItem('lastActiveWorkspaceId')
+          if (!savedWorkspaceId || savedWorkspaceId === get().activeWorkspaceId) {
+            return // No saved workspace or already active
+          }
 
-        // Fetch workflows specifically for this workspace
-        // This is better than just triggering a sync as it's more immediate
-        fetchWorkflowsFromDB()
-          .then(() => {
-            set({ isLoading: false })
+          logger.info(`Attempting to restore last active workspace: ${savedWorkspaceId}`)
 
-            // Clean up any stale localStorage data for this workspace
-            cleanupLocalStorageForWorkspace(id)
+          // Validate that the workspace exists by making a simple API call
+          try {
+            const response = await fetch('/api/workspaces')
+            if (response.ok) {
+              const data = await response.json()
+              const workspaces = data.workspaces || []
+              const workspaceExists = workspaces.some((ws: any) => ws.id === savedWorkspaceId)
 
-            // End transition state
-            setWorkspaceTransitioning(false)
-          })
-          .catch((error) => {
-            logger.error('Error fetching workflows for workspace:', { error, workspaceId: id })
-            set({ isLoading: false, error: 'Failed to load workspace data' })
+              if (workspaceExists) {
+                // Set the validated workspace ID
+                set({ activeWorkspaceId: savedWorkspaceId })
+                logger.info(`Restored last active workspace from localStorage: ${savedWorkspaceId}`)
+              } else {
+                logger.warn(
+                  `Saved workspace ${savedWorkspaceId} no longer exists, clearing from localStorage`
+                )
+                localStorage.removeItem('lastActiveWorkspaceId')
+              }
+            }
+          } catch (apiError) {
+            logger.warn('Failed to validate saved workspace, will use default:', apiError)
+            // Don't remove from localStorage in case it's a temporary network issue
+          }
+        } catch (error) {
+          logger.warn('Failed to load last active workspace from localStorage:', error)
+          // This is non-critical, so we continue with default behavior
+        }
+      },
 
-            // End transition state even on error
-            setWorkspaceTransitioning(false)
-          })
+      // Load workspace based on workflow ID from URL, with fallback to last active workspace
+      loadWorkspaceFromWorkflowId: async (workflowId: string | null) => {
+        try {
+          logger.info(`Loading workspace for workflow ID: ${workflowId}`)
+
+          // If workflow ID provided, try to get its workspace
+          if (workflowId) {
+            try {
+              const response = await fetch(`/api/workflows/${workflowId}`)
+              if (response.ok) {
+                const data = await response.json()
+                const workflow = data.data
+
+                if (workflow?.workspaceId) {
+                  // Validate workspace access
+                  const workspacesResponse = await fetch('/api/workspaces')
+                  if (workspacesResponse.ok) {
+                    const workspacesData = await workspacesResponse.json()
+                    const workspaces = workspacesData.workspaces || []
+                    const workspaceExists = workspaces.some(
+                      (ws: any) => ws.id === workflow.workspaceId
+                    )
+
+                    if (workspaceExists) {
+                      set({ activeWorkspaceId: workflow.workspaceId })
+                      localStorage.setItem('lastActiveWorkspaceId', workflow.workspaceId)
+                      logger.info(`Set active workspace from workflow: ${workflow.workspaceId}`)
+                      return
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              logger.warn('Error fetching workflow:', error)
+            }
+          }
+
+          // Fallback: use last active workspace or first available
+          const savedWorkspaceId = localStorage.getItem('lastActiveWorkspaceId')
+          const response = await fetch('/api/workspaces')
+
+          if (response.ok) {
+            const data = await response.json()
+            const workspaces = data.workspaces || []
+
+            if (workspaces.length === 0) {
+              logger.warn('No workspaces found')
+              return
+            }
+
+            // Try saved workspace first
+            let targetWorkspace = savedWorkspaceId
+              ? workspaces.find((ws: any) => ws.id === savedWorkspaceId)
+              : null
+
+            // Fall back to first workspace
+            if (!targetWorkspace) {
+              targetWorkspace = workspaces[0]
+              if (savedWorkspaceId) {
+                localStorage.removeItem('lastActiveWorkspaceId')
+              }
+            }
+
+            set({ activeWorkspaceId: targetWorkspace.id })
+            localStorage.setItem('lastActiveWorkspaceId', targetWorkspace.id)
+            logger.info(`Set active workspace: ${targetWorkspace.id}`)
+          }
+        } catch (error) {
+          logger.error('Error in loadWorkspaceFromWorkflowId:', error)
+        }
+      },
+
+      // Simple method to set active workspace ID without triggering full switch
+      setActiveWorkspaceId: (id: string) => {
+        set({ activeWorkspaceId: id })
+        // Save to localStorage as well
+        try {
+          localStorage.setItem('lastActiveWorkspaceId', id)
+        } catch (error) {
+          logger.warn('Failed to save workspace to localStorage:', error)
+        }
       },
 
       // Method to get deployment status for a specific workflow
@@ -323,27 +503,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         const { deploymentStatuses = {} } = get()
 
-        // First try to get from the workflow-specific deployment statuses
+        // Get from the workflow-specific deployment statuses in the registry
         if (deploymentStatuses[workflowId]) {
           return deploymentStatuses[workflowId]
-        }
-
-        // For backward compatibility, check the workflow state in workflow store
-        // This will only be relevant during the transition period
-        const workflowState = loadWorkflowState(workflowId)
-        if (workflowState) {
-          // Check workflow-specific status in the workflow state
-          if (workflowState.deploymentStatuses?.[workflowId]) {
-            return workflowState.deploymentStatuses[workflowId]
-          }
-
-          // Fallback to legacy fields if needed
-          if (workflowState.isDeployed) {
-            return {
-              isDeployed: workflowState.isDeployed || false,
-              deployedAt: workflowState.deployedAt,
-            }
-          }
         }
 
         // No deployment status found
@@ -402,34 +564,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }))
         }
 
-        // Save the deployment status in the workflow state
-        const workflowState = loadWorkflowState(workflowId)
-        if (workflowState) {
-          saveWorkflowState(workflowId, {
-            ...workflowState,
-            // Update both legacy and new fields for compatibility
-            isDeployed: workflowId === activeWorkflowId ? isDeployed : workflowState.isDeployed,
-            deployedAt:
-              workflowId === activeWorkflowId
-                ? deployedAt || (isDeployed ? new Date() : undefined)
-                : workflowState.deployedAt,
-            deploymentStatuses: {
-              ...(workflowState.deploymentStatuses || {}),
-              [workflowId]: {
-                isDeployed,
-                deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-                apiKey,
-                needsRedeployment: isDeployed
-                  ? false
-                  : ((workflowState.deploymentStatuses?.[workflowId] as any)?.needsRedeployment ??
-                    false),
-              },
-            },
-          })
-        }
-
-        // Trigger workflow sync to update server state
-        workflowSync.sync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       // Method to set the needsRedeployment flag for a specific workflow
@@ -460,155 +595,75 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         if (workflowId === activeWorkflowId) {
           useWorkflowStore.getState().setNeedsRedeploymentFlag(needsRedeployment)
         }
-        // Save to persistent storage
-        const workflowState = loadWorkflowState(workflowId)
-        if (workflowState) {
-          const deploymentStatuses = workflowState.deploymentStatuses || {}
-          const currentStatus = deploymentStatuses[workflowId] || { isDeployed: false }
-
-          saveWorkflowState(workflowId, {
-            ...workflowState,
-            deploymentStatuses: {
-              ...deploymentStatuses,
-              [workflowId]: {
-                ...currentStatus,
-                needsRedeployment,
-              },
-            },
-          })
-        }
       },
 
-      // Modified setActiveWorkflow to load deployment statuses
+      // Modified setActiveWorkflow to work with clean DB-only architecture
       setActiveWorkflow: async (id: string) => {
-        const { workflows } = get()
+        const { workflows, activeWorkflowId } = get()
         if (!workflows[id]) {
           set({ error: `Workflow ${id} not found` })
           return
         }
 
-        // Get current workflow ID
-        const currentId = get().activeWorkflowId
-        // Save current workflow state before switching
-        if (currentId) {
-          const currentState = useWorkflowStore.getState()
-
-          // Generate loops and parallels from current blocks
-          const generatedLoops = currentState.generateLoopBlocks
-            ? currentState.generateLoopBlocks()
-            : {}
-          const generatedParallels = currentState.generateParallelBlocks
-            ? currentState.generateParallelBlocks()
-            : {}
-
-          // Save the complete state for the current workflow
-          saveWorkflowState(currentId, {
-            blocks: currentState.blocks,
-            edges: currentState.edges,
-            loops: generatedLoops,
-            parallels: generatedParallels,
-            history: currentState.history,
-            isDeployed: currentState.isDeployed,
-            deployedAt: currentState.deployedAt,
-            deploymentStatuses: currentState.deploymentStatuses,
-            lastSaved: Date.now(),
-          })
-
-          // Also save current subblock values
-          const currentSubblockValues = useSubBlockStore.getState().workflowValues[currentId]
-          if (currentSubblockValues) {
-            saveSubblockValues(currentId, currentSubblockValues)
-          }
+        // First, sync the current workflow before switching (if there is one)
+        if (activeWorkflowId && activeWorkflowId !== id) {
+          // Mark current workflow as dirty and sync (fire and forget)
+          useWorkflowStore.getState().sync.markDirty()
+          useWorkflowStore.getState().sync.forceSync()
         }
 
-        // Load workflow state for the new active workflow
-        const parsedState = loadWorkflowState(id)
-        if (parsedState) {
-          const {
-            blocks,
-            edges,
-            parallels,
-            history,
-            loops,
-            isDeployed,
-            deployedAt,
-            deploymentStatuses,
-            needsRedeployment,
-          } = parsedState
+        // Fetch workflow state from database
+        const response = await fetch(`/api/workflows/${id}`, { method: 'GET' })
+        const workflowData = response.ok ? (await response.json()).data : null
 
-          // Get workflow-specific deployment status
-          let workflowIsDeployed = isDeployed
-          let workflowDeployedAt = deployedAt
-          let workflowNeedsRedeployment = needsRedeployment
+        let workflowState: any
 
-          // Check if we have a workflow-specific deployment status
-          if (deploymentStatuses?.[id]) {
-            workflowIsDeployed = deploymentStatuses[id].isDeployed
-            workflowDeployedAt = deploymentStatuses[id].deployedAt
-            workflowNeedsRedeployment = deploymentStatuses[id].needsRedeployment
-          }
-
-          // Initialize subblock store with workflow values
-          useSubBlockStore.getState().initializeFromWorkflow(id, blocks)
-
-          // Set the workflow store state with the loaded state
-          useWorkflowStore.setState({
-            blocks,
-            edges,
-            loops,
-            parallels,
-            isDeployed: workflowIsDeployed !== undefined ? workflowIsDeployed : false,
-            deployedAt: workflowDeployedAt ? new Date(workflowDeployedAt) : undefined,
-            needsRedeployment:
-              workflowNeedsRedeployment !== undefined ? workflowNeedsRedeployment : false,
-            deploymentStatuses: deploymentStatuses || {},
+        if (workflowData?.state) {
+          // Use the state from the database
+          workflowState = {
+            blocks: workflowData.state.blocks || {},
+            edges: workflowData.state.edges || [],
+            loops: workflowData.state.loops || {},
+            parallels: workflowData.state.parallels || {},
+            isDeployed: workflowData.isDeployed || false,
+            deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
+            apiKey: workflowData.apiKey,
+            lastSaved: Date.now(),
+            marketplaceData: workflowData.marketplaceData || null,
+            deploymentStatuses: {},
             hasActiveSchedule: false,
-            history: history || {
+            history: {
               past: [],
               present: {
-                state: {
-                  blocks,
-                  edges,
-                  loops,
-                  parallels,
-                  isDeployed: workflowIsDeployed !== undefined ? workflowIsDeployed : false,
-                  deployedAt: workflowDeployedAt,
-                },
+                state: workflowData.state,
                 timestamp: Date.now(),
-                action: 'Initial state',
+                action: 'Loaded from database',
                 subblockValues: {},
               },
               future: [],
             },
-            lastSaved: parsedState.lastSaved || Date.now(),
-          })
-
-          // Update the deployment statuses in the registry
-          if (deploymentStatuses) {
-            set((state) => ({
-              deploymentStatuses: {
-                ...state.deploymentStatuses,
-                ...deploymentStatuses,
-              },
-            }))
-          } else if (workflowIsDeployed !== undefined) {
-            // If there's no deployment statuses object but we have legacy deployment status,
-            // create an entry in the deploymentStatuses map
-            set((state) => ({
-              deploymentStatuses: {
-                ...state.deploymentStatuses,
-                [id]: {
-                  isDeployed: workflowIsDeployed as boolean,
-                  deployedAt: workflowDeployedAt ? new Date(workflowDeployedAt) : undefined,
-                },
-              },
-            }))
           }
 
-          logger.info(`Switched to workflow ${id}`)
+          // Extract and update subblock values
+          const subblockValues: Record<string, Record<string, any>> = {}
+          Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
+            const blockState = block as any
+            subblockValues[blockId] = {}
+            Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
+              subblockValues[blockId][subblockId] = (subblock as any).value
+            })
+          })
+
+          // Update subblock store for this workflow
+          useSubBlockStore.setState((state) => ({
+            workflowValues: {
+              ...state.workflowValues,
+              [id]: subblockValues,
+            },
+          }))
         } else {
-          // If no saved state, initialize with empty state
-          useWorkflowStore.setState({
+          // If no state in DB, use empty state - server should have created start block
+          workflowState = {
             blocks: {},
             edges: [],
             loops: {},
@@ -629,19 +684,49 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   deployedAt: undefined,
                 },
                 timestamp: Date.now(),
-                action: 'Initial state',
+                action: 'Empty initial state - server should provide start block',
                 subblockValues: {},
               },
               future: [],
             },
             lastSaved: Date.now(),
-          })
+          }
 
-          logger.warn(`No saved state found for workflow ${id}, initialized with empty state`)
+          logger.warn(
+            `Workflow ${id} has no state in DB - this should not happen with server-side start block creation`
+          )
+        }
+
+        // Set the workflow state in the store
+        useWorkflowStore.setState(workflowState)
+
+        // CRITICAL: Set deployment status in registry when switching to workflow
+        if (workflowData?.isDeployed || workflowData?.deployedAt) {
+          set((state) => ({
+            deploymentStatuses: {
+              ...state.deploymentStatuses,
+              [id]: {
+                isDeployed: workflowData.isDeployed || false,
+                deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
+                apiKey: workflowData.apiKey || undefined,
+                needsRedeployment: false, // Default to false when loading from DB
+              },
+            },
+          }))
         }
 
         // Update the active workflow ID
         set({ activeWorkflowId: id, error: null })
+
+        // Emit a global event to notify that the active workflow has changed
+        // This allows the workflow component to join the socket room
+        window.dispatchEvent(
+          new CustomEvent('active-workflow-changed', {
+            detail: { workflowId: id },
+          })
+        )
+
+        logger.info(`Switched to workflow ${id}`)
       },
 
       /**
@@ -649,7 +734,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
        * @param options - Optional configuration for workflow creation
        * @returns The ID of the newly created workflow
        */
-      createWorkflow: (options = {}) => {
+      createWorkflow: async (options = {}) => {
         const { workflows, activeWorkspaceId } = get()
         const id = crypto.randomUUID()
 
@@ -669,6 +754,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             ? { id: options.marketplaceId, status: 'temp' as const }
             : undefined,
           workspaceId, // Associate with workspace
+          folderId: options.folderId || null, // Associate with folder if provided
         }
 
         let initialState: any
@@ -834,7 +920,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }
         }
 
-        // Add workflow to registry
+        // Add workflow to registry first
         set((state) => ({
           workflows: {
             ...state.workflows,
@@ -843,47 +929,112 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           error: null,
         }))
 
-        // Save workflow list to localStorage
-        const updatedWorkflows = get().workflows
-        saveRegistry(updatedWorkflows)
-
-        // Save initial workflow state to localStorage
-        saveWorkflowState(id, initialState)
-
         // Initialize subblock values if this is a marketplace import
         if (options.marketplaceId && options.marketplaceState?.blocks) {
           useSubBlockStore.getState().initializeFromWorkflow(id, options.marketplaceState.blocks)
         }
 
-        // If this is the first workflow or it's an initial workflow, set it as active
-        if (options.isInitial || Object.keys(updatedWorkflows).length === 1) {
-          set({ activeWorkflowId: id })
-          useWorkflowStore.setState(initialState)
-        } else {
-          // Make sure we switch to this workflow
-          set({ activeWorkflowId: id })
-          useWorkflowStore.setState(initialState)
+        // Initialize subblock values to ensure they're available for sync
+        if (!options.marketplaceId) {
+          // For non-marketplace workflows, initialize subblock values from the starter block
+          const subblockValues: Record<string, Record<string, any>> = {}
+          const blocks = initialState.blocks as Record<string, BlockState>
+          for (const [blockId, block] of Object.entries(blocks)) {
+            subblockValues[blockId] = {}
+            for (const [subblockId, subblock] of Object.entries(block.subBlocks)) {
+              subblockValues[blockId][subblockId] = (subblock as any).value
+            }
+          }
+
+          // Update the subblock store with the initial values
+          useSubBlockStore.setState((state) => ({
+            workflowValues: {
+              ...state.workflowValues,
+              [id]: subblockValues,
+            },
+          }))
         }
 
-        // Mark as dirty to ensure sync
-        useWorkflowStore.getState().sync.markDirty()
+        // Properly set as active workflow and initialize state
+        set({ activeWorkflowId: id })
+        useWorkflowStore.setState(initialState)
 
-        // Trigger sync
-        useWorkflowStore.getState().sync.forceSync()
+        // Immediately persist the new workflow to the database using dedicated endpoint
+        const persistWorkflow = async () => {
+          try {
+            const response = await fetch('/api/workflows', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: newWorkflow.name,
+                description: newWorkflow.description,
+                color: newWorkflow.color,
+                workspaceId: newWorkflow.workspaceId,
+                folderId: newWorkflow.folderId,
+              }),
+            })
 
-        logger.info(`Created new workflow with ID ${id} in workspace ${workspaceId || 'none'}`)
+            if (!response.ok) {
+              const errorData = await response.json()
+              throw new Error(
+                `Failed to create workflow: ${errorData.error || response.statusText}`
+              )
+            }
 
-        return id
+            const createdWorkflow = await response.json()
+            logger.info(`Successfully created workflow ${createdWorkflow.id} on server`)
+
+            // Update the local workflow ID to match the server-generated one
+            if (createdWorkflow.id !== id) {
+              logger.info(`Updating local workflow ID from ${id} to ${createdWorkflow.id}`)
+
+              // Update registry with server ID
+              set((state) => {
+                const { [id]: oldWorkflow, ...otherWorkflows } = state.workflows
+                return {
+                  workflows: {
+                    ...otherWorkflows,
+                    [createdWorkflow.id]: {
+                      ...oldWorkflow,
+                      id: createdWorkflow.id,
+                    },
+                  },
+                  activeWorkflowId: createdWorkflow.id,
+                }
+              })
+
+              // Return the server ID for the caller
+              return createdWorkflow.id
+            }
+
+            return id
+          } catch (error) {
+            logger.error(`Failed to create new workflow ${id}:`, error)
+            throw error // Re-throw to handle in calling code
+          }
+        }
+
+        // Persist synchronously to ensure workflow exists before Socket.IO operations
+        let finalId = id
+        try {
+          finalId = await persistWorkflow()
+        } catch (error) {
+          logger.error(
+            `Critical: Failed to persist new workflow ${id}, Socket.IO operations may fail:`,
+            error
+          )
+          // Don't throw - allow workflow creation to continue in memory
+        }
+
+        logger.info(`Created new workflow with ID ${finalId} in workspace ${workspaceId || 'none'}`)
+
+        return finalId
       },
 
       /**
        * Creates a new workflow from a marketplace workflow
-       * @param marketplaceId - The ID of the marketplace workflow to import
-       * @param state - The state of the marketplace workflow (blocks, edges, loops)
-       * @param metadata - Additional metadata like name, description from marketplace
-       * @returns The ID of the newly created workflow
        */
-      createMarketplaceWorkflow: (
+      createMarketplaceWorkflow: async (
         marketplaceId: string,
         state: any,
         metadata: Partial<WorkflowMetadata>
@@ -938,23 +1089,60 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           error: null,
         }))
 
-        // Save workflow list to localStorage
-        const updatedWorkflows = get().workflows
-        saveRegistry(updatedWorkflows)
-
-        // Save workflow state to localStorage
-        saveWorkflowState(id, initialState)
-
         // Initialize subblock values from state blocks
         if (state.blocks) {
           useSubBlockStore.getState().initializeFromWorkflow(id, state.blocks)
         }
 
-        // Mark as dirty to ensure sync
-        useWorkflowStore.getState().sync.markDirty()
+        // Set as active workflow and update store
+        set({ activeWorkflowId: id })
+        useWorkflowStore.setState(initialState)
 
-        // Trigger sync
-        useWorkflowStore.getState().sync.forceSync()
+        // Immediately persist the marketplace workflow to the database
+        const persistWorkflow = async () => {
+          try {
+            const workflowData = {
+              [id]: {
+                id,
+                name: newWorkflow.name,
+                description: newWorkflow.description,
+                color: newWorkflow.color,
+                state: initialState,
+                marketplaceData: newWorkflow.marketplaceData,
+                workspaceId: newWorkflow.workspaceId,
+                folderId: newWorkflow.folderId,
+              },
+            }
+
+            const response = await fetch('/api/workflows/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                workflows: workflowData,
+                workspaceId: newWorkflow.workspaceId,
+              }),
+            })
+
+            if (!response.ok) {
+              throw new Error(`Failed to persist workflow: ${response.statusText}`)
+            }
+
+            logger.info(`Successfully persisted marketplace workflow ${id} to database`)
+          } catch (error) {
+            logger.error(`Failed to persist marketplace workflow ${id}:`, error)
+          }
+        }
+
+        // Persist synchronously to ensure workflow exists before Socket.IO operations
+        try {
+          await persistWorkflow()
+        } catch (error) {
+          logger.error(
+            `Critical: Failed to persist marketplace workflow ${id}, Socket.IO operations may fail:`,
+            error
+          )
+          // Don't throw - allow workflow creation to continue in memory
+        }
 
         logger.info(`Created marketplace workflow ${id} imported from ${marketplaceId}`)
 
@@ -963,10 +1151,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
       /**
        * Duplicates an existing workflow
-       * @param sourceId - The ID of the workflow to duplicate
-       * @returns The ID of the newly created workflow
        */
-      duplicateWorkflow: (sourceId: string) => {
+      duplicateWorkflow: async (sourceId: string) => {
         const { workflows, activeWorkspaceId } = get()
         const sourceWorkflow = workflows[sourceId]
 
@@ -975,19 +1161,44 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return null
         }
 
-        const id = crypto.randomUUID()
-
-        // Load the source workflow state
-        const sourceState = loadWorkflowState(sourceId)
-        if (!sourceState) {
-          set({ error: `No state found for workflow ${sourceId}` })
-          return null
-        }
-
         // Get the workspace ID from the source workflow or fall back to active workspace
         const workspaceId = sourceWorkflow.workspaceId || activeWorkspaceId || undefined
 
-        // Generate new workflow metadata
+        // Call the server to duplicate the workflow - server generates all IDs
+        let duplicatedWorkflow
+        try {
+          const response = await fetch(`/api/workflows/${sourceId}/duplicate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: `${sourceWorkflow.name} (Copy)`,
+              description: sourceWorkflow.description,
+              color: sourceWorkflow.color,
+              workspaceId: workspaceId,
+              folderId: sourceWorkflow.folderId,
+            }),
+          })
+
+          if (!response.ok) {
+            throw new Error(`Failed to duplicate workflow: ${response.statusText}`)
+          }
+
+          duplicatedWorkflow = await response.json()
+          logger.info(
+            `Successfully duplicated workflow ${sourceId} to ${duplicatedWorkflow.id} with ${duplicatedWorkflow.blocksCount} blocks, ${duplicatedWorkflow.edgesCount} edges, ${duplicatedWorkflow.subflowsCount} subflows`
+          )
+        } catch (error) {
+          logger.error(`Failed to duplicate workflow ${sourceId}:`, error)
+          set({
+            error: `Failed to duplicate workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          })
+          return null
+        }
+
+        // Use the server-generated ID
+        const id = duplicatedWorkflow.id
+
+        // Generate new workflow metadata using the server-generated ID
         const newWorkflow: WorkflowMetadata = {
           id,
           name: `${sourceWorkflow.name} (Copy)`,
@@ -995,30 +1206,148 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           description: sourceWorkflow.description,
           color: getNextWorkflowColor(workflows),
           workspaceId, // Include the workspaceId in the new workflow
+          folderId: sourceWorkflow.folderId, // Include the folderId from source workflow
           // Do not copy marketplace data
         }
 
-        // Create new workflow state without deployment data
+        // Get the current workflow state to copy from
+        const currentWorkflowState = useWorkflowStore.getState()
+
+        // If we're duplicating the active workflow, use current state
+        // Otherwise, we need to fetch it from DB or use empty state
+        let sourceState: any
+
+        if (sourceId === get().activeWorkflowId) {
+          // Source is the active workflow, copy current state
+          sourceState = {
+            blocks: currentWorkflowState.blocks || {},
+            edges: currentWorkflowState.edges || [],
+            loops: currentWorkflowState.loops || {},
+            parallels: currentWorkflowState.parallels || {},
+          }
+        } else {
+          // Source is not active workflow, create with starter block for now
+          // In a future enhancement, we could fetch from DB
+          const starterId = crypto.randomUUID()
+          const starterBlock = {
+            id: starterId,
+            type: 'starter' as const,
+            name: 'Start',
+            position: { x: 100, y: 100 },
+            subBlocks: {
+              startWorkflow: {
+                id: 'startWorkflow',
+                type: 'dropdown' as const,
+                value: 'manual',
+              },
+              webhookPath: {
+                id: 'webhookPath',
+                type: 'short-input' as const,
+                value: '',
+              },
+              webhookSecret: {
+                id: 'webhookSecret',
+                type: 'short-input' as const,
+                value: '',
+              },
+              scheduleType: {
+                id: 'scheduleType',
+                type: 'dropdown' as const,
+                value: 'daily',
+              },
+              minutesInterval: {
+                id: 'minutesInterval',
+                type: 'short-input' as const,
+                value: '',
+              },
+              minutesStartingAt: {
+                id: 'minutesStartingAt',
+                type: 'short-input' as const,
+                value: '',
+              },
+              hourlyMinute: {
+                id: 'hourlyMinute',
+                type: 'short-input' as const,
+                value: '',
+              },
+              dailyTime: {
+                id: 'dailyTime',
+                type: 'short-input' as const,
+                value: '',
+              },
+              weeklyDay: {
+                id: 'weeklyDay',
+                type: 'dropdown' as const,
+                value: 'MON',
+              },
+              weeklyDayTime: {
+                id: 'weeklyDayTime',
+                type: 'short-input' as const,
+                value: '',
+              },
+              monthlyDay: {
+                id: 'monthlyDay',
+                type: 'short-input' as const,
+                value: '',
+              },
+              monthlyTime: {
+                id: 'monthlyTime',
+                type: 'short-input' as const,
+                value: '',
+              },
+              cronExpression: {
+                id: 'cronExpression',
+                type: 'short-input' as const,
+                value: '',
+              },
+              timezone: {
+                id: 'timezone',
+                type: 'dropdown' as const,
+                value: 'UTC',
+              },
+            },
+            outputs: {
+              response: {
+                type: {
+                  input: 'any',
+                },
+              },
+            },
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+          }
+
+          sourceState = {
+            blocks: { [starterId]: starterBlock },
+            edges: [],
+            loops: {},
+            parallels: {},
+          }
+        }
+
+        // Create the new workflow state with copied content
         const newState = {
-          blocks: sourceState.blocks || {},
-          edges: sourceState.edges || [],
-          loops: sourceState.loops || {},
-          parallels: sourceState.parallels || {},
-          isDeployed: false, // Reset deployment status
-          deployedAt: undefined, // Reset deployment timestamp
-          workspaceId, // Include workspaceId in state
-          deploymentStatuses: {}, // Start with empty deployment statuses map
+          blocks: sourceState.blocks,
+          edges: sourceState.edges,
+          loops: sourceState.loops,
+          parallels: sourceState.parallels,
+          isDeployed: false,
+          deployedAt: undefined,
+          workspaceId,
+          deploymentStatuses: {},
           history: {
             past: [],
             present: {
               state: {
-                blocks: sourceState.blocks || {},
-                edges: sourceState.edges || [],
-                loops: sourceState.loops || {},
-                parallels: sourceState.parallels || {},
+                blocks: sourceState.blocks,
+                edges: sourceState.edges,
+                loops: sourceState.loops,
+                parallels: sourceState.parallels,
                 isDeployed: false,
                 deployedAt: undefined,
-                workspaceId, // Include workspaceId in history state
+                workspaceId,
               },
               timestamp: Date.now(),
               action: 'Duplicated workflow',
@@ -1038,32 +1367,39 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           error: null,
         }))
 
-        // Save workflow list to localStorage
-        const updatedWorkflows = get().workflows
-        saveRegistry(updatedWorkflows)
-
-        // Save workflow state to localStorage
-        saveWorkflowState(id, newState)
-
-        // Copy subblock values from the source workflow
-        const sourceSubblockValues = useSubBlockStore.getState().workflowValues[sourceId]
-        if (sourceSubblockValues) {
+        // Copy subblock values if duplicating active workflow
+        if (sourceId === get().activeWorkflowId) {
+          const sourceSubblockValues = useSubBlockStore.getState().workflowValues[sourceId] || {}
           useSubBlockStore.setState((state) => ({
             workflowValues: {
               ...state.workflowValues,
-              [id]: JSON.parse(JSON.stringify(sourceSubblockValues)), // Deep copy
+              [id]: sourceSubblockValues,
             },
           }))
+        } else {
+          // Initialize subblock values for starter block
+          const subblockValues: Record<string, Record<string, any>> = {}
+          Object.entries(newState.blocks).forEach(([blockId, block]) => {
+            const blockState = block as any
+            subblockValues[blockId] = {}
+            Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
+              subblockValues[blockId][subblockId] = (subblock as any).value
+            })
+          })
 
-          // Save the copied subblock values
-          saveSubblockValues(id, JSON.parse(JSON.stringify(sourceSubblockValues)))
+          useSubBlockStore.setState((state) => ({
+            workflowValues: {
+              ...state.workflowValues,
+              [id]: subblockValues,
+            },
+          }))
         }
 
-        // Mark as dirty to ensure sync
-        useWorkflowStore.getState().sync.markDirty()
+        // Set as active workflow and update store
+        set({ activeWorkflowId: id })
+        useWorkflowStore.setState(newState)
 
-        // Trigger sync
-        useWorkflowStore.getState().sync.forceSync()
+        // Workflow has already been persisted to the database via the duplication endpoint
 
         logger.info(
           `Duplicated workflow ${sourceId} to ${id} in workspace ${workspaceId || 'none'}`
@@ -1073,139 +1409,197 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       },
 
       // Delete workflow and clean up associated storage
-      removeWorkflow: (id: string) => {
+      removeWorkflow: async (id: string) => {
+        const { workflows } = get()
+        const workflowToDelete = workflows[id]
+
+        if (!workflowToDelete) {
+          logger.warn(`Attempted to delete non-existent workflow: ${id}`)
+          return
+        }
+        set({ isLoading: true, error: null })
+
+        try {
+          // Call DELETE endpoint to remove from database
+          const response = await fetch(`/api/workflows/${id}`, {
+            method: 'DELETE',
+          })
+
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+            throw new Error(error.error || 'Failed to delete workflow')
+          }
+
+          logger.info(`Successfully deleted workflow ${id} from database`)
+        } catch (error) {
+          logger.error(`Failed to delete workflow ${id} from database:`, error)
+          set({
+            error: `Failed to delete workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            isLoading: false,
+          })
+          return
+        }
+
+        // Only update local state after successful deletion from database
         set((state) => {
           const newWorkflows = { ...state.workflows }
           delete newWorkflows[id]
 
-          // Clean up localStorage
-          removeFromStorage(STORAGE_KEYS.WORKFLOW(id))
-          removeFromStorage(STORAGE_KEYS.SUBBLOCK(id))
-          saveRegistry(newWorkflows)
+          // Clean up subblock values for this workflow
+          useSubBlockStore.setState((subBlockState) => {
+            const newWorkflowValues = { ...subBlockState.workflowValues }
+            delete newWorkflowValues[id]
+            return { workflowValues: newWorkflowValues }
+          })
 
-          // Ensure any schedule for this workflow is cancelled
-          // The API will handle the deletion of the schedule
+          // If deleting active workflow, clear active workflow ID immediately
+          // Don't automatically switch to another workflow to prevent race conditions
+          let newActiveWorkflowId = state.activeWorkflowId
+          if (state.activeWorkflowId === id) {
+            newActiveWorkflowId = null
+
+            // Clear workflow store state immediately when deleting active workflow
+            useWorkflowStore.setState({
+              blocks: {},
+              edges: [],
+              loops: {},
+              parallels: {},
+              isDeployed: false,
+              deployedAt: undefined,
+              hasActiveSchedule: false,
+              history: {
+                past: [],
+                present: {
+                  state: {
+                    blocks: {},
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                    isDeployed: false,
+                    deployedAt: undefined,
+                  },
+                  timestamp: Date.now(),
+                  action: 'Workflow deleted',
+                  subblockValues: {},
+                },
+                future: [],
+              },
+              lastSaved: Date.now(),
+            })
+
+            logger.info(
+              `Cleared active workflow ${id} - user will need to manually select another workflow`
+            )
+          }
+
+          // Cancel any schedule for this workflow (async, don't wait)
           fetch(API_ENDPOINTS.SCHEDULE, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               workflowId: id,
-              state: { blocks: {} }, // Empty blocks will signal to cancel the schedule
-            }),
-          }).catch((error) => {
-            logger.error(`Error cancelling schedule for deleted workflow ${id}:`, { error })
-          })
-
-          // Mark as dirty to ensure sync
-          useWorkflowStore.getState().sync.markDirty()
-
-          // Sync deletion with database
-          useWorkflowStore.getState().sync.forceSync()
-
-          // If deleting active workflow, switch to another one
-          let newActiveWorkflowId = state.activeWorkflowId
-          if (state.activeWorkflowId === id) {
-            const remainingIds = Object.keys(newWorkflows)
-            // Switch to first available workflow
-            newActiveWorkflowId = remainingIds[0]
-            const savedState = loadWorkflowState(newActiveWorkflowId)
-            if (savedState) {
-              const { blocks, edges, history, loops, parallels, isDeployed, deployedAt } =
-                savedState
-              useWorkflowStore.setState({
-                blocks,
-                edges,
-                loops,
-                parallels,
-                isDeployed: isDeployed || false,
-                deployedAt: deployedAt ? new Date(deployedAt) : undefined,
-                hasActiveSchedule: false,
-                history: history || {
-                  past: [],
-                  present: {
-                    state: {
-                      blocks,
-                      edges,
-                      loops,
-                      parallels,
-                      isDeployed: isDeployed || false,
-                      deployedAt,
-                    },
-                    timestamp: Date.now(),
-                    action: 'Initial state',
-                    subblockValues: {},
-                  },
-                  future: [],
-                },
-              })
-            } else {
-              useWorkflowStore.setState({
+              state: {
                 blocks: {},
                 edges: [],
                 loops: {},
-                parallels: {},
-                isDeployed: false,
-                deployedAt: undefined,
-                hasActiveSchedule: false,
-                history: {
-                  past: [],
-                  present: {
-                    state: {
-                      blocks: {},
-                      edges: [],
-                      loops: {},
-                      parallels: {},
-                      isDeployed: false,
-                      deployedAt: undefined,
-                    },
-                    timestamp: Date.now(),
-                    action: 'Initial state',
-                    subblockValues: {},
-                  },
-                  future: [],
-                },
-                lastSaved: Date.now(),
-              })
-            }
-          }
+              },
+            }),
+          }).catch((error) => {
+            logger.error(`Error cancelling schedule for deleted workflow ${id}:`, error)
+          })
+
+          logger.info(`Removed workflow ${id} from local state`)
 
           return {
             workflows: newWorkflows,
             activeWorkflowId: newActiveWorkflowId,
             error: null,
+            isLoading: false, // Clear loading state after successful deletion
           }
         })
       },
 
       // Update workflow metadata
-      updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => {
-        set((state) => {
-          const workflow = state.workflows[id]
-          if (!workflow) return state
+      updateWorkflow: async (id: string, metadata: Partial<WorkflowMetadata>) => {
+        const { workflows } = get()
+        const workflow = workflows[id]
+        if (!workflow) {
+          logger.warn(`Cannot update workflow ${id}: not found in registry`)
+          return
+        }
 
-          const updatedWorkflows = {
+        // Optimistically update local state first
+        set((state) => ({
+          workflows: {
             ...state.workflows,
             [id]: {
               ...workflow,
               ...metadata,
               lastModified: new Date(),
             },
+          },
+          error: null,
+        }))
+
+        // Persist to database via API
+        try {
+          const response = await fetch(`/api/workflows/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(metadata),
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Failed to update workflow')
           }
 
-          // Update localStorage
-          saveRegistry(updatedWorkflows)
+          const { workflow: updatedWorkflow } = await response.json()
+          logger.info(`Successfully updated workflow ${id} metadata`, metadata)
 
-          // Mark as dirty to ensure sync
-          useWorkflowStore.getState().sync.markDirty()
+          // Update with server response to ensure consistency
+          set((state) => ({
+            workflows: {
+              ...state.workflows,
+              [id]: {
+                ...state.workflows[id],
+                name: updatedWorkflow.name,
+                description: updatedWorkflow.description,
+                color: updatedWorkflow.color,
+                folderId: updatedWorkflow.folderId,
+                lastModified: new Date(updatedWorkflow.updatedAt),
+              },
+            },
+          }))
+        } catch (error) {
+          logger.error(`Failed to update workflow ${id} metadata:`, error)
 
-          // Use PUT for workflow updates
-          useWorkflowStore.getState().sync.forceSync()
+          // Revert optimistic update on error
+          set((state) => ({
+            workflows: {
+              ...state.workflows,
+              [id]: workflow, // Revert to original state
+            },
+            error: `Failed to update workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }))
+        }
+      },
 
-          return {
-            workflows: updatedWorkflows,
-            error: null,
-          }
+      logout: () => {
+        logger.info('Logging out - clearing all workflow data')
+
+        // Clear all state
+        resetWorkflowStores()
+
+        set({
+          workflows: {},
+          activeWorkflowId: null,
+          activeWorkspaceId: null,
+          isLoading: true,
+          error: null,
         })
+
+        logger.info('Logout complete - all workflow data cleared')
       },
     }),
     { name: 'workflow-registry' }

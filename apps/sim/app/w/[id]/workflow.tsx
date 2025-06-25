@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
@@ -12,24 +12,27 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
-import { LoadingAgent } from '@/components/ui/loading-agent'
 import { createLogger } from '@/lib/logs/console-logger'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
+import { useUserPermissionsContext } from '@/app/w/components/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks'
+import { useSocket } from '@/contexts/socket-context'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
+// Removed sync manager import - Socket.IO handles real-time sync
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorBoundary } from './components/error/index'
 import { Panel } from './components/panel/panel'
+import { SkeletonLoading } from './components/skeleton-loading/skeleton-loading'
 import { Toolbar } from './components/toolbar/toolbar'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
 import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
@@ -54,41 +57,73 @@ const nodeTypes: NodeTypes = {
 }
 const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
 
-function WorkflowContent() {
+interface SelectedEdgeInfo {
+  id: string
+  parentLoopId?: string
+  contextId?: string // Unique identifier combining edge ID and context
+}
+
+interface BlockData {
+  id: string
+  type: string
+  position: { x: number; y: number }
+  distance: number
+}
+
+const WorkflowContent = React.memo(() => {
   // State
-  const [isInitialized, setIsInitialized] = useState(false)
+  const [isWorkflowReady, setIsWorkflowReady] = useState(false)
   const { mode, isExpanded } = useSidebarStore()
+
   // In hover mode, act as if sidebar is always collapsed for layout purposes
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
+  const isSidebarCollapsed = useMemo(
+    () => (mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'),
+    [mode, isExpanded]
+  )
+
   // State for tracking node dragging
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
+  // State for tracking validation errors
+  const [nestedSubflowErrors, setNestedSubflowErrors] = useState<Set<string>>(new Set())
   // Enhanced edge selection with parent context and unique identifier
-  const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<{
-    id: string
-    parentLoopId?: string
-    contextId?: string // Unique identifier combining edge ID and context
-  } | null>(null)
+  const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<SelectedEdgeInfo | null>(null)
+
   // Hooks
   const params = useParams()
   const router = useRouter()
   const { project, getNodes, fitView } = useReactFlow()
 
+  // Get workspace ID from current workflow
+  const workflowId = params.id as string
+  const { workflows, activeWorkflowId, isLoading, setActiveWorkflow, createWorkflow } =
+    useWorkflowRegistry()
+
+  const { blocks, edges, updateNodeDimensions } = useWorkflowStore()
+  // Use collaborative operations for real-time sync
+  const currentWorkflow = useMemo(() => workflows[workflowId], [workflows, workflowId])
+  const workspaceId = currentWorkflow?.workspaceId
+
+  // User permissions - get current user's specific permissions from context
+  const userPermissions = useUserPermissionsContext()
+
+  // Workspace permissions - get all users and their permissions for this workspace
+  const { permissions: workspacePermissions, error: permissionsError } = useWorkspacePermissions(
+    workspaceId || null
+  )
+
   // Store access
-  const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
   const {
-    blocks,
-    edges,
-    addBlock,
-    updateNodeDimensions,
-    updateBlockPosition,
-    addEdge,
-    removeEdge,
-    updateParentId,
-    removeBlock,
-  } = useWorkflowStore()
-  const { setValue: setSubBlockValue } = useSubBlockStore()
+    collaborativeAddBlock: addBlock,
+    collaborativeAddEdge: addEdge,
+    collaborativeRemoveEdge: removeEdge,
+    collaborativeUpdateBlockPosition: updateBlockPosition,
+    collaborativeUpdateParentId: updateParentId,
+    isConnected,
+    currentWorkflowId,
+    joinWorkflow,
+  } = useCollaborativeWorkflow()
+  const { emitSubblockUpdate } = useSocket()
   const { markAllAsRead } = useNotificationStore()
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
 
@@ -96,6 +131,53 @@ function WorkflowContent() {
   const { activeBlockIds, pendingBlocks } = useExecutionStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
+
+  // Helper function to validate workflow for nested subflows
+  const validateNestedSubflows = useCallback(() => {
+    const errors = new Set<string>()
+
+    Object.entries(blocks).forEach(([blockId, block]) => {
+      // Check if this is a subflow block (loop or parallel)
+      if (block.type === 'loop' || block.type === 'parallel') {
+        // Check if it has a parent that is also a subflow block
+        const parentId = block.data?.parentId
+        if (parentId) {
+          const parentBlock = blocks[parentId]
+          if (parentBlock && (parentBlock.type === 'loop' || parentBlock.type === 'parallel')) {
+            // This is a nested subflow - mark as error
+            errors.add(blockId)
+          }
+        }
+      }
+    })
+
+    setNestedSubflowErrors(errors)
+    return errors.size === 0
+  }, [blocks])
+
+  // Log permissions when they load
+  useEffect(() => {
+    if (workspacePermissions) {
+      logger.info('Workspace permissions loaded in workflow', {
+        workspaceId,
+        userCount: workspacePermissions.total,
+        permissions: workspacePermissions.users.map((u) => ({
+          email: u.email,
+          permissions: u.permissionType,
+        })),
+      })
+    }
+  }, [workspacePermissions, workspaceId])
+
+  // Log permissions errors
+  useEffect(() => {
+    if (permissionsError) {
+      logger.error('Failed to load workspace permissions', {
+        workspaceId,
+        error: permissionsError,
+      })
+    }
+  }, [permissionsError, workspaceId])
 
   // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback(
@@ -154,22 +236,25 @@ function WorkflowContent() {
     const detectedOrientation = detectHandleOrientation(blocks)
 
     // Optimize spacing based on handle orientation
-    const orientationConfig =
-      detectedOrientation === 'vertical'
-        ? {
-            // Vertical handles: optimize for top-to-bottom flow
-            horizontalSpacing: 400,
-            verticalSpacing: 300,
-            startX: 200,
-            startY: 200,
-          }
-        : {
-            // Horizontal handles: optimize for left-to-right flow
-            horizontalSpacing: 600,
-            verticalSpacing: 200,
-            startX: 150,
-            startY: 300,
-          }
+    const orientationConfig = useMemo(
+      () =>
+        detectedOrientation === 'vertical'
+          ? {
+              // Vertical handles: optimize for top-to-bottom flow
+              horizontalSpacing: 400,
+              verticalSpacing: 300,
+              startX: 200,
+              startY: 200,
+            }
+          : {
+              // Horizontal handles: optimize for left-to-right flow
+              horizontalSpacing: 600,
+              verticalSpacing: 200,
+              startX: 150,
+              startY: 300,
+            },
+      [detectedOrientation]
+    )
 
     applyAutoLayoutSmooth(blocks, edges, updateBlockPosition, fitView, resizeLoopNodesWrapper, {
       ...orientationConfig,
@@ -247,28 +332,31 @@ function WorkflowContent() {
     }
   }, [debouncedAutoLayout])
 
-  // Initialize workflow
+  // Listen for active workflow changes and join socket room
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Ensure sync system is initialized before proceeding
-      const initSync = async () => {
-        // Initialize sync system if not already initialized
-        await initializeSyncManagers()
-        setIsInitialized(true)
-      }
-
-      // Check if already initialized
-      if (isSyncInitialized()) {
-        setIsInitialized(true)
-      } else {
-        initSync()
+    const handleActiveWorkflowChanged = (event: CustomEvent) => {
+      const { workflowId } = event.detail
+      if (workflowId && isConnected) {
+        logger.info(`Active workflow changed to ${workflowId}, joining socket room`)
+        joinWorkflow(workflowId)
       }
     }
-  }, [])
+
+    window.addEventListener('active-workflow-changed', handleActiveWorkflowChanged as EventListener)
+
+    return () => {
+      window.removeEventListener(
+        'active-workflow-changed',
+        handleActiveWorkflowChanged as EventListener
+      )
+    }
+  }, [isConnected, joinWorkflow])
+
+  // Note: Workflow initialization now handled by Socket.IO system
 
   // Handle drops
   const findClosestOutput = useCallback(
-    (newNodePosition: { x: number; y: number }) => {
+    (newNodePosition: { x: number; y: number }): BlockData | null => {
       const existingBlocks = Object.entries(blocks)
         .filter(([_, block]) => block.enabled)
         .map(([id, block]) => ({
@@ -282,7 +370,7 @@ function WorkflowContent() {
         }))
         .sort((a, b) => a.distance - b.distance)
 
-      return existingBlocks[0] ? existingBlocks[0] : null
+      return existingBlocks[0] || null
     },
     [blocks]
   )
@@ -319,6 +407,11 @@ function WorkflowContent() {
   // Listen for toolbar block click events
   useEffect(() => {
     const handleAddBlockFromToolbar = (event: CustomEvent) => {
+      // Check if user has permission to interact with blocks
+      if (!userPermissions.canEdit) {
+        return
+      }
+
       const { type } = event.detail
 
       if (!type) return
@@ -418,7 +511,15 @@ function WorkflowContent() {
         handleAddBlockFromToolbar as EventListener
       )
     }
-  }, [project, blocks, addBlock, addEdge, findClosestOutput, determineSourceHandle])
+  }, [
+    project,
+    blocks,
+    addBlock,
+    addEdge,
+    findClosestOutput,
+    determineSourceHandle,
+    userPermissions.canEdit,
+  ])
 
   // Update the onDrop handler
   const onDrop = useCallback(
@@ -464,7 +565,7 @@ function WorkflowContent() {
               y: position.y - containerInfo.loopPosition.y,
             }
 
-            // Add the container as a child of the parent container
+            // Add the container as a child of the parent container (will be marked as error)
             addBlock(id, data.type, name, relativePosition, {
               width: 500,
               height: 300,
@@ -472,49 +573,6 @@ function WorkflowContent() {
               parentId: containerInfo.loopId,
               extent: 'parent',
             })
-
-            // Auto-connect the nested container to nodes inside the parent container
-            const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-            if (isAutoConnectEnabled) {
-              // Try to find other nodes in the parent container to connect to
-              const containerNodes = getNodes().filter((n) => n.parentId === containerInfo.loopId)
-
-              if (containerNodes.length > 0) {
-                // Connect to the closest node in the container
-                const closestNode = containerNodes
-                  .map((n) => ({
-                    id: n.id,
-                    distance: Math.sqrt(
-                      (n.position.x - relativePosition.x) ** 2 +
-                        (n.position.y - relativePosition.y) ** 2
-                    ),
-                  }))
-                  .sort((a, b) => a.distance - b.distance)[0]
-
-                if (closestNode) {
-                  // Get appropriate source handle
-                  const sourceNode = getNodes().find((n) => n.id === closestNode.id)
-                  const sourceType = sourceNode?.data?.type
-
-                  // Default source handle
-                  let sourceHandle = 'source'
-
-                  // For condition blocks, use the condition-true handle
-                  if (sourceType === 'condition') {
-                    sourceHandle = 'condition-true'
-                  }
-
-                  addEdge({
-                    id: crypto.randomUUID(),
-                    source: closestNode.id,
-                    target: id,
-                    sourceHandle,
-                    targetHandle: 'target',
-                    type: 'workflowEdge',
-                  })
-                }
-              }
-            }
 
             // Resize the parent container to fit the new child container
             resizeLoopNodesWrapper()
@@ -727,46 +785,75 @@ function WorkflowContent() {
     [project, isPointInLoopNodeWrapper, getNodes]
   )
 
+  // Track when workflow is fully ready for rendering
+  useEffect(() => {
+    const currentId = params.id as string
+
+    // Reset workflow ready state when workflow changes
+    if (activeWorkflowId !== currentId) {
+      setIsWorkflowReady(false)
+      return
+    }
+
+    // Check if we have the necessary data to render the workflow
+    const hasActiveWorkflow = activeWorkflowId === currentId
+    const hasWorkflowInRegistry = Boolean(workflows[currentId])
+    const isNotLoading = !isLoading
+
+    // Workflow is ready when:
+    // 1. We have an active workflow that matches the URL
+    // 2. The workflow exists in the registry
+    // 3. Workflows are not currently loading
+    if (hasActiveWorkflow && hasWorkflowInRegistry && isNotLoading) {
+      // Add a small delay to ensure blocks state has settled
+      const timeoutId = setTimeout(() => {
+        setIsWorkflowReady(true)
+      }, 100)
+
+      return () => clearTimeout(timeoutId)
+    }
+    setIsWorkflowReady(false)
+  }, [activeWorkflowId, params.id, workflows, isLoading])
+
   // Init workflow
   useEffect(() => {
-    if (!isInitialized) return
-
     const validateAndNavigate = async () => {
       const workflowIds = Object.keys(workflows)
       const currentId = params.id as string
 
-      if (workflowIds.length === 0) {
-        // Create initial workflow using the centralized function
-        const newId = createWorkflow({ isInitial: true })
-        router.replace(`/w/${newId}`)
+      // Wait for both initialization and workflow loading to complete
+      if (isLoading) {
+        logger.info('Workflows still loading, waiting...')
         return
       }
 
+      // If no workflows exist, redirect to workspace root to let server handle workflow creation
+      if (workflowIds.length === 0 && !isLoading) {
+        logger.info('No workflows found, redirecting to workspace root')
+        router.replace('/w')
+        return
+      }
+
+      // Navigate to existing workflow or first available
       if (!workflows[currentId]) {
+        logger.info(`Workflow ${currentId} not found, redirecting to first available workflow`)
         router.replace(`/w/${workflowIds[0]}`)
-        return
-      }
-
-      // Import the isActivelyLoadingFromDB function to check sync status
-      const { isActivelyLoadingFromDB } = await import('@/stores/workflows/sync')
-
-      // Wait for any active DB loading to complete before switching workflows
-      if (isActivelyLoadingFromDB()) {
-        const checkInterval = setInterval(() => {
-          if (!isActivelyLoadingFromDB()) {
-            clearInterval(checkInterval)
-            // Reset variables loaded state before setting active workflow
-            resetVariablesLoaded()
-            setActiveWorkflow(currentId)
-            markAllAsRead(currentId)
-          }
-        }, 100)
         return
       }
 
       // Reset variables loaded state before setting active workflow
       resetVariablesLoaded()
-      setActiveWorkflow(currentId)
+
+      // Always call setActiveWorkflow when workflow ID changes to ensure proper state
+      const { activeWorkflowId } = useWorkflowRegistry.getState()
+
+      if (activeWorkflowId !== currentId) {
+        setActiveWorkflow(currentId)
+      } else {
+        // Even if the workflow is already active, call setActiveWorkflow to ensure state consistency
+        setActiveWorkflow(currentId)
+      }
+
       markAllAsRead(currentId)
     }
 
@@ -774,10 +861,10 @@ function WorkflowContent() {
   }, [
     params.id,
     workflows,
+    isLoading,
     setActiveWorkflow,
     createWorkflow,
     router,
-    isInitialized,
     markAllAsRead,
     resetVariablesLoaded,
   ])
@@ -795,6 +882,7 @@ function WorkflowContent() {
 
       // Handle container nodes differently
       if (block.type === 'loop') {
+        const hasNestedError = nestedSubflowErrors.has(block.id)
         nodeArray.push({
           id: block.id,
           type: 'loopNode',
@@ -806,6 +894,7 @@ function WorkflowContent() {
             ...block.data,
             width: block.data?.width || 500,
             height: block.data?.height || 300,
+            hasNestedError,
           },
         })
         return
@@ -813,6 +902,7 @@ function WorkflowContent() {
 
       // Handle parallel nodes
       if (block.type === 'parallel') {
+        const hasNestedError = nestedSubflowErrors.has(block.id)
         nodeArray.push({
           id: block.id,
           type: 'parallelNode',
@@ -824,6 +914,7 @@ function WorkflowContent() {
             ...block.data,
             width: block.data?.width || 500,
             height: block.data?.height || 300,
+            hasNestedError,
           },
         })
         return
@@ -863,7 +954,7 @@ function WorkflowContent() {
     })
 
     return nodeArray
-  }, [blocks, activeBlockIds, pendingBlocks, isDebugModeEnabled])
+  }, [blocks, activeBlockIds, pendingBlocks, isDebugModeEnabled, nestedSubflowErrors])
 
   // Update nodes
   const onNodesChange = useCallback(
@@ -916,6 +1007,11 @@ function WorkflowContent() {
       }
     })
   }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePositionWrapper])
+
+  // Validate nested subflows whenever blocks change
+  useEffect(() => {
+    validateNestedSubflows()
+  }, [blocks, validateNestedSubflows])
 
   // Update edges
   const onEdgesChange = useCallback(
@@ -1009,7 +1105,7 @@ function WorkflowContent() {
 
   // Handle node drag to detect intersections with container nodes
   const onNodeDrag = useCallback(
-    (event: React.MouseEvent, node: any) => {
+    (_event: React.MouseEvent, node: any) => {
       // Store currently dragged node ID
       setDraggedNodeId(node.id)
 
@@ -1164,7 +1260,7 @@ function WorkflowContent() {
 
   // Add in a nodeDrag start event to set the dragStartParentId
   const onNodeDragStart = useCallback(
-    (event: React.MouseEvent, node: any) => {
+    (_event: React.MouseEvent, node: any) => {
       // Store the original parent ID when starting to drag
       const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
@@ -1174,7 +1270,7 @@ function WorkflowContent() {
 
   // Handle node drag stop to establish parent-child relationships
   const onNodeDragStop = useCallback(
-    (event: React.MouseEvent, node: any) => {
+    (_event: React.MouseEvent, node: any) => {
       // Clear UI effects
       document.querySelectorAll('.loop-node-drag-over, .parallel-node-drag-over').forEach((el) => {
         el.classList.remove('loop-node-drag-over', 'parallel-node-drag-over')
@@ -1313,7 +1409,11 @@ function WorkflowContent() {
     const handleSubBlockValueUpdate = (event: CustomEvent) => {
       const { blockId, subBlockId, value } = event.detail
       if (blockId && subBlockId) {
-        setSubBlockValue(blockId, subBlockId, value)
+        // Only emit the socket update, don't update the store again
+        // The store was already updated in the setValue function
+        if (isConnected && currentWorkflowId && activeWorkflowId === currentWorkflowId) {
+          emitSubblockUpdate(blockId, subBlockId, value)
+        }
       }
     }
 
@@ -1325,12 +1425,29 @@ function WorkflowContent() {
         handleSubBlockValueUpdate as EventListener
       )
     }
-  }, [setSubBlockValue])
+  }, [emitSubblockUpdate, isConnected, currentWorkflowId, activeWorkflowId])
 
-  if (!isInitialized) {
+  // Show skeleton UI while loading, then smoothly transition to real content
+  const showSkeletonUI = !isWorkflowReady
+
+  if (showSkeletonUI) {
     return (
-      <div className='flex h-[calc(100vh-4rem)] w-full items-center justify-center'>
-        <LoadingAgent size='lg' />
+      <div className='flex h-screen w-full flex-col overflow-hidden'>
+        <SkeletonLoading showSkeleton={true} isSidebarCollapsed={isSidebarCollapsed}>
+          <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
+        </SkeletonLoading>
+        <Toolbar />
+        <div
+          className={`relative h-full w-full flex-1 transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+        >
+          <div className='fixed top-0 right-0 z-10'>
+            <Panel />
+            <NotificationList />
+          </div>
+          <div className='workflow-container h-full'>
+            <Background />
+          </div>
+        </div>
       </div>
     )
   }
@@ -1338,24 +1455,27 @@ function WorkflowContent() {
   return (
     <div className='flex h-screen w-full flex-col overflow-hidden'>
       <div className={`transition-all duration-200 ${isSidebarCollapsed ? 'ml-14' : 'ml-60'}`}>
-        <ControlBar />
+        <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
       </div>
       <Toolbar />
       <div
         className={`relative h-full w-full flex-1 transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
       >
-        <Panel />
-        <NotificationList />
+        <div className='fixed top-0 right-0 z-10'>
+          <Panel />
+          <NotificationList />
+        </div>
+
         <ReactFlow
           nodes={nodes}
           edges={edgesWithSelection}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
+          onConnect={userPermissions.canEdit ? onConnect : undefined}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
+          onDrop={userPermissions.canEdit ? onDrop : undefined}
+          onDragOver={userPermissions.canEdit ? onDragOver : undefined}
           fitView
           minZoom={0.1}
           maxZoom={1.3}
@@ -1368,40 +1488,41 @@ function WorkflowContent() {
             strokeDasharray: '5,5',
           }}
           connectionLineType={ConnectionLineType.SmoothStep}
-          onNodeClick={(e, node) => {
-            // Allow selecting nodes, but stop propagation to prevent triggering other events
+          onNodeClick={(e, _node) => {
             e.stopPropagation()
           }}
           onPaneClick={onPaneClick}
           onEdgeClick={onEdgeClick}
           elementsSelectable={true}
           selectNodesOnDrag={false}
-          nodesConnectable={true}
-          nodesDraggable={true}
+          nodesConnectable={userPermissions.canEdit}
+          nodesDraggable={userPermissions.canEdit}
           draggable={false}
           noWheelClassName='allow-scroll'
           edgesFocusable={true}
-          edgesUpdatable={true}
+          edgesUpdatable={userPermissions.canEdit}
           className='workflow-container h-full'
-          onNodeDrag={onNodeDrag}
-          onNodeDragStop={onNodeDragStop}
-          onNodeDragStart={onNodeDragStart}
+          onNodeDrag={userPermissions.canEdit ? onNodeDrag : undefined}
+          onNodeDragStop={userPermissions.canEdit ? onNodeDragStop : undefined}
+          onNodeDragStart={userPermissions.canEdit ? onNodeDragStart : undefined}
           snapToGrid={false}
           snapGrid={[20, 20]}
           elevateEdgesOnSelect={true}
           elevateNodesOnSelect={true}
-          autoPanOnConnect={true}
-          autoPanOnNodeDrag={true}
+          autoPanOnConnect={userPermissions.canEdit}
+          autoPanOnNodeDrag={userPermissions.canEdit}
         >
           <Background />
         </ReactFlow>
       </div>
     </div>
   )
-}
+})
+
+WorkflowContent.displayName = 'WorkflowContent'
 
 // Workflow wrapper
-export default function Workflow() {
+const Workflow = React.memo(() => {
   return (
     <ReactFlowProvider>
       <ErrorBoundary>
@@ -1409,4 +1530,8 @@ export default function Workflow() {
       </ErrorBoundary>
     </ReactFlowProvider>
   )
-}
+})
+
+Workflow.displayName = 'Workflow'
+
+export default Workflow

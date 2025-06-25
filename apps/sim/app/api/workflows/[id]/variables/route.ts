@@ -9,7 +9,6 @@ import type { Variable } from '@/stores/panel/variables/types'
 
 const logger = createLogger('WorkflowVariablesAPI')
 
-// Schema for workflow variables updates
 const VariablesSchema = z.object({
   variables: z.array(
     z.object({

@@ -25,6 +25,7 @@ import { GoogleCalendarBlock } from './blocks/google_calendar'
 import { GoogleDocsBlock } from './blocks/google_docs'
 import { GoogleDriveBlock } from './blocks/google_drive'
 import { GoogleSheetsBlock } from './blocks/google_sheets'
+import { HuggingFaceBlock } from './blocks/huggingface'
 // import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image_generator'
 import { JinaBlock } from './blocks/jina'
@@ -44,6 +45,7 @@ import { OutlookBlock } from './blocks/outlook'
 import { PerplexityBlock } from './blocks/perplexity'
 import { PineconeBlock } from './blocks/pinecone'
 import { RedditBlock } from './blocks/reddit'
+import { ResponseBlock } from './blocks/response'
 import { RouterBlock } from './blocks/router'
 import { S3Block } from './blocks/s3'
 import { SerperBlock } from './blocks/serper'
@@ -60,6 +62,7 @@ import { TwilioSMSBlock } from './blocks/twilio'
 import { TypeformBlock } from './blocks/typeform'
 import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
+import { WorkflowBlock } from './blocks/workflow'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
 import type { BlockConfig } from './types'
@@ -122,8 +125,11 @@ export const registry: Record<string, BlockConfig> = {
   typeform: TypeformBlock,
   vision: VisionBlock,
   whatsapp: WhatsAppBlock,
+  workflow: WorkflowBlock,
   x: XBlock,
   youtube: YouTubeBlock,
+  huggingface: HuggingFaceBlock,
+  response: ResponseBlock,
 }
 
 // Helper functions to access the registry

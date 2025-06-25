@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { client } from '@/lib/auth-client'
@@ -243,10 +243,12 @@ describe('SignupPage', () => {
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
-      fireEvent.change(nameInput, { target: { value: 'John Doe' } })
-      fireEvent.change(emailInput, { target: { value: 'existing@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
-      fireEvent.click(submitButton)
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'John Doe' } })
+        fireEvent.change(emailInput, { target: { value: 'existing@example.com' } })
+        fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
+        fireEvent.click(submitButton)
+      })
 
       await waitFor(() => {
         expect(screen.getByText('Failed to create account')).toBeInTheDocument()
@@ -339,10 +341,12 @@ describe('SignupPage', () => {
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
-      fireEvent.change(nameInput, { target: { value: 'John Doe' } })
-      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
-      fireEvent.click(submitButton)
+      await act(async () => {
+        fireEvent.change(nameInput, { target: { value: 'John Doe' } })
+        fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+        fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
+        fireEvent.click(submitButton)
+      })
 
       await waitFor(() => {
         expect(screen.getByText('Failed to create account')).toBeInTheDocument()
@@ -387,35 +391,6 @@ describe('SignupPage', () => {
 
       await waitFor(() => {
         expect(mockRouter.push).toHaveBeenCalledWith('/invite/123')
-      })
-    })
-
-    it('should handle waitlist token verification', async () => {
-      const mockFetch = vi.mocked(global.fetch)
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-            email: 'waitlist@example.com',
-          }),
-      } as Response)
-
-      mockSearchParams.get.mockImplementation((param) => {
-        if (param === 'token') return 'waitlist-token-123'
-        return null
-      })
-
-      render(<SignupPage {...defaultProps} />)
-
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/auth/verify-waitlist-token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ token: 'waitlist-token-123' }),
-        })
       })
     })
 

@@ -172,7 +172,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 
     // If no subscription found, use default free tier limit
     if (highestCostLimit === 0) {
-      highestCostLimit = env.FREE_TIER_COST_LIMIT ? Number.parseFloat(env.FREE_TIER_COST_LIMIT) : 5
+      highestCostLimit = env.FREE_TIER_COST_LIMIT ?? 5
     }
 
     logger.info('User cost limit from subscription', { userId, costLimit: highestCostLimit })

@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
+import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
@@ -55,8 +56,8 @@ export const openaiProvider: ProviderConfig = {
   name: 'OpenAI',
   description: "OpenAI's GPT models",
   version: '1.0.0',
-  models: ['gpt-4o', 'o1', 'o3', 'o4-mini', 'gpt-4.1'],
-  defaultModel: 'gpt-4o',
+  models: getProviderModels('openai'),
+  defaultModel: getProviderDefaultModel('openai'),
 
   executeRequest: async (
     request: ProviderRequest

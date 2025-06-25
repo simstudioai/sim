@@ -648,7 +648,10 @@ export function ScheduleModal({
             <AlertDialogCancel onClick={() => setShowDeleteConfirm(false)}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className='bg-red-600 hover:bg-red-700'>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            >
               {isDeleting ? 'Deleting...' : 'Delete Schedule'}
             </AlertDialogAction>
           </AlertDialogFooter>

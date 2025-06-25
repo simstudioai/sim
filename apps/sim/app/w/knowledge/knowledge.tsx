@@ -1,8 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { LibraryBig, Plus, Search, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { LibraryBig, Plus } from 'lucide-react'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -10,6 +9,8 @@ import { BaseOverview } from './components/base-overview/base-overview'
 import { CreateModal } from './components/create-modal/create-modal'
 import { EmptyStateCard } from './components/empty-state-card/empty-state-card'
 import { KnowledgeHeader } from './components/knowledge-header/knowledge-header'
+import { PrimaryButton } from './components/primary-button/primary-button'
+import { SearchInput } from './components/search-input/search-input'
 import { KnowledgeBaseCardSkeletonGrid } from './components/skeletons/knowledge-base-card-skeleton'
 
 interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
@@ -68,35 +69,16 @@ export function Knowledge() {
               <div className='px-6 pb-6'>
                 {/* Search and Create Section */}
                 <div className='mb-4 flex items-center justify-between pt-1'>
-                  <div className='relative max-w-md flex-1'>
-                    <div className='relative flex items-center'>
-                      <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
-                      <input
-                        type='text'
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder='Search knowledge bases...'
-                        className='h-10 w-full rounded-md border bg-background px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-                      />
-                      {searchQuery && (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className='-translate-y-1/2 absolute top-1/2 right-3 transform text-muted-foreground hover:text-foreground'
-                        >
-                          <X className='h-[18px] w-[18px]' />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  <SearchInput
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder='Search knowledge bases...'
+                  />
 
-                  <Button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    size='sm'
-                    className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-                  >
+                  <PrimaryButton onClick={() => setIsCreateModalOpen(true)}>
                     <Plus className='h-3.5 w-3.5' />
                     <span>Create</span>
-                  </Button>
+                  </PrimaryButton>
                 </div>
 
                 {/* Error State */}

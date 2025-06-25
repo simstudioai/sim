@@ -138,12 +138,12 @@ describe('LoopBlockHandler', () => {
         forEachItems: { key1: 'value1', key2: 'value2' },
       }
 
-      const result = await handler.execute(mockBlock, {}, mockContext)
+      await handler.execute(mockBlock, {}, mockContext)
 
       const currentItem = mockContext.loopItems.get('loop-1')
       expect(Array.isArray(currentItem)).toBe(true)
-      expect(currentItem[0]).toBe('key1')
-      expect(currentItem[1]).toBe('value1')
+      expect((currentItem as any)[0]).toBe('key1')
+      expect((currentItem as any)[1]).toBe('value1')
     })
 
     it('should limit forEach loops by collection size, not iterations parameter', async () => {

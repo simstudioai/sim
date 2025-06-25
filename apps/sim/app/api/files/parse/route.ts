@@ -1,14 +1,13 @@
 import { Buffer } from 'buffer'
 import { createHash } from 'crypto'
-import fsPromises, { readFile, unlink, writeFile } from 'fs/promises'
-import { tmpdir } from 'os'
+import fsPromises, { readFile } from 'fs/promises'
 import path from 'path'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
-import { downloadFromS3 } from '@/lib/uploads/s3-client'
-import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
+import { UPLOAD_DIR } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 
 export const dynamic = 'force-dynamic'
@@ -18,28 +17,19 @@ const logger = createLogger('FilesParseAPI')
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 const DOWNLOAD_TIMEOUT_MS = 30000 // 30 seconds
 
-interface ParseSuccessResult {
-  success: true
-  output: {
-    content: string
+interface ParseResult {
+  success: boolean
+  content?: string
+  error?: string
+  filePath: string
+  metadata?: {
     fileType: string
     size: number
-    name: string
-    binary: boolean
-    metadata?: Record<string, any>
+    hash: string
+    processingTime: number
   }
-  filePath?: string
 }
 
-interface ParseErrorResult {
-  success: false
-  error: string
-  filePath?: string
-}
-
-type ParseResult = ParseSuccessResult | ParseErrorResult
-
-// MIME type mapping for various file extensions
 const fileTypeMap: Record<string, string> = {
   // Text formats
   txt: 'text/plain',
@@ -74,52 +64,85 @@ const fileTypeMap: Record<string, string> = {
  * Main API route handler
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+
   try {
     const requestData = await request.json()
     const { filePath, fileType } = requestData
 
+    if (!filePath) {
+      return NextResponse.json({ success: false, error: 'No file path provided' }, { status: 400 })
+    }
+
     logger.info('File parse request received:', { filePath, fileType })
 
-    if (!filePath) {
-      return NextResponse.json({ error: 'No file path provided' }, { status: 400 })
-    }
-
-    // Handle both single file path and array of file paths
-    const filePaths = Array.isArray(filePath) ? filePath : [filePath]
-
-    // Parse each file
-    const results = await Promise.all(
-      filePaths.map(async (singleFilePath) => {
-        try {
-          return await parseFileSingle(singleFilePath, fileType)
-        } catch (error) {
-          logger.error(`Error parsing file ${singleFilePath}:`, error)
-          return {
-            success: false,
-            error: (error as Error).message,
-            filePath: singleFilePath,
-          } as ParseErrorResult
+    // Handle multiple files
+    if (Array.isArray(filePath)) {
+      const results = []
+      for (const path of filePath) {
+        const result = await parseFileSingle(path, fileType)
+        // Add processing time to metadata
+        if (result.metadata) {
+          result.metadata.processingTime = Date.now() - startTime
         }
-      })
-    )
 
-    // If it was a single file request, return a single result
-    // Otherwise return an array of results
-    if (!Array.isArray(filePath)) {
-      // Single file was requested
-      const result = results[0]
-      return NextResponse.json(result)
+        // Transform each result to match expected frontend format
+        if (result.success) {
+          results.push({
+            success: true,
+            output: {
+              content: result.content,
+              name: result.filePath.split('/').pop() || 'unknown',
+              fileType: result.metadata?.fileType || 'application/octet-stream',
+              size: result.metadata?.size || 0,
+              binary: false, // We only return text content
+            },
+            filePath: result.filePath,
+          })
+        } else {
+          results.push(result)
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        results,
+      })
     }
 
-    // Multiple files were requested
-    return NextResponse.json({
-      success: true,
-      results,
-    })
+    // Handle single file
+    const result = await parseFileSingle(filePath, fileType)
+
+    // Add processing time to metadata
+    if (result.metadata) {
+      result.metadata.processingTime = Date.now() - startTime
+    }
+
+    // Transform single file result to match expected frontend format
+    if (result.success) {
+      return NextResponse.json({
+        success: true,
+        output: {
+          content: result.content,
+          name: result.filePath.split('/').pop() || 'unknown',
+          fileType: result.metadata?.fileType || 'application/octet-stream',
+          size: result.metadata?.size || 0,
+          binary: false, // We only return text content
+        },
+      })
+    }
+
+    // Only return 500 for actual server errors, not file processing failures
+    // File processing failures (like file not found, parsing errors) should return 200 with success:false
+    return NextResponse.json(result)
   } catch (error) {
-    logger.error('Error parsing file(s):', error)
+    logger.error('Error in file parse API:', error)
     return NextResponse.json(
-      { error: 'Failed to parse file(s)', message: (error as Error).message },
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        filePath: '',
+      },
       { status: 500 }
     )
   }
@@ -131,17 +154,28 @@ export async function POST(request: NextRequest) {
 async function parseFileSingle(filePath: string, fileType?: string): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
 
+  // Validate path for security before any processing
+  const pathValidation = validateFilePath(filePath)
+  if (!pathValidation.isValid) {
+    return {
+      success: false,
+      error: pathValidation.error || 'Invalid path',
+      filePath,
+    }
+  }
+
   // Check if this is an external URL
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
     return handleExternalUrl(filePath, fileType)
   }
 
-  // Check if this is an S3 path
+  // Check if this is a cloud storage path (S3 or Blob)
   const isS3Path = filePath.includes('/api/files/serve/s3/')
+  const isBlobPath = filePath.includes('/api/files/serve/blob/')
 
-  // Use S3 handler if it's an S3 path or we're in S3 mode
-  if (isS3Path || USE_S3_STORAGE) {
-    return handleS3File(filePath, fileType)
+  // Use cloud handler if it's a cloud path or we're in cloud mode
+  if (isS3Path || isBlobPath || isUsingCloudStorage()) {
+    return handleCloudFile(filePath, fileType)
   }
 
   // Use local handler for local files
@@ -149,136 +183,119 @@ async function parseFileSingle(filePath: string, fileType?: string): Promise<Par
 }
 
 /**
- * Handle an external URL by downloading the file first
+ * Validate file path for security
+ */
+function validateFilePath(filePath: string): { isValid: boolean; error?: string } {
+  // Check for null bytes
+  if (filePath.includes('\0')) {
+    return { isValid: false, error: 'Invalid path: null byte detected' }
+  }
+
+  // Check for path traversal attempts
+  if (filePath.includes('..')) {
+    return { isValid: false, error: 'Access denied: path traversal detected' }
+  }
+
+  // Check for tilde characters (home directory access)
+  if (filePath.includes('~')) {
+    return { isValid: false, error: 'Invalid path: tilde character not allowed' }
+  }
+
+  // Check for absolute paths outside allowed directories
+  if (filePath.startsWith('/') && !filePath.startsWith('/api/files/serve/')) {
+    return { isValid: false, error: 'Path outside allowed directory' }
+  }
+
+  // Check for Windows absolute paths
+  if (/^[A-Za-z]:\\/.test(filePath)) {
+    return { isValid: false, error: 'Path outside allowed directory' }
+  }
+
+  return { isValid: true }
+}
+
+/**
+ * Handle external URL
  */
 async function handleExternalUrl(url: string, fileType?: string): Promise<ParseResult> {
-  logger.info(`Handling external URL: ${url}`)
-
   try {
-    // Create a unique filename for the temporary file
-    const urlHash = createHash('md5').update(url).digest('hex')
-    const urlObj = new URL(url)
-    const originalFilename = urlObj.pathname.split('/').pop() || 'download'
-    const tmpFilename = `${urlHash}-${originalFilename}`
-    const tmpFilePath = path.join(tmpdir(), tmpFilename)
+    logger.info('Fetching external URL:', url)
 
-    // Download the file using native fetch
-    logger.info(`Downloading file from URL to ${tmpFilePath}`)
     const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'SimStudio/1.0',
-      },
-      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS), // Add timeout
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
     })
-
     if (!response.ok) {
-      throw new Error(`Failed to download file: ${response.status} ${response.statusText}`)
+      throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)
     }
 
-    // Check file size before downloading content
     const contentLength = response.headers.get('content-length')
-    if (contentLength) {
-      const fileSize = Number.parseInt(contentLength, 10)
-      if (fileSize > MAX_DOWNLOAD_SIZE_BYTES) {
-        throw new Error(
-          `File size (${prettySize(fileSize)}) exceeds the limit of ${prettySize(
-            MAX_DOWNLOAD_SIZE_BYTES
-          )}.`
-        )
-      }
-    } else {
-      logger.warn('Content-Length header missing, cannot verify file size before download.')
+    if (contentLength && Number.parseInt(contentLength) > MAX_DOWNLOAD_SIZE_BYTES) {
+      throw new Error(`File too large: ${contentLength} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
     }
 
-    // Get the file buffer from response
-    const arrayBuffer = await response.arrayBuffer()
-    const fileBuffer = Buffer.from(arrayBuffer)
+    const buffer = Buffer.from(await response.arrayBuffer())
 
-    // Write to temporary file
-    await writeFile(tmpFilePath, fileBuffer)
-    logger.info(`Downloaded ${fileBuffer.length} bytes to ${tmpFilePath}`)
-
-    // Determine file extension and type
-    const contentType = response.headers.get('content-type') || ''
-    const extension =
-      path.extname(originalFilename).toLowerCase().substring(1) ||
-      (contentType ? contentType.split('/').pop() || 'unknown' : 'unknown')
-
-    try {
-      // Process based on file type
-      let result: ParseResult
-
-      if (extension === 'pdf') {
-        result = await handlePdfBuffer(fileBuffer, originalFilename, fileType, url)
-      } else if (extension === 'csv') {
-        result = await handleCsvBuffer(fileBuffer, originalFilename, fileType, url)
-      } else if (isSupportedFileType(extension)) {
-        result = await handleGenericTextBuffer(
-          fileBuffer,
-          originalFilename,
-          extension,
-          fileType,
-          url
-        )
-      } else {
-        result = handleGenericBuffer(fileBuffer, originalFilename, extension, fileType)
-      }
-
-      // Clean up temporary file
-      try {
-        await unlink(tmpFilePath)
-        logger.info(`Deleted temporary file: ${tmpFilePath}`)
-      } catch (cleanupError) {
-        logger.warn(`Failed to delete temporary file ${tmpFilePath}:`, cleanupError)
-      }
-
-      return result
-    } catch (parseError) {
-      logger.error(`Error parsing downloaded file: ${url}`, parseError)
-
-      // Clean up temporary file on error
-      try {
-        await unlink(tmpFilePath)
-      } catch (_cleanupError) {
-        // Ignore cleanup errors on parse failure
-      }
-
-      throw parseError
+    if (buffer.length > MAX_DOWNLOAD_SIZE_BYTES) {
+      throw new Error(`File too large: ${buffer.length} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
     }
+
+    logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
+
+    // Extract filename from URL
+    const urlPath = new URL(url).pathname
+    const filename = urlPath.split('/').pop() || 'download'
+    const extension = path.extname(filename).toLowerCase().substring(1)
+
+    // Process the file based on its content type
+    if (extension === 'pdf') {
+      return await handlePdfBuffer(buffer, filename, fileType, url)
+    }
+    if (extension === 'csv') {
+      return await handleCsvBuffer(buffer, filename, fileType, url)
+    }
+    if (isSupportedFileType(extension)) {
+      return await handleGenericTextBuffer(buffer, filename, extension, fileType, url)
+    }
+
+    // For binary or unknown files
+    return handleGenericBuffer(buffer, filename, extension, fileType)
   } catch (error) {
     logger.error(`Error handling external URL ${url}:`, error)
-    let errorMessage = `Failed to download or process file from URL: ${(error as Error).message}`
-    if ((error as Error).name === 'TimeoutError') {
-      errorMessage = `Download timed out after ${DOWNLOAD_TIMEOUT_MS / 1000} seconds.`
-    }
     return {
       success: false,
-      error: errorMessage,
+      error: `Error fetching URL: ${(error as Error).message}`,
       filePath: url,
     }
   }
 }
 
 /**
- * Handle file stored in S3
+ * Handle file stored in cloud storage (S3 or Azure Blob)
  */
-async function handleS3File(filePath: string, fileType?: string): Promise<ParseResult> {
+async function handleCloudFile(filePath: string, fileType?: string): Promise<ParseResult> {
   try {
-    // Extract the S3 key from the path
-    const isS3Path = filePath.includes('/api/files/serve/s3/')
-    const s3Key = isS3Path
-      ? decodeURIComponent(filePath.split('/api/files/serve/s3/')[1])
-      : filePath
+    // Extract the cloud key from the path
+    let cloudKey: string
+    if (filePath.includes('/api/files/serve/s3/')) {
+      cloudKey = decodeURIComponent(filePath.split('/api/files/serve/s3/')[1])
+    } else if (filePath.includes('/api/files/serve/blob/')) {
+      cloudKey = decodeURIComponent(filePath.split('/api/files/serve/blob/')[1])
+    } else if (filePath.startsWith('/api/files/serve/')) {
+      // Backwards-compatibility: path like "/api/files/serve/<key>"
+      cloudKey = decodeURIComponent(filePath.substring('/api/files/serve/'.length))
+    } else {
+      // Assume raw key provided
+      cloudKey = filePath
+    }
 
-    logger.info('Extracted S3 key:', s3Key)
+    logger.info('Extracted cloud key:', cloudKey)
 
-    // Download the file from S3
-    const fileBuffer = await downloadFromS3(s3Key)
-    logger.info(`Downloaded file from S3: ${s3Key}, size: ${fileBuffer.length} bytes`)
+    // Download the file from cloud storage - this can throw for access errors
+    const fileBuffer = await downloadFile(cloudKey)
+    logger.info(`Downloaded file from cloud storage: ${cloudKey}, size: ${fileBuffer.length} bytes`)
 
-    // Extract the filename from the S3 key
-    const filename = s3Key.split('/').pop() || s3Key
+    // Extract the filename from the cloud key
+    const filename = cloudKey.split('/').pop() || cloudKey
     const extension = path.extname(filename).toLowerCase().substring(1)
 
     // Process the file based on its content type
@@ -295,10 +312,69 @@ async function handleS3File(filePath: string, fileType?: string): Promise<ParseR
     // For binary or unknown files
     return handleGenericBuffer(fileBuffer, filename, extension, fileType)
   } catch (error) {
-    logger.error(`Error handling S3 file ${filePath}:`, error)
+    logger.error(`Error handling cloud file ${filePath}:`, error)
+
+    // Check if this is a download/access error that should trigger a 500 response
+    const errorMessage = (error as Error).message
+    if (errorMessage.includes('Access denied') || errorMessage.includes('Forbidden')) {
+      // For access errors, throw to trigger 500 response
+      throw new Error(`Error accessing file from cloud storage: ${errorMessage}`)
+    }
+
+    // For other errors (parsing, processing), return success:false
     return {
       success: false,
-      error: `Error accessing file from S3: ${(error as Error).message}`,
+      error: `Error accessing file from cloud storage: ${errorMessage}`,
+      filePath,
+    }
+  }
+}
+
+/**
+ * Handle local file
+ */
+async function handleLocalFile(filePath: string, fileType?: string): Promise<ParseResult> {
+  try {
+    // Extract filename from path
+    const filename = filePath.split('/').pop() || filePath
+    const fullPath = path.join(UPLOAD_DIR, filename)
+
+    logger.info('Processing local file:', fullPath)
+
+    // Check if file exists
+    try {
+      await fsPromises.access(fullPath)
+    } catch {
+      throw new Error(`File not found: ${filename}`)
+    }
+
+    // Parse the file directly
+    const result = await parseFile(fullPath)
+
+    // Get file stats for metadata
+    const stats = await fsPromises.stat(fullPath)
+    const fileBuffer = await readFile(fullPath)
+    const hash = createHash('md5').update(fileBuffer).digest('hex')
+
+    // Extract file extension for type detection
+    const extension = path.extname(filename).toLowerCase().substring(1)
+
+    return {
+      success: true,
+      content: result.content,
+      filePath,
+      metadata: {
+        fileType: fileType || getMimeType(extension),
+        size: stats.size,
+        hash,
+        processingTime: 0, // Will be set by caller
+      },
+    }
+  } catch (error) {
+    logger.error(`Error handling local file ${filePath}:`, error)
+    return {
+      success: false,
+      error: `Error processing local file: ${(error as Error).message}`,
       filePath,
     }
   }
@@ -324,15 +400,14 @@ async function handlePdfBuffer(
 
     return {
       success: true,
-      output: {
-        content,
+      content,
+      filePath: originalPath || filename,
+      metadata: {
         fileType: fileType || 'application/pdf',
         size: fileBuffer.length,
-        name: filename,
-        binary: false,
-        metadata: result.metadata || {},
+        hash: createHash('md5').update(fileBuffer).digest('hex'),
+        processingTime: 0, // Will be set by caller
       },
-      filePath: originalPath,
     }
   } catch (error) {
     logger.error('Failed to parse PDF in memory:', error)
@@ -347,14 +422,14 @@ async function handlePdfBuffer(
 
     return {
       success: true,
-      output: {
-        content,
+      content,
+      filePath: originalPath || filename,
+      metadata: {
         fileType: fileType || 'application/pdf',
         size: fileBuffer.length,
-        name: filename,
-        binary: false,
+        hash: createHash('md5').update(fileBuffer).digest('hex'),
+        processingTime: 0, // Will be set by caller
       },
-      filePath: originalPath,
     }
   }
 }
@@ -377,22 +452,27 @@ async function handleCsvBuffer(
 
     return {
       success: true,
-      output: {
-        content: result.content,
+      content: result.content,
+      filePath: originalPath || filename,
+      metadata: {
         fileType: fileType || 'text/csv',
         size: fileBuffer.length,
-        name: filename,
-        binary: false,
-        metadata: result.metadata || {},
+        hash: createHash('md5').update(fileBuffer).digest('hex'),
+        processingTime: 0, // Will be set by caller
       },
-      filePath: originalPath,
     }
   } catch (error) {
     logger.error('Failed to parse CSV in memory:', error)
     return {
       success: false,
       error: `Failed to parse CSV: ${(error as Error).message}`,
-      filePath: originalPath,
+      filePath: originalPath || filename,
+      metadata: {
+        fileType: 'text/csv',
+        size: 0,
+        hash: '',
+        processingTime: 0, // Will be set by caller
+      },
     }
   }
 }
@@ -419,15 +499,14 @@ async function handleGenericTextBuffer(
 
         return {
           success: true,
-          output: {
-            content: result.content,
+          content: result.content,
+          filePath: originalPath || filename,
+          metadata: {
             fileType: fileType || getMimeType(extension),
             size: fileBuffer.length,
-            name: filename,
-            binary: false,
-            metadata: result.metadata || {},
+            hash: createHash('md5').update(fileBuffer).digest('hex'),
+            processingTime: 0, // Will be set by caller
           },
-          filePath: originalPath,
         }
       }
     } catch (parserError) {
@@ -439,21 +518,27 @@ async function handleGenericTextBuffer(
 
     return {
       success: true,
-      output: {
-        content,
+      content,
+      filePath: originalPath || filename,
+      metadata: {
         fileType: fileType || getMimeType(extension),
         size: fileBuffer.length,
-        name: filename,
-        binary: false,
+        hash: createHash('md5').update(fileBuffer).digest('hex'),
+        processingTime: 0, // Will be set by caller
       },
-      filePath: originalPath,
     }
   } catch (error) {
     logger.error('Failed to parse text file in memory:', error)
     return {
       success: false,
       error: `Failed to parse file: ${(error as Error).message}`,
-      filePath: originalPath,
+      filePath: originalPath || filename,
+      metadata: {
+        fileType: 'text/plain',
+        size: 0,
+        hash: '',
+        processingTime: 0, // Will be set by caller
+      },
     }
   }
 }
@@ -474,12 +559,13 @@ function handleGenericBuffer(
 
   return {
     success: true,
-    output: {
-      content,
+    content,
+    filePath: filename,
+    metadata: {
       fileType: fileType || getMimeType(extension),
       size: fileBuffer.length,
-      name: filename,
-      binary: isBinary,
+      hash: createHash('md5').update(fileBuffer).digest('hex'),
+      processingTime: 0, // Will be set by caller
     },
   }
 }
@@ -510,257 +596,6 @@ async function parseBufferAsPdf(buffer: Buffer) {
     }
   } catch (error) {
     throw new Error(`PDF parsing failed: ${(error as Error).message}`)
-  }
-}
-
-/**
- * Validate that a file path is safe and within allowed directories
- */
-function validateAndResolvePath(inputPath: string): {
-  isValid: boolean
-  resolvedPath?: string
-  error?: string
-} {
-  try {
-    let targetPath = inputPath
-    if (inputPath.startsWith('/api/files/serve/')) {
-      const filename = inputPath.replace('/api/files/serve/', '')
-      targetPath = path.join(UPLOAD_DIR, filename)
-    }
-
-    const resolvedPath = path.resolve(targetPath)
-    const resolvedUploadDir = path.resolve(UPLOAD_DIR)
-
-    if (
-      !resolvedPath.startsWith(resolvedUploadDir + path.sep) &&
-      resolvedPath !== resolvedUploadDir
-    ) {
-      return {
-        isValid: false,
-        error: `Access denied: Path outside allowed directory`,
-      }
-    }
-
-    if (inputPath.includes('..') || inputPath.includes('~')) {
-      return {
-        isValid: false,
-        error: `Access denied: Invalid path characters detected`,
-      }
-    }
-
-    return {
-      isValid: true,
-      resolvedPath,
-    }
-  } catch (error) {
-    return {
-      isValid: false,
-      error: `Path validation error: ${(error as Error).message}`,
-    }
-  }
-}
-
-/**
- * Handle a local file from the filesystem
- */
-async function handleLocalFile(filePath: string, fileType?: string): Promise<ParseResult> {
-  if (filePath.includes('/api/files/serve/s3/')) {
-    logger.warn(`S3 path detected in handleLocalFile, redirecting to S3 handler: ${filePath}`)
-    return handleS3File(filePath, fileType)
-  }
-
-  try {
-    logger.info(`Handling local file: ${filePath}`)
-
-    const pathValidation = validateAndResolvePath(filePath)
-    if (!pathValidation.isValid) {
-      logger.error(`Path validation failed: ${pathValidation.error}`, { filePath })
-      return {
-        success: false,
-        error: pathValidation.error || 'Invalid file path',
-        filePath,
-      }
-    }
-
-    const localFilePath = pathValidation.resolvedPath!
-    logger.info(`Validated and resolved path: ${localFilePath}`)
-
-    try {
-      await fsPromises.access(localFilePath, fsPromises.constants.R_OK)
-    } catch (error) {
-      logger.error(`File access error: ${localFilePath}`, error)
-      return {
-        success: false,
-        error: `File not found or inaccessible: ${filePath}`,
-        filePath,
-      }
-    }
-
-    // Get file stats
-    const stats = await fsPromises.stat(localFilePath)
-    if (!stats.isFile()) {
-      logger.error(`Not a file: ${localFilePath}`)
-      return {
-        success: false,
-        error: `Not a file: ${filePath}`,
-        filePath,
-      }
-    }
-
-    // Extract the filename from the path
-    const filename = path.basename(localFilePath)
-    const extension = path.extname(filename).toLowerCase().substring(1)
-
-    // Process the file based on its type
-    const result = isSupportedFileType(extension)
-      ? await processWithSpecializedParser(localFilePath, filename, extension, fileType, filePath)
-      : await handleGenericFile(localFilePath, filename, extension, fileType)
-
-    return result
-  } catch (error) {
-    logger.error(`Error handling local file ${filePath}:`, error)
-    return {
-      success: false,
-      error: `Error processing file: ${(error as Error).message}`,
-      filePath,
-    }
-  }
-}
-
-/**
- * Process a file with a specialized parser
- */
-async function processWithSpecializedParser(
-  filePath: string,
-  filename: string,
-  extension: string,
-  fileType?: string,
-  originalPath?: string
-): Promise<ParseResult> {
-  try {
-    logger.info(`Parsing ${filename} with specialized parser for ${extension}`)
-    const result = await parseFile(filePath)
-
-    // Get file stats
-    const fileBuffer = await readFile(filePath)
-    const fileSize = fileBuffer.length
-
-    // Handle PDF-specific validation
-    if (
-      extension === 'pdf' &&
-      (result.content.includes('\u0000') ||
-        result.content.match(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]{10,}/g))
-    ) {
-      result.content = createPdfFallbackMessage(result.metadata?.pageCount, fileSize, originalPath)
-    }
-
-    return {
-      success: true,
-      output: {
-        content: result.content,
-        fileType: fileType || getMimeType(extension),
-        size: fileSize,
-        name: filename,
-        binary: false,
-        metadata: result.metadata || {},
-      },
-      filePath: originalPath || filePath,
-    }
-  } catch (error) {
-    logger.error(`Specialized parser failed for ${extension} file:`, error)
-
-    // Special handling for PDFs
-    if (extension === 'pdf') {
-      const fileBuffer = await readFile(filePath)
-      const fileSize = fileBuffer.length
-
-      // Get page count using a simple regex pattern
-      let pageCount = 0
-      const pdfContent = fileBuffer.toString('utf-8')
-      const pageMatches = pdfContent.match(/\/Type\s*\/Page\b/gi)
-      if (pageMatches) {
-        pageCount = pageMatches.length
-      }
-
-      const content = createPdfFailureMessage(
-        pageCount,
-        fileSize,
-        originalPath || filePath,
-        (error as Error).message
-      )
-
-      return {
-        success: true,
-        output: {
-          content,
-          fileType: fileType || getMimeType(extension),
-          size: fileSize,
-          name: filename,
-          binary: false,
-        },
-        filePath: originalPath || filePath,
-      }
-    }
-
-    // For other file types, fall back to generic handling
-    return handleGenericFile(filePath, filename, extension, fileType)
-  }
-}
-
-/**
- * Handle generic file types with basic parsing
- */
-async function handleGenericFile(
-  filePath: string,
-  filename: string,
-  extension: string,
-  fileType?: string
-): Promise<ParseResult> {
-  try {
-    // Read the file
-    const fileBuffer = await readFile(filePath)
-    const fileSize = fileBuffer.length
-
-    // Determine if file should be treated as binary
-    const isBinary = binaryExtensionsList.includes(extension)
-
-    // Parse content based on binary status
-    let content: string
-    if (isBinary) {
-      content = `[Binary ${extension.toUpperCase()} file - ${fileSize} bytes]`
-    } else {
-      content = await parseTextFile(fileBuffer)
-    }
-
-    // Always return success: true for generic files (even unsupported ones)
-    return {
-      success: true,
-      output: {
-        content,
-        fileType: fileType || getMimeType(extension),
-        size: fileSize,
-        name: filename,
-        binary: isBinary,
-      },
-    }
-  } catch (error) {
-    logger.error('Error handling generic file:', error)
-    return {
-      success: false,
-      error: `Failed to parse file: ${(error as Error).message}`,
-      filePath,
-    }
-  }
-}
-
-/**
- * Parse a text file buffer to string
- */
-async function parseTextFile(fileBuffer: Buffer): Promise<string> {
-  try {
-    return fileBuffer.toString('utf-8')
-  } catch (error) {
-    return `[Unable to parse file as text: ${(error as Error).message}]`
   }
 }
 
