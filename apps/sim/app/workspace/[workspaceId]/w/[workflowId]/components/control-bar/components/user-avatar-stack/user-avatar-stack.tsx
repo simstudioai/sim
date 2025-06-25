@@ -43,8 +43,9 @@ export function UserAvatarStack({
     }
   }, [users, maxVisible])
 
-  // Don't render anything if there are no users
-  if (users.length === 0) {
+  // Only show presence when there are multiple users (>1)
+  // Don't render anything if there are no users or only 1 user
+  if (users.length <= 1) {
     return null
   }
 

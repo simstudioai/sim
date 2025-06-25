@@ -9,12 +9,6 @@ import type { HandlerDependencies } from './workflow'
 
 const logger = createLogger('OperationsHandlers')
 
-// Simplified conflict resolution - just last-write-wins since we have normalized tables
-function shouldAcceptOperation(operation: any, roomLastModified: number): boolean {
-  // Accept all operations - with normalized tables, conflicts are very unlikely
-  return true
-}
-
 export function setupOperationsHandlers(
   socket: AuthenticatedSocket,
   deps: HandlerDependencies | RoomManager
@@ -46,17 +40,6 @@ export function setupOperationsHandlers(
       const validatedOperation = WorkflowOperationSchema.parse(data)
       const { operation, target, payload, timestamp } = validatedOperation
 
-      if (!shouldAcceptOperation(validatedOperation, room.lastModified)) {
-        socket.emit('operation-rejected', {
-          type: 'OPERATION_REJECTED',
-          message: 'Operation rejected',
-          operation,
-          target,
-          serverTimestamp: Date.now(),
-        })
-        return
-      }
-
       // Check operation permissions
       const permissionCheck = await verifyOperationPermission(
         session.userId,
@@ -82,23 +65,71 @@ export function setupOperationsHandlers(
         userPresence.lastActivity = Date.now()
       }
 
-      // Persist to database with transaction (last-write-wins)
-      const serverTimestamp = Date.now()
+      // For position updates, preserve client timestamp to maintain ordering
+      // For other operations, use server timestamp for consistency
+      const isPositionUpdate = operation === 'update-position' && target === 'block'
+      const operationTimestamp = isPositionUpdate ? timestamp : Date.now()
+
+      // Broadcast first for position updates to minimize latency, then persist
+      // For other operations, persist first for consistency
+      if (isPositionUpdate) {
+        // Broadcast position updates immediately for smooth real-time movement
+        const broadcastData = {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: {
+            workflowId,
+            operationId: crypto.randomUUID(),
+            isPositionUpdate: true,
+          },
+        }
+
+        socket.to(workflowId).emit('workflow-operation', broadcastData)
+
+        // Persist position update asynchronously to avoid blocking real-time updates
+        persistWorkflowOperation(workflowId, {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          userId: session.userId,
+        }).catch((error) => {
+          logger.error('Failed to persist position update:', error)
+        })
+
+        room.lastModified = Date.now()
+
+        socket.emit('operation-confirmed', {
+          operation,
+          target,
+          operationId: broadcastData.metadata.operationId,
+          serverTimestamp: Date.now(),
+        })
+
+        return // Early return for position updates
+      }
+
+      // For non-position operations, persist first then broadcast
       await persistWorkflowOperation(workflowId, {
         operation,
         target,
         payload,
-        timestamp: serverTimestamp,
+        timestamp: operationTimestamp,
         userId: session.userId,
       })
 
-      room.lastModified = serverTimestamp
+      room.lastModified = Date.now()
 
       const broadcastData = {
         operation,
         target,
         payload,
-        timestamp: serverTimestamp,
+        timestamp: operationTimestamp, // Preserve client timestamp for position updates
         senderId: socket.id,
         userId: session.userId,
         userName: session.userName,
@@ -106,6 +137,7 @@ export function setupOperationsHandlers(
         metadata: {
           workflowId,
           operationId: crypto.randomUUID(),
+          isPositionUpdate, // Flag to help clients handle position updates specially
         },
       }
 
@@ -115,7 +147,7 @@ export function setupOperationsHandlers(
         operation,
         target,
         operationId: broadcastData.metadata.operationId,
-        serverTimestamp,
+        serverTimestamp: Date.now(),
       })
     } catch (error) {
       if (error instanceof ZodError) {
