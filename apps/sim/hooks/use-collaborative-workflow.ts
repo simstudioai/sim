@@ -34,6 +34,9 @@ export function useCollaborativeWorkflow() {
   // Track if we're applying remote changes to avoid infinite loops
   const isApplyingRemoteChange = useRef(false)
 
+  // Track last applied position timestamps to prevent out-of-order updates
+  const lastPositionTimestamps = useRef<Map<string, number>>(new Map())
+
   // Join workflow room when active workflow changes
   useEffect(() => {
     if (activeWorkflowId && isConnected && currentWorkflowId !== activeWorkflowId) {
@@ -43,6 +46,10 @@ export function useCollaborativeWorkflow() {
         activeWorkflowId,
         presenceUsers: presenceUsers.length,
       })
+
+      // Clear position timestamps when switching workflows
+      lastPositionTimestamps.current.clear()
+
       joinWorkflow(activeWorkflowId)
     }
   }, [activeWorkflowId, isConnected, currentWorkflowId, joinWorkflow])
@@ -86,15 +93,44 @@ export function useCollaborativeWorkflow() {
                 payload.extent
               )
               break
-            case 'update-position':
-              // Apply immediate position update with smooth interpolation for other users
-              workflowStore.updateBlockPosition(payload.id, payload.position)
+            case 'update-position': {
+              // Apply position update only if it's newer than the last applied timestamp
+              // This prevents jagged movement from out-of-order position updates
+              const blockId = payload.id
+
+              // Server should always provide timestamp - if missing, skip ordering check
+              if (!data.timestamp) {
+                logger.warn('Position update missing timestamp, applying without ordering check', {
+                  blockId,
+                })
+                workflowStore.updateBlockPosition(payload.id, payload.position)
+                break
+              }
+
+              const updateTimestamp = data.timestamp
+              const lastTimestamp = lastPositionTimestamps.current.get(blockId) || 0
+
+              if (updateTimestamp >= lastTimestamp) {
+                workflowStore.updateBlockPosition(payload.id, payload.position)
+                lastPositionTimestamps.current.set(blockId, updateTimestamp)
+              } else {
+                // Skip out-of-order position update to prevent jagged movement
+                logger.debug('Skipping out-of-order position update', {
+                  blockId,
+                  updateTimestamp,
+                  lastTimestamp,
+                  position: payload.position,
+                })
+              }
               break
+            }
             case 'update-name':
               workflowStore.updateBlockName(payload.id, payload.name)
               break
             case 'remove':
               workflowStore.removeBlock(payload.id)
+              // Clean up position timestamp tracking for removed blocks
+              lastPositionTimestamps.current.delete(payload.id)
               break
             case 'toggle-enabled':
               workflowStore.toggleBlockEnabled(payload.id)

@@ -24,17 +24,9 @@ export function setupConnectionHandlers(
     const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
     const session = roomManager.getUserSession(socket.id)
 
-    logger.info(`Socket ${socket.id} disconnected: ${reason}`)
-
     if (workflowId && session) {
       roomManager.cleanupUserFromRoom(socket.id, workflowId)
-
-      // Broadcast updated presence list to all remaining users
       roomManager.broadcastPresenceUpdate(workflowId)
-
-      logger.info(
-        `User ${session.userId} (${session.userName}) disconnected from workflow ${workflowId} - reason: ${reason}`
-      )
     }
 
     roomManager.clearPendingOperations(socket.id)

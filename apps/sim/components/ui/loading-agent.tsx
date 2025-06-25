@@ -33,11 +33,10 @@ export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
         strokeWidth='1.8'
         strokeLinecap='round'
         strokeLinejoin='round'
-        // The magic: dash array & offset
         style={{
           strokeDasharray: pathLength,
           strokeDashoffset: pathLength,
-          animation: 'dash 1.5s linear forwards',
+          animation: 'dashLoop 3s linear infinite',
         }}
       />
       <path
@@ -49,8 +48,8 @@ export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
         style={{
           strokeDasharray: pathLength,
           strokeDashoffset: pathLength,
-          animation: 'dash 1.5s linear forwards',
-          animationDelay: '0.5s', // if you want to stagger it
+          animation: 'dashLoop 3s linear infinite',
+          animationDelay: '0.5s',
         }}
       />
       <path
@@ -62,15 +61,21 @@ export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
         style={{
           strokeDasharray: pathLength,
           strokeDashoffset: pathLength,
-          animation: 'dash 1.5s linear forwards',
+          animation: 'dashLoop 3s linear infinite',
           animationDelay: '1s',
         }}
       />
       <style>
         {`
-          @keyframes dash {
-            to {
+          @keyframes dashLoop {
+            0% {
+              stroke-dashoffset: ${pathLength};
+            }
+            50% {
               stroke-dashoffset: 0;
+            }
+            100% {
+              stroke-dashoffset: ${pathLength};
             }
           }
         `}
