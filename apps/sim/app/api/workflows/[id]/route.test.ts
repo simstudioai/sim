@@ -83,7 +83,7 @@ describe('Workflow By ID API Route', () => {
       expect(data.error).toBe('Workflow not found')
     })
 
-    it('should allow access when user owns the workflow', async () => {
+    it.concurrent('should allow access when user owns the workflow', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
@@ -121,7 +121,7 @@ describe('Workflow By ID API Route', () => {
       expect(data.data.id).toBe('workflow-123')
     })
 
-    it('should allow access when user has workspace permissions', async () => {
+    it.concurrent('should allow access when user has workspace permissions', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'other-user',
@@ -207,7 +207,7 @@ describe('Workflow By ID API Route', () => {
       expect(data.error).toBe('Access denied')
     })
 
-    it('should use normalized tables when available', async () => {
+    it.concurrent('should use normalized tables when available', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
@@ -369,7 +369,7 @@ describe('Workflow By ID API Route', () => {
       expect(data.success).toBe(true)
     })
 
-    it('should deny deletion for non-admin users', async () => {
+    it.concurrent('should deny deletion for non-admin users', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'other-user',
@@ -565,7 +565,7 @@ describe('Workflow By ID API Route', () => {
       expect(data.error).toBe('Access denied')
     })
 
-    it('should validate request data', async () => {
+    it.concurrent('should validate request data', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
@@ -610,7 +610,7 @@ describe('Workflow By ID API Route', () => {
   })
 
   describe('Error handling', () => {
-    it('should handle database errors gracefully', async () => {
+    it.concurrent('should handle database errors gracefully', async () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
           user: { id: 'user-123' },

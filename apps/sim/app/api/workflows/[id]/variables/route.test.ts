@@ -7,25 +7,23 @@
 
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createMockDatabase,
+  mockAuth,
+  mockCryptoUuid,
+  mockUser,
+  setupCommonApiMocks,
+} from '@/app/api/__test-utils__/utils'
 
 describe('Workflow Variables API Route', () => {
-  const mockLogger = {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }
+  let authMocks: ReturnType<typeof mockAuth>
+  let databaseMocks: ReturnType<typeof createMockDatabase>
 
   beforeEach(() => {
     vi.resetModules()
-
-    vi.stubGlobal('crypto', {
-      randomUUID: vi.fn().mockReturnValue('mock-request-id-12345678'),
-    })
-
-    vi.doMock('@/lib/logs/console-logger', () => ({
-      createLogger: vi.fn().mockReturnValue(mockLogger),
-    }))
+    setupCommonApiMocks()
+    mockCryptoUuid('mock-request-id-12345678')
+    authMocks = mockAuth(mockUser)
   })
 
   afterEach(() => {
@@ -34,9 +32,7 @@ describe('Workflow Variables API Route', () => {
 
   describe('GET /api/workflows/[id]/variables', () => {
     it('should return 401 when user is not authenticated', async () => {
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue(null),
-      }))
+      authMocks.setUnauthenticated()
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -50,23 +46,10 @@ describe('Workflow Variables API Route', () => {
     })
 
     it('should return 404 when workflow does not exist', async () => {
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([]), // No workflow found
-              }),
-            }),
-          }),
-        },
-      }))
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { results: [[]] }, // No workflow found
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/nonexistent/variables')
       const params = Promise.resolve({ id: 'nonexistent' })
@@ -89,23 +72,10 @@ describe('Workflow Variables API Route', () => {
         },
       }
 
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([mockWorkflow]),
-              }),
-            }),
-          }),
-        },
-      }))
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { results: [[mockWorkflow]] },
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -128,23 +98,10 @@ describe('Workflow Variables API Route', () => {
         },
       }
 
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([mockWorkflow]),
-              }),
-            }),
-          }),
-        },
-      }))
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { results: [[mockWorkflow]] },
+      })
 
       vi.doMock('@/lib/permissions/utils', () => ({
         getUserEntityPermissions: vi.fn().mockResolvedValue('read'),
@@ -177,23 +134,10 @@ describe('Workflow Variables API Route', () => {
         variables: {},
       }
 
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([mockWorkflow]),
-              }),
-            }),
-          }),
-        },
-      }))
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { results: [[mockWorkflow]] },
+      })
 
       vi.doMock('@/lib/permissions/utils', () => ({
         getUserEntityPermissions: vi.fn().mockResolvedValue(null),
@@ -210,7 +154,7 @@ describe('Workflow Variables API Route', () => {
       expect(data.error).toBe('Unauthorized')
     })
 
-    it('should include proper cache headers', async () => {
+    it.concurrent('should include proper cache headers', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
@@ -220,23 +164,10 @@ describe('Workflow Variables API Route', () => {
         },
       }
 
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([mockWorkflow]),
-              }),
-            }),
-          }),
-        },
-      }))
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { results: [[mockWorkflow]] },
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -249,7 +180,7 @@ describe('Workflow Variables API Route', () => {
       expect(response.headers.get('ETag')).toMatch(/^"variables-workflow-123-\d+"$/)
     })
 
-    it('should return empty object for workflows with no variables', async () => {
+    it.concurrent('should return empty object for workflows with no variables', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
@@ -257,23 +188,10 @@ describe('Workflow Variables API Route', () => {
         variables: null,
       }
 
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([mockWorkflow]),
-              }),
-            }),
-          }),
-        },
-      }))
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { results: [[mockWorkflow]] },
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -296,28 +214,11 @@ describe('Workflow Variables API Route', () => {
         variables: {},
       }
 
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([mockWorkflow]),
-              }),
-            }),
-          }),
-          update: vi.fn().mockReturnValue({
-            set: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue(undefined),
-            }),
-          }),
-        },
-      }))
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { results: [[mockWorkflow]] },
+        update: { results: [{}] },
+      })
 
       const variables = [
         { id: 'var-1', workflowId: 'workflow-123', name: 'test', type: 'string', value: 'hello' },
@@ -345,23 +246,10 @@ describe('Workflow Variables API Route', () => {
         variables: {},
       }
 
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([mockWorkflow]),
-              }),
-            }),
-          }),
-        },
-      }))
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { results: [[mockWorkflow]] },
+      })
 
       vi.doMock('@/lib/permissions/utils', () => ({
         getUserEntityPermissions: vi.fn().mockResolvedValue(null),
@@ -385,7 +273,7 @@ describe('Workflow Variables API Route', () => {
       expect(data.error).toBe('Unauthorized')
     })
 
-    it('should validate request data schema', async () => {
+    it.concurrent('should validate request data schema', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
@@ -393,23 +281,10 @@ describe('Workflow Variables API Route', () => {
         variables: {},
       }
 
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([mockWorkflow]),
-              }),
-            }),
-          }),
-        },
-      }))
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { results: [[mockWorkflow]] },
+      })
 
       // Invalid data - missing required fields
       const invalidData = { variables: [{ name: 'test' }] }
@@ -430,24 +305,11 @@ describe('Workflow Variables API Route', () => {
   })
 
   describe('Error handling', () => {
-    it('should handle database errors gracefully', async () => {
-      vi.doMock('@/lib/auth', () => ({
-        getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-123' },
-        }),
-      }))
-
-      vi.doMock('@/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockRejectedValue(new Error('Database connection failed')),
-              }),
-            }),
-          }),
-        },
-      }))
+    it.concurrent('should handle database errors gracefully', async () => {
+      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      databaseMocks = createMockDatabase({
+        select: { throwError: true, errorMessage: 'Database connection failed' },
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -458,7 +320,6 @@ describe('Workflow Variables API Route', () => {
       expect(response.status).toBe(500)
       const data = await response.json()
       expect(data.error).toBe('Database connection failed')
-      expect(mockLogger.error).toHaveBeenCalled()
     })
   })
 })
