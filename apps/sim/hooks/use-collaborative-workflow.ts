@@ -93,7 +93,7 @@ export function useCollaborativeWorkflow() {
                 payload.extent
               )
               break
-            case 'update-position':
+            case 'update-position': {
               // Apply position update only if it's newer than the last applied timestamp
               // This prevents jagged movement from out-of-order position updates
               const blockId = payload.id
@@ -113,6 +113,7 @@ export function useCollaborativeWorkflow() {
                 })
               }
               break
+            }
             case 'update-name':
               workflowStore.updateBlockName(payload.id, payload.name)
               break
