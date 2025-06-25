@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { LoadingAgent } from '@/components/ui/loading-agent'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -92,8 +93,7 @@ export default function WorkspacePage() {
     return (
       <div className='flex h-screen w-full items-center justify-center'>
         <div className='flex flex-col items-center justify-center text-center align-middle'>
-          <div className='h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent' />
-          <p className='mt-2 text-muted-foreground text-sm'>Loading workspace...</p>
+          <LoadingAgent size='lg' />
         </div>
       </div>
     )

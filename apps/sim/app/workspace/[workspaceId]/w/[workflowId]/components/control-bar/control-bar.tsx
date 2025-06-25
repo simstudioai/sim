@@ -42,6 +42,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useFolderStore } from '@/stores/folders/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -110,6 +111,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   } = useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
   const { setActiveTab } = usePanelStore()
+  const { getFolderTree, expandedFolders } = useFolderStore()
 
   // Get current workflow and workspace ID for permissions
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
@@ -402,32 +404,81 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }
 
   /**
+   * Get workflows in the exact order they appear in the sidebar
+   */
+  const getSidebarOrderedWorkflows = () => {
+    // Get and sort regular workflows by last modified (newest first)
+    const regularWorkflows = Object.values(workflows)
+      .filter((workflow) => workflow.workspaceId === workspaceId)
+      .filter((workflow) => workflow.marketplaceData?.status !== 'temp')
+      .sort((a, b) => {
+        const dateA =
+          a.lastModified instanceof Date
+            ? a.lastModified.getTime()
+            : new Date(a.lastModified).getTime()
+        const dateB =
+          b.lastModified instanceof Date
+            ? b.lastModified.getTime()
+            : new Date(b.lastModified).getTime()
+        return dateB - dateA
+      })
+
+    // Group workflows by folder
+    const workflowsByFolder = regularWorkflows.reduce(
+      (acc, workflow) => {
+        const folderId = workflow.folderId || 'root'
+        if (!acc[folderId]) acc[folderId] = []
+        acc[folderId].push(workflow)
+        return acc
+      },
+      {} as Record<string, typeof regularWorkflows>
+    )
+
+    const orderedWorkflows: typeof regularWorkflows = []
+
+    // Recursively collect workflows from expanded folders
+    const collectFromFolders = (folders: ReturnType<typeof getFolderTree>) => {
+      folders.forEach((folder) => {
+        if (expandedFolders.has(folder.id)) {
+          orderedWorkflows.push(...(workflowsByFolder[folder.id] || []))
+          if (folder.children.length > 0) {
+            collectFromFolders(folder.children)
+          }
+        }
+      })
+    }
+
+    // Get workflows from expanded folders first, then root workflows
+    if (workspaceId) collectFromFolders(getFolderTree(workspaceId))
+    orderedWorkflows.push(...(workflowsByFolder.root || []))
+
+    return orderedWorkflows
+  }
+
+  /**
    * Handle deleting the current workflow
    */
   const handleDeleteWorkflow = () => {
     if (!activeWorkflowId || !userPermissions.canEdit) return
 
-    const workflowIds = Object.keys(workflows)
-    const currentIndex = workflowIds.indexOf(activeWorkflowId)
+    const sidebarWorkflows = getSidebarOrderedWorkflows()
+    const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
 
-    // Find the next workflow to navigate to
-    let nextWorkflowId = null
-    if (workflowIds.length > 1) {
-      // Try next workflow, then previous, then any other
-      if (currentIndex < workflowIds.length - 1) {
-        nextWorkflowId = workflowIds[currentIndex + 1]
+    // Find next workflow: try next, then previous
+    let nextWorkflowId: string | null = null
+    if (sidebarWorkflows.length > 1) {
+      if (currentIndex < sidebarWorkflows.length - 1) {
+        nextWorkflowId = sidebarWorkflows[currentIndex + 1].id
       } else if (currentIndex > 0) {
-        nextWorkflowId = workflowIds[currentIndex - 1]
-      } else {
-        nextWorkflowId = workflowIds.find((id) => id !== activeWorkflowId) || null
+        nextWorkflowId = sidebarWorkflows[currentIndex - 1].id
       }
     }
 
-    // Navigate to the next workflow or home
+    // Navigate to next workflow or workspace home
     if (nextWorkflowId) {
       router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
     } else {
-      router.push('/')
+      router.push(`/workspace/${workspaceId}`)
     }
 
     // Remove the workflow from the registry
@@ -575,8 +626,17 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const handleDuplicateWorkflow = async () => {
     if (!activeWorkflowId || !userPermissions.canEdit) return
 
-    // Duplicate the workflow - no automatic navigation
-    await duplicateWorkflow(activeWorkflowId)
+    try {
+      const newWorkflow = await duplicateWorkflow(activeWorkflowId)
+      if (newWorkflow) {
+        router.push(`/workspace/${workspaceId}/w/${newWorkflow}`)
+      } else {
+        addNotification('error', 'Failed to duplicate workflow', activeWorkflowId)
+      }
+    } catch (error) {
+      logger.error('Error duplicating workflow:', { error })
+      addNotification('error', 'Failed to duplicate workflow', activeWorkflowId)
+    }
   }
 
   /**
