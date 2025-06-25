@@ -323,8 +323,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     }
   }, [socket, currentWorkflowId])
 
-  // Position update throttling at 60fps (16ms)
-  const THROTTLE_DELAY = 16 // 60fps standard
+  // Light throttling for position updates to ensure smooth collaborative movement
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
 
@@ -333,13 +332,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     (operation: string, target: string, payload: any) => {
       if (!socket || !currentWorkflowId) return
 
-      // Check if this is a position update that should be throttled
+      // Apply light throttling only to position updates for smooth collaborative experience
       const isPositionUpdate = operation === 'update-position' && target === 'block'
 
       if (isPositionUpdate && payload.id) {
         const blockId = payload.id
 
-        // Store the latest position update for this block
+        // Store the latest position update
         pendingPositionUpdates.current.set(blockId, {
           operation,
           target,
@@ -347,33 +346,19 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           timestamp: Date.now(),
         })
 
-        // Check if we have an active interval for this block
-        const existingTimeout = positionUpdateTimeouts.current.get(blockId)
-
-        if (!existingTimeout) {
-          // No active interval - start emitting at regular intervals
-          const intervalId = window.setInterval(() => {
+        // Check if we already have a pending timeout for this block
+        if (!positionUpdateTimeouts.current.has(blockId)) {
+          // Schedule emission with light throttling (120fps = ~8ms)
+          const timeoutId = window.setTimeout(() => {
             const latestUpdate = pendingPositionUpdates.current.get(blockId)
             if (latestUpdate) {
               socket.emit('workflow-operation', latestUpdate)
               pendingPositionUpdates.current.delete(blockId)
-            } else {
-              // No more updates pending - stop the interval
-              clearInterval(intervalId)
-              positionUpdateTimeouts.current.delete(blockId)
             }
-          }, THROTTLE_DELAY)
+            positionUpdateTimeouts.current.delete(blockId)
+          }, 8) // 120fps for smooth movement
 
-          positionUpdateTimeouts.current.set(blockId, intervalId)
-
-          // Set a cleanup timeout to stop the interval if no updates come in
-          setTimeout(() => {
-            if (positionUpdateTimeouts.current.get(blockId) === intervalId) {
-              clearInterval(intervalId)
-              positionUpdateTimeouts.current.delete(blockId)
-              pendingPositionUpdates.current.delete(blockId)
-            }
-          }, 50) // Stop interval after 50ms of no updates
+          positionUpdateTimeouts.current.set(blockId, timeoutId)
         }
       } else {
         // For all non-position updates, emit immediately
@@ -411,14 +396,14 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     [socket, currentWorkflowId]
   )
 
-  // Throttled cursor updates (lower priority than position updates)
+  // Minimal cursor throttling (reduced from 30fps to 120fps)
   const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
     (cursor: { x: number; y: number }) => {
       if (socket && currentWorkflowId) {
         const now = performance.now()
-        // Throttle cursor updates to 30fps to reduce noise
-        if (now - lastCursorEmit.current >= 33) {
+        // Very light throttling at 120fps (8ms) to prevent excessive spam
+        if (now - lastCursorEmit.current >= 8) {
           socket.emit('cursor-update', { cursor })
           lastCursorEmit.current = now
         }
