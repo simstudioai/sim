@@ -989,7 +989,12 @@ export const applyAutoLayoutSmooth = (
     onComplete?: (finalPositions: Map<string, { x: number; y: number }>) => void
   } = {}
 ): void => {
-  const { animationDuration = 500, isSidebarCollapsed = false, onComplete, ...layoutOptions } = options
+  const {
+    animationDuration = 500,
+    isSidebarCollapsed = false,
+    onComplete,
+    ...layoutOptions
+  } = options
 
   if (!layoutOptions.handleOrientation || layoutOptions.handleOrientation === 'auto') {
     layoutOptions.handleOrientation = detectHandleOrientation(blocks)
