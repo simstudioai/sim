@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation'
 export default async function WorkspacePage({
   params,
 }: {
-  params: Promise<{ workspace: string }>
+  params: Promise<{ workspaceId: string }>
 }) {
-  const workspace = (await params).workspace
-  redirect(`/workspace/${workspace}/w`)
+  const { workspaceId } = await params
+  redirect(`/workspace/${workspaceId}/w`)
 }

@@ -892,7 +892,7 @@ const WorkflowContent = React.memo(() => {
     // Add block nodes
     Object.entries(blocks).forEach(([blockId, block]) => {
       if (!block.type || !block.name) {
-        logger.warn(`Skipping invalid block: $blockId`, { block })
+        logger.warn(`Skipping invalid block: ${blockId}`, { block })
         return
       }
 
@@ -938,7 +938,7 @@ const WorkflowContent = React.memo(() => {
 
       const blockConfig = getBlock(block.type)
       if (!blockConfig) {
-        logger.error(`No configuration found for block type: $block.type`, {
+        logger.error(`No configuration found for block type: ${block.type}`, {
           block,
         })
         return
@@ -1476,7 +1476,7 @@ const WorkflowContent = React.memo(() => {
         </SkeletonLoading>
         <Toolbar />
         <div
-          className={`$isSidebarCollapsed ? 'pl-14' : 'pl-60' relative h-full w-full flex-1 transition-all duration-200`}
+          className={`${isSidebarCollapsed ? 'pl-14' : 'pl-60'} relative h-full w-full flex-1 transition-all duration-200`}
         >
           <div className='fixed top-0 right-0 z-10'>
             <Panel />
@@ -1492,12 +1492,12 @@ const WorkflowContent = React.memo(() => {
 
   return (
     <div className='flex h-screen w-full flex-col overflow-hidden'>
-      <div className={`$isSidebarCollapsed ? 'ml-14' : 'ml-60' transition-all duration-200`}>
+      <div className={`${isSidebarCollapsed ? 'ml-14' : 'ml-60'} transition-all duration-200`}>
         <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
       </div>
       <Toolbar />
       <div
-        className={`$isSidebarCollapsed ? 'pl-14' : 'pl-60' relative h-full w-full flex-1 transition-all duration-200`}
+        className={`${isSidebarCollapsed ? 'pl-14' : 'pl-60'} relative h-full w-full flex-1 transition-all duration-200`}
       >
         <div className='fixed top-0 right-0 z-10'>
           <Panel />

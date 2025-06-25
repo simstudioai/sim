@@ -27,10 +27,10 @@ export function usePresence(): UsePresenceReturn {
     return presenceUsers.map((user, index) => ({
       // Use socketId directly as connectionId to ensure uniqueness
       // If no socketId, use a unique fallback based on userId + index
-      connectionId: user.socketId || `fallback-$user.userId-$index`,
+      connectionId: user.socketId || `fallback-${user.userId}-${index}`,
       name: user.userName,
       color: undefined, // Let the avatar component generate colors
-      info: user.selection?.type ? `Editing $user.selection.type` : undefined,
+      info: user.selection?.type ? `Editing ${user.selection.type}` : undefined,
     }))
   }, [presenceUsers])
 
