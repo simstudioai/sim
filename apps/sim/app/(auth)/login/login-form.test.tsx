@@ -149,7 +149,7 @@ describe('LoginPage', () => {
           {
             email: 'test@example.com',
             password: 'password123',
-            callbackURL: '/w',
+            callbackURL: '/workspace',
           },
           expect.objectContaining({
             onError: expect.any(Function),

@@ -24,7 +24,6 @@ export interface WorkflowMetadata {
 export interface WorkflowRegistryState {
   workflows: Record<string, WorkflowMetadata>
   activeWorkflowId: string | null
-  activeWorkspaceId: string | null
   isLoading: boolean
   error: string | null
   deploymentStatuses: Record<string, DeploymentStatus>
@@ -34,10 +33,7 @@ export interface WorkflowRegistryActions {
   setLoading: (loading: boolean) => void
   setActiveWorkflow: (id: string) => Promise<void>
   switchToWorkspace: (id: string) => void
-  setActiveWorkspaceId: (id: string) => void
-  loadLastActiveWorkspace: () => Promise<void>
-  loadWorkspaceFromWorkflowId: (workflowId: string | null) => Promise<void>
-  loadWorkflows: () => Promise<void>
+  loadWorkflows: (workspaceId?: string) => Promise<void>
   handleWorkspaceDeletion: (newWorkspaceId: string) => void
   removeWorkflow: (id: string) => Promise<void>
   updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => Promise<void>

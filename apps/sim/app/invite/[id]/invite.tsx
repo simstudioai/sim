@@ -131,7 +131,7 @@ export default function Invite() {
 
         // Redirect to workspace after a brief delay
         setTimeout(() => {
-          router.push('/w')
+          router.push('/workspace')
         }, 2000)
       } else {
         // For organization invites, use the client API
@@ -153,7 +153,7 @@ export default function Invite() {
 
         // Redirect to workspace after a brief delay
         setTimeout(() => {
-          router.push('/w')
+          router.push('/workspace')
         }, 2000)
       }
     } catch (err: any) {

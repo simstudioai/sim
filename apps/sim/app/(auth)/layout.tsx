@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { GridPattern } from '../(landing)/components/grid-pattern'
-import { NotificationList } from '../w/[id]/components/notifications/notifications'
+import { NotificationList } from '../workspace/[workspaceId]/w/[workflowId]/components/notifications/notifications'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (

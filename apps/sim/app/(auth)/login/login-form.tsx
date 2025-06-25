@@ -125,7 +125,7 @@ export default function LoginPage({
   const [showValidationError, setShowValidationError] = useState(false)
 
   // Initialize state for URL parameters
-  const [callbackUrl, setCallbackUrl] = useState('/w')
+  const [callbackUrl, setCallbackUrl] = useState('/workspace')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
 
   // Forgot password states
@@ -155,7 +155,7 @@ export default function LoginPage({
           setCallbackUrl(callback)
         } else {
           logger.warn('Invalid callback URL detected and blocked:', { url: callback })
-          // Keep the default safe value ('/w')
+          // Keep the default safe value ('/workspace')
         }
       }
 
@@ -222,7 +222,7 @@ export default function LoginPage({
 
     try {
       // Final validation before submission
-      const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/w'
+      const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
 
       const result = await client.signIn.email(
         {
