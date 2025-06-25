@@ -149,7 +149,10 @@ export async function GET(req: NextRequest) {
         .where(eq(workspaceInvitation.id, invitation.id))
 
       return NextResponse.redirect(
-        new URL(`/w/${invitation.workspaceId}`, env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai')
+        new URL(
+          `/workspace/${invitation.workspaceId}/w`,
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+        )
       )
     }
 
@@ -194,7 +197,10 @@ export async function GET(req: NextRequest) {
 
     // Redirect to the workspace
     return NextResponse.redirect(
-      new URL(`/w/${invitation.workspaceId}`, env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai')
+      new URL(
+        `/workspace/${invitation.workspaceId}/w`,
+        env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+      )
     )
   } catch (error) {
     console.error('Error accepting invitation:', error)

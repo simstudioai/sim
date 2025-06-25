@@ -2,7 +2,7 @@ import { desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { CATEGORIES } from '@/app/w/marketplace/constants/categories'
+import { CATEGORIES } from '@/app/workspace/[workspaceId]/marketplace/constants/categories'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 

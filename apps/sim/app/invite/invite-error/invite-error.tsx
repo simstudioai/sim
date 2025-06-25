@@ -54,7 +54,7 @@ export default function InviteError() {
           <p className='mb-6 text-muted-foreground'>{displayMessage}</p>
 
           <div className='flex w-full flex-col gap-4'>
-            <Link href='/w' passHref>
+            <Link href='/workspace' passHref>
               <Button variant='default' className='w-full'>
                 Go to Dashboard
               </Button>
