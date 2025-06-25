@@ -100,7 +100,9 @@ export function useCollaborativeWorkflow() {
 
               // Server should always provide timestamp - if missing, skip ordering check
               if (!data.timestamp) {
-                logger.warn('Position update missing timestamp, applying without ordering check', { blockId })
+                logger.warn('Position update missing timestamp, applying without ordering check', {
+                  blockId,
+                })
                 workflowStore.updateBlockPosition(payload.id, payload.position)
                 break
               }
