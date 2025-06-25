@@ -40,7 +40,6 @@ vi.mock('@/stores/execution/store', () => ({
   },
 }))
 
-// Mock the block registry to avoid importing icons in tests
 vi.mock('@/blocks/registry', () => ({
   getBlock: vi.fn(() => ({
     name: 'Mock Block',
