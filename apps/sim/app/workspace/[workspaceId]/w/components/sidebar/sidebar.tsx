@@ -154,10 +154,10 @@ export function Sidebar() {
         {/* Workflows Section */}
         <div className='flex-shrink-0'>
           <div
-            className={`$isCollapsed ? 'justify-center' : '' mb-1 flex items-center justify-between px-2`}
+            className={`${isCollapsed ? 'justify-center' : ''} mb-1 flex items-center justify-between px-2`}
           >
             <h2
-              className={`$isCollapsed ? 'hidden' : '' font-medium text-muted-foreground text-xs`}
+              className={`${isCollapsed ? 'hidden' : ''} font-medium text-muted-foreground text-xs`}
             >
               {isLoading ? <Skeleton className='h-4 w-16' /> : 'Workflows'}
             </h2>
