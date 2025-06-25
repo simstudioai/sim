@@ -451,6 +451,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowDeleted = handler
   }, [])
 
+
+
   return (
     <SocketContext.Provider
       value={{

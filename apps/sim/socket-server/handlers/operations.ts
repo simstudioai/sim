@@ -9,17 +9,7 @@ import type { HandlerDependencies } from './workflow'
 
 const logger = createLogger('OperationsHandlers')
 
-// Enhanced operation ordering for position updates to prevent jagged movement
-function shouldAcceptOperation(operation: any, roomLastModified: number): boolean {
-  // For position updates, preserve client timestamp ordering to prevent jagged movement
-  if (operation.operation === 'update-position' && operation.target === 'block') {
-    // Accept all position updates but preserve client timestamp for ordering
-    return true
-  }
 
-  // Accept all other operations - with normalized tables, conflicts are very unlikely
-  return true
-}
 
 export function setupOperationsHandlers(
   socket: AuthenticatedSocket,
@@ -52,16 +42,7 @@ export function setupOperationsHandlers(
       const validatedOperation = WorkflowOperationSchema.parse(data)
       const { operation, target, payload, timestamp } = validatedOperation
 
-      if (!shouldAcceptOperation(validatedOperation, room.lastModified)) {
-        socket.emit('operation-rejected', {
-          type: 'OPERATION_REJECTED',
-          message: 'Operation rejected',
-          operation,
-          target,
-          serverTimestamp: Date.now(),
-        })
-        return
-      }
+
 
       // Check operation permissions
       const permissionCheck = await verifyOperationPermission(

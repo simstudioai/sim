@@ -94,7 +94,7 @@ export function setupWorkflowHandlers(
       const workflowState = await getWorkflowState(workflowId)
       socket.emit('workflow-state', workflowState)
 
-      // Send complete presence list to all users in the room (including the new user)
+      // Broadcast updated presence list to all users in the room
       roomManager.broadcastPresenceUpdate(workflowId)
 
       logger.info(
@@ -146,4 +146,6 @@ export function setupWorkflowHandlers(
       logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
     }
   })
+
+
 }
