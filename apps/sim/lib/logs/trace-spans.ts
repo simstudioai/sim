@@ -1,4 +1,4 @@
-import type { TraceSpan } from '@/app/w/logs/stores/types'
+import type { TraceSpan } from '@/app/workspace/[workspaceId]/logs/stores/types'
 import type { ExecutionResult } from '@/executor/types'
 
 // Helper function to build a tree of trace spans from execution logs

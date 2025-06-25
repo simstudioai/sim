@@ -5,7 +5,6 @@ import { API_ENDPOINTS } from '@/stores/constants'
 
 const logger = createLogger('useWorkspacePermissions')
 
-// Use the enum from the database schema for type safety
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 export interface WorkspaceUser {

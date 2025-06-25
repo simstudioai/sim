@@ -2,7 +2,10 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
+import {
+  type ConnectedBlock,
+  useBlockConnections,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-connections'
 import { getBlock } from '@/blocks'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'

@@ -21,7 +21,7 @@ function Footer() {
     if (typeof window !== 'undefined') {
       // Check if user has an active session
       if (isAuthenticated) {
-        router.push('/w')
+        router.push('/workspace')
       } else {
         // Check if user has logged in before
         const hasLoggedInBefore =

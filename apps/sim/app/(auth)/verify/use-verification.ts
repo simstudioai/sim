@@ -148,7 +148,7 @@ export function useVerification({
             router.push(redirectUrl)
           } else {
             // Default redirect to dashboard
-            router.push('/w')
+            router.push('/workspace')
           }
         }, 2000)
       } else {
@@ -233,7 +233,7 @@ export function useVerification({
       if (isDevOrDocker || !hasResendKey) {
         setIsVerified(true)
         const timeoutId = setTimeout(() => {
-          router.push('/w')
+          router.push('/workspace')
         }, 1000)
 
         return () => clearTimeout(timeoutId)

@@ -9,7 +9,6 @@ import { useNotificationStore } from './notifications/store'
 import { useConsoleStore } from './panel/console/store'
 import { useVariablesStore } from './panel/variables/store'
 import { useEnvironmentStore } from './settings/environment/store'
-// Removed sync system imports - Socket.IO handles real-time sync
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
@@ -40,12 +39,6 @@ async function initializeApplication(): Promise<void> {
 
     // Load custom tools from server
     await useCustomToolsStore.getState().loadCustomTools()
-
-    // Extract workflow ID from URL for smart workspace selection
-    const workflowIdFromUrl = extractWorkflowIdFromUrl()
-
-    // Load workspace based on workflow ID in URL, with fallback to last active workspace
-    await useWorkflowRegistry.getState().loadWorkspaceFromWorkflowId(workflowIdFromUrl)
 
     // Load workflows from database (replaced sync system)
     await useWorkflowRegistry.getState().loadWorkflows()

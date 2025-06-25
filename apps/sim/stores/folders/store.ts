@@ -71,7 +71,7 @@ interface FolderState {
     color?: string
   }) => Promise<WorkflowFolder>
   updateFolderAPI: (id: string, updates: Partial<WorkflowFolder>) => Promise<WorkflowFolder>
-  deleteFolder: (id: string) => Promise<void>
+  deleteFolder: (id: string, workspaceId: string) => Promise<void>
 
   // Helper functions
   isWorkflowInDeletedSubfolder: (workflow: Workflow, deletedFolderId: string) => boolean
@@ -304,7 +304,7 @@ export const useFolderStore = create<FolderState>()(
         return processedFolder
       },
 
-      deleteFolder: async (id: string) => {
+      deleteFolder: async (id: string, workspaceId: string) => {
         const response = await fetch(`/api/folders/${id}`, { method: 'DELETE' })
 
         if (!response.ok) {
@@ -346,9 +346,9 @@ export const useFolderStore = create<FolderState>()(
           }
         }
 
-        if (workflowRegistry.activeWorkspaceId) {
+        if (workspaceId) {
           // Trigger workflow refresh through registry store
-          await workflowRegistry.switchToWorkspace(workflowRegistry.activeWorkspaceId)
+          await workflowRegistry.switchToWorkspace(workspaceId)
         }
       },
 
