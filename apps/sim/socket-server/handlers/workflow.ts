@@ -146,6 +146,4 @@ export function setupWorkflowHandlers(
       logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
     }
   })
-
-
 }

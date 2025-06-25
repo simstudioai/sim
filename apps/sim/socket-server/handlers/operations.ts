@@ -9,8 +9,6 @@ import type { HandlerDependencies } from './workflow'
 
 const logger = createLogger('OperationsHandlers')
 
-
-
 export function setupOperationsHandlers(
   socket: AuthenticatedSocket,
   deps: HandlerDependencies | RoomManager
@@ -41,8 +39,6 @@ export function setupOperationsHandlers(
     try {
       const validatedOperation = WorkflowOperationSchema.parse(data)
       const { operation, target, payload, timestamp } = validatedOperation
-
-
 
       // Check operation permissions
       const permissionCheck = await verifyOperationPermission(
