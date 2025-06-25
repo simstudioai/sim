@@ -7,6 +7,9 @@ import {
   useWorkspacePermissions,
   type WorkspacePermissions,
 } from '@/hooks/use-workspace-permissions'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('WorkspacePermissionsProvider')
 
 interface WorkspacePermissionsContextType {
   // Raw workspace permissions data
@@ -30,7 +33,10 @@ const WorkspacePermissionsProvider = React.memo<WorkspacePermissionsProviderProp
     const params = useParams()
     const workspaceId = params.workspaceId as string
 
-    // Fetch workspace permissions once
+    if (!workspaceId) {
+      logger.warn('Workspace ID is undefined from params:', params)
+    }
+
     const {
       permissions: workspacePermissions,
       loading: permissionsLoading,
@@ -38,7 +44,6 @@ const WorkspacePermissionsProvider = React.memo<WorkspacePermissionsProviderProp
       updatePermissions,
     } = useWorkspacePermissions(workspaceId)
 
-    // Compute user permissions based on workspace permissions
     const userPermissions = useUserPermissions(
       workspacePermissions,
       permissionsLoading,
