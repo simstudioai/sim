@@ -102,7 +102,7 @@ export function Sidebar() {
         workspaceId: workspaceId || undefined,
         folderId: folderId || undefined,
       })
-      router.push(`/workspace/$workspaceId/w/$id`)
+      router.push(`/workspace/${workspaceId}/w/${id}`)
     } catch (error) {
       logger.error('Error creating workflow:', error)
     }
@@ -179,7 +179,7 @@ export function Sidebar() {
           <NavSection isLoading={isLoading} itemCount={3} isCollapsed={isCollapsed}>
             <NavSection.Item
               icon={<ScrollText className='h-[18px] w-[18px]' />}
-              href={`/workspace/$workspaceId/logs`}
+              href={`/workspace/${workspaceId}/logs`}
               label='Logs'
               active={pathname === `/workspace/${workspaceId}/logs`}
               isCollapsed={isCollapsed}
@@ -188,7 +188,7 @@ export function Sidebar() {
             />
             <NavSection.Item
               icon={<LibraryBig className='h-[18px] w-[18px]' />}
-              href={`/workspace/$workspaceId/knowledge`}
+              href={`/workspace/${workspaceId}/knowledge`}
               label='Knowledge'
               active={pathname === `/workspace/${workspaceId}/knowledge`}
               isCollapsed={isCollapsed}
