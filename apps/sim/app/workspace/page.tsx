@@ -64,7 +64,7 @@ export default function WorkspacePage() {
 
         if (workspaces.length === 0) {
           logger.warn('No workspaces found for user, creating default workspace')
-          
+
           try {
             const createResponse = await fetch('/api/workspaces', {
               method: 'POST',
@@ -77,19 +77,19 @@ export default function WorkspacePage() {
             if (createResponse.ok) {
               const createData = await createResponse.json()
               const newWorkspace = createData.workspace
-              
+
               if (newWorkspace?.id) {
                 logger.info(`Created default workspace: ${newWorkspace.id}`)
                 router.replace(`/workspace/${newWorkspace.id}/w`)
                 return
               }
             }
-            
+
             logger.error('Failed to create default workspace')
           } catch (createError) {
             logger.error('Error creating default workspace:', createError)
           }
-          
+
           // If we can't create a workspace, redirect to login to reset state
           router.replace('/login')
           return

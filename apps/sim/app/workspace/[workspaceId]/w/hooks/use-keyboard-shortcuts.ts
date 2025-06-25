@@ -95,10 +95,10 @@ export function useGlobalShortcuts() {
         ((isMac && event.metaKey) || (!isMac && event.ctrlKey))
       ) {
         event.preventDefault()
-        
+
         const pathParts = window.location.pathname.split('/')
         const workspaceIndex = pathParts.indexOf('workspace')
-        
+
         if (workspaceIndex !== -1 && pathParts[workspaceIndex + 1]) {
           const workspaceId = pathParts[workspaceIndex + 1]
           router.push(`/workspace/${workspaceId}/logs`)
