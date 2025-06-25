@@ -80,26 +80,7 @@ export function useRegistryLoading() {
       return
     }
 
-    // Only create timeout if we're actually loading
-    if (!isLoading) return
-
-    // Create a timeout to clear loading state after max time
-    const timeout = setTimeout(() => {
-      setLoading(false)
-    }, 3000) // 3 second maximum loading time
-
-    // Listen for workflows to be loaded
-    const checkInterval = setInterval(() => {
-      const currentWorkflows = useWorkflowRegistry.getState().workflows
-      if (Object.keys(currentWorkflows).length > 0) {
-        setLoading(false)
-        clearInterval(checkInterval)
-      }
-    }, 200)
-
-    return () => {
-      clearTimeout(timeout)
-      clearInterval(checkInterval)
-    }
+    // The fetch function itself handles setting isLoading to false
+    // No need for manual timeouts or intervals here
   }, [isHydrated, setLoading, workflows, isLoading])
 }
