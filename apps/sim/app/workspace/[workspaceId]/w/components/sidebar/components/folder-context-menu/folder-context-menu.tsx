@@ -14,7 +14,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useFolderStore } from '@/stores/folders/store'
+
+const logger = createLogger('FolderContextMenu')
 
 interface FolderContextMenuProps {
   folderId: string
@@ -78,7 +81,7 @@ export function FolderContextMenu({
       setSubfolderName('')
       setShowSubfolderDialog(false)
     } catch (error) {
-      console.error('Failed to create subfolder:', error)
+      logger.error('Failed to create subfolder:', { error })
     } finally {
       setIsCreating(false)
     }

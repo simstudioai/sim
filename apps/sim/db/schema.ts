@@ -154,6 +154,7 @@ export const workflowBlocks = pgTable(
     enabled: boolean('enabled').notNull().default(true), // Whether block is active
     horizontalHandles: boolean('horizontal_handles').notNull().default(true), // UI layout preference
     isWide: boolean('is_wide').notNull().default(false), // Whether block uses wide layout
+    advancedMode: boolean('advanced_mode').notNull().default(false), // Whether block is in advanced mode
     height: decimal('height').notNull().default('0'), // Custom height override
 
     // Block data (keeping JSON for flexibility as current system does)

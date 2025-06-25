@@ -2,24 +2,17 @@ import type { Edge } from 'reactflow'
 import type { BlockOutput, SubBlockType } from '@/blocks/types'
 import type { DeploymentStatus } from '../registry/types'
 
-// Centralized subflow type system - easy to extend without database changes
 export const SUBFLOW_TYPES = {
   LOOP: 'loop',
   PARALLEL: 'parallel',
-  // Future types can be added here:
-  // CONDITIONAL: 'conditional',
-  // RETRY: 'retry',
-  // BATCH: 'batch',
 } as const
 
 export type SubflowType = (typeof SUBFLOW_TYPES)[keyof typeof SUBFLOW_TYPES]
 
-// Type guard for runtime validation
 export function isValidSubflowType(type: string): type is SubflowType {
   return Object.values(SUBFLOW_TYPES).includes(type as SubflowType)
 }
 
-// Subflow configuration interfaces
 export interface LoopConfig {
   nodes: string[]
   iterations: number
@@ -184,6 +177,7 @@ export interface WorkflowActions {
   toggleBlockHandles: (id: string) => void
   updateBlockName: (id: string, name: string) => void
   toggleBlockWide: (id: string) => void
+  setBlockWide: (id: string, isWide: boolean) => void
   updateBlockHeight: (id: string, height: number) => void
   triggerUpdate: () => void
   updateLoopCount: (loopId: string, count: number) => void

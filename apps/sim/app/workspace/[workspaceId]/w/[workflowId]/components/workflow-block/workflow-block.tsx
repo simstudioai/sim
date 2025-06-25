@@ -9,6 +9,7 @@ import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime, validateName } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -67,11 +68,15 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
   const hasActiveWebhook = useWorkflowStore((state) => state.hasActiveWebhook ?? false)
   const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
-  const toggleBlockAdvancedMode = useWorkflowStore((state) => state.toggleBlockAdvancedMode)
+
+  // Collaborative workflow actions
+  const {
+    collaborativeUpdateBlockName,
+    collaborativeToggleBlockWide,
+    collaborativeToggleBlockAdvancedMode,
+  } = useCollaborativeWorkflow()
 
   // Workflow store actions
-  const updateBlockName = useWorkflowStore((state) => state.updateBlockName)
-  const toggleBlockWide = useWorkflowStore((state) => state.toggleBlockWide)
   const updateBlockHeight = useWorkflowStore((state) => state.updateBlockHeight)
 
   // Execution store
@@ -371,7 +376,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const handleNameSubmit = () => {
     const trimmedName = editedName.trim().slice(0, 18)
     if (trimmedName && trimmedName !== name) {
-      updateBlockName(id, trimmedName)
+      collaborativeUpdateBlockName(id, trimmedName)
     }
     setIsEditing(false)
   }
@@ -622,14 +627,27 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   <Button
                     variant='ghost'
                     size='sm'
-                    onClick={() => toggleBlockAdvancedMode(id)}
-                    className={cn('h-7 p-1 text-gray-500', blockAdvancedMode && 'text-[#701FFC]')}
+                    onClick={() => {
+                      if (userPermissions.canEdit) {
+                        collaborativeToggleBlockAdvancedMode(id)
+                      }
+                    }}
+                    className={cn(
+                      'h-7 p-1 text-gray-500',
+                      blockAdvancedMode && 'text-[#701FFC]',
+                      !userPermissions.canEdit && 'cursor-not-allowed opacity-50'
+                    )}
+                    disabled={!userPermissions.canEdit}
                   >
                     <Code className='h-5 w-5' />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side='top'>
-                  {blockAdvancedMode ? 'Switch to Basic Mode' : 'Switch to Advanced Mode'}
+                  {!userPermissions.canEdit
+                    ? 'Read-only mode'
+                    : blockAdvancedMode
+                      ? 'Switch to Basic Mode'
+                      : 'Switch to Advanced Mode'}
                 </TooltipContent>
               </Tooltip>
             )}
@@ -704,7 +722,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   size='sm'
                   onClick={() => {
                     if (userPermissions.canEdit) {
-                      toggleBlockWide(id)
+                      collaborativeToggleBlockWide(id)
                     }
                   }}
                   className={cn(

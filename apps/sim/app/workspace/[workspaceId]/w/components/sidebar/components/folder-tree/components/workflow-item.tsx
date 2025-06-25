@@ -5,8 +5,11 @@ import clsx from 'clsx'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useFolderStore, useIsWorkflowSelected } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+
+const logger = createLogger('WorkflowItem')
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata

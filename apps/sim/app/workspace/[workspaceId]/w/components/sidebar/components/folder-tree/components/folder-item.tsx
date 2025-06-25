@@ -15,8 +15,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import { FolderContextMenu } from '../../folder-context-menu/folder-context-menu'
+
+const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
   folder: FolderTreeNode
@@ -78,7 +81,7 @@ export function FolderItem({
     try {
       await updateFolderAPI(folderId, { name: newName })
     } catch (error) {
-      console.error('Failed to rename folder:', error)
+      logger.error('Failed to rename folder:', { error })
     }
   }
 
@@ -92,7 +95,7 @@ export function FolderItem({
       await deleteFolder(folder.id, workspaceId)
       setShowDeleteDialog(false)
     } catch (error) {
-      console.error('Failed to delete folder:', error)
+      logger.error('Failed to delete folder:', { error })
     } finally {
       setIsDeleting(false)
     }

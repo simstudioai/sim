@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
-// Skeleton Components
 const SkeletonControlBar = () => {
   return (
     <div className='flex h-16 w-full items-center justify-between border-b bg-background'>

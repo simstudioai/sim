@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ParallelNodeComponent } from './parallel-node'
 
-// Mock dependencies that don't need DOM
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(),
 }))
@@ -16,7 +15,6 @@ vi.mock('@/lib/logs/console-logger', () => ({
   })),
 }))
 
-// Mock ReactFlow components and hooks
 vi.mock('reactflow', () => ({
   Handle: ({ id, type, position }: any) => ({ id, type, position }),
   Position: {
@@ -32,7 +30,6 @@ vi.mock('reactflow', () => ({
   memo: (component: any) => component,
 }))
 
-// Mock React hooks
 vi.mock('react', async () => {
   const actual = await vi.importActual('react')
   return {
@@ -43,7 +40,6 @@ vi.mock('react', async () => {
   }
 })
 
-// Mock UI components
 vi.mock('@/components/ui/button', () => ({
   Button: ({ children, onClick, ...props }: any) => ({ children, onClick, ...props }),
 }))
@@ -52,15 +48,21 @@ vi.mock('@/components/ui/card', () => ({
   Card: ({ children, ...props }: any) => ({ children, ...props }),
 }))
 
-vi.mock('@/components/icons', () => ({
-  StartIcon: ({ className }: any) => ({ className }),
+vi.mock('@/blocks/registry', () => ({
+  getBlock: vi.fn(() => ({
+    name: 'Mock Block',
+    description: 'Mock block description',
+    icon: () => null,
+    subBlocks: [],
+    outputs: {},
+  })),
+  getAllBlocks: vi.fn(() => ({})),
 }))
 
 vi.mock('@/lib/utils', () => ({
   cn: (...classes: any[]) => classes.filter(Boolean).join(' '),
 }))
 
-// Mock the ParallelBadges component
 vi.mock('./components/parallel-badges', () => ({
   ParallelBadges: ({ parallelId }: any) => ({ parallelId }),
 }))
@@ -87,8 +89,6 @@ describe('ParallelNodeComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Mock useWorkflowStore
-
     ;(useWorkflowStore as any).mockImplementation((selector: any) => {
       const state = {
         removeBlock: mockRemoveBlock,
@@ -96,54 +96,33 @@ describe('ParallelNodeComponent', () => {
       return selector(state)
     })
 
-    // Mock getNodes
     mockGetNodes.mockReturnValue([])
   })
 
   describe('Component Definition and Structure', () => {
-    it('should be defined as a function component', () => {
+    it.concurrent('should be defined as a function component', () => {
       expect(ParallelNodeComponent).toBeDefined()
       expect(typeof ParallelNodeComponent).toBe('function')
     })
 
-    it('should have correct display name', () => {
+    it.concurrent('should have correct display name', () => {
       expect(ParallelNodeComponent.displayName).toBe('ParallelNodeComponent')
     })
 
-    it('should be a memoized component', () => {
-      // Since we mocked memo to return the component as-is, we can verify it exists
+    it.concurrent('should be a memoized component', () => {
       expect(ParallelNodeComponent).toBeDefined()
     })
   })
 
   describe('Props Validation and Type Safety', () => {
-    it('should accept NodeProps interface', () => {
-      // Test that the component accepts the correct prop types
-      const validProps = {
-        id: 'test-id',
-        type: 'parallelNode' as const,
-        data: {
-          width: 400,
-          height: 300,
-          state: 'valid' as const,
-        },
-        selected: false,
-        zIndex: 1,
-        isConnectable: true,
-        xPos: 0,
-        yPos: 0,
-        dragging: false,
-      }
-
-      // This tests that TypeScript compilation succeeds with these props
+    it.concurrent('should accept NodeProps interface', () => {
       expect(() => {
-        // We're not calling the component, just verifying the types
         const _component: typeof ParallelNodeComponent = ParallelNodeComponent
         expect(_component).toBeDefined()
       }).not.toThrow()
     })
 
-    it('should handle different data configurations', () => {
+    it.concurrent('should handle different data configurations', () => {
       const configurations = [
         { width: 500, height: 300, state: 'valid' },
         { width: 800, height: 600, state: 'invalid' },
@@ -162,11 +141,9 @@ describe('ParallelNodeComponent', () => {
   })
 
   describe('Store Integration', () => {
-    it('should integrate with workflow store', () => {
-      // Test that the component uses the store correctly
+    it.concurrent('should integrate with workflow store', () => {
       expect(useWorkflowStore).toBeDefined()
 
-      // Verify the store selector function works
       const mockState = { removeBlock: mockRemoveBlock }
       const selector = vi.fn((state) => state.removeBlock)
 
@@ -177,19 +154,17 @@ describe('ParallelNodeComponent', () => {
       expect(selector(mockState)).toBe(mockRemoveBlock)
     })
 
-    it('should handle removeBlock function', () => {
+    it.concurrent('should handle removeBlock function', () => {
       expect(mockRemoveBlock).toBeDefined()
       expect(typeof mockRemoveBlock).toBe('function')
 
-      // Test calling removeBlock
       mockRemoveBlock('test-id')
       expect(mockRemoveBlock).toHaveBeenCalledWith('test-id')
     })
   })
 
   describe('Component Logic Tests', () => {
-    it('should handle nesting level calculation logic', () => {
-      // Test the nesting level calculation logic (same as loop node)
+    it.concurrent('should handle nesting level calculation logic', () => {
       const testCases = [
         { nodes: [], parentId: undefined, expectedLevel: 0 },
         { nodes: [{ id: 'parent', data: {} }], parentId: 'parent', expectedLevel: 1 },
@@ -206,7 +181,6 @@ describe('ParallelNodeComponent', () => {
       testCases.forEach(({ nodes, parentId, expectedLevel }) => {
         mockGetNodes.mockReturnValue(nodes)
 
-        // Simulate the nesting level calculation logic
         let level = 0
         let currentParentId = parentId
 
@@ -221,8 +195,7 @@ describe('ParallelNodeComponent', () => {
       })
     })
 
-    it('should handle nested styles generation for parallel nodes', () => {
-      // Test the nested styles logic with parallel-specific colors
+    it.concurrent('should handle nested styles generation for parallel nodes', () => {
       const testCases = [
         { nestingLevel: 0, state: 'valid', expectedBg: 'rgba(254,225,43,0.05)' },
         { nestingLevel: 0, state: 'invalid', expectedBg: 'transparent' },
@@ -231,7 +204,6 @@ describe('ParallelNodeComponent', () => {
       ]
 
       testCases.forEach(({ nestingLevel, state, expectedBg }) => {
-        // Simulate the getNestedStyles logic for parallel nodes
         const styles: Record<string, string> = {
           backgroundColor: state === 'valid' ? 'rgba(254,225,43,0.05)' : 'transparent',
         }
@@ -248,14 +220,13 @@ describe('ParallelNodeComponent', () => {
   })
 
   describe('Parallel-Specific Features', () => {
-    it('should handle parallel execution states', () => {
+    it.concurrent('should handle parallel execution states', () => {
       const parallelStates = ['valid', 'invalid', 'executing', 'completed', 'pending']
 
       parallelStates.forEach((state) => {
         const data = { width: 500, height: 300, state }
         expect(data.state).toBe(state)
 
-        // Test parallel-specific state handling
         const isExecuting = state === 'executing'
         const isCompleted = state === 'completed'
 
@@ -264,8 +235,7 @@ describe('ParallelNodeComponent', () => {
       })
     })
 
-    it('should handle parallel node color scheme', () => {
-      // Test that parallel nodes use yellow color scheme
+    it.concurrent('should handle parallel node color scheme', () => {
       const parallelColors = {
         background: 'rgba(254,225,43,0.05)',
         ring: '#FEE12B',
@@ -277,8 +247,7 @@ describe('ParallelNodeComponent', () => {
       expect(parallelColors.startIcon).toBe('#FEE12B')
     })
 
-    it('should differentiate from loop node styling', () => {
-      // Ensure parallel nodes have different styling than loop nodes
+    it.concurrent('should differentiate from loop node styling', () => {
       const loopColors = {
         background: 'rgba(34,197,94,0.05)',
         ring: '#2FB3FF',
@@ -298,7 +267,7 @@ describe('ParallelNodeComponent', () => {
   })
 
   describe('Component Configuration', () => {
-    it('should handle different dimensions', () => {
+    it.concurrent('should handle different dimensions', () => {
       const dimensionTests = [
         { width: 500, height: 300 },
         { width: 800, height: 600 },
@@ -313,7 +282,7 @@ describe('ParallelNodeComponent', () => {
       })
     })
 
-    it('should handle different states', () => {
+    it.concurrent('should handle different states', () => {
       const stateTests = ['valid', 'invalid', 'pending', 'executing', 'completed']
 
       stateTests.forEach((state) => {
@@ -324,12 +293,11 @@ describe('ParallelNodeComponent', () => {
   })
 
   describe('Event Handling Logic', () => {
-    it('should handle delete button click logic', () => {
+    it.concurrent('should handle delete button click logic', () => {
       const mockEvent = {
         stopPropagation: vi.fn(),
       }
 
-      // Simulate the delete button click handler
       const handleDelete = (e: any, nodeId: string) => {
         e.stopPropagation()
         mockRemoveBlock(nodeId)
@@ -341,19 +309,18 @@ describe('ParallelNodeComponent', () => {
       expect(mockRemoveBlock).toHaveBeenCalledWith('test-id')
     })
 
-    it('should handle event propagation prevention', () => {
+    it.concurrent('should handle event propagation prevention', () => {
       const mockEvent = {
         stopPropagation: vi.fn(),
       }
 
-      // Test that stopPropagation is called
       mockEvent.stopPropagation()
       expect(mockEvent.stopPropagation).toHaveBeenCalled()
     })
   })
 
   describe('Component Data Handling', () => {
-    it('should handle missing data properties gracefully', () => {
+    it.concurrent('should handle missing data properties gracefully', () => {
       const testCases = [
         undefined,
         {},
@@ -375,7 +342,7 @@ describe('ParallelNodeComponent', () => {
       })
     })
 
-    it('should handle parent ID relationships', () => {
+    it.concurrent('should handle parent ID relationships', () => {
       const testCases = [
         { parentId: undefined, hasParent: false },
         { parentId: 'parent-1', hasParent: true },
@@ -390,7 +357,7 @@ describe('ParallelNodeComponent', () => {
   })
 
   describe('Handle Configuration', () => {
-    it('should have correct handle IDs for parallel nodes', () => {
+    it.concurrent('should have correct handle IDs for parallel nodes', () => {
       const handleIds = {
         startSource: 'parallel-start-source',
         endSource: 'parallel-end-source',
@@ -402,7 +369,7 @@ describe('ParallelNodeComponent', () => {
       expect(handleIds.endSource).not.toContain('loop')
     })
 
-    it('should handle different handle positions', () => {
+    it.concurrent('should handle different handle positions', () => {
       const positions = {
         left: 'left',
         right: 'right',
@@ -418,7 +385,7 @@ describe('ParallelNodeComponent', () => {
   })
 
   describe('Edge Cases and Error Handling', () => {
-    it('should handle circular parent references', () => {
+    it.concurrent('should handle circular parent references', () => {
       // Test circular reference prevention
       const nodes = [
         { id: 'node1', data: { parentId: 'node2' } },
@@ -456,7 +423,7 @@ describe('ParallelNodeComponent', () => {
       expect(visited.has('node2')).toBe(true)
     })
 
-    it('should handle complex circular reference chains', () => {
+    it.concurrent('should handle complex circular reference chains', () => {
       // Test more complex circular reference scenarios
       const nodes = [
         { id: 'node1', data: { parentId: 'node2' } },
@@ -489,7 +456,7 @@ describe('ParallelNodeComponent', () => {
       expect(visited.size).toBe(3)
     })
 
-    it('should handle self-referencing nodes', () => {
+    it.concurrent('should handle self-referencing nodes', () => {
       // Test node that references itself
       const nodes = [
         { id: 'node1', data: { parentId: 'node1' } }, // Self-reference
@@ -520,7 +487,7 @@ describe('ParallelNodeComponent', () => {
       expect(visited.has('node1')).toBe(true)
     })
 
-    it('should handle extreme values', () => {
+    it.concurrent('should handle extreme values', () => {
       const extremeValues = [
         { width: Number.MAX_SAFE_INTEGER, height: Number.MAX_SAFE_INTEGER },
         { width: -1, height: -1 },
@@ -538,7 +505,7 @@ describe('ParallelNodeComponent', () => {
       })
     })
 
-    it('should handle negative position values', () => {
+    it.concurrent('should handle negative position values', () => {
       const positions = [
         { xPos: -100, yPos: -200 },
         { xPos: 0, yPos: 0 },
@@ -556,7 +523,7 @@ describe('ParallelNodeComponent', () => {
   })
 
   describe('Component Comparison with Loop Node', () => {
-    it('should have similar structure to loop node but different type', () => {
+    it.concurrent('should have similar structure to loop node but different type', () => {
       expect(defaultProps.type).toBe('parallelNode')
       expect(defaultProps.id).toContain('parallel')
 
@@ -565,7 +532,7 @@ describe('ParallelNodeComponent', () => {
       expect(defaultProps.id).not.toContain('loop')
     })
 
-    it('should handle the same prop structure as loop node', () => {
+    it.concurrent('should handle the same prop structure as loop node', () => {
       // Test that parallel node accepts the same prop structure as loop node
       const sharedPropStructure = {
         id: 'test-parallel',
@@ -594,8 +561,7 @@ describe('ParallelNodeComponent', () => {
       expect(sharedPropStructure.data.height).toBe(300)
     })
 
-    it('should maintain consistency with loop node interface', () => {
-      // Both components should accept the same base props
+    it.concurrent('should maintain consistency with loop node interface', () => {
       const baseProps = [
         'id',
         'type',

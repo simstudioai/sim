@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { LoopNodeComponent } from './loop-node'
 
-// Mock dependencies that don't need DOM
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(),
 }))
@@ -16,7 +15,6 @@ vi.mock('@/lib/logs/console-logger', () => ({
   })),
 }))
 
-// Mock ReactFlow components and hooks
 vi.mock('reactflow', () => ({
   Handle: ({ id, type, position }: any) => ({ id, type, position }),
   Position: {
@@ -32,7 +30,6 @@ vi.mock('reactflow', () => ({
   memo: (component: any) => component,
 }))
 
-// Mock React hooks
 vi.mock('react', async () => {
   const actual = await vi.importActual('react')
   return {
@@ -43,7 +40,6 @@ vi.mock('react', async () => {
   }
 })
 
-// Mock UI components
 vi.mock('@/components/ui/button', () => ({
   Button: ({ children, onClick, ...props }: any) => ({ children, onClick, ...props }),
 }))
@@ -60,7 +56,6 @@ vi.mock('@/lib/utils', () => ({
   cn: (...classes: any[]) => classes.filter(Boolean).join(' '),
 }))
 
-// Mock the LoopBadges component
 vi.mock('./components/loop-badges', () => ({
   LoopBadges: ({ loopId }: any) => ({ loopId }),
 }))
@@ -87,8 +82,6 @@ describe('LoopNodeComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Mock useWorkflowStore
-
     ;(useWorkflowStore as any).mockImplementation((selector: any) => {
       const state = {
         removeBlock: mockRemoveBlock,
@@ -96,7 +89,6 @@ describe('LoopNodeComponent', () => {
       return selector(state)
     })
 
-    // Mock getNodes
     mockGetNodes.mockReturnValue([])
   })
 
@@ -111,14 +103,12 @@ describe('LoopNodeComponent', () => {
     })
 
     it('should be a memoized component', () => {
-      // Since we mocked memo to return the component as-is, we can verify it exists
       expect(LoopNodeComponent).toBeDefined()
     })
   })
 
   describe('Props Validation and Type Safety', () => {
     it('should accept NodeProps interface', () => {
-      // Test that the component accepts the correct prop types
       const validProps = {
         id: 'test-id',
         type: 'loopNode' as const,
@@ -135,9 +125,7 @@ describe('LoopNodeComponent', () => {
         dragging: false,
       }
 
-      // This tests that TypeScript compilation succeeds with these props
       expect(() => {
-        // We're not calling the component, just verifying the types
         const _component: typeof LoopNodeComponent = LoopNodeComponent
         expect(_component).toBeDefined()
       }).not.toThrow()
@@ -163,10 +151,8 @@ describe('LoopNodeComponent', () => {
 
   describe('Store Integration', () => {
     it('should integrate with workflow store', () => {
-      // Test that the component uses the store correctly
       expect(useWorkflowStore).toBeDefined()
 
-      // Verify the store selector function works
       const mockState = { removeBlock: mockRemoveBlock }
       const selector = vi.fn((state) => state.removeBlock)
 
@@ -181,7 +167,6 @@ describe('LoopNodeComponent', () => {
       expect(mockRemoveBlock).toBeDefined()
       expect(typeof mockRemoveBlock).toBe('function')
 
-      // Test calling removeBlock
       mockRemoveBlock('test-id')
       expect(mockRemoveBlock).toHaveBeenCalledWith('test-id')
     })
@@ -189,7 +174,6 @@ describe('LoopNodeComponent', () => {
 
   describe('Component Logic Tests', () => {
     it('should handle nesting level calculation logic', () => {
-      // Test the nesting level calculation logic
       const testCases = [
         { nodes: [], parentId: undefined, expectedLevel: 0 },
         { nodes: [{ id: 'parent', data: {} }], parentId: 'parent', expectedLevel: 1 },

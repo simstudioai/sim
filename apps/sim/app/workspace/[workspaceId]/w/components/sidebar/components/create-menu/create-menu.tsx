@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { logger } from '@sentry/nextjs'
 import { File, Folder, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -49,7 +50,7 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
       setFolderName('')
       setShowFolderDialog(false)
     } catch (error) {
-      console.error('Failed to create folder:', error)
+      logger.error('Failed to create folder:', { error })
     } finally {
       setIsCreating(false)
     }

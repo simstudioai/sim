@@ -103,7 +103,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     workflows,
     updateWorkflow,
     activeWorkflowId,
-
     removeWorkflow,
     duplicateWorkflow,
     setDeploymentStatus,
@@ -116,7 +115,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   // Get current workflow and workspace ID for permissions
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
-  // User permissions
+  // User permissions - use stable activeWorkspaceId from registry instead of deriving from currentWorkflow
   const userPermissions = useUserPermissionsContext()
 
   // Debug mode state

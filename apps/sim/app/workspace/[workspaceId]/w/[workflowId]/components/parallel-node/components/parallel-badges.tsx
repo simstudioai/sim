@@ -82,33 +82,12 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
     (newType: 'count' | 'collection') => {
       if (isPreview) return // Don't allow changes in preview mode
 
-      // Update the parallel type using collaborative function - this will persist to database
+      // Use single collaborative function that handles all the state changes atomically
       collaborativeUpdateParallelType(nodeId, newType)
-
-      // Reset values based on type
-      if (newType === 'count') {
-        collaborativeUpdateParallelCollection(nodeId, '')
-        collaborativeUpdateParallelCount(nodeId, iterations)
-      } else {
-        collaborativeUpdateParallelCount(nodeId, 1)
-        const collectionValue =
-          typeof editorValue === 'string'
-            ? editorValue || '[]'
-            : JSON.stringify(editorValue) || '[]'
-        collaborativeUpdateParallelCollection(nodeId, collectionValue)
-      }
 
       setTypePopoverOpen(false)
     },
-    [
-      nodeId,
-      iterations,
-      editorValue,
-      collaborativeUpdateParallelCount,
-      collaborativeUpdateParallelCollection,
-      collaborativeUpdateParallelType,
-      isPreview,
-    ]
+    [nodeId, collaborativeUpdateParallelType, isPreview]
   )
 
   // Handle iterations input change

@@ -85,6 +85,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
 
+  // Connection state tracking
+  const reconnectCount = useRef(0)
+
   // Use refs to store event handlers to avoid stale closures
   const eventHandlers = useRef<{
     workflowOperation?: (data: any) => void
@@ -127,10 +130,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         const socketInstance = io(socketUrl, {
-          transports: ['polling', 'websocket'],
+          transports: ['websocket', 'polling'], // Keep polling fallback for reliability
           withCredentials: true,
-          reconnectionAttempts: 5,
-          timeout: 10000,
+          reconnectionAttempts: 5, // Back to original conservative setting
+          timeout: 10000, // Back to original timeout
           auth: {
             token, // Send one-time token for authentication
           },
@@ -140,17 +143,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('connect', () => {
           setIsConnected(true)
           setIsConnecting(false)
+          reconnectCount.current = 0
+
           logger.info('Socket connected successfully', {
             socketId: socketInstance.id,
             connected: socketInstance.connected,
             transport: socketInstance.io.engine?.transport?.name,
+            reconnectCount: reconnectCount.current,
           })
         })
 
         socketInstance.on('disconnect', (reason) => {
           setIsConnected(false)
           setIsConnecting(false)
-          logger.info('Socket disconnected', { reason })
+
+          logger.info('Socket disconnected', {
+            reason,
+            reconnectCount: reconnectCount.current,
+          })
 
           // Clear presence when disconnected
           setPresenceUsers([])
@@ -169,7 +179,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         // Add reconnection logging
         socketInstance.on('reconnect', (attemptNumber) => {
-          logger.info('Socket reconnected', { attemptNumber })
+          reconnectCount.current = attemptNumber
+          logger.info('Socket reconnected', {
+            attemptNumber,
+          })
         })
 
         socketInstance.on('reconnect_attempt', (attemptNumber) => {
@@ -189,15 +202,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setPresenceUsers(users)
         })
 
-        socketInstance.on('user-joined', (userData) => {
-          setPresenceUsers((prev) => [...prev, userData])
-          eventHandlers.current.userJoined?.(userData)
-        })
-
-        socketInstance.on('user-left', ({ userId, socketId }) => {
-          setPresenceUsers((prev) => prev.filter((u) => u.socketId !== socketId))
-          eventHandlers.current.userLeft?.({ userId, socketId })
-        })
+        // Note: user-joined and user-left events removed in favor of authoritative presence-update
 
         // Workflow operation events
         socketInstance.on('workflow-operation', (data) => {
@@ -276,6 +281,15 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
     // Start the socket initialization
     initializeSocket()
+
+    // Cleanup on unmount
+    return () => {
+      positionUpdateTimeouts.current.forEach((timeoutId) => {
+        clearTimeout(timeoutId)
+      })
+      positionUpdateTimeouts.current.clear()
+      pendingPositionUpdates.current.clear()
+    }
   }, [user?.id])
 
   // Join workflow room
@@ -299,13 +313,55 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       socket.emit('leave-workflow')
       setCurrentWorkflowId(null)
       setPresenceUsers([])
+
+      // Clean up any pending position updates
+      positionUpdateTimeouts.current.forEach((timeoutId) => {
+        clearTimeout(timeoutId)
+      })
+      positionUpdateTimeouts.current.clear()
+      pendingPositionUpdates.current.clear()
     }
   }, [socket, currentWorkflowId])
+
+  // Light throttling for position updates to ensure smooth collaborative movement
+  const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
+  const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
 
   // Emit workflow operations (blocks, edges, subflows)
   const emitWorkflowOperation = useCallback(
     (operation: string, target: string, payload: any) => {
-      if (socket && currentWorkflowId) {
+      if (!socket || !currentWorkflowId) return
+
+      // Apply light throttling only to position updates for smooth collaborative experience
+      const isPositionUpdate = operation === 'update-position' && target === 'block'
+
+      if (isPositionUpdate && payload.id) {
+        const blockId = payload.id
+
+        // Store the latest position update
+        pendingPositionUpdates.current.set(blockId, {
+          operation,
+          target,
+          payload,
+          timestamp: Date.now(),
+        })
+
+        // Check if we already have a pending timeout for this block
+        if (!positionUpdateTimeouts.current.has(blockId)) {
+          // Schedule emission with light throttling (120fps = ~8ms)
+          const timeoutId = window.setTimeout(() => {
+            const latestUpdate = pendingPositionUpdates.current.get(blockId)
+            if (latestUpdate) {
+              socket.emit('workflow-operation', latestUpdate)
+              pendingPositionUpdates.current.delete(blockId)
+            }
+            positionUpdateTimeouts.current.delete(blockId)
+          }, 8) // 120fps for smooth movement
+
+          positionUpdateTimeouts.current.set(blockId, timeoutId)
+        }
+      } else {
+        // For all non-position updates, emit immediately
         socket.emit('workflow-operation', {
           operation,
           target,
@@ -340,11 +396,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     [socket, currentWorkflowId]
   )
 
-  // Emit cursor position updates
+  // Minimal cursor throttling (reduced from 30fps to 120fps)
+  const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
     (cursor: { x: number; y: number }) => {
       if (socket && currentWorkflowId) {
-        socket.emit('cursor-update', { cursor })
+        const now = performance.now()
+        // Very light throttling at 120fps (8ms) to prevent excessive spam
+        if (now - lastCursorEmit.current >= 8) {
+          socket.emit('cursor-update', { cursor })
+          lastCursorEmit.current = now
+        }
       }
     },
     [socket, currentWorkflowId]

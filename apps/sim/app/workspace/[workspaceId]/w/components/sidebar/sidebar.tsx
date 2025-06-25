@@ -102,7 +102,7 @@ export function Sidebar() {
         workspaceId: workspaceId || undefined,
         folderId: folderId || undefined,
       })
-      router.push(`/workspace/${workspaceId}/w/${id}`)
+      router.push(`/workspace/$workspaceId/w/$id`)
     } catch (error) {
       logger.error('Error creating workflow:', error)
     }
@@ -154,10 +154,10 @@ export function Sidebar() {
         {/* Workflows Section */}
         <div className='flex-shrink-0'>
           <div
-            className={`mb-1 flex items-center justify-between px-2 ${isCollapsed ? 'justify-center' : ''}`}
+            className={`$isCollapsed ? 'justify-center' : '' mb-1 flex items-center justify-between px-2`}
           >
             <h2
-              className={`font-medium text-muted-foreground text-xs ${isCollapsed ? 'hidden' : ''}`}
+              className={`$isCollapsed ? 'hidden' : '' font-medium text-muted-foreground text-xs`}
             >
               {isLoading ? <Skeleton className='h-4 w-16' /> : 'Workflows'}
             </h2>
@@ -179,7 +179,7 @@ export function Sidebar() {
           <NavSection isLoading={isLoading} itemCount={3} isCollapsed={isCollapsed}>
             <NavSection.Item
               icon={<ScrollText className='h-[18px] w-[18px]' />}
-              href={`/workspace/${workspaceId}/logs`}
+              href={`/workspace/$workspaceId/logs`}
               label='Logs'
               active={pathname === `/workspace/${workspaceId}/logs`}
               isCollapsed={isCollapsed}
@@ -188,7 +188,7 @@ export function Sidebar() {
             />
             <NavSection.Item
               icon={<LibraryBig className='h-[18px] w-[18px]' />}
-              href={`/workspace/${workspaceId}/knowledge`}
+              href={`/workspace/$workspaceId/knowledge`}
               label='Knowledge'
               active={pathname === `/workspace/${workspaceId}/knowledge`}
               isCollapsed={isCollapsed}

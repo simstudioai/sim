@@ -40,6 +40,17 @@ vi.mock('@/stores/execution/store', () => ({
   },
 }))
 
+vi.mock('@/blocks/registry', () => ({
+  getBlock: vi.fn(() => ({
+    name: 'Mock Block',
+    description: 'Mock block description',
+    icon: () => null,
+    subBlocks: [],
+    outputs: {},
+  })),
+  getAllBlocks: vi.fn(() => ({})),
+}))
+
 const originalConsoleError = console.error
 const originalConsoleWarn = console.warn
 

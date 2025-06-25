@@ -149,17 +149,10 @@ export function getAllWorkflowsWithValues() {
   return result
 }
 
-// Removed syncWorkflows - Socket.IO handles real-time sync automatically
-
-// Workflows store exports - localStorage persistence removed
-
 export { useWorkflowRegistry } from './registry/store'
 export type { WorkflowMetadata } from './registry/types'
 export { useSubBlockStore } from './subblock/store'
 export type { SubBlockStore } from './subblock/types'
-// Re-export utilities
 export { mergeSubblockState } from './utils'
-// Re-export store hooks
 export { useWorkflowStore } from './workflow/store'
-// Re-export types
 export type { WorkflowState } from './workflow/types'

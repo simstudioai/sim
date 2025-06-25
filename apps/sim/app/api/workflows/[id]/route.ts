@@ -1,21 +1,15 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
-import {
-  workflow,
-  workflowBlocks,
-  workflowEdges,
-  workflowSubflows,
-  workspaceMember,
-} from '@/db/schema'
+import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 
 const logger = createLogger('WorkflowByIdAPI')
 
-// Schema for workflow metadata updates
 const UpdateWorkflowSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   description: z.string().optional(),
@@ -63,20 +57,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       hasAccess = true
     }
 
-    // Case 2: Workflow belongs to a workspace the user is a member of
+    // Case 2: Workflow belongs to a workspace the user has permissions for
     if (!hasAccess && workflowData.workspaceId) {
-      const membership = await db
-        .select({ id: workspaceMember.id })
-        .from(workspaceMember)
-        .where(
-          and(
-            eq(workspaceMember.workspaceId, workflowData.workspaceId),
-            eq(workspaceMember.userId, userId)
-          )
-        )
-        .then((rows) => rows[0])
-
-      if (membership) {
+      const userPermission = await getUserEntityPermissions(
+        userId,
+        'workspace',
+        workflowData.workspaceId
+      )
+      if (userPermission !== null) {
         hasAccess = true
       }
     }
@@ -182,20 +170,10 @@ export async function DELETE(
       canDelete = true
     }
 
-    // Case 2: Workflow belongs to a workspace and user has admin/owner role
+    // Case 2: Workflow belongs to a workspace and user has admin permission
     if (!canDelete && workflowData.workspaceId) {
-      const membership = await db
-        .select({ role: workspaceMember.role })
-        .from(workspaceMember)
-        .where(
-          and(
-            eq(workspaceMember.workspaceId, workflowData.workspaceId),
-            eq(workspaceMember.userId, userId)
-          )
-        )
-        .then((rows) => rows[0])
-
-      if (membership && (membership.role === 'owner' || membership.role === 'admin')) {
+      const hasAdmin = await hasAdminPermission(userId, workflowData.workspaceId)
+      if (hasAdmin) {
         canDelete = true
       }
     }
@@ -300,20 +278,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       canUpdate = true
     }
 
-    // Case 2: Workflow belongs to a workspace and user has admin/owner role
+    // Case 2: Workflow belongs to a workspace and user has write or admin permission
     if (!canUpdate && workflowData.workspaceId) {
-      const membership = await db
-        .select({ role: workspaceMember.role })
-        .from(workspaceMember)
-        .where(
-          and(
-            eq(workspaceMember.workspaceId, workflowData.workspaceId),
-            eq(workspaceMember.userId, userId)
-          )
-        )
-        .then((rows) => rows[0])
-
-      if (membership && (membership.role === 'owner' || membership.role === 'admin')) {
+      const userPermission = await getUserEntityPermissions(
+        userId,
+        'workspace',
+        workflowData.workspaceId
+      )
+      if (userPermission === 'write' || userPermission === 'admin') {
         canUpdate = true
       }
     }

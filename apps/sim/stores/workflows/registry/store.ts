@@ -4,7 +4,6 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
 import { API_ENDPOINTS } from '../../constants'
 import { useSubBlockStore } from '../subblock/store'
-// Removed fetchWorkflowsFromDB import - moved to local function
 import { useWorkflowStore } from '../workflow/store'
 import type { BlockState } from '../workflow/types'
 import type { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from './types'
@@ -12,7 +11,6 @@ import { generateUniqueName, getNextWorkflowColor } from './utils'
 
 const logger = createLogger('WorkflowRegistry')
 
-// Simplified function to fetch workflows from DB (moved from sync.ts)
 let isFetching = false
 let lastFetchTimestamp = 0
 

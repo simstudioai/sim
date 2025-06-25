@@ -44,6 +44,7 @@ export async function GET(request: Request) {
       'help',
       'support',
       'admin',
+      'qa',
     ]
     if (reservedSubdomains.includes(subdomain)) {
       return NextResponse.json(

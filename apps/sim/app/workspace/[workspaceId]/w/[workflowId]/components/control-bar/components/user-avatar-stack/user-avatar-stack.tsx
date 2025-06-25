@@ -5,7 +5,7 @@ import { usePresence } from '../../../../hooks/use-presence'
 import { UserAvatar } from './components/user-avatar/user-avatar'
 
 interface User {
-  connectionId: number
+  connectionId: string | number
   name?: string
   color?: string
   info?: string
@@ -80,7 +80,7 @@ export function UserAvatarStack({
       {/* Render overflow indicator if there are more users */}
       {overflowCount > 0 && (
         <UserAvatar
-          connectionId={999} // Use a high number for consistent styling
+          connectionId='overflow-indicator' // Use a unique string identifier
           name={`+${overflowCount}`}
           size={size}
           index={visibleUsers.length}

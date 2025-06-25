@@ -4,7 +4,7 @@ import { type CSSProperties, useMemo } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface AvatarProps {
-  connectionId: number
+  connectionId: string | number
   name?: string
   color?: string
   tooltipContent?: React.ReactNode | null
@@ -25,12 +25,18 @@ const APP_COLORS = [
 /**
  * Generate a deterministic gradient based on a connection ID
  */
-function generateGradient(connectionId: number): string {
-  // Use the connection ID to select a color pair from our palette
-  const colorPair = APP_COLORS[connectionId % APP_COLORS.length]
+function generateGradient(connectionId: string | number): string {
+  // Convert connectionId to a number for consistent hashing
+  const numericId =
+    typeof connectionId === 'string'
+      ? Math.abs(connectionId.split('').reduce((a, b) => a + b.charCodeAt(0), 0))
+      : connectionId
+
+  // Use the numeric ID to select a color pair from our palette
+  const colorPair = APP_COLORS[numericId % APP_COLORS.length]
 
   // Add a slight rotation to the gradient based on connection ID for variety
-  const rotation = (connectionId * 25) % 360
+  const rotation = (numericId * 25) % 360
 
   return `linear-gradient(${rotation}deg, ${colorPair.from}, ${colorPair.to})`
 }

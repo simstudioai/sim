@@ -581,6 +581,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           // workflowValues: {[block_id]:{[subblock_id]:[subblock_value]}}
           const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
           const updatedWorkflowValues = { ...workflowValues }
+          const changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }> = []
 
           // Loop through blocks
           Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
@@ -593,11 +594,17 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
 
               // Use a recursive function to handle all object types
-              updatedWorkflowValues[blockId][subBlockId] = updateReferences(
-                value,
-                regex,
-                `<${newBlockName}.`
-              )
+              const updatedValue = updateReferences(value, regex, `<${newBlockName}.`)
+
+              // Check if the value actually changed
+              if (JSON.stringify(updatedValue) !== JSON.stringify(value)) {
+                updatedWorkflowValues[blockId][subBlockId] = updatedValue
+                changedSubblocks.push({
+                  blockId,
+                  subBlockId,
+                  newValue: updatedValue,
+                })
+              }
 
               // Helper function to recursively update references in any data structure
               function updateReferences(value: any, regex: RegExp, replacement: string): any {
@@ -633,6 +640,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               [activeWorkflowId]: updatedWorkflowValues,
             },
           })
+
+          // Store changed subblocks for collaborative sync
+          if (changedSubblocks.length > 0) {
+            // Store the changed subblocks for the collaborative function to pick up
+            ;(window as any).__pendingSubblockUpdates = changedSubblocks
+          }
         }
 
         set(newState)
@@ -648,6 +661,38 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             [id]: {
               ...state.blocks[id],
               isWide: !state.blocks[id].isWide,
+            },
+          },
+          edges: [...state.edges],
+          loops: { ...state.loops },
+        }))
+        get().updateLastSaved()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
+      setBlockWide: (id: string, isWide: boolean) => {
+        set((state) => ({
+          blocks: {
+            ...state.blocks,
+            [id]: {
+              ...state.blocks[id],
+              isWide,
+            },
+          },
+          edges: [...state.edges],
+          loops: { ...state.loops },
+        }))
+        get().updateLastSaved()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
+      setBlockAdvancedMode: (id: string, advancedMode: boolean) => {
+        set((state) => ({
+          blocks: {
+            ...state.blocks,
+            [id]: {
+              ...state.blocks[id],
+              advancedMode,
             },
           },
           edges: [...state.edges],
