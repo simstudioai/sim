@@ -1,10 +1,11 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { workflow, workspaceMember } from '@/db/schema'
+import { workflow } from '@/db/schema'
 import type { Variable } from '@/stores/panel/variables/types'
 
 const logger = createLogger('WorkflowVariablesAPI')
@@ -47,23 +48,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const workflowData = workflowRecord[0]
     const workspaceId = workflowData.workspaceId
 
-    // Check authorization - either the user owns the workflow or is a member of the workspace
+    // Check authorization - either the user owns the workflow or has workspace permissions
     let isAuthorized = workflowData.userId === session.user.id
 
-    // If not authorized by ownership and the workflow belongs to a workspace, check workspace membership
+    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
     if (!isAuthorized && workspaceId) {
-      const membership = await db
-        .select()
-        .from(workspaceMember)
-        .where(
-          and(
-            eq(workspaceMember.workspaceId, workspaceId),
-            eq(workspaceMember.userId, session.user.id)
-          )
-        )
-        .limit(1)
-
-      isAuthorized = membership.length > 0
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
+      )
+      isAuthorized = userPermission !== null
     }
 
     if (!isAuthorized) {
@@ -151,23 +146,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const workflowData = workflowRecord[0]
     const workspaceId = workflowData.workspaceId
 
-    // Check authorization - either the user owns the workflow or is a member of the workspace
+    // Check authorization - either the user owns the workflow or has workspace permissions
     let isAuthorized = workflowData.userId === session.user.id
 
-    // If not authorized by ownership and the workflow belongs to a workspace, check workspace membership
+    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
     if (!isAuthorized && workspaceId) {
-      const membership = await db
-        .select()
-        .from(workspaceMember)
-        .where(
-          and(
-            eq(workspaceMember.workspaceId, workspaceId),
-            eq(workspaceMember.userId, session.user.id)
-          )
-        )
-        .limit(1)
-
-      isAuthorized = membership.length > 0
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
+      )
+      isAuthorized = userPermission !== null
     }
 
     if (!isAuthorized) {
@@ -181,9 +170,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const variables = (workflowData.variables as Record<string, Variable>) || {}
 
     // Add cache headers to prevent frequent reloading
+    const variableHash = JSON.stringify(variables).length
     const headers = new Headers({
-      'Cache-Control': 'max-age=60, stale-while-revalidate=300', // Cache for 1 minute, stale for 5
-      ETag: `"${requestId}-${Object.keys(variables).length}"`,
+      'Cache-Control': 'max-age=30, stale-while-revalidate=300', // Cache for 30 seconds, stale for 5 min
+      ETag: `"variables-${workflowId}-${variableHash}"`,
     })
 
     return NextResponse.json(

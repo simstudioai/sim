@@ -841,16 +841,15 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
-      // Reset variables loaded state before setting active workflow
-      resetVariablesLoaded()
-
       // Always call setActiveWorkflow when workflow ID changes to ensure proper state
       const { activeWorkflowId } = useWorkflowRegistry.getState()
 
       if (activeWorkflowId !== currentId) {
+        // Only reset variables when actually switching workflows
+        resetVariablesLoaded()
         setActiveWorkflow(currentId)
       } else {
-        // Even if the workflow is already active, call setActiveWorkflow to ensure state consistency
+        // Don't reset variables cache if we're not actually switching workflows
         setActiveWorkflow(currentId)
       }
 
