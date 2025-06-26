@@ -1,7 +1,7 @@
 'use client'
 
-import { SocketProvider } from '@/contexts/socket-context'
 import { useSession } from '@/lib/auth-client'
+import { SocketProvider } from '@/contexts/socket-context'
 
 interface WorkspaceRootLayoutProps {
   children: React.ReactNode
@@ -18,9 +18,5 @@ export default function WorkspaceRootLayout({ children }: WorkspaceRootLayoutPro
       }
     : undefined
 
-  return (
-    <SocketProvider user={user}>
-      {children}
-    </SocketProvider>
-  )
+  return <SocketProvider user={user}>{children}</SocketProvider>
 }
