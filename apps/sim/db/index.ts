@@ -1,4 +1,4 @@
-import { PostgresJsDatabase, drizzle } from 'drizzle-orm/postgres-js'
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/lib/env'
 import * as schema from './schema'
@@ -13,7 +13,7 @@ const drizzleClient = drizzle(
     idle_timeout: 30, // Keep connections alive for 30 seconds when idle
     connect_timeout: 30, // Timeout after 30 seconds when connecting
   }),
-  { schema },
+  { schema }
 )
 
 declare global {
