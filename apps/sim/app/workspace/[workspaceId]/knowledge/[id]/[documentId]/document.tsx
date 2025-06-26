@@ -26,6 +26,7 @@ import { CreateChunkModal } from './components/create-chunk-modal/create-chunk-m
 import { DeleteChunkModal } from './components/delete-chunk-modal/delete-chunk-modal'
 import { DocumentLoading } from './components/document-loading'
 import { EditChunkModal } from './components/edit-chunk-modal/edit-chunk-modal'
+import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('Document')
 
@@ -61,6 +62,8 @@ export function Document({
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+  const debouncedSearchQuery = useDebounce(searchQuery, 500)
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -72,6 +75,12 @@ export function Document({
   const [document, setDocument] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Clear search when user clicks the X button
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('')
+    setIsSearching(false)
+  }, [])
 
   // Use the updated chunks hook with pagination
   const {
@@ -86,6 +95,7 @@ export function Document({
     nextPage,
     prevPage,
     refreshChunks,
+    searchChunks,
     updateChunk,
   } = useDocumentChunks(knowledgeBaseId, documentId)
 
@@ -161,6 +171,38 @@ export function Document({
         setIsLoadingDocument(false)
       }
     }
+
+    // Handle search with debouncing
+  useEffect(() => {
+    if (document?.processingStatus !== 'completed') return
+    
+    const performSearch = async () => {
+      // Clear search - refresh all chunks
+      if (debouncedSearchQuery.trim() === '') {
+        try {
+          setIsSearching(false)
+          await refreshChunks()
+        } catch (err) {
+          logger.error('Failed to refresh chunks:', err)
+        }
+        return
+      }
+      
+      // Perform search
+      try {
+        setIsSearching(true)
+        await searchChunks(debouncedSearchQuery.trim())
+      } catch (err) {
+        logger.error('Search failed:', err)
+      } finally {
+        setIsSearching(false)
+      }
+    }
+
+    performSearch()
+  }, [debouncedSearchQuery, document?.processingStatus])
+
+
 
     if (knowledgeBaseId && documentId) {
       fetchDocument()
@@ -413,15 +455,15 @@ export function Document({
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={
                         document?.processingStatus === 'completed'
-                          ? 'Search chunks...'
+                          ? isSearching ? 'Searching...' : 'Search chunks...'
                           : 'Document processing...'
                       }
-                      disabled={document?.processingStatus !== 'completed'}
+                      disabled={document?.processingStatus !== 'completed' || isSearching}
                       className='h-10 w-full rounded-md border bg-background px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
                     />
                     {searchQuery && document?.processingStatus === 'completed' && (
                       <button
-                        onClick={() => setSearchQuery('')}
+                        onClick={handleClearSearch}
                         className='-translate-y-1/2 absolute top-1/2 right-3 transform text-muted-foreground hover:text-foreground'
                       >
                         <X className='h-[18px] w-[18px]' />
