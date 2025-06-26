@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,11 +13,13 @@ import {
   X,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -26,7 +28,6 @@ import { CreateChunkModal } from './components/create-chunk-modal/create-chunk-m
 import { DeleteChunkModal } from './components/delete-chunk-modal/delete-chunk-modal'
 import { DocumentLoading } from './components/document-loading'
 import { EditChunkModal } from './components/edit-chunk-modal/edit-chunk-modal'
-import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('Document')
 
@@ -54,6 +55,8 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { mode, isExpanded } = useSidebarStore()
   const { getCachedKnowledgeBase, getCachedDocuments } = useKnowledgeStore()
   const { workspaceId } = useParams()
@@ -61,9 +64,11 @@ export function Document({
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
+  const initialPage = Number.parseInt(searchParams.get('page') || '1', 10)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const debouncedSearchQuery = useDebounce(searchQuery, 500)
+  const pageBeforeSearchRef = useRef<number | null>(null)
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -102,32 +107,52 @@ export function Document({
   // Combine errors
   const combinedError = error || chunksError
 
+  // Update URL with page parameter
+  const updatePageInUrl = useCallback(
+    (page: number) => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (page === 1) {
+        params.delete('page')
+      } else {
+        params.set('page', page.toString())
+      }
+      const newUrl = params.toString() ? `?${params.toString()}` : ''
+      router.replace(newUrl, { scroll: false })
+    },
+    [router, searchParams]
+  )
+
   // Handle pagination navigation
   const handlePrevPage = useCallback(() => {
     if (hasPrevPage && !isLoadingChunks) {
+      const newPage = currentPage - 1
+      updatePageInUrl(newPage)
       prevPage()?.catch((err) => {
         logger.error('Previous page failed:', err)
       })
     }
-  }, [hasPrevPage, isLoadingChunks, prevPage])
+  }, [hasPrevPage, isLoadingChunks, prevPage, currentPage, updatePageInUrl])
 
   const handleNextPage = useCallback(() => {
     if (hasNextPage && !isLoadingChunks) {
+      const newPage = currentPage + 1
+      updatePageInUrl(newPage)
       nextPage()?.catch((err) => {
         logger.error('Next page failed:', err)
       })
     }
-  }, [hasNextPage, isLoadingChunks, nextPage])
+  }, [hasNextPage, isLoadingChunks, nextPage, currentPage, updatePageInUrl])
 
   const handleGoToPage = useCallback(
     (page: number) => {
       if (page !== currentPage && !isLoadingChunks) {
+        updatePageInUrl(page)
         goToPage(page)?.catch((err) => {
           logger.error('Go to page failed:', err)
         })
       }
     },
-    [currentPage, isLoadingChunks, goToPage]
+    [currentPage, isLoadingChunks, goToPage, updatePageInUrl]
   )
 
   // Try to get document from store cache first, then fetch if needed
@@ -172,37 +197,79 @@ export function Document({
       }
     }
 
+    // Sync initial page from URL
+    useEffect(() => {
+      if (initialPage !== currentPage && initialPage > 0 && !isLoadingChunks) {
+        goToPage(initialPage).catch((err) => {
+          logger.error('Failed to navigate to initial page:', err)
+          // If the page doesn't exist, redirect to page 1
+          if (initialPage > 1) {
+            updatePageInUrl(1)
+          }
+        })
+      }
+    }, [initialPage, currentPage, isLoadingChunks, goToPage, updatePageInUrl])
+
     // Handle search with debouncing
-  useEffect(() => {
-    if (document?.processingStatus !== 'completed') return
-    
-    const performSearch = async () => {
-      // Clear search - refresh all chunks
-      if (debouncedSearchQuery.trim() === '') {
-        try {
-          setIsSearching(false)
-          await refreshChunks()
-        } catch (err) {
-          logger.error('Failed to refresh chunks:', err)
+    useEffect(() => {
+      if (document?.processingStatus !== 'completed') return
+
+      const performSearch = async () => {
+        // Clear search - restore to original page
+        if (debouncedSearchQuery.trim() === '') {
+          try {
+            setIsSearching(false)
+
+            // Restore to page before search if we have one stored
+            if (pageBeforeSearchRef.current !== null) {
+              const pageToRestore = pageBeforeSearchRef.current
+              pageBeforeSearchRef.current = null
+              updatePageInUrl(pageToRestore)
+              await goToPage(pageToRestore)
+            } else {
+              await refreshChunks({ search: '' })
+            }
+          } catch (err) {
+            logger.error('Failed to refresh chunks:', err)
+          }
+          return
         }
-        return
+
+        // Starting search - store current page if not already stored
+        if (pageBeforeSearchRef.current === null) {
+          pageBeforeSearchRef.current = currentPage
+        }
+
+        // Perform search
+        try {
+          setIsSearching(true)
+          updatePageInUrl(1)
+          await searchChunks(debouncedSearchQuery.trim())
+        } catch (err) {
+          logger.error('Search failed:', err)
+        } finally {
+          setIsSearching(false)
+        }
       }
-      
-      // Perform search
-      try {
-        setIsSearching(true)
-        await searchChunks(debouncedSearchQuery.trim())
-      } catch (err) {
-        logger.error('Search failed:', err)
-      } finally {
-        setIsSearching(false)
+
+      performSearch()
+    }, [debouncedSearchQuery, document?.processingStatus])
+
+    // Clear search when user clicks the X button
+    const handleClearSearch = useCallback(() => {
+      setSearchQuery('')
+      setIsSearching(false)
+
+      // Restore to original page if we have one stored
+      if (pageBeforeSearchRef.current !== null) {
+        const pageToRestore = pageBeforeSearchRef.current
+        pageBeforeSearchRef.current = null
+        updatePageInUrl(pageToRestore)
+        goToPage(pageToRestore).catch((err) => {
+          logger.error('Failed to restore page after clearing search:', err)
+        })
       }
-    }
-
-    performSearch()
-  }, [debouncedSearchQuery, document?.processingStatus])
-
-
+    }, [updatePageInUrl, goToPage])
 
     if (knowledgeBaseId && documentId) {
       fetchDocument()
@@ -392,7 +459,7 @@ export function Document({
 
   const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
 
-  if (isLoadingDocument || isLoadingChunks) {
+  if (isLoadingDocument || (isLoadingChunks && !searchQuery.trim())) {
     return (
       <DocumentLoading
         knowledgeBaseId={knowledgeBaseId}
@@ -455,7 +522,9 @@ export function Document({
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={
                         document?.processingStatus === 'completed'
-                          ? isSearching ? 'Searching...' : 'Search chunks...'
+                          ? isSearching
+                            ? 'Searching...'
+                            : 'Search chunks...'
                           : 'Document processing...'
                       }
                       disabled={document?.processingStatus !== 'completed' || isSearching}
