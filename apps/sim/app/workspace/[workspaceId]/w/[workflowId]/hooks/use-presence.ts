@@ -3,6 +3,16 @@
 import { useMemo } from 'react'
 import { useSocket } from '@/contexts/socket-context'
 
+// Socket presence user from server
+interface SocketPresenceUser {
+  socketId: string
+  userId: string
+  userName: string
+  cursor?: { x: number; y: number }
+  selection?: { type: 'block' | 'edge' | 'none'; id?: string }
+}
+
+// UI presence user for components
 type PresenceUser = {
   connectionId: string | number
   name?: string
@@ -24,10 +34,17 @@ export function usePresence(): UsePresenceReturn {
   const { presenceUsers, isConnected } = useSocket()
 
   const users = useMemo(() => {
-    return presenceUsers.map((user, index) => ({
-      // Use socketId directly as connectionId to ensure uniqueness
-      // If no socketId, use a unique fallback based on userId + index
-      connectionId: user.socketId || `fallback-${user.userId}-${index}`,
+    // Deduplicate by userId - only show one presence per unique user
+    const uniqueUsers = new Map<string, SocketPresenceUser>()
+
+    presenceUsers.forEach((user) => {
+      // Keep the most recent presence for each user (last one wins)
+      uniqueUsers.set(user.userId, user)
+    })
+
+    return Array.from(uniqueUsers.values()).map((user) => ({
+      // Use userId as connectionId since we've deduplicated
+      connectionId: user.userId,
       name: user.userName,
       color: undefined, // Let the avatar component generate colors
       info: user.selection?.type ? `Editing ${user.selection.type}` : undefined,

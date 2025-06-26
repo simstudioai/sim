@@ -97,8 +97,9 @@ export function setupWorkflowHandlers(
       // Broadcast updated presence list to all users in the room
       roomManager.broadcastPresenceUpdate(workflowId)
 
+      const uniqueUserCount = roomManager.getUniqueUserCount(workflowId)
       logger.info(
-        `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${room.activeConnections} users.`
+        `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${uniqueUserCount} unique users (${room.activeConnections} connections).`
       )
     } catch (error) {
       logger.error('Error joining workflow:', error)

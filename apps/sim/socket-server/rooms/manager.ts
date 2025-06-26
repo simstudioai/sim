@@ -180,4 +180,20 @@ export class RoomManager {
       this.io.to(workflowId).emit('presence-update', roomPresence)
     }
   }
+
+  /**
+   * Get the number of unique users in a workflow room
+   * (not the number of socket connections)
+   */
+  getUniqueUserCount(workflowId: string): number {
+    const room = this.workflowRooms.get(workflowId)
+    if (!room) return 0
+
+    const uniqueUsers = new Set<string>()
+    room.users.forEach((presence) => {
+      uniqueUsers.add(presence.userId)
+    })
+
+    return uniqueUsers.size
+  }
 }
