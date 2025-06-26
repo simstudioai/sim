@@ -15,7 +15,6 @@ import {
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useRegistryLoading } from '../../hooks/use-registry-loading'
 import { useUserPermissionsContext } from '../providers/workspace-permissions-provider'
 import { CreateMenu } from './components/create-menu/create-menu'
 import { FolderTree } from './components/folder-tree/folder-tree'
@@ -31,7 +30,6 @@ const logger = createLogger('Sidebar')
 const IS_DEV = process.env.NODE_ENV === 'development'
 
 export function Sidebar() {
-  useRegistryLoading()
   useGlobalShortcuts()
 
   const { workflows, createWorkflow, isLoading: workflowsLoading } = useWorkflowRegistry()
