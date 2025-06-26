@@ -101,7 +101,21 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   // Initialize socket when user is available
   useEffect(() => {
-    if (!user?.id || socket) return
+    if (!user?.id) return
+
+    // Prevent duplicate connections - disconnect existing socket first
+    if (socket) {
+      logger.info('Disconnecting existing socket before creating new one')
+      socket.disconnect()
+      setSocket(null)
+      setIsConnected(false)
+    }
+
+    // Prevent multiple simultaneous initialization attempts
+    if (isConnecting) {
+      logger.info('Socket initialization already in progress, skipping')
+      return
+    }
 
     logger.info('Initializing socket connection for user:', user.id)
     setIsConnecting(true)
@@ -282,8 +296,16 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     // Start the socket initialization
     initializeSocket()
 
-    // Cleanup on unmount
+    // Cleanup on unmount or user change
     return () => {
+      if (socket) {
+        logger.info('Cleaning up socket connection')
+        socket.disconnect()
+        setSocket(null)
+        setIsConnected(false)
+        setIsConnecting(false)
+      }
+
       positionUpdateTimeouts.current.forEach((timeoutId) => {
         clearTimeout(timeoutId)
       })
@@ -295,15 +317,30 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   // Join workflow room
   const joinWorkflow = useCallback(
     (workflowId: string) => {
-      if (socket && user?.id) {
-        logger.info(`Joining workflow: ${workflowId}`)
-        socket.emit('join-workflow', {
-          workflowId, // Server gets user info from authenticated session
-        })
-        setCurrentWorkflowId(workflowId)
+      if (!socket || !user?.id) {
+        logger.warn('Cannot join workflow: socket or user not available')
+        return
       }
+
+      // Prevent duplicate joins to the same workflow
+      if (currentWorkflowId === workflowId) {
+        logger.info(`Already in workflow ${workflowId}, skipping join`)
+        return
+      }
+
+      // Leave current workflow first if we're in one
+      if (currentWorkflowId) {
+        logger.info(`Leaving current workflow ${currentWorkflowId} before joining ${workflowId}`)
+        socket.emit('leave-workflow')
+      }
+
+      logger.info(`Joining workflow: ${workflowId}`)
+      socket.emit('join-workflow', {
+        workflowId, // Server gets user info from authenticated session
+      })
+      setCurrentWorkflowId(workflowId)
     },
-    [socket, user]
+    [socket, user, currentWorkflowId]
   )
 
   // Leave current workflow room
