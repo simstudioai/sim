@@ -25,6 +25,7 @@ export interface WorkflowRegistryState {
   workflows: Record<string, WorkflowMetadata>
   activeWorkflowId: string | null
   isLoading: boolean
+  isWorkspaceTransitioning: boolean
   error: string | null
   deploymentStatuses: Record<string, DeploymentStatus>
 }

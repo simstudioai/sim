@@ -32,10 +32,15 @@ const IS_DEV = process.env.NODE_ENV === 'development'
 export function Sidebar() {
   useGlobalShortcuts()
 
-  const { workflows, createWorkflow, isLoading: workflowsLoading } = useWorkflowRegistry()
+  const {
+    workflows,
+    createWorkflow,
+    isLoading: workflowsLoading,
+    isWorkspaceTransitioning,
+  } = useWorkflowRegistry()
   const { isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
-  const isLoading = workflowsLoading || sessionLoading
+  const isLoading = workflowsLoading || sessionLoading || isWorkspaceTransitioning
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspaceId as string

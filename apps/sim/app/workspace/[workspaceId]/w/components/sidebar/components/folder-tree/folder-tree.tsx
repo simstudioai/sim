@@ -171,7 +171,7 @@ export function FolderTree({
     isLoading: foldersLoading,
     clearSelection,
   } = useFolderStore()
-  const { updateWorkflow } = useWorkflowRegistry()
+  const { updateWorkflow, isWorkspaceTransitioning } = useWorkflowRegistry()
 
   // Fetch folders when workspace changes
   useEffect(() => {
@@ -226,7 +226,7 @@ export function FolderTree({
     ))
   }
 
-  const showLoading = isLoading || foldersLoading
+  const showLoading = isLoading || foldersLoading || isWorkspaceTransitioning
 
   return (
     <div

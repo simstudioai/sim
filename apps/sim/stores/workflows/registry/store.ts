@@ -224,6 +224,7 @@ function resetWorkflowStores() {
  */
 function setWorkspaceTransitioning(isTransitioning: boolean): void {
   isWorkspaceTransitioning = isTransitioning
+  useWorkflowRegistry.setState({ isWorkspaceTransitioning: isTransitioning })
 
   // Set a safety timeout to prevent permanently stuck in transition state
   if (isTransitioning) {
@@ -231,6 +232,7 @@ function setWorkspaceTransitioning(isTransitioning: boolean): void {
       if (isWorkspaceTransitioning) {
         logger.warn('Forcing workspace transition to complete due to timeout')
         isWorkspaceTransitioning = false
+        useWorkflowRegistry.setState({ isWorkspaceTransitioning: false })
       }
     }, TRANSITION_TIMEOUT)
   }
@@ -251,6 +253,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       workflows: {},
       activeWorkflowId: null,
       isLoading: true,
+      isWorkspaceTransitioning: false,
       error: null,
       // Initialize deployment statuses
       deploymentStatuses: {},
