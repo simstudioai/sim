@@ -99,21 +99,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     workflowDeleted?: (data: any) => void
   }>({})
 
-  // Initialize socket when user is available
+  // Initialize socket when user is available - only once per session
   useEffect(() => {
     if (!user?.id) return
 
-    // Prevent duplicate connections - disconnect existing socket first
-    if (socket) {
-      logger.info('Disconnecting existing socket before creating new one')
-      socket.disconnect()
-      setSocket(null)
-      setIsConnected(false)
-    }
-
-    // Prevent multiple simultaneous initialization attempts
-    if (isConnecting) {
-      logger.info('Socket initialization already in progress, skipping')
+    // Only initialize if we don't have a socket and aren't already connecting
+    if (socket || isConnecting) {
+      logger.info('Socket already exists or is connecting, skipping initialization')
       return
     }
 
@@ -296,16 +288,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     // Start the socket initialization
     initializeSocket()
 
-    // Cleanup on unmount or user change
+    // Cleanup on unmount only (not on user change since socket is session-level)
     return () => {
-      if (socket) {
-        logger.info('Cleaning up socket connection')
-        socket.disconnect()
-        setSocket(null)
-        setIsConnected(false)
-        setIsConnecting(false)
-      }
-
       positionUpdateTimeouts.current.forEach((timeoutId) => {
         clearTimeout(timeoutId)
       })
@@ -313,6 +297,16 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       pendingPositionUpdates.current.clear()
     }
   }, [user?.id])
+
+  // Cleanup socket on component unmount
+  useEffect(() => {
+    return () => {
+      if (socket) {
+        logger.info('Cleaning up socket connection on unmount')
+        socket.disconnect()
+      }
+    }
+  }, [])
 
   // Join workflow room
   const joinWorkflow = useCallback(
