@@ -81,12 +81,6 @@ export function Document({
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Clear search when user clicks the X button
-  const handleClearSearch = useCallback(() => {
-    setSearchQuery('')
-    setIsSearching(false)
-  }, [])
-
   // Use the updated chunks hook with pagination
   const {
     chunks,
@@ -255,26 +249,26 @@ export function Document({
       performSearch()
     }, [debouncedSearchQuery, document?.processingStatus])
 
-    // Clear search when user clicks the X button
-    const handleClearSearch = useCallback(() => {
-      setSearchQuery('')
-      setIsSearching(false)
-
-      // Restore to original page if we have one stored
-      if (pageBeforeSearchRef.current !== null) {
-        const pageToRestore = pageBeforeSearchRef.current
-        pageBeforeSearchRef.current = null
-        updatePageInUrl(pageToRestore)
-        goToPage(pageToRestore).catch((err) => {
-          logger.error('Failed to restore page after clearing search:', err)
-        })
-      }
-    }, [updatePageInUrl, goToPage])
-
     if (knowledgeBaseId && documentId) {
       fetchDocument()
     }
   }, [knowledgeBaseId, documentId, getCachedDocuments])
+
+  // Clear search when user clicks the X button
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('')
+    setIsSearching(false)
+
+    // Restore to original page if we have one stored
+    if (pageBeforeSearchRef.current !== null) {
+      const pageToRestore = pageBeforeSearchRef.current
+      pageBeforeSearchRef.current = null
+      updatePageInUrl(pageToRestore)
+      goToPage(pageToRestore).catch((err) => {
+        logger.error('Failed to restore page after clearing search:', err)
+      })
+    }
+  }, [updatePageInUrl, goToPage])
 
   const knowledgeBase = getCachedKnowledgeBase(knowledgeBaseId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
