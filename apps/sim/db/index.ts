@@ -1,17 +1,24 @@
-import { drizzle } from 'drizzle-orm/postgres-js'
+import { PostgresJsDatabase, drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/lib/env'
+import * as schema from './schema'
 
 // In production, use the Vercel-generated POSTGRES_URL
 // In development, use the direct DATABASE_URL
 const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
 
-// Disable prefetch as it is not supported for "Transaction" pool mode
-const client = postgres(connectionString, {
-  prepare: false,
-  idle_timeout: 30, // Keep connections alive for 30 seconds when idle
-  connect_timeout: 30, // Timeout after 30 seconds when connecting
-})
+const drizzleClient = drizzle(
+  postgres(connectionString, {
+    prepare: false, // Disable prefetch as it is not supported for "Transaction" pool mode
+    idle_timeout: 30, // Keep connections alive for 30 seconds when idle
+    connect_timeout: 30, // Timeout after 30 seconds when connecting
+  }),
+  { schema },
+)
 
-// Export the database client (never null)
-export const db = drizzle(client)
+declare global {
+  var database: PostgresJsDatabase<typeof schema> | undefined
+}
+
+export const db = global.database || drizzleClient
+if (process.env.NODE_ENV !== 'production') global.database = db
