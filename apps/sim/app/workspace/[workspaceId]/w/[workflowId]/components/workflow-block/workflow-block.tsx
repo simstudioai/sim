@@ -408,12 +408,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }
 
   const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
-
-  const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const currentWorkflow = useWorkflowRegistry((state) =>
-    workflowId ? state.workflows[workflowId] : null
-  )
-  const workspaceId = currentWorkflow?.workspaceId || null
   const userPermissions = useUserPermissionsContext()
 
   return (
