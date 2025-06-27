@@ -343,11 +343,11 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
         setActiveWorkspace(workspace)
         setWorkspaceDropdownOpen(false)
 
-        // Update URL first so sidebar filters use the new workspace ID
-        router.push(`/workspace/${workspace.id}/w`)
-
-        // Then switch workspace which will clear workflows and fetch new ones
+        // Use full workspace switch which now handles localStorage automatically
         switchToWorkspace(workspace.id)
+
+        // Update URL to include workspace ID
+        router.push(`/workspace/${workspace.id}/w`)
       },
       [activeWorkspace?.id, switchToWorkspace, router, setWorkspaceDropdownOpen]
     )
@@ -372,11 +372,12 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
             setWorkspaces((prev) => [...prev, newWorkspace])
             setActiveWorkspace(newWorkspace)
 
-            // Update URL first so sidebar filters use the new workspace ID
-            router.push(`/workspace/${newWorkspace.id}/w`)
-
-            // Then switch workspace which will clear workflows and fetch new ones
+            // Use switchToWorkspace to properly load workflows for the new workspace
+            // This will clear existing workflows, set loading state, and fetch workflows from DB
             switchToWorkspace(newWorkspace.id)
+
+            // Update URL to include new workspace ID
+            router.push(`/workspace/${newWorkspace.id}/w`)
           }
         } catch (err) {
           logger.error('Error creating workspace:', err)
