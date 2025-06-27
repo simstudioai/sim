@@ -151,7 +151,6 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
     })
 
     // Only set first workflow as active if no active workflow is set and we have workflows
-    // Database already returns workflows sorted by lastModified desc
     const currentState = useWorkflowRegistry.getState()
     if (!currentState.activeWorkflowId && Object.keys(registryWorkflows).length > 0) {
       const firstWorkflowId = Object.keys(registryWorkflows)[0]
