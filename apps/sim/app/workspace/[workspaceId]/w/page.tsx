@@ -38,7 +38,7 @@ export default function WorkflowsPage() {
     const workflowIds = Object.keys(workflows)
 
     // Validate that workflows belong to the current workspace
-    const workspaceWorkflows = workflowIds.filter(id => {
+    const workspaceWorkflows = workflowIds.filter((id) => {
       const workflow = workflows[id]
       return workflow.workspaceId === workspaceId
     })
