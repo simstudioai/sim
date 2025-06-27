@@ -12,7 +12,7 @@
     "dev": "next dev --turbo --port 3000",
     "dev:classic": "next dev",
     "dev:sockets": "bun run socket-server/index.ts",
-    "dev:full": "concurrently \"bun run dev\" \"bun run dev:sockets\"",
+    "dev:full": "concurrently -n \"NextJS,Realtime\" -c \"cyan,magenta\" \"bun run dev\" \"bun run dev:sockets\"",
     "build": "next build",
     "start": "next start",
     "prepare": "cd ../.. && bun husky",

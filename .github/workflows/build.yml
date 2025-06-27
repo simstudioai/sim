@@ -16,6 +16,8 @@ jobs:
             image: ghcr.io/simstudioai/simstudio
           - dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
+          - dockerfile: ./docker/realtime.Dockerfile
+            image: ghcr.io/simstudioai/realtime
     permissions:
       contents: read
       packages: write

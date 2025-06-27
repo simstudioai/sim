@@ -11,6 +11,7 @@ import { Command } from 'commander'
 const NETWORK_NAME = 'simstudio-network'
 const DB_CONTAINER = 'simstudio-db'
 const MIGRATIONS_CONTAINER = 'simstudio-migrations'
+const REALTIME_CONTAINER = 'simstudio-realtime'
 const APP_CONTAINER = 'simstudio-app'
 const DEFAULT_PORT = '3000'
 
@@ -78,6 +79,7 @@ async function cleanupExistingContainers(): Promise<void> {
   await stopAndRemoveContainer(APP_CONTAINER)
   await stopAndRemoveContainer(DB_CONTAINER)
   await stopAndRemoveContainer(MIGRATIONS_CONTAINER)
+  await stopAndRemoveContainer(REALTIME_CONTAINER)
 }
 
 async function main() {
@@ -101,6 +103,7 @@ async function main() {
   if (options.pull) {
     await pullImage('ghcr.io/simstudioai/simstudio:latest')
     await pullImage('ghcr.io/simstudioai/migrations:latest')
+    await pullImage('ghcr.io/simstudioai/realtime:latest')
     await pullImage('pgvector/pgvector:pg17')
   }
 
@@ -190,6 +193,34 @@ async function main() {
 
   if (!migrationsSuccess) {
     console.error(chalk.red('❌ Failed to run migrations'))
+    process.exit(1)
+  }
+
+  // Start the realtime server
+  console.log(chalk.blue('🔄 Starting Realtime Server...'))
+  const realtimeSuccess = await runCommand([
+    'docker',
+    'run',
+    '-d',
+    '--name',
+    REALTIME_CONTAINER,
+    '--network',
+    NETWORK_NAME,
+    '-p',
+    '3002:3002',
+    '-e',
+    `DATABASE_URL=postgresql://postgres:postgres@${DB_CONTAINER}:5432/simstudio`,
+    '-e',
+    `BETTER_AUTH_URL=http://localhost:${port}`,
+    '-e',
+    `NEXT_PUBLIC_APP_URL=http://localhost:${port}`,
+    '-e',
+    'BETTER_AUTH_SECRET=your_auth_secret_here',
+    'ghcr.io/simstudioai/realtime:latest',
+  ])
+
+  if (!realtimeSuccess) {
+    console.error(chalk.red('❌ Failed to start Realtime Server'))
     process.exit(1)
   }
 

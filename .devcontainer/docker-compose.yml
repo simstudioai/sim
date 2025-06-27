@@ -17,6 +17,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      realtime:
+        condition: service_healthy
       migrations:
         condition: service_completed_successfully
     ports:
@@ -25,6 +27,29 @@ services:
     working_dir: /workspace
     healthcheck:
       test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3000']
+      interval: 90s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  realtime:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+      - BETTER_AUTH_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3002:3002"
+    working_dir: /workspace
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002']
       interval: 90s
       timeout: 5s
       retries: 3
