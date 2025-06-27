@@ -333,7 +333,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
     }, [sessionData?.user?.id, fetchSubscriptionStatus, fetchWorkspaces])
 
     const switchWorkspace = useCallback(
-      (workspace: Workspace) => {
+      async (workspace: Workspace) => {
         // If already on this workspace, close dropdown and do nothing else
         if (activeWorkspace?.id === workspace.id) {
           setWorkspaceDropdownOpen(false)
@@ -344,9 +344,9 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
         setWorkspaceDropdownOpen(false)
 
         // Use full workspace switch which now handles localStorage automatically
-        switchToWorkspace(workspace.id)
+        await switchToWorkspace(workspace.id)
 
-        // Update URL to include workspace ID
+        // Update URL to include workspace ID - only after workspace switch completes
         router.push(`/workspace/${workspace.id}/w`)
       },
       [activeWorkspace?.id, switchToWorkspace, router, setWorkspaceDropdownOpen]
@@ -374,9 +374,9 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
 
             // Use switchToWorkspace to properly load workflows for the new workspace
             // This will clear existing workflows, set loading state, and fetch workflows from DB
-            switchToWorkspace(newWorkspace.id)
+            await switchToWorkspace(newWorkspace.id)
 
-            // Update URL to include new workspace ID
+            // Update URL to include new workspace ID - only after workspace switch completes
             router.push(`/workspace/${newWorkspace.id}/w`)
           }
         } catch (err) {
@@ -464,11 +464,15 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
           setWorkspaces(updatedWorkspaces)
 
           // If deleted workspace was active, switch to another workspace
-          if (activeWorkspace?.id === id && updatedWorkspaces.length > 0) {
-            // Use the specialized method for handling workspace deletion
-            const newWorkspaceId = updatedWorkspaces[0].id
-            useWorkflowRegistry.getState().handleWorkspaceDeletion(newWorkspaceId)
-            setActiveWorkspace(updatedWorkspaces[0])
+          if (activeWorkspace?.id === id) {
+            const newWorkspace = updatedWorkspaces[0]
+            setActiveWorkspace(newWorkspace)
+
+            // Switch to the new workspace (this handles all workflow state management)
+            await switchToWorkspace(newWorkspace.id)
+
+            // Navigate to the new workspace - only after workspace switch completes
+            router.push(`/workspace/${newWorkspace.id}/w`)
           }
 
           setWorkspaceDropdownOpen(false)
