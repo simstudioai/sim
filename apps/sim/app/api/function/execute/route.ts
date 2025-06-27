@@ -167,12 +167,27 @@ export async function POST(req: NextRequest) {
             }`
           : `export default async () => { ${resolvedCode} }`
 
-        // Execute the code with Freestyle
-        const res = await freestyle.executeScript(wrappedCode, {
+        // Prepare the payload for Freestyle
+        const freestylePayload = {
           nodeModules: packages,
           timeout: null,
           envVars: envVars,
+        }
+
+        // Log the POST payload before sending to Freestyle
+        logger.info(`[${requestId}] Freestyle POST payload:`, {
+          wrappedCode: wrappedCode.length > 1000 ? `${wrappedCode.substring(0, 1000)}...` : wrappedCode,
+          payload: {
+            ...freestylePayload,
+            envVars: Object.keys(freestylePayload.envVars), // Only log env var keys for security
+          },
+          originalCode: resolvedCode.length > 500 ? `${resolvedCode.substring(0, 500)}...` : resolvedCode,
+          executionParams,
+          isCustomTool,
         })
+
+        // Execute the code with Freestyle
+        const res = await freestyle.executeScript(wrappedCode, freestylePayload)
 
         // Check for direct API error response
         // Type assertion since the library types don't include error response
