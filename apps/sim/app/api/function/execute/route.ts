@@ -176,12 +176,14 @@ export async function POST(req: NextRequest) {
 
         // Log the POST payload before sending to Freestyle
         logger.info(`[${requestId}] Freestyle POST payload:`, {
-          wrappedCode: wrappedCode.length > 1000 ? `${wrappedCode.substring(0, 1000)}...` : wrappedCode,
+          wrappedCode:
+            wrappedCode.length > 1000 ? `${wrappedCode.substring(0, 1000)}...` : wrappedCode,
           payload: {
             ...freestylePayload,
             envVars: Object.keys(freestylePayload.envVars), // Only log env var keys for security
           },
-          originalCode: resolvedCode.length > 500 ? `${resolvedCode.substring(0, 500)}...` : resolvedCode,
+          originalCode:
+            resolvedCode.length > 500 ? `${resolvedCode.substring(0, 500)}...` : resolvedCode,
           executionParams,
           isCustomTool,
         })
