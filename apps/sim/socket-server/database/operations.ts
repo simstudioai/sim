@@ -492,10 +492,13 @@ async function handleBlockOperationTx(
         throw new Error('Missing required fields for duplicate block operation')
       }
 
-      logger.debug(`[SERVER] Duplicating block: ${payload.type} (${payload.sourceId} -> ${payload.id})`, {
-        isSubflowType: isSubflowBlockType(payload.type),
-        payload,
-      })
+      logger.debug(
+        `[SERVER] Duplicating block: ${payload.type} (${payload.sourceId} -> ${payload.id})`,
+        {
+          isSubflowType: isSubflowBlockType(payload.type),
+          payload,
+        }
+      )
 
       // Extract parentId and extent from payload
       const parentId = payload.parentId || null
@@ -569,7 +572,9 @@ async function handleBlockOperationTx(
         await updateSubflowNodeList(tx, workflowId, parentId)
       }
 
-      logger.debug(`Duplicated block ${payload.sourceId} -> ${payload.id} (${payload.type}) in workflow ${workflowId}`)
+      logger.debug(
+        `Duplicated block ${payload.sourceId} -> ${payload.id} (${payload.type}) in workflow ${workflowId}`
+      )
       break
     }
 
