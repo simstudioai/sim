@@ -146,13 +146,14 @@ export function useCollaborativeWorkflow() {
               // For now, we'll use the existing toggle method
               workflowStore.toggleBlockAdvancedMode(payload.id)
               break
-            case 'toggle-handles':
+            case 'toggle-handles': {
               // Apply the handles toggle - we need to set the specific value to ensure consistency
               const currentBlock = workflowStore.blocks[payload.id]
               if (currentBlock && currentBlock.horizontalHandles !== payload.horizontalHandles) {
                 workflowStore.toggleBlockHandles(payload.id)
               }
               break
+            }
             case 'duplicate':
               // Apply the duplicate operation by adding the new block
               workflowStore.addBlock(

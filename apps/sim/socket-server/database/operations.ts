@@ -504,7 +504,9 @@ async function handleBlockOperationTx(
         throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
       }
 
-      logger.debug(`Updated block handles: ${payload.id} -> ${payload.horizontalHandles ? 'horizontal' : 'vertical'}`)
+      logger.debug(
+        `Updated block handles: ${payload.id} -> ${payload.horizontalHandles ? 'horizontal' : 'vertical'}`
+      )
       break
     }
 

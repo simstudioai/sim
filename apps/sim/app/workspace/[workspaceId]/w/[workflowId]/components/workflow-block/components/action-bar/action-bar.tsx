@@ -16,7 +16,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
     collaborativeRemoveBlock,
     collaborativeToggleBlockEnabled,
     collaborativeDuplicateBlock,
-    collaborativeToggleBlockHandles
+    collaborativeToggleBlockHandles,
   } = useCollaborativeWorkflow()
   const isEnabled = useWorkflowStore((state) => state.blocks[blockId]?.enabled ?? true)
   const horizontalHandles = useWorkflowStore(
