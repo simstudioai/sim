@@ -1,9 +1,9 @@
 import { and, eq, or } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { env } from '../../lib/env'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '../../db/schema'
 import * as schema from '../../db/schema'
+import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '../../db/schema'
+import { env } from '../../lib/env'
 import { createLogger } from '../../lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '../../lib/workflows/db-helpers'
 
@@ -140,11 +140,12 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
     const { operation: op, target, payload, timestamp, userId } = operation
 
     // Log high-frequency operations for monitoring
-    if (op === 'update-position' && Math.random() < 0.01) { // Log 1% of position updates
+    if (op === 'update-position' && Math.random() < 0.01) {
+      // Log 1% of position updates
       logger.debug('Socket DB operation sample:', {
         operation: op,
         target,
-        workflowId: workflowId.substring(0, 8) + '...'
+        workflowId: `${workflowId.substring(0, 8)}...`,
       })
     }
 
@@ -173,12 +174,13 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
 
     // Log slow operations for monitoring
     const duration = Date.now() - startTime
-    if (duration > 100) { // Log operations taking more than 100ms
+    if (duration > 100) {
+      // Log operations taking more than 100ms
       logger.warn('Slow socket DB operation:', {
         operation: operation.operation,
         target: operation.target,
         duration: `${duration}ms`,
-        workflowId: workflowId.substring(0, 8) + '...'
+        workflowId: `${workflowId.substring(0, 8)}...`,
       })
     }
   } catch (error) {

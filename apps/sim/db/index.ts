@@ -31,8 +31,6 @@ const postgresClient = postgres(connectionString, {
   onnotice: () => {}, // Disable notices to reduce noise
 })
 
-
-
 const drizzleClient = drizzle(postgresClient, { schema })
 
 declare global {
