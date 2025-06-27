@@ -104,6 +104,7 @@ export async function verifyOperationPermission(
         'update-parent',
         'update-wide',
         'update-advanced-mode',
+        'toggle-handles',
         'duplicate',
       ],
       admin: [
@@ -116,6 +117,7 @@ export async function verifyOperationPermission(
         'update-parent',
         'update-wide',
         'update-advanced-mode',
+        'toggle-handles',
         'duplicate',
       ],
       member: [
@@ -128,6 +130,7 @@ export async function verifyOperationPermission(
         'update-parent',
         'update-wide',
         'update-advanced-mode',
+        'toggle-handles',
         'duplicate',
       ],
       viewer: ['update-position'], // Viewers can only move things around

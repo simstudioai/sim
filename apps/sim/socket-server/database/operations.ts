@@ -486,6 +486,122 @@ async function handleBlockOperationTx(
       break
     }
 
+    case 'toggle-handles': {
+      if (!payload.id || payload.horizontalHandles === undefined) {
+        throw new Error('Missing required fields for toggle handles operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          horizontalHandles: payload.horizontalHandles,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(
+        `Updated block handles: ${payload.id} -> ${payload.horizontalHandles ? 'horizontal' : 'vertical'}`
+      )
+      break
+    }
+
+    case 'duplicate': {
+      // Validate required fields for duplicate operation
+      if (!payload.sourceId || !payload.id || !payload.type || !payload.name || !payload.position) {
+        throw new Error('Missing required fields for duplicate block operation')
+      }
+
+      logger.debug(
+        `[SERVER] Duplicating block: ${payload.type} (${payload.sourceId} -> ${payload.id})`,
+        {
+          isSubflowType: isSubflowBlockType(payload.type),
+          payload,
+        }
+      )
+
+      // Extract parentId and extent from payload
+      const parentId = payload.parentId || null
+      const extent = payload.extent || null
+
+      try {
+        const insertData = {
+          id: payload.id,
+          workflowId,
+          type: payload.type,
+          name: payload.name,
+          positionX: payload.position.x,
+          positionY: payload.position.y,
+          data: payload.data || {},
+          subBlocks: payload.subBlocks || {},
+          outputs: payload.outputs || {},
+          parentId,
+          extent,
+          enabled: payload.enabled ?? true,
+          horizontalHandles: payload.horizontalHandles ?? true,
+          isWide: payload.isWide ?? false,
+          height: payload.height || 0,
+        }
+
+        await tx.insert(workflowBlocks).values(insertData)
+      } catch (insertError) {
+        logger.error(`[SERVER] ❌ Failed to insert duplicated block ${payload.id}:`, insertError)
+        throw insertError
+      }
+
+      // Auto-create subflow entry for loop/parallel blocks
+      if (isSubflowBlockType(payload.type)) {
+        try {
+          const subflowConfig =
+            payload.type === SubflowType.LOOP
+              ? {
+                  id: payload.id,
+                  nodes: [], // Empty initially, will be populated when child blocks are added
+                  iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
+                  loopType: payload.data?.loopType || 'for',
+                  forEachItems: payload.data?.collection || '',
+                }
+              : {
+                  id: payload.id,
+                  nodes: [], // Empty initially, will be populated when child blocks are added
+                  distribution: payload.data?.collection || '',
+                }
+
+          logger.debug(
+            `[SERVER] Auto-creating ${payload.type} subflow for duplicated block ${payload.id}:`,
+            subflowConfig
+          )
+
+          await tx.insert(workflowSubflows).values({
+            id: payload.id,
+            workflowId,
+            type: payload.type,
+            config: subflowConfig,
+          })
+        } catch (subflowError) {
+          logger.error(
+            `[SERVER] ❌ Failed to create ${payload.type} subflow for duplicated block ${payload.id}:`,
+            subflowError
+          )
+          throw subflowError
+        }
+      }
+
+      // If this block has a parent, update the parent's subflow node list
+      if (parentId) {
+        await updateSubflowNodeList(tx, workflowId, parentId)
+      }
+
+      logger.debug(
+        `Duplicated block ${payload.sourceId} -> ${payload.id} (${payload.type}) in workflow ${workflowId}`
+      )
+      break
+    }
+
     // Add other block operations as needed
     default:
       logger.warn(`Unknown block operation: ${operation}`)

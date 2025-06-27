@@ -146,6 +146,26 @@ export function useCollaborativeWorkflow() {
               // For now, we'll use the existing toggle method
               workflowStore.toggleBlockAdvancedMode(payload.id)
               break
+            case 'toggle-handles': {
+              // Apply the handles toggle - we need to set the specific value to ensure consistency
+              const currentBlock = workflowStore.blocks[payload.id]
+              if (currentBlock && currentBlock.horizontalHandles !== payload.horizontalHandles) {
+                workflowStore.toggleBlockHandles(payload.id)
+              }
+              break
+            }
+            case 'duplicate':
+              // Apply the duplicate operation by adding the new block
+              workflowStore.addBlock(
+                payload.id,
+                payload.type,
+                payload.name,
+                payload.position,
+                payload.data,
+                payload.parentId,
+                payload.extent
+              )
+              break
           }
         } else if (target === 'edge') {
           switch (operation) {
@@ -469,6 +489,100 @@ export function useCollaborativeWorkflow() {
     [workflowStore, emitWorkflowOperation]
   )
 
+  const collaborativeToggleBlockHandles = useCallback(
+    (id: string) => {
+      // Get the current state before toggling
+      const currentBlock = workflowStore.blocks[id]
+      if (!currentBlock) return
+
+      // Calculate the new horizontalHandles value
+      const newHorizontalHandles = !currentBlock.horizontalHandles
+
+      // Apply locally first
+      workflowStore.toggleBlockHandles(id)
+
+      // Emit with the calculated new value (don't rely on async state update)
+      if (!isApplyingRemoteChange.current) {
+        emitWorkflowOperation('toggle-handles', 'block', {
+          id,
+          horizontalHandles: newHorizontalHandles,
+        })
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
+  const collaborativeDuplicateBlock = useCallback(
+    (sourceId: string) => {
+      const sourceBlock = workflowStore.blocks[sourceId]
+      if (!sourceBlock) return
+
+      // Generate new ID and calculate position
+      const newId = crypto.randomUUID()
+      const offsetPosition = {
+        x: sourceBlock.position.x + 250,
+        y: sourceBlock.position.y + 20,
+      }
+
+      // Generate new name with numbering
+      const match = sourceBlock.name.match(/(.*?)(\d+)?$/)
+      const newName = match?.[2]
+        ? `${match[1]}${Number.parseInt(match[2]) + 1}`
+        : `${sourceBlock.name} 1`
+
+      // Create the complete block data for the socket operation
+      const duplicatedBlockData = {
+        sourceId,
+        id: newId,
+        type: sourceBlock.type,
+        name: newName,
+        position: offsetPosition,
+        data: sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
+        subBlocks: sourceBlock.subBlocks ? JSON.parse(JSON.stringify(sourceBlock.subBlocks)) : {},
+        outputs: sourceBlock.outputs ? JSON.parse(JSON.stringify(sourceBlock.outputs)) : {},
+        parentId: sourceBlock.data?.parentId || null,
+        extent: sourceBlock.data?.extent || null,
+        enabled: sourceBlock.enabled ?? true,
+        horizontalHandles: sourceBlock.horizontalHandles ?? true,
+        isWide: sourceBlock.isWide ?? false,
+        height: sourceBlock.height || 0,
+      }
+
+      // Apply locally first using addBlock to ensure consistent IDs
+      workflowStore.addBlock(
+        newId,
+        sourceBlock.type,
+        newName,
+        offsetPosition,
+        sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
+        sourceBlock.data?.parentId,
+        sourceBlock.data?.extent
+      )
+
+      // Copy subblock values to the new block
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (activeWorkflowId) {
+        const subBlockValues =
+          useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[sourceId] || {}
+        useSubBlockStore.setState((state) => ({
+          workflowValues: {
+            ...state.workflowValues,
+            [activeWorkflowId]: {
+              ...state.workflowValues[activeWorkflowId],
+              [newId]: JSON.parse(JSON.stringify(subBlockValues)),
+            },
+          },
+        }))
+      }
+
+      // Then broadcast to other clients
+      if (!isApplyingRemoteChange.current) {
+        emitWorkflowOperation('duplicate', 'block', duplicatedBlockData)
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
   const collaborativeAddEdge = useCallback(
     (edge: Edge) => {
       // Apply locally first
@@ -780,6 +894,8 @@ export function useCollaborativeWorkflow() {
     collaborativeUpdateParentId,
     collaborativeToggleBlockWide,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeToggleBlockHandles,
+    collaborativeDuplicateBlock,
     collaborativeAddEdge,
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,
