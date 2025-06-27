@@ -88,8 +88,8 @@ export async function executeCode(
     }
     `
 
-    // Prepare the payload for Freestyle
-    const freestylePayload = {
+    // Execute the code with Freestyle
+    const result = await freestyle.executeScript(wrappedCode, {
       nodeModules: packages,
       timeout: null,
       // Add environment variables if needed
@@ -102,21 +102,7 @@ export async function executeCode(
         },
         {} as Record<string, string>
       ),
-    }
-
-    // Log the POST payload before sending to Freestyle
-    logger.info('Freestyle POST payload:', {
-      wrappedCode: wrappedCode.length > 1000 ? `${wrappedCode.substring(0, 1000)}...` : wrappedCode,
-      payload: {
-        ...freestylePayload,
-        envVars: Object.keys(freestylePayload.envVars), // Only log env var keys for security
-      },
-      originalCode: code.length > 500 ? `${code.substring(0, 500)}...` : code,
-      params,
     })
-
-    // Execute the code with Freestyle
-    const result = await freestyle.executeScript(wrappedCode, freestylePayload)
 
     const executionTime = Date.now() - startTime
 
