@@ -7,20 +7,44 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export default function WorkflowsPage() {
   const router = useRouter()
-  const { workflows, isLoading } = useWorkflowRegistry()
+  const { workflows, isLoading, loadWorkflows } = useWorkflowRegistry()
 
   const params = useParams()
-  const workspaceId = params.workspaceId
+  const workspaceId = params.workspaceId as string
+
+  // Always load workflows for the current workspace to ensure we have the correct ones
+  useEffect(() => {
+    if (!isLoading) {
+      loadWorkflows(workspaceId)
+    }
+  }, [workspaceId, loadWorkflows, isLoading])
 
   useEffect(() => {
     // Wait for workflows to load
     if (isLoading) return
 
-    const workflowIds = Object.keys(workflows)
+    // Filter workflows for this workspace only
+    const workspaceWorkflows = Object.values(workflows).filter(
+      (workflow) => workflow.workspaceId === workspaceId
+    )
 
-    // If we have workflows, redirect to the first one
-    if (workflowIds.length > 0) {
-      router.replace(`/workspace/${workspaceId}/w/${workflowIds[0]}`)
+    // If we have workflows for this workspace, redirect to the first one
+    if (workspaceWorkflows.length > 0) {
+      // Sort by last modified date (newest first) - same logic as sidebar
+      const sortedWorkflows = workspaceWorkflows.sort((a, b) => {
+        const dateA =
+          a.lastModified instanceof Date
+            ? a.lastModified.getTime()
+            : new Date(a.lastModified).getTime()
+        const dateB =
+          b.lastModified instanceof Date
+            ? b.lastModified.getTime()
+            : new Date(b.lastModified).getTime()
+        return dateB - dateA
+      })
+
+      const firstWorkflowId = sortedWorkflows[0].id
+      router.replace(`/workspace/${workspaceId}/w/${firstWorkflowId}`)
       return
     }
 
