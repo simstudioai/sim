@@ -15,6 +15,7 @@ export const BlockOperationSchema = z.object({
     'update-parent',
     'update-wide',
     'update-advanced-mode',
+    'toggle-handles',
     'duplicate',
   ]),
   target: z.literal('block'),

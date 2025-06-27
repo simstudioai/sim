@@ -486,6 +486,28 @@ async function handleBlockOperationTx(
       break
     }
 
+    case 'toggle-handles': {
+      if (!payload.id || payload.horizontalHandles === undefined) {
+        throw new Error('Missing required fields for toggle handles operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          horizontalHandles: payload.horizontalHandles,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Updated block handles: ${payload.id} -> ${payload.horizontalHandles ? 'horizontal' : 'vertical'}`)
+      break
+    }
+
     case 'duplicate': {
       // Validate required fields for duplicate operation
       if (!payload.sourceId || !payload.id || !payload.type || !payload.name || !payload.position) {

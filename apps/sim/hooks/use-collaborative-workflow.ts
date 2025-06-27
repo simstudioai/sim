@@ -146,6 +146,13 @@ export function useCollaborativeWorkflow() {
               // For now, we'll use the existing toggle method
               workflowStore.toggleBlockAdvancedMode(payload.id)
               break
+            case 'toggle-handles':
+              // Apply the handles toggle - we need to set the specific value to ensure consistency
+              const currentBlock = workflowStore.blocks[payload.id]
+              if (currentBlock && currentBlock.horizontalHandles !== payload.horizontalHandles) {
+                workflowStore.toggleBlockHandles(payload.id)
+              }
+              break
             case 'duplicate':
               // Apply the duplicate operation by adding the new block
               workflowStore.addBlock(
@@ -475,6 +482,29 @@ export function useCollaborativeWorkflow() {
         emitWorkflowOperation('update-advanced-mode', 'block', {
           id,
           advancedMode: newAdvancedMode,
+        })
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
+  const collaborativeToggleBlockHandles = useCallback(
+    (id: string) => {
+      // Get the current state before toggling
+      const currentBlock = workflowStore.blocks[id]
+      if (!currentBlock) return
+
+      // Calculate the new horizontalHandles value
+      const newHorizontalHandles = !currentBlock.horizontalHandles
+
+      // Apply locally first
+      workflowStore.toggleBlockHandles(id)
+
+      // Emit with the calculated new value (don't rely on async state update)
+      if (!isApplyingRemoteChange.current) {
+        emitWorkflowOperation('toggle-handles', 'block', {
+          id,
+          horizontalHandles: newHorizontalHandles,
         })
       }
     },
@@ -863,6 +893,7 @@ export function useCollaborativeWorkflow() {
     collaborativeUpdateParentId,
     collaborativeToggleBlockWide,
     collaborativeToggleBlockAdvancedMode,
+    collaborativeToggleBlockHandles,
     collaborativeDuplicateBlock,
     collaborativeAddEdge,
     collaborativeRemoveEdge,
