@@ -254,6 +254,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       error: null,
       // Initialize deployment statuses
       deploymentStatuses: {},
+      // Track target workspace during transitions to prevent empty sidebar
+      targetWorkspaceId: null,
 
       // Set loading state
       setLoading: (loading: boolean) => {
@@ -321,12 +323,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           // Clear current workspace state
           resetWorkflowStores()
 
-          // Update state
+          // Update state with target workspace ID for sidebar filtering
           set({
             activeWorkflowId: null,
             workflows: {},
             isLoading: true,
             error: null,
+            targetWorkspaceId: workspaceId,
           })
 
           // Fetch workflows for the new workspace
@@ -338,9 +341,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           set({
             error: `Failed to switch workspace: ${error instanceof Error ? error.message : 'Unknown error'}`,
             isLoading: false,
+            targetWorkspaceId: null,
           })
         } finally {
           setWorkspaceTransitioning(false)
+          // Clear target workspace ID after transition completes
+          set({ targetWorkspaceId: null })
         }
       },
 
