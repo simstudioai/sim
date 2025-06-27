@@ -553,6 +553,7 @@ async function handleProxyRequest(
 
   const proxyUrl = new URL('/api/proxy', baseUrl).toString()
   try {
+    console.log('Proxying tool:', toolId, params);
     const response = await fetch(proxyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -302,6 +302,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           toolUsageControl: false,
         },
       },
+      {
+        id: 'gemini-2.0-flash',
+        pricing: {
+          input: 0.10,
+          cachedInput: 0.025,
+          output: 0.40,
+          updatedAt: '2025-06-25',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          toolUsageControl: true,
+        },
+      },
     ],
   },
   deepseek: {
