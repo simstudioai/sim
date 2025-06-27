@@ -179,66 +179,7 @@ export function getProviderModels(providerId: ProviderId): string[] {
 }
 
 export function generateStructuredOutputInstructions(responseFormat: any): string {
-  // Handle null/undefined input
-  if (!responseFormat) return ''
-
-  // If using the new JSON Schema format, don't add additional instructions
-  // This is necessary because providers now handle the schema directly
-  if (responseFormat.schema || (responseFormat.type === 'object' && responseFormat.properties)) {
-    return ''
-  }
-
-  // Handle legacy format with fields array
-  if (!responseFormat.fields) return ''
-
-  function generateFieldStructure(field: any): string {
-    if (field.type === 'object' && field.properties) {
-      return `{
-    ${Object.entries(field.properties)
-      .map(([key, prop]: [string, any]) => `"${key}": ${prop.type === 'number' ? '0' : '"value"'}`)
-      .join(',\n    ')}
-  }`
-    }
-    return field.type === 'string'
-      ? '"value"'
-      : field.type === 'number'
-        ? '0'
-        : field.type === 'boolean'
-          ? 'true/false'
-          : '[]'
-  }
-
-  const exampleFormat = responseFormat.fields
-    .map((field: any) => `  "${field.name}": ${generateFieldStructure(field)}`)
-    .join(',\n')
-
-  const fieldDescriptions = responseFormat.fields
-    .map((field: any) => {
-      let desc = `${field.name} (${field.type})`
-      if (field.description) desc += `: ${field.description}`
-      if (field.type === 'object' && field.properties) {
-        desc += '\nProperties:'
-        Object.entries(field.properties).forEach(([key, prop]: [string, any]) => {
-          desc += `\n  - ${key} (${(prop as any).type}): ${(prop as any).description || ''}`
-        })
-      }
-      return desc
-    })
-    .join('\n')
-
-  logger.info(`Generated structured output instructions for ${responseFormat.fields.length} fields`)
-
-  return `
-Please provide your response in the following JSON format:
-{
-${exampleFormat}
-}
-
-Field descriptions:
-${fieldDescriptions}
-
-Your response MUST be valid JSON and include all the specified fields with their correct types.
-Each metric should be an object containing 'score' (number) and 'reasoning' (string).`
+  return ''
 }
 
 export function extractAndParseJSON(content: string): any {

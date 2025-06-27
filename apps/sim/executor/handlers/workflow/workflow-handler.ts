@@ -69,7 +69,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       )
 
       // Prepare the input for the child workflow
-      // The input from this block should be passed as start.response.input to the child workflow
+      // The input from this block should be passed as start.input to the child workflow
       let childWorkflowInput = {}
 
       if (inputs.input !== undefined) {
@@ -186,29 +186,23 @@ export class WorkflowBlockHandler implements BlockHandler {
     if (!success) {
       logger.warn(`Child workflow ${childWorkflowName} failed`)
       return {
-        response: {
-          success: false,
-          childWorkflowName,
-          error: childResult.error || 'Child workflow execution failed',
-        },
+        success: false,
+        childWorkflowName,
+        error: childResult.error || 'Child workflow execution failed',
       } as Record<string, any>
     }
 
-    // Extract the actual result content from the nested structure
+    // Extract the actual result content from the flattened structure
     let result = childResult
-    if (childResult?.output?.response) {
-      result = childResult.output.response
-    } else if (childResult?.response?.response) {
-      result = childResult.response.response
+    if (childResult?.output) {
+      result = childResult.output
     }
 
     // Return a properly structured response with all required fields
     return {
-      response: {
-        success: true,
-        childWorkflowName,
-        result,
-      },
+      success: true,
+      childWorkflowName,
+      result,
     } as Record<string, any>
   }
 }

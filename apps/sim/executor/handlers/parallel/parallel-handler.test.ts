@@ -71,8 +71,7 @@ describe('ParallelBlockHandler', () => {
     // First execution - initialize parallel and set up iterations
     const result = await handler.execute(block, {}, context)
 
-    expect(result).toHaveProperty('response')
-    expect((result as any).response).toMatchObject({
+    expect(result as any).toMatchObject({
       parallelId: 'parallel-1',
       parallelCount: 3,
       distributionType: 'distributed',
@@ -128,8 +127,7 @@ describe('ParallelBlockHandler', () => {
     // Second execution - check waiting state
     const result = await handler.execute(block, {}, context)
 
-    expect(result).toHaveProperty('response')
-    expect((result as any).response).toMatchObject({
+    expect(result as any).toMatchObject({
       parallelId: 'parallel-1',
       parallelCount: 2,
       completedExecutions: 0,
@@ -157,8 +155,8 @@ describe('ParallelBlockHandler', () => {
           distributionItems: ['item1', 'item2'],
           completedExecutions: 0,
           executionResults: new Map([
-            ['iteration_0', { 'agent-1': { response: { result: 'result1' } } }],
-            ['iteration_1', { 'agent-1': { response: { result: 'result2' } } }],
+            ['iteration_0', { 'agent-1': { result: 'result1' } }],
+            ['iteration_1', { 'agent-1': { result: 'result2' } }],
           ]),
           activeIterations: new Set(),
           currentIteration: 1,
@@ -182,15 +180,11 @@ describe('ParallelBlockHandler', () => {
     // Execution after all iterations complete
     const result = await handler.execute(block, {}, context)
 
-    expect(result).toHaveProperty('response')
-    expect((result as any).response).toMatchObject({
+    expect(result as any).toMatchObject({
       parallelId: 'parallel-1',
       parallelCount: 2,
       completed: true,
-      results: [
-        { 'agent-1': { response: { result: 'result1' } } },
-        { 'agent-1': { response: { result: 'result2' } } },
-      ],
+      results: [{ 'agent-1': { result: 'result1' } }, { 'agent-1': { result: 'result2' } }],
       message: 'Completed all 2 executions',
     })
 
@@ -214,8 +208,7 @@ describe('ParallelBlockHandler', () => {
 
     const result = await handler.execute(block, {}, context)
 
-    expect(result).toHaveProperty('response')
-    expect((result as any).response).toMatchObject({
+    expect(result as any).toMatchObject({
       parallelId: 'parallel-1',
       parallelCount: 2,
       distributionType: 'distributed',
@@ -243,8 +236,7 @@ describe('ParallelBlockHandler', () => {
 
     const result = await handler.execute(block, {}, context)
 
-    expect(result).toHaveProperty('response')
-    expect((result as any).response).toMatchObject({
+    expect(result as any).toMatchObject({
       parallelId: 'parallel-1',
       parallelCount: 3,
       distributionType: 'distributed',
@@ -267,8 +259,7 @@ describe('ParallelBlockHandler', () => {
 
     const result = await handler.execute(block, {}, context)
 
-    expect(result).toHaveProperty('response')
-    expect((result as any).response).toMatchObject({
+    expect(result as any).toMatchObject({
       parallelId: 'parallel-1',
       parallelCount: 1,
       distributionType: 'count',
@@ -316,8 +307,8 @@ describe('ParallelBlockHandler', () => {
 
       // Initialize parallel
       const initResult = await handler.execute(parallelBlock, {}, context)
-      expect((initResult as any).response.started).toBe(true)
-      expect((initResult as any).response.parallelCount).toBe(3)
+      expect((initResult as any).started).toBe(true)
+      expect((initResult as any).parallelCount).toBe(3)
 
       // Simulate all virtual blocks being executed
       const parallelState = context.parallelExecutions?.get('parallel-1')
@@ -343,13 +334,13 @@ describe('ParallelBlockHandler', () => {
       const aggregatedResult = await handler.execute(parallelBlock, {}, context)
 
       // Verify results are aggregated
-      expect((aggregatedResult as any).response.completed).toBe(true)
-      expect((aggregatedResult as any).response.results).toHaveLength(3)
+      expect((aggregatedResult as any).completed).toBe(true)
+      expect((aggregatedResult as any).results).toHaveLength(3)
 
       // Verify block state is stored
       const blockState = context.blockStates.get('parallel-1')
       expect(blockState).toBeDefined()
-      expect(blockState?.output.response.results).toHaveLength(3)
+      expect(blockState?.output.results).toHaveLength(3)
 
       // Verify both downstream blocks are activated
       expect(context.activeExecutionPath.has('function-1')).toBe(true)
@@ -360,7 +351,7 @@ describe('ParallelBlockHandler', () => {
 
       // Simulate downstream blocks trying to access results
       // This should work without errors
-      const storedResults = context.blockStates.get('parallel-1')?.output.response.results
+      const storedResults = context.blockStates.get('parallel-1')?.output.results
       expect(storedResults).toBeDefined()
       expect(storedResults).toHaveLength(3)
     })
@@ -379,7 +370,7 @@ describe('ParallelBlockHandler', () => {
       const parallel2Block = createMockBlock('parallel-2')
       parallel2Block.config.params = {
         parallelType: 'collection',
-        collection: '<parallel.response.results>', // This references the first parallel
+        collection: '<parallel.results>', // This references the first parallel
       }
 
       // Set up context with both parallels
@@ -415,7 +406,7 @@ describe('ParallelBlockHandler', () => {
               config: {
                 tool: 'function',
                 params: {
-                  code: 'return <parallel.response.results>;',
+                  code: 'return <parallel.results>;',
                 },
               },
               inputs: {},
@@ -451,7 +442,7 @@ describe('ParallelBlockHandler', () => {
             'parallel-2': {
               id: 'parallel-2',
               nodes: [],
-              distribution: '<parallel.response.results>',
+              distribution: '<parallel.results>',
             },
           },
         },
@@ -465,26 +456,26 @@ describe('ParallelBlockHandler', () => {
       for (let i = 0; i < 2; i++) {
         context.executedBlocks.add(`agent-1_parallel_parallel-1_iteration_${i}`)
         parallelState!.executionResults.set(`iteration_${i}`, {
-          'agent-1': { response: { content: `Result ${i}` } },
+          'agent-1': { content: `Result ${i}` },
         })
       }
 
       // Re-execute first parallel to aggregate results
       const result = await handler.execute(parallel1Block, {}, context)
-      expect((result as any).response.completed).toBe(true)
+      expect((result as any).completed).toBe(true)
 
       // Verify the block state is available
       const blockState = context.blockStates.get('parallel-1')
       expect(blockState).toBeDefined()
-      expect(blockState?.output.response.results).toHaveLength(2)
+      expect(blockState?.output.results).toHaveLength(2)
 
-      // Now when function block tries to resolve <parallel.response.results>, it should work
+      // Now when function block tries to resolve <parallel.results>, it should work
       // even though parallel-2 exists on the canvas
       expect(() => {
         // This simulates what the resolver would do
         const state = context.blockStates.get('parallel-1')
         if (!state) throw new Error('No state found for block parallel-1')
-        const results = state.output?.response?.results
+        const results = state.output?.results
         if (!results) throw new Error('No results found')
         return results
       }).not.toThrow()

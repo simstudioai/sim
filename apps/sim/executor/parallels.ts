@@ -112,7 +112,7 @@ export class ParallelManager {
       if (allVirtualBlocksExecuted && !context.completedLoops.has(parallelId)) {
         // Check if the parallel block already has aggregated results stored
         const blockState = context.blockStates.get(parallelId)
-        if (blockState?.output?.response?.completed && blockState?.output?.response?.results) {
+        if (blockState?.output?.completed && blockState?.output?.results) {
           logger.info(
             `Parallel ${parallelId} already has aggregated results, marking as completed without re-execution`
           )

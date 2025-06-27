@@ -190,10 +190,6 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
     input: { type: 'json', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        input: 'any',
-      },
-    },
+    input: 'any',
   },
 }

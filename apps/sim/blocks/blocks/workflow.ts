@@ -55,7 +55,7 @@ export const WorkflowBlock: BlockConfig = {
       title: 'Input Variable (Optional)',
       type: 'short-input',
       placeholder: 'Select a variable to pass to the child workflow',
-      description: 'This variable will be available as start.response.input in the child workflow',
+      description: 'This variable will be available as start.input in the child workflow',
     },
   ],
   tools: {
@@ -74,13 +74,9 @@ export const WorkflowBlock: BlockConfig = {
     },
   },
   outputs: {
-    response: {
-      type: {
-        success: 'boolean',
-        childWorkflowName: 'string',
-        result: 'json',
-        error: 'string',
-      },
-    },
+    success: 'boolean',
+    childWorkflowName: 'string',
+    result: 'json',
+    error: 'string',
   },
 }

@@ -258,17 +258,12 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         if (typeof output === 'string') {
           content = output
         } else if (output && typeof output === 'object') {
-          // Handle cases where output is { response: ... }
+          // Handle flattened output structure
           const outputObj = output as Record<string, any>
-          const response = outputObj.response
-          if (response) {
-            if (typeof response.content === 'string') {
-              content = response.content
-            } else {
-              // Pretty print for better readability
-              content = `\`\`\`json\n${JSON.stringify(response, null, 2)}\n\`\`\``
-            }
+          if (typeof outputObj.content === 'string') {
+            content = outputObj.content
           } else {
+            // Pretty print for better readability
             content = `\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``
           }
         }

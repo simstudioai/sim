@@ -215,36 +215,34 @@ export const googleProvider: ProviderConfig = {
           execution: {
             success: true,
             output: {
-              response: {
-                content: '',
-                model: request.model,
-                tokens: {
-                  prompt: 0,
-                  completion: 0,
-                  total: 0,
-                },
-                providerTiming: {
-                  startTime: providerStartTimeISO,
-                  endTime: new Date().toISOString(),
-                  duration: firstResponseTime,
-                  modelTime: firstResponseTime,
-                  toolsTime: 0,
-                  firstResponseTime,
-                  iterations: 1,
-                  timeSegments: [
-                    {
-                      type: 'model',
-                      name: 'Initial streaming response',
-                      startTime: initialCallTime,
-                      endTime: initialCallTime + firstResponseTime,
-                      duration: firstResponseTime,
-                    },
-                  ],
-                  cost: {
-                    total: 0.0, // Initial estimate, updated as tokens are processed
-                    input: 0.0,
-                    output: 0.0,
+              content: '',
+              model: request.model,
+              tokens: {
+                prompt: 0,
+                completion: 0,
+                total: 0,
+              },
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: firstResponseTime,
+                modelTime: firstResponseTime,
+                toolsTime: 0,
+                firstResponseTime,
+                iterations: 1,
+                timeSegments: [
+                  {
+                    type: 'model',
+                    name: 'Initial streaming response',
+                    startTime: initialCallTime,
+                    endTime: initialCallTime + firstResponseTime,
+                    duration: firstResponseTime,
                   },
+                ],
+                cost: {
+                  total: 0.0, // Initial estimate, updated as tokens are processed
+                  input: 0.0,
+                  output: 0.0,
                 },
               },
             },
@@ -527,33 +525,31 @@ export const googleProvider: ProviderConfig = {
                     execution: {
                       success: true,
                       output: {
-                        response: {
-                          content: '',
-                          model: request.model,
-                          tokens,
-                          toolCalls:
-                            toolCalls.length > 0
-                              ? {
-                                  list: toolCalls,
-                                  count: toolCalls.length,
-                                }
-                              : undefined,
-                          toolResults,
-                          providerTiming: {
-                            startTime: providerStartTimeISO,
-                            endTime: new Date().toISOString(),
-                            duration: Date.now() - providerStartTime,
-                            modelTime,
-                            toolsTime,
-                            firstResponseTime,
-                            iterations: iterationCount + 1,
-                            timeSegments,
-                          },
-                          cost: {
-                            total: (tokens.total || 0) * 0.0001, // Estimate cost based on tokens
-                            input: (tokens.prompt || 0) * 0.0001,
-                            output: (tokens.completion || 0) * 0.0001,
-                          },
+                        content: '',
+                        model: request.model,
+                        tokens,
+                        toolCalls:
+                          toolCalls.length > 0
+                            ? {
+                                list: toolCalls,
+                                count: toolCalls.length,
+                              }
+                            : undefined,
+                        toolResults,
+                        providerTiming: {
+                          startTime: providerStartTimeISO,
+                          endTime: new Date().toISOString(),
+                          duration: Date.now() - providerStartTime,
+                          modelTime,
+                          toolsTime,
+                          firstResponseTime,
+                          iterations: iterationCount + 1,
+                          timeSegments,
+                        },
+                        cost: {
+                          total: (tokens.total || 0) * 0.0001, // Estimate cost based on tokens
+                          input: (tokens.prompt || 0) * 0.0001,
+                          output: (tokens.completion || 0) * 0.0001,
                         },
                       },
                       logs: [],

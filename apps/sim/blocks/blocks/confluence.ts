@@ -109,14 +109,10 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     content: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        ts: 'string',
-        pageId: 'string',
-        content: 'string',
-        title: 'string',
-        success: 'boolean',
-      },
-    },
+    ts: 'string',
+    pageId: 'string',
+    content: 'string',
+    title: 'string',
+    success: 'boolean',
   },
 }

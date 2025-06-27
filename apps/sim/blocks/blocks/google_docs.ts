@@ -181,12 +181,8 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
     content: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        metadata: 'json',
-        updatedContent: 'boolean',
-      },
-    },
+    content: 'string',
+    metadata: 'json',
+    updatedContent: 'boolean',
   },
 }

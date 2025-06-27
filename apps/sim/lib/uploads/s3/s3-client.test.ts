@@ -38,6 +38,14 @@ describe('S3 Client', () => {
       },
     }))
 
+    // Mock environment variables - use fake credentials for testing
+    vi.doMock('../../env', () => ({
+      env: {
+        AWS_ACCESS_KEY_ID: 'AKIA_FAKE_KEY_FOR_TESTING',
+        AWS_SECRET_ACCESS_KEY: 'fake-secret-key-for-testing-only',
+      },
+    }))
+
     vi.spyOn(Date, 'now').mockReturnValue(1672603200000)
     vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2025-06-16T01:13:10.765Z')
   })
@@ -286,8 +294,14 @@ describe('S3 Client', () => {
       const client = getS3Client()
 
       expect(client).toBeDefined()
-      // Verify the client was constructed with the right configuration
-      expect(S3Client).toHaveBeenCalledWith({ region: 'test-region' })
+      // Verify the client was constructed with the right configuration including fake credentials
+      expect(S3Client).toHaveBeenCalledWith({
+        region: 'test-region',
+        credentials: {
+          accessKeyId: 'AKIA_FAKE_KEY_FOR_TESTING',
+          secretAccessKey: 'fake-secret-key-for-testing-only',
+        },
+      })
     })
   })
 })

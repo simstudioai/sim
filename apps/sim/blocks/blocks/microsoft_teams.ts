@@ -169,12 +169,8 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     content: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        metadata: 'json',
-        updatedContent: 'boolean',
-      },
-    },
+    content: 'string',
+    metadata: 'json',
+    updatedContent: 'boolean',
   },
 }

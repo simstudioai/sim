@@ -211,17 +211,13 @@ export const XBlock: BlockConfig<XResponse> = {
     includeRecentTweets: { type: 'boolean', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        tweet: 'json',
-        replies: 'any',
-        context: 'any',
-        tweets: 'json',
-        includes: 'any',
-        meta: 'json',
-        user: 'json',
-        recentTweets: 'any',
-      },
-    },
+    tweet: 'json',
+    replies: 'any',
+    context: 'any',
+    tweets: 'json',
+    includes: 'any',
+    meta: 'json',
+    user: 'json',
+    recentTweets: 'any',
   },
 }

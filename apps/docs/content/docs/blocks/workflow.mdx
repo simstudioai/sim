@@ -66,17 +66,17 @@ Define the data to pass to the child workflow:
 
 - **Single Variable Input**: Select a variable or block output to pass to the child workflow
 - **Variable References**: Use `<variable.name>` to reference workflow variables
-- **Block References**: Use `<blockName.response.field>` to reference outputs from previous blocks
-- **Automatic Mapping**: The selected data is automatically available as `start.response.input` in the child workflow
+- **Block References**: Use `<blockName.field>` to reference outputs from previous blocks
+- **Automatic Mapping**: The selected data is automatically available as `start.input` in the child workflow
 - **Optional**: The input field is optional - child workflows can run without input data
 - **Type Preservation**: Variable types (strings, numbers, objects, etc.) are preserved when passed to the child workflow
 
 ### Examples of Input References
 
 - `<variable.customerData>` - Pass a workflow variable
-- `<dataProcessor.response.result>` - Pass the result from a previous block
-- `<start.response.input>` - Pass the original workflow input
-- `<apiCall.response.data.user>` - Pass a specific field from an API response
+- `<dataProcessor.result>` - Pass the result from a previous block
+- `<start.input>` - Pass the original workflow input
+- `<apiCall.data.user>` - Pass a specific field from an API response
 
 ### Execution Context
 
@@ -109,7 +109,7 @@ To prevent infinite recursion and ensure system stability, the Workflow block in
         <strong>Workflow ID</strong>: The identifier of the workflow to execute
       </li>
       <li>
-        <strong>Input Variable</strong>: Variable or block reference to pass to the child workflow (e.g., `<variable.name>` or `<block.response.field>`)
+        <strong>Input Variable</strong>: Variable or block reference to pass to the child workflow (e.g., `<variable.name>` or `<block.field>`)
       </li>
     </ul>
   </Tab>
@@ -150,23 +150,23 @@ blocks:
   - type: workflow
     name: "Setup Customer Account"
     workflowId: "account-setup-workflow"
-    input: "<Validate Customer Data.response.result>"
+    input: "<Validate Customer Data.result>"
   
   - type: workflow
     name: "Send Welcome Email"
     workflowId: "welcome-email-workflow"
-    input: "<Setup Customer Account.response.result.accountDetails>"
+    input: "<Setup Customer Account.result.accountDetails>"
 ```
 
 ### Child Workflow: Customer Validation
 ```yaml
 # Reusable customer validation workflow
-# Access the input data using: start.response.input
+# Access the input data using: start.input
 blocks:
   - type: function
     name: "Validate Email"
     code: |
-      const customerData = start.response.input;
+      const customerData = start.input;
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return emailRegex.test(customerData.email);
   
@@ -174,7 +174,7 @@ blocks:
     name: "Check Credit Score"
     url: "https://api.creditcheck.com/score"
     method: "POST"
-    body: "<start.response.input>"
+    body: "<start.input>"
 ```
 
 ### Variable Reference Examples
@@ -184,13 +184,13 @@ blocks:
 input: "<variable.customerInfo>"
 
 # Using block outputs
-input: "<dataProcessor.response.cleanedData>"
+  input: "<dataProcessor.cleanedData>"
 
 # Using nested object properties
-input: "<apiCall.response.data.user.profile>"
+  input: "<apiCall.data.user.profile>"
 
 # Using array elements (if supported by the resolver)
-input: "<listProcessor.response.items[0]>"
+  input: "<listProcessor.items[0]>"
 ```
 
 ## Access Control and Permissions

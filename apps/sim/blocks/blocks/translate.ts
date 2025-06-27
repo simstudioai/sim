@@ -93,12 +93,8 @@ export const TranslateBlock: BlockConfig = {
     systemPrompt: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        model: 'string',
-        tokens: 'any',
-      },
-    },
+    content: 'string',
+    model: 'string',
+    tokens: 'any',
   },
 }

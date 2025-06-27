@@ -265,11 +265,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     pageSize: { type: 'number', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        file: 'json',
-        files: 'json',
-      },
-    },
+    file: 'json',
+    files: 'json',
   },
 }

@@ -194,9 +194,7 @@ export class AgentBlockHandler implements BlockHandler {
     if (!memories) return []
 
     let memoryArray: any[] = []
-    if (memories?.response?.memories && Array.isArray(memories.response.memories)) {
-      memoryArray = memories.response.memories
-    } else if (memories?.memories && Array.isArray(memories.memories)) {
+    if (memories?.memories && Array.isArray(memories.memories)) {
       memoryArray = memories.memories
     } else if (Array.isArray(memories)) {
       memoryArray = memories
@@ -473,7 +471,7 @@ export class AgentBlockHandler implements BlockHandler {
           stream: response.body!,
           execution: {
             success: executionData.success,
-            output: executionData.output || { response: {} },
+            output: executionData.output || {},
             error: executionData.error,
             logs: [], // Logs are stripped from headers, will be populated by executor
             metadata: executionData.metadata || {
@@ -621,7 +619,7 @@ export class AgentBlockHandler implements BlockHandler {
     const streamingExec = response as StreamingExecution
     logger.info(`Received StreamingExecution for block ${block.id}`)
 
-    if (streamingExec.execution.output?.response) {
+    if (streamingExec.execution.output) {
       const execution = streamingExec.execution as any
       if (block.metadata?.name) execution.blockName = block.metadata.name
       if (block.metadata?.id) execution.blockType = block.metadata.id
@@ -637,7 +635,7 @@ export class AgentBlockHandler implements BlockHandler {
       stream,
       execution: {
         success: true,
-        output: { response: {} },
+        output: {},
         logs: [],
         metadata: {
           duration: 0,
@@ -667,10 +665,8 @@ export class AgentBlockHandler implements BlockHandler {
     try {
       const parsedContent = JSON.parse(result.content)
       return {
-        response: {
-          ...parsedContent,
-          ...this.createResponseMetadata(result),
-        },
+        ...parsedContent,
+        ...this.createResponseMetadata(result),
       }
     } catch (error) {
       logger.error('Failed to parse response content:', { error })
@@ -680,11 +676,9 @@ export class AgentBlockHandler implements BlockHandler {
 
   private processStandardResponse(result: any): BlockOutput {
     return {
-      response: {
-        content: result.content,
-        model: result.model,
-        ...this.createResponseMetadata(result),
-      },
+      content: result.content,
+      model: result.model,
+      ...this.createResponseMetadata(result),
     }
   }
 

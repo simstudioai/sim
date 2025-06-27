@@ -29,7 +29,7 @@ describe('Console Store', () => {
         blockName: 'Test Block',
         blockType: 'agent',
         success: true,
-        output: { response: { content: 'Test output' } },
+        output: { content: 'Test output' },
         durationMs: 100,
         startedAt: '2023-01-01T00:00:00.000Z',
         endedAt: '2023-01-01T00:00:01.000Z',
@@ -78,7 +78,7 @@ describe('Console Store', () => {
         blockName: 'Test Block',
         blockType: 'agent',
         success: true,
-        output: { response: { content: 'Initial content' } },
+        output: { content: 'Initial content' },
         durationMs: 100,
         startedAt: '2023-01-01T00:00:00.000Z',
         endedAt: '2023-01-01T00:00:01.000Z',
@@ -92,7 +92,7 @@ describe('Console Store', () => {
 
       const state = useConsoleStore.getState()
       expect(state.entries).toHaveLength(1)
-      expect(state.entries[0].output?.response?.content).toBe('Updated content')
+      expect(state.entries[0].output?.content).toBe('Updated content')
     })
 
     it('should update console entry with object update', () => {
@@ -111,7 +111,7 @@ describe('Console Store', () => {
       const state = useConsoleStore.getState()
       const entry = state.entries[0]
 
-      expect(entry.output?.response?.content).toBe('New content')
+      expect(entry.output?.content).toBe('New content')
       expect(entry.success).toBe(false)
       expect(entry.error).toBe('Update error')
       expect(entry.durationMs).toBe(200)
@@ -123,10 +123,8 @@ describe('Console Store', () => {
 
       const update: ConsoleUpdate = {
         output: {
-          response: {
-            content: 'Direct output update',
-            status: 200,
-          },
+          content: 'Direct output update',
+          status: 200,
         },
       }
 
@@ -135,8 +133,8 @@ describe('Console Store', () => {
       const state = useConsoleStore.getState()
       const entry = state.entries[0]
 
-      expect(entry.output?.response?.content).toBe('Direct output update')
-      expect(entry.output?.response?.status).toBe(200)
+      expect(entry.output?.content).toBe('Direct output update')
+      expect(entry.output?.status).toBe(200)
     })
 
     it('should not update non-matching block IDs', () => {
@@ -145,7 +143,7 @@ describe('Console Store', () => {
       store.updateConsole('non-existent-block', 'Should not update')
 
       const newState = useConsoleStore.getState()
-      expect(newState.entries[0].output?.response?.content).toBe('Initial content')
+      expect(newState.entries[0].output?.content).toBe('Initial content')
     })
 
     it('should handle partial updates correctly', () => {
@@ -156,14 +154,14 @@ describe('Console Store', () => {
 
       let state = useConsoleStore.getState()
       expect(state.entries[0].success).toBe(false)
-      expect(state.entries[0].output?.response?.content).toBe('Initial content') // Should remain unchanged
+      expect(state.entries[0].output?.content).toBe('Initial content') // Should remain unchanged
 
       // Then update only content
       store.updateConsole('block-123', { content: 'Partial update' })
 
       state = useConsoleStore.getState()
       expect(state.entries[0].success).toBe(false) // Should remain false
-      expect(state.entries[0].output?.response?.content).toBe('Partial update')
+      expect(state.entries[0].output?.content).toBe('Partial update')
     })
   })
 
@@ -178,7 +176,7 @@ describe('Console Store', () => {
         blockName: 'Block 1',
         blockType: 'agent',
         success: true,
-        output: { response: {} },
+        output: {},
         startedAt: '2023-01-01T00:00:00.000Z',
         endedAt: '2023-01-01T00:00:01.000Z',
       })
@@ -189,7 +187,7 @@ describe('Console Store', () => {
         blockName: 'Block 2',
         blockType: 'api',
         success: true,
-        output: { response: {} },
+        output: {},
         startedAt: '2023-01-01T00:00:00.000Z',
         endedAt: '2023-01-01T00:00:01.000Z',
       })
@@ -230,7 +228,7 @@ describe('Console Store', () => {
         blockName: 'Block 1',
         blockType: 'agent',
         success: true,
-        output: { response: {} },
+        output: {},
         startedAt: '2023-01-01T00:00:00.000Z',
         endedAt: '2023-01-01T00:00:01.000Z',
       })
@@ -241,7 +239,7 @@ describe('Console Store', () => {
         blockName: 'Block 2',
         blockType: 'api',
         success: true,
-        output: { response: {} },
+        output: {},
         startedAt: '2023-01-01T00:00:00.000Z',
         endedAt: '2023-01-01T00:00:01.000Z',
       })
@@ -252,7 +250,7 @@ describe('Console Store', () => {
         blockName: 'Block 3',
         blockType: 'function',
         success: false,
-        output: { response: {} },
+        output: {},
         error: 'Test error',
         startedAt: '2023-01-01T00:00:00.000Z',
         endedAt: '2023-01-01T00:00:01.000Z',

@@ -251,21 +251,19 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       // Create result with metrics as direct fields for easy access
       const outputResult = {
-        response: {
-          content: inputs.content,
-          model: result.model,
-          tokens: {
-            prompt: result.tokens?.prompt || 0,
-            completion: result.tokens?.completion || 0,
-            total: result.tokens?.total || 0,
-          },
-          cost: {
-            input: costCalculation.input,
-            output: costCalculation.output,
-            total: costCalculation.total,
-          },
-          ...metricScores,
+        content: inputs.content,
+        model: result.model,
+        tokens: {
+          prompt: result.tokens?.prompt || 0,
+          completion: result.tokens?.completion || 0,
+          total: result.tokens?.total || 0,
         },
+        cost: {
+          input: costCalculation.input,
+          output: costCalculation.output,
+          total: costCalculation.total,
+        },
+        ...metricScores,
       }
 
       return outputResult

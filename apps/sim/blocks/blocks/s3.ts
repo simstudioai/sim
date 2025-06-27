@@ -96,11 +96,7 @@ export const S3Block: BlockConfig<S3Response> = {
     s3Uri: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        url: 'string',
-        metadata: 'json',
-      },
-    },
+    url: 'string',
+    metadata: 'json',
   },
 }

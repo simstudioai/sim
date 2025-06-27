@@ -112,13 +112,9 @@ export const AutoblocksBlock: BlockConfig<AutoblocksResponse> = {
     environment: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        promptId: 'string',
-        version: 'string',
-        renderedPrompt: 'string',
-        templates: 'json',
-      },
-    },
+    promptId: 'string',
+    version: 'string',
+    renderedPrompt: 'string',
+    templates: 'json',
   },
 }

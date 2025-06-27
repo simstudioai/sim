@@ -190,16 +190,12 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     url: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        // Search output
-        results: 'json',
-        // Find Similar Links output
-        similarLinks: 'json',
-        // Answer output
-        answer: 'string',
-        citations: 'json',
-      },
-    },
+    // Search output
+    results: 'json',
+    // Find Similar Links output
+    similarLinks: 'json',
+    // Answer output
+    answer: 'string',
+    citations: 'json',
   },
 }

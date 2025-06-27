@@ -51,10 +51,6 @@ export const JinaBlock: BlockConfig<ReadUrlResponse> = {
     apiKey: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-      },
-    },
+    content: 'string',
   },
 }

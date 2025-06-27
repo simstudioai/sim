@@ -199,17 +199,13 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
     valueInputOption: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        data: 'json',
-        metadata: 'json',
-        updatedRange: 'string',
-        updatedRows: 'number',
-        updatedColumns: 'number',
-        updatedCells: 'number',
-        index: 'number',
-        values: 'json',
-      },
-    },
+    data: 'json',
+    metadata: 'json',
+    updatedRange: 'string',
+    updatedRows: 'number',
+    updatedColumns: 'number',
+    updatedCells: 'number',
+    index: 'number',
+    values: 'json',
   },
 }

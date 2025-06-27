@@ -76,13 +76,9 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
     save_browser_data: { type: 'boolean', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        id: 'string',
-        success: 'boolean',
-        output: 'any',
-        steps: 'json',
-      },
-    },
+    id: 'string',
+    success: 'boolean',
+    output: 'any',
+    steps: 'json',
   },
 }

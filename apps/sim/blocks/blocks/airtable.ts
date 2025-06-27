@@ -179,12 +179,8 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   },
   // Output structure depends on the operation, covered by AirtableResponse union type
   outputs: {
-    response: {
-      type: {
-        records: 'json', // Optional: for list, create, updateMultiple
-        record: 'json', // Optional: for get, update single
-        metadata: 'json', // Required: present in all responses
-      },
-    },
+    records: 'json', // Optional: for list, create, updateMultiple
+    record: 'json', // Optional: for get, update single
+    metadata: 'json', // Required: present in all responses
   },
 }

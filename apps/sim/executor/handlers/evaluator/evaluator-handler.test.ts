@@ -1,7 +1,6 @@
 import '../../__test-utils__/mock-dependencies'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import type { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ExecutionContext } from '../../types'
@@ -86,21 +85,6 @@ describe('EvaluatorBlockHandler', () => {
       temperature: 0.1,
     }
 
-    const expectedOutput: BlockOutput = {
-      response: {
-        content: 'This is the content to evaluate.',
-        model: 'mock-model',
-        tokens: { prompt: 50, completion: 10, total: 60 },
-        cost: {
-          input: 0,
-          output: 0,
-          total: 0,
-        },
-        score1: 5,
-        score2: 8,
-      },
-    }
-
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
     expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
@@ -134,7 +118,18 @@ describe('EvaluatorBlockHandler', () => {
       temperature: 0.1,
     })
 
-    expect(result).toEqual(expectedOutput)
+    expect(result).toEqual({
+      content: 'This is the content to evaluate.',
+      model: 'mock-model',
+      tokens: { prompt: 50, completion: 10, total: 60 },
+      cost: {
+        input: 0,
+        output: 0,
+        total: 0,
+      },
+      score1: 5,
+      score2: 8,
+    })
   })
 
   it('should process JSON string content correctly', async () => {
@@ -221,7 +216,7 @@ describe('EvaluatorBlockHandler', () => {
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
-    expect((result as any).response.quality).toBe(9)
+    expect((result as any).quality).toBe(9)
   })
 
   it('should handle invalid/non-JSON response gracefully (scores = 0)', async () => {
@@ -246,7 +241,7 @@ describe('EvaluatorBlockHandler', () => {
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
-    expect((result as any).response.score).toBe(0)
+    expect((result as any).score).toBe(0)
   })
 
   it('should handle partially valid JSON response (extracts what it can)', async () => {
@@ -273,8 +268,8 @@ describe('EvaluatorBlockHandler', () => {
     })
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
-    expect((result as any).response.accuracy).toBe(0)
-    expect((result as any).response.fluency).toBe(0)
+    expect((result as any).accuracy).toBe(0)
+    expect((result as any).fluency).toBe(0)
   })
 
   it('should extract metric scores ignoring case', async () => {
@@ -299,7 +294,7 @@ describe('EvaluatorBlockHandler', () => {
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
-    expect((result as any).response.camelcasescore).toBe(7)
+    expect((result as any).camelcasescore).toBe(7)
   })
 
   it('should handle missing metrics in response (score = 0)', async () => {
@@ -327,8 +322,8 @@ describe('EvaluatorBlockHandler', () => {
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
-    expect((result as any).response.presentscore).toBe(4)
-    expect((result as any).response.missingscore).toBe(0)
+    expect((result as any).presentscore).toBe(4)
+    expect((result as any).missingscore).toBe(0)
   })
 
   it('should handle server error responses', async () => {

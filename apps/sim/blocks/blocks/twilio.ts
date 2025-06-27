@@ -62,13 +62,9 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
     fromNumber: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        success: 'boolean',
-        messageId: 'any',
-        status: 'any',
-        error: 'any',
-      },
-    },
+    success: 'boolean',
+    messageId: 'any',
+    status: 'any',
+    error: 'any',
   },
 }

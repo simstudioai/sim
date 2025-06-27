@@ -146,7 +146,7 @@ async function createWorkspace(userId: string, name: string) {
               },
             },
             outputs: {
-              response: { type: { input: 'any' } },
+              input: 'any',
             },
             enabled: true,
             horizontalHandles: true,
@@ -230,11 +230,7 @@ async function createWorkspace(userId: string, name: string) {
           },
         },
         outputs: {
-          response: {
-            type: {
-              input: 'any',
-            },
-          },
+          input: 'any',
         },
         createdAt: now,
         updatedAt: now,

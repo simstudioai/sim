@@ -64,10 +64,6 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
     apiKey: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        data: 'json',
-      },
-    },
+    data: 'json',
   },
 }

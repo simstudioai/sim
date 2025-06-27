@@ -187,17 +187,13 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     issueType: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        ts: 'string',
-        issueKey: 'string',
-        summary: 'string',
-        description: 'string',
-        created: 'string',
-        updated: 'string',
-        success: 'boolean',
-        url: 'string',
-      },
-    },
+    ts: 'string',
+    issueKey: 'string',
+    summary: 'string',
+    description: 'string',
+    created: 'string',
+    updated: 'string',
+    success: 'boolean',
+    url: 'string',
   },
 }

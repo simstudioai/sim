@@ -215,23 +215,13 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
     inline: { type: 'boolean', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        total_items: 'number',
-        page_count: 'number',
-        items: 'json',
-      },
-      dependsOn: {
-        subBlockId: 'operation',
-        condition: {
-          whenEmpty: {
-            total_items: 'number',
-            page_count: 'number',
-            items: 'json',
-          },
-          whenFilled: 'json',
-        },
-      },
-    },
-  },
+    total_items: 'number',
+    page_count: 'number',
+    items: 'json',
+    fileUrl: 'string',
+    contentType: 'string',
+    filename: 'string',
+    fields: 'json',
+    form: 'json',
+  } as any,
 }

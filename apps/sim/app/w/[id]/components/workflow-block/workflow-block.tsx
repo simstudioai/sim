@@ -435,6 +435,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
         <ConnectionBlocks
           blockId={id}
+          horizontalHandles={horizontalHandles}
           setIsConnecting={setIsConnecting}
           isDisabled={!userPermissions.canEdit}
         />
@@ -499,13 +500,20 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               ) : (
                 <span
                   className={cn(
-                    'inline-block cursor-text font-medium text-md hover:text-muted-foreground',
+                    'block cursor-text font-medium text-md hover:text-muted-foreground',
+                    'overflow-hidden text-ellipsis whitespace-nowrap',
                     !isEnabled && 'text-muted-foreground'
                   )}
                   onClick={handleNameClick}
                   title={name}
                   style={{
-                    maxWidth: !isEnabled ? (isWide ? '200px' : '140px') : '180px',
+                    maxWidth: !isEnabled
+                      ? isWide
+                        ? '200px'
+                        : '140px'
+                      : isWide
+                        ? '220px'
+                        : '180px',
                   }}
                 >
                   {name}
@@ -671,21 +679,25 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                             {Object.entries(config.outputs).map(([key, value]) => (
                               <div key={key} className='mb-1'>
                                 <span className='text-muted-foreground'>{key}</span>{' '}
-                                {typeof value.type === 'object' ? (
-                                  <div className='mt-1 pl-3'>
-                                    {Object.entries(value.type).map(([typeKey, typeValue]) => (
-                                      <div key={typeKey} className='flex items-start'>
-                                        <span className='font-medium text-blue-500'>
-                                          {typeKey}:
-                                        </span>
-                                        <span className='ml-1 text-green-500'>
-                                          {typeValue as string}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
+                                {typeof value === 'object' && value !== null && 'type' in value ? (
+                                  typeof value.type === 'object' ? (
+                                    <div className='mt-1 pl-3'>
+                                      {Object.entries(value.type).map(([typeKey, typeValue]) => (
+                                        <div key={typeKey} className='flex items-start'>
+                                          <span className='font-medium text-blue-500'>
+                                            {typeKey}:
+                                          </span>
+                                          <span className='ml-1 text-green-500'>
+                                            {typeValue as string}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className='text-green-500'>{value.type as string}</span>
+                                  )
                                 ) : (
-                                  <span className='text-green-500'>{value.type as string}</span>
+                                  <span className='text-green-500'>{value as string}</span>
                                 )}
                               </div>
                             ))}

@@ -39,11 +39,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   },
 
   outputs: {
-    response: {
-      type: {
-        audioUrl: 'string',
-      },
-    },
+    audioUrl: 'string',
   },
 
   subBlocks: [

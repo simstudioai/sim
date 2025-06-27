@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
+import { StarterBlock } from '@/blocks/blocks/starter'
+import type { SubBlockConfig } from '@/blocks/types'
 import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
 import { API_ENDPOINTS } from '../../constants'
 import { useSubBlockStore } from '../subblock/store'
@@ -662,7 +664,38 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
           }))
         } else {
-          // If no state in DB, use empty state - server should have created start block
+          // If no state in DB, initialize with starter block using proper configuration
+          const starterId = crypto.randomUUID()
+
+          // Create subBlocks from StarterBlock configuration with default values
+          const subBlocks: Record<string, any> = {}
+          StarterBlock.subBlocks.forEach((subBlock: SubBlockConfig) => {
+            subBlocks[subBlock.id] = {
+              id: subBlock.id,
+              type: subBlock.type,
+              value: subBlock.value
+                ? subBlock.value({})
+                : subBlock.type === 'dropdown'
+                  ? Array.isArray(subBlock.options)
+                    ? subBlock.options[0]
+                    : 'manual'
+                  : '',
+            }
+          })
+
+          const starterBlock = {
+            id: starterId,
+            type: 'starter' as const,
+            name: StarterBlock.name,
+            position: { x: 100, y: 100 },
+            subBlocks,
+            outputs: StarterBlock.outputs,
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+          }
+
           workflowState = {
             blocks: {},
             edges: [],
@@ -793,92 +826,32 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
         } else {
-          // Create starter block for new workflow
+          // Create starter block for new workflow using StarterBlock configuration
           const starterId = crypto.randomUUID()
+
+          // Create subBlocks from StarterBlock configuration with default values
+          const subBlocks: Record<string, any> = {}
+          StarterBlock.subBlocks.forEach((subBlock: SubBlockConfig) => {
+            subBlocks[subBlock.id] = {
+              id: subBlock.id,
+              type: subBlock.type,
+              value: subBlock.value
+                ? subBlock.value({})
+                : subBlock.type === 'dropdown'
+                  ? Array.isArray(subBlock.options)
+                    ? subBlock.options[0]
+                    : 'manual'
+                  : '',
+            }
+          })
+
           const starterBlock = {
             id: starterId,
             type: 'starter' as const,
-            name: 'Start',
+            name: StarterBlock.name,
             position: { x: 100, y: 100 },
-            subBlocks: {
-              startWorkflow: {
-                id: 'startWorkflow',
-                type: 'dropdown' as const,
-                value: 'manual',
-              },
-              webhookPath: {
-                id: 'webhookPath',
-                type: 'short-input' as const,
-                value: '',
-              },
-              webhookSecret: {
-                id: 'webhookSecret',
-                type: 'short-input' as const,
-                value: '',
-              },
-              scheduleType: {
-                id: 'scheduleType',
-                type: 'dropdown' as const,
-                value: 'daily',
-              },
-              minutesInterval: {
-                id: 'minutesInterval',
-                type: 'short-input' as const,
-                value: '',
-              },
-              minutesStartingAt: {
-                id: 'minutesStartingAt',
-                type: 'short-input' as const,
-                value: '',
-              },
-              hourlyMinute: {
-                id: 'hourlyMinute',
-                type: 'short-input' as const,
-                value: '',
-              },
-              dailyTime: {
-                id: 'dailyTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              weeklyDay: {
-                id: 'weeklyDay',
-                type: 'dropdown' as const,
-                value: 'MON',
-              },
-              weeklyDayTime: {
-                id: 'weeklyDayTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              monthlyDay: {
-                id: 'monthlyDay',
-                type: 'short-input' as const,
-                value: '',
-              },
-              monthlyTime: {
-                id: 'monthlyTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              cronExpression: {
-                id: 'cronExpression',
-                type: 'short-input' as const,
-                value: '',
-              },
-              timezone: {
-                id: 'timezone',
-                type: 'dropdown' as const,
-                value: 'UTC',
-              },
-            },
-            outputs: {
-              response: {
-                type: {
-                  input: 'any',
-                },
-              },
-            },
+            subBlocks,
+            outputs: StarterBlock.outputs,
             enabled: true,
             horizontalHandles: true,
             isWide: false,
@@ -1226,93 +1199,32 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             parallels: currentWorkflowState.parallels || {},
           }
         } else {
-          // Source is not active workflow, create with starter block for now
-          // In a future enhancement, we could fetch from DB
+          // Source is not active workflow, create with starter block using StarterBlock configuration
           const starterId = crypto.randomUUID()
+
+          // Create subBlocks from StarterBlock configuration with default values
+          const subBlocks: Record<string, any> = {}
+          StarterBlock.subBlocks.forEach((subBlock: SubBlockConfig) => {
+            subBlocks[subBlock.id] = {
+              id: subBlock.id,
+              type: subBlock.type,
+              value: subBlock.value
+                ? subBlock.value({})
+                : subBlock.type === 'dropdown'
+                  ? Array.isArray(subBlock.options)
+                    ? subBlock.options[0]
+                    : 'manual'
+                  : '',
+            }
+          })
+
           const starterBlock = {
             id: starterId,
             type: 'starter' as const,
-            name: 'Start',
+            name: StarterBlock.name,
             position: { x: 100, y: 100 },
-            subBlocks: {
-              startWorkflow: {
-                id: 'startWorkflow',
-                type: 'dropdown' as const,
-                value: 'manual',
-              },
-              webhookPath: {
-                id: 'webhookPath',
-                type: 'short-input' as const,
-                value: '',
-              },
-              webhookSecret: {
-                id: 'webhookSecret',
-                type: 'short-input' as const,
-                value: '',
-              },
-              scheduleType: {
-                id: 'scheduleType',
-                type: 'dropdown' as const,
-                value: 'daily',
-              },
-              minutesInterval: {
-                id: 'minutesInterval',
-                type: 'short-input' as const,
-                value: '',
-              },
-              minutesStartingAt: {
-                id: 'minutesStartingAt',
-                type: 'short-input' as const,
-                value: '',
-              },
-              hourlyMinute: {
-                id: 'hourlyMinute',
-                type: 'short-input' as const,
-                value: '',
-              },
-              dailyTime: {
-                id: 'dailyTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              weeklyDay: {
-                id: 'weeklyDay',
-                type: 'dropdown' as const,
-                value: 'MON',
-              },
-              weeklyDayTime: {
-                id: 'weeklyDayTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              monthlyDay: {
-                id: 'monthlyDay',
-                type: 'short-input' as const,
-                value: '',
-              },
-              monthlyTime: {
-                id: 'monthlyTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              cronExpression: {
-                id: 'cronExpression',
-                type: 'short-input' as const,
-                value: '',
-              },
-              timezone: {
-                id: 'timezone',
-                type: 'dropdown' as const,
-                value: 'UTC',
-              },
-            },
-            outputs: {
-              response: {
-                type: {
-                  input: 'any',
-                },
-              },
-            },
+            subBlocks,
+            outputs: StarterBlock.outputs,
             enabled: true,
             horizontalHandles: true,
             isWide: false,

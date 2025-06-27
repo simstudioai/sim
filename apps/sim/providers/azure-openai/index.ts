@@ -212,22 +212,22 @@ export const azureOpenAIProvider: ProviderConfig = {
           stream: createReadableStreamFromAzureOpenAIStream(streamResponse, (content, usage) => {
             // Update the execution data with the final content and token usage
             _streamContent = content
-            streamingResult.execution.output.response.content = content
+            streamingResult.execution.output.content = content
 
             // Update the timing information with the actual completion time
             const streamEndTime = Date.now()
             const streamEndTimeISO = new Date(streamEndTime).toISOString()
 
-            if (streamingResult.execution.output.response.providerTiming) {
-              streamingResult.execution.output.response.providerTiming.endTime = streamEndTimeISO
-              streamingResult.execution.output.response.providerTiming.duration =
+            if (streamingResult.execution.output.providerTiming) {
+              streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
+              streamingResult.execution.output.providerTiming.duration =
                 streamEndTime - providerStartTime
 
               // Update the time segment as well
-              if (streamingResult.execution.output.response.providerTiming.timeSegments?.[0]) {
-                streamingResult.execution.output.response.providerTiming.timeSegments[0].endTime =
+              if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
+                streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
                   streamEndTime
-                streamingResult.execution.output.response.providerTiming.timeSegments[0].duration =
+                streamingResult.execution.output.providerTiming.timeSegments[0].duration =
                   streamEndTime - providerStartTime
               }
             }
@@ -240,34 +240,32 @@ export const azureOpenAIProvider: ProviderConfig = {
                 total: usage.total_tokens || tokenUsage.total,
               }
 
-              streamingResult.execution.output.response.tokens = newTokens
+              streamingResult.execution.output.tokens = newTokens
             }
             // We don't need to estimate tokens here as execution-logger.ts will handle that
           }),
           execution: {
             success: true,
             output: {
-              response: {
-                content: '', // Will be filled by the stream completion callback
-                model: request.model,
-                tokens: tokenUsage,
-                toolCalls: undefined,
-                providerTiming: {
-                  startTime: providerStartTimeISO,
-                  endTime: new Date().toISOString(),
-                  duration: Date.now() - providerStartTime,
-                  timeSegments: [
-                    {
-                      type: 'model',
-                      name: 'Streaming response',
-                      startTime: providerStartTime,
-                      endTime: Date.now(),
-                      duration: Date.now() - providerStartTime,
-                    },
-                  ],
-                },
-                // Cost will be calculated in execution-logger.ts
+              content: '', // Will be filled by the stream completion callback
+              model: request.model,
+              tokens: tokenUsage,
+              toolCalls: undefined,
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+                timeSegments: [
+                  {
+                    type: 'model',
+                    name: 'Streaming response',
+                    startTime: providerStartTime,
+                    endTime: Date.now(),
+                    duration: Date.now() - providerStartTime,
+                  },
+                ],
               },
+              // Cost will be calculated in execution-logger.ts
             },
             logs: [], // No block logs for direct streaming
             metadata: {
@@ -527,7 +525,7 @@ export const azureOpenAIProvider: ProviderConfig = {
           stream: createReadableStreamFromAzureOpenAIStream(streamResponse, (content, usage) => {
             // Update the execution data with the final content and token usage
             _streamContent = content
-            streamingResult.execution.output.response.content = content
+            streamingResult.execution.output.content = content
 
             // Update token usage if available from the stream
             if (usage) {
@@ -537,39 +535,37 @@ export const azureOpenAIProvider: ProviderConfig = {
                 total: usage.total_tokens || tokens.total,
               }
 
-              streamingResult.execution.output.response.tokens = newTokens
+              streamingResult.execution.output.tokens = newTokens
             }
           }),
           execution: {
             success: true,
             output: {
-              response: {
-                content: '', // Will be filled by the callback
-                model: request.model,
-                tokens: {
-                  prompt: tokens.prompt,
-                  completion: tokens.completion,
-                  total: tokens.total,
-                },
-                toolCalls:
-                  toolCalls.length > 0
-                    ? {
-                        list: toolCalls,
-                        count: toolCalls.length,
-                      }
-                    : undefined,
-                providerTiming: {
-                  startTime: providerStartTimeISO,
-                  endTime: new Date().toISOString(),
-                  duration: Date.now() - providerStartTime,
-                  modelTime: modelTime,
-                  toolsTime: toolsTime,
-                  firstResponseTime: firstResponseTime,
-                  iterations: iterationCount + 1,
-                  timeSegments: timeSegments,
-                },
-                // Cost will be calculated in execution-logger.ts
+              content: '', // Will be filled by the callback
+              model: request.model,
+              tokens: {
+                prompt: tokens.prompt,
+                completion: tokens.completion,
+                total: tokens.total,
               },
+              toolCalls:
+                toolCalls.length > 0
+                  ? {
+                      list: toolCalls,
+                      count: toolCalls.length,
+                    }
+                  : undefined,
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+                modelTime: modelTime,
+                toolsTime: toolsTime,
+                firstResponseTime: firstResponseTime,
+                iterations: iterationCount + 1,
+                timeSegments: timeSegments,
+              },
+              // Cost will be calculated in execution-logger.ts
             },
             logs: [], // No block logs at provider level
             metadata: {

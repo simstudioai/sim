@@ -53,7 +53,6 @@ export const ollamaProvider: ProviderConfig = {
     })
 
     const startTime = Date.now()
-    const _timeSegments: TimeSegment[] = []
 
     try {
       // Prepare messages array
@@ -125,9 +124,6 @@ export const ollamaProvider: ProviderConfig = {
           })
         }
       }
-
-      // Track the original tool_choice for forced tool tracking
-      const _originalToolChoice = payload.tool_choice
 
       let currentResponse = await ollama.chat.completions.create(payload)
       const firstResponseTime = Date.now() - startTime
