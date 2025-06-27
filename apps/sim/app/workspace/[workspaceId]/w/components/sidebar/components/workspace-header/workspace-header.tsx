@@ -333,23 +333,45 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
     }, [sessionData?.user?.id, fetchSubscriptionStatus, fetchWorkspaces])
 
     const switchWorkspace = useCallback(
-      (workspace: Workspace) => {
+      async (workspace: Workspace) => {
         // If already on this workspace, close dropdown and do nothing else
         if (activeWorkspace?.id === workspace.id) {
           setWorkspaceDropdownOpen(false)
           return
         }
 
-        setActiveWorkspace(workspace)
+        // Close dropdown immediately for responsive feel
         setWorkspaceDropdownOpen(false)
 
-        // Use full workspace switch which now handles localStorage automatically
-        switchToWorkspace(workspace.id)
+        try {
+          // Update UI state optimistically
+          setActiveWorkspace(workspace)
 
-        // Update URL to include workspace ID
-        router.push(`/workspace/${workspace.id}/w`)
+          // Switch workspace data first with the explicit workspace ID
+          // This ensures the data switch happens with the correct ID regardless of URL timing
+          await switchToWorkspace(workspace.id)
+
+          // Then update URL - this will trigger useParams updates in other components
+          router.push(`/workspace/${workspace.id}/w`)
+        } catch (error) {
+          // If workspace switch fails, revert the optimistic UI update
+          logger.error('Failed to switch workspace:', error)
+          // Revert to previous workspace if we can identify it
+          const currentWorkspaces = workspaces
+          const fallbackWorkspace = currentWorkspaces.find((w) => w.id === currentWorkspaceId)
+          if (fallbackWorkspace) {
+            setActiveWorkspace(fallbackWorkspace)
+          }
+        }
       },
-      [activeWorkspace?.id, switchToWorkspace, router, setWorkspaceDropdownOpen]
+      [
+        activeWorkspace?.id,
+        switchToWorkspace,
+        router,
+        setWorkspaceDropdownOpen,
+        workspaces,
+        currentWorkspaceId,
+      ]
     )
 
     const handleCreateWorkspace = useCallback(
@@ -372,11 +394,11 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
             setWorkspaces((prev) => [...prev, newWorkspace])
             setActiveWorkspace(newWorkspace)
 
-            // Use switchToWorkspace to properly load workflows for the new workspace
+            // Switch workspace data first with the explicit workspace ID
             // This will clear existing workflows, set loading state, and fetch workflows from DB
             switchToWorkspace(newWorkspace.id)
 
-            // Update URL to include new workspace ID
+            // Then update URL to include new workspace ID
             router.push(`/workspace/${newWorkspace.id}/w`)
           }
         } catch (err) {
@@ -465,10 +487,14 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
 
           // If deleted workspace was active, switch to another workspace
           if (activeWorkspace?.id === id && updatedWorkspaces.length > 0) {
-            // Use the specialized method for handling workspace deletion
-            const newWorkspaceId = updatedWorkspaces[0].id
-            useWorkflowRegistry.getState().handleWorkspaceDeletion(newWorkspaceId)
-            setActiveWorkspace(updatedWorkspaces[0])
+            const newWorkspace = updatedWorkspaces[0]
+            setActiveWorkspace(newWorkspace)
+
+            // Use the specialized method for handling workspace deletion with explicit workspace ID
+            useWorkflowRegistry.getState().handleWorkspaceDeletion(newWorkspace.id)
+
+            // Update URL to the new workspace
+            router.push(`/workspace/${newWorkspace.id}/w`)
           }
 
           setWorkspaceDropdownOpen(false)
@@ -478,7 +504,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
           setIsDeleting(false)
         }
       },
-      [workspaces, activeWorkspace?.id]
+      [workspaces, activeWorkspace?.id, router]
     )
 
     const openEditModal = useCallback(

@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -155,13 +155,21 @@ export async function GET(request: Request) {
     if (workspaceId) {
       // Filter by workspace ID only, not user ID
       // This allows sharing workflows across workspace members
-      workflows = await db.select().from(workflow).where(eq(workflow.workspaceId, workspaceId))
+      // Order by createdAt desc to match frontend sorting by lastModified
+      workflows = await db
+        .select()
+        .from(workflow)
+        .where(eq(workflow.workspaceId, workspaceId))
+        .orderBy(desc(workflow.createdAt))
     } else {
       // Filter by user ID only, including workflows without workspace IDs
-      workflows = await db.select().from(workflow).where(eq(workflow.userId, userId))
+      // Order by createdAt desc to match frontend sorting by lastModified
+      workflows = await db
+        .select()
+        .from(workflow)
+        .where(eq(workflow.userId, userId))
+        .orderBy(desc(workflow.createdAt))
     }
-
-    const elapsed = Date.now() - startTime
 
     // Return the workflows
     return NextResponse.json({ data: workflows }, { status: 200 })

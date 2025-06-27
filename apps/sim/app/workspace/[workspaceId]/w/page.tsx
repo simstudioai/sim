@@ -7,10 +7,27 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export default function WorkflowsPage() {
   const router = useRouter()
-  const { workflows, isLoading } = useWorkflowRegistry()
+  const { workflows, isLoading, loadWorkflows } = useWorkflowRegistry()
 
   const params = useParams()
-  const workspaceId = params.workspaceId
+  const workspaceId = params.workspaceId as string
+
+  // Load workflows for this specific workspace when component mounts or workspaceId changes
+  // Only load if we don't already have workflows for this workspace (to prevent duplicate calls during workspace switches)
+  useEffect(() => {
+    if (workspaceId) {
+      // Check if we already have workflows for this workspace
+      const workflowIds = Object.keys(workflows)
+      const hasWorkflowsForWorkspace =
+        workflowIds.length > 0 &&
+        Object.values(workflows).some((w) => w.workspaceId === workspaceId)
+
+      // Only load if we don't have workflows for this workspace and we're not loading
+      if (!hasWorkflowsForWorkspace && !isLoading) {
+        loadWorkflows(workspaceId)
+      }
+    }
+  }, [workspaceId, loadWorkflows, isLoading, workflows])
 
   useEffect(() => {
     // Wait for workflows to load
@@ -18,7 +35,7 @@ export default function WorkflowsPage() {
 
     const workflowIds = Object.keys(workflows)
 
-    // If we have workflows, redirect to the first one
+    // If we have workflows, redirect to the first one (database already sorted by lastModified desc)
     if (workflowIds.length > 0) {
       router.replace(`/workspace/${workspaceId}/w/${workflowIds[0]}`)
       return
