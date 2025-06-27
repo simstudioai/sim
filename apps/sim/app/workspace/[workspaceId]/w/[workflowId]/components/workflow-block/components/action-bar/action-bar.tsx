@@ -12,9 +12,8 @@ interface ActionBarProps {
 }
 
 export function ActionBar({ blockId, blockType, disabled = false }: ActionBarProps) {
-  const { collaborativeRemoveBlock, collaborativeToggleBlockEnabled } = useCollaborativeWorkflow()
+  const { collaborativeRemoveBlock, collaborativeToggleBlockEnabled, collaborativeDuplicateBlock } = useCollaborativeWorkflow()
   const toggleBlockHandles = useWorkflowStore((state) => state.toggleBlockHandles)
-  const duplicateBlock = useWorkflowStore((state) => state.duplicateBlock)
   const isEnabled = useWorkflowStore((state) => state.blocks[blockId]?.enabled ?? true)
   const horizontalHandles = useWorkflowStore(
     (state) => state.blocks[blockId]?.horizontalHandles ?? false
@@ -77,7 +76,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
               size='sm'
               onClick={() => {
                 if (!disabled) {
-                  duplicateBlock(blockId)
+                  collaborativeDuplicateBlock(blockId)
                 }
               }}
               className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}

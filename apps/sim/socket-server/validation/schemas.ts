@@ -20,14 +20,15 @@ export const BlockOperationSchema = z.object({
   target: z.literal('block'),
   payload: z.object({
     id: z.string(),
+    sourceId: z.string().optional(), // For duplicate operations
     type: z.string().optional(),
     name: z.string().optional(),
     position: PositionSchema.optional(),
     data: z.record(z.any()).optional(),
     subBlocks: z.record(z.any()).optional(),
     outputs: z.record(z.any()).optional(),
-    parentId: z.string().optional(),
-    extent: z.enum(['parent']).optional(),
+    parentId: z.string().nullable().optional(),
+    extent: z.enum(['parent']).nullable().optional(),
     enabled: z.boolean().optional(),
     horizontalHandles: z.boolean().optional(),
     isWide: z.boolean().optional(),
