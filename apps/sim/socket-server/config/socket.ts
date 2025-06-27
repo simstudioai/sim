@@ -36,7 +36,7 @@ export function createSocketIOServer(httpServer: HttpServer): Server {
       allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'socket.io'],
       credentials: true, // Enable credentials to accept cookies
     },
-    transports: ['polling', 'websocket'], // Keep both transports for reliability
+    transports: ['websocket', 'polling'], // WebSocket first, polling as fallback
     allowEIO3: true, // Keep legacy support for compatibility
     pingTimeout: 60000, // Back to original conservative setting
     pingInterval: 25000, // Back to original interval
@@ -52,7 +52,7 @@ export function createSocketIOServer(httpServer: HttpServer): Server {
 
   logger.info('Socket.IO server configured with:', {
     allowedOrigins: allowedOrigins.length,
-    transports: ['polling', 'websocket'],
+    transports: ['websocket', 'polling'],
     pingTimeout: 60000,
     pingInterval: 25000,
     maxHttpBufferSize: 1e6,

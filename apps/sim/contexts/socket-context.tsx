@@ -87,6 +87,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   // Connection state tracking
   const reconnectCount = useRef(0)
+  const tokenRefreshAttempts = useRef(0)
+  const isRefreshingToken = useRef(false)
 
   // Use refs to store event handlers to avoid stale closures
   const eventHandlers = useRef<{
@@ -138,7 +140,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         const socketInstance = io(socketUrl, {
           transports: ['websocket', 'polling'], // Keep polling fallback for reliability
           withCredentials: true,
-          reconnectionAttempts: 5, // Back to original conservative setting
+          reconnectionAttempts: 5, // Socket.IO handles base reconnection
+          reconnectionDelay: 1000, // Start with 1 second delay
+          reconnectionDelayMax: 5000, // Max 5 second delay
           timeout: 10000, // Back to original timeout
           auth: {
             token, // Send one-time token for authentication
@@ -150,6 +154,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setIsConnected(true)
           setIsConnecting(false)
           reconnectCount.current = 0
+          tokenRefreshAttempts.current = 0
 
           logger.info('Socket connected successfully', {
             socketId: socketInstance.id,
@@ -172,7 +177,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setPresenceUsers([])
         })
 
-        socketInstance.on('connect_error', (error: any) => {
+        socketInstance.on('connect_error', async (error: any) => {
           setIsConnecting(false)
           logger.error('Socket connection error:', {
             message: error.message,
@@ -181,11 +186,54 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             type: error.type,
             transport: error.transport,
           })
+
+          if (
+            error.message?.includes('Token validation failed') ||
+            error.message?.includes('Authentication failed')
+          ) {
+            // Prevent infinite loops - limit refresh attempts
+            if (tokenRefreshAttempts.current >= 3) {
+              logger.warn('Max token refresh attempts reached - user needs to refresh page')
+              return
+            }
+
+            // Prevent concurrent refresh attempts
+            if (isRefreshingToken.current) {
+              logger.info('Token refresh already in progress, skipping...')
+              return
+            }
+
+            isRefreshingToken.current = true
+            tokenRefreshAttempts.current++
+            logger.info(`Token expired, attempting refresh (${tokenRefreshAttempts.current}/3)...`)
+
+            try {
+              const tokenResponse = await fetch('/api/auth/socket-token', {
+                method: 'POST',
+                credentials: 'include',
+              })
+
+              if (tokenResponse.ok) {
+                const { token } = await tokenResponse.json()
+                socketInstance.auth = { ...socketInstance.auth, token }
+                logger.info('Token refreshed successfully, reconnecting...')
+                socketInstance.connect()
+              } else {
+                logger.warn('Failed to refresh token - user may need to refresh page')
+              }
+            } catch (refreshError) {
+              logger.error('Token refresh failed:', refreshError)
+            } finally {
+              isRefreshingToken.current = false
+            }
+          }
         })
 
         // Add reconnection logging
         socketInstance.on('reconnect', (attemptNumber) => {
           reconnectCount.current = attemptNumber
+          // Reset token refresh attempts on successful reconnection
+          tokenRefreshAttempts.current = 0
           logger.info('Socket reconnected', {
             attemptNumber,
           })
