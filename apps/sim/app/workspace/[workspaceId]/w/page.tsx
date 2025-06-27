@@ -25,19 +25,21 @@ export default function WorkflowsPage() {
 
     // Filter workflows for this workspace only
     const workspaceWorkflows = Object.values(workflows).filter(
-      workflow => workflow.workspaceId === workspaceId
+      (workflow) => workflow.workspaceId === workspaceId
     )
 
     // If we have workflows for this workspace, redirect to the first one
     if (workspaceWorkflows.length > 0) {
       // Sort by last modified date (newest first) - same logic as sidebar
       const sortedWorkflows = workspaceWorkflows.sort((a, b) => {
-        const dateA = a.lastModified instanceof Date
-          ? a.lastModified.getTime()
-          : new Date(a.lastModified).getTime()
-        const dateB = b.lastModified instanceof Date
-          ? b.lastModified.getTime()
-          : new Date(b.lastModified).getTime()
+        const dateA =
+          a.lastModified instanceof Date
+            ? a.lastModified.getTime()
+            : new Date(a.lastModified).getTime()
+        const dateB =
+          b.lastModified instanceof Date
+            ? b.lastModified.getTime()
+            : new Date(b.lastModified).getTime()
         return dateB - dateA
       })
 

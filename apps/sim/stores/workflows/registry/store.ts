@@ -158,13 +158,13 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
       logger.info(`Set first workflow as active: ${firstWorkflowId}`, {
         workspaceId,
         totalWorkflows: Object.keys(registryWorkflows).length,
-        workflowIds: Object.keys(registryWorkflows)
+        workflowIds: Object.keys(registryWorkflows),
       })
     } else {
       logger.info(`Not setting active workflow`, {
         currentActiveWorkflowId: currentState.activeWorkflowId,
         workflowCount: Object.keys(registryWorkflows).length,
-        workspaceId
+        workspaceId,
       })
     }
 
