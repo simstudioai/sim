@@ -861,7 +861,28 @@ const WorkflowContent = React.memo(() => {
       // Navigate to existing workflow or first available
       if (!workflows[currentId]) {
         logger.info(`Workflow ${currentId} not found, redirecting to first available workflow`)
-        router.replace(`/workspace/${workspaceId}/w/${workflowIds[0]}`)
+
+        // Validate that workflows belong to the current workspace before redirecting
+        const workspaceWorkflows = workflowIds.filter(id => {
+          const workflow = workflows[id]
+          return workflow.workspaceId === workspaceId
+        })
+
+        if (workspaceWorkflows.length > 0) {
+          router.replace(`/workspace/${workspaceId}/w/${workspaceWorkflows[0]}`)
+        } else {
+          // No valid workflows for this workspace, redirect to workspace root
+          router.replace(`/workspace/${workspaceId}/w`)
+        }
+        return
+      }
+
+      // Validate that the current workflow belongs to the current workspace
+      const currentWorkflow = workflows[currentId]
+      if (currentWorkflow && currentWorkflow.workspaceId !== workspaceId) {
+        logger.warn(`Workflow ${currentId} belongs to workspace ${currentWorkflow.workspaceId}, not ${workspaceId}`)
+        // Redirect to the correct workspace for this workflow
+        router.replace(`/workspace/${currentWorkflow.workspaceId}/w/${currentId}`)
         return
       }
 

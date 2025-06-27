@@ -15,7 +15,7 @@ const socketDb = drizzle(
   postgres(connectionString, {
     prepare: false,
     idle_timeout: 10, // Shorter idle timeout for socket operations
-    connect_timeout: 5, // Faster connection timeout
+    connect_timeout: 20, // Increase connection timeout for socket operations
     max: 2, // Very small pool for socket server to avoid exhausting Supabase limit
     onnotice: () => {}, // Disable notices
     debug: false, // Disable debug for socket operations
