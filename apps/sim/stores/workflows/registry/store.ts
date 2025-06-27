@@ -267,8 +267,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         await fetchWorkflowsFromDB(workspaceId)
       },
 
-
-
       // Switch to workspace with comprehensive error handling and loading states
       switchToWorkspace: async (workspaceId: string) => {
         // Prevent multiple simultaneous transitions
