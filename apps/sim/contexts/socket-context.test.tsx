@@ -112,7 +112,7 @@ describe('SocketContext Token Refresh', () => {
     it('should prevent concurrent token refresh attempts', async () => {
       const { result } = await renderSocketProvider()
 
-      let resolveTokenFetch!: (value: any) => void
+      let resolveTokenFetch!: (value: { ok: boolean; json: () => Promise<{ token: string }> }) => void
       const slowTokenPromise = new Promise((resolve) => {
         resolveTokenFetch = resolve
       })
@@ -232,7 +232,9 @@ describe('SocketContext Token Refresh', () => {
       await act(async () => {
         // Reconnection attempt starts
         eventHandlers.reconnect_attempt(1)
-
+      })
+      
+      await act(async () => {
         // Fails with auth error
         await eventHandlers.connect_error({ message: 'Token validation failed' })
       })
@@ -249,6 +251,9 @@ describe('SocketContext Token Refresh', () => {
       const error = { message: 'Authentication failed' }
       await act(async () => {
         await eventHandlers.connect_error(error)
+      })
+      
+      await act(async () => {
         await eventHandlers.connect_error(error)
       })
 
