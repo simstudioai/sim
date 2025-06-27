@@ -267,41 +267,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         await fetchWorkflowsFromDB(workspaceId)
       },
 
-      // Handle cleanup on workspace deletion
-      handleWorkspaceDeletion: async (newWorkspaceId: string) => {
-        // Set transition state
-        setWorkspaceTransitioning(true)
-
-        try {
-          logger.info(`Switching to new workspace after deletion: ${newWorkspaceId}`)
-
-          // Reset all workflow state
-          resetWorkflowStores()
-
-          // Set loading state while we fetch workflows
-          set({
-            isLoading: true,
-            workflows: {},
-            activeWorkflowId: null,
-          })
-
-          // Properly await workflow fetching to prevent race conditions
-          await fetchWorkflowsFromDB(newWorkspaceId)
-
-          set({ isLoading: false })
-          logger.info(`Successfully switched to workspace after deletion: ${newWorkspaceId}`)
-        } catch (error) {
-          logger.error('Error fetching workflows after workspace deletion:', {
-            error,
-            workspaceId: newWorkspaceId,
-          })
-          set({ isLoading: false, error: 'Failed to load workspace data' })
-        } finally {
-          // End transition state
-          setWorkspaceTransitioning(false)
-        }
-      },
-
       // Switch to workspace with comprehensive error handling and loading states
       switchToWorkspace: async (workspaceId: string) => {
         // Prevent multiple simultaneous transitions

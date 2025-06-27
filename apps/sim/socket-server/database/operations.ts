@@ -1,10 +1,30 @@
 import { and, eq, or } from 'drizzle-orm'
-import { db } from '../../db'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
+import * as schema from '../../db/schema'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '../../db/schema'
+import { env } from '../../lib/env'
 import { createLogger } from '../../lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '../../lib/workflows/db-helpers'
 
 const logger = createLogger('SocketDatabase')
+
+// Create dedicated database connection for socket server with optimized settings
+const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
+const socketDb = drizzle(
+  postgres(connectionString, {
+    prepare: false,
+    idle_timeout: 10, // Shorter idle timeout for socket operations
+    connect_timeout: 5, // Faster connection timeout
+    max: 2, // Very small pool for socket server to avoid exhausting Supabase limit
+    onnotice: () => {}, // Disable notices
+    debug: false, // Disable debug for socket operations
+  }),
+  { schema }
+)
+
+// Use dedicated connection for socket operations, fallback to shared db for compatibility
+const db = socketDb
 
 // Constants
 const DEFAULT_LOOP_ITERATIONS = 5
@@ -115,8 +135,19 @@ export async function getWorkflowState(workflowId: string) {
 
 // Persist workflow operation
 export async function persistWorkflowOperation(workflowId: string, operation: any) {
+  const startTime = Date.now()
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
+
+    // Log high-frequency operations for monitoring
+    if (op === 'update-position' && Math.random() < 0.01) {
+      // Log 1% of position updates
+      logger.debug('Socket DB operation sample:', {
+        operation: op,
+        target,
+        workflowId: `${workflowId.substring(0, 8)}...`,
+      })
+    }
 
     await db.transaction(async (tx) => {
       // Update the workflow's last modified timestamp first
@@ -140,9 +171,22 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           throw new Error(`Unknown operation target: ${target}`)
       }
     })
+
+    // Log slow operations for monitoring
+    const duration = Date.now() - startTime
+    if (duration > 100) {
+      // Log operations taking more than 100ms
+      logger.warn('Slow socket DB operation:', {
+        operation: operation.operation,
+        target: operation.target,
+        duration: `${duration}ms`,
+        workflowId: `${workflowId.substring(0, 8)}...`,
+      })
+    }
   } catch (error) {
+    const duration = Date.now() - startTime
     logger.error(
-      `❌ Error persisting workflow operation (${operation.operation} on ${operation.target}):`,
+      `❌ Error persisting workflow operation (${operation.operation} on ${operation.target}) after ${duration}ms:`,
       error
     )
     throw error

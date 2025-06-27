@@ -427,7 +427,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         // Check if we already have a pending timeout for this block
         if (!positionUpdateTimeouts.current.has(blockId)) {
-          // Schedule emission with light throttling (120fps = ~8ms)
+          // Schedule emission with optimized throttling (30fps = ~33ms) to reduce DB load
           const timeoutId = window.setTimeout(() => {
             const latestUpdate = pendingPositionUpdates.current.get(blockId)
             if (latestUpdate) {
@@ -435,7 +435,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               pendingPositionUpdates.current.delete(blockId)
             }
             positionUpdateTimeouts.current.delete(blockId)
-          }, 8) // 120fps for smooth movement
+          }, 33) // 30fps - good balance between smoothness and DB performance
 
           positionUpdateTimeouts.current.set(blockId, timeoutId)
         }
@@ -475,14 +475,14 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     [socket, currentWorkflowId]
   )
 
-  // Minimal cursor throttling (reduced from 30fps to 120fps)
+  // Cursor throttling optimized for database connection health
   const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
     (cursor: { x: number; y: number }) => {
       if (socket && currentWorkflowId) {
         const now = performance.now()
-        // Very light throttling at 120fps (8ms) to prevent excessive spam
-        if (now - lastCursorEmit.current >= 8) {
+        // Reduced to 30fps (33ms) to reduce database load while maintaining smooth UX
+        if (now - lastCursorEmit.current >= 33) {
           socket.emit('cursor-update', { cursor })
           lastCursorEmit.current = now
         }

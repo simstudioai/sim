@@ -7,14 +7,31 @@ import * as schema from './schema'
 // In development, use the direct DATABASE_URL
 const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
 
-const drizzleClient = drizzle(
-  postgres(connectionString, {
-    prepare: false, // Disable prefetch as it is not supported for "Transaction" pool mode
-    idle_timeout: 30, // Keep connections alive for 30 seconds when idle
-    connect_timeout: 30, // Timeout after 30 seconds when connecting
-  }),
-  { schema }
-)
+/**
+ * Connection Pool Allocation Strategy
+ *
+ * Main App (this file): 3 connections per instance
+ * Socket Server Operations: 2 connections
+ * Socket Server Room Manager: 1 connection
+ *
+ * With ~3-4 Vercel serverless instances typically active:
+ * - Main app: 3 × 4 = 12 connections
+ * - Socket server: 2 + 1 = 3 connections
+ * - Buffer: 5 connections for spikes/other services
+ * - Total: ~20 connections (at capacity limit)
+ *
+ * This conservative allocation prevents pool exhaustion while maintaining performance.
+ */
+
+const postgresClient = postgres(connectionString, {
+  prepare: false, // Disable prefetch as it is not supported for "Transaction" pool mode
+  idle_timeout: 20, // Reduce idle timeout to 20 seconds to free up connections faster
+  connect_timeout: 10, // Reduce connect timeout to 10 seconds
+  max: 3, // Conservative limit - with multiple serverless functions, this prevents pool exhaustion
+  onnotice: () => {}, // Disable notices to reduce noise
+})
+
+const drizzleClient = drizzle(postgresClient, { schema })
 
 declare global {
   var database: PostgresJsDatabase<typeof schema> | undefined

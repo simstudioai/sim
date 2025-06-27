@@ -1,8 +1,24 @@
 import { and, eq, isNull } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
 import type { Server } from 'socket.io'
-import { db } from '../../db'
+import * as schema from '../../db/schema'
 import { workflowBlocks, workflowEdges } from '../../db/schema'
+import { env } from '../../lib/env'
 import { createLogger } from '../../lib/logs/console-logger'
+
+// Create dedicated database connection for room manager
+const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
+const db = drizzle(
+  postgres(connectionString, {
+    prepare: false,
+    idle_timeout: 15,
+    connect_timeout: 5,
+    max: 1, // Minimal pool for room operations to conserve connections
+    onnotice: () => {},
+  }),
+  { schema }
+)
 
 const logger = createLogger('RoomManager')
 
@@ -80,7 +96,7 @@ export class RoomManager {
     })
 
     const socketsToDisconnect: string[] = []
-    room.users.forEach((presence, socketId) => {
+    room.users.forEach((_presence, socketId) => {
       socketsToDisconnect.push(socketId)
     })
 
