@@ -111,10 +111,24 @@ cp .env.example .env  # Configure with required variables (DATABASE_URL, BETTER_
 bunx drizzle-kit push
 ```
 
-4. Start the development server:
+4. Start the development servers:
+
+Next.js app:
 
 ```bash
 bun run dev
+```
+
+Start the realtime server:
+
+```bash
+bun run dev:sockets
+```
+
+Run both together (recommended):
+
+```bash
+bun run dev:full
 ```
 
 ## Tech Stack
@@ -128,6 +142,7 @@ bun run dev
 - **Flow Editor**: [ReactFlow](https://reactflow.dev/)
 - **Docs**: [Fumadocs](https://fumadocs.vercel.app/)
 - **Monorepo**: [Turborepo](https://turborepo.org/)
+- **Realtime**: [Socket.io](https://socket.io/)
 
 ## Contributing
 
