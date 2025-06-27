@@ -39,3 +39,4 @@ WORKDIR /workspace
 # Expose the ports we're interested in
 EXPOSE 3000
 EXPOSE 3001
+EXPOSE 3002

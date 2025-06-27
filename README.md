@@ -86,7 +86,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 1. Open VS Code with the [Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 2. Open the project and click "Reopen in Container" when prompted
-3. Run `bun run dev` in the terminal or use the `sim-start` alias
+3. Run `bun run dev:full` in the terminal or use the `sim-start` alias
 
 ### Option 4: Manual Setup
 
@@ -111,10 +111,24 @@ cp .env.example .env  # Configure with required variables (DATABASE_URL, BETTER_
 bunx drizzle-kit push
 ```
 
-4. Start the development server:
+4. Start the development servers:
+
+Next.js app:
 
 ```bash
 bun run dev
+```
+
+Start the realtime server:
+
+```bash
+bun run dev:sockets
+```
+
+Run both together (recommended):
+
+```bash
+bun run dev:full
 ```
 
 ## Tech Stack
@@ -128,6 +142,7 @@ bun run dev
 - **Flow Editor**: [ReactFlow](https://reactflow.dev/)
 - **Docs**: [Fumadocs](https://fumadocs.vercel.app/)
 - **Monorepo**: [Turborepo](https://turborepo.org/)
+- **Realtime**: [Socket.io](https://socket.io/)
 
 ## Contributing
 
