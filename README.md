@@ -86,7 +86,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 1. Open VS Code with the [Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 2. Open the project and click "Reopen in Container" when prompted
-3. Run `bun run dev` in the terminal or use the `sim-start` alias
+3. Run `bun run dev:full` in the terminal or use the `sim-start` alias
 
 ### Option 4: Manual Setup
 

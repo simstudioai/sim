@@ -11,6 +11,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:sockets": "cd apps/sim && bun run dev:sockets",
+    "dev:full": "cd apps/sim && bun run dev:full",
     "test": "turbo run test",
     "format": "bunx biome format --write .",
     "format:check": "bunx biome format .",
