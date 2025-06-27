@@ -32,12 +32,7 @@ const IS_DEV = process.env.NODE_ENV === 'development'
 export function Sidebar() {
   useGlobalShortcuts()
 
-  const {
-    workflows,
-    createWorkflow,
-    isLoading: workflowsLoading,
-    targetWorkspaceId,
-  } = useWorkflowRegistry()
+  const { workflows, createWorkflow, isLoading: workflowsLoading } = useWorkflowRegistry()
   const { isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
   const isLoading = workflowsLoading || sessionLoading
@@ -67,12 +62,9 @@ export function Sidebar() {
     const regular: WorkflowMetadata[] = []
     const temp: WorkflowMetadata[] = []
 
-    // Use targetWorkspaceId during transitions to prevent empty sidebar
-    const effectiveWorkspaceId = targetWorkspaceId || workspaceId
-
     if (!isLoading) {
       Object.values(workflows).forEach((workflow) => {
-        if (workflow.workspaceId === effectiveWorkspaceId || !workflow.workspaceId) {
+        if (workflow.workspaceId === workspaceId || !workflow.workspaceId) {
           if (workflow.marketplaceData?.status === 'temp') {
             temp.push(workflow)
           } else {
@@ -99,7 +91,7 @@ export function Sidebar() {
     }
 
     return { regularWorkflows: regular, tempWorkflows: temp }
-  }, [workflows, isLoading, workspaceId, targetWorkspaceId])
+  }, [workflows, isLoading, workspaceId])
 
   // Create workflow handler
   const handleCreateWorkflow = async (folderId?: string) => {

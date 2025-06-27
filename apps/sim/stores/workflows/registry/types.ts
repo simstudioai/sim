@@ -27,7 +27,6 @@ export interface WorkflowRegistryState {
   isLoading: boolean
   error: string | null
   deploymentStatuses: Record<string, DeploymentStatus>
-  targetWorkspaceId: string | null
 }
 
 export interface WorkflowRegistryActions {
