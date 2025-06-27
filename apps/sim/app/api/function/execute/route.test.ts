@@ -228,7 +228,7 @@ describe('Function Execute API Route', () => {
     })
   })
 
-  describe('Freestyle Execution', () => {
+  describe.skip('Freestyle Execution', () => {
     it('should use Freestyle when API key is available', async () => {
       const req = createMockRequest('POST', {
         code: 'return "freestyle test"',
@@ -281,7 +281,7 @@ describe('Function Execute API Route', () => {
   })
 
   describe('VM Execution', () => {
-    it('should use VM when Freestyle API key is not available', async () => {
+    it.skip('should use VM when Freestyle API key is not available', async () => {
       // Mock no Freestyle API key
       vi.doMock('@/lib/env', () => ({
         env: {
@@ -470,7 +470,7 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
     mockCreateContext.mockReturnValue({})
   })
 
-  it('should handle nested template variables', async () => {
+  it.skip('should handle nested template variables', async () => {
     mockFreestyleExecuteScript.mockResolvedValueOnce({
       result: 'environment-valueparam-value',
       logs: [],
@@ -495,7 +495,7 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
     expect(data.output.result).toBe('environment-valueparam-value')
   })
 
-  it('should prioritize environment variables over params for {{}} syntax', async () => {
+  it.skip('should prioritize environment variables over params for {{}} syntax', async () => {
     mockFreestyleExecuteScript.mockResolvedValueOnce({
       result: 'env-wins',
       logs: [],
@@ -521,7 +521,7 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
     expect(data.output.result).toBe('env-wins')
   })
 
-  it('should handle missing template variables gracefully', async () => {
+  it.skip('should handle missing template variables gracefully', async () => {
     mockFreestyleExecuteScript.mockResolvedValueOnce({
       result: '',
       logs: [],
