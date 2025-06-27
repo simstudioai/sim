@@ -13,7 +13,7 @@ import {
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { isWorkspaceInTransition, useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useUserPermissionsContext } from '../providers/workspace-permissions-provider'
 import { CreateMenu } from './components/create-menu/create-menu'
@@ -32,16 +32,13 @@ const IS_DEV = process.env.NODE_ENV === 'development'
 export function Sidebar() {
   useGlobalShortcuts()
 
-  const router = useRouter()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
-
   const { workflows, createWorkflow, isLoading: workflowsLoading } = useWorkflowRegistry()
   const { isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
-
-  // Simple loading logic: wait for workflows and valid workspaceId, plus workspace transitions
-  const isLoading = workflowsLoading || sessionLoading || !workspaceId || isWorkspaceInTransition()
+  const isLoading = workflowsLoading || sessionLoading
+  const router = useRouter()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const pathname = usePathname()
 
   const [showSettings, setShowSettings] = useState(false)
@@ -60,25 +57,41 @@ export function Sidebar() {
     }
   }, [showSettings, showHelp, showInviteMembers, setAnyModalOpen])
 
-  // Filter workflows for current workspace (database already sorted)
+  // Separate regular workflows from temporary marketplace workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
-    if (isLoading) return { regularWorkflows: [], tempWorkflows: [] }
-
     const regular: WorkflowMetadata[] = []
     const temp: WorkflowMetadata[] = []
 
-    Object.values(workflows).forEach((workflow) => {
-      if (workflow.workspaceId === workspaceId || !workflow.workspaceId) {
-        if (workflow.marketplaceData?.status === 'temp') {
-          temp.push(workflow)
-        } else {
-          regular.push(workflow)
+    if (!isLoading) {
+      Object.values(workflows).forEach((workflow) => {
+        if (workflow.workspaceId === workspaceId || !workflow.workspaceId) {
+          if (workflow.marketplaceData?.status === 'temp') {
+            temp.push(workflow)
+          } else {
+            regular.push(workflow)
+          }
         }
+      })
+
+      // Sort by last modified date (newest first)
+      const sortByLastModified = (a: WorkflowMetadata, b: WorkflowMetadata) => {
+        const dateA =
+          a.lastModified instanceof Date
+            ? a.lastModified.getTime()
+            : new Date(a.lastModified).getTime()
+        const dateB =
+          b.lastModified instanceof Date
+            ? b.lastModified.getTime()
+            : new Date(b.lastModified).getTime()
+        return dateB - dateA
       }
-    })
+
+      regular.sort(sortByLastModified)
+      temp.sort(sortByLastModified)
+    }
 
     return { regularWorkflows: regular, tempWorkflows: temp }
-  }, [workflows, workspaceId, isLoading])
+  }, [workflows, isLoading, workspaceId])
 
   // Create workflow handler
   const handleCreateWorkflow = async (folderId?: string) => {

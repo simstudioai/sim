@@ -318,6 +318,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('workflow-state', (state) => {
+          logger.info('Received workflow state from server:', state)
           // This will be used to sync initial state when joining a workflow
         })
 
