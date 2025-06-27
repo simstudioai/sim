@@ -28,9 +28,6 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Installing with full context to prevent missing dependencies error
-RUN bun install --omit dev --ignore-scripts
-
 # ========================================
 # Runner Stage: Run the Socket Server
 # ========================================

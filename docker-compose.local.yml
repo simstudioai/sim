@@ -52,6 +52,10 @@ services:
     restart: unless-stopped
     ports:
       - '3002:3002'
+    deploy:
+      resources:
+        limits:
+          memory: 8G
     healthcheck:
       test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002']
       interval: 90s
