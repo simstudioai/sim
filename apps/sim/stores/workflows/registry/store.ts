@@ -155,7 +155,17 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
     if (!currentState.activeWorkflowId && Object.keys(registryWorkflows).length > 0) {
       const firstWorkflowId = Object.keys(registryWorkflows)[0]
       useWorkflowRegistry.setState({ activeWorkflowId: firstWorkflowId })
-      logger.info(`Set first workflow as active: ${firstWorkflowId}`)
+      logger.info(`Set first workflow as active: ${firstWorkflowId}`, {
+        workspaceId,
+        totalWorkflows: Object.keys(registryWorkflows).length,
+        workflowIds: Object.keys(registryWorkflows)
+      })
+    } else {
+      logger.info(`Not setting active workflow`, {
+        currentActiveWorkflowId: currentState.activeWorkflowId,
+        workflowCount: Object.keys(registryWorkflows).length,
+        workspaceId
+      })
     }
 
     logger.info(
