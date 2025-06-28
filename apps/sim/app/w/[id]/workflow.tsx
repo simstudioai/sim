@@ -49,6 +49,49 @@ import {
 
 const logger = createLogger('Workflow')
 
+// Cursor tooltip component for read-only mode
+const CursorTooltip = ({ isVisible }: { isVisible: boolean }) => {
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [isHoveringReactFlow, setIsHoveringReactFlow] = useState(false)
+
+  useEffect(() => {
+    if (!isVisible) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setPosition({ x: e.clientX, y: e.clientY })
+
+      // Check if mouse is over ReactFlow container
+      const reactFlowElement = document.querySelector('.workflow-container')
+      if (reactFlowElement) {
+        const rect = reactFlowElement.getBoundingClientRect()
+        const isOverReactFlow =
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        setIsHoveringReactFlow(isOverReactFlow)
+      }
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    return () => document.removeEventListener('mousemove', handleMouseMove)
+  }, [isVisible])
+
+  if (!isVisible || !isHoveringReactFlow) return null
+
+  return (
+    <div
+      className="fixed z-[9999] pointer-events-none bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg"
+      style={{
+        left: position.x + 10,
+        top: position.y - 30,
+      }}
+    >
+      Can't edit in read-only mode. Please contact your workspace admin for edit permissions.
+    </div>
+  )
+}
+
 // Define custom node and edge types
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
@@ -1448,6 +1491,7 @@ const WorkflowContent = React.memo(() => {
             <Background />
           </div>
         </div>
+        <CursorTooltip isVisible={!userPermissions.canEdit} />
       </div>
     )
   }
@@ -1515,6 +1559,7 @@ const WorkflowContent = React.memo(() => {
           <Background />
         </ReactFlow>
       </div>
+      <CursorTooltip isVisible={!userPermissions.canEdit} />
     </div>
   )
 })

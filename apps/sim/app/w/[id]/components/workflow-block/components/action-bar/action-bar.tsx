@@ -59,7 +59,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
                 toggleBlockEnabled(blockId)
               }
             }}
-            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+            className={cn('text-gray-500', disabled && 'opacity-50')}
             disabled={disabled}
           >
             {isEnabled ? <Circle className='h-4 w-4' /> : <CircleOff className='h-4 w-4' />}
@@ -103,7 +103,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
                 toggleBlockHandles(blockId)
               }
             }}
-            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+            className={cn('text-gray-500', disabled && 'opacity-50')}
             disabled={disabled}
           >
             {horizontalHandles ? (
@@ -131,7 +131,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
               }}
               className={cn(
                 'text-gray-500 hover:text-red-600',
-                disabled && 'cursor-not-allowed opacity-50'
+                disabled && 'opacity-50'
               )}
               disabled={disabled}
             >

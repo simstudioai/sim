@@ -48,7 +48,7 @@ export default function LoopToolbarItem({ disabled = false }: LoopToolbarItemPro
       className={cn(
         'group flex items-center gap-3 rounded-lg border bg-card p-3.5 shadow-sm transition-colors',
         disabled
-          ? 'cursor-not-allowed opacity-60'
+          ? 'opacity-60'
           : 'cursor-pointer hover:bg-accent/50 active:cursor-grabbing'
       )}
     >
