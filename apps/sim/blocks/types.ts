@@ -93,8 +93,10 @@ export interface SubBlockConfig {
   mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
   options?:
     | string[]
-    | { label: string; id: string }[]
-    | (() => string[] | { label: string; id: string }[])
+    | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]
+    | (() =>
+        | string[]
+        | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])
   min?: number
   max?: number
   columns?: string[]

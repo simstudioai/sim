@@ -5,6 +5,7 @@ import {
   getAllModelProviders,
   getBaseModelProviders,
   getHostedModels,
+  getProviderIcon,
   MODELS_TEMP_RANGE_0_1,
   MODELS_TEMP_RANGE_0_2,
   MODELS_WITH_TEMPERATURE_SUPPORT,
@@ -94,7 +95,12 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       options: () => {
         const ollamaModels = useOllamaStore.getState().models
         const baseModels = Object.keys(getBaseModelProviders())
-        return [...baseModels, ...ollamaModels]
+        const allModels = [...baseModels, ...ollamaModels]
+
+        return allModels.map((model) => {
+          const icon = getProviderIcon(model)
+          return { label: model, id: model, ...(icon && { icon }) }
+        })
       },
     },
     {

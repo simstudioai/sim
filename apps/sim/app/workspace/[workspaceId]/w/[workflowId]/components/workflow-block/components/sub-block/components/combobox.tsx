@@ -405,6 +405,10 @@ export function ComboBox({
                 filteredOptions.map((option) => {
                   const optionValue = getOptionValue(option)
                   const optionLabel = getOptionLabel(option)
+                  const OptionIcon =
+                    typeof option === 'object' && 'icon' in option
+                      ? (option.icon as React.ComponentType<{ className?: string }>)
+                      : null
                   const isSelected = displayValue === optionValue || displayValue === optionLabel
 
                   return (
@@ -417,6 +421,7 @@ export function ComboBox({
                       }}
                       className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
                     >
+                      {OptionIcon && <OptionIcon className='mr-2 h-3 w-3 opacity-60' />}
                       <span className='flex-1 truncate'>{optionLabel}</span>
                       {isSelected && <Check className='ml-2 h-4 w-4 flex-shrink-0' />}
                     </div>
