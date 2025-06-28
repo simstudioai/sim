@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Check, Copy, LibraryBig } from 'lucide-react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 
 interface BaseOverviewProps {
   id?: string
@@ -13,12 +14,14 @@ interface BaseOverviewProps {
 
 export function BaseOverview({ id, title, docCount, description }: BaseOverviewProps) {
   const [isCopied, setIsCopied] = useState(false)
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string
 
   // Create URL with knowledge base name as query parameter
-  const params = new URLSearchParams({
+  const searchParams = new URLSearchParams({
     kbName: title,
   })
-  const href = `/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}?${params.toString()}`
+  const href = `/workspace/${workspaceId}/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}?${searchParams.toString()}`
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.preventDefault()

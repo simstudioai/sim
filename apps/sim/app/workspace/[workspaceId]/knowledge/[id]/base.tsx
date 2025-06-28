@@ -743,7 +743,7 @@ export function KnowledgeBase({
     {
       id: 'knowledge-root',
       label: 'Knowledge',
-      href: '/knowledge',
+      href: `/workspace/${workspaceId}/knowledge`,
     },
     {
       id: `knowledge-base-${id}`,
@@ -762,7 +762,7 @@ export function KnowledgeBase({
       {
         id: 'knowledge-root',
         label: 'Knowledge',
-        href: '/knowledge',
+        href: `/workspace/${workspaceId}/knowledge`,
       },
       {
         id: 'error',
