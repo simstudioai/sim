@@ -188,7 +188,7 @@ async function main() {
     'ghcr.io/simstudioai/migrations:latest',
     'bun',
     'run',
-    'db:push',
+    'db:migrate',
   ])
 
   if (!migrationsSuccess) {
@@ -259,7 +259,7 @@ async function main() {
   )
   console.log(
     chalk.yellow(
-      `🛑 To stop all containers, run: ${chalk.bold('docker stop simstudio-app simstudio-db')}`
+      `🛑 To stop all containers, run: ${chalk.bold('docker stop simstudio-app simstudio-db simstudio-realtime')}`
     )
   )
 
@@ -275,6 +275,7 @@ async function main() {
     // Stop containers
     await stopAndRemoveContainer(APP_CONTAINER)
     await stopAndRemoveContainer(DB_CONTAINER)
+    await stopAndRemoveContainer(REALTIME_CONTAINER)
 
     console.log(chalk.green('✅ Sim Studio has been stopped'))
     process.exit(0)
