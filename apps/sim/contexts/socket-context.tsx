@@ -453,14 +453,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const emitWorkflowOperation = useCallback(
     (operation: string, target: string, payload: any) => {
       // Check if socket is available and connected
-      if (!socket || !currentWorkflowId) {
-        logger.warn('Cannot emit workflow operation: no socket connection or workflow room')
-        setHasConnectionWarning(true)
-        return
-      }
-
-      if (!socket.connected) {
-        logger.warn('Cannot emit workflow operation: socket not connected')
+      if (!socket || !currentWorkflowId || !socket.connected) {
+        logger.warn('Cannot emit workflow operation: socket not available or connected')
         setHasConnectionWarning(true)
         return
       }
@@ -523,7 +517,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     (blockId: string, subblockId: string, value: any) => {
       // Check if socket is available and connected
       if (!socket || !currentWorkflowId || !socket.connected) {
-        logger.warn('Cannot emit subblock update: no socket connection or workflow room', {
+        logger.warn('Cannot emit subblock update: socket not available or connected', {
           hasSocket: !!socket,
           currentWorkflowId,
           blockId,
