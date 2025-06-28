@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -54,6 +55,7 @@ export function Document({
 }: DocumentProps) {
   const { mode, isExpanded } = useSidebarStore()
   const { getCachedKnowledgeBase, getCachedDocuments } = useKnowledgeStore()
+  const { workspaceId } = useParams()
 
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
@@ -170,10 +172,10 @@ export function Document({
   const effectiveDocumentName = document?.filename || documentName || 'Document'
 
   const breadcrumbs = [
-    { label: 'Knowledge', href: '/knowledge' },
+    { label: 'Knowledge', href: `/workspace/${workspaceId}/knowledge` },
     {
       label: effectiveKnowledgeBaseName,
-      href: `/knowledge/${knowledgeBaseId}`,
+      href: `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`,
     },
     { label: effectiveDocumentName },
   ]
@@ -360,10 +362,10 @@ export function Document({
 
   if (combinedError && !isLoadingChunks) {
     const errorBreadcrumbs = [
-      { label: 'Knowledge', href: '/knowledge' },
+      { label: 'Knowledge', href: `/workspace/${workspaceId}/knowledge` },
       {
         label: effectiveKnowledgeBaseName,
-        href: `/knowledge/${knowledgeBaseId}`,
+        href: `/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`,
       },
       { label: 'Error' },
     ]

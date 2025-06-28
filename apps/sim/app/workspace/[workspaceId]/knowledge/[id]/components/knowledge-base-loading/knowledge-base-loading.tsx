@@ -1,6 +1,7 @@
 'use client'
 
 import { Search } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../../../components/knowledge-header/knowledge-header'
@@ -12,6 +13,8 @@ interface KnowledgeBaseLoadingProps {
 
 export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) {
   const { mode, isExpanded } = useSidebarStore()
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
@@ -19,7 +22,7 @@ export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoading
     {
       id: 'knowledge-root',
       label: 'Knowledge',
-      href: '/knowledge',
+      href: `/workspace/${workspaceId}/knowledge`,
     },
     {
       id: 'knowledge-base-loading',
