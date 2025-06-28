@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from '../../db'
 import { workflow } from '../../db/schema'
 import { createLogger } from '../../lib/logs/console-logger'

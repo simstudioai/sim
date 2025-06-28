@@ -3,9 +3,9 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { workflow, workspace } from '@/db/schema'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
 
 const logger = createLogger('WorkflowAPI')
 
@@ -21,8 +21,6 @@ async function verifyWorkspaceMembership(
 ): Promise<string | null> {
   try {
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-
-
 
     return permission
   } catch (error) {

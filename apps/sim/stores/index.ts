@@ -63,8 +63,6 @@ async function initializeApplication(): Promise<void> {
   }
 }
 
-
-
 /**
  * Checks if application is fully initialized
  */
