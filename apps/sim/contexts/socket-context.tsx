@@ -85,8 +85,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
 
-
-
   // Use refs to store event handlers to avoid stale closures
   const eventHandlers = useRef<{
     workflowOperation?: (data: any) => void
