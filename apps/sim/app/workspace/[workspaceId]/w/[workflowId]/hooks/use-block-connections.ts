@@ -167,6 +167,7 @@ export function useBlockConnections(blockId: string) {
     .filter((edge) => edge.target === blockId)
     .map((edge) => {
       const sourceBlock = blocks[edge.source]
+      if (!sourceBlock) return null
 
       // Get the response format from the subblock store instead
       const responseFormatValue = useSubBlockStore
@@ -202,6 +203,7 @@ export function useBlockConnections(blockId: string) {
         responseFormat,
       }
     })
+    .filter(Boolean) as ConnectedBlock[]
 
   return {
     incomingConnections: allPathConnections,
