@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import {
+  AlertTriangle,
   Bell,
   Bug,
   ChevronDown,
@@ -60,6 +61,7 @@ import { HistoryDropdownItem } from './components/history-dropdown-item/history-
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
 import { UserAvatarStack } from './components/user-avatar-stack/user-avatar-stack'
+import { useSocket } from '@/contexts/socket-context'
 
 const logger = createLogger('ControlBar')
 
@@ -111,6 +113,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
   const { setActiveTab } = usePanelStore()
   const { getFolderTree, expandedFolders } = useFolderStore()
+  const { hasConnectionWarning } = useSocket()
 
   // Get current workflow and workspace ID for permissions
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
@@ -683,6 +686,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             </p>
           )}
         </div>
+        {hasConnectionWarning && (
+          <div className='ml-3 flex items-center gap-2 rounded-md bg-destructive/10 px-2 py-1 text-destructive text-sm'>
+            <AlertTriangle className='h-4 w-4' />
+            <span>Connection issues detected. Please refresh to ensure data consistency.</span>
+          </div>
+        )}
         <UserAvatarStack className='ml-3' />
       </div>
     )

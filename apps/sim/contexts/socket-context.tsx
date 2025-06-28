@@ -35,12 +35,14 @@ interface SocketContextType {
   isConnecting: boolean
   currentWorkflowId: string | null
   presenceUsers: PresenceUser[]
+  hasConnectionWarning: boolean
   joinWorkflow: (workflowId: string) => void
   leaveWorkflow: () => void
   emitWorkflowOperation: (operation: string, target: string, payload: any) => void
   emitSubblockUpdate: (blockId: string, subblockId: string, value: any) => void
   emitCursorUpdate: (cursor: { x: number; y: number }) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
+  clearConnectionWarning: () => void
   // Event handlers for receiving real-time updates
   onWorkflowOperation: (handler: (data: any) => void) => void
   onSubblockUpdate: (handler: (data: any) => void) => void
@@ -57,12 +59,14 @@ const SocketContext = createContext<SocketContextType>({
   isConnecting: false,
   currentWorkflowId: null,
   presenceUsers: [],
+  hasConnectionWarning: false,
   joinWorkflow: () => {},
   leaveWorkflow: () => {},
   emitWorkflowOperation: () => {},
   emitSubblockUpdate: () => {},
   emitCursorUpdate: () => {},
   emitSelectionUpdate: () => {},
+  clearConnectionWarning: () => {},
   onWorkflowOperation: () => {},
   onSubblockUpdate: () => {},
   onCursorUpdate: () => {},
@@ -85,6 +89,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [isConnecting, setIsConnecting] = useState(false)
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
+  const [hasConnectionWarning, setHasConnectionWarning] = useState(false)
 
   // Get current workflow ID from URL params
   const params = useParams()
@@ -168,6 +173,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('connect', () => {
           setIsConnected(true)
           setIsConnecting(false)
+          // Don't clear warning on reconnection - user should refresh to ensure data consistency
 
           logger.info('Socket connected successfully', {
             socketId: socketInstance.id,
@@ -190,6 +196,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('disconnect', (reason) => {
           setIsConnected(false)
           setIsConnecting(false)
+          setHasConnectionWarning(true)
 
           logger.info('Socket disconnected', {
             reason,
@@ -201,6 +208,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('connect_error', (error: any) => {
           setIsConnecting(false)
+          setHasConnectionWarning(true)
           logger.error('Socket connection error:', {
             message: error.message,
             stack: error.stack,
@@ -225,6 +233,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         // Socket.IO provides reconnection logging with attempt numbers
         socketInstance.on('reconnect', (attemptNumber) => {
+          // Don't clear warning on reconnection - user should refresh to ensure data consistency
           logger.info('Socket reconnected successfully', {
             attemptNumber,
             socketId: socketInstance.id,
@@ -304,15 +313,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         // Enhanced error handling for new server events
         socketInstance.on('error', (error) => {
           logger.error('Socket error:', error)
+          setHasConnectionWarning(true)
         })
 
         socketInstance.on('operation-error', (error) => {
           logger.error('Operation error:', error)
+          setHasConnectionWarning(true)
         })
 
         socketInstance.on('operation-forbidden', (error) => {
           logger.warn('Operation forbidden:', error)
-          // Could show a toast notification to user
+          setHasConnectionWarning(true)
         })
 
         socketInstance.on('operation-confirmed', (data) => {
@@ -429,6 +440,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     }
   }, [socket, currentWorkflowId])
 
+  // Clear connection warning - should only be called when user takes action (like refreshing)
+  const clearConnectionWarning = useCallback(() => {
+    setHasConnectionWarning(false)
+  }, [])
+
   // Light throttling for position updates to ensure smooth collaborative movement
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
@@ -458,6 +474,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           const timeoutId = window.setTimeout(() => {
             const latestUpdate = pendingPositionUpdates.current.get(blockId)
             if (latestUpdate) {
+              // Skip acknowledgments for position updates to avoid performance issues
               socket.emit('workflow-operation', latestUpdate)
               pendingPositionUpdates.current.delete(blockId)
             }
@@ -467,12 +484,19 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           positionUpdateTimeouts.current.set(blockId, timeoutId)
         }
       } else {
-        // For all non-position updates, emit immediately
-        socket.emit('workflow-operation', {
+        // For all non-position updates, emit immediately with acknowledgment
+        const eventData = {
           operation,
           target,
           payload,
           timestamp: Date.now(),
+        }
+
+        socket.emit('workflow-operation', eventData, (response: any) => {
+          if (response?.error) {
+            logger.error('Workflow operation failed:', response.error)
+            setHasConnectionWarning(true)
+          }
         })
       }
     },
@@ -565,12 +589,14 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         isConnecting,
         currentWorkflowId,
         presenceUsers,
+        hasConnectionWarning,
         joinWorkflow,
         leaveWorkflow,
         emitWorkflowOperation,
         emitSubblockUpdate,
         emitCursorUpdate,
         emitSelectionUpdate,
+        clearConnectionWarning,
         onWorkflowOperation,
         onSubblockUpdate,
         onCursorUpdate,
