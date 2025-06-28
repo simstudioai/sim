@@ -355,7 +355,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     // If we're already in the correct workflow room, no need to switch
     if (currentWorkflowId === urlWorkflowId) return
 
-    logger.info(`URL workflow changed from ${currentWorkflowId} to ${urlWorkflowId}, switching rooms`)
+    logger.info(
+      `URL workflow changed from ${currentWorkflowId} to ${urlWorkflowId}, switching rooms`
+    )
 
     // Leave current workflow first if we're in one
     if (currentWorkflowId) {
