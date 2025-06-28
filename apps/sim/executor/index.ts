@@ -1139,6 +1139,9 @@ export class Executor {
         }
       }
 
+      // Store raw input configuration first for error debugging
+      blockLog.input = block.config.params
+
       // Resolve inputs (which will look up references to other blocks including starter)
       const inputs = this.resolver.resolveInputs(block, context)
 
