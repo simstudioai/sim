@@ -196,7 +196,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('disconnect', (reason) => {
           setIsConnected(false)
           setIsConnecting(false)
-          setHasConnectionWarning(true)
+          // Don't show warning on disconnect - only when operations fail
 
           logger.info('Socket disconnected', {
             reason,
@@ -208,7 +208,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('connect_error', (error: any) => {
           setIsConnecting(false)
-          setHasConnectionWarning(true)
+          // Don't show warning on connection error - only when operations fail
           logger.error('Socket connection error:', {
             message: error.message,
             stack: error.stack,
@@ -452,7 +452,18 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   // Emit workflow operations (blocks, edges, subflows)
   const emitWorkflowOperation = useCallback(
     (operation: string, target: string, payload: any) => {
-      if (!socket || !currentWorkflowId) return
+      // Check if socket is available and connected
+      if (!socket || !currentWorkflowId) {
+        logger.warn('Cannot emit workflow operation: no socket connection or workflow room')
+        setHasConnectionWarning(true)
+        return
+      }
+
+      if (!socket.connected) {
+        logger.warn('Cannot emit workflow operation: socket not connected')
+        setHasConnectionWarning(true)
+        return
+      }
 
       // Apply light throttling only to position updates for smooth collaborative experience
       const isPositionUpdate = operation === 'update-position' && target === 'block'
@@ -473,9 +484,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           // Schedule emission with optimized throttling (30fps = ~33ms) to reduce DB load
           const timeoutId = window.setTimeout(() => {
             const latestUpdate = pendingPositionUpdates.current.get(blockId)
-            if (latestUpdate) {
+            if (latestUpdate && socket.connected) {
               // Skip acknowledgments for position updates to avoid performance issues
               socket.emit('workflow-operation', latestUpdate)
+              pendingPositionUpdates.current.delete(blockId)
+            } else if (latestUpdate && !socket.connected) {
+              // Position update failed due to disconnection
+              setHasConnectionWarning(true)
               pendingPositionUpdates.current.delete(blockId)
             }
             positionUpdateTimeouts.current.delete(blockId)
@@ -506,22 +521,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   // Emit subblock value updates
   const emitSubblockUpdate = useCallback(
     (blockId: string, subblockId: string, value: any) => {
-      // Only emit if socket is connected and we're in a valid workflow room
-      if (socket && currentWorkflowId) {
-        socket.emit('subblock-update', {
-          blockId,
-          subblockId,
-          value,
-          timestamp: Date.now(),
-        })
-      } else {
+      // Check if socket is available and connected
+      if (!socket || !currentWorkflowId || !socket.connected) {
         logger.warn('Cannot emit subblock update: no socket connection or workflow room', {
           hasSocket: !!socket,
           currentWorkflowId,
           blockId,
           subblockId,
         })
+        setHasConnectionWarning(true)
+        return
       }
+
+      socket.emit('subblock-update', {
+        blockId,
+        subblockId,
+        value,
+        timestamp: Date.now(),
+      })
     },
     [socket, currentWorkflowId]
   )

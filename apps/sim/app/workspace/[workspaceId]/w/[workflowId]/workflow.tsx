@@ -1461,9 +1461,8 @@ const WorkflowContent = React.memo(() => {
       if (blockId && subBlockId) {
         // Only emit the socket update, don't update the store again
         // The store was already updated in the setValue function
-        if (isConnected && currentWorkflowId && activeWorkflowId === currentWorkflowId) {
-          emitSubblockUpdate(blockId, subBlockId, value)
-        }
+        // Let the socket context handle all connection checking and warnings
+        emitSubblockUpdate(blockId, subBlockId, value)
       }
     }
 
