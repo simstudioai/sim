@@ -199,7 +199,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             error.message?.includes('Authentication failed') ||
             error.message?.includes('Authentication required')
           ) {
-            logger.warn('Authentication failed - this could indicate session expiry or token generation issues')
+            logger.warn(
+              'Authentication failed - this could indicate session expiry or token generation issues'
+            )
             // The fresh token generation on each attempt should handle most cases automatically
             // If this persists, user may need to refresh page or re-login
           }
