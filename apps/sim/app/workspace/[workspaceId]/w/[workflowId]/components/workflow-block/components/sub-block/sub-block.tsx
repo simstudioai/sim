@@ -7,6 +7,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ChannelSelectorInput } from './components/channel-selector/channel-selector-input'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
+import { ComboBox } from './components/combobox'
 import { ConditionInput } from './components/condition-input'
 import { CredentialSelector } from './components/credential-selector/credential-selector'
 import { DateInput } from './components/date-input'
@@ -111,6 +112,22 @@ export function SubBlock({
               isPreview={isPreview}
               previewValue={previewValue}
               disabled={isDisabled}
+            />
+          </div>
+        )
+      case 'combobox':
+        return (
+          <div onMouseDown={handleMouseDown}>
+            <ComboBox
+              blockId={blockId}
+              subBlockId={config.id}
+              options={config.options as string[]}
+              placeholder={config.placeholder}
+              isPreview={isPreview}
+              previewValue={previewValue}
+              disabled={isDisabled}
+              isConnecting={isConnecting}
+              config={config}
             />
           </div>
         )

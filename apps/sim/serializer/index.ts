@@ -70,9 +70,16 @@ export class Serializer {
         // For non-custom tools, we determine the tool ID
         const nonCustomTools = tools.filter((tool: any) => tool.type !== 'custom-tool')
         if (nonCustomTools.length > 0) {
-          toolId = blockConfig.tools.config?.tool
-            ? blockConfig.tools.config.tool(params)
-            : blockConfig.tools.access[0]
+          try {
+            toolId = blockConfig.tools.config?.tool
+              ? blockConfig.tools.config.tool(params)
+              : blockConfig.tools.access[0]
+          } catch (error) {
+            logger.warn('Tool selection failed during serialization, using default:', {
+              error: error instanceof Error ? error.message : String(error),
+            })
+            toolId = blockConfig.tools.access[0]
+          }
         }
       } catch (error) {
         logger.error('Error processing tools in agent block:', { error })
@@ -81,9 +88,16 @@ export class Serializer {
       }
     } else {
       // For non-agent blocks, get tool ID from block config as usual
-      toolId = blockConfig.tools.config?.tool
-        ? blockConfig.tools.config.tool(params)
-        : blockConfig.tools.access[0]
+      try {
+        toolId = blockConfig.tools.config?.tool
+          ? blockConfig.tools.config.tool(params)
+          : blockConfig.tools.access[0]
+      } catch (error) {
+        logger.warn('Tool selection failed during serialization, using default:', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        toolId = blockConfig.tools.access[0]
+      }
     }
 
     // Get inputs from block config

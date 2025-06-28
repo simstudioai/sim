@@ -29,7 +29,8 @@ export const runtime = 'nodejs'
 // Define the schema for environment variables
 const EnvVarsSchema = z.record(z.string())
 
-// Keep track of running executions to prevent overlap
+// Keep track of running executions to prevent duplicate requests
+// Use a combination of workflow ID and request ID to allow concurrent executions with different inputs
 const runningExecutions = new Set<string>()
 
 // Custom error class for usage limit exceeded
@@ -47,10 +48,14 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   const workflowId = workflow.id
   const executionId = uuidv4()
 
-  // Skip if this workflow is already running
-  if (runningExecutions.has(workflowId)) {
-    logger.warn(`[${requestId}] Workflow is already running: ${workflowId}`)
-    throw new Error('Workflow is already running')
+  // Create a unique execution key combining workflow ID and request ID
+  // This allows concurrent executions of the same workflow with different inputs
+  const executionKey = `${workflowId}:${requestId}`
+
+  // Skip if this exact execution is already running (prevents duplicate requests)
+  if (runningExecutions.has(executionKey)) {
+    logger.warn(`[${requestId}] Execution is already running: ${executionKey}`)
+    throw new Error('Execution is already running')
   }
 
   // Check if the user has exceeded their usage limits
@@ -86,7 +91,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   }
 
   try {
-    runningExecutions.add(workflowId)
+    runningExecutions.add(executionKey)
     logger.info(`[${requestId}] Starting workflow execution: ${workflowId}`)
 
     // Use the deployed state if available, otherwise fall back to current state
@@ -291,7 +296,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     await persistExecutionError(workflowId, executionId, error, 'api')
     throw error
   } finally {
-    runningExecutions.delete(workflowId)
+    runningExecutions.delete(executionKey)
   }
 }
 
@@ -392,7 +397,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS(_request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
     headers: {

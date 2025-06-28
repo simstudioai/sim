@@ -7,6 +7,19 @@
  * - Provider configurations
  */
 
+import type React from 'react'
+import {
+  AnthropicIcon,
+  AzureIcon,
+  CerebrasIcon,
+  DeepseekIcon,
+  GeminiIcon,
+  GroqIcon,
+  OllamaIcon,
+  OpenAIIcon,
+  xAIIcon,
+} from '@/components/icons'
+
 export interface ModelPricing {
   input: number // Per 1M tokens
   cachedInput?: number // Per 1M tokens (if supported)
@@ -36,6 +49,7 @@ export interface ProviderDefinition {
   models: ModelDefinition[]
   defaultModel: string
   modelPatterns?: RegExp[]
+  icon?: React.ComponentType<{ className?: string }>
 }
 
 /**
@@ -48,6 +62,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: "OpenAI's models",
     defaultModel: 'gpt-4o',
     modelPatterns: [/^gpt/, /^o1/],
+    icon: OpenAIIcon,
     models: [
       {
         id: 'gpt-4o',
@@ -142,6 +157,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: 'Microsoft Azure OpenAI Service models',
     defaultModel: 'azure/gpt-4o',
     modelPatterns: [/^azure\//],
+    icon: AzureIcon,
     models: [
       {
         id: 'azure/gpt-4o',
@@ -212,6 +228,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: "Anthropic's Claude models",
     defaultModel: 'claude-sonnet-4-0',
     modelPatterns: [/^claude/],
+    icon: AnthropicIcon,
     models: [
       {
         id: 'claude-sonnet-4-0',
@@ -275,6 +292,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: "Google's Gemini models",
     defaultModel: 'gemini-2.5-pro',
     modelPatterns: [/^gemini/],
+    icon: GeminiIcon,
     models: [
       {
         id: 'gemini-2.5-pro',
@@ -310,6 +328,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: "Deepseek's chat models",
     defaultModel: 'deepseek-chat',
     modelPatterns: [],
+    icon: DeepseekIcon,
     models: [
       {
         id: 'deepseek-chat',
@@ -356,6 +375,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: "xAI's Grok models",
     defaultModel: 'grok-3-latest',
     modelPatterns: [/^grok/],
+    icon: xAIIcon,
     models: [
       {
         id: 'grok-3-latest',
@@ -391,6 +411,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: 'Cerebras Cloud LLMs',
     defaultModel: 'cerebras/llama-3.3-70b',
     modelPatterns: [/^cerebras/],
+    icon: CerebrasIcon,
     models: [
       {
         id: 'cerebras/llama-3.3-70b',
@@ -412,6 +433,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: "Groq's LLM models with high-performance inference",
     defaultModel: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
     modelPatterns: [/^groq/],
+    icon: GroqIcon,
     models: [
       {
         id: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
@@ -457,6 +479,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     description: 'Local LLM models via Ollama',
     defaultModel: '',
     modelPatterns: [],
+    icon: OllamaIcon,
     models: [], // Populated dynamically
   },
 }
