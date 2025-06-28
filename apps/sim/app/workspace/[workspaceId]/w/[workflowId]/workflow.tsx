@@ -122,7 +122,6 @@ const WorkflowContent = React.memo(() => {
     collaborativeUpdateParentId: updateParentId,
     isConnected,
     currentWorkflowId,
-    joinWorkflow,
   } = useCollaborativeWorkflow()
   const { emitSubblockUpdate } = useSocket()
   const { markAllAsRead } = useNotificationStore()
@@ -356,25 +355,8 @@ const WorkflowContent = React.memo(() => {
     }
   }, [debouncedAutoLayout])
 
-  // Listen for active workflow changes and join socket room
-  useEffect(() => {
-    const handleActiveWorkflowChanged = (event: CustomEvent) => {
-      const { workflowId } = event.detail
-      if (workflowId && isConnected) {
-        logger.info(`Active workflow changed to ${workflowId}, joining socket room`)
-        joinWorkflow(workflowId)
-      }
-    }
-
-    window.addEventListener('active-workflow-changed', handleActiveWorkflowChanged as EventListener)
-
-    return () => {
-      window.removeEventListener(
-        'active-workflow-changed',
-        handleActiveWorkflowChanged as EventListener
-      )
-    }
-  }, [isConnected, joinWorkflow])
+  // Note: Workflow room joining is now handled automatically by socket connect event based on URL
+  // This eliminates the need for manual joining when active workflow changes
 
   // Note: Workflow initialization now handled by Socket.IO system
 

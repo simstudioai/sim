@@ -37,10 +37,11 @@ export function useCollaborativeWorkflow() {
   // Track last applied position timestamps to prevent out-of-order updates
   const lastPositionTimestamps = useRef<Map<string, number>>(new Map())
 
-  // Join workflow room when active workflow changes
+  // Clear position timestamps when switching workflows
+  // Note: Workflow joining is now handled automatically by socket connect event based on URL
   useEffect(() => {
-    if (activeWorkflowId && isConnected && currentWorkflowId !== activeWorkflowId) {
-      logger.info(`Joining workflow room: ${activeWorkflowId}`, {
+    if (activeWorkflowId && currentWorkflowId !== activeWorkflowId) {
+      logger.info(`Active workflow changed to: ${activeWorkflowId}`, {
         isConnected,
         currentWorkflowId,
         activeWorkflowId,
@@ -49,10 +50,8 @@ export function useCollaborativeWorkflow() {
 
       // Clear position timestamps when switching workflows
       lastPositionTimestamps.current.clear()
-
-      joinWorkflow(activeWorkflowId)
     }
-  }, [activeWorkflowId, isConnected, currentWorkflowId, joinWorkflow])
+  }, [activeWorkflowId, isConnected, currentWorkflowId])
 
   // Log connection status changes
   useEffect(() => {
