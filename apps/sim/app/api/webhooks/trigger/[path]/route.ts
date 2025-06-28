@@ -305,48 +305,6 @@ export async function POST(
     }
   }
 
-  // For Gmail: Process with specific email handling
-  if (isGmailWebhook) {
-    try {
-      logger.info(`[${requestId}] Gmail webhook request received for webhook: ${foundWebhook.id}`)
-
-      const webhookSecret = foundWebhook.secret
-      if (webhookSecret) {
-        const secretHeader = request.headers.get('X-Webhook-Secret')
-        if (secretHeader !== webhookSecret) {
-          logger.warn(`[${requestId}] Invalid webhook secret`)
-          return new NextResponse('Unauthorized', { status: 401 })
-        }
-      }
-
-      if (body.email) {
-        logger.info(`[${requestId}] Processing Gmail email`, {
-          emailId: body.email.id,
-          subject:
-            body.email?.payload?.headers?.find((h: any) => h.name === 'Subject')?.value ||
-            'No subject',
-        })
-
-        const executionId = uuidv4()
-        logger.info(`[${requestId}] Executing workflow ${foundWorkflow.id} for Gmail email`)
-
-        return await processWebhook(
-          foundWebhook,
-          foundWorkflow,
-          body,
-          request,
-          executionId,
-          requestId
-        )
-      }
-      logger.warn(`[${requestId}] Invalid Gmail webhook payload format`)
-      return new NextResponse('Invalid payload format', { status: 400 })
-    } catch (error: any) {
-      logger.error(`[${requestId}] Error processing Gmail webhook`, error)
-      return new NextResponse(`Internal server error: ${error.message}`, { status: 500 })
-    }
-  }
-
   // --- For all other webhook types: Use async processing with timeout ---
 
   // Create timeout promise for fast initial response (2.5 seconds)
@@ -370,7 +328,38 @@ export async function POST(
         if (whatsappDuplicateResponse) {
           return whatsappDuplicateResponse
         }
+      } else if (foundWebhook.provider === 'gmail') {
+        // Gmail-specific validation and logging
+        logger.info(`[${requestId}] Gmail webhook request received for webhook: ${foundWebhook.id}`)
+
+        const webhookSecret = foundWebhook.secret
+        if (webhookSecret) {
+          const secretHeader = request.headers.get('X-Webhook-Secret')
+          if (secretHeader !== webhookSecret) {
+            logger.warn(`[${requestId}] Invalid webhook secret`)
+            return new NextResponse('Unauthorized', { status: 401 })
+          }
+        }
+
+        if (!body.email) {
+          logger.warn(`[${requestId}] Invalid Gmail webhook payload format`)
+          return new NextResponse('Invalid payload format', { status: 400 })
+        }
+
+        logger.info(`[${requestId}] Processing Gmail email`, {
+          emailId: body.email.id,
+          subject:
+            body.email?.payload?.headers?.find((h: any) => h.name === 'Subject')?.value ||
+            'No subject',
+        })
+
+        // Gmail deduplication using generic method
+        const genericDuplicateResponse = await processGenericDeduplication(requestId, path, body)
+        if (genericDuplicateResponse) {
+          return genericDuplicateResponse
+        }
       } else if (foundWebhook.provider !== 'slack') {
+        // Generic deduplication for all other providers
         const genericDuplicateResponse = await processGenericDeduplication(requestId, path, body)
         if (genericDuplicateResponse) {
           return genericDuplicateResponse
