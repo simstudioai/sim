@@ -32,7 +32,7 @@ const IS_DEV = process.env.NODE_ENV === 'development'
 export function Sidebar() {
   useGlobalShortcuts()
 
-  const { workflows, createWorkflow, isLoading: workflowsLoading } = useWorkflowRegistry()
+  const { workflows, createWorkflow, isLoading: workflowsLoading, loadWorkflows } = useWorkflowRegistry()
   const { isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
   const isLoading = workflowsLoading || sessionLoading
@@ -40,6 +40,14 @@ export function Sidebar() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const pathname = usePathname()
+
+  // Load workflows for the current workspace when workspaceId changes
+  // This is the single source of truth for workflow loading
+  useEffect(() => {
+    if (workspaceId) {
+      loadWorkflows(workspaceId)
+    }
+  }, [workspaceId, loadWorkflows])
 
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)

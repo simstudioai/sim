@@ -1,7 +1,8 @@
 import { and, eq } from 'drizzle-orm'
 import { db } from '../../db'
-import { workflow, workspaceMember } from '../../db/schema'
+import { workflow } from '../../db/schema'
 import { createLogger } from '../../lib/logs/console-logger'
+import { getUserEntityPermissions } from '../../lib/permissions/utils'
 
 const logger = createLogger('SocketPermissions')
 
@@ -10,15 +11,10 @@ export async function verifyWorkspaceMembership(
   workspaceId: string
 ): Promise<string | null> {
   try {
-    const membership = await db
-      .select({ role: workspaceMember.role })
-      .from(workspaceMember)
-      .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId)))
-      .limit(1)
-
-    return membership.length > 0 ? membership[0].role : null
+    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    return permission
   } catch (error) {
-    logger.error(`Error verifying workspace membership for ${userId} in ${workspaceId}:`, error)
+    logger.error(`Error verifying workspace permissions for ${userId} in ${workspaceId}:`, error)
     return null
   }
 }

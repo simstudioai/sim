@@ -267,7 +267,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         await fetchWorkflowsFromDB(workspaceId)
       },
 
-      // Switch to workspace with comprehensive error handling and loading states
+      // Switch to workspace - just clear state, let sidebar handle workflow loading
       switchToWorkspace: async (workspaceId: string) => {
         // Prevent multiple simultaneous transitions
         if (isWorkspaceTransitioning) {
@@ -286,16 +286,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           // Clear current workspace state
           resetWorkflowStores()
 
-          // Update state
+          // Update state - sidebar will load workflows when URL changes
           set({
             activeWorkflowId: null,
             workflows: {},
             isLoading: true,
             error: null,
           })
-
-          // Fetch workflows for the new workspace
-          await fetchWorkflowsFromDB(workspaceId)
 
           logger.info(`Successfully switched to workspace: ${workspaceId}`)
         } catch (error) {
