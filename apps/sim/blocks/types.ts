@@ -14,6 +14,7 @@ export type SubBlockType =
   | 'short-input' // Single line input
   | 'long-input' // Multi-line input
   | 'dropdown' // Select menu
+  | 'combobox' // Searchable dropdown with text input
   | 'slider' // Range input
   | 'table' // Grid layout
   | 'code' // Code editor
