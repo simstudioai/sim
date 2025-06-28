@@ -178,6 +178,14 @@ export function getProviderModels(providerId: ProviderId): string[] {
   return getProviderModelsFromDefinitions(providerId)
 }
 
+/**
+ * Get provider icon for a given model
+ */
+export function getProviderIcon(model: string): React.ComponentType<{ className?: string }> | null {
+  const providerId = getProviderFromModel(model)
+  return PROVIDER_DEFINITIONS[providerId]?.icon || null
+}
+
 export function generateStructuredOutputInstructions(responseFormat: any): string {
   // Handle null/undefined input
   if (!responseFormat) return ''

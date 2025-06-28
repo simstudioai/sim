@@ -5,8 +5,10 @@ import {
   getAllModelProviders,
   getBaseModelProviders,
   getHostedModels,
+  getProviderIcon,
   MODELS_TEMP_RANGE_0_1,
   MODELS_TEMP_RANGE_0_2,
+  MODELS_WITH_TEMPERATURE_SUPPORT,
   providers,
 } from '@/providers/utils'
 import { useOllamaStore } from '@/stores/ollama/store'
@@ -87,12 +89,30 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     {
       id: 'model',
       title: 'Model',
-      type: 'dropdown',
+      type: 'combobox',
       layout: 'half',
+      placeholder: 'Type or select a model...',
       options: () => {
         const ollamaModels = useOllamaStore.getState().models
         const baseModels = Object.keys(getBaseModelProviders())
-        return [...baseModels, ...ollamaModels]
+        const allModels = [...baseModels, ...ollamaModels]
+
+        return allModels.map((model) => {
+          const icon = getProviderIcon(model)
+          return { label: model, id: model, ...(icon && { icon }) }
+        })
+      },
+    },
+    {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      layout: 'half',
+      min: 0,
+      max: 1,
+      condition: {
+        field: 'model',
+        value: MODELS_TEMP_RANGE_0_1,
       },
     },
     {
@@ -111,12 +131,20 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       id: 'temperature',
       title: 'Temperature',
       type: 'slider',
-      layout: 'half',
+      layout: 'full',
       min: 0,
-      max: 1,
+      max: 2,
       condition: {
         field: 'model',
-        value: MODELS_TEMP_RANGE_0_1,
+        value: [...MODELS_TEMP_RANGE_0_1, ...MODELS_TEMP_RANGE_0_2],
+        not: true,
+        and: {
+          field: 'model',
+          value: Object.keys(getBaseModelProviders()).filter(
+            (model) => !MODELS_WITH_TEMPERATURE_SUPPORT.includes(model)
+          ),
+          not: true,
+        },
       },
     },
     {
