@@ -689,7 +689,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         {hasConnectionWarning && (
           <div className='ml-3 flex items-center gap-2 rounded-md bg-destructive/10 px-2 py-1 text-destructive text-sm'>
             <AlertTriangle className='h-4 w-4' />
-            <span>Connection issues detected. Please refresh to ensure data consistency.</span>
+            <span>Connection issues detected. Please refresh to make sure changes are saved.</span>
           </div>
         )}
         <UserAvatarStack className='ml-3' />
