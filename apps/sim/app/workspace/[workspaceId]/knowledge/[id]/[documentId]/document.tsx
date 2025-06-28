@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -13,13 +13,12 @@ import {
   X,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
 import { useDebounce } from '@/hooks/use-debounce'
+import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -55,8 +54,6 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const { mode, isExpanded } = useSidebarStore()
   const { getCachedKnowledgeBase, getCachedDocuments } = useKnowledgeStore()
   const { workspaceId } = useParams()
@@ -64,11 +61,7 @@ export function Document({
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
-  const initialPage = Number.parseInt(searchParams.get('page') || '1', 10)
   const [searchQuery, setSearchQuery] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
-  const debouncedSearchQuery = useDebounce(searchQuery, 500)
-  const pageBeforeSearchRef = useRef<number | null>(null)
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -76,10 +69,15 @@ export function Document({
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
+  const [pageBeforeSearch, setPageBeforeSearch] = useState(1)
+  const [previousSearchQuery, setPreviousSearchQuery] = useState('')
 
   const [document, setDocument] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Debounce the search query to avoid excessive API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 500)
 
   // Use the updated chunks hook with pagination
   const {
@@ -94,59 +92,73 @@ export function Document({
     nextPage,
     prevPage,
     refreshChunks,
-    searchChunks,
     updateChunk,
+    searchChunks,
+    clearSearchAndGoToPage,
   } = useDocumentChunks(knowledgeBaseId, documentId)
 
   // Combine errors
   const combinedError = error || chunksError
 
-  // Update URL with page parameter
-  const updatePageInUrl = useCallback(
-    (page: number) => {
-      const params = new URLSearchParams(searchParams.toString())
-      if (page === 1) {
-        params.delete('page')
-      } else {
-        params.set('page', page.toString())
+  // Handle search functionality with debounce
+  useEffect(() => {
+    if (!knowledgeBaseId || !documentId) return
+
+    const handleSearch = async () => {
+      try {
+        if (debouncedSearchQuery.trim()) {
+          // Perform the search
+          await searchChunks(debouncedSearchQuery.trim())
+        } else {
+          // If clearing search, return to the page we were on before searching
+          await clearSearchAndGoToPage(pageBeforeSearch)
+        }
+      } catch (err) {
+        logger.error('Search failed:', err)
       }
-      const newUrl = params.toString() ? `?${params.toString()}` : ''
-      router.replace(newUrl, { scroll: false })
-    },
-    [router, searchParams]
-  )
+    }
+
+    handleSearch()
+  }, [debouncedSearchQuery, knowledgeBaseId, documentId, pageBeforeSearch])
+
+  // Track search state changes and save page when starting search
+  useEffect(() => {
+    const isStartingSearch = !previousSearchQuery.trim() && searchQuery.trim()
+    
+    if (isStartingSearch) {
+      setPageBeforeSearch(currentPage)
+    }
+    
+    // Always update the previous search query for next comparison
+    setPreviousSearchQuery(searchQuery)
+  }, [searchQuery, previousSearchQuery])
 
   // Handle pagination navigation
   const handlePrevPage = useCallback(() => {
     if (hasPrevPage && !isLoadingChunks) {
-      const newPage = currentPage - 1
-      updatePageInUrl(newPage)
       prevPage()?.catch((err) => {
         logger.error('Previous page failed:', err)
       })
     }
-  }, [hasPrevPage, isLoadingChunks, prevPage, currentPage, updatePageInUrl])
+  }, [hasPrevPage, isLoadingChunks, prevPage])
 
   const handleNextPage = useCallback(() => {
     if (hasNextPage && !isLoadingChunks) {
-      const newPage = currentPage + 1
-      updatePageInUrl(newPage)
       nextPage()?.catch((err) => {
         logger.error('Next page failed:', err)
       })
     }
-  }, [hasNextPage, isLoadingChunks, nextPage, currentPage, updatePageInUrl])
+  }, [hasNextPage, isLoadingChunks, nextPage])
 
   const handleGoToPage = useCallback(
     (page: number) => {
       if (page !== currentPage && !isLoadingChunks) {
-        updatePageInUrl(page)
         goToPage(page)?.catch((err) => {
           logger.error('Go to page failed:', err)
         })
       }
     },
-    [currentPage, isLoadingChunks, goToPage, updatePageInUrl]
+    [currentPage, isLoadingChunks, goToPage]
   )
 
   // Try to get document from store cache first, then fetch if needed
@@ -191,84 +203,10 @@ export function Document({
       }
     }
 
-    // Sync initial page from URL
-    useEffect(() => {
-      if (initialPage !== currentPage && initialPage > 0 && !isLoadingChunks) {
-        goToPage(initialPage).catch((err) => {
-          logger.error('Failed to navigate to initial page:', err)
-          // If the page doesn't exist, redirect to page 1
-          if (initialPage > 1) {
-            updatePageInUrl(1)
-          }
-        })
-      }
-    }, [initialPage, currentPage, isLoadingChunks, goToPage, updatePageInUrl])
-
-    // Handle search with debouncing
-    useEffect(() => {
-      if (document?.processingStatus !== 'completed') return
-
-      const performSearch = async () => {
-        // Clear search - restore to original page
-        if (debouncedSearchQuery.trim() === '') {
-          try {
-            setIsSearching(false)
-
-            // Restore to page before search if we have one stored
-            if (pageBeforeSearchRef.current !== null) {
-              const pageToRestore = pageBeforeSearchRef.current
-              pageBeforeSearchRef.current = null
-              updatePageInUrl(pageToRestore)
-              await goToPage(pageToRestore)
-            } else {
-              await refreshChunks({ search: '' })
-            }
-          } catch (err) {
-            logger.error('Failed to refresh chunks:', err)
-          }
-          return
-        }
-
-        // Starting search - store current page if not already stored
-        if (pageBeforeSearchRef.current === null) {
-          pageBeforeSearchRef.current = currentPage
-        }
-
-        // Perform search
-        try {
-          setIsSearching(true)
-          updatePageInUrl(1)
-          await searchChunks(debouncedSearchQuery.trim())
-        } catch (err) {
-          logger.error('Search failed:', err)
-        } finally {
-          setIsSearching(false)
-        }
-      }
-
-      performSearch()
-    }, [debouncedSearchQuery, document?.processingStatus])
-
     if (knowledgeBaseId && documentId) {
       fetchDocument()
     }
   }, [knowledgeBaseId, documentId, getCachedDocuments])
-
-  // Clear search when user clicks the X button
-  const handleClearSearch = useCallback(() => {
-    setSearchQuery('')
-    setIsSearching(false)
-
-    // Restore to original page if we have one stored
-    if (pageBeforeSearchRef.current !== null) {
-      const pageToRestore = pageBeforeSearchRef.current
-      pageBeforeSearchRef.current = null
-      updatePageInUrl(pageToRestore)
-      goToPage(pageToRestore).catch((err) => {
-        logger.error('Failed to restore page after clearing search:', err)
-      })
-    }
-  }, [updatePageInUrl, goToPage])
 
   const knowledgeBase = getCachedKnowledgeBase(knowledgeBaseId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
@@ -453,7 +391,7 @@ export function Document({
 
   const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
 
-  if (isLoadingDocument || (isLoadingChunks && !searchQuery.trim())) {
+  if (isLoadingDocument || isLoadingChunks) {
     return (
       <DocumentLoading
         knowledgeBaseId={knowledgeBaseId}
@@ -516,17 +454,15 @@ export function Document({
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={
                         document?.processingStatus === 'completed'
-                          ? isSearching
-                            ? 'Searching...'
-                            : 'Search chunks...'
+                          ? 'Search chunks...'
                           : 'Document processing...'
                       }
-                      disabled={document?.processingStatus !== 'completed' || isSearching}
+                      disabled={document?.processingStatus !== 'completed'}
                       className='h-10 w-full rounded-md border bg-background px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
                     />
                     {searchQuery && document?.processingStatus === 'completed' && (
                       <button
-                        onClick={handleClearSearch}
+                        onClick={() => setSearchQuery('')}
                         className='-translate-y-1/2 absolute top-1/2 right-3 transform text-muted-foreground hover:text-foreground'
                       >
                         <X className='h-[18px] w-[18px]' />
