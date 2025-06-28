@@ -96,6 +96,21 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     workflowDeleted?: (data: any) => void
   }>({})
 
+  // Helper function to generate a fresh socket token
+  const generateSocketToken = async (): Promise<string> => {
+    const tokenResponse = await fetch('/api/auth/socket-token', {
+      method: 'POST',
+      credentials: 'include',
+    })
+
+    if (!tokenResponse.ok) {
+      throw new Error('Failed to generate socket token')
+    }
+
+    const { token } = await tokenResponse.json()
+    return token
+  }
+
   // Initialize socket when user is available - only once per session
   useEffect(() => {
     if (!user?.id) return
@@ -111,17 +126,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
     const initializeSocket = async () => {
       try {
-        // Generate one-time token for socket authentication
-        const tokenResponse = await fetch('/api/auth/socket-token', {
-          method: 'POST',
-          credentials: 'include',
-        })
-
-        if (!tokenResponse.ok) {
-          throw new Error('Failed to generate socket token')
-        }
-
-        const { token } = await tokenResponse.json()
+        // Generate initial token for socket authentication
+        const token = await generateSocketToken()
 
         const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'
 
@@ -139,8 +145,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           reconnectionDelay: 1000, // Start with 1 second delay
           reconnectionDelayMax: 5000, // Max 5 second delay
           timeout: 10000, // Back to original timeout
-          auth: {
-            token, // Send one-time token for authentication
+          auth: (cb) => {
+            // Generate a fresh token for each connection attempt (including reconnections)
+            generateSocketToken()
+              .then((freshToken) => {
+                logger.info('Generated fresh token for connection attempt')
+                cb({ token: freshToken })
+              })
+              .catch((error) => {
+                logger.error('Failed to generate fresh token for connection:', error)
+                cb({ token: null }) // This will cause authentication to fail gracefully
+              })
           },
         })
 
@@ -178,33 +193,45 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             transport: error.transport,
           })
 
-          // With 24-hour token expiry, authentication errors indicate a more serious issue
-          // that requires user intervention (e.g., session expired, user logged out)
+          // Authentication errors now indicate either session expiry or token generation issues
           if (
             error.message?.includes('Token validation failed') ||
-            error.message?.includes('Authentication failed')
+            error.message?.includes('Authentication failed') ||
+            error.message?.includes('Authentication required')
           ) {
-            logger.warn('Authentication failed - user may need to refresh page or re-login')
+            logger.warn('Authentication failed - this could indicate session expiry or token generation issues')
+            // The fresh token generation on each attempt should handle most cases automatically
+            // If this persists, user may need to refresh page or re-login
           }
         })
 
         // Socket.IO provides reconnection logging with attempt numbers
         socketInstance.on('reconnect', (attemptNumber) => {
-          logger.info('Socket reconnected', {
+          logger.info('Socket reconnected successfully', {
             attemptNumber,
+            socketId: socketInstance.id,
+            transport: socketInstance.io.engine?.transport?.name,
           })
         })
 
         socketInstance.on('reconnect_attempt', (attemptNumber) => {
-          logger.info('Socket reconnection attempt', { attemptNumber })
+          logger.info('Socket reconnection attempt (fresh token will be generated)', {
+            attemptNumber,
+            timestamp: new Date().toISOString(),
+          })
         })
 
         socketInstance.on('reconnect_error', (error: any) => {
-          logger.error('Socket reconnection error:', error)
+          logger.error('Socket reconnection error:', {
+            message: error.message,
+            attemptNumber: error.attemptNumber,
+            type: error.type,
+          })
         })
 
         socketInstance.on('reconnect_failed', () => {
           logger.error('Socket reconnection failed - all attempts exhausted')
+          setIsConnecting(false)
         })
 
         // Presence events
