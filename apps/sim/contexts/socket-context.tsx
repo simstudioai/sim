@@ -85,10 +85,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
 
-  // Connection state tracking
-  const reconnectCount = useRef(0)
-  const tokenRefreshAttempts = useRef(0)
-  const isRefreshingToken = useRef(false)
+
 
   // Use refs to store event handlers to avoid stale closures
   const eventHandlers = useRef<{
@@ -153,14 +150,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('connect', () => {
           setIsConnected(true)
           setIsConnecting(false)
-          reconnectCount.current = 0
-          tokenRefreshAttempts.current = 0
 
           logger.info('Socket connected successfully', {
             socketId: socketInstance.id,
             connected: socketInstance.connected,
             transport: socketInstance.io.engine?.transport?.name,
-            reconnectCount: reconnectCount.current,
           })
         })
 
@@ -170,14 +164,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
           logger.info('Socket disconnected', {
             reason,
-            reconnectCount: reconnectCount.current,
           })
 
           // Clear presence when disconnected
           setPresenceUsers([])
         })
 
-        socketInstance.on('connect_error', async (error: any) => {
+        socketInstance.on('connect_error', (error: any) => {
           setIsConnecting(false)
           logger.error('Socket connection error:', {
             message: error.message,
@@ -187,53 +180,18 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             transport: error.transport,
           })
 
+          // With 24-hour token expiry, authentication errors indicate a more serious issue
+          // that requires user intervention (e.g., session expired, user logged out)
           if (
             error.message?.includes('Token validation failed') ||
             error.message?.includes('Authentication failed')
           ) {
-            // Prevent infinite loops - limit refresh attempts
-            if (tokenRefreshAttempts.current >= 3) {
-              logger.warn('Max token refresh attempts reached - user needs to refresh page')
-              return
-            }
-
-            // Prevent concurrent refresh attempts
-            if (isRefreshingToken.current) {
-              logger.info('Token refresh already in progress, skipping...')
-              return
-            }
-
-            isRefreshingToken.current = true
-            tokenRefreshAttempts.current++
-            logger.info(`Token expired, attempting refresh (${tokenRefreshAttempts.current}/3)...`)
-
-            try {
-              const tokenResponse = await fetch('/api/auth/socket-token', {
-                method: 'POST',
-                credentials: 'include',
-              })
-
-              if (tokenResponse.ok) {
-                const { token } = await tokenResponse.json()
-                socketInstance.auth = { ...socketInstance.auth, token }
-                logger.info('Token refreshed successfully, reconnecting...')
-                socketInstance.connect()
-              } else {
-                logger.warn('Failed to refresh token - user may need to refresh page')
-              }
-            } catch (refreshError) {
-              logger.error('Token refresh failed:', refreshError)
-            } finally {
-              isRefreshingToken.current = false
-            }
+            logger.warn('Authentication failed - user may need to refresh page or re-login')
           }
         })
 
-        // Add reconnection logging
+        // Socket.IO provides reconnection logging with attempt numbers
         socketInstance.on('reconnect', (attemptNumber) => {
-          reconnectCount.current = attemptNumber
-          // Reset token refresh attempts on successful reconnection
-          tokenRefreshAttempts.current = 0
           logger.info('Socket reconnected', {
             attemptNumber,
           })

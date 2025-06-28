@@ -187,7 +187,7 @@ export const auth = betterAuth({
   plugins: [
     nextCookies(),
     oneTimeToken({
-      expiresIn: 30, // 30 minutes - covers typical work sessions
+      expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
     }),
     emailOTP({
       sendVerificationOTP: async (data: {
