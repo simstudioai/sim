@@ -100,16 +100,17 @@ Upload a new chunk to a document in a knowledge base
 | `createdAt` | string |
 | `updatedAt` | string |
 
-### `knowledge_upload_document`
+### `knowledge_create_document`
 
-Upload documents to a knowledge base
+Create a new document in a knowledge base
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
-| `file` | file | Yes | Document\(s\) to upload |
+| `name` | string | Yes | Name of the document |
+| `content` | string | Yes | Content of the document |
 
 #### Output
 
