@@ -246,6 +246,20 @@ async function handleBlockOperationTx(
         }
 
         await tx.insert(workflowBlocks).values(insertData)
+
+        // Handle auto-connect edge if present
+        if (payload.autoConnectEdge) {
+          const edge = payload.autoConnectEdge
+          await tx.insert(workflowEdges).values({
+            id: edge.id,
+            workflowId,
+            sourceBlockId: edge.source,
+            targetBlockId: edge.target,
+            sourceHandle: edge.sourceHandle || null,
+            targetHandle: edge.targetHandle || null,
+          })
+          logger.info(`Added auto-connect edge ${edge.id}: ${edge.source} -> ${edge.target}`)
+        }
       } catch (insertError) {
         logger.error(`[SERVER] ❌ Failed to insert block ${payload.id}:`, insertError)
         throw insertError
@@ -592,6 +606,20 @@ async function handleBlockOperationTx(
         }
 
         await tx.insert(workflowBlocks).values(insertData)
+
+        // Handle auto-connect edge if present
+        if (payload.autoConnectEdge) {
+          const edge = payload.autoConnectEdge
+          await tx.insert(workflowEdges).values({
+            id: edge.id,
+            workflowId,
+            sourceBlockId: edge.source,
+            targetBlockId: edge.target,
+            sourceHandle: edge.sourceHandle || null,
+            targetHandle: edge.targetHandle || null,
+          })
+          logger.debug(`Added auto-connect edge ${edge.id}: ${edge.source} -> ${edge.target}`)
+        }
       } catch (insertError) {
         logger.error(`[SERVER] ❌ Failed to insert duplicated block ${payload.id}:`, insertError)
         throw insertError
