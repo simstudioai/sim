@@ -89,10 +89,8 @@ export class LoopManager {
             const itemsLength = Array.isArray(storedItems)
               ? storedItems.length
               : Object.keys(storedItems).length
-            
-            const safetyLimit = loop.iterations && loop.iterations > 5 
-              ? loop.iterations 
-              : 5000
+
+            const safetyLimit = loop.iterations && loop.iterations > 5 ? loop.iterations : 5000
             maxIterations = Math.min(itemsLength, safetyLimit)
             logger.info(
               `forEach loop ${loopId} - Items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
@@ -100,9 +98,7 @@ export class LoopManager {
           } else {
             const itemsLength = this.getItemsLength(loop.forEachItems)
             if (itemsLength > 0) {
-              const safetyLimit = loop.iterations && loop.iterations > 5 
-                ? loop.iterations 
-                : 5000
+              const safetyLimit = loop.iterations && loop.iterations > 5 ? loop.iterations : 5000
               maxIterations = Math.min(itemsLength, safetyLimit)
               logger.info(
                 `forEach loop ${loopId} - Parsed items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`

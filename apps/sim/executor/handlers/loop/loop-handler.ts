@@ -75,20 +75,19 @@ export class LoopBlockHandler implements BlockHandler {
         ? forEachItems.length
         : Object.keys(forEachItems).length
 
-      const safetyLimit = loop.iterations && loop.iterations > DEFAULT_MAX_ITERATIONS 
-        ? loop.iterations 
-        : MAX_FOREACH_SAFETY_LIMIT
+      const safetyLimit =
+        loop.iterations && loop.iterations > DEFAULT_MAX_ITERATIONS
+          ? loop.iterations
+          : MAX_FOREACH_SAFETY_LIMIT
 
       maxIterations = Math.min(itemsLength, safetyLimit)
-      
+
       logger.info(
         `forEach loop ${block.id} - Items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
       )
     } else {
       maxIterations = loop.iterations || DEFAULT_MAX_ITERATIONS
-      logger.info(
-        `For loop ${block.id} - Max iterations: ${maxIterations}`
-      )
+      logger.info(`For loop ${block.id} - Max iterations: ${maxIterations}`)
     }
 
     logger.info(
