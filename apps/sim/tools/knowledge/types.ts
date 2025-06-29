@@ -49,3 +49,24 @@ export interface KnowledgeUploadChunkParams {
   content: string
   enabled?: boolean
 }
+
+export interface KnowledgeUploadDocumentResult {
+  id: string
+  name: string
+  size: number
+  type: string
+  url: string
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface KnowledgeUploadDocumentResponse {
+  success: boolean
+  output: {
+    data: KnowledgeUploadDocumentResult
+    message: string
+    documentId: string
+  }
+  error?: string
+}
