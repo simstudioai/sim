@@ -17,8 +17,8 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useDebounce } from '@/hooks/use-debounce'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -63,30 +63,33 @@ export function Document({
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
-  const currentPageFromURL = parseInt(searchParams.get('page') || '1', 10)
+  const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
   const searchQueryFromURL = searchParams.get('search') || ''
 
   const [searchQuery, setSearchQuery] = useState(searchQueryFromURL)
 
   const debouncedSearchQuery = useDebounce(searchQuery, 800)
 
-  const updateURL = useCallback((newSearch: string, newPage: number = 1) => {
-    const params = new URLSearchParams(searchParams)
-    
-    if (newSearch) {
-      params.set('search', newSearch)
-    } else {
-      params.delete('search')
-    }
-    
-    if (newPage > 1) {
-      params.set('page', newPage.toString())
-    } else {
-      params.delete('page')
-    }
-    
-    router.replace(`?${params.toString()}`, { scroll: false })
-  }, [router, searchParams])
+  const updateURL = useCallback(
+    (newSearch: string, newPage = 1) => {
+      const params = new URLSearchParams(searchParams)
+
+      if (newSearch) {
+        params.set('search', newSearch)
+      } else {
+        params.delete('search')
+      }
+
+      if (newPage > 1) {
+        params.set('page', newPage.toString())
+      } else {
+        params.delete('page')
+      }
+
+      router.replace(`?${params.toString()}`, { scroll: false })
+    },
+    [router, searchParams]
+  )
 
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
@@ -121,7 +124,7 @@ export function Document({
 
   useEffect(() => {
     if (!knowledgeBaseId || !documentId) return
-    
+
     if (debouncedSearchQuery !== searchQueryFromURL) {
       if (debouncedSearchQuery.trim().length >= 2) {
         // Starting a search - go to page 1
@@ -131,7 +134,14 @@ export function Document({
         updateURL(debouncedSearchQuery, pageBeforeSearch)
       }
     }
-  }, [debouncedSearchQuery, searchQueryFromURL, updateURL, knowledgeBaseId, documentId, pageBeforeSearch])
+  }, [
+    debouncedSearchQuery,
+    searchQueryFromURL,
+    updateURL,
+    knowledgeBaseId,
+    documentId,
+    pageBeforeSearch,
+  ])
 
   useEffect(() => {
     setSearchQuery(searchQueryFromURL)
@@ -140,7 +150,7 @@ export function Document({
   // Track when search starts to save current page
   useEffect(() => {
     const isStartingSearch = !searchQueryFromURL && searchQuery.trim()
-    
+
     if (isStartingSearch) {
       // User just started typing, save current page
       setPageBeforeSearch(currentPageFromURL)
@@ -159,9 +169,12 @@ export function Document({
     }
   }, [hasNextPage, updateURL, searchQuery, currentPageFromURL])
 
-  const handleGoToPage = useCallback((page: number) => {
-    updateURL(searchQuery, page)
-  }, [updateURL, searchQuery])
+  const handleGoToPage = useCallback(
+    (page: number) => {
+      updateURL(searchQuery, page)
+    },
+    [updateURL, searchQuery]
+  )
 
   useEffect(() => {
     const fetchDocument = async () => {
