@@ -54,9 +54,9 @@ import { huggingfaceChatTool } from './huggingface'
 import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
 import {
+  knowledgeCreateDocumentTool,
   knowledgeSearchTool,
   knowledgeUploadChunkTool,
-  knowledgeUploadDocumentTool,
 } from './knowledge'
 import { linearCreateIssueTool, linearReadIssuesTool } from './linear'
 import { linkupSearchTool } from './linkup'
@@ -195,7 +195,7 @@ export const tools: Record<string, ToolConfig> = {
   memory_delete: memoryDeleteTool,
   knowledge_search: knowledgeSearchTool,
   knowledge_upload_chunk: knowledgeUploadChunkTool,
-  knowledge_upload_document: knowledgeUploadDocumentTool,
+  knowledge_create_document: knowledgeCreateDocumentTool,
   elevenlabs_tts: elevenLabsTtsTool,
   s3_get_object: s3GetObjectTool,
   telegram_message: telegramMessageTool,

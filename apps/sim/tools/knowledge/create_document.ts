@@ -1,10 +1,10 @@
 import type { ToolConfig } from '../types'
-import type { KnowledgeUploadDocumentResponse } from './types'
+import type { KnowledgeCreateDocumentResponse } from './types'
 
-export const knowledgeUploadDocumentTool: ToolConfig<any, KnowledgeUploadDocumentResponse> = {
-  id: 'knowledge_upload_document',
-  name: 'Knowledge Upload Document',
-  description: 'Upload documents to a knowledge base',
+export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumentResponse> = {
+  id: 'knowledge_create_document',
+  name: 'Knowledge Create Document',
+  description: 'Create a new document in a knowledge base',
   version: '1.0.0',
   params: {
     knowledgeBaseId: {
@@ -12,10 +12,15 @@ export const knowledgeUploadDocumentTool: ToolConfig<any, KnowledgeUploadDocumen
       required: true,
       description: 'ID of the knowledge base containing the document',
     },
-    file: {
-      type: 'file',
+    name: {
+      type: 'string',
       required: true,
-      description: 'Document(s) to upload',
+      description: 'Name of the document',
+    },
+    content: {
+      type: 'string',
+      required: true,
+      description: 'Content of the document',
     },
   },
   request: {
@@ -25,28 +30,33 @@ export const knowledgeUploadDocumentTool: ToolConfig<any, KnowledgeUploadDocumen
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Handle both single file and array of files from FileUpload component
-      const files = Array.isArray(params.file) ? params.file : [params.file]
+      // Create document from text content
+      const textContent = params.content
+      const documentName = params.name
 
-      // Map files to the expected document format
-      const documents = files.map(
-        (fileData: { name: string; path: string; size: number; type: string }) => {
-          // Create file URL (handle both relative and absolute paths)
-          const fileUrl = fileData.path?.startsWith('http')
-            ? fileData.path
-            : `${typeof window !== 'undefined' ? window.location.origin : ''}${fileData.path}`
+      // Calculate content metrics
+      const contentBytes = new TextEncoder().encode(textContent).length
 
-          return {
-            filename: fileData.name,
-            fileUrl: fileUrl,
-            fileSize: fileData.size,
-            mimeType: fileData.type,
-          }
-        }
-      )
+      // Properly encode UTF-8 text to base64
+      const utf8Bytes = new TextEncoder().encode(textContent)
+      const base64Content =
+        typeof Buffer !== 'undefined'
+          ? Buffer.from(textContent, 'utf8').toString('base64')
+          : btoa(String.fromCharCode(...utf8Bytes))
 
-      // Use bulk upload format (required for processing)
-      const requestBody = {
+      // Create data URI for text content
+      const dataUri = `data:text/plain;base64,${base64Content}`
+
+      const documents = [
+        {
+          filename: documentName.endsWith('.txt') ? documentName : `${documentName}.txt`,
+          fileUrl: dataUri, // or handle as direct text content
+          fileSize: contentBytes,
+          mimeType: 'text/plain',
+        },
+      ]
+
+      return {
         documents: documents,
         processingOptions: {
           chunkSize: 1024,
@@ -57,17 +67,15 @@ export const knowledgeUploadDocumentTool: ToolConfig<any, KnowledgeUploadDocumen
         },
         bulk: true,
       }
-
-      return requestBody
     },
     isInternalRoute: true,
   },
-  transformResponse: async (response): Promise<KnowledgeUploadDocumentResponse> => {
+  transformResponse: async (response): Promise<KnowledgeCreateDocumentResponse> => {
     try {
       const result = await response.json()
 
       if (!response.ok) {
-        const errorMessage = result.error?.message || result.message || 'Failed to upload documents'
+        const errorMessage = result.error?.message || result.message || 'Failed to create document'
         throw new Error(errorMessage)
       }
 
@@ -85,17 +93,15 @@ export const knowledgeUploadDocumentTool: ToolConfig<any, KnowledgeUploadDocumen
             id: firstDocument?.documentId || firstDocument?.id || '',
             name:
               uploadCount > 1 ? `${uploadCount} documents` : firstDocument?.filename || 'Unknown',
-            size: 0, // Size not returned in bulk response
             type: 'document',
-            url: '',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             enabled: true,
           },
           message:
             uploadCount > 1
-              ? `Successfully uploaded ${uploadCount} documents to knowledge base`
-              : `Successfully uploaded document to knowledge base`,
+              ? `Successfully created ${uploadCount} documents in knowledge base`
+              : `Successfully created document in knowledge base`,
           documentId: firstDocument?.documentId || firstDocument?.id || '',
         },
       }
@@ -106,31 +112,27 @@ export const knowledgeUploadDocumentTool: ToolConfig<any, KnowledgeUploadDocumen
           data: {
             id: '',
             name: '',
-            size: 0,
             type: '',
-            url: '',
             enabled: true,
             createdAt: '',
             updatedAt: '',
           },
-          message: `Failed to upload documents: ${error.message || 'Unknown error'}`,
+          message: `Failed to create document: ${error.message || 'Unknown error'}`,
           documentId: '',
         },
-        error: `Failed to upload documents: ${error.message || 'Unknown error'}`,
+        error: `Failed to create document: ${error.message || 'Unknown error'}`,
       }
     }
   },
-  transformError: async (error): Promise<KnowledgeUploadDocumentResponse> => {
-    const errorMessage = `Failed to upload documents: ${error.message || 'Unknown error'}`
+  transformError: async (error): Promise<KnowledgeCreateDocumentResponse> => {
+    const errorMessage = `Failed to create document: ${error.message || 'Unknown error'}`
     return {
       success: false,
       output: {
         data: {
           id: '',
           name: '',
-          size: 0,
           type: '',
-          url: '',
           enabled: true,
           createdAt: '',
           updatedAt: '',
