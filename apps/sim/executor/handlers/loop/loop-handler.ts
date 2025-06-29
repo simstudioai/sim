@@ -7,6 +7,7 @@ import type { BlockHandler, ExecutionContext } from '../../types'
 const logger = createLogger('LoopBlockHandler')
 
 const DEFAULT_MAX_ITERATIONS = 5
+const MAX_FOREACH_SAFETY_LIMIT = 5000
 
 /**
  * Handler for loop blocks that manage iteration control and flow.
@@ -44,9 +45,7 @@ export class LoopBlockHandler implements BlockHandler {
     }
 
     const currentIteration = context.loopIterations.get(block.id) || 0
-    let maxIterations = loop.iterations || DEFAULT_MAX_ITERATIONS
-
-    // For forEach loops, we need to check the actual items length
+    let maxIterations: number
     let forEachItems: any[] | Record<string, any> | null = null
     if (loop.loopType === 'forEach') {
       if (
@@ -71,13 +70,20 @@ export class LoopBlockHandler implements BlockHandler {
         )
       }
 
-      // Adjust max iterations based on actual items
+      // For forEach, max iterations = items length with optional safety limit
       const itemsLength = Array.isArray(forEachItems)
         ? forEachItems.length
         : Object.keys(forEachItems).length
-      maxIterations = Math.min(maxIterations, itemsLength)
+      const safetyLimit = loop.iterations && loop.iterations > 0 ? loop.iterations : MAX_FOREACH_SAFETY_LIMIT
+      maxIterations = Math.min(itemsLength, safetyLimit)
+      
       logger.info(
-        `Loop ${block.id} max iterations set to ${maxIterations} based on ${itemsLength} items`
+        `forEach loop ${block.id} - Items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
+      )
+    } else {
+      maxIterations = loop.iterations || DEFAULT_MAX_ITERATIONS
+      logger.info(
+        `For loop ${block.id} - Max iterations: ${maxIterations}`
       )
     }
 

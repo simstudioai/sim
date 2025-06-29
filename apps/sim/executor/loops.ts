@@ -81,7 +81,7 @@ export class LoopManager {
         // Determine the maximum iterations
         let maxIterations = loop.iterations || this.defaultIterations
 
-        // For forEach loops, check the actual items length
+        // For forEach loops, use the actual items length with safety limit
         if (loop.loopType === 'forEach' && loop.forEachItems) {
           // First check if the items have already been evaluated and stored by the loop handler
           const storedItems = context.loopItems.get(`${loopId}_items`)
@@ -89,15 +89,22 @@ export class LoopManager {
             const itemsLength = Array.isArray(storedItems)
               ? storedItems.length
               : Object.keys(storedItems).length
-            maxIterations = Math.min(maxIterations, itemsLength)
+            
+            // Use configured iterations as safety limit, otherwise use high default safety limit
+            const safetyLimit = loop.iterations && loop.iterations > 0 ? loop.iterations : 5000
+            maxIterations = Math.min(itemsLength, safetyLimit)
             logger.info(
-              `Loop ${loopId} using stored items length: ${itemsLength} (max iterations: ${maxIterations})`
+              `forEach loop ${loopId} - Items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
             )
           } else {
             // Fallback to parsing the forEachItems string if it's not a reference
             const itemsLength = this.getItemsLength(loop.forEachItems)
             if (itemsLength > 0) {
-              maxIterations = Math.min(maxIterations, itemsLength)
+              const safetyLimit = loop.iterations && loop.iterations > 0 ? loop.iterations : 5000
+              maxIterations = Math.min(itemsLength, safetyLimit)
+              logger.info(
+                `forEach loop ${loopId} - Parsed items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
+              )
             }
           }
         }
