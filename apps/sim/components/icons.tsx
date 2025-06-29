@@ -3014,11 +3014,11 @@ export const AzureIcon = (props: SVGProps<SVGSVGElement>) => (
         y2='11.8734'
         gradientUnits='userSpaceOnUse'
       >
-        <stop stop-opacity='0.3' />
-        <stop offset='0.0711768' stop-opacity='0.2' />
-        <stop offset='0.321031' stop-opacity='0.1' />
-        <stop offset='0.623053' stop-opacity='0.05' />
-        <stop offset='1' stop-opacity='0' />
+        <stop stopOpacity='0.3' />
+        <stop offset='0.0711768' stopOpacity='0.2' />
+        <stop offset='0.321031' stopOpacity='0.1' />
+        <stop offset='0.623053' stopOpacity='0.05' />
+        <stop offset='1' stopOpacity='0' />
       </linearGradient>
       <linearGradient
         id='paint2_linear_6102_134469'
