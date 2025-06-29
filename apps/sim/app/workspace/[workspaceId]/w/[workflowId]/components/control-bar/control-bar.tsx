@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import {
-  AlertTriangle,
   Bell,
   Bug,
   ChevronDown,
@@ -42,7 +41,7 @@ import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
-import { useSocket } from '@/contexts/socket-context'
+import { SocketConnectionWarning } from '@/components/socket-connection-warning'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -113,7 +112,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
   const { setActiveTab } = usePanelStore()
   const { getFolderTree, expandedFolders } = useFolderStore()
-  const { hasConnectionWarning } = useSocket()
+
 
   // Get current workflow and workspace ID for permissions
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
@@ -686,12 +685,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             </p>
           )}
         </div>
-        {hasConnectionWarning && (
-          <div className='ml-3 flex items-center gap-2 rounded-md bg-destructive/10 px-2 py-1 text-destructive text-sm'>
-            <AlertTriangle className='h-4 w-4' />
-            <span>Connection issues detected. Please refresh to make sure changes are saved.</span>
-          </div>
-        )}
+        <SocketConnectionWarning className='ml-3' />
         <UserAvatarStack className='ml-3' />
       </div>
     )

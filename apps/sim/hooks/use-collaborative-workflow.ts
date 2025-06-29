@@ -313,7 +313,7 @@ export function useCollaborativeWorkflow() {
 
         // Then broadcast to other clients with complete block data
         if (!isApplyingRemoteChange.current) {
-          emitWorkflowOperation('add', 'block', completeBlockData)
+          emitWorkflowOperation('add', 'block', completeBlockData, true) // User action
         }
         return
       }
@@ -361,7 +361,7 @@ export function useCollaborativeWorkflow() {
 
       // Then broadcast to other clients with complete block data
       if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('add', 'block', completeBlockData)
+        emitWorkflowOperation('add', 'block', completeBlockData, true) // User action
       }
     },
     [workflowStore, emitWorkflowOperation]
@@ -374,7 +374,7 @@ export function useCollaborativeWorkflow() {
 
       // Then broadcast to other clients
       if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('remove', 'block', { id })
+        emitWorkflowOperation('remove', 'block', { id }, true) // User action
       }
     },
     [workflowStore, emitWorkflowOperation]
@@ -387,7 +387,7 @@ export function useCollaborativeWorkflow() {
 
       // Then broadcast to other clients
       if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('update-position', 'block', { id, position })
+        emitWorkflowOperation('update-position', 'block', { id, position }, true) // User action
       }
     },
     [workflowStore, emitWorkflowOperation]
@@ -589,7 +589,7 @@ export function useCollaborativeWorkflow() {
 
       // Then broadcast to other clients
       if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('add', 'edge', edge)
+        emitWorkflowOperation('add', 'edge', edge, true) // User action
       }
     },
     [workflowStore, emitWorkflowOperation]
@@ -602,7 +602,7 @@ export function useCollaborativeWorkflow() {
 
       // Then broadcast to other clients
       if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('remove', 'edge', { id: edgeId })
+        emitWorkflowOperation('remove', 'edge', { id: edgeId }, true) // User action
       }
     },
     [workflowStore, emitWorkflowOperation]
@@ -620,7 +620,7 @@ export function useCollaborativeWorkflow() {
         currentWorkflowId &&
         activeWorkflowId === currentWorkflowId
       ) {
-        emitSubblockUpdate(blockId, subblockId, value)
+        emitSubblockUpdate(blockId, subblockId, value, true) // User action
       } else if (!isConnected || !currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
         logger.debug('Skipping subblock update broadcast', {
           isConnected,

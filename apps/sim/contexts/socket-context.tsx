@@ -35,14 +35,12 @@ interface SocketContextType {
   isConnecting: boolean
   currentWorkflowId: string | null
   presenceUsers: PresenceUser[]
-  hasConnectionWarning: boolean
   joinWorkflow: (workflowId: string) => void
   leaveWorkflow: () => void
-  emitWorkflowOperation: (operation: string, target: string, payload: any) => void
-  emitSubblockUpdate: (blockId: string, subblockId: string, value: any) => void
+  emitWorkflowOperation: (operation: string, target: string, payload: any, isUserAction?: boolean) => void
+  emitSubblockUpdate: (blockId: string, subblockId: string, value: any, isUserAction?: boolean) => void
   emitCursorUpdate: (cursor: { x: number; y: number }) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
-  clearConnectionWarning: () => void
   // Event handlers for receiving real-time updates
   onWorkflowOperation: (handler: (data: any) => void) => void
   onSubblockUpdate: (handler: (data: any) => void) => void
@@ -59,14 +57,12 @@ const SocketContext = createContext<SocketContextType>({
   isConnecting: false,
   currentWorkflowId: null,
   presenceUsers: [],
-  hasConnectionWarning: false,
   joinWorkflow: () => {},
   leaveWorkflow: () => {},
   emitWorkflowOperation: () => {},
   emitSubblockUpdate: () => {},
   emitCursorUpdate: () => {},
   emitSelectionUpdate: () => {},
-  clearConnectionWarning: () => {},
   onWorkflowOperation: () => {},
   onSubblockUpdate: () => {},
   onCursorUpdate: () => {},
@@ -89,7 +85,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [isConnecting, setIsConnecting] = useState(false)
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
-  const [hasConnectionWarning, setHasConnectionWarning] = useState(false)
 
   // Get current workflow ID from URL params
   const params = useParams()
@@ -313,17 +308,14 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         // Enhanced error handling for new server events
         socketInstance.on('error', (error) => {
           logger.error('Socket error:', error)
-          setHasConnectionWarning(true)
         })
 
         socketInstance.on('operation-error', (error) => {
           logger.error('Operation error:', error)
-          setHasConnectionWarning(true)
         })
 
         socketInstance.on('operation-forbidden', (error) => {
           logger.warn('Operation forbidden:', error)
-          setHasConnectionWarning(true)
         })
 
         socketInstance.on('operation-confirmed', (data) => {
@@ -440,10 +432,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     }
   }, [socket, currentWorkflowId])
 
-  // Clear connection warning - should only be called when user takes action (like refreshing)
-  const clearConnectionWarning = useCallback(() => {
-    setHasConnectionWarning(false)
-  }, [])
+
 
   // Light throttling for position updates to ensure smooth collaborative movement
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
@@ -451,11 +440,16 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   // Emit workflow operations (blocks, edges, subflows)
   const emitWorkflowOperation = useCallback(
-    (operation: string, target: string, payload: any) => {
+    (operation: string, target: string, payload: any, isUserAction: boolean = false) => {
       // Check if socket is available and connected
       if (!socket || !currentWorkflowId || !socket.connected) {
         logger.warn('Cannot emit workflow operation: socket not available or connected')
-        setHasConnectionWarning(true)
+        // Only show warning for user-initiated actions, not automatic operations
+        if (isUserAction) {
+          window.dispatchEvent(new CustomEvent('socket-connection-error', {
+            detail: { error: 'Cannot emit workflow operation: socket not available or connected' }
+          }))
+        }
         return
       }
 
@@ -484,7 +478,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               pendingPositionUpdates.current.delete(blockId)
             } else if (latestUpdate && !socket.connected) {
               // Position update failed due to disconnection
-              setHasConnectionWarning(true)
+              // Only show warning for user-initiated position updates
+              if (isUserAction) {
+                window.dispatchEvent(new CustomEvent('socket-connection-error', {
+                  detail: { error: 'Position update failed: socket disconnected' }
+                }))
+              }
               pendingPositionUpdates.current.delete(blockId)
             }
             positionUpdateTimeouts.current.delete(blockId)
@@ -504,7 +503,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socket.emit('workflow-operation', eventData, (response: any) => {
           if (response?.error) {
             logger.error('Workflow operation failed:', response.error)
-            setHasConnectionWarning(true)
+            // Only show warning for user-initiated actions
+            if (isUserAction) {
+              window.dispatchEvent(new CustomEvent('socket-connection-error', {
+                detail: { error: `Workflow operation failed: ${response.error}` }
+              }))
+            }
           }
         })
       }
@@ -514,7 +518,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   // Emit subblock value updates
   const emitSubblockUpdate = useCallback(
-    (blockId: string, subblockId: string, value: any) => {
+    (blockId: string, subblockId: string, value: any, isUserAction: boolean = false) => {
       // Check if socket is available and connected
       if (!socket || !currentWorkflowId || !socket.connected) {
         logger.warn('Cannot emit subblock update: socket not available or connected', {
@@ -523,7 +527,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           blockId,
           subblockId,
         })
-        setHasConnectionWarning(true)
+        // Only show warning for user-initiated actions, not automatic operations
+        if (isUserAction) {
+          window.dispatchEvent(new CustomEvent('socket-connection-error', {
+            detail: { error: 'Cannot emit subblock update: socket not available or connected' }
+          }))
+        }
         return
       }
 
@@ -600,14 +609,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         isConnecting,
         currentWorkflowId,
         presenceUsers,
-        hasConnectionWarning,
         joinWorkflow,
         leaveWorkflow,
         emitWorkflowOperation,
         emitSubblockUpdate,
         emitCursorUpdate,
         emitSelectionUpdate,
-        clearConnectionWarning,
         onWorkflowOperation,
         onSubblockUpdate,
         onCursorUpdate,

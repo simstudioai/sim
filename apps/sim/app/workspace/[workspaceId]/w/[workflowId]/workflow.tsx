@@ -1457,12 +1457,12 @@ const WorkflowContent = React.memo(() => {
   // Handle sub-block value updates from custom events
   useEffect(() => {
     const handleSubBlockValueUpdate = (event: CustomEvent) => {
-      const { blockId, subBlockId, value } = event.detail
+      const { blockId, subBlockId, value, isUserAction } = event.detail
       if (blockId && subBlockId) {
         // Only emit the socket update, don't update the store again
         // The store was already updated in the setValue function
-        // Let the socket context handle all connection checking and warnings
-        emitSubblockUpdate(blockId, subBlockId, value)
+        // Pass through the isUserAction flag to show warnings only for user actions
+        emitSubblockUpdate(blockId, subBlockId, value, isUserAction || false)
       }
     }
 

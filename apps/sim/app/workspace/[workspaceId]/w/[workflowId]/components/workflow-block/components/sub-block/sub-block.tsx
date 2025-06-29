@@ -308,6 +308,7 @@ export function SubBlock({
                     blockId,
                     subBlockId: config.id,
                     value,
+                    isUserAction: true, // User selecting OAuth credential
                   },
                 })
                 window.dispatchEvent(event)

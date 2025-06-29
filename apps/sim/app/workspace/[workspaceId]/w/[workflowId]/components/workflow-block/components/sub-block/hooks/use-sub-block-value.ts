@@ -6,12 +6,13 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 // Helper function to dispatch collaborative subblock updates
-const dispatchSubblockUpdate = (blockId: string, subBlockId: string, value: any) => {
+const dispatchSubblockUpdate = (blockId: string, subBlockId: string, value: any, isUserAction: boolean = false) => {
   const event = new CustomEvent('update-subblock-value', {
     detail: {
       blockId,
       subBlockId,
       value,
+      isUserAction,
     },
   })
   window.dispatchEvent(event)
@@ -232,11 +233,13 @@ export function useSubBlockValue<T = any>(
         useSubBlockStore.getState().setValue(blockId, subBlockId, valueCopy)
 
         // Dispatch event to trigger socket emission only (not store update)
+        // Mark as user action since setValue is called by user interactions
         const event = new CustomEvent('update-subblock-value', {
           detail: {
             blockId,
             subBlockId,
             value: valueCopy,
+            isUserAction: true, // setValue is called by user interactions
           },
         })
         window.dispatchEvent(event)
