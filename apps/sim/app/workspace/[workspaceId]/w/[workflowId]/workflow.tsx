@@ -442,7 +442,7 @@ const WorkflowContent = React.memo(() => {
 
         // Auto-connect logic for container nodes
         const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-        let autoConnectEdge = undefined
+        let autoConnectEdge
         if (isAutoConnectEnabled) {
           const closestBlock = findClosestOutput(centerPosition)
           if (closestBlock) {
@@ -461,11 +461,20 @@ const WorkflowContent = React.memo(() => {
         }
 
         // Add the container node directly to canvas with default dimensions and auto-connect edge
-        addBlock(id, type, name, centerPosition, {
-          width: 500,
-          height: 300,
-          type: type === 'loop' ? 'loopNode' : 'parallelNode',
-        }, undefined, undefined, autoConnectEdge)
+        addBlock(
+          id,
+          type,
+          name,
+          centerPosition,
+          {
+            width: 500,
+            height: 300,
+            type: type === 'loop' ? 'loopNode' : 'parallelNode',
+          },
+          undefined,
+          undefined,
+          autoConnectEdge
+        )
 
         return
       }
@@ -491,7 +500,7 @@ const WorkflowContent = React.memo(() => {
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
       console.log('🔗 Auto-connect enabled:', isAutoConnectEnabled, 'type:', type)
-      let autoConnectEdge = undefined
+      let autoConnectEdge
       if (isAutoConnectEnabled && type !== 'starter') {
         const closestBlock = findClosestOutput(centerPosition)
         console.log('🎯 Closest block found:', closestBlock)
@@ -591,7 +600,7 @@ const WorkflowContent = React.memo(() => {
           } else {
             // Auto-connect the container to the closest node on the canvas
             const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-            let autoConnectEdge = undefined
+            let autoConnectEdge
             if (isAutoConnectEnabled) {
               const closestBlock = findClosestOutput(position)
               if (closestBlock) {
@@ -609,11 +618,20 @@ const WorkflowContent = React.memo(() => {
             }
 
             // Add the container node directly to canvas with default dimensions and auto-connect edge
-            addBlock(id, data.type, name, position, {
-              width: 500,
-              height: 300,
-              type: data.type === 'loop' ? 'loopNode' : 'parallelNode',
-            }, undefined, undefined, autoConnectEdge)
+            addBlock(
+              id,
+              data.type,
+              name,
+              position,
+              {
+                width: 500,
+                height: 300,
+                type: data.type === 'loop' ? 'loopNode' : 'parallelNode',
+              },
+              undefined,
+              undefined,
+              autoConnectEdge
+            )
           }
 
           return
@@ -715,7 +733,7 @@ const WorkflowContent = React.memo(() => {
         } else {
           // Regular auto-connect logic
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-          let autoConnectEdge = undefined
+          let autoConnectEdge
           if (isAutoConnectEnabled && data.type !== 'starter') {
             const closestBlock = findClosestOutput(position)
             if (closestBlock) {
