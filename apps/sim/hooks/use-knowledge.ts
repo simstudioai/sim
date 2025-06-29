@@ -215,7 +215,12 @@ export function useKnowledgeBasesList() {
 /**
  * Hook to manage chunks for a specific document
  */
-export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
+export function useDocumentChunks(
+  knowledgeBaseId: string, 
+  documentId: string,
+  urlPage: number = 1,
+  urlSearch: string = ''
+) {
   const { getChunks, refreshChunks, updateChunk, getCachedChunks, clearChunks, isChunksLoading } =
     useKnowledgeStore()
 
@@ -228,9 +233,11 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     offset: 0,
     hasMore: false,
   })
-  const [currentPage, setCurrentPage] = useState(1)
-  const [searchQuery, setSearchQuery] = useState<string>('')
   const [initialLoadDone, setInitialLoadDone] = useState(false)
+
+  // Use URL parameters as source of truth
+  const currentPage = urlPage
+  const searchQuery = urlSearch
 
   const isStoreLoading = isChunksLoading(documentId)
   const combinedIsLoading = isLoading || isStoreLoading
@@ -250,10 +257,12 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
       try {
         // Check cache first
         const cached = getCachedChunks(documentId)
+        const expectedOffset = (currentPage - 1) * 50 // Use hardcoded limit
+        
         if (
           cached &&
           cached.searchQuery === searchQuery &&
-          cached.pagination.offset === (currentPage - 1) * pagination.limit
+          cached.pagination.offset === expectedOffset
         ) {
           if (isMounted) {
             setChunks(cached.chunks)
@@ -264,30 +273,29 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
           return
         }
 
-        // If not cached and we haven't done initial load, fetch from API
-        if (!initialLoadDone && !isStoreLoading) {
-          setIsLoading(true)
-          setError(null)
+        // Fetch from API
+        setIsLoading(true)
+        setError(null)
 
-          const offset = (currentPage - 1) * pagination.limit
+        const limit = 50
+        const offset = (currentPage - 1) * limit
 
-          const fetchedChunks = await getChunks(knowledgeBaseId, documentId, {
-            limit: pagination.limit,
-            offset,
-            search: searchQuery || undefined,
-          })
+        const fetchedChunks = await getChunks(knowledgeBaseId, documentId, {
+          limit,
+          offset,
+          search: searchQuery || undefined,
+        })
 
-          if (isMounted) {
-            setChunks(fetchedChunks)
+        if (isMounted) {
+          setChunks(fetchedChunks)
 
-            // Update pagination from cache after fetch
-            const updatedCache = getCachedChunks(documentId)
-            if (updatedCache) {
-              setPagination(updatedCache.pagination)
-            }
-
-            setInitialLoadDone(true)
+          // Update pagination from cache after fetch
+          const updatedCache = getCachedChunks(documentId)
+          if (updatedCache) {
+            setPagination(updatedCache.pagination)
           }
+
+          setInitialLoadDone(true)
         }
       } catch (err) {
         if (isMounted) {
@@ -312,7 +320,6 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     searchQuery,
     isStoreLoading,
     initialLoadDone,
-    pagination.limit,
   ])
 
   // Separate effect to sync with store state changes (no API calls)
@@ -320,10 +327,12 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     if (!documentId || !initialLoadDone) return
 
     const cached = getCachedChunks(documentId)
+    const expectedOffset = (currentPage - 1) * 50
+    
     if (
       cached &&
       cached.searchQuery === searchQuery &&
-      cached.pagination.offset === (currentPage - 1) * pagination.limit
+      cached.pagination.offset === expectedOffset
     ) {
       setChunks(cached.chunks)
       setPagination(cached.pagination)
@@ -340,7 +349,6 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     initialLoadDone,
     searchQuery,
     currentPage,
-    pagination.limit,
   ])
 
   const goToPage = async (page: number) => {
@@ -349,12 +357,12 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     try {
       setIsLoading(true)
       setError(null)
-      setCurrentPage(page)
 
-      const offset = (page - 1) * pagination.limit
+      const limit = 50
+      const offset = (page - 1) * limit
 
       const fetchedChunks = await getChunks(knowledgeBaseId, documentId, {
-        limit: pagination.limit,
+        limit,
         offset,
         search: searchQuery || undefined,
       })
@@ -391,26 +399,18 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     search?: string
     limit?: number
     offset?: number
-    preservePage?: boolean // New option to preserve current page when clearing search
+    preservePage?: boolean
   }) => {
     try {
       setIsLoading(true)
       setError(null)
 
-      // Update search query if provided
-      if (options?.search !== undefined) {
-        setSearchQuery(options.search)
-        // Only reset to page 1 if we're not preserving the page
-        if (!options.preservePage) {
-          setCurrentPage(1)
-        }
-      }
-
-      const offset = options?.offset ?? (currentPage - 1) * pagination.limit
+      const limit = 50
+      const offset = options?.offset ?? (currentPage - 1) * limit
 
       const fetchedChunks = await refreshChunks(knowledgeBaseId, documentId, {
         search: options?.search,
-        limit: options?.limit,
+        limit,
         offset,
       })
 
@@ -430,48 +430,16 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     }
   }
 
-  const clearSearchAndGoToPage = async (targetPage: number) => {
-    try {
-      console.log('clearSearchAndGoToPage', targetPage)
-      setIsLoading(true)
-      setError(null)
-      setSearchQuery('') 
-      setCurrentPage(targetPage)
-
-      const offset = (targetPage - 1) * (pagination.limit)
-
-      const fetchedChunks = await refreshChunks(knowledgeBaseId, documentId, {
-        search: '',
-        limit: pagination.limit,
-        offset,
-      })
-
-      const cached = getCachedChunks(documentId)
-      if (cached) {
-        setChunks(cached.chunks)
-        setPagination(cached.pagination)
-      }
-
-      return fetchedChunks
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to clear search and navigate')
-      throw err
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const searchChunks = async (newSearchQuery: string) => {
     try {
       setIsLoading(true)
       setError(null)
-      setSearchQuery(newSearchQuery)
-      setCurrentPage(1)
 
+      const limit = 50
       const searchResults = await getChunks(knowledgeBaseId, documentId, {
         search: newSearchQuery,
-        limit: pagination.limit,
-        offset: 0,
+        limit,
+        offset: 0, // Always start from first page for search
       })
 
       // Update local state from cache
@@ -504,7 +472,6 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     prevPage,
     refreshChunks: refreshChunksData,
     searchChunks,
-    clearSearchAndGoToPage,
     updateChunk: (chunkId: string, updates: Partial<ChunkData>) => {
       updateChunk(documentId, chunkId, updates)
       setChunks((prevChunks) =>
