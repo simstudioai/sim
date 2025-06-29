@@ -4,6 +4,9 @@ import type { ExecutionContext } from './types'
 
 const logger = createLogger('LoopManager')
 
+const DEFAULT_MAX_ITERATIONS = 5
+const MAX_FOREACH_SAFETY_LIMIT = 5000
+
 /**
  * Manages loop detection, iteration limits, and state resets.
  * With the new loop block approach, this class is significantly simplified.
@@ -90,7 +93,10 @@ export class LoopManager {
               ? storedItems.length
               : Object.keys(storedItems).length
 
-            const safetyLimit = loop.iterations && loop.iterations > 5 ? loop.iterations : 5000
+            const safetyLimit =
+              loop.iterations && loop.iterations > DEFAULT_MAX_ITERATIONS
+                ? loop.iterations
+                : MAX_FOREACH_SAFETY_LIMIT
             maxIterations = Math.min(itemsLength, safetyLimit)
             logger.info(
               `forEach loop ${loopId} - Items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
@@ -98,7 +104,10 @@ export class LoopManager {
           } else {
             const itemsLength = this.getItemsLength(loop.forEachItems)
             if (itemsLength > 0) {
-              const safetyLimit = loop.iterations && loop.iterations > 5 ? loop.iterations : 5000
+              const safetyLimit =
+                loop.iterations && loop.iterations > DEFAULT_MAX_ITERATIONS
+                  ? loop.iterations
+                  : MAX_FOREACH_SAFETY_LIMIT
               maxIterations = Math.min(itemsLength, safetyLimit)
               logger.info(
                 `forEach loop ${loopId} - Parsed items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
