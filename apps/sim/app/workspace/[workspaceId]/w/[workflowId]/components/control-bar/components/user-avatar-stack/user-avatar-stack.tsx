@@ -2,8 +2,8 @@
 
 import { useMemo } from 'react'
 import { usePresence } from '../../../../hooks/use-presence'
-import { UserAvatar } from './components/user-avatar/user-avatar'
 import { ConnectionStatus } from './components/connection-status/connection-status'
+import { UserAvatar } from './components/user-avatar/user-avatar'
 
 interface User {
   connectionId: string | number

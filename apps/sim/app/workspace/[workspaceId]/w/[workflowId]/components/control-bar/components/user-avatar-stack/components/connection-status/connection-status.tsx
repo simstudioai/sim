@@ -40,8 +40,10 @@ export function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
       <div className='flex items-center gap-1 text-red-600'>
         <WifiOff className='h-3.5 w-3.5' />
         <div className='flex flex-col'>
-          <span className='text-xs font-medium leading-tight'>Connection lost</span>
-          <span className='text-xs leading-tight opacity-90'>Changes not saved - please refresh</span>
+          <span className='font-medium text-xs leading-tight'>Connection lost</span>
+          <span className='text-xs leading-tight opacity-90'>
+            Changes not saved - please refresh
+          </span>
         </div>
       </div>
     </div>
