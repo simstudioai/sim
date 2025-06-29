@@ -90,17 +90,19 @@ export class LoopManager {
               ? storedItems.length
               : Object.keys(storedItems).length
             
-            // Use configured iterations as safety limit, otherwise use high default safety limit
-            const safetyLimit = loop.iterations && loop.iterations > 0 ? loop.iterations : 5000
+            const safetyLimit = loop.iterations && loop.iterations > 5 
+              ? loop.iterations 
+              : 5000
             maxIterations = Math.min(itemsLength, safetyLimit)
             logger.info(
               `forEach loop ${loopId} - Items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
             )
           } else {
-            // Fallback to parsing the forEachItems string if it's not a reference
             const itemsLength = this.getItemsLength(loop.forEachItems)
             if (itemsLength > 0) {
-              const safetyLimit = loop.iterations && loop.iterations > 0 ? loop.iterations : 5000
+              const safetyLimit = loop.iterations && loop.iterations > 5 
+                ? loop.iterations 
+                : 5000
               maxIterations = Math.min(itemsLength, safetyLimit)
               logger.info(
                 `forEach loop ${loopId} - Parsed items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`

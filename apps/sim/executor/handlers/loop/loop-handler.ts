@@ -74,7 +74,11 @@ export class LoopBlockHandler implements BlockHandler {
       const itemsLength = Array.isArray(forEachItems)
         ? forEachItems.length
         : Object.keys(forEachItems).length
-      const safetyLimit = loop.iterations && loop.iterations > 0 ? loop.iterations : MAX_FOREACH_SAFETY_LIMIT
+
+      const safetyLimit = loop.iterations && loop.iterations > DEFAULT_MAX_ITERATIONS 
+        ? loop.iterations 
+        : MAX_FOREACH_SAFETY_LIMIT
+
       maxIterations = Math.min(itemsLength, safetyLimit)
       
       logger.info(
