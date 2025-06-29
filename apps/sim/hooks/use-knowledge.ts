@@ -216,10 +216,10 @@ export function useKnowledgeBasesList() {
  * Hook to manage chunks for a specific document
  */
 export function useDocumentChunks(
-  knowledgeBaseId: string, 
+  knowledgeBaseId: string,
   documentId: string,
-  urlPage: number = 1,
-  urlSearch: string = ''
+  urlPage = 1,
+  urlSearch = ''
 ) {
   const { getChunks, refreshChunks, updateChunk, getCachedChunks, clearChunks, isChunksLoading } =
     useKnowledgeStore()
@@ -258,7 +258,7 @@ export function useDocumentChunks(
         // Check cache first
         const cached = getCachedChunks(documentId)
         const expectedOffset = (currentPage - 1) * 50 // Use hardcoded limit
-        
+
         if (
           cached &&
           cached.searchQuery === searchQuery &&
@@ -313,14 +313,7 @@ export function useDocumentChunks(
     return () => {
       isMounted = false
     }
-  }, [
-    knowledgeBaseId,
-    documentId,
-    currentPage,
-    searchQuery,
-    isStoreLoading,
-    initialLoadDone,
-  ])
+  }, [knowledgeBaseId, documentId, currentPage, searchQuery, isStoreLoading, initialLoadDone])
 
   // Separate effect to sync with store state changes (no API calls)
   useEffect(() => {
@@ -328,7 +321,7 @@ export function useDocumentChunks(
 
     const cached = getCachedChunks(documentId)
     const expectedOffset = (currentPage - 1) * 50
-    
+
     if (
       cached &&
       cached.searchQuery === searchQuery &&
@@ -342,14 +335,7 @@ export function useDocumentChunks(
     if (!isStoreLoading && isLoading) {
       setIsLoading(false)
     }
-  }, [
-    documentId,
-    isStoreLoading,
-    isLoading,
-    initialLoadDone,
-    searchQuery,
-    currentPage,
-  ])
+  }, [documentId, isStoreLoading, isLoading, initialLoadDone, searchQuery, currentPage])
 
   const goToPage = async (page: number) => {
     if (page < 1 || page > totalPages || page === currentPage) return
