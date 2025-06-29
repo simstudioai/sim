@@ -12,11 +12,6 @@ export const knowledgeUploadDocumentTool: ToolConfig<any, KnowledgeUploadDocumen
       required: true,
       description: 'ID of the knowledge base containing the document',
     },
-    knowledgeBaseName: {
-      type: 'string',
-      required: true,
-      description: 'Name of the knowledge base to upload the document to',
-    },
     file: {
       type: 'file',
       required: true,
