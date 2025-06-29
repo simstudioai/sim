@@ -279,6 +279,32 @@ describe('Socket Server Index Integration', () => {
       expect(() => WorkflowOperationSchema.parse(validOperation)).not.toThrow()
     })
 
+    it.concurrent('should validate block operations with autoConnectEdge', async () => {
+      const { WorkflowOperationSchema } = await import('./validation/schemas')
+
+      const validOperationWithAutoEdge = {
+        operation: 'add',
+        target: 'block',
+        payload: {
+          id: 'test-block',
+          type: 'action',
+          name: 'Test Block',
+          position: { x: 100, y: 200 },
+          autoConnectEdge: {
+            id: 'auto-edge-123',
+            source: 'source-block',
+            target: 'test-block',
+            sourceHandle: 'output',
+            targetHandle: 'target',
+            type: 'workflowEdge',
+          },
+        },
+        timestamp: Date.now(),
+      }
+
+      expect(() => WorkflowOperationSchema.parse(validOperationWithAutoEdge)).not.toThrow()
+    })
+
     it.concurrent('should validate edge operations', async () => {
       const { WorkflowOperationSchema } = await import('./validation/schemas')
 
