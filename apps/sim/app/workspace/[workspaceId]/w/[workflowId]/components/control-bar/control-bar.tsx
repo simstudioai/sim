@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { SocketConnectionWarning } from '@/components/socket-connection-warning'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +42,6 @@ import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
-import { SocketConnectionWarning } from '@/components/socket-connection-warning'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -112,7 +112,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
   const { setActiveTab } = usePanelStore()
   const { getFolderTree, expandedFolders } = useFolderStore()
-
 
   // Get current workflow and workspace ID for permissions
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null

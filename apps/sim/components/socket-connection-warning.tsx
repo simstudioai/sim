@@ -11,7 +11,7 @@ interface SocketConnectionWarningProps {
 export function SocketConnectionWarning({ className }: SocketConnectionWarningProps) {
   // Local state that resets on every page load/refresh
   const [showWarning, setShowWarning] = useState(false)
-  
+
   const { socket } = useSocket()
 
   useEffect(() => {
@@ -43,7 +43,11 @@ export function SocketConnectionWarning({ className }: SocketConnectionWarningPr
 
       const handleDisconnect = (reason: string) => {
         // Only show warning for unexpected disconnections, not normal ones
-        if (reason === 'io server disconnect' || reason === 'transport close' || reason === 'transport error') {
+        if (
+          reason === 'io server disconnect' ||
+          reason === 'transport close' ||
+          reason === 'transport error'
+        ) {
           console.warn('Socket disconnected unexpectedly:', reason)
           setShowWarning(true)
         }
@@ -57,7 +61,10 @@ export function SocketConnectionWarning({ className }: SocketConnectionWarningPr
 
       // Cleanup socket listeners
       return () => {
-        window.removeEventListener('socket-connection-error', handleConnectionError as EventListener)
+        window.removeEventListener(
+          'socket-connection-error',
+          handleConnectionError as EventListener
+        )
         socket.off('error', handleSocketError)
         socket.off('operation-error', handleOperationError)
         socket.off('operation-forbidden', handleOperationForbidden)
@@ -77,7 +84,9 @@ export function SocketConnectionWarning({ className }: SocketConnectionWarningPr
   if (!showWarning) return null
 
   return (
-    <div className={`flex items-center gap-2 rounded-md bg-destructive/10 px-2 py-1 text-destructive text-sm ${className || ''}`}>
+    <div
+      className={`flex items-center gap-2 rounded-md bg-destructive/10 px-2 py-1 text-destructive text-sm ${className || ''}`}
+    >
       <AlertTriangle className='h-4 w-4' />
       <span>Connection issues detected. Please refresh to make sure changes are saved.</span>
     </div>

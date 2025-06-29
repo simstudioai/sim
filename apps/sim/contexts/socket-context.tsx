@@ -37,8 +37,18 @@ interface SocketContextType {
   presenceUsers: PresenceUser[]
   joinWorkflow: (workflowId: string) => void
   leaveWorkflow: () => void
-  emitWorkflowOperation: (operation: string, target: string, payload: any, isUserAction?: boolean) => void
-  emitSubblockUpdate: (blockId: string, subblockId: string, value: any, isUserAction?: boolean) => void
+  emitWorkflowOperation: (
+    operation: string,
+    target: string,
+    payload: any,
+    isUserAction?: boolean
+  ) => void
+  emitSubblockUpdate: (
+    blockId: string,
+    subblockId: string,
+    value: any,
+    isUserAction?: boolean
+  ) => void
   emitCursorUpdate: (cursor: { x: number; y: number }) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
   // Event handlers for receiving real-time updates
@@ -432,23 +442,25 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     }
   }, [socket, currentWorkflowId])
 
-
-
   // Light throttling for position updates to ensure smooth collaborative movement
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
 
   // Emit workflow operations (blocks, edges, subflows)
   const emitWorkflowOperation = useCallback(
-    (operation: string, target: string, payload: any, isUserAction: boolean = false) => {
+    (operation: string, target: string, payload: any, isUserAction = false) => {
       // Check if socket is available and connected
       if (!socket || !currentWorkflowId || !socket.connected) {
         logger.warn('Cannot emit workflow operation: socket not available or connected')
         // Only show warning for user-initiated actions, not automatic operations
         if (isUserAction) {
-          window.dispatchEvent(new CustomEvent('socket-connection-error', {
-            detail: { error: 'Cannot emit workflow operation: socket not available or connected' }
-          }))
+          window.dispatchEvent(
+            new CustomEvent('socket-connection-error', {
+              detail: {
+                error: 'Cannot emit workflow operation: socket not available or connected',
+              },
+            })
+          )
         }
         return
       }
@@ -480,9 +492,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               // Position update failed due to disconnection
               // Only show warning for user-initiated position updates
               if (isUserAction) {
-                window.dispatchEvent(new CustomEvent('socket-connection-error', {
-                  detail: { error: 'Position update failed: socket disconnected' }
-                }))
+                window.dispatchEvent(
+                  new CustomEvent('socket-connection-error', {
+                    detail: { error: 'Position update failed: socket disconnected' },
+                  })
+                )
               }
               pendingPositionUpdates.current.delete(blockId)
             }
@@ -505,9 +519,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             logger.error('Workflow operation failed:', response.error)
             // Only show warning for user-initiated actions
             if (isUserAction) {
-              window.dispatchEvent(new CustomEvent('socket-connection-error', {
-                detail: { error: `Workflow operation failed: ${response.error}` }
-              }))
+              window.dispatchEvent(
+                new CustomEvent('socket-connection-error', {
+                  detail: { error: `Workflow operation failed: ${response.error}` },
+                })
+              )
             }
           }
         })
@@ -518,7 +534,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   // Emit subblock value updates
   const emitSubblockUpdate = useCallback(
-    (blockId: string, subblockId: string, value: any, isUserAction: boolean = false) => {
+    (blockId: string, subblockId: string, value: any, isUserAction = false) => {
       // Check if socket is available and connected
       if (!socket || !currentWorkflowId || !socket.connected) {
         logger.warn('Cannot emit subblock update: socket not available or connected', {
@@ -529,9 +545,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
         // Only show warning for user-initiated actions, not automatic operations
         if (isUserAction) {
-          window.dispatchEvent(new CustomEvent('socket-connection-error', {
-            detail: { error: 'Cannot emit subblock update: socket not available or connected' }
-          }))
+          window.dispatchEvent(
+            new CustomEvent('socket-connection-error', {
+              detail: { error: 'Cannot emit subblock update: socket not available or connected' },
+            })
+          )
         }
         return
       }

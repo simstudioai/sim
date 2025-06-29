@@ -6,7 +6,12 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 // Helper function to dispatch collaborative subblock updates
-const dispatchSubblockUpdate = (blockId: string, subBlockId: string, value: any, isUserAction: boolean = false) => {
+const dispatchSubblockUpdate = (
+  blockId: string,
+  subBlockId: string,
+  value: any,
+  isUserAction = false
+) => {
   const event = new CustomEvent('update-subblock-value', {
     detail: {
       blockId,
