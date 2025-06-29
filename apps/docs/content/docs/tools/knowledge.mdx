@@ -100,6 +100,25 @@ Upload a new chunk to a document in a knowledge base
 | `createdAt` | string |
 | `updatedAt` | string |
 
+### `knowledge_upload_document`
+
+Upload documents to a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
+| `knowledgeBaseName` | string | Yes | Name of the knowledge base to upload the document to |
+| `file` | file | Yes | Document\(s\) to upload |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `data` | string |
+| `name` | string |
+
 
 
 ## Block Configuration

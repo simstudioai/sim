@@ -12,7 +12,7 @@ export const KnowledgeBlock: BlockConfig = {
   category: 'blocks',
   docsLink: 'https://docs.simstudio.ai/blocks/knowledge',
   tools: {
-    access: ['knowledge_search', 'knowledge_upload_chunk'],
+    access: ['knowledge_search', 'knowledge_upload_chunk', 'knowledge_upload_document'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -20,6 +20,8 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_search'
           case 'upload_chunk':
             return 'knowledge_upload_chunk'
+          case 'upload_document':
+            return 'knowledge_upload_document'
           default:
             return 'knowledge_search'
         }
@@ -53,6 +55,7 @@ export const KnowledgeBlock: BlockConfig = {
       options: [
         { label: 'Search', id: 'search' },
         { label: 'Upload Chunk', id: 'upload_chunk' },
+        { label: 'Upload Document', id: 'upload_document' },
       ],
       value: () => 'search',
     },
@@ -72,7 +75,7 @@ export const KnowledgeBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Select knowledge base',
       multiSelect: false,
-      condition: { field: 'operation', value: 'upload_chunk' },
+      condition: { field: 'operation', value: ['upload_chunk', 'upload_document'] },
     },
     {
       id: 'query',
@@ -97,6 +100,17 @@ export const KnowledgeBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Select document',
       condition: { field: 'operation', value: 'upload_chunk' },
+    },
+    {
+      id: 'file',
+      title: 'File',
+      type: 'file-upload',
+      layout: 'full',
+      placeholder: 'Select file to upload',
+      condition: { field: 'operation', value: 'upload_document' },
+      acceptedTypes: '.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx',
+      multiple: true, // Allow multiple document uploads
+      maxSize: 100, // 100MB max for knowledge document uploads
     },
     {
       id: 'content',
