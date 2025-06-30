@@ -6,7 +6,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
@@ -292,10 +292,11 @@ export async function executeWorkflowForChat(
 
   logger.debug(`[${requestId}] Using ${outputBlockIds.length} output blocks for extraction`)
 
-  // Find the workflow (no longer selecting deprecated state columns)
+  // Find the workflow (deployedState is NOT deprecated - needed for chat execution)
   const workflowResult = await db
     .select({
       isDeployed: workflow.isDeployed,
+      deployedState: workflow.deployedState,
       variables: workflow.variables,
     })
     .from(workflow)
@@ -307,23 +308,20 @@ export async function executeWorkflowForChat(
     throw new Error('Workflow not available')
   }
 
-  // Load workflow data from normalized tables (no fallback to deprecated state columns)
-  logger.debug(
-    `[${requestId}] Loading workflow ${workflowId} from normalized tables for chat execution`
-  )
-  const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
-
-  if (!normalizedData) {
-    logger.error(`[${requestId}] No normalized data found for chat workflow ${workflowId}`)
-    throw new Error(`Workflow data not found in normalized tables for ${workflowId}`)
+  // For chat execution, use ONLY the deployed state (no fallback)
+  if (!workflowResult[0].deployedState) {
+    logger.error(`[${requestId}] No deployed state found for chat workflow ${workflowId}`)
+    throw new Error(`Workflow must be deployed to be available for chat`)
   }
 
-  // Use normalized data only
-  const blocks = normalizedData.blocks
-  const edges = normalizedData.edges
-  const loops = normalizedData.loops
-  const parallels = normalizedData.parallels
-  logger.info(`[${requestId}] Loaded chat workflow ${workflowId} from normalized tables`)
+  // Use deployed state for chat execution (this is the stable, deployed version)
+  logger.debug(`[${requestId}] Using deployed state for chat workflow ${workflowId}`)
+  const deployedState = workflowResult[0].deployedState as any
+  const blocks = deployedState.blocks || {}
+  const edges = deployedState.edges || []
+  const loops = deployedState.loops || {}
+  const parallels = deployedState.parallels || {}
+  logger.info(`[${requestId}] Loaded chat workflow ${workflowId} from deployed state`)
 
   // Prepare for execution, similar to use-workflow-execution.ts
   const mergedStates = mergeSubblockState(blocks)
