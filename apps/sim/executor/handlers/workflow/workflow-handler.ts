@@ -1,5 +1,4 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import type { BlockOutput } from '@/blocks/types'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
@@ -146,24 +145,21 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       logger.info(`Loaded child workflow: ${workflowData.name} (${workflowId})`)
 
-      // Load workflow data from normalized tables (like other execution routes do)
-      logger.debug(`Loading child workflow ${workflowId} from normalized tables`)
-      const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+      // Extract the workflow state
+      const workflowState = workflowData.state
 
-      if (!normalizedData) {
-        logger.error(`Child workflow ${workflowId} has no normalized data`)
+      if (!workflowState || !workflowState.blocks) {
+        logger.error(`Child workflow ${workflowId} has invalid state`)
         return null
       }
 
-      // Use normalized data only (no fallback to deprecated state column)
-      const blocks = normalizedData.blocks
-      const edges = normalizedData.edges
-      const loops = normalizedData.loops
-      const parallels = normalizedData.parallels
-      logger.info(`Loaded child workflow ${workflowId} from normalized tables`)
-
       // Use blocks directly since DB format should match UI format
-      const serializedWorkflow = this.serializer.serializeWorkflow(blocks, edges, loops, parallels)
+      const serializedWorkflow = this.serializer.serializeWorkflow(
+        workflowState.blocks,
+        workflowState.edges || [],
+        workflowState.loops || {},
+        workflowState.parallels || {}
+      )
 
       return {
         name: workflowData.name,
