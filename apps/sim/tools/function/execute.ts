@@ -45,6 +45,8 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         code: codeContent,
         timeout: params.timeout || DEFAULT_TIMEOUT,
         envVars: params.envVars || {},
+        blockData: params.blockData || {},
+        blockNameMapping: params.blockNameMapping || {},
         workflowId: params._context?.workflowId,
         isCustomTool: params.isCustomTool || false,
       }

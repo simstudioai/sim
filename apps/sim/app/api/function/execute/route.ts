@@ -19,7 +19,9 @@ const logger = createLogger('FunctionExecuteAPI')
 function resolveCodeVariables(
   code: string,
   params: Record<string, any>,
-  envVars: Record<string, string> = {}
+  envVars: Record<string, string> = {},
+  blockData: Record<string, any> = {},
+  blockNameMapping: Record<string, string> = {}
 ): { resolvedCode: string; contextVariables: Record<string, any> } {
   let resolvedCode = code
   const contextVariables: Record<string, any> = {}
@@ -41,11 +43,54 @@ function resolveCodeVariables(
 
   // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
   const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_.]*[a-zA-Z0-9_])>/g) || []
+
+
   for (const match of tagMatches) {
     const tagName = match.slice(1, -1).trim()
 
-    // Handle nested paths like "getrecord.response.data"
-    const tagValue = getNestedValue(params, tagName) || ''
+
+    // Handle nested paths like "getrecord.response.data" or "function1.response.result"
+    // First try params, then blockData directly, then try with block name mapping
+    let tagValue = getNestedValue(params, tagName) || getNestedValue(blockData, tagName) || ''
+
+    // If not found and the path starts with a block name, try mapping the block name to ID
+    if (!tagValue && tagName.includes('.')) {
+      const pathParts = tagName.split('.')
+      const normalizedBlockName = pathParts[0] // This should already be normalized like "function1"
+
+      // Find the block ID by looking for a block name that normalizes to this value
+      let blockId = null
+      let matchedBlockName = null
+
+      for (const [blockName, id] of Object.entries(blockNameMapping)) {
+        // Apply the same normalization logic as the UI: remove spaces and lowercase
+        const normalizedName = blockName.replace(/\s+/g, '').toLowerCase()
+        if (normalizedName === normalizedBlockName) {
+          blockId = id
+          matchedBlockName = blockName
+          break
+        }
+      }
+
+      if (blockId) {
+        const remainingPath = pathParts.slice(1).join('.')
+        const fullPath = `${blockId}.${remainingPath}`
+        tagValue = getNestedValue(blockData, fullPath) || ''
+
+      }
+    }
+
+
+
+    // If the value is a stringified JSON, parse it back to object
+    if (typeof tagValue === 'string' && tagValue.length > 100 &&
+        (tagValue.startsWith('{') || tagValue.startsWith('['))) {
+      try {
+        tagValue = JSON.parse(tagValue)
+      } catch (e) {
+        // Keep as string if parsing fails
+      }
+    }
 
     // Instead of injecting large JSON directly, create a variable reference
     const safeVarName = `__tag_${tagName.replace(/[^a-zA-Z0-9_]/g, '_')}`
@@ -89,6 +134,8 @@ export async function POST(req: NextRequest) {
       params = {},
       timeout = 5000,
       envVars = {},
+      blockData = {},
+      blockNameMapping = {},
       workflowId,
       isCustomTool = false,
     } = body
@@ -106,7 +153,14 @@ export async function POST(req: NextRequest) {
     })
 
     // Resolve variables in the code with workflow environment variables
-    const { resolvedCode, contextVariables } = resolveCodeVariables(code, executionParams, envVars)
+    logger.info(`[${requestId}] Original code:`, code.substring(0, 200))
+    logger.info(`[${requestId}] Execution params keys:`, Object.keys(executionParams))
+
+
+    const { resolvedCode, contextVariables } = resolveCodeVariables(code, executionParams, envVars, blockData, blockNameMapping)
+
+    logger.info(`[${requestId}] Resolved code:`, resolvedCode.substring(0, 200))
+    logger.info(`[${requestId}] Context variables keys:`, Object.keys(contextVariables))
 
     const executionMethod = 'vm' // Default execution method
 
