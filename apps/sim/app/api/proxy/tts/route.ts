@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { uploadFile } from '@/lib/uploads/storage-client'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('ProxyTTSAPI')
 
@@ -51,10 +52,8 @@ export async function POST(request: Request) {
     const fileName = `elevenlabs-tts-${timestamp}.mp3`
     const fileInfo = await uploadFile(audioBuffer, fileName, 'audio/mpeg')
 
-    // Generate the full URL for external use
-    const host = request.headers.get('host') || 'localhost:3000'
-    const protocol = request.headers.get('x-forwarded-proto') || 'http'
-    const audioUrl = `${protocol}://${host}${fileInfo.path}`
+    // Generate the full URL for external use using the configured base URL
+    const audioUrl = `${getBaseUrl()}${fileInfo.path}`
 
     return NextResponse.json({
       audioUrl,
