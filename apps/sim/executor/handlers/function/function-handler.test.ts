@@ -77,6 +77,8 @@ describe('FunctionBlockHandler', () => {
       code: inputs.code,
       timeout: inputs.timeout,
       envVars: {},
+      blockData: {},
+      blockNameMapping: {},
       _context: { workflowId: mockContext.workflowId },
     }
     const expectedOutput: BlockOutput = { response: { result: 'Success' } }
@@ -100,6 +102,8 @@ describe('FunctionBlockHandler', () => {
       code: expectedCode,
       timeout: inputs.timeout,
       envVars: {},
+      blockData: {},
+      blockNameMapping: {},
       _context: { workflowId: mockContext.workflowId },
     }
     const expectedOutput: BlockOutput = { response: { result: 'Success' } }
@@ -116,6 +120,8 @@ describe('FunctionBlockHandler', () => {
       code: inputs.code,
       timeout: 5000, // Default timeout
       envVars: {},
+      blockData: {},
+      blockNameMapping: {},
       _context: { workflowId: mockContext.workflowId },
     }
 
