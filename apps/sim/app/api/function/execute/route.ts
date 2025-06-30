@@ -19,7 +19,9 @@ const logger = createLogger('FunctionExecuteAPI')
 function resolveCodeVariables(
   code: string,
   params: Record<string, any>,
-  envVars: Record<string, string> = {}
+  envVars: Record<string, string> = {},
+  blockData: Record<string, any> = {},
+  blockNameMapping: Record<string, string> = {}
 ): { resolvedCode: string; contextVariables: Record<string, any> } {
   let resolvedCode = code
   const contextVariables: Record<string, any> = {}
@@ -39,11 +41,54 @@ function resolveCodeVariables(
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
-  // Resolve tags with <tag_name> syntax
-  const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_]*)>/g) || []
+  // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
+  const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_.]*[a-zA-Z0-9_])>/g) || []
+
   for (const match of tagMatches) {
     const tagName = match.slice(1, -1).trim()
-    const tagValue = params[tagName] || ''
+
+    // Handle nested paths like "getrecord.response.data" or "function1.response.result"
+    // First try params, then blockData directly, then try with block name mapping
+    let tagValue = getNestedValue(params, tagName) || getNestedValue(blockData, tagName) || ''
+
+    // If not found and the path starts with a block name, try mapping the block name to ID
+    if (!tagValue && tagName.includes('.')) {
+      const pathParts = tagName.split('.')
+      const normalizedBlockName = pathParts[0] // This should already be normalized like "function1"
+
+      // Find the block ID by looking for a block name that normalizes to this value
+      let blockId = null
+      let matchedBlockName = null
+
+      for (const [blockName, id] of Object.entries(blockNameMapping)) {
+        // Apply the same normalization logic as the UI: remove spaces and lowercase
+        const normalizedName = blockName.replace(/\s+/g, '').toLowerCase()
+        if (normalizedName === normalizedBlockName) {
+          blockId = id
+          matchedBlockName = blockName
+          break
+        }
+      }
+
+      if (blockId) {
+        const remainingPath = pathParts.slice(1).join('.')
+        const fullPath = `${blockId}.${remainingPath}`
+        tagValue = getNestedValue(blockData, fullPath) || ''
+      }
+    }
+
+    // If the value is a stringified JSON, parse it back to object
+    if (
+      typeof tagValue === 'string' &&
+      tagValue.length > 100 &&
+      (tagValue.startsWith('{') || tagValue.startsWith('['))
+    ) {
+      try {
+        tagValue = JSON.parse(tagValue)
+      } catch (e) {
+        // Keep as string if parsing fails
+      }
+    }
 
     // Instead of injecting large JSON directly, create a variable reference
     const safeVarName = `__tag_${tagName.replace(/[^a-zA-Z0-9_]/g, '_')}`
@@ -54,6 +99,17 @@ function resolveCodeVariables(
   }
 
   return { resolvedCode, contextVariables }
+}
+
+/**
+ * Get nested value from object using dot notation path
+ */
+function getNestedValue(obj: any, path: string): any {
+  if (!obj || !path) return undefined
+
+  return path.split('.').reduce((current, key) => {
+    return current && typeof current === 'object' ? current[key] : undefined
+  }, obj)
 }
 
 /**
@@ -77,8 +133,8 @@ function createDetailedSyntaxError(error: any, code: string, resolvedCode: strin
     // Try to extract line/column from stack trace
     const lineMatch = error.stack.match(/:(\d+):(\d+)/) || error.stack.match(/line (\d+)/)
     if (lineMatch) {
-      lineNumber = parseInt(lineMatch[1])
-      columnNumber = lineMatch[2] ? parseInt(lineMatch[2]) : undefined
+      lineNumber = Number.parseInt(lineMatch[1])
+      columnNumber = lineMatch[2] ? Number.parseInt(lineMatch[2]) : undefined
     }
   }
 
@@ -93,7 +149,8 @@ function createDetailedSyntaxError(error: any, code: string, resolvedCode: strin
       errorMessage += originalError
     }
   } else if (originalError.includes('Unexpected end of input')) {
-    errorMessage += 'Unexpected end of input - you may be missing a closing brace "}", bracket "]", or parenthesis ")"'
+    errorMessage +=
+      'Unexpected end of input - you may be missing a closing brace "}", bracket "]", or parenthesis ")"'
   } else if (originalError.includes('Missing') || originalError.includes('Expected')) {
     errorMessage += originalError
   } else {
@@ -125,7 +182,7 @@ function createDetailedSyntaxError(error: any, code: string, resolvedCode: strin
 
       // Add pointer to the column if available
       if (isErrorLine && columnNumber) {
-        const pointer = ' '.repeat(prefix.length + lineNum.length + 3 + columnNumber - 1) + '^'
+        const pointer = `${' '.repeat(prefix.length + lineNum.length + 3 + columnNumber - 1)}^`
         errorMessage += `\n${pointer}`
       }
     }
@@ -140,8 +197,6 @@ function createDetailedSyntaxError(error: any, code: string, resolvedCode: strin
       errorMessage += '\n    ... (more lines)'
     }
   }
-
-
 
   return errorMessage
 }
@@ -172,7 +227,7 @@ function createDetailedRuntimeError(error: any, stdout: string): string {
   }
 
   // Include console output if there was any
-  if (stdout && stdout.trim()) {
+  if (stdout?.trim()) {
     errorMessage += '\n\nConsole output:'
     errorMessage += `\n${stdout}`
   }
@@ -193,6 +248,8 @@ export async function POST(req: NextRequest) {
       params = {},
       timeout = 5000,
       envVars = {},
+      blockData = {},
+      blockNameMapping = {},
       workflowId,
       isCustomTool = false,
     } = body
@@ -210,7 +267,19 @@ export async function POST(req: NextRequest) {
     })
 
     // Resolve variables in the code with workflow environment variables
-    const { resolvedCode, contextVariables } = resolveCodeVariables(code, executionParams, envVars)
+    logger.info(`[${requestId}] Original code:`, code.substring(0, 200))
+    logger.info(`[${requestId}] Execution params keys:`, Object.keys(executionParams))
+
+    const { resolvedCode, contextVariables } = resolveCodeVariables(
+      code,
+      executionParams,
+      envVars,
+      blockData,
+      blockNameMapping
+    )
+
+    logger.info(`[${requestId}] Resolved code:`, resolvedCode.substring(0, 200))
+    logger.info(`[${requestId}] Context variables keys:`, Object.keys(contextVariables))
 
     const executionMethod = 'vm' // Default execution method
 
@@ -394,13 +463,14 @@ export async function POST(req: NextRequest) {
     const codeToExecute = `
       (async () => {
         try {
-          ${isCustomTool
-        ? `// For custom tools, make parameters directly accessible
+          ${
+            isCustomTool
+              ? `// For custom tools, make parameters directly accessible
               ${Object.keys(executionParams)
-          .map((key) => `const ${key} = params.${key};`)
-          .join('\n                ')}`
-        : ''
-      }
+                .map((key) => `const ${key} = params.${key};`)
+                .join('\n                ')}`
+              : ''
+          }
           ${resolvedCode}
         } catch (error) {
           console.error(error);
@@ -435,16 +505,15 @@ export async function POST(req: NextRequest) {
           code: code.substring(0, 500) + (code.length > 500 ? '...' : ''),
         })
         throw new Error(detailedError)
-      } else {
-        // Handle runtime errors
-        const detailedError = createDetailedRuntimeError(scriptError, stdout)
-        logger.error(`[${requestId}] JavaScript runtime error`, {
-          originalError: scriptError.message,
-          detailedError,
-          stdout,
-        })
-        throw new Error(detailedError)
       }
+      // Handle runtime errors
+      const detailedError = createDetailedRuntimeError(scriptError, stdout)
+      logger.error(`[${requestId}] JavaScript runtime error`, {
+        originalError: scriptError.message,
+        detailedError,
+        stdout,
+      })
+      throw new Error(detailedError)
     }
 
     const executionTime = Date.now() - startTime

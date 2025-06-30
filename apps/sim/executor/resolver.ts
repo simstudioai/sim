@@ -593,6 +593,7 @@ export class InputResolver {
           isInTemplateLiteral
         )
       } else {
+        // The function execution API will handle variable resolution within code strings
         formattedValue =
           typeof replacementValue === 'object'
             ? JSON.stringify(replacementValue)

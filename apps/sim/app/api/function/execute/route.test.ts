@@ -472,7 +472,7 @@ const validLine4 = "end";`
       expect(data.error).toContain('validLine1')
       expect(data.error).toContain('validLine2')
       expect(data.error).toContain('invalidLine')
-      expect(data.error).toContain('>>>')  // Should show the error line marker
+      expect(data.error).toContain('>>>') // Should show the error line marker
     })
   })
 
