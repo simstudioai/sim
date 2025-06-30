@@ -81,7 +81,7 @@ export class LoopManager {
         // Determine the maximum iterations
         let maxIterations = loop.iterations || this.defaultIterations
 
-        // For forEach loops, check the actual items length
+        // For forEach loops, use the actual items length
         if (loop.loopType === 'forEach' && loop.forEachItems) {
           // First check if the items have already been evaluated and stored by the loop handler
           const storedItems = context.loopItems.get(`${loopId}_items`)
@@ -89,15 +89,18 @@ export class LoopManager {
             const itemsLength = Array.isArray(storedItems)
               ? storedItems.length
               : Object.keys(storedItems).length
-            maxIterations = Math.min(maxIterations, itemsLength)
+
+            maxIterations = itemsLength
             logger.info(
-              `Loop ${loopId} using stored items length: ${itemsLength} (max iterations: ${maxIterations})`
+              `forEach loop ${loopId} - Items: ${itemsLength}, Max iterations: ${maxIterations}`
             )
           } else {
-            // Fallback to parsing the forEachItems string if it's not a reference
             const itemsLength = this.getItemsLength(loop.forEachItems)
             if (itemsLength > 0) {
-              maxIterations = Math.min(maxIterations, itemsLength)
+              maxIterations = itemsLength
+              logger.info(
+                `forEach loop ${loopId} - Parsed items: ${itemsLength}, Max iterations: ${maxIterations}`
+              )
             }
           }
         }
