@@ -39,11 +39,13 @@ function resolveCodeVariables(
     resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
-  // Resolve tags with <tag_name> syntax
-  const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_]*)>/g) || []
+  // Resolve tags with <tag_name> syntax (including nested paths like <block.response.data>)
+  const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_.]*[a-zA-Z0-9_])>/g) || []
   for (const match of tagMatches) {
     const tagName = match.slice(1, -1).trim()
-    const tagValue = params[tagName] || ''
+
+    // Handle nested paths like "getrecord.response.data"
+    const tagValue = getNestedValue(params, tagName) || ''
 
     // Instead of injecting large JSON directly, create a variable reference
     const safeVarName = `__tag_${tagName.replace(/[^a-zA-Z0-9_]/g, '_')}`
@@ -54,6 +56,17 @@ function resolveCodeVariables(
   }
 
   return { resolvedCode, contextVariables }
+}
+
+/**
+ * Get nested value from object using dot notation path
+ */
+function getNestedValue(obj: any, path: string): any {
+  if (!obj || !path) return undefined
+
+  return path.split('.').reduce((current, key) => {
+    return current && typeof current === 'object' ? current[key] : undefined
+  }, obj)
 }
 
 /**
