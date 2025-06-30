@@ -419,6 +419,7 @@ const WorkflowContent = React.memo(() => {
       }
 
       const { type } = event.detail
+      console.log('🛠️ Adding block from toolbar:', type)
 
       if (!type) return
       if (type === 'connectionBlock') return
@@ -439,31 +440,41 @@ const WorkflowContent = React.memo(() => {
           y: window.innerHeight / 2,
         })
 
-        // Add the container node directly to canvas with default dimensions
-        addBlock(id, type, name, centerPosition, {
-          width: 500,
-          height: 300,
-          type: type === 'loop' ? 'loopNode' : 'parallelNode',
-        })
-
         // Auto-connect logic for container nodes
         const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+        let autoConnectEdge
         if (isAutoConnectEnabled) {
           const closestBlock = findClosestOutput(centerPosition)
           if (closestBlock) {
             // Get appropriate source handle
             const sourceHandle = determineSourceHandle(closestBlock)
 
-            addEdge({
+            autoConnectEdge = {
               id: crypto.randomUUID(),
               source: closestBlock.id,
               target: id,
               sourceHandle,
               targetHandle: 'target',
               type: 'workflowEdge',
-            })
+            }
           }
         }
+
+        // Add the container node directly to canvas with default dimensions and auto-connect edge
+        addBlock(
+          id,
+          type,
+          name,
+          centerPosition,
+          {
+            width: 500,
+            height: 300,
+            type: type === 'loop' ? 'loopNode' : 'parallelNode',
+          },
+          undefined,
+          undefined,
+          autoConnectEdge
+        )
 
         return
       }
@@ -486,27 +497,30 @@ const WorkflowContent = React.memo(() => {
         Object.values(blocks).filter((b) => b.type === type).length + 1
       }`
 
-      // Add the block to the workflow
-      addBlock(id, type, name, centerPosition)
-
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+      let autoConnectEdge
       if (isAutoConnectEnabled && type !== 'starter') {
         const closestBlock = findClosestOutput(centerPosition)
+        console.log('🎯 Closest block found:', closestBlock)
         if (closestBlock) {
           // Get appropriate source handle
           const sourceHandle = determineSourceHandle(closestBlock)
 
-          addEdge({
+          autoConnectEdge = {
             id: crypto.randomUUID(),
             source: closestBlock.id,
             target: id,
             sourceHandle,
             targetHandle: 'target',
             type: 'workflowEdge',
-          })
+          }
+          console.log('✅ Auto-connect edge created:', autoConnectEdge)
         }
       }
+
+      // Add the block to the workflow with auto-connect edge
+      addBlock(id, type, name, centerPosition, undefined, undefined, undefined, autoConnectEdge)
     }
 
     window.addEventListener('add-block-from-toolbar', handleAddBlockFromToolbar as EventListener)
@@ -583,30 +597,40 @@ const WorkflowContent = React.memo(() => {
             // Resize the parent container to fit the new child container
             resizeLoopNodesWrapper()
           } else {
-            // Add the container node directly to canvas with default dimensions
-            addBlock(id, data.type, name, position, {
-              width: 500,
-              height: 300,
-              type: data.type === 'loop' ? 'loopNode' : 'parallelNode',
-            })
-
             // Auto-connect the container to the closest node on the canvas
             const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+            let autoConnectEdge
             if (isAutoConnectEnabled) {
               const closestBlock = findClosestOutput(position)
               if (closestBlock) {
                 const sourceHandle = determineSourceHandle(closestBlock)
 
-                addEdge({
+                autoConnectEdge = {
                   id: crypto.randomUUID(),
                   source: closestBlock.id,
                   target: id,
                   sourceHandle,
                   targetHandle: 'target',
                   type: 'workflowEdge',
-                })
+                }
               }
             }
+
+            // Add the container node directly to canvas with default dimensions and auto-connect edge
+            addBlock(
+              id,
+              data.type,
+              name,
+              position,
+              {
+                width: 500,
+                height: 300,
+                type: data.type === 'loop' ? 'loopNode' : 'parallelNode',
+              },
+              undefined,
+              undefined,
+              autoConnectEdge
+            )
           }
 
           return
@@ -706,26 +730,27 @@ const WorkflowContent = React.memo(() => {
             }
           }
         } else {
-          // Regular canvas drop
-          addBlock(id, data.type, name, position)
-
           // Regular auto-connect logic
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+          let autoConnectEdge
           if (isAutoConnectEnabled && data.type !== 'starter') {
             const closestBlock = findClosestOutput(position)
             if (closestBlock) {
               const sourceHandle = determineSourceHandle(closestBlock)
 
-              addEdge({
+              autoConnectEdge = {
                 id: crypto.randomUUID(),
                 source: closestBlock.id,
                 target: id,
                 sourceHandle,
                 targetHandle: 'target',
                 type: 'workflowEdge',
-              })
+              }
             }
           }
+
+          // Regular canvas drop with auto-connect edge
+          addBlock(id, data.type, name, position, undefined, undefined, undefined, autoConnectEdge)
         }
       } catch (err) {
         logger.error('Error dropping block:', { err })
