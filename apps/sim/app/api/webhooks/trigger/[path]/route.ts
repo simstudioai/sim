@@ -12,9 +12,9 @@ import {
   processWebhook,
   processWhatsAppDeduplication,
 } from '@/lib/webhooks/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 
 const logger = createLogger('WebhookTriggerAPI')
 
