@@ -6,15 +6,6 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-// Configure body parser for larger payloads
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
-}
-
 const logger = createLogger('FunctionExecuteAPI')
 
 /**
