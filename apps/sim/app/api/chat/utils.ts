@@ -6,7 +6,6 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
-
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
