@@ -5,6 +5,16 @@ const PositionSchema = z.object({
   y: z.number(),
 })
 
+// Schema for auto-connect edge data
+const AutoConnectEdgeSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  sourceHandle: z.string().nullable().optional(),
+  targetHandle: z.string().nullable().optional(),
+  type: z.string().optional(),
+})
+
 export const BlockOperationSchema = z.object({
   operation: z.enum([
     'add',
@@ -35,6 +45,7 @@ export const BlockOperationSchema = z.object({
     isWide: z.boolean().optional(),
     advancedMode: z.boolean().optional(),
     height: z.number().optional(),
+    autoConnectEdge: AutoConnectEdgeSchema.optional(), // Add support for auto-connect edges
   }),
   timestamp: z.number(),
 })
@@ -69,4 +80,4 @@ export const WorkflowOperationSchema = z.union([
   SubflowOperationSchema,
 ])
 
-export { PositionSchema }
+export { PositionSchema, AutoConnectEdgeSchema }

@@ -91,6 +91,10 @@ export function useCollaborativeWorkflow() {
                 payload.parentId,
                 payload.extent
               )
+              // Handle auto-connect edge if present
+              if (payload.autoConnectEdge) {
+                workflowStore.addEdge(payload.autoConnectEdge)
+              }
               break
             case 'update-position': {
               // Apply position update only if it's newer than the last applied timestamp
@@ -164,6 +168,10 @@ export function useCollaborativeWorkflow() {
                 payload.parentId,
                 payload.extent
               )
+              // Handle auto-connect edge if present
+              if (payload.autoConnectEdge) {
+                workflowStore.addEdge(payload.autoConnectEdge)
+              }
               break
           }
         } else if (target === 'edge') {
@@ -284,7 +292,8 @@ export function useCollaborativeWorkflow() {
       position: Position,
       data?: Record<string, any>,
       parentId?: string,
-      extent?: 'parent'
+      extent?: 'parent',
+      autoConnectEdge?: Edge
     ) => {
       // Create complete block data upfront using the same logic as the store
       const blockConfig = getBlock(type)
@@ -306,10 +315,14 @@ export function useCollaborativeWorkflow() {
           height: 0,
           parentId,
           extent,
+          autoConnectEdge, // Include edge data for atomic operation
         }
 
         // Apply locally first
         workflowStore.addBlock(id, type, name, position, data, parentId, extent)
+        if (autoConnectEdge) {
+          workflowStore.addEdge(autoConnectEdge)
+        }
 
         // Then broadcast to other clients with complete block data
         if (!isApplyingRemoteChange.current) {
@@ -354,10 +367,14 @@ export function useCollaborativeWorkflow() {
         height: 0, // Default height, will be set by the UI
         parentId,
         extent,
+        autoConnectEdge, // Include edge data for atomic operation
       }
 
       // Apply locally first
       workflowStore.addBlock(id, type, name, position, data, parentId, extent)
+      if (autoConnectEdge) {
+        workflowStore.addEdge(autoConnectEdge)
+      }
 
       // Then broadcast to other clients with complete block data
       if (!isApplyingRemoteChange.current) {
