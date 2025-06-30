@@ -683,7 +683,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             </p>
           )}
         </div>
-        <UserAvatarStack className='ml-3' />
       </div>
     )
   }
@@ -1275,8 +1274,10 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {/* Left Section - Workflow Info */}
       <div className='pl-4'>{renderWorkflowName()}</div>
 
-      {/* Middle Section - Reserved for future use */}
-      <div className='flex-1' />
+      {/* Middle Section - Connection Status */}
+      <div className='flex flex-1 justify-center'>
+        <UserAvatarStack />
+      </div>
 
       {/* Right Section - Actions */}
       <div className='flex items-center gap-1 pr-4'>
