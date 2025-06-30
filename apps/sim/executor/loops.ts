@@ -4,9 +4,6 @@ import type { ExecutionContext } from './types'
 
 const logger = createLogger('LoopManager')
 
-const DEFAULT_MAX_ITERATIONS = 5
-const MAX_FOREACH_SAFETY_LIMIT = 5000
-
 /**
  * Manages loop detection, iteration limits, and state resets.
  * With the new loop block approach, this class is significantly simplified.
@@ -84,7 +81,7 @@ export class LoopManager {
         // Determine the maximum iterations
         let maxIterations = loop.iterations || this.defaultIterations
 
-        // For forEach loops, use the actual items length with safety limit
+        // For forEach loops, use the actual items length
         if (loop.loopType === 'forEach' && loop.forEachItems) {
           // First check if the items have already been evaluated and stored by the loop handler
           const storedItems = context.loopItems.get(`${loopId}_items`)
@@ -93,24 +90,16 @@ export class LoopManager {
               ? storedItems.length
               : Object.keys(storedItems).length
 
-            const safetyLimit =
-              loop.iterations && loop.iterations > DEFAULT_MAX_ITERATIONS
-                ? loop.iterations
-                : MAX_FOREACH_SAFETY_LIMIT
-            maxIterations = Math.min(itemsLength, safetyLimit)
+            maxIterations = itemsLength
             logger.info(
-              `forEach loop ${loopId} - Items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
+              `forEach loop ${loopId} - Items: ${itemsLength}, Max iterations: ${maxIterations}`
             )
           } else {
             const itemsLength = this.getItemsLength(loop.forEachItems)
             if (itemsLength > 0) {
-              const safetyLimit =
-                loop.iterations && loop.iterations > DEFAULT_MAX_ITERATIONS
-                  ? loop.iterations
-                  : MAX_FOREACH_SAFETY_LIMIT
-              maxIterations = Math.min(itemsLength, safetyLimit)
+              maxIterations = itemsLength
               logger.info(
-                `forEach loop ${loopId} - Parsed items: ${itemsLength}, Safety limit: ${safetyLimit}, Max iterations: ${maxIterations}`
+                `forEach loop ${loopId} - Parsed items: ${itemsLength}, Max iterations: ${maxIterations}`
               )
             }
           }
