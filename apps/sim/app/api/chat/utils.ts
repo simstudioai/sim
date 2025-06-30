@@ -310,15 +310,13 @@ export async function executeWorkflowForChat(
 
   // For chat execution, use ONLY the deployed state (no fallback)
   if (!workflowResult[0].deployedState) {
-    logger.error(`[${requestId}] No deployed state found for chat workflow ${workflowId}`)
+
     throw new Error(`Workflow must be deployed to be available for chat`)
   }
 
   // Use deployed state for chat execution (this is the stable, deployed version)
-  logger.debug(`[${requestId}] Using deployed state for chat workflow ${workflowId}`)
   const deployedState = workflowResult[0].deployedState as WorkflowState
   const { blocks, edges, loops, parallels } = deployedState
-  logger.info(`[${requestId}] Loaded chat workflow ${workflowId} from deployed state`)
 
   // Prepare for execution, similar to use-workflow-execution.ts
   const mergedStates = mergeSubblockState(blocks)
@@ -352,7 +350,6 @@ export async function executeWorkflowForChat(
     logger.warn(`[${requestId}] Could not fetch environment variables:`, error)
   }
 
-  // Get workflow variables from the workflow record (not deprecated state column)
   let workflowVariables = {}
   try {
     if (workflowResult[0].variables) {

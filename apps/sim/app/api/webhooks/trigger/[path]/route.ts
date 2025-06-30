@@ -188,8 +188,6 @@ export async function POST(
   foundWebhook = webhooks[0].webhook
   foundWorkflow = webhooks[0].workflow
 
-  // Load workflow data from normalized tables (no fallback to deprecated state column)
-  logger.debug(`[${requestId}] Loading workflow ${foundWorkflow.id} from normalized tables`)
   const normalizedData = await loadWorkflowFromNormalizedTables(foundWorkflow.id)
 
   if (!normalizedData) {
@@ -207,7 +205,6 @@ export async function POST(
     isDeployed: foundWorkflow.isDeployed || false,
     deployedAt: foundWorkflow.deployedAt,
   }
-  logger.info(`[${requestId}] Loaded webhook workflow ${foundWorkflow.id} from normalized tables`)
 
   // Special handling for Telegram webhooks to work around middleware User-Agent checks
   if (foundWebhook.provider === 'telegram') {

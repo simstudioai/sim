@@ -424,14 +424,9 @@ export async function GET(req: NextRequest) {
             .limit(1)
 
           if (workflowRecord) {
-            // Load workflow data from normalized tables for next run calculation (no fallback)
             const normalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
 
             if (!normalizedData) {
-              logger.error(
-                `[${requestId}] No normalized data found for next run calculation: ${schedule.workflowId}`
-              )
-              // Use a default 24-hour interval if we can't load the workflow
               nextRunAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
             } else {
               nextRunAt = calculateNextRunTime(schedule, normalizedData.blocks)
