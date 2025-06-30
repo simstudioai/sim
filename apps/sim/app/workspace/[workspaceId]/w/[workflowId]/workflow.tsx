@@ -499,7 +499,6 @@ const WorkflowContent = React.memo(() => {
 
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-      console.log('🔗 Auto-connect enabled:', isAutoConnectEnabled, 'type:', type)
       let autoConnectEdge
       if (isAutoConnectEnabled && type !== 'starter') {
         const closestBlock = findClosestOutput(centerPosition)
