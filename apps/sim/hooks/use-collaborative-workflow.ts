@@ -373,10 +373,8 @@ export function useCollaborativeWorkflow() {
       // Apply locally first
       workflowStore.addBlock(id, type, name, position, data, parentId, extent)
       if (autoConnectEdge) {
-        console.log('🚀 Adding auto-connect edge locally:', autoConnectEdge)
+        if (autoConnectEdge) {
         workflowStore.addEdge(autoConnectEdge)
-      } else {
-        console.log('❌ No auto-connect edge to add')
       }
 
       // Then broadcast to other clients with complete block data
