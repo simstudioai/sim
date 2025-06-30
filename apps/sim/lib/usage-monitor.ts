@@ -2,10 +2,8 @@ import { eq } from 'drizzle-orm'
 import { isProd } from '@/lib/environment'
 import { db } from '@/db'
 import { userStats } from '@/db/schema'
-import { env } from './env'
 import { createLogger } from './logs/console-logger'
-import { getHighestPrioritySubscription } from './subscription/subscription'
-import { calculateUsageLimit } from './subscription/utils'
+import { getUserUsageLimit } from './usage-limits'
 
 const logger = createLogger('UsageMonitor')
 
@@ -42,23 +40,9 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       }
     }
 
-    // Determine subscription (single source of truth)
-    const activeSubscription = await getHighestPrioritySubscription(userId)
-    let limit = 0
-
-    if (activeSubscription) {
-      limit = calculateUsageLimit(activeSubscription)
-      logger.info('Using calculated subscription limit', {
-        userId,
-        plan: activeSubscription.plan,
-        seats: activeSubscription.seats || 1,
-        limit,
-      })
-    } else {
-      // Free tier limit
-      limit = env.FREE_TIER_COST_LIMIT ?? 5
-      logger.info('Using free tier limit', { userId, limit })
-    }
+    // Get usage limit from user_stats (new method)
+    const limit = await getUserUsageLimit(userId)
+    logger.info('Using stored usage limit', { userId, limit })
 
     // Get actual usage from the database
     const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
