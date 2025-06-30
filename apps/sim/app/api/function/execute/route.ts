@@ -58,14 +58,12 @@ function resolveCodeVariables(
 
       // Find the block ID by looking for a block name that normalizes to this value
       let blockId = null
-      let matchedBlockName = null
 
       for (const [blockName, id] of Object.entries(blockNameMapping)) {
         // Apply the same normalization logic as the UI: remove spaces and lowercase
         const normalizedName = blockName.replace(/\s+/g, '').toLowerCase()
         if (normalizedName === normalizedBlockName) {
           blockId = id
-          matchedBlockName = blockName
           break
         }
       }
@@ -151,9 +149,6 @@ export async function POST(req: NextRequest) {
     })
 
     // Resolve variables in the code with workflow environment variables
-    logger.info(`[${requestId}] Original code:`, code.substring(0, 200))
-    logger.info(`[${requestId}] Execution params keys:`, Object.keys(executionParams))
-
     const { resolvedCode, contextVariables } = resolveCodeVariables(
       code,
       executionParams,
@@ -161,9 +156,6 @@ export async function POST(req: NextRequest) {
       blockData,
       blockNameMapping
     )
-
-    logger.info(`[${requestId}] Resolved code:`, resolvedCode.substring(0, 200))
-    logger.info(`[${requestId}] Context variables keys:`, Object.keys(contextVariables))
 
     const executionMethod = 'vm' // Default execution method
 
