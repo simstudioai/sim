@@ -63,6 +63,123 @@ function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * Creates a detailed error message for JavaScript syntax errors
+ */
+function createDetailedSyntaxError(error: any, code: string, resolvedCode: string): string {
+  let errorMessage = 'JavaScript Syntax Error: '
+
+  // Extract line and column information if available
+  let lineNumber: number | undefined
+  let columnNumber: number | undefined
+
+  if (error.stack) {
+    // Try to extract line/column from stack trace
+    const lineMatch = error.stack.match(/:(\d+):(\d+)/) || error.stack.match(/line (\d+)/)
+    if (lineMatch) {
+      lineNumber = parseInt(lineMatch[1])
+      columnNumber = lineMatch[2] ? parseInt(lineMatch[2]) : undefined
+    }
+  }
+
+  // Parse the error message to provide more context
+  const originalError = error.message || error.toString()
+
+  if (originalError.includes('Unexpected token')) {
+    const tokenMatch = originalError.match(/Unexpected token ['"']?([^'"'\s]+)['"']?/)
+    if (tokenMatch) {
+      errorMessage += `Unexpected token "${tokenMatch[1]}"`
+    } else {
+      errorMessage += originalError
+    }
+  } else if (originalError.includes('Unexpected end of input')) {
+    errorMessage += 'Unexpected end of input - you may be missing a closing brace "}", bracket "]", or parenthesis ")"'
+  } else if (originalError.includes('Missing') || originalError.includes('Expected')) {
+    errorMessage += originalError
+  } else {
+    errorMessage += originalError
+  }
+
+  // Add line information if available
+  if (lineNumber) {
+    errorMessage += ` at line ${lineNumber}`
+    if (columnNumber) {
+      errorMessage += `, column ${columnNumber}`
+    }
+  }
+
+  // Show the problematic code section
+  const codeLines = resolvedCode.split('\n')
+  if (lineNumber && lineNumber <= codeLines.length) {
+    errorMessage += '\n\nProblematic code:'
+
+    // Show a few lines around the error for context
+    const startLine = Math.max(0, lineNumber - 3)
+    const endLine = Math.min(codeLines.length, lineNumber + 2)
+
+    for (let i = startLine; i < endLine; i++) {
+      const isErrorLine = i + 1 === lineNumber
+      const lineNum = (i + 1).toString().padStart(3, ' ')
+      const prefix = isErrorLine ? '>>>' : '   '
+      errorMessage += `\n${prefix} ${lineNum} | ${codeLines[i]}`
+
+      // Add pointer to the column if available
+      if (isErrorLine && columnNumber) {
+        const pointer = ' '.repeat(prefix.length + lineNum.length + 3 + columnNumber - 1) + '^'
+        errorMessage += `\n${pointer}`
+      }
+    }
+  } else {
+    // If we can't pinpoint the line, show the first few lines of code for context
+    errorMessage += '\n\nYour code:'
+    const previewLines = code.split('\n').slice(0, 5)
+    previewLines.forEach((line, index) => {
+      errorMessage += `\n    ${(index + 1).toString().padStart(2, ' ')} | ${line}`
+    })
+    if (code.split('\n').length > 5) {
+      errorMessage += '\n    ... (more lines)'
+    }
+  }
+
+
+
+  return errorMessage
+}
+
+/**
+ * Creates a detailed error message for runtime errors
+ */
+function createDetailedRuntimeError(error: any, stdout: string): string {
+  let errorMessage = 'JavaScript Runtime Error: '
+
+  if (error.name && error.name !== 'Error') {
+    errorMessage += `${error.name}: `
+  }
+
+  errorMessage += error.message || error.toString()
+
+  // Add stack trace information if available
+  if (error.stack) {
+    const stackLines = error.stack.split('\n').slice(1, 4) // Take first few stack frames
+    if (stackLines.length > 0) {
+      errorMessage += '\n\nStack trace:'
+      stackLines.forEach((line: string) => {
+        if (line.trim()) {
+          errorMessage += `\n    ${line.trim()}`
+        }
+      })
+    }
+  }
+
+  // Include console output if there was any
+  if (stdout && stdout.trim()) {
+    errorMessage += '\n\nConsole output:'
+    errorMessage += `\n${stdout}`
+  }
+
+  return errorMessage
+}
+
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const startTime = Date.now()
@@ -274,30 +391,61 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    const script = new Script(`
-          (async () => {
-            try {
-              ${
-                isCustomTool
-                  ? `// For custom tools, make parameters directly accessible
-                  ${Object.keys(executionParams)
-                    .map((key) => `const ${key} = params.${key};`)
-                    .join('\n                ')}`
-                  : ''
-              }
-              ${resolvedCode}
-            } catch (error) {
-              console.error(error);
-              throw error;
-            }
-          })()
-        `)
+    const codeToExecute = `
+      (async () => {
+        try {
+          ${isCustomTool
+        ? `// For custom tools, make parameters directly accessible
+              ${Object.keys(executionParams)
+          .map((key) => `const ${key} = params.${key};`)
+          .join('\n                ')}`
+        : ''
+      }
+          ${resolvedCode}
+        } catch (error) {
+          console.error(error);
+          throw error;
+        }
+      })()
+    `
 
-    const result = await script.runInContext(context, {
-      timeout,
-      displayErrors: true,
-    })
-    // }
+    let result: any
+    try {
+      // Try to create and execute the script
+      const script = new Script(codeToExecute)
+      result = await script.runInContext(context, {
+        timeout,
+        displayErrors: true,
+      })
+    } catch (scriptError: any) {
+      // Check if this is a syntax error (compilation error) vs runtime error
+      const isSyntaxError =
+        scriptError.name === 'SyntaxError' ||
+        scriptError.message?.includes('Unexpected token') ||
+        scriptError.message?.includes('Unexpected end of input') ||
+        scriptError.message?.includes('Missing') ||
+        scriptError.constructor?.name === 'SyntaxError'
+
+      if (isSyntaxError) {
+        // Handle syntax errors with detailed context
+        const detailedError = createDetailedSyntaxError(scriptError, code, codeToExecute)
+        logger.error(`[${requestId}] JavaScript syntax error`, {
+          originalError: scriptError.message,
+          detailedError,
+          code: code.substring(0, 500) + (code.length > 500 ? '...' : ''),
+        })
+        throw new Error(detailedError)
+      } else {
+        // Handle runtime errors
+        const detailedError = createDetailedRuntimeError(scriptError, stdout)
+        logger.error(`[${requestId}] JavaScript runtime error`, {
+          originalError: scriptError.message,
+          detailedError,
+          stdout,
+        })
+        throw new Error(detailedError)
+      }
+    }
 
     const executionTime = Date.now() - startTime
     logger.info(`[${requestId}] Function executed successfully using ${executionMethod}`, {

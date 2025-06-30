@@ -389,6 +389,91 @@ describe('Function Execute API Route', () => {
 
       expect(response.status).toBe(200)
     })
+
+    it('should provide detailed error messages for JavaScript syntax errors', async () => {
+      const req = createMockRequest('POST', {
+        code: 'const invalidObject = \n  "columns": [\n    "test"\n  ]',
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toBeDefined()
+
+      // Verify that the error message contains useful information
+      expect(data.error).toContain('JavaScript Syntax Error')
+      expect(data.error).toContain('Unexpected token')
+      expect(data.error).toContain('line')
+      expect(data.error).toContain('Problematic code:')
+    })
+
+    it('should provide detailed error messages for unexpected end of input', async () => {
+      const req = createMockRequest('POST', {
+        code: 'const obj = { key: "value"',
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toBeDefined()
+
+      // Verify that the error message contains basic syntax error information
+      expect(data.error).toContain('JavaScript Syntax Error')
+      expect(data.error).toContain('Unexpected end of input')
+    })
+
+    it('should provide detailed error messages for runtime errors', async () => {
+      const req = createMockRequest('POST', {
+        code: 'throw new ReferenceError("Variable not found")',
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toBeDefined()
+
+      // Verify that runtime error details are provided
+      expect(data.error).toContain('JavaScript Runtime Error')
+      expect(data.error).toContain('ReferenceError')
+      expect(data.error).toContain('Variable not found')
+    })
+
+    it('should show code context when syntax error occurs', async () => {
+      const multiLineCode = `const validLine1 = "hello";
+const validLine2 = "world";
+const invalidLine = "columns":
+const validLine4 = "end";`
+
+      const req = createMockRequest('POST', {
+        code: multiLineCode,
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+
+      // Verify that surrounding code lines are shown for context
+      expect(data.error).toContain('validLine1')
+      expect(data.error).toContain('validLine2')
+      expect(data.error).toContain('invalidLine')
+      expect(data.error).toContain('>>>')  // Should show the error line marker
+    })
   })
 
   describe('Utility Functions', () => {
