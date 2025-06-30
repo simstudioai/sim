@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { WifiOff } from 'lucide-react'
 
 interface ConnectionStatusProps {
   isConnected: boolean
@@ -37,8 +36,11 @@ export function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
 
   return (
     <div className='flex items-center gap-1.5'>
-      <div className='flex items-center gap-1 text-red-600'>
-        <WifiOff className='h-3.5 w-3.5' />
+      <div className='flex items-center gap-1.5 text-red-600'>
+        <div className='relative flex items-center justify-center'>
+          <div className='absolute h-3 w-3 animate-ping rounded-full bg-red-500/20' />
+          <div className='relative h-2 w-2 rounded-full bg-red-500' />
+        </div>
         <div className='flex flex-col'>
           <span className='font-medium text-xs leading-tight'>Connection lost</span>
           <span className='text-xs leading-tight opacity-90'>
