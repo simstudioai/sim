@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
@@ -36,7 +37,8 @@ export function KnowledgeBaseSelector({
 }: KnowledgeBaseSelectorProps) {
   const { getKnowledgeBasesList, knowledgeBasesList, loadingKnowledgeBasesList } =
     useKnowledgeStore()
-  const { getValue, setValue } = useSubBlockStore()
+  const { getValue } = useSubBlockStore()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseData[]>([])
   const [loading, setLoading] = useState(false)
@@ -90,7 +92,8 @@ export function KnowledgeBaseSelector({
     setSelectedKnowledgeBases([knowledgeBase])
 
     if (!isPreview) {
-      setValue(blockId, subBlock.id, knowledgeBase.id)
+      // Use collaborative update for both local store and persistence
+      collaborativeSetSubblockValue(blockId, subBlock.id, knowledgeBase.id)
     }
 
     onKnowledgeBaseSelect?.(knowledgeBase.id)
@@ -117,7 +120,8 @@ export function KnowledgeBaseSelector({
     if (!isPreview) {
       const selectedIds = newSelected.map((kb) => kb.id)
       const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
-      setValue(blockId, subBlock.id, valueToStore)
+      // Use collaborative update for both local store and persistence
+      collaborativeSetSubblockValue(blockId, subBlock.id, valueToStore)
     }
 
     onKnowledgeBaseSelect?.(newSelected.map((kb) => kb.id))
@@ -133,7 +137,8 @@ export function KnowledgeBaseSelector({
     if (!isPreview) {
       const selectedIds = newSelected.map((kb) => kb.id)
       const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
-      setValue(blockId, subBlock.id, valueToStore)
+      // Use collaborative update for both local store and persistence
+      collaborativeSetSubblockValue(blockId, subBlock.id, valueToStore)
     }
 
     onKnowledgeBaseSelect?.(newSelected.map((kb) => kb.id))

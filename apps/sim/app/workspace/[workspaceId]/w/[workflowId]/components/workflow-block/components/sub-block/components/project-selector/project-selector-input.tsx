@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { type DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
 import { type JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
@@ -26,7 +27,8 @@ export function ProjectSelectorInput({
   isPreview = false,
   previewValue,
 }: ProjectSelectorInputProps) {
-  const { getValue, setValue } = useSubBlockStore()
+  const { getValue } = useSubBlockStore()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [_projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
 
@@ -58,21 +60,21 @@ export function ProjectSelectorInput({
   ) => {
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
-    setValue(blockId, subBlock.id, projectId)
+    collaborativeSetSubblockValue(blockId, subBlock.id, projectId)
 
     // Clear the issue-related fields when a new project is selected
     if (provider === 'jira') {
-      setValue(blockId, 'summary', '')
-      setValue(blockId, 'description', '')
-      setValue(blockId, 'issueKey', '')
+      collaborativeSetSubblockValue(blockId, 'summary', '')
+      collaborativeSetSubblockValue(blockId, 'description', '')
+      collaborativeSetSubblockValue(blockId, 'issueKey', '')
     } else if (provider === 'discord') {
-      setValue(blockId, 'channelId', '')
+      collaborativeSetSubblockValue(blockId, 'channelId', '')
     } else if (provider === 'linear') {
       if (subBlock.id === 'teamId') {
-        setValue(blockId, 'teamId', projectId)
-        setValue(blockId, 'projectId', '')
+        collaborativeSetSubblockValue(blockId, 'teamId', projectId)
+        collaborativeSetSubblockValue(blockId, 'projectId', '')
       } else if (subBlock.id === 'projectId') {
-        setValue(blockId, 'projectId', projectId)
+        collaborativeSetSubblockValue(blockId, 'projectId', projectId)
       }
     }
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { env } from '@/lib/env'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ConfluenceFileInfo } from './components/confluence-file-selector'
@@ -36,7 +37,8 @@ export function FileSelectorInput({
   isPreview = false,
   previewValue,
 }: FileSelectorInputProps) {
-  const { getValue, setValue } = useSubBlockStore()
+  const { getValue } = useSubBlockStore()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFileId, setSelectedFileId] = useState<string>('')
   const [_fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
@@ -115,19 +117,19 @@ export function FileSelectorInput({
   const handleFileChange = (fileId: string, info?: any) => {
     setSelectedFileId(fileId)
     setFileInfo(info || null)
-    setValue(blockId, subBlock.id, fileId)
+    collaborativeSetSubblockValue(blockId, subBlock.id, fileId)
   }
 
   // Handle issue selection
   const handleIssueChange = (issueKey: string, info?: JiraIssueInfo) => {
     setSelectedIssueId(issueKey)
     setIssueInfo(info || null)
-    setValue(blockId, subBlock.id, issueKey)
+    collaborativeSetSubblockValue(blockId, subBlock.id, issueKey)
 
     // Clear the fields when a new issue is selected
     if (isJira) {
-      setValue(blockId, 'summary', '')
-      setValue(blockId, 'description', '')
+      collaborativeSetSubblockValue(blockId, 'summary', '')
+      collaborativeSetSubblockValue(blockId, 'description', '')
     }
   }
 
@@ -135,14 +137,14 @@ export function FileSelectorInput({
   const handleChannelChange = (channelId: string, info?: DiscordChannelInfo) => {
     setSelectedChannelId(channelId)
     setChannelInfo(info || null)
-    setValue(blockId, subBlock.id, channelId)
+    collaborativeSetSubblockValue(blockId, subBlock.id, channelId)
   }
 
   // Handle calendar selection
   const handleCalendarChange = (calendarId: string, info?: GoogleCalendarInfo) => {
     setSelectedCalendarId(calendarId)
     setCalendarInfo(info || null)
-    setValue(blockId, subBlock.id, calendarId)
+    collaborativeSetSubblockValue(blockId, subBlock.id, calendarId)
   }
 
   // For Google Drive
@@ -337,7 +339,7 @@ export function FileSelectorInput({
                 onChange={(value, info) => {
                   setSelectedMessageId(value)
                   setMessageInfo(info || null)
-                  setValue(blockId, subBlock.id, value)
+                  collaborativeSetSubblockValue(blockId, subBlock.id, value)
                 }}
                 provider='microsoft-teams'
                 requiredScopes={subBlock.requiredScopes || []}
