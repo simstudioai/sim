@@ -55,14 +55,12 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`)
     }
 
-    // Create a blob URL that can be used in an audio player
-    const audioBlob = await response.blob()
-    const audioUrl = URL.createObjectURL(audioBlob)
+    const data = await response.json()
 
     return {
       success: true,
       output: {
-        audioUrl,
+        audioUrl: data.audioUrl,
       },
     }
   },

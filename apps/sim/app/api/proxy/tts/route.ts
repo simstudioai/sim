@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
+import { uploadFile } from '@/lib/uploads/storage-client'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('ProxyTTSAPI')
 
@@ -44,12 +46,18 @@ export async function POST(request: Request) {
       return new NextResponse('Empty audio received', { status: 422 })
     }
 
-    return new NextResponse(audioBlob, {
-      headers: {
-        'Content-Type': 'audio/mpeg',
-        'Cache-Control': 'public, max-age=86400', // Cache for a day
-        'Access-Control-Allow-Origin': '*', // CORS support
-      },
+    // Upload the audio file to storage and return multiple URL options
+    const audioBuffer = Buffer.from(await audioBlob.arrayBuffer())
+    const timestamp = Date.now()
+    const fileName = `elevenlabs-tts-${timestamp}.mp3`
+    const fileInfo = await uploadFile(audioBuffer, fileName, 'audio/mpeg')
+
+    // Generate the full URL for external use using the configured base URL
+    const audioUrl = `${getBaseUrl()}${fileInfo.path}`
+
+    return NextResponse.json({
+      audioUrl,
+      size: fileInfo.size,
     })
   } catch (error) {
     logger.error('Error proxying TTS:', error)
