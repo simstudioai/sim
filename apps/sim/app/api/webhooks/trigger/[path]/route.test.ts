@@ -151,6 +151,17 @@ describe('Webhook Trigger API Route', () => {
     // Mock all dependencies
     mockExecutionDependencies()
 
+    // Mock the normalized tables helper
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        isFromNormalizedTables: true,
+      }),
+    }))
+
     // Reset mock behaviors to default for each test
     hasProcessedMessageMock.mockResolvedValue(false)
     markMessageAsProcessedMock.mockResolvedValue(true)

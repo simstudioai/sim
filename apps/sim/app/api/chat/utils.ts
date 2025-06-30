@@ -292,12 +292,12 @@ export async function executeWorkflowForChat(
 
   logger.debug(`[${requestId}] Using ${outputBlockIds.length} output blocks for extraction`)
 
-  // Find the workflow
+  // Find the workflow (deployedState is NOT deprecated - needed for chat execution)
   const workflowResult = await db
     .select({
-      state: workflow.state,
-      deployedState: workflow.deployedState,
       isDeployed: workflow.isDeployed,
+      deployedState: workflow.deployedState,
+      variables: workflow.variables,
     })
     .from(workflow)
     .where(eq(workflow.id, workflowId))
@@ -308,9 +308,14 @@ export async function executeWorkflowForChat(
     throw new Error('Workflow not available')
   }
 
-  // Use deployed state for execution
-  const state = workflowResult[0].deployedState || workflowResult[0].state
-  const { blocks, edges, loops, parallels } = state as WorkflowState
+  // For chat execution, use ONLY the deployed state (no fallback)
+  if (!workflowResult[0].deployedState) {
+    throw new Error(`Workflow must be deployed to be available for chat`)
+  }
+
+  // Use deployed state for chat execution (this is the stable, deployed version)
+  const deployedState = workflowResult[0].deployedState as WorkflowState
+  const { blocks, edges, loops, parallels } = deployedState
 
   // Prepare for execution, similar to use-workflow-execution.ts
   const mergedStates = mergeSubblockState(blocks)
@@ -344,16 +349,13 @@ export async function executeWorkflowForChat(
     logger.warn(`[${requestId}] Could not fetch environment variables:`, error)
   }
 
-  // Get workflow variables
   let workflowVariables = {}
   try {
-    // The workflow state may contain variables
-    const workflowState = state as any
-    if (workflowState.variables) {
+    if (workflowResult[0].variables) {
       workflowVariables =
-        typeof workflowState.variables === 'string'
-          ? JSON.parse(workflowState.variables)
-          : workflowState.variables
+        typeof workflowResult[0].variables === 'string'
+          ? JSON.parse(workflowResult[0].variables)
+          : workflowResult[0].variables
     }
   } catch (error) {
     logger.warn(`[${requestId}] Could not parse workflow variables:`, error)
