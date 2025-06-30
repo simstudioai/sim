@@ -7,6 +7,7 @@ import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/executio
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import {
   createHttpResponseFromBlock,
   updateWorkflowRunCounts,
@@ -94,19 +95,34 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     runningExecutions.add(executionKey)
     logger.info(`[${requestId}] Starting workflow execution: ${workflowId}`)
 
-    // Use the deployed state if available, otherwise fall back to current state
-    const workflowState = workflow.deployedState || workflow.state
+    // Load workflow data from normalized tables
+    logger.debug(`[${requestId}] Loading workflow ${workflowId} from normalized tables`)
+    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
-    if (!workflow.deployedState) {
-      logger.warn(
-        `[${requestId}] No deployed state found for workflow: ${workflowId}, using current state`
-      )
+    let blocks: Record<string, any>
+    let edges: any[]
+    let loops: Record<string, any>
+    let parallels: Record<string, any>
+
+    if (normalizedData) {
+      // Use normalized data as primary source
+      ;({ blocks, edges, loops, parallels } = normalizedData)
+      logger.info(`[${requestId}] Using normalized tables for workflow execution: ${workflowId}`)
     } else {
-      logger.info(`[${requestId}] Using deployed state for workflow execution: ${workflowId}`)
-    }
+      // Fallback to deployed state if available (for legacy workflows)
+      logger.warn(
+        `[${requestId}] No normalized data found, falling back to deployed state for workflow: ${workflowId}`
+      )
 
-    const state = workflowState as WorkflowState
-    const { blocks, edges, loops, parallels } = state
+      if (!workflow.deployedState) {
+        throw new Error(
+          `Workflow ${workflowId} has no deployed state and no normalized data available`
+        )
+      }
+
+      const deployedState = workflow.deployedState as WorkflowState
+      ;({ blocks, edges, loops, parallels } = deployedState)
+    }
 
     // Use the same execution flow as in scheduled executions
     const mergedStates = mergeSubblockState(blocks)

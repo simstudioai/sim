@@ -5,11 +5,7 @@ import { NextRequest } from 'next/server'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createMockRequest,
-  mockExecutionDependencies,
-  sampleWorkflowState,
-} from '@/app/api/__test-utils__/utils'
+import { createMockRequest, mockExecutionDependencies } from '@/app/api/__test-utils__/utils'
 
 // Define mock functions at the top level to be used in mocks
 const hasProcessedMessageMock = vi.fn().mockResolvedValue(false)
@@ -148,10 +144,8 @@ describe('Webhook Trigger API Route', () => {
     vi.resetAllMocks()
     vi.clearAllTimers()
 
-    // Mock all dependencies
     mockExecutionDependencies()
 
-    // Mock the normalized tables helper
     vi.doMock('@/lib/workflows/db-helpers', () => ({
       loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
         blocks: {},
@@ -162,7 +156,6 @@ describe('Webhook Trigger API Route', () => {
       }),
     }))
 
-    // Reset mock behaviors to default for each test
     hasProcessedMessageMock.mockResolvedValue(false)
     markMessageAsProcessedMock.mockResolvedValue(true)
     acquireLockMock.mockResolvedValue(true)
@@ -170,12 +163,10 @@ describe('Webhook Trigger API Route', () => {
     processGenericDeduplicationMock.mockResolvedValue(null)
     processWebhookMock.mockResolvedValue(new Response('Webhook processed', { status: 200 }))
 
-    // Restore original crypto.randomUUID if it was mocked
     if ((global as any).crypto?.randomUUID) {
       vi.spyOn(crypto, 'randomUUID').mockRestore()
     }
 
-    // Mock crypto.randomUUID to return predictable values
     vi.spyOn(crypto, 'randomUUID').mockReturnValue('mock-uuid-12345')
   })
 
@@ -274,7 +265,6 @@ describe('Webhook Trigger API Route', () => {
         workflow: {
           id: 'workflow-id',
           userId: 'user-id',
-          state: sampleWorkflowState,
         },
       },
     ])
@@ -366,7 +356,6 @@ describe('Webhook Trigger API Route', () => {
         workflow: {
           id: 'workflow-id',
           userId: 'user-id',
-          state: sampleWorkflowState,
         },
       },
     ])
@@ -420,7 +409,6 @@ describe('Webhook Trigger API Route', () => {
         workflow: {
           id: 'workflow-id',
           userId: 'user-id',
-          state: sampleWorkflowState,
         },
       },
     ])
@@ -493,7 +481,6 @@ describe('Webhook Trigger API Route', () => {
         workflow: {
           id: 'workflow-id',
           userId: 'user-id',
-          state: sampleWorkflowState,
         },
       },
     ])
@@ -564,7 +551,6 @@ describe('Webhook Trigger API Route', () => {
         workflow: {
           id: 'workflow-id',
           userId: 'user-id',
-          state: sampleWorkflowState,
         },
       },
     ])

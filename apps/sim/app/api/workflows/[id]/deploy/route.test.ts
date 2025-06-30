@@ -31,6 +31,27 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
+        blocks: {
+          'block-1': {
+            id: 'block-1',
+            type: 'starter',
+            name: 'Start',
+            position: { x: 100, y: 100 },
+            enabled: true,
+            subBlocks: {},
+            outputs: {},
+            data: {},
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+        isFromNormalizedTables: true,
+      }),
+    }))
+
     vi.doMock('../../middleware', () => ({
       validateWorkflowAccess: vi.fn().mockResolvedValue({
         workflow: {
@@ -74,6 +95,7 @@ describe('Workflow Deployment API Route', () => {
                   isDeployed: false,
                   deployedAt: null,
                   userId: 'user-id',
+                  deployedState: null,
                 },
               ]),
             }),
@@ -129,7 +151,6 @@ describe('Workflow Deployment API Route', () => {
               }),
             }),
           })
-          // Mock normalized table queries (blocks, edges, subflows)
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
               where: vi.fn().mockResolvedValue([
@@ -216,7 +237,6 @@ describe('Workflow Deployment API Route', () => {
               }),
             }),
           })
-          // Mock normalized table queries (blocks, edges, subflows)
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
               where: vi.fn().mockResolvedValue([

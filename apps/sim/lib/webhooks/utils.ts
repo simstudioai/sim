@@ -6,6 +6,7 @@ import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/executio
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
@@ -13,7 +14,6 @@ import { environment, userStats, webhook } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockStateAsync } from '@/stores/workflows/server-utils'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WebhookUtils')
 
@@ -475,23 +475,28 @@ export async function executeWorkflowFromPayload(
 
   // Returns void as errors are handled internally
   try {
-    // Get the workflow state
-    if (!foundWorkflow.state) {
-      logger.error(`[${requestId}] TRACE: Missing workflow state`, {
+    // Load workflow data from normalized tables
+    logger.debug(`[${requestId}] Loading workflow ${foundWorkflow.id} from normalized tables`)
+    const normalizedData = await loadWorkflowFromNormalizedTables(foundWorkflow.id)
+
+    if (!normalizedData) {
+      logger.error(`[${requestId}] TRACE: No normalized data found for workflow`, {
         workflowId: foundWorkflow.id,
-        hasState: false,
+        hasNormalizedData: false,
       })
-      throw new Error(`Workflow ${foundWorkflow.id} has no state`)
+      throw new Error(`Workflow ${foundWorkflow.id} data not found in normalized tables`)
     }
-    const state = foundWorkflow.state as WorkflowState
-    const { blocks, edges, loops, parallels } = state
+
+    // Use normalized data for execution
+    const { blocks, edges, loops, parallels } = normalizedData
+    logger.info(`[${requestId}] Loaded workflow ${foundWorkflow.id} from normalized tables`)
 
     // DEBUG: Log state information
-    logger.debug(`[${requestId}] TRACE: Retrieved workflow state`, {
+    logger.debug(`[${requestId}] TRACE: Retrieved workflow state from normalized tables`, {
       workflowId: foundWorkflow.id,
       blockCount: Object.keys(blocks || {}).length,
       edgeCount: (edges || []).length,
-      loopCount: (loops || []).length,
+      loopCount: Object.keys(loops || {}).length,
     })
 
     logger.debug(
