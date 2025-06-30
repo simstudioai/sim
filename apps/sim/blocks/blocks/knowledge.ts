@@ -12,7 +12,7 @@ export const KnowledgeBlock: BlockConfig = {
   category: 'blocks',
   docsLink: 'https://docs.simstudio.ai/blocks/knowledge',
   tools: {
-    access: ['knowledge_search', 'knowledge_upload_chunk'],
+    access: ['knowledge_search', 'knowledge_upload_chunk', 'knowledge_create_document'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -20,6 +20,8 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_search'
           case 'upload_chunk':
             return 'knowledge_upload_chunk'
+          case 'create_document':
+            return 'knowledge_create_document'
           default:
             return 'knowledge_search'
         }
@@ -53,6 +55,7 @@ export const KnowledgeBlock: BlockConfig = {
       options: [
         { label: 'Search', id: 'search' },
         { label: 'Upload Chunk', id: 'upload_chunk' },
+        { label: 'Create Document', id: 'create_document' },
       ],
       value: () => 'search',
     },
@@ -72,7 +75,7 @@ export const KnowledgeBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Select knowledge base',
       multiSelect: false,
-      condition: { field: 'operation', value: 'upload_chunk' },
+      condition: { field: 'operation', value: ['upload_chunk', 'create_document'] },
     },
     {
       id: 'query',
@@ -106,6 +109,23 @@ export const KnowledgeBlock: BlockConfig = {
       placeholder: 'Enter the chunk content to upload',
       rows: 6,
       condition: { field: 'operation', value: 'upload_chunk' },
+    },
+    {
+      id: 'name',
+      title: 'Document Name',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter the document name to create',
+      condition: { field: 'operation', value: ['create_document'] },
+    },
+    {
+      id: 'content',
+      title: 'Document Content',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter the document content to create',
+      rows: 6,
+      condition: { field: 'operation', value: ['create_document'] },
     },
   ],
 }

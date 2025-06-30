@@ -339,8 +339,36 @@ async function parseWithFileParser(
   try {
     let content: string
 
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-      // Download and parse remote file with timeout
+    if (fileUrl.startsWith('data:')) {
+      logger.info(`Processing data URI for: ${filename}`)
+
+      try {
+        const [header, base64Data] = fileUrl.split(',')
+        if (!base64Data) {
+          throw new Error('Invalid data URI format')
+        }
+
+        if (header.includes('base64')) {
+          const buffer = Buffer.from(base64Data, 'base64')
+          content = buffer.toString('utf8')
+        } else {
+          content = decodeURIComponent(base64Data)
+        }
+
+        if (mimeType === 'text/plain') {
+          logger.info(`Data URI processed successfully for text content: ${filename}`)
+        } else {
+          const extension = filename.split('.').pop()?.toLowerCase() || 'txt'
+          const buffer = Buffer.from(base64Data, 'base64')
+          const result = await parseBuffer(buffer, extension)
+          content = result.content
+        }
+      } catch (error) {
+        throw new Error(
+          `Failed to process data URI: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
+      }
+    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.FILE_DOWNLOAD)
 
@@ -354,7 +382,6 @@ async function parseWithFileParser(
 
         const buffer = Buffer.from(await response.arrayBuffer())
 
-        // Extract file extension from filename
         const extension = filename.split('.').pop()?.toLowerCase() || ''
         if (!extension) {
           throw new Error(`Could not determine file extension from filename: ${filename}`)
