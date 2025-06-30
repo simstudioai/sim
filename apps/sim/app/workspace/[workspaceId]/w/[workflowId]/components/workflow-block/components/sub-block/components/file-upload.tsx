@@ -4,10 +4,10 @@ import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface FileUploadProps {
@@ -365,7 +365,11 @@ export function FileUpload({
         setStoreValue(updatedFiles.length > 0 ? updatedFiles : null)
 
         // Use collaborative update for persistence
-        collaborativeSetSubblockValue(blockId, subBlockId, updatedFiles.length > 0 ? updatedFiles : null)
+        collaborativeSetSubblockValue(
+          blockId,
+          subBlockId,
+          updatedFiles.length > 0 ? updatedFiles : null
+        )
       } else {
         // For single file: Clear the value
         setStoreValue(null)

@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface DocumentData {
   id: string
@@ -143,7 +143,15 @@ export function DocumentSelector({
       setError((err as Error).message)
       setDocuments([])
     }
-  }, [knowledgeBaseId, selectedId, collaborativeSetSubblockValue, blockId, subBlock.id, isPreview, onDocumentSelect])
+  }, [
+    knowledgeBaseId,
+    selectedId,
+    collaborativeSetSubblockValue,
+    blockId,
+    subBlock.id,
+    isPreview,
+    onDocumentSelect,
+  ])
 
   // Handle dropdown open/close - fetch documents when opening
   const handleOpenChange = (isOpen: boolean) => {

@@ -14,9 +14,9 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 interface KnowledgeBaseSelectorProps {
   blockId: string
