@@ -25,7 +25,6 @@ const logger = createLogger('FunctionExecuteAPI')
  * @returns Resolved code
  */
 
-
 function resolveCodeVariables(
   code: string,
   params: Record<string, any>,
@@ -46,10 +45,7 @@ function resolveCodeVariables(
     contextVariables[safeVarName] = varValue
 
     // Replace the template with a variable reference
-    resolvedCode = resolvedCode.replace(
-      new RegExp(escapeRegExp(match), 'g'),
-      safeVarName
-    )
+    resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
   // Resolve tags with <tag_name> syntax
@@ -63,10 +59,7 @@ function resolveCodeVariables(
     contextVariables[safeVarName] = tagValue
 
     // Replace the template with a variable reference
-    resolvedCode = resolvedCode.replace(
-      new RegExp(escapeRegExp(match), 'g'),
-      safeVarName
-    )
+    resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
   return { resolvedCode, contextVariables }
