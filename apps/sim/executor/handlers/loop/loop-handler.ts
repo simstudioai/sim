@@ -44,9 +44,7 @@ export class LoopBlockHandler implements BlockHandler {
     }
 
     const currentIteration = context.loopIterations.get(block.id) || 0
-    let maxIterations = loop.iterations || DEFAULT_MAX_ITERATIONS
-
-    // For forEach loops, we need to check the actual items length
+    let maxIterations: number
     let forEachItems: any[] | Record<string, any> | null = null
     if (loop.loopType === 'forEach') {
       if (
@@ -71,14 +69,19 @@ export class LoopBlockHandler implements BlockHandler {
         )
       }
 
-      // Adjust max iterations based on actual items
+      // For forEach, max iterations = items length
       const itemsLength = Array.isArray(forEachItems)
         ? forEachItems.length
         : Object.keys(forEachItems).length
-      maxIterations = Math.min(maxIterations, itemsLength)
+
+      maxIterations = itemsLength
+
       logger.info(
-        `Loop ${block.id} max iterations set to ${maxIterations} based on ${itemsLength} items`
+        `forEach loop ${block.id} - Items: ${itemsLength}, Max iterations: ${maxIterations}`
       )
+    } else {
+      maxIterations = loop.iterations || DEFAULT_MAX_ITERATIONS
+      logger.info(`For loop ${block.id} - Max iterations: ${maxIterations}`)
     }
 
     logger.info(
