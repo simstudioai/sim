@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 const logger = createLogger('FunctionExecuteAPI')
 
@@ -14,45 +15,14 @@ const logger = createLogger('FunctionExecuteAPI')
  * @param envVars - Environment variables from the workflow
  * @returns Resolved code
  */
-/**
- * Safely serialize a value to JSON string with proper escaping
- * This prevents JavaScript syntax errors when the serialized data is injected into code
- */
-function safeJSONStringify(value: any): string {
-  try {
-    // Use JSON.stringify with proper escaping
-    // The key is to let JSON.stringify handle the escaping properly
-    return JSON.stringify(value)
-  } catch (error) {
-    // If JSON.stringify fails (e.g., circular references), return a safe fallback
-    try {
-      // Try to create a safe representation by removing circular references
-      const seen = new WeakSet()
-      const cleanValue = JSON.parse(
-        JSON.stringify(value, (key, val) => {
-          if (typeof val === 'object' && val !== null) {
-            if (seen.has(val)) {
-              return '[Circular Reference]'
-            }
-            seen.add(val)
-          }
-          return val
-        })
-      )
-      return JSON.stringify(cleanValue)
-    } catch {
-      // If that also fails, return a safe string representation
-      return JSON.stringify(String(value))
-    }
-  }
-}
 
 function resolveCodeVariables(
   code: string,
   params: Record<string, any>,
   envVars: Record<string, string> = {}
-): string {
+): { resolvedCode: string; contextVariables: Record<string, any> } {
   let resolvedCode = code
+  const contextVariables: Record<string, any> = {}
 
   // Resolve environment variables with {{var_name}} syntax
   const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
@@ -60,11 +30,13 @@ function resolveCodeVariables(
     const varName = match.slice(2, -2).trim()
     // Priority: 1. Environment variables from workflow, 2. Params
     const varValue = envVars[varName] || params[varName] || ''
-    // Use safe JSON stringify to prevent syntax errors
-    resolvedCode = resolvedCode.replace(
-      new RegExp(escapeRegExp(match), 'g'),
-      safeJSONStringify(varValue)
-    )
+
+    // Instead of injecting large JSON directly, create a variable reference
+    const safeVarName = `__var_${varName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+    contextVariables[safeVarName] = varValue
+
+    // Replace the template with a variable reference
+    resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
   // Resolve tags with <tag_name> syntax
@@ -72,13 +44,16 @@ function resolveCodeVariables(
   for (const match of tagMatches) {
     const tagName = match.slice(1, -1).trim()
     const tagValue = params[tagName] || ''
-    resolvedCode = resolvedCode.replace(
-      new RegExp(escapeRegExp(match), 'g'),
-      safeJSONStringify(tagValue)
-    )
+
+    // Instead of injecting large JSON directly, create a variable reference
+    const safeVarName = `__tag_${tagName.replace(/[^a-zA-Z0-9_]/g, '_')}`
+    contextVariables[safeVarName] = tagValue
+
+    // Replace the template with a variable reference
+    resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
   }
 
-  return resolvedCode
+  return { resolvedCode, contextVariables }
 }
 
 /**
@@ -118,7 +93,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Resolve variables in the code with workflow environment variables
-    const resolvedCode = resolveCodeVariables(code, executionParams, envVars)
+    const { resolvedCode, contextVariables } = resolveCodeVariables(code, executionParams, envVars)
 
     const executionMethod = 'vm' // Default execution method
 
@@ -280,6 +255,7 @@ export async function POST(req: NextRequest) {
     const context = createContext({
       params: executionParams,
       environmentVariables: envVars,
+      ...contextVariables, // Add resolved variables directly to context
       fetch: globalThis.fetch || require('node-fetch').default,
       console: {
         log: (...args: any[]) => {
