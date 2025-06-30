@@ -14,6 +14,7 @@ import {
 } from '@/lib/webhooks/utils'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -186,6 +187,27 @@ export async function POST(
 
   foundWebhook = webhooks[0].webhook
   foundWorkflow = webhooks[0].workflow
+
+  // Load workflow data from normalized tables (no fallback to deprecated state column)
+  logger.debug(`[${requestId}] Loading workflow ${foundWorkflow.id} from normalized tables`)
+  const normalizedData = await loadWorkflowFromNormalizedTables(foundWorkflow.id)
+
+  if (!normalizedData) {
+    logger.error(`[${requestId}] No normalized data found for webhook workflow ${foundWorkflow.id}`)
+    return new NextResponse('Workflow data not found in normalized tables', { status: 500 })
+  }
+
+  // Construct state from normalized data only (execution-focused, no frontend state fields)
+  foundWorkflow.state = {
+    blocks: normalizedData.blocks,
+    edges: normalizedData.edges,
+    loops: normalizedData.loops,
+    parallels: normalizedData.parallels,
+    lastSaved: Date.now(),
+    isDeployed: foundWorkflow.isDeployed || false,
+    deployedAt: foundWorkflow.deployedAt,
+  }
+  logger.info(`[${requestId}] Loaded webhook workflow ${foundWorkflow.id} from normalized tables`)
 
   // Special handling for Telegram webhooks to work around middleware User-Agent checks
   if (foundWebhook.provider === 'telegram') {
