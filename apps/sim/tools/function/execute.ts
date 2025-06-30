@@ -28,6 +28,18 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       description: 'Environment variables to make available during execution',
       default: {},
     },
+    blockData: {
+      type: 'object',
+      required: false,
+      description: 'Block output data for variable resolution',
+      default: {},
+    },
+    blockNameMapping: {
+      type: 'object',
+      required: false,
+      description: 'Mapping of block names to block IDs',
+      default: {},
+    },
   },
 
   request: {

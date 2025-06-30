@@ -5,6 +5,8 @@ export interface CodeExecutionInput {
   timeout?: number
   memoryLimit?: number
   envVars?: Record<string, string>
+  blockData?: Record<string, any>
+  blockNameMapping?: Record<string, string>
   _context?: {
     workflowId?: string
   }
