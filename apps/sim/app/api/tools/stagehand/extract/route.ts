@@ -18,6 +18,32 @@ const requestSchema = z.object({
   selector: z.string().nullable().optional(),
   apiKey: z.string(),
   url: z.string().url(),
+  model: z.enum([
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4o-2024-08-06",
+    "gpt-4.5-preview",
+    "claude-3-5-sonnet-latest",
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-sonnet-20240620",
+    "claude-3-7-sonnet-latest",
+    "claude-3-7-sonnet-20250219",
+    "o1-mini",
+    "o1-preview",
+    "o3-mini",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash-8b",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.5-pro-preview-03-25",
+    "cerebras-llama-3.3-70b",
+    "cerebras-llama-3.1-8b",
+    "groq-llama-3.3-70b-versatile",
+    "groq-llama-3.3-70b-specdec"
+  ]),
+  env: z.enum(['browserbase', 'local']),
 })
 
 export async function POST(request: NextRequest) {
@@ -34,6 +60,7 @@ export async function POST(request: NextRequest) {
     const validationResult = requestSchema.safeParse(body)
 
     if (!validationResult.success) {
+      console.log("Route Stagehand", JSON.stringify(validationResult.error))
       logger.error('Invalid request body', { errors: validationResult.error.errors })
       return NextResponse.json(
         { error: 'Invalid request parameters', details: validationResult.error.errors },
@@ -42,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     const params = validationResult.data
-    const { url: rawUrl, instruction, selector, useTextExtract, apiKey, schema } = params
+    const { url: rawUrl, instruction, selector, useTextExtract, apiKey, schema, model, env } = params
     const url = normalizeUrl(rawUrl)
 
     logger.info('Starting Stagehand extraction process', {
@@ -61,7 +88,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!BROWSERBASE_API_KEY || !BROWSERBASE_PROJECT_ID) {
+    if (env === 'browserbase' && (!BROWSERBASE_API_KEY || !BROWSERBASE_PROJECT_ID)) {
       logger.error('Missing required environment variables', {
         hasBrowserbaseApiKey: !!BROWSERBASE_API_KEY,
         hasBrowserbaseProjectId: !!BROWSERBASE_PROJECT_ID,
@@ -73,7 +100,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!apiKey || typeof apiKey !== 'string' || !apiKey.startsWith('sk-')) {
+    if (!apiKey || typeof apiKey !== 'string') {
       logger.error('Invalid OpenAI API key format')
       return NextResponse.json({ error: 'Invalid OpenAI API key format' }, { status: 400 })
     }
@@ -81,16 +108,22 @@ export async function POST(request: NextRequest) {
     try {
       logger.info('Initializing Stagehand with Browserbase')
       stagehand = new Stagehand({
-        env: 'BROWSERBASE',
+        env: env === 'browserbase' ? 'BROWSERBASE' : 'LOCAL',
         apiKey: BROWSERBASE_API_KEY,
         projectId: BROWSERBASE_PROJECT_ID,
         verbose: 1,
         logger: (msg) => logger.info(typeof msg === 'string' ? msg : JSON.stringify(msg)),
         disablePino: true,
-        modelName: 'gpt-4o',
+        modelName: model,
         modelClientOptions: {
           apiKey: apiKey,
         },
+        ...(env === 'local' && {
+          localBrowserLaunchOptions: {
+            headless: true,
+            executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+          }
+        })
       })
 
       logger.info('Starting stagehand.init()')

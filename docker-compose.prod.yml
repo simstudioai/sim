@@ -3,7 +3,7 @@ services:
     image: ghcr.io/simstudioai/simstudio:latest
     restart: unless-stopped
     ports:
-      - '3000:3000'
+      - "3000:3000"
     deploy:
       resources:
         limits:
@@ -30,7 +30,7 @@ services:
       realtime:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3000']
+      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1:3000"]
       interval: 90s
       timeout: 5s
       retries: 3
@@ -40,7 +40,7 @@ services:
     image: ghcr.io/simstudioai/realtime:latest
     restart: unless-stopped
     ports:
-      - '3002:3002'
+      - "3002:3002"
     deploy:
       resources:
         limits:
@@ -54,7 +54,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002']
+      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1:3002"]
       interval: 90s
       timeout: 5s
       retries: 3
@@ -67,14 +67,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: ['bun', 'run', 'db:migrate']
-    restart: 'no'
+    command: ["bun", "run", "db:migrate"]
+    restart: "no"
 
   db:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     ports:
-      - '5432:5432'
+      - "5432:5432"
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -82,7 +82,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
