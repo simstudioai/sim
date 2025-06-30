@@ -310,7 +310,6 @@ export async function executeWorkflowForChat(
 
   // For chat execution, use ONLY the deployed state (no fallback)
   if (!workflowResult[0].deployedState) {
-
     throw new Error(`Workflow must be deployed to be available for chat`)
   }
 
