@@ -88,8 +88,6 @@ vi.mock('@/lib/logs/execution-logger', () => ({
   persistExecutionError: persistExecutionErrorMock,
 }))
 
-
-
 // Mock setTimeout and other timer functions
 vi.mock('timers', () => {
   return {

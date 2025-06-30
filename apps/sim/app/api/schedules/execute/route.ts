@@ -14,14 +14,13 @@ import {
 } from '@/lib/schedules/utils'
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
-import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
 import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 // Add dynamic export to prevent caching
 export const dynamic = 'force-dynamic'
@@ -151,11 +150,15 @@ export async function GET(req: NextRequest) {
         }
 
         // Load workflow data from normalized tables (no fallback to deprecated state column)
-        logger.debug(`[${requestId}] Loading workflow ${schedule.workflowId} from normalized tables`)
+        logger.debug(
+          `[${requestId}] Loading workflow ${schedule.workflowId} from normalized tables`
+        )
         const normalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
 
         if (!normalizedData) {
-          logger.error(`[${requestId}] No normalized data found for scheduled workflow ${schedule.workflowId}`)
+          logger.error(
+            `[${requestId}] No normalized data found for scheduled workflow ${schedule.workflowId}`
+          )
           throw new Error(`Workflow data not found in normalized tables for ${schedule.workflowId}`)
         }
 
@@ -164,7 +167,9 @@ export async function GET(req: NextRequest) {
         const edges = normalizedData.edges
         const loops = normalizedData.loops
         const parallels = normalizedData.parallels
-        logger.info(`[${requestId}] Loaded scheduled workflow ${schedule.workflowId} from normalized tables`)
+        logger.info(
+          `[${requestId}] Loaded scheduled workflow ${schedule.workflowId} from normalized tables`
+        )
 
         const mergedStates = mergeSubblockState(blocks)
 
@@ -423,7 +428,9 @@ export async function GET(req: NextRequest) {
             const normalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
 
             if (!normalizedData) {
-              logger.error(`[${requestId}] No normalized data found for next run calculation: ${schedule.workflowId}`)
+              logger.error(
+                `[${requestId}] No normalized data found for next run calculation: ${schedule.workflowId}`
+              )
               // Use a default 24-hour interval if we can't load the workflow
               nextRunAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
             } else {

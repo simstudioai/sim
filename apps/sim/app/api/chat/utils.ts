@@ -6,9 +6,9 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { Executor } from '@/executor'
 import type { BlockLog } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -308,7 +308,9 @@ export async function executeWorkflowForChat(
   }
 
   // Load workflow data from normalized tables (no fallback to deprecated state columns)
-  logger.debug(`[${requestId}] Loading workflow ${workflowId} from normalized tables for chat execution`)
+  logger.debug(
+    `[${requestId}] Loading workflow ${workflowId} from normalized tables for chat execution`
+  )
   const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
   if (!normalizedData) {
