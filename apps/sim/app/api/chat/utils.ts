@@ -12,6 +12,7 @@ import { Executor } from '@/executor'
 import type { BlockLog } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 declare global {
   var __chatStreamProcessingTasks: Promise<{ success: boolean; error?: any }>[] | undefined
@@ -315,11 +316,8 @@ export async function executeWorkflowForChat(
 
   // Use deployed state for chat execution (this is the stable, deployed version)
   logger.debug(`[${requestId}] Using deployed state for chat workflow ${workflowId}`)
-  const deployedState = workflowResult[0].deployedState as any
-  const blocks = deployedState.blocks || {}
-  const edges = deployedState.edges || []
-  const loops = deployedState.loops || {}
-  const parallels = deployedState.parallels || {}
+  const deployedState = workflowResult[0].deployedState as WorkflowState
+  const { blocks, edges, loops, parallels } = deployedState
   logger.info(`[${requestId}] Loaded chat workflow ${workflowId} from deployed state`)
 
   // Prepare for execution, similar to use-workflow-execution.ts
