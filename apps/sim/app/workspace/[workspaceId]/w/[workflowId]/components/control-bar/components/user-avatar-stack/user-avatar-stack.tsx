@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { usePresence } from '../../../../hooks/use-presence'
+import { ConnectionStatus } from './components/connection-status/connection-status'
 import { UserAvatar } from './components/user-avatar/user-avatar'
 
 interface User {
@@ -25,7 +26,7 @@ export function UserAvatarStack({
   className = '',
 }: UserAvatarStackProps) {
   // Use presence data if no users are provided via props
-  const { users: presenceUsers } = usePresence()
+  const { users: presenceUsers, isConnected } = usePresence()
   const users = propUsers || presenceUsers
 
   // Memoize the processed users to avoid unnecessary re-renders
@@ -43,10 +44,14 @@ export function UserAvatarStack({
     }
   }, [users, maxVisible])
 
+  // Show connection status component regardless of user count
+  // This will handle the offline notice when disconnected for 15 seconds
+  const connectionStatusElement = <ConnectionStatus isConnected={isConnected} />
+
   // Only show presence when there are multiple users (>1)
-  // Don't render anything if there are no users or only 1 user
+  // But always show connection status
   if (users.length <= 1) {
-    return null
+    return connectionStatusElement
   }
 
   // Determine spacing based on size
@@ -58,6 +63,9 @@ export function UserAvatarStack({
 
   return (
     <div className={`flex items-center ${spacingClass} ${className}`}>
+      {/* Connection status - always present */}
+      {connectionStatusElement}
+
       {/* Render visible user avatars */}
       {visibleUsers.map((user, index) => (
         <UserAvatar
