@@ -15,6 +15,7 @@ import {
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
@@ -149,8 +150,21 @@ export async function GET(req: NextRequest) {
           continue
         }
 
-        const state = workflowRecord.state as WorkflowState
-        const { blocks, edges, loops, parallels } = state
+        // Load workflow data from normalized tables (no fallback to deprecated state column)
+        logger.debug(`[${requestId}] Loading workflow ${schedule.workflowId} from normalized tables`)
+        const normalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
+
+        if (!normalizedData) {
+          logger.error(`[${requestId}] No normalized data found for scheduled workflow ${schedule.workflowId}`)
+          throw new Error(`Workflow data not found in normalized tables for ${schedule.workflowId}`)
+        }
+
+        // Use normalized data only
+        const blocks = normalizedData.blocks
+        const edges = normalizedData.edges
+        const loops = normalizedData.loops
+        const parallels = normalizedData.parallels
+        logger.info(`[${requestId}] Loaded scheduled workflow ${schedule.workflowId} from normalized tables`)
 
         const mergedStates = mergeSubblockState(blocks)
 
@@ -405,9 +419,16 @@ export async function GET(req: NextRequest) {
             .limit(1)
 
           if (workflowRecord) {
-            const state = workflowRecord.state as WorkflowState
-            const { blocks } = state
-            nextRunAt = calculateNextRunTime(schedule, blocks)
+            // Load workflow data from normalized tables for next run calculation (no fallback)
+            const normalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
+
+            if (!normalizedData) {
+              logger.error(`[${requestId}] No normalized data found for next run calculation: ${schedule.workflowId}`)
+              // Use a default 24-hour interval if we can't load the workflow
+              nextRunAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+            } else {
+              nextRunAt = calculateNextRunTime(schedule, normalizedData.blocks)
+            }
           } else {
             nextRunAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
           }

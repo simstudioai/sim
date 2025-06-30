@@ -8,11 +8,11 @@ import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { Executor } from '@/executor'
 import type { BlockLog } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 declare global {
   var __chatStreamProcessingTasks: Promise<{ success: boolean; error?: any }>[] | undefined
@@ -292,12 +292,11 @@ export async function executeWorkflowForChat(
 
   logger.debug(`[${requestId}] Using ${outputBlockIds.length} output blocks for extraction`)
 
-  // Find the workflow
+  // Find the workflow (no longer selecting deprecated state columns)
   const workflowResult = await db
     .select({
-      state: workflow.state,
-      deployedState: workflow.deployedState,
       isDeployed: workflow.isDeployed,
+      variables: workflow.variables,
     })
     .from(workflow)
     .where(eq(workflow.id, workflowId))
@@ -308,9 +307,21 @@ export async function executeWorkflowForChat(
     throw new Error('Workflow not available')
   }
 
-  // Use deployed state for execution
-  const state = workflowResult[0].deployedState || workflowResult[0].state
-  const { blocks, edges, loops, parallels } = state as WorkflowState
+  // Load workflow data from normalized tables (no fallback to deprecated state columns)
+  logger.debug(`[${requestId}] Loading workflow ${workflowId} from normalized tables for chat execution`)
+  const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+
+  if (!normalizedData) {
+    logger.error(`[${requestId}] No normalized data found for chat workflow ${workflowId}`)
+    throw new Error(`Workflow data not found in normalized tables for ${workflowId}`)
+  }
+
+  // Use normalized data only
+  const blocks = normalizedData.blocks
+  const edges = normalizedData.edges
+  const loops = normalizedData.loops
+  const parallels = normalizedData.parallels
+  logger.info(`[${requestId}] Loaded chat workflow ${workflowId} from normalized tables`)
 
   // Prepare for execution, similar to use-workflow-execution.ts
   const mergedStates = mergeSubblockState(blocks)
@@ -344,16 +355,14 @@ export async function executeWorkflowForChat(
     logger.warn(`[${requestId}] Could not fetch environment variables:`, error)
   }
 
-  // Get workflow variables
+  // Get workflow variables from the workflow record (not deprecated state column)
   let workflowVariables = {}
   try {
-    // The workflow state may contain variables
-    const workflowState = state as any
-    if (workflowState.variables) {
+    if (workflowResult[0].variables) {
       workflowVariables =
-        typeof workflowState.variables === 'string'
-          ? JSON.parse(workflowState.variables)
-          : workflowState.variables
+        typeof workflowResult[0].variables === 'string'
+          ? JSON.parse(workflowResult[0].variables)
+          : workflowResult[0].variables
     }
   } catch (error) {
     logger.warn(`[${requestId}] Could not parse workflow variables:`, error)
