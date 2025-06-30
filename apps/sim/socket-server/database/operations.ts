@@ -29,6 +29,34 @@ const db = socketDb
 // Constants
 const DEFAULT_LOOP_ITERATIONS = 5
 
+/**
+ * Shared function to handle auto-connect edge insertion
+ * @param tx - Database transaction
+ * @param workflowId - The workflow ID
+ * @param autoConnectEdge - The auto-connect edge data
+ * @param logger - Logger instance
+ */
+async function insertAutoConnectEdge(
+  tx: any,
+  workflowId: string,
+  autoConnectEdge: any,
+  logger: any
+) {
+  if (!autoConnectEdge) return
+
+  await tx.insert(workflowEdges).values({
+    id: autoConnectEdge.id,
+    workflowId,
+    sourceBlockId: autoConnectEdge.source,
+    targetBlockId: autoConnectEdge.target,
+    sourceHandle: autoConnectEdge.sourceHandle || null,
+    targetHandle: autoConnectEdge.targetHandle || null,
+  })
+  logger.debug(
+    `Added auto-connect edge ${autoConnectEdge.id}: ${autoConnectEdge.source} -> ${autoConnectEdge.target}`
+  )
+}
+
 // Enum for subflow types
 enum SubflowType {
   LOOP = 'loop',
@@ -248,18 +276,7 @@ async function handleBlockOperationTx(
         await tx.insert(workflowBlocks).values(insertData)
 
         // Handle auto-connect edge if present
-        if (payload.autoConnectEdge) {
-          const edge = payload.autoConnectEdge
-          await tx.insert(workflowEdges).values({
-            id: edge.id,
-            workflowId,
-            sourceBlockId: edge.source,
-            targetBlockId: edge.target,
-            sourceHandle: edge.sourceHandle || null,
-            targetHandle: edge.targetHandle || null,
-          })
-          logger.info(`Added auto-connect edge ${edge.id}: ${edge.source} -> ${edge.target}`)
-        }
+        await insertAutoConnectEdge(tx, workflowId, payload.autoConnectEdge, logger)
       } catch (insertError) {
         logger.error(`[SERVER] ❌ Failed to insert block ${payload.id}:`, insertError)
         throw insertError
@@ -608,18 +625,7 @@ async function handleBlockOperationTx(
         await tx.insert(workflowBlocks).values(insertData)
 
         // Handle auto-connect edge if present
-        if (payload.autoConnectEdge) {
-          const edge = payload.autoConnectEdge
-          await tx.insert(workflowEdges).values({
-            id: edge.id,
-            workflowId,
-            sourceBlockId: edge.source,
-            targetBlockId: edge.target,
-            sourceHandle: edge.sourceHandle || null,
-            targetHandle: edge.targetHandle || null,
-          })
-          logger.debug(`Added auto-connect edge ${edge.id}: ${edge.source} -> ${edge.target}`)
-        }
+        await insertAutoConnectEdge(tx, workflowId, payload.autoConnectEdge, logger)
       } catch (insertError) {
         logger.error(`[SERVER] ❌ Failed to insert duplicated block ${payload.id}:`, insertError)
         throw insertError

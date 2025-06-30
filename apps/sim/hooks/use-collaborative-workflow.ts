@@ -373,7 +373,6 @@ export function useCollaborativeWorkflow() {
       // Apply locally first
       workflowStore.addBlock(id, type, name, position, data, parentId, extent)
       if (autoConnectEdge) {
-        if (autoConnectEdge) {
         workflowStore.addEdge(autoConnectEdge)
       }
 
