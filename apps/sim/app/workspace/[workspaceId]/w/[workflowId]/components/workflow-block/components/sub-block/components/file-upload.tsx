@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface FileUploadProps {
@@ -58,6 +58,7 @@ export function FileUpload({
   // Stores
   const { addNotification } = useNotificationStore()
   const { activeWorkflowId } = useWorkflowRegistry()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
@@ -298,15 +299,15 @@ export function FileUpload({
 
         setStoreValue(newFiles)
 
-        // Make sure to update the subblock store value for the workflow execution
-        useSubBlockStore.getState().setValue(blockId, subBlockId, newFiles)
+        // Use collaborative update for persistence
+        collaborativeSetSubblockValue(blockId, subBlockId, newFiles)
         useWorkflowStore.getState().triggerUpdate()
       } else {
         // For single file: Replace with last uploaded file
         setStoreValue(uploadedFiles[0] || null)
 
-        // Make sure to update the subblock store value for the workflow execution
-        useSubBlockStore.getState().setValue(blockId, subBlockId, uploadedFiles[0] || null)
+        // Use collaborative update for persistence
+        collaborativeSetSubblockValue(blockId, subBlockId, uploadedFiles[0] || null)
         useWorkflowStore.getState().triggerUpdate()
       }
     } catch (error) {
@@ -363,16 +364,14 @@ export function FileUpload({
         const updatedFiles = filesArray.filter((f) => f.path !== file.path)
         setStoreValue(updatedFiles.length > 0 ? updatedFiles : null)
 
-        // Make sure to update the subblock store value for the workflow execution
-        useSubBlockStore
-          .getState()
-          .setValue(blockId, subBlockId, updatedFiles.length > 0 ? updatedFiles : null)
+        // Use collaborative update for persistence
+        collaborativeSetSubblockValue(blockId, subBlockId, updatedFiles.length > 0 ? updatedFiles : null)
       } else {
         // For single file: Clear the value
         setStoreValue(null)
 
-        // Make sure to update the subblock store
-        useSubBlockStore.getState().setValue(blockId, subBlockId, null)
+        // Use collaborative update for persistence
+        collaborativeSetSubblockValue(blockId, subBlockId, null)
       }
 
       useWorkflowStore.getState().triggerUpdate()
@@ -413,7 +412,7 @@ export function FileUpload({
 
     // Clear input state immediately for better UX
     setStoreValue(null)
-    useSubBlockStore.getState().setValue(blockId, subBlockId, null)
+    collaborativeSetSubblockValue(blockId, subBlockId, null)
     useWorkflowStore.getState().triggerUpdate()
 
     if (fileInputRef.current) {

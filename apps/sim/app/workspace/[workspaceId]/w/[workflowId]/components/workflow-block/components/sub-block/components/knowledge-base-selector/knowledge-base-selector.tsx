@@ -16,18 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import type { SubBlockConfig } from '@/blocks/types'
 import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-
-// Helper function to dispatch collaborative subblock updates
-const dispatchSubblockUpdate = (blockId: string, subBlockId: string, value: any) => {
-  const event = new CustomEvent('update-subblock-value', {
-    detail: {
-      blockId,
-      subBlockId,
-      value,
-    },
-  })
-  window.dispatchEvent(event)
-}
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 interface KnowledgeBaseSelectorProps {
   blockId: string
@@ -48,7 +37,8 @@ export function KnowledgeBaseSelector({
 }: KnowledgeBaseSelectorProps) {
   const { getKnowledgeBasesList, knowledgeBasesList, loadingKnowledgeBasesList } =
     useKnowledgeStore()
-  const { getValue, setValue } = useSubBlockStore()
+  const { getValue } = useSubBlockStore()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseData[]>([])
   const [loading, setLoading] = useState(false)
@@ -102,10 +92,8 @@ export function KnowledgeBaseSelector({
     setSelectedKnowledgeBases([knowledgeBase])
 
     if (!isPreview) {
-      // Update store locally
-      setValue(blockId, subBlock.id, knowledgeBase.id)
-      // Dispatch collaborative update for persistence
-      dispatchSubblockUpdate(blockId, subBlock.id, knowledgeBase.id)
+      // Use collaborative update for both local store and persistence
+      collaborativeSetSubblockValue(blockId, subBlock.id, knowledgeBase.id)
     }
 
     onKnowledgeBaseSelect?.(knowledgeBase.id)
@@ -132,10 +120,8 @@ export function KnowledgeBaseSelector({
     if (!isPreview) {
       const selectedIds = newSelected.map((kb) => kb.id)
       const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
-      // Update store locally
-      setValue(blockId, subBlock.id, valueToStore)
-      // Dispatch collaborative update for persistence
-      dispatchSubblockUpdate(blockId, subBlock.id, valueToStore)
+      // Use collaborative update for both local store and persistence
+      collaborativeSetSubblockValue(blockId, subBlock.id, valueToStore)
     }
 
     onKnowledgeBaseSelect?.(newSelected.map((kb) => kb.id))
@@ -151,10 +137,8 @@ export function KnowledgeBaseSelector({
     if (!isPreview) {
       const selectedIds = newSelected.map((kb) => kb.id)
       const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
-      // Update store locally
-      setValue(blockId, subBlock.id, valueToStore)
-      // Dispatch collaborative update for persistence
-      dispatchSubblockUpdate(blockId, subBlock.id, valueToStore)
+      // Use collaborative update for both local store and persistence
+      collaborativeSetSubblockValue(blockId, subBlock.id, valueToStore)
     }
 
     onKnowledgeBaseSelect?.(newSelected.map((kb) => kb.id))

@@ -14,6 +14,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 interface DocumentData {
   id: string
@@ -50,7 +51,8 @@ export function DocumentSelector({
   isPreview = false,
   previewValue,
 }: DocumentSelectorProps) {
-  const { getValue, setValue } = useSubBlockStore()
+  const { getValue } = useSubBlockStore()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   const [documents, setDocuments] = useState<DocumentData[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -117,7 +119,7 @@ export function DocumentSelector({
       if (selectedId && !fetchedDocuments.some((doc: DocumentData) => doc.id === selectedId)) {
         setSelectedId('')
         if (!isPreview) {
-          setValue(blockId, subBlock.id, '')
+          collaborativeSetSubblockValue(blockId, subBlock.id, '')
         }
       }
 
@@ -131,7 +133,7 @@ export function DocumentSelector({
           setSelectedId(singleDoc.id)
           setSelectedDocument(singleDoc)
           if (!isPreview) {
-            setValue(blockId, subBlock.id, singleDoc.id)
+            collaborativeSetSubblockValue(blockId, subBlock.id, singleDoc.id)
           }
           onDocumentSelect?.(singleDoc.id)
         }
@@ -141,7 +143,7 @@ export function DocumentSelector({
       setError((err as Error).message)
       setDocuments([])
     }
-  }, [knowledgeBaseId, selectedId, setValue, blockId, subBlock.id, isPreview, onDocumentSelect])
+  }, [knowledgeBaseId, selectedId, collaborativeSetSubblockValue, blockId, subBlock.id, isPreview, onDocumentSelect])
 
   // Handle dropdown open/close - fetch documents when opening
   const handleOpenChange = (isOpen: boolean) => {
@@ -163,7 +165,7 @@ export function DocumentSelector({
     setSelectedId(document.id)
 
     if (!isPreview) {
-      setValue(blockId, subBlock.id, document.id)
+      collaborativeSetSubblockValue(blockId, subBlock.id, document.id)
     }
 
     onDocumentSelect?.(document.id)
@@ -193,10 +195,10 @@ export function DocumentSelector({
       setInitialFetchDone(false)
       setError(null)
       if (!isPreview) {
-        setValue(blockId, subBlock.id, '')
+        collaborativeSetSubblockValue(blockId, subBlock.id, '')
       }
     }
-  }, [knowledgeBaseId, blockId, subBlock.id, setValue, isPreview])
+  }, [knowledgeBaseId, blockId, subBlock.id, collaborativeSetSubblockValue, isPreview])
 
   // Fetch documents when knowledge base is available and we haven't fetched yet
   useEffect(() => {
