@@ -19,6 +19,7 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { checkEnterprisePlan } from '@/lib/subscription/utils'
 import { TeamSeatsDialog } from '../subscription/components/team-seats-dialog'
+import { TeamMemberUsage } from './components/team-member-usage'
 
 const logger = createLogger('TeamManagement')
 
@@ -913,6 +914,7 @@ export function TeamManagement() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value='members'>Members</TabsTrigger>
+          <TabsTrigger value='usage'>Usage</TabsTrigger>
           <TabsTrigger value='settings'>Settings</TabsTrigger>
         </TabsList>
 
@@ -1071,6 +1073,10 @@ export function TeamManagement() {
               </div>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value='usage' className='mt-4 space-y-4'>
+          <TeamMemberUsage organizationId={activeOrganization.id} isAdmin={isAdminOrOwner} />
         </TabsContent>
 
         <TabsContent value='settings' className='mt-4 space-y-4'>

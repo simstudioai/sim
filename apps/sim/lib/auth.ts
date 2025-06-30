@@ -975,6 +975,18 @@ export const auth = betterAuth({
                 customerId: customer.id,
                 userId: user.id,
               })
+
+              // Initialize usage limits for new user
+              try {
+                const { initializeUserUsageLimit } = await import('./usage-limits')
+                await initializeUserUsageLimit(user.id)
+                logger.info('Usage limits initialized for new user', { userId: user.id })
+              } catch (error) {
+                logger.error('Failed to initialize usage limits for new user', {
+                  userId: user.id,
+                  error,
+                })
+              }
             },
             subscription: {
               enabled: true,
@@ -1073,6 +1085,20 @@ export const auth = betterAuth({
                   plan: subscription.plan,
                   status: subscription.status,
                 })
+
+                // Sync usage limits for the user/organization
+                try {
+                  const { syncUsageLimitsFromSubscription } = await import('./usage-limits')
+                  await syncUsageLimitsFromSubscription(subscription.referenceId)
+                  logger.info('Usage limits synced after subscription creation', {
+                    referenceId: subscription.referenceId,
+                  })
+                } catch (error) {
+                  logger.error('Failed to sync usage limits after subscription creation', {
+                    referenceId: subscription.referenceId,
+                    error,
+                  })
+                }
               },
               onSubscriptionUpdate: async ({
                 event,
@@ -1085,6 +1111,20 @@ export const auth = betterAuth({
                   subscriptionId: subscription.id,
                   status: subscription.status,
                 })
+
+                // Sync usage limits for the user/organization
+                try {
+                  const { syncUsageLimitsFromSubscription } = await import('./usage-limits')
+                  await syncUsageLimitsFromSubscription(subscription.referenceId)
+                  logger.info('Usage limits synced after subscription update', {
+                    referenceId: subscription.referenceId,
+                  })
+                } catch (error) {
+                  logger.error('Failed to sync usage limits after subscription update', {
+                    referenceId: subscription.referenceId,
+                    error,
+                  })
+                }
               },
               onSubscriptionDeleted: async ({
                 event,

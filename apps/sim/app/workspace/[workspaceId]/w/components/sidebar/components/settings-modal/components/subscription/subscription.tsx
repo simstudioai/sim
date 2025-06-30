@@ -8,6 +8,7 @@ import { useActiveOrganization, useSession, useSubscription } from '@/lib/auth-c
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TeamSeatsDialog } from './components/team-seats-dialog'
+import { UsageLimitEditor } from './components/usage-limit-editor'
 
 const logger = createLogger('Subscription')
 
@@ -50,6 +51,12 @@ const useSubscriptionData = (
     }
   )
   const [subscriptionData, setSubscriptionData] = useState<any>(cachedSubscriptionData || null)
+  const [usageLimitData, setUsageLimitData] = useState<{
+    currentLimit: number
+    canEdit: boolean
+    minimumLimit: number
+    plan: string
+  } | null>(null)
   const [loading, setLoading] = useState<boolean>(
     isParentLoading !== undefined ? isParentLoading : true
   )
@@ -81,10 +88,11 @@ const useSubscriptionData = (
         setLoading(true)
         setError(null)
 
-        // Fetch subscription status and usage data in parallel
-        const [proStatusResponse, usageResponse] = await Promise.all([
+        // Fetch subscription status, usage data, and usage limits in parallel
+        const [proStatusResponse, usageResponse, usageLimitResponse] = await Promise.all([
           fetch('/api/user/subscription'),
           fetch('/api/user/usage'),
+          fetch('/api/user/usage-limit'),
         ])
 
         if (!proStatusResponse.ok) {
@@ -92,6 +100,9 @@ const useSubscriptionData = (
         }
         if (!usageResponse.ok) {
           throw new Error('Failed to fetch usage data')
+        }
+        if (!usageLimitResponse.ok) {
+          throw new Error('Failed to fetch usage limit data')
         }
 
         // Process the responses
@@ -102,6 +113,9 @@ const useSubscriptionData = (
 
         const usageDataResponse = await usageResponse.json()
         setUsageData(usageDataResponse)
+
+        const usageLimitDataResponse = await usageLimitResponse.json()
+        setUsageLimitData(usageLimitDataResponse)
 
         logger.info('Subscription status and usage data retrieved', {
           isPro: proStatusData.isPro,
@@ -211,7 +225,16 @@ const useSubscriptionData = (
     isParentLoading,
   ])
 
-  return { isPro, isTeam, isEnterprise, usageData, subscriptionData, loading, error }
+  return {
+    isPro,
+    isTeam,
+    isEnterprise,
+    usageData,
+    subscriptionData,
+    usageLimitData,
+    loading,
+    error,
+  }
 }
 
 export function Subscription({
@@ -233,6 +256,7 @@ export function Subscription({
     isEnterprise,
     usageData,
     subscriptionData,
+    usageLimitData,
     loading,
     error: subscriptionError,
   } = useSubscriptionData(
@@ -352,6 +376,24 @@ export function Subscription({
     }
   }
 
+  const handleLimitUpdated = (newLimit: number) => {
+    // Update the usage data state to reflect the new limit
+    setUsageData((prev) => ({
+      ...prev,
+      limit: newLimit,
+    }))
+
+    // Update the usage limit data state
+    setUsageLimitData((prev) =>
+      prev
+        ? {
+            ...prev,
+            currentLimit: newLimit,
+          }
+        : null
+    )
+  }
+
   return (
     <div className='space-y-6 p-6'>
       <h3 className='font-medium text-lg'>Subscription Plans</h3>
@@ -428,9 +470,19 @@ export function Subscription({
                   <div className='mt-4 space-y-2'>
                     <div className='flex justify-between text-xs'>
                       <span>Usage</span>
-                      <span>
-                        {usageData.currentUsage.toFixed(2)}$ / {usageData.limit}$
-                      </span>
+                      <div className='flex items-center gap-2'>
+                        <span>{usageData.currentUsage.toFixed(2)}$ / </span>
+                        {usageLimitData ? (
+                          <UsageLimitEditor
+                            currentLimit={usageLimitData.currentLimit}
+                            canEdit={usageLimitData.canEdit}
+                            minimumLimit={usageLimitData.minimumLimit}
+                            onLimitUpdated={handleLimitUpdated}
+                          />
+                        ) : (
+                          <span>${usageData.limit}</span>
+                        )}
+                      </div>
                     </div>
                     <Progress
                       value={usageData.percentUsed}
@@ -514,9 +566,19 @@ export function Subscription({
                   <div className='mt-4 space-y-2'>
                     <div className='flex justify-between text-xs'>
                       <span>Usage</span>
-                      <span>
-                        {usageData.currentUsage.toFixed(2)}$ / {usageData.limit}$
-                      </span>
+                      <div className='flex items-center gap-2'>
+                        <span>{usageData.currentUsage.toFixed(2)}$ / </span>
+                        {usageLimitData ? (
+                          <UsageLimitEditor
+                            currentLimit={usageLimitData.currentLimit}
+                            canEdit={usageLimitData.canEdit}
+                            minimumLimit={usageLimitData.minimumLimit}
+                            onLimitUpdated={handleLimitUpdated}
+                          />
+                        ) : (
+                          <span>${usageData.limit}</span>
+                        )}
+                      </div>
                     </div>
                     <Progress
                       value={usageData.percentUsed}
@@ -721,9 +783,19 @@ export function Subscription({
                   <div className='mt-4 space-y-2'>
                     <div className='flex justify-between text-xs'>
                       <span>Usage</span>
-                      <span>
-                        {usageData.currentUsage.toFixed(2)}$ / {usageData.limit}$
-                      </span>
+                      <div className='flex items-center gap-2'>
+                        <span>{usageData.currentUsage.toFixed(2)}$ / </span>
+                        {usageLimitData ? (
+                          <UsageLimitEditor
+                            currentLimit={usageLimitData.currentLimit}
+                            canEdit={usageLimitData.canEdit}
+                            minimumLimit={usageLimitData.minimumLimit}
+                            onLimitUpdated={handleLimitUpdated}
+                          />
+                        ) : (
+                          <span>${usageData.limit}</span>
+                        )}
+                      </div>
                     </div>
                     <Progress
                       value={usageData.percentUsed}
