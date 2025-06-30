@@ -120,81 +120,159 @@ function escapeRegExp(string: string): string {
 }
 
 /**
- * Creates a detailed error message for JavaScript syntax errors
+ * Analyzes user code for common syntax issues
  */
-function createDetailedSyntaxError(error: any, code: string, resolvedCode: string): string {
-  let errorMessage = 'JavaScript Syntax Error: '
+function analyzeUserCodeSyntax(code: string): { issue: string; suggestion: string } | null {
+  // Check for unclosed parentheses, brackets, braces
+  let parenCount = 0
+  let bracketCount = 0
+  let braceCount = 0
+  let inString = false
+  let stringChar = ''
 
-  // Extract line and column information if available
-  let lineNumber: number | undefined
-  let columnNumber: number | undefined
+  for (let i = 0; i < code.length; i++) {
+    const char = code[i]
+    const prevChar = i > 0 ? code[i - 1] : ''
 
-  if (error.stack) {
-    // Try to extract line/column from stack trace
-    const lineMatch = error.stack.match(/:(\d+):(\d+)/) || error.stack.match(/line (\d+)/)
-    if (lineMatch) {
-      lineNumber = Number.parseInt(lineMatch[1])
-      columnNumber = lineMatch[2] ? Number.parseInt(lineMatch[2]) : undefined
+    // Handle string literals
+    if ((char === '"' || char === "'" || char === '`') && prevChar !== '\\') {
+      if (!inString) {
+        inString = true
+        stringChar = char
+      } else if (char === stringChar) {
+        inString = false
+        stringChar = ''
+      }
+    }
+
+    // Skip characters inside strings
+    if (inString) continue
+
+    // Count brackets/braces/parens
+    if (char === '(') parenCount++
+    else if (char === ')') parenCount--
+    else if (char === '[') bracketCount++
+    else if (char === ']') bracketCount--
+    else if (char === '{') braceCount++
+    else if (char === '}') braceCount--
+  }
+
+  // Check for unclosed structures
+  if (parenCount > 0) {
+    return {
+      issue: 'Unclosed parenthesis',
+      suggestion: 'You have an opening parenthesis "(" that needs to be closed with ")"',
+    }
+  }
+  if (bracketCount > 0) {
+    return {
+      issue: 'Unclosed bracket',
+      suggestion: 'You have an opening bracket "[" that needs to be closed with "]"',
+    }
+  }
+  if (braceCount > 0) {
+    return {
+      issue: 'Unclosed brace',
+      suggestion: 'You have an opening brace "{" that needs to be closed with "}"',
     }
   }
 
-  // Parse the error message to provide more context
-  const originalError = error.message || error.toString()
+  // Check for incomplete statements
+  const trimmedCode = code.trim()
+  if (trimmedCode.endsWith('(')) {
+    return {
+      issue: 'Incomplete function call',
+      suggestion:
+        'Your function call is incomplete - add the arguments and closing parenthesis ")"',
+    }
+  }
 
-  if (originalError.includes('Unexpected token')) {
-    const tokenMatch = originalError.match(/Unexpected token ['"']?([^'"'\s]+)['"']?/)
-    if (tokenMatch) {
-      errorMessage += `Unexpected token "${tokenMatch[1]}"`
+  if (trimmedCode.endsWith('[')) {
+    return {
+      issue: 'Incomplete array access',
+      suggestion: 'Your array access is incomplete - add the index and closing bracket "]"',
+    }
+  }
+
+  if (trimmedCode.endsWith('{')) {
+    return {
+      issue: 'Incomplete object',
+      suggestion: 'Your object is incomplete - add the properties and closing brace "}"',
+    }
+  }
+
+  return null
+}
+
+/**
+ * Creates a detailed error message for JavaScript syntax errors
+ */
+function createDetailedSyntaxError(
+  error: any,
+  originalCode: string,
+  wrappedCode: string,
+  isCustomTool: boolean,
+  executionParams: Record<string, any>
+): string {
+  let errorMessage = 'JavaScript Syntax Error: '
+
+  // First, analyze the user's code directly for common issues
+  const codeAnalysis = analyzeUserCodeSyntax(originalCode)
+
+  if (codeAnalysis) {
+    // We found a clear issue in the user's code
+    errorMessage += codeAnalysis.issue
+  } else {
+    // Fall back to parsing the VM error message
+    const originalError = error.message || error.toString()
+
+    if (originalError.includes('Unexpected end of input')) {
+      errorMessage += 'Unexpected end of input'
+    } else if (originalError.includes('Unexpected token')) {
+      const tokenMatch = originalError.match(/Unexpected token ['"']?([^'"'\s]+)['"']?/)
+      if (tokenMatch) {
+        errorMessage += `Unexpected token "${tokenMatch[1]}"`
+      } else {
+        errorMessage += 'Unexpected token'
+      }
+    } else if (originalError.includes('Missing') || originalError.includes('Expected')) {
+      errorMessage += originalError
     } else {
       errorMessage += originalError
     }
-  } else if (originalError.includes('Unexpected end of input')) {
-    errorMessage +=
-      'Unexpected end of input - you may be missing a closing brace "}", bracket "]", or parenthesis ")"'
-  } else if (originalError.includes('Missing') || originalError.includes('Expected')) {
-    errorMessage += originalError
-  } else {
-    errorMessage += originalError
   }
 
-  // Add line information if available
-  if (lineNumber) {
-    errorMessage += ` at line ${lineNumber}`
-    if (columnNumber) {
-      errorMessage += `, column ${columnNumber}`
-    }
-  }
+  // Always show the user's original code for context
+  errorMessage += '\n\nYour code:'
+  const originalLines = originalCode.split('\n')
 
-  // Show the problematic code section
-  const codeLines = resolvedCode.split('\n')
-  if (lineNumber && lineNumber <= codeLines.length) {
-    errorMessage += '\n\nProblematic code:'
-
-    // Show a few lines around the error for context
-    const startLine = Math.max(0, lineNumber - 3)
-    const endLine = Math.min(codeLines.length, lineNumber + 2)
-
-    for (let i = startLine; i < endLine; i++) {
-      const isErrorLine = i + 1 === lineNumber
-      const lineNum = (i + 1).toString().padStart(3, ' ')
-      const prefix = isErrorLine ? '>>>' : '   '
-      errorMessage += `\n${prefix} ${lineNum} | ${codeLines[i]}`
-
-      // Add pointer to the column if available
-      if (isErrorLine && columnNumber) {
-        const pointer = `${' '.repeat(prefix.length + lineNum.length + 3 + columnNumber - 1)}^`
-        errorMessage += `\n${pointer}`
-      }
-    }
-  } else {
-    // If we can't pinpoint the line, show the first few lines of code for context
-    errorMessage += '\n\nYour code:'
-    const previewLines = code.split('\n').slice(0, 5)
-    previewLines.forEach((line, index) => {
+  // Show all lines if code is short, or first/last few lines if it's long
+  if (originalLines.length <= 10) {
+    originalLines.forEach((line, index) => {
       errorMessage += `\n    ${(index + 1).toString().padStart(2, ' ')} | ${line}`
     })
-    if (code.split('\n').length > 5) {
-      errorMessage += '\n    ... (more lines)'
+  } else {
+    // Show first 5 and last 3 lines
+    originalLines.slice(0, 5).forEach((line, index) => {
+      errorMessage += `\n    ${(index + 1).toString().padStart(2, ' ')} | ${line}`
+    })
+    errorMessage += '\n    ... (more lines)'
+    originalLines.slice(-3).forEach((line, index) => {
+      const lineNum = originalLines.length - 3 + index + 1
+      errorMessage += `\n    ${lineNum.toString().padStart(2, ' ')} | ${line}`
+    })
+  }
+
+  // Add the specific suggestion if we found one
+  if (codeAnalysis) {
+    errorMessage += `\n\n💡 ${codeAnalysis.suggestion}`
+  } else {
+    // Add general helpful tips
+    const originalError = error.message || error.toString()
+    if (originalError.includes('Unexpected end of input')) {
+      errorMessage += '\n\n💡 Tip: Check for missing closing braces }, brackets ], or parentheses )'
+    } else if (originalError.includes('Unexpected token')) {
+      errorMessage += '\n\n💡 Tip: Check for typos, missing semicolons, or incorrect syntax'
     }
   }
 
@@ -204,7 +282,7 @@ function createDetailedSyntaxError(error: any, code: string, resolvedCode: strin
 /**
  * Creates a detailed error message for runtime errors
  */
-function createDetailedRuntimeError(error: any, stdout: string): string {
+function createDetailedRuntimeError(error: any, stdout: string, originalCode: string): string {
   let errorMessage = 'JavaScript Runtime Error: '
 
   if (error.name && error.name !== 'Error') {
@@ -213,23 +291,48 @@ function createDetailedRuntimeError(error: any, stdout: string): string {
 
   errorMessage += error.message || error.toString()
 
-  // Add stack trace information if available
-  if (error.stack) {
-    const stackLines = error.stack.split('\n').slice(1, 4) // Take first few stack frames
-    if (stackLines.length > 0) {
-      errorMessage += '\n\nStack trace:'
-      stackLines.forEach((line: string) => {
-        if (line.trim()) {
-          errorMessage += `\n    ${line.trim()}`
-        }
-      })
-    }
+  // Show the user's original code for context
+  errorMessage += '\n\nYour code:'
+  const originalLines = originalCode.split('\n')
+
+  if (originalLines.length <= 10) {
+    originalLines.forEach((line, index) => {
+      errorMessage += `\n    ${(index + 1).toString().padStart(2, ' ')} | ${line}`
+    })
+  } else {
+    // Show first 5 and last 3 lines for longer code
+    originalLines.slice(0, 5).forEach((line, index) => {
+      errorMessage += `\n    ${(index + 1).toString().padStart(2, ' ')} | ${line}`
+    })
+    errorMessage += '\n    ... (more lines)'
+    originalLines.slice(-3).forEach((line, index) => {
+      const lineNum = originalLines.length - 3 + index + 1
+      errorMessage += `\n    ${lineNum.toString().padStart(2, ' ')} | ${line}`
+    })
   }
 
-  // Include console output if there was any
+  // Include clean console output if there was any
   if (stdout?.trim()) {
-    errorMessage += '\n\nConsole output:'
-    errorMessage += `\n${stdout}`
+    // Clean up the stdout by removing unwanted artifacts
+    const cleanStdout = stdout
+      .split('\n')
+      .map((line) => line.replace(/^ERROR:\s*/, '').trim())
+      .filter((line) => {
+        // Remove empty lines, empty objects, and other artifacts
+        return (
+          line.length > 0 &&
+          line !== '{}' &&
+          line !== 'undefined' &&
+          line !== 'null' &&
+          !line.match(/^\s*$/)
+        )
+      })
+      .join('\n')
+
+    if (cleanStdout) {
+      errorMessage += '\n\nConsole output:'
+      errorMessage += `\n${cleanStdout}`
+    }
   }
 
   return errorMessage
@@ -455,7 +558,7 @@ export async function POST(req: NextRequest) {
             .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
             .join(' ')}\n`
           logger.error(`[${requestId}] Code Console Error: ${errorMessage}`)
-          stdout += `ERROR: ${errorMessage}`
+          stdout += errorMessage
         },
       },
     })
@@ -473,7 +576,6 @@ export async function POST(req: NextRequest) {
           }
           ${resolvedCode}
         } catch (error) {
-          console.error(error);
           throw error;
         }
       })()
@@ -498,7 +600,13 @@ export async function POST(req: NextRequest) {
 
       if (isSyntaxError) {
         // Handle syntax errors with detailed context
-        const detailedError = createDetailedSyntaxError(scriptError, code, codeToExecute)
+        const detailedError = createDetailedSyntaxError(
+          scriptError,
+          code,
+          codeToExecute,
+          isCustomTool,
+          executionParams
+        )
         logger.error(`[${requestId}] JavaScript syntax error`, {
           originalError: scriptError.message,
           detailedError,
@@ -507,7 +615,7 @@ export async function POST(req: NextRequest) {
         throw new Error(detailedError)
       }
       // Handle runtime errors
-      const detailedError = createDetailedRuntimeError(scriptError, stdout)
+      const detailedError = createDetailedRuntimeError(scriptError, stdout, code)
       logger.error(`[${requestId}] JavaScript runtime error`, {
         originalError: scriptError.message,
         detailedError,

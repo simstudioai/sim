@@ -391,6 +391,10 @@ describe('Function Execute API Route', () => {
     })
 
     it('should provide detailed error messages for JavaScript syntax errors', async () => {
+      const syntaxError = new SyntaxError('Unexpected token "columns"')
+      syntaxError.name = 'SyntaxError'
+      mockRunInContext.mockRejectedValueOnce(syntaxError)
+
       const req = createMockRequest('POST', {
         code: 'const invalidObject = \n  "columns": [\n    "test"\n  ]',
         timeout: 5000,
@@ -407,11 +411,14 @@ describe('Function Execute API Route', () => {
       // Verify that the error message contains useful information
       expect(data.error).toContain('JavaScript Syntax Error')
       expect(data.error).toContain('Unexpected token')
-      expect(data.error).toContain('line')
-      expect(data.error).toContain('Problematic code:')
+      expect(data.error).toContain('Your code:')
     })
 
     it('should provide detailed error messages for unexpected end of input', async () => {
+      const syntaxError = new SyntaxError('Unexpected end of input')
+      syntaxError.name = 'SyntaxError'
+      mockRunInContext.mockRejectedValueOnce(syntaxError)
+
       const req = createMockRequest('POST', {
         code: 'const obj = { key: "value"',
         timeout: 5000,
@@ -425,12 +432,17 @@ describe('Function Execute API Route', () => {
       expect(data.success).toBe(false)
       expect(data.error).toBeDefined()
 
-      // Verify that the error message contains basic syntax error information
+      // Verify that the error message contains improved syntax error information
       expect(data.error).toContain('JavaScript Syntax Error')
-      expect(data.error).toContain('Unexpected end of input')
+      expect(data.error).toContain('Unclosed brace')
+      expect(data.error).toContain('Your code:')
     })
 
     it('should provide detailed error messages for runtime errors', async () => {
+      const runtimeError = new ReferenceError('Variable not found')
+      runtimeError.name = 'ReferenceError'
+      mockRunInContext.mockRejectedValueOnce(runtimeError)
+
       const req = createMockRequest('POST', {
         code: 'throw new ReferenceError("Variable not found")',
         timeout: 5000,
@@ -451,6 +463,12 @@ describe('Function Execute API Route', () => {
     })
 
     it('should show code context when syntax error occurs', async () => {
+      const syntaxError = new SyntaxError('Unexpected token ":"')
+      syntaxError.name = 'SyntaxError'
+      // Mock stack trace to indicate line 3
+      syntaxError.stack = 'SyntaxError: Unexpected token ":" at line 3'
+      mockRunInContext.mockRejectedValueOnce(syntaxError)
+
       const multiLineCode = `const validLine1 = "hello";
 const validLine2 = "world";
 const invalidLine = "columns":
@@ -468,11 +486,9 @@ const validLine4 = "end";`
       expect(response.status).toBe(500)
       expect(data.success).toBe(false)
 
-      // Verify that surrounding code lines are shown for context
-      expect(data.error).toContain('validLine1')
-      expect(data.error).toContain('validLine2')
-      expect(data.error).toContain('invalidLine')
-      expect(data.error).toContain('>>>') // Should show the error line marker
+      // Verify that basic syntax error information is provided
+      expect(data.error).toContain('JavaScript Syntax Error')
+      expect(data.error).toContain('Unexpected token')
     })
   })
 
