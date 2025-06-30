@@ -32,7 +32,7 @@ export class FunctionBlockHandler implements BlockHandler {
         blockData[blockId] = blockState.output
 
         // Try to find the block name from the workflow
-        const workflowBlock = context.workflow?.blocks?.find(b => b.id === blockId)
+        const workflowBlock = context.workflow?.blocks?.find((b) => b.id === blockId)
         if (workflowBlock?.metadata?.name) {
           blockNameMapping[workflowBlock.metadata.name] = blockId
         }
