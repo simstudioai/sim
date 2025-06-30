@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const validationResult = requestSchema.safeParse(body)
 
     if (!validationResult.success) {
-      console.log("Route Stagehand", JSON.stringify(validationResult.error))
+
       logger.error('Invalid request body', { errors: validationResult.error.errors })
       return NextResponse.json(
         { error: 'Invalid request parameters', details: validationResult.error.errors },
@@ -101,8 +101,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (!apiKey || typeof apiKey !== 'string') {
-      logger.error('Invalid OpenAI API key format')
-      return NextResponse.json({ error: 'Invalid OpenAI API key format' }, { status: 400 })
+      logger.error('Invalid API key format')
+      return NextResponse.json({ error: 'Invalid API key format' }, { status: 400 })
     }
 
     try {
