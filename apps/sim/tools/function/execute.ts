@@ -70,7 +70,21 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
     const result = await response.json()
 
     if (!response.ok || !result.success) {
-      throw new Error(result.error || 'Code execution failed')
+      // Create enhanced error with debug information if available
+      const error = new Error(result.error || 'Code execution failed')
+
+      // Add debug information to the error object if available
+      if (result.debug) {
+        Object.assign(error, {
+          line: result.debug.line,
+          column: result.debug.column,
+          errorType: result.debug.errorType,
+          stack: result.debug.stack,
+          enhancedError: true,
+        })
+      }
+
+      throw error
     }
 
     return {
@@ -83,6 +97,10 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
   },
 
   transformError: (error: any) => {
+    // If we have enhanced error information, create a more detailed message
+    if (error.enhancedError && error.line) {
+      return `Line ${error.line}${error.column ? `:${error.column}` : ''} - ${error.message}`
+    }
     return error.message || 'Code execution failed'
   },
 }
