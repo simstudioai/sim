@@ -6,7 +6,7 @@ export const KnowledgeBlock: BlockConfig = {
   name: 'Knowledge',
   description: 'Use vector search',
   longDescription:
-    'Perform semantic vector search across one or more knowledge bases or upload new chunks to documents. Uses advanced AI embeddings to understand meaning and context for search operations.',
+    'Perform semantic vector search across knowledge bases, upload individual chunks to existing documents, or create new documents from text content. Uses advanced AI embeddings to understand meaning and context for search operations.',
   bgColor: '#00B0B0',
   icon: PackageSearchIcon,
   category: 'blocks',
@@ -115,7 +115,7 @@ export const KnowledgeBlock: BlockConfig = {
       title: 'Document Name',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter the document name to create',
+      placeholder: 'Enter document name',
       condition: { field: 'operation', value: ['create_document'] },
     },
     {
@@ -123,7 +123,7 @@ export const KnowledgeBlock: BlockConfig = {
       title: 'Document Content',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter the document content to create',
+      placeholder: 'Enter the document content',
       rows: 6,
       condition: { field: 'operation', value: ['create_document'] },
     },

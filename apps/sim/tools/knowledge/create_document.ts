@@ -30,27 +30,39 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // Create document from text content
-      const textContent = params.content
-      const documentName = params.name
+      const textContent = params.content?.trim()
+      const documentName = params.name?.trim()
 
-      // Calculate content metrics
+      if (!documentName || documentName.length === 0) {
+        throw new Error('Document name is required')
+      }
+      if (documentName.length > 255) {
+        throw new Error('Document name must be 255 characters or less')
+      }
+      if (/[<>:"/\\|?*]/.test(documentName)) {
+        throw new Error('Document name contains invalid characters. Avoid: < > : " / \\ | ? *')
+      }
+      if (!textContent || textContent.length < 10) {
+        throw new Error('Document content must be at least 10 characters long')
+      }
+      if (textContent.length > 1000000) {
+        throw new Error('Document content exceeds maximum size of 1MB')
+      }
+
       const contentBytes = new TextEncoder().encode(textContent).length
 
-      // Properly encode UTF-8 text to base64
       const utf8Bytes = new TextEncoder().encode(textContent)
       const base64Content =
         typeof Buffer !== 'undefined'
           ? Buffer.from(textContent, 'utf8').toString('base64')
           : btoa(String.fromCharCode(...utf8Bytes))
 
-      // Create data URI for text content
       const dataUri = `data:text/plain;base64,${base64Content}`
 
       const documents = [
         {
           filename: documentName.endsWith('.txt') ? documentName : `${documentName}.txt`,
-          fileUrl: dataUri, // or handle as direct text content
+          fileUrl: dataUri,
           fileSize: contentBytes,
           mimeType: 'text/plain',
         },
@@ -125,7 +137,22 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
     }
   },
   transformError: async (error): Promise<KnowledgeCreateDocumentResponse> => {
-    const errorMessage = `Failed to create document: ${error.message || 'Unknown error'}`
+    let errorMessage = 'Failed to create document'
+
+    if (error.message) {
+      if (error.message.includes('Document name')) {
+        errorMessage = `Document name error: ${error.message}`
+      } else if (error.message.includes('Document content')) {
+        errorMessage = `Document content error: ${error.message}`
+      } else if (error.message.includes('invalid characters')) {
+        errorMessage = `${error.message}. Please use a valid filename.`
+      } else if (error.message.includes('maximum size')) {
+        errorMessage = `${error.message}. Consider breaking large content into smaller documents.`
+      } else {
+        errorMessage = `Failed to create document: ${error.message}`
+      }
+    }
+
     return {
       success: false,
       output: {

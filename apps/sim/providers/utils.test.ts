@@ -110,6 +110,9 @@ describe('Model Capabilities', () => {
     it.concurrent('should return true for models that support temperature', () => {
       const supportedModels = [
         'gpt-4o',
+        'gpt-4.1',
+        'gpt-4.1-mini',
+        'gpt-4.1-nano',
         'gemini-2.5-flash',
         'claude-sonnet-4-0',
         'claude-opus-4-0',
@@ -139,10 +142,6 @@ describe('Model Capabilities', () => {
         'deepseek-r1',
         // Chat models that don't support temperature
         'deepseek-chat',
-        // GPT-4.1 family models that don't support temperature
-        'gpt-4.1',
-        'gpt-4.1-nano',
-        'gpt-4.1-mini',
         'azure/gpt-4.1',
         'azure/model-router',
       ]
