@@ -32,7 +32,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         isDeployed: workflow.isDeployed,
         deployedAt: workflow.deployedAt,
         userId: workflow.userId,
-        state: workflow.state,
         deployedState: workflow.deployedState,
       })
       .from(workflow)
@@ -93,11 +92,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Check if the workflow has meaningful changes that would require redeployment
     let needsRedeployment = false
     if (workflowData.deployedState) {
-      const { hasWorkflowChanged } = await import('@/lib/workflows/utils')
-      needsRedeployment = hasWorkflowChanged(
-        workflowData.state as any,
-        workflowData.deployedState as any
-      )
+      // Load current state from normalized tables for comparison
+      const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/db-helpers')
+      const normalizedData = await loadWorkflowFromNormalizedTables(id)
+
+      if (normalizedData) {
+        // Convert normalized data to WorkflowState format for comparison
+        const currentState = {
+          blocks: normalizedData.blocks,
+          edges: normalizedData.edges,
+          loops: normalizedData.loops,
+          parallels: normalizedData.parallels,
+        }
+
+        const { hasWorkflowChanged } = await import('@/lib/workflows/utils')
+        needsRedeployment = hasWorkflowChanged(
+          currentState as any,
+          workflowData.deployedState as any
+        )
+      }
     }
 
     logger.info(`[${requestId}] Successfully retrieved deployment info: ${id}`)
@@ -126,11 +139,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Get the workflow to find the user
+    // Get the workflow to find the user (removed deprecated state column)
     const workflowData = await db
       .select({
         userId: workflow.userId,
-        state: workflow.state,
       })
       .from(workflow)
       .where(eq(workflow.id, id))

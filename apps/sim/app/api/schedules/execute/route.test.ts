@@ -17,6 +17,17 @@ describe('Scheduled Workflow Execution API Route', () => {
 
     mockExecutionDependencies()
 
+    // Mock the normalized tables helper
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
+        blocks: sampleWorkflowState.blocks,
+        edges: sampleWorkflowState.edges || [],
+        loops: sampleWorkflowState.loops || {},
+        parallels: sampleWorkflowState.parallels || {},
+        isFromNormalizedTables: true,
+      }),
+    }))
+
     vi.doMock('croner', () => ({
       Cron: vi.fn().mockImplementation(() => ({
         nextRun: vi.fn().mockReturnValue(new Date(Date.now() + 60000)), // Next run in 1 minute

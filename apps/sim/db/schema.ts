@@ -116,6 +116,7 @@ export const workflow = pgTable('workflow', {
   folderId: text('folder_id').references(() => workflowFolder.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   description: text('description'),
+  // DEPRECATED: Use normalized tables (workflow_blocks, workflow_edges, workflow_subflows) instead
   state: json('state').notNull(),
   color: text('color').notNull().default('#3972F6'),
   lastSynced: timestamp('last_synced').notNull(),

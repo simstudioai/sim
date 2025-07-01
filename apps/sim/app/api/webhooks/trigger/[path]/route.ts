@@ -12,6 +12,7 @@ import {
   processWebhook,
   processWhatsAppDeduplication,
 } from '@/lib/webhooks/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
 
@@ -186,6 +187,24 @@ export async function POST(
 
   foundWebhook = webhooks[0].webhook
   foundWorkflow = webhooks[0].workflow
+
+  const normalizedData = await loadWorkflowFromNormalizedTables(foundWorkflow.id)
+
+  if (!normalizedData) {
+    logger.error(`[${requestId}] No normalized data found for webhook workflow ${foundWorkflow.id}`)
+    return new NextResponse('Workflow data not found in normalized tables', { status: 500 })
+  }
+
+  // Construct state from normalized data only (execution-focused, no frontend state fields)
+  foundWorkflow.state = {
+    blocks: normalizedData.blocks,
+    edges: normalizedData.edges,
+    loops: normalizedData.loops,
+    parallels: normalizedData.parallels,
+    lastSaved: Date.now(),
+    isDeployed: foundWorkflow.isDeployed || false,
+    deployedAt: foundWorkflow.deployedAt,
+  }
 
   // Special handling for Telegram webhooks to work around middleware User-Agent checks
   if (foundWebhook.provider === 'telegram') {

@@ -24,45 +24,54 @@ describe('Workflow Execution API Route', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    // Mock workflow middleware
     vi.doMock('@/app/api/workflows/middleware', () => ({
       validateWorkflowAccess: vi.fn().mockResolvedValue({
         workflow: {
           id: 'workflow-id',
           userId: 'user-id',
-          state: {
-            blocks: {
-              'starter-id': {
-                id: 'starter-id',
-                type: 'starter',
-                name: 'Start',
-                position: { x: 100, y: 100 },
-                enabled: true,
-              },
-              'agent-id': {
-                id: 'agent-id',
-                type: 'agent',
-                name: 'Agent',
-                position: { x: 300, y: 100 },
-                enabled: true,
-              },
-            },
-            edges: [
-              {
-                id: 'edge-1',
-                source: 'starter-id',
-                target: 'agent-id',
-                sourceHandle: 'source',
-                targetHandle: 'target',
-              },
-            ],
-            loops: {},
-          },
         },
       }),
     }))
 
-    // Reset execute mock to track calls
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
+        blocks: {
+          'starter-id': {
+            id: 'starter-id',
+            type: 'starter',
+            name: 'Start',
+            position: { x: 100, y: 100 },
+            enabled: true,
+            subBlocks: {},
+            outputs: {},
+            data: {},
+          },
+          'agent-id': {
+            id: 'agent-id',
+            type: 'agent',
+            name: 'Agent',
+            position: { x: 300, y: 100 },
+            enabled: true,
+            subBlocks: {},
+            outputs: {},
+            data: {},
+          },
+        },
+        edges: [
+          {
+            id: 'edge-1',
+            source: 'starter-id',
+            target: 'agent-id',
+            sourceHandle: 'source',
+            targetHandle: 'target',
+          },
+        ],
+        loops: {},
+        parallels: {},
+        isFromNormalizedTables: true,
+      }),
+    }))
+
     executeMock = vi.fn().mockResolvedValue({
       success: true,
       output: {
@@ -76,14 +85,12 @@ describe('Workflow Execution API Route', () => {
       },
     })
 
-    // Mock executor
     vi.doMock('@/executor', () => ({
       Executor: vi.fn().mockImplementation(() => ({
         execute: executeMock,
       })),
     }))
 
-    // Mock environment variables
     vi.doMock('@/lib/utils', () => ({
       decryptSecret: vi.fn().mockResolvedValue({
         decrypted: 'decrypted-secret-value',
@@ -92,13 +99,11 @@ describe('Workflow Execution API Route', () => {
       getRotatingApiKey: vi.fn().mockReturnValue('rotated-api-key'),
     }))
 
-    // Mock logger
     vi.doMock('@/lib/logs/execution-logger', () => ({
       persistExecutionLogs: vi.fn().mockResolvedValue(undefined),
       persistExecutionError: vi.fn().mockResolvedValue(undefined),
     }))
 
-    // Mock trace spans
     vi.doMock('@/lib/logs/trace-spans', () => ({
       buildTraceSpans: vi.fn().mockReturnValue({
         traceSpans: [],
@@ -106,13 +111,11 @@ describe('Workflow Execution API Route', () => {
       }),
     }))
 
-    // Mock workflow run counts
     vi.doMock('@/lib/workflows/utils', () => ({
       updateWorkflowRunCounts: vi.fn().mockResolvedValue(undefined),
       workflowHasResponseBlock: vi.fn().mockReturnValue(false),
     }))
 
-    // Mock database
     vi.doMock('@/db', () => {
       const mockDb = {
         select: vi.fn().mockImplementation(() => ({
@@ -140,7 +143,6 @@ describe('Workflow Execution API Route', () => {
       return { db: mockDb }
     })
 
-    // Mock Serializer
     vi.doMock('@/serializer', () => ({
       Serializer: vi.fn().mockImplementation(() => ({
         serializeWorkflow: vi.fn().mockReturnValue({
@@ -162,49 +164,37 @@ describe('Workflow Execution API Route', () => {
    * Simulates direct execution with URL-based parameters
    */
   it('should execute workflow with GET request successfully', async () => {
-    // Create a mock request with query parameters
     const req = createMockRequest('GET')
 
-    // Create params similar to what Next.js would provide
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    // Import the handler after mocks are set up
     const { GET } = await import('./route')
 
-    // Call the handler
     const response = await GET(req, { params })
 
-    // Get the actual status code - in some implementations this might not be 200
-    // Based on the current implementation, validate the response exists
     expect(response).toBeDefined()
 
-    // Try to parse the response body
     let data
     try {
       data = await response.json()
     } catch (e) {
-      // If we can't parse JSON, the response may not be what we expect
       console.error('Response could not be parsed as JSON:', await response.text())
       throw e
     }
 
-    // If status is 200, verify success structure
     if (response.status === 200) {
       expect(data).toHaveProperty('success', true)
       expect(data).toHaveProperty('output')
       expect(data.output).toHaveProperty('response')
     }
 
-    // Verify middleware was called
     const validateWorkflowAccess = (await import('@/app/api/workflows/middleware'))
       .validateWorkflowAccess
     expect(validateWorkflowAccess).toHaveBeenCalledWith(expect.any(Object), 'workflow-id')
 
-    // Verify executor was initialized
     const Executor = (await import('@/executor')).Executor
     expect(Executor).toHaveBeenCalled()
 
-    // Verify execute was called with undefined input (GET requests don't have body)
     expect(executeMock).toHaveBeenCalledWith('workflow-id')
   })
 
@@ -213,59 +203,45 @@ describe('Workflow Execution API Route', () => {
    * Simulates execution with a JSON body containing parameters
    */
   it('should execute workflow with POST request successfully', async () => {
-    // Create request body with custom inputs
     const requestBody = {
       inputs: {
         message: 'Test input message',
       },
     }
 
-    // Create a mock request with the request body
     const req = createMockRequest('POST', requestBody)
 
-    // Create params similar to what Next.js would provide
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    // Import the handler after mocks are set up
     const { POST } = await import('./route')
 
-    // Call the handler
     const response = await POST(req, { params })
 
-    // Ensure response exists
     expect(response).toBeDefined()
 
-    // Try to parse the response body
     let data
     try {
       data = await response.json()
     } catch (e) {
-      // If we can't parse JSON, the response may not be what we expect
       console.error('Response could not be parsed as JSON:', await response.text())
       throw e
     }
 
-    // If status is 200, verify success structure
     if (response.status === 200) {
       expect(data).toHaveProperty('success', true)
       expect(data).toHaveProperty('output')
       expect(data.output).toHaveProperty('response')
     }
 
-    // Verify middleware was called
     const validateWorkflowAccess = (await import('@/app/api/workflows/middleware'))
       .validateWorkflowAccess
     expect(validateWorkflowAccess).toHaveBeenCalledWith(expect.any(Object), 'workflow-id')
 
-    // Verify executor was constructed
     const Executor = (await import('@/executor')).Executor
     expect(Executor).toHaveBeenCalled()
 
-    // Verify execute was called with the input body
     expect(executeMock).toHaveBeenCalledWith('workflow-id')
 
-    // Updated expectations to match actual implementation
-    // The structure should match: serializedWorkflow, processedBlockStates, decryptedEnvVars, processedInput, workflowVariables
     expect(Executor).toHaveBeenCalledWith(
       expect.anything(), // serializedWorkflow
       expect.anything(), // processedBlockStates
@@ -282,7 +258,6 @@ describe('Workflow Execution API Route', () => {
    * Test POST execution with structured input matching the input format
    */
   it('should execute workflow with structured input matching the input format', async () => {
-    // Create structured input matching the expected input format
     const structuredInput = {
       firstName: 'John',
       age: 30,
@@ -291,27 +266,20 @@ describe('Workflow Execution API Route', () => {
       tags: ['test', 'api'],
     }
 
-    // Create a mock request with the structured input
     const req = createMockRequest('POST', structuredInput)
 
-    // Create params similar to what Next.js would provide
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    // Import the handler after mocks are set up
     const { POST } = await import('./route')
 
-    // Call the handler
     const response = await POST(req, { params })
 
-    // Ensure response exists and is successful
     expect(response).toBeDefined()
     expect(response.status).toBe(200)
 
-    // Parse the response body
     const data = await response.json()
     expect(data).toHaveProperty('success', true)
 
-    // Verify the executor was constructed with the structured input - updated to match implementation
     const Executor = (await import('@/executor')).Executor
     expect(Executor).toHaveBeenCalledWith(
       expect.anything(), // serializedWorkflow
@@ -478,36 +446,48 @@ describe('Workflow Execution API Route', () => {
         workflow: {
           id: 'workflow-with-vars-id',
           userId: 'user-id',
-          state: {
-            blocks: {
-              'starter-id': {
-                id: 'starter-id',
-                type: 'starter',
-                name: 'Start',
-                position: { x: 100, y: 100 },
-                enabled: true,
-              },
-              'agent-id': {
-                id: 'agent-id',
-                type: 'agent',
-                name: 'Agent',
-                position: { x: 300, y: 100 },
-                enabled: true,
-              },
-            },
-            edges: [
-              {
-                id: 'edge-1',
-                source: 'starter-id',
-                target: 'agent-id',
-                sourceHandle: 'source',
-                targetHandle: 'target',
-              },
-            ],
-            loops: {},
-          },
           variables: workflowVariables,
         },
+      }),
+    }))
+
+    // Mock normalized tables helper for this specific test
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
+        blocks: {
+          'starter-id': {
+            id: 'starter-id',
+            type: 'starter',
+            name: 'Start',
+            position: { x: 100, y: 100 },
+            enabled: true,
+            subBlocks: {},
+            outputs: {},
+            data: {},
+          },
+          'agent-id': {
+            id: 'agent-id',
+            type: 'agent',
+            name: 'Agent',
+            position: { x: 300, y: 100 },
+            enabled: true,
+            subBlocks: {},
+            outputs: {},
+            data: {},
+          },
+        },
+        edges: [
+          {
+            id: 'edge-1',
+            source: 'starter-id',
+            target: 'agent-id',
+            sourceHandle: 'source',
+            targetHandle: 'target',
+          },
+        ],
+        loops: {},
+        parallels: {},
+        isFromNormalizedTables: true,
       }),
     }))
 

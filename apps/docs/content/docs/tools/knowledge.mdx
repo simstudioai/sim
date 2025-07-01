@@ -49,7 +49,7 @@ In Sim Studio, the Knowledge Base block enables your agents to perform intellige
 
 ## Usage Instructions
 
-Perform semantic vector search across one or more knowledge bases or upload new chunks to documents. Uses advanced AI embeddings to understand meaning and context for search operations.
+Perform semantic vector search across knowledge bases, upload individual chunks to existing documents, or create new documents from text content. Uses advanced AI embeddings to understand meaning and context for search operations.
 
 
 
@@ -99,6 +99,25 @@ Upload a new chunk to a document in a knowledge base
 | `enabled` | string |
 | `createdAt` | string |
 | `updatedAt` | string |
+
+### `knowledge_create_document`
+
+Create a new document in a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
+| `name` | string | Yes | Name of the document |
+| `content` | string | Yes | Content of the document |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `data` | string |
+| `name` | string |
 
 
 

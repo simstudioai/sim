@@ -432,7 +432,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         let workflowState: any
 
         if (workflowData?.state) {
-          // Use the state from the database
+          // API returns normalized data in state
           workflowState = {
             blocks: workflowData.state.blocks || {},
             edges: workflowData.state.edges || [],
@@ -448,9 +448,18 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             history: {
               past: [],
               present: {
-                state: workflowData.state,
+                state: {
+                  blocks: workflowData.state.blocks || {},
+                  edges: workflowData.state.edges || [],
+                  loops: workflowData.state.loops || {},
+                  parallels: workflowData.state.parallels || {},
+                  isDeployed: workflowData.isDeployed || false,
+                  deployedAt: workflowData.deployedAt
+                    ? new Date(workflowData.deployedAt)
+                    : undefined,
+                },
                 timestamp: Date.now(),
-                action: 'Loaded from database',
+                action: 'Loaded from database (normalized tables)',
                 subblockValues: {},
               },
               future: [],
