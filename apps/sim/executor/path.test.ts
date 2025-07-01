@@ -480,6 +480,7 @@ describe('PathTracker', () => {
     })
 
     it('should activate downstream paths when router selects a target', () => {
+<<<<<<< HEAD
       // Mock router output selecting api1 - based on implementation, it expects selectedPath directly
       mockContext.blockStates.set('router1', {
         output: {
@@ -487,6 +488,17 @@ describe('PathTracker', () => {
             blockId: 'api1',
             blockType: 'api',
             blockTitle: 'API 1',
+=======
+      // Mock router output selecting api1
+      mockContext.blockStates.set('router1', {
+        output: {
+          response: {
+            selectedPath: {
+              blockId: 'api1',
+              blockType: 'api',
+              blockTitle: 'API 1',
+            },
+>>>>>>> 9aff331c (fix(executor): fix dependency resolution, allow blocks with multiple inputs to execute (#598))
           },
         },
         executed: true,
@@ -519,6 +531,7 @@ describe('PathTracker', () => {
 
       pathTracker = new PathTracker(mockWorkflow)
 
+<<<<<<< HEAD
       // Mock router output selecting api1 - based on implementation, it expects selectedPath directly
       mockContext.blockStates.set('router1', {
         output: {
@@ -526,6 +539,17 @@ describe('PathTracker', () => {
             blockId: 'api1',
             blockType: 'api',
             blockTitle: 'API 1',
+=======
+      // Mock router output selecting api1
+      mockContext.blockStates.set('router1', {
+        output: {
+          response: {
+            selectedPath: {
+              blockId: 'api1',
+              blockType: 'api',
+              blockTitle: 'API 1',
+            },
+>>>>>>> 9aff331c (fix(executor): fix dependency resolution, allow blocks with multiple inputs to execute (#598))
           },
         },
         executed: true,
@@ -550,10 +574,19 @@ describe('PathTracker', () => {
 
       mockContext.blockStates.set('router1', {
         output: {
+<<<<<<< HEAD
           selectedPath: {
             blockId: 'api1',
             blockType: 'api',
             blockTitle: 'API 1',
+=======
+          response: {
+            selectedPath: {
+              blockId: 'api1',
+              blockType: 'api',
+              blockTitle: 'API 1',
+            },
+>>>>>>> 9aff331c (fix(executor): fix dependency resolution, allow blocks with multiple inputs to execute (#598))
           },
         },
         executed: true,
@@ -584,10 +617,19 @@ describe('PathTracker', () => {
 
       mockContext.blockStates.set('router1', {
         output: {
+<<<<<<< HEAD
           selectedPath: {
             blockId: 'api1',
             blockType: 'api',
             blockTitle: 'API 1',
+=======
+          response: {
+            selectedPath: {
+              blockId: 'api1',
+              blockType: 'api',
+              blockTitle: 'API 1',
+            },
+>>>>>>> 9aff331c (fix(executor): fix dependency resolution, allow blocks with multiple inputs to execute (#598))
           },
         },
         executed: true,
