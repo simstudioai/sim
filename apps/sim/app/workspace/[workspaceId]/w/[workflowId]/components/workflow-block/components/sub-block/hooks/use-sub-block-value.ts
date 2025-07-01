@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { isEqual } from 'lodash'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { getProviderFromModel } from '@/providers/utils'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 // Helper function to dispatch collaborative subblock updates
 const dispatchSubblockUpdate = (blockId: string, subBlockId: string, value: any) => {
@@ -239,7 +239,16 @@ export function useSubBlockValue<T = any>(
         }
       }
     },
-    [blockId, subBlockId, blockType, isApiKey, storeValue, triggerWorkflowUpdate, modelValue, collaborativeSetSubblockValue]
+    [
+      blockId,
+      subBlockId,
+      blockType,
+      isApiKey,
+      storeValue,
+      triggerWorkflowUpdate,
+      modelValue,
+      collaborativeSetSubblockValue,
+    ]
   )
 
   // Initialize valueRef on first render

@@ -68,8 +68,6 @@ export function DocumentSelector({
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
-
-
   // Fetch documents for the selected knowledge base
   const fetchDocuments = useCallback(async () => {
     if (!knowledgeBaseId) {

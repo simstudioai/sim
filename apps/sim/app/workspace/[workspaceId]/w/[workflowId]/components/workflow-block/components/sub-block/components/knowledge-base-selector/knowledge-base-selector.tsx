@@ -148,8 +148,6 @@ export function KnowledgeBaseSelector({
     onKnowledgeBaseSelect?.(selectedIds)
   }
 
-
-
   // Use cached data if available
   useEffect(() => {
     if (knowledgeBasesList.length > 0 && !initialFetchDone) {
