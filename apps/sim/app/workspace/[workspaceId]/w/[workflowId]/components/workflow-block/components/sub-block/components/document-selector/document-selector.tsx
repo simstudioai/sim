@@ -147,7 +147,7 @@ export function DocumentSelector({
     if (knowledgeBaseId && !initialFetchDone && !isPreview) {
       fetchDocuments()
     }
-  }, [knowledgeBaseId, initialFetchDone, isPreview])
+  }, [knowledgeBaseId, initialFetchDone, isPreview, fetchDocuments])
 
   const formatDocumentName = (document: DocumentData) => {
     return document.filename
