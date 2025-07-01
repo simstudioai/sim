@@ -4,7 +4,6 @@ import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -58,7 +57,6 @@ export function FileUpload({
   // Stores
   const { addNotification } = useNotificationStore()
   const { activeWorkflowId } = useWorkflowRegistry()
-  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
@@ -298,16 +296,10 @@ export function FileUpload({
         const newFiles = Array.from(uniqueFiles.values())
 
         setStoreValue(newFiles)
-
-        // Use collaborative update for persistence
-        collaborativeSetSubblockValue(blockId, subBlockId, newFiles)
         useWorkflowStore.getState().triggerUpdate()
       } else {
         // For single file: Replace with last uploaded file
         setStoreValue(uploadedFiles[0] || null)
-
-        // Use collaborative update for persistence
-        collaborativeSetSubblockValue(blockId, subBlockId, uploadedFiles[0] || null)
         useWorkflowStore.getState().triggerUpdate()
       }
     } catch (error) {
@@ -363,19 +355,9 @@ export function FileUpload({
         const filesArray = Array.isArray(value) ? value : value ? [value] : []
         const updatedFiles = filesArray.filter((f) => f.path !== file.path)
         setStoreValue(updatedFiles.length > 0 ? updatedFiles : null)
-
-        // Use collaborative update for persistence
-        collaborativeSetSubblockValue(
-          blockId,
-          subBlockId,
-          updatedFiles.length > 0 ? updatedFiles : null
-        )
       } else {
         // For single file: Clear the value
         setStoreValue(null)
-
-        // Use collaborative update for persistence
-        collaborativeSetSubblockValue(blockId, subBlockId, null)
       }
 
       useWorkflowStore.getState().triggerUpdate()
@@ -416,7 +398,6 @@ export function FileUpload({
 
     // Clear input state immediately for better UX
     setStoreValue(null)
-    collaborativeSetSubblockValue(blockId, subBlockId, null)
     useWorkflowStore.getState().triggerUpdate()
 
     if (fileInputRef.current) {

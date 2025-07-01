@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
 import { PackageSearchIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -14,9 +14,8 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useSubBlockValue } from '../../../sub-block/hooks/use-sub-block-value'
 
 interface KnowledgeBaseSelectorProps {
   blockId: string
@@ -37,23 +36,38 @@ export function KnowledgeBaseSelector({
 }: KnowledgeBaseSelectorProps) {
   const { getKnowledgeBasesList, knowledgeBasesList, loadingKnowledgeBasesList } =
     useKnowledgeStore()
-  const { getValue } = useSubBlockStore()
-  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseData[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBaseData[]>([])
   const [initialFetchDone, setInitialFetchDone] = useState(false)
 
-  // Get the current value from the store
-  const storeValue = getValue(blockId, subBlock.id)
+  // Use the proper hook to get the current value and setter - this prevents infinite loops
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
   const isMultiSelect = subBlock.multiSelect === true
+
+  // Compute selected knowledge bases directly from value - no local state to avoid loops
+  const selectedKnowledgeBases = useMemo(() => {
+    if (value && knowledgeBases.length > 0) {
+      const selectedIds =
+        typeof value === 'string'
+          ? value.includes(',')
+            ? value
+                .split(',')
+                .map((id) => id.trim())
+                .filter((id) => id.length > 0)
+            : [value]
+          : []
+
+      return knowledgeBases.filter((kb) => selectedIds.includes(kb.id))
+    }
+    return []
+  }, [value, knowledgeBases])
 
   // Fetch knowledge bases
   const fetchKnowledgeBases = useCallback(async () => {
@@ -89,12 +103,8 @@ export function KnowledgeBaseSelector({
   const handleSelectSingleKnowledgeBase = (knowledgeBase: KnowledgeBaseData) => {
     if (isPreview) return
 
-    setSelectedKnowledgeBases([knowledgeBase])
-
-    if (!isPreview) {
-      // Use collaborative update for both local store and persistence
-      collaborativeSetSubblockValue(blockId, subBlock.id, knowledgeBase.id)
-    }
+    // Use the hook's setter which handles collaborative updates
+    setStoreValue(knowledgeBase.id)
 
     onKnowledgeBaseSelect?.(knowledgeBase.id)
     setOpen(false)
@@ -115,16 +125,13 @@ export function KnowledgeBaseSelector({
       newSelected = [...selectedKnowledgeBases, knowledgeBase]
     }
 
-    setSelectedKnowledgeBases(newSelected)
+    const selectedIds = newSelected.map((kb) => kb.id)
+    const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
 
-    if (!isPreview) {
-      const selectedIds = newSelected.map((kb) => kb.id)
-      const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
-      // Use collaborative update for both local store and persistence
-      collaborativeSetSubblockValue(blockId, subBlock.id, valueToStore)
-    }
+    // Use the hook's setter which handles collaborative updates
+    setStoreValue(valueToStore)
 
-    onKnowledgeBaseSelect?.(newSelected.map((kb) => kb.id))
+    onKnowledgeBaseSelect?.(selectedIds)
   }
 
   // Remove selected knowledge base (for multi-select tags)
@@ -132,37 +139,16 @@ export function KnowledgeBaseSelector({
     if (isPreview) return
 
     const newSelected = selectedKnowledgeBases.filter((kb) => kb.id !== knowledgeBaseId)
-    setSelectedKnowledgeBases(newSelected)
+    const selectedIds = newSelected.map((kb) => kb.id)
+    const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
 
-    if (!isPreview) {
-      const selectedIds = newSelected.map((kb) => kb.id)
-      const valueToStore = selectedIds.length === 1 ? selectedIds[0] : selectedIds.join(',')
-      // Use collaborative update for both local store and persistence
-      collaborativeSetSubblockValue(blockId, subBlock.id, valueToStore)
-    }
+    // Use the hook's setter which handles collaborative updates
+    setStoreValue(valueToStore)
 
-    onKnowledgeBaseSelect?.(newSelected.map((kb) => kb.id))
+    onKnowledgeBaseSelect?.(selectedIds)
   }
 
-  // Sync selected knowledge bases with value prop
-  useEffect(() => {
-    if (value && knowledgeBases.length > 0) {
-      const selectedIds =
-        typeof value === 'string'
-          ? value.includes(',')
-            ? value
-                .split(',')
-                .map((id) => id.trim())
-                .filter((id) => id.length > 0)
-            : [value]
-          : []
 
-      const selectedKbs = knowledgeBases.filter((kb) => selectedIds.includes(kb.id))
-      setSelectedKnowledgeBases(selectedKbs)
-    } else if (!value) {
-      setSelectedKnowledgeBases([])
-    }
-  }, [value, knowledgeBases])
 
   // Use cached data if available
   useEffect(() => {
@@ -177,6 +163,7 @@ export function KnowledgeBaseSelector({
     if (
       value &&
       selectedKnowledgeBases.length === 0 &&
+      knowledgeBases.length === 0 &&
       !loading &&
       !initialFetchDone &&
       !isPreview
@@ -186,6 +173,7 @@ export function KnowledgeBaseSelector({
   }, [
     value,
     selectedKnowledgeBases.length,
+    knowledgeBases.length,
     loading,
     initialFetchDone,
     fetchKnowledgeBases,

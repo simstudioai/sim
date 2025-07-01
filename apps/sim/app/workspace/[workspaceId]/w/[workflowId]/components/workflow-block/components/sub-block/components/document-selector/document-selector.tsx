@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface DocumentData {
   id: string
@@ -52,38 +52,23 @@ export function DocumentSelector({
   previewValue,
 }: DocumentSelectorProps) {
   const { getValue } = useSubBlockStore()
-  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   const [documents, setDocuments] = useState<DocumentData[]>([])
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<DocumentData | null>(null)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
-  const [selectedId, setSelectedId] = useState('')
 
-  // Get the current value from the store
-  const storeValue = getValue(blockId, subBlock.id)
+  // Use the proper hook to get the current value and setter
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
-  // Get the knowledge base ID from the same block's knowledgeBaseId subblock
-  const knowledgeBaseId = getValue(blockId, 'knowledgeBaseId')
+  // Get the knowledge base ID from the same block's knowledgeBaseId subblock - memoize to prevent re-renders
+  const knowledgeBaseId = useMemo(() => getValue(blockId, 'knowledgeBaseId'), [getValue, blockId])
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
-  // Initialize selectedId with the effective value
-  useEffect(() => {
-    if (isPreview && previewValue !== undefined) {
-      setSelectedId(previewValue || '')
-    } else {
-      setSelectedId(value || '')
-    }
-  }, [value, isPreview, previewValue])
 
-  // Update local state when external value changes
-  useEffect(() => {
-    const currentValue = isPreview ? previewValue : value
-    setSelectedId(currentValue || '')
-  }, [value, isPreview, previewValue])
 
   // Fetch documents for the selected knowledge base
   const fetchDocuments = useCallback(async () => {
@@ -112,46 +97,12 @@ export function DocumentSelector({
       const fetchedDocuments = result.data || []
       setDocuments(fetchedDocuments)
       setInitialFetchDone(true)
-
-      // Auto-selection logic: if we have a valid selection, keep it
-      // If there's only one document, select it
-      // If we have a value but it's not in the documents, reset it
-      if (selectedId && !fetchedDocuments.some((doc: DocumentData) => doc.id === selectedId)) {
-        setSelectedId('')
-        if (!isPreview) {
-          collaborativeSetSubblockValue(blockId, subBlock.id, '')
-        }
-      }
-
-      if (
-        (!selectedId || !fetchedDocuments.some((doc: DocumentData) => doc.id === selectedId)) &&
-        fetchedDocuments.length > 0
-      ) {
-        if (fetchedDocuments.length === 1) {
-          // If only one document, auto-select it
-          const singleDoc = fetchedDocuments[0]
-          setSelectedId(singleDoc.id)
-          setSelectedDocument(singleDoc)
-          if (!isPreview) {
-            collaborativeSetSubblockValue(blockId, subBlock.id, singleDoc.id)
-          }
-          onDocumentSelect?.(singleDoc.id)
-        }
-      }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       setError((err as Error).message)
       setDocuments([])
     }
-  }, [
-    knowledgeBaseId,
-    selectedId,
-    collaborativeSetSubblockValue,
-    blockId,
-    subBlock.id,
-    isPreview,
-    onDocumentSelect,
-  ])
+  }, [knowledgeBaseId])
 
   // Handle dropdown open/close - fetch documents when opening
   const handleOpenChange = (isOpen: boolean) => {
@@ -170,50 +121,35 @@ export function DocumentSelector({
     if (isPreview) return
 
     setSelectedDocument(document)
-    setSelectedId(document.id)
-
-    if (!isPreview) {
-      collaborativeSetSubblockValue(blockId, subBlock.id, document.id)
-    }
-
+    setStoreValue(document.id)
     onDocumentSelect?.(document.id)
     setOpen(false)
   }
 
   // Sync selected document with value prop
   useEffect(() => {
-    if (selectedId && documents.length > 0) {
-      const docInfo = documents.find((doc) => doc.id === selectedId)
-      if (docInfo) {
-        setSelectedDocument(docInfo)
-      } else {
-        setSelectedDocument(null)
-      }
-    } else if (!selectedId) {
+    if (value && documents.length > 0) {
+      const docInfo = documents.find((doc) => doc.id === value)
+      setSelectedDocument(docInfo || null)
+    } else {
       setSelectedDocument(null)
     }
-  }, [selectedId, documents])
+  }, [value, documents])
 
   // Reset documents when knowledge base changes
   useEffect(() => {
-    if (knowledgeBaseId) {
-      setDocuments([])
-      setSelectedDocument(null)
-      setSelectedId('')
-      setInitialFetchDone(false)
-      setError(null)
-      if (!isPreview) {
-        collaborativeSetSubblockValue(blockId, subBlock.id, '')
-      }
-    }
-  }, [knowledgeBaseId, blockId, subBlock.id, collaborativeSetSubblockValue, isPreview])
+    setDocuments([])
+    setSelectedDocument(null)
+    setInitialFetchDone(false)
+    setError(null)
+  }, [knowledgeBaseId])
 
   // Fetch documents when knowledge base is available and we haven't fetched yet
   useEffect(() => {
     if (knowledgeBaseId && !initialFetchDone && !isPreview) {
       fetchDocuments()
     }
-  }, [knowledgeBaseId, initialFetchDone, fetchDocuments, isPreview])
+  }, [knowledgeBaseId, initialFetchDone, isPreview])
 
   const formatDocumentName = (document: DocumentData) => {
     return document.filename
@@ -307,7 +243,7 @@ export function DocumentSelector({
                           </div>
                         </div>
                       </div>
-                      {document.id === selectedId && <Check className='ml-auto h-4 w-4' />}
+                      {document.id === value && <Check className='ml-auto h-4 w-4' />}
                     </CommandItem>
                   ))}
                 </CommandGroup>

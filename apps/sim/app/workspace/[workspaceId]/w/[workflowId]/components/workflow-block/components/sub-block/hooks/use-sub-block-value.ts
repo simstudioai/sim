@@ -4,6 +4,7 @@ import { getProviderFromModel } from '@/providers/utils'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 // Helper function to dispatch collaborative subblock updates
 const dispatchSubblockUpdate = (blockId: string, subBlockId: string, value: any) => {
@@ -167,6 +168,8 @@ export function useSubBlockValue<T = any>(
   subBlockId: string,
   triggerWorkflowUpdate = false
 ): readonly [T | null, (value: T) => void] {
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
+
   const blockType = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.type, [blockId])
   )
@@ -228,25 +231,15 @@ export function useSubBlockValue<T = any>(
           storeApiKeyValue(blockId, blockType, modelValue, newValue, storeValue)
         }
 
-        // Update the subblock store directly
-        useSubBlockStore.getState().setValue(blockId, subBlockId, valueCopy)
-
-        // Dispatch event to trigger socket emission only (not store update)
-        const event = new CustomEvent('update-subblock-value', {
-          detail: {
-            blockId,
-            subBlockId,
-            value: valueCopy,
-          },
-        })
-        window.dispatchEvent(event)
+        // Use collaborative function which handles both local store update and socket emission
+        collaborativeSetSubblockValue(blockId, subBlockId, valueCopy)
 
         if (triggerWorkflowUpdate) {
           useWorkflowStore.getState().triggerUpdate()
         }
       }
     },
-    [blockId, subBlockId, blockType, isApiKey, storeValue, triggerWorkflowUpdate, modelValue]
+    [blockId, subBlockId, blockType, isApiKey, storeValue, triggerWorkflowUpdate, modelValue, collaborativeSetSubblockValue]
   )
 
   // Initialize valueRef on first render

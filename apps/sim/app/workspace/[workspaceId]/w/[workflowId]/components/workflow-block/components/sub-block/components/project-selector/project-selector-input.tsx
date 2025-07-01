@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { type DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
 import { type JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
 import { type LinearProjectInfo, LinearProjectSelector } from './components/linear-project-selector'
@@ -31,6 +32,9 @@ export function ProjectSelectorInput({
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [_projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
+
+  // Use the proper hook to get the current value and setter
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
@@ -60,7 +64,7 @@ export function ProjectSelectorInput({
   ) => {
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
-    collaborativeSetSubblockValue(blockId, subBlock.id, projectId)
+    setStoreValue(projectId)
 
     // Clear the issue-related fields when a new project is selected
     if (provider === 'jira') {

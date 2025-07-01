@@ -7,6 +7,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import type { ConfluenceFileInfo } from './components/confluence-file-selector'
 import { ConfluenceFileSelector } from './components/confluence-file-selector'
 import type { DiscordChannelInfo } from './components/discord-channel-selector'
@@ -40,6 +41,9 @@ export function FileSelectorInput({
   const { getValue } = useSubBlockStore()
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const { activeWorkflowId } = useWorkflowRegistry()
+
+  // Use the proper hook to get the current value and setter
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
   const [selectedFileId, setSelectedFileId] = useState<string>('')
   const [_fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string>('')
@@ -66,7 +70,7 @@ export function FileSelectorInput({
   const serverId = isDiscord ? (getValue(blockId, 'serverId') as string) || '' : ''
 
   // Use preview value when in preview mode, otherwise use store value
-  const value = isPreview ? previewValue : getValue(blockId, subBlock.id)
+  const value = isPreview ? previewValue : storeValue
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
@@ -117,14 +121,14 @@ export function FileSelectorInput({
   const handleFileChange = (fileId: string, info?: any) => {
     setSelectedFileId(fileId)
     setFileInfo(info || null)
-    collaborativeSetSubblockValue(blockId, subBlock.id, fileId)
+    setStoreValue(fileId)
   }
 
   // Handle issue selection
   const handleIssueChange = (issueKey: string, info?: JiraIssueInfo) => {
     setSelectedIssueId(issueKey)
     setIssueInfo(info || null)
-    collaborativeSetSubblockValue(blockId, subBlock.id, issueKey)
+    setStoreValue(issueKey)
 
     // Clear the fields when a new issue is selected
     if (isJira) {
@@ -137,14 +141,14 @@ export function FileSelectorInput({
   const handleChannelChange = (channelId: string, info?: DiscordChannelInfo) => {
     setSelectedChannelId(channelId)
     setChannelInfo(info || null)
-    collaborativeSetSubblockValue(blockId, subBlock.id, channelId)
+    setStoreValue(channelId)
   }
 
   // Handle calendar selection
   const handleCalendarChange = (calendarId: string, info?: GoogleCalendarInfo) => {
     setSelectedCalendarId(calendarId)
     setCalendarInfo(info || null)
-    collaborativeSetSubblockValue(blockId, subBlock.id, calendarId)
+    setStoreValue(calendarId)
   }
 
   // For Google Drive
