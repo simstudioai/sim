@@ -32,7 +32,6 @@ const executeMock = vi.fn().mockResolvedValue({
     endTime: new Date().toISOString(),
   },
 })
-const persistExecutionLogsMock = vi.fn().mockResolvedValue(undefined)
 const persistExecutionErrorMock = vi.fn().mockResolvedValue(undefined)
 
 // Mock the DB schema objects
@@ -80,7 +79,6 @@ vi.mock('@/executor', () => ({
 }))
 
 vi.mock('@/lib/logs/execution-logger', () => ({
-  persistExecutionLogs: persistExecutionLogsMock,
   persistExecutionError: persistExecutionErrorMock,
 }))
 

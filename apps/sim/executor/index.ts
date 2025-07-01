@@ -67,6 +67,8 @@ export class Executor {
   private isDebugging = false
   private contextExtensions: any = {}
   private actualWorkflow: SerializedWorkflow
+  private enhancedLogger: any = null
+  private currentExecutionId: string | null = null
 
   constructor(
     private workflowParam:
@@ -150,6 +152,17 @@ export class Executor {
     ]
 
     this.isDebugging = useGeneralStore.getState().isDebugModeEnabled
+  }
+
+  /**
+   * Sets the enhanced logger for block-level logging.
+   *
+   * @param logger - Enhanced execution logger instance
+   * @param executionId - Current execution ID
+   */
+  setEnhancedLogger(logger: any, executionId: string): void {
+    this.enhancedLogger = logger
+    this.currentExecutionId = executionId
   }
 
   /**
@@ -1232,6 +1245,35 @@ export class Executor {
 
         context.blockLogs.push(blockLog)
 
+        // Enhanced logging for successful streaming block execution
+        if (this.enhancedLogger && this.currentExecutionId) {
+          try {
+            await this.enhancedLogger.logBlockExecution({
+              executionId: this.currentExecutionId,
+              workflowId: context.workflowId,
+              blockId: blockLog.blockId,
+              blockName: blockLog.blockName || '',
+              blockType: blockLog.blockType || 'unknown',
+              input: blockLog.input,
+              output: blockLog.output,
+              timing: {
+                startedAt: blockLog.startedAt,
+                endedAt: blockLog.endedAt,
+                durationMs: blockLog.durationMs,
+              },
+              status: 'success',
+              metadata: {
+                iterationIndex: parallelInfo?.iterationIndex,
+                virtualBlockId: parallelInfo ? blockId : undefined,
+                parentBlockId: parallelInfo ? parallelInfo.originalBlockId : undefined,
+              },
+            })
+          } catch (enhancedLogError) {
+            // Don't fail block execution if enhanced logging fails
+            console.error('Enhanced block logging failed:', enhancedLogError)
+          }
+        }
+
         // Skip console logging for infrastructure blocks like loops and parallels
         if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
           addConsole({
@@ -1294,6 +1336,35 @@ export class Executor {
       blockLog.endedAt = new Date().toISOString()
 
       context.blockLogs.push(blockLog)
+
+      // Enhanced logging for successful block execution
+      if (this.enhancedLogger && this.currentExecutionId) {
+        try {
+          await this.enhancedLogger.logBlockExecution({
+            executionId: this.currentExecutionId,
+            workflowId: context.workflowId,
+            blockId: blockLog.blockId,
+            blockName: blockLog.blockName || '',
+            blockType: blockLog.blockType || 'unknown',
+            input: blockLog.input,
+            output: blockLog.output,
+            timing: {
+              startedAt: blockLog.startedAt,
+              endedAt: blockLog.endedAt,
+              durationMs: blockLog.durationMs,
+            },
+            status: 'success',
+            metadata: {
+              iterationIndex: parallelInfo?.iterationIndex,
+              virtualBlockId: parallelInfo ? blockId : undefined,
+              parentBlockId: parallelInfo ? parallelInfo.originalBlockId : undefined,
+            },
+          })
+        } catch (enhancedLogError) {
+          // Don't fail block execution if enhanced logging fails
+          console.error('Enhanced block logging failed:', enhancedLogError)
+        }
+      }
 
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
@@ -1360,6 +1431,39 @@ export class Executor {
 
       // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
+
+      // Enhanced logging for failed block execution
+      if (this.enhancedLogger && this.currentExecutionId) {
+        try {
+          await this.enhancedLogger.logBlockExecution({
+            executionId: this.currentExecutionId,
+            workflowId: context.workflowId,
+            blockId: blockLog.blockId,
+            blockName: blockLog.blockName || '',
+            blockType: blockLog.blockType || 'unknown',
+            input: blockLog.input,
+            output: null,
+            timing: {
+              startedAt: blockLog.startedAt,
+              endedAt: blockLog.endedAt,
+              durationMs: blockLog.durationMs,
+            },
+            status: 'error',
+            error: {
+              message: blockLog.error || 'Unknown error',
+              stackTrace: error.stack,
+            },
+            metadata: {
+              iterationIndex: parallelInfo?.iterationIndex,
+              virtualBlockId: parallelInfo ? blockId : undefined,
+              parentBlockId: parallelInfo ? parallelInfo.originalBlockId : undefined,
+            },
+          })
+        } catch (enhancedLogError) {
+          // Don't fail block execution if enhanced logging fails
+          console.error('Enhanced block logging failed:', enhancedLogError)
+        }
+      }
 
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {

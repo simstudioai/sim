@@ -70,6 +70,29 @@ export interface WorkflowLog {
     totalDuration?: number
     cost?: CostMetadata
     blockInput?: Record<string, any>
+    enhanced?: boolean
+    blockStats?: {
+      total: number
+      success: number
+      error: number
+      skipped: number
+    }
+    blockExecutions?: Array<{
+      id: string
+      blockId: string
+      blockName: string
+      blockType: string
+      startedAt: string
+      endedAt: string
+      durationMs: number
+      status: 'success' | 'error' | 'skipped'
+      errorMessage?: string
+      errorStackTrace?: string
+      inputData: any
+      outputData: any
+      cost?: CostMetadata
+      metadata: any
+    }>
   }
 }
 

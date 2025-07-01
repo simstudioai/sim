@@ -5,7 +5,6 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  createMockRequest,
   mockExecutionDependencies,
   mockScheduleExecuteDb,
   sampleWorkflowState,
@@ -23,7 +22,7 @@ describe('Scheduled Workflow Execution API Route', () => {
         blocks: sampleWorkflowState.blocks,
         edges: sampleWorkflowState.edges || [],
         loops: sampleWorkflowState.loops || {},
-        parallels: sampleWorkflowState.parallels || {},
+        parallels: {},
         isFromNormalizedTables: true,
       }),
     }))
@@ -122,9 +121,8 @@ describe('Scheduled Workflow Execution API Route', () => {
       })),
     }))
 
-    const req = createMockRequest('GET')
     const { GET } = await import('./route')
-    const response = await GET(req)
+    const response = await GET()
     expect(response).toBeDefined()
 
     const data = await response.json()
@@ -136,7 +134,6 @@ describe('Scheduled Workflow Execution API Route', () => {
     const persistExecutionErrorMock = vi.fn().mockResolvedValue(undefined)
 
     vi.doMock('@/lib/logs/execution-logger', () => ({
-      persistExecutionLogs: vi.fn().mockResolvedValue(undefined),
       persistExecutionError: persistExecutionErrorMock,
     }))
 
@@ -146,9 +143,8 @@ describe('Scheduled Workflow Execution API Route', () => {
       })),
     }))
 
-    const req = createMockRequest('GET')
     const { GET } = await import('./route')
-    const response = await GET(req)
+    const response = await GET()
 
     expect(response).toBeDefined()
 
@@ -176,9 +172,8 @@ describe('Scheduled Workflow Execution API Route', () => {
       return { db: mockDb }
     })
 
-    const req = createMockRequest('GET')
     const { GET } = await import('./route')
-    const response = await GET(req)
+    const response = await GET()
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toHaveProperty('executedCount', 0)
@@ -205,9 +200,8 @@ describe('Scheduled Workflow Execution API Route', () => {
       return { db: mockDb }
     })
 
-    const req = createMockRequest('GET')
     const { GET } = await import('./route')
-    const response = await GET(req)
+    const response = await GET()
     expect(response.status).toBe(500)
     const data = await response.json()
 
@@ -238,9 +232,8 @@ describe('Scheduled Workflow Execution API Route', () => {
       ],
     })
 
-    const req = createMockRequest('GET')
     const { GET } = await import('./route')
-    const response = await GET(req)
+    const response = await GET()
 
     expect(response.status).toBe(200)
   })
@@ -269,9 +262,8 @@ describe('Scheduled Workflow Execution API Route', () => {
       ],
     })
 
-    const req = createMockRequest('GET')
     const { GET } = await import('./route')
-    const response = await GET(req)
+    const response = await GET()
 
     expect(response.status).toBe(200)
     const data = await response.json()

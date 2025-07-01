@@ -185,6 +185,7 @@ export function Sidebar({
   hasNext = false,
   hasPrev = false,
 }: LogSidebarProps) {
+
   const MIN_WIDTH = 400
   const DEFAULT_WIDTH = 600
   const EXPANDED_WIDTH = 800
@@ -193,6 +194,7 @@ export function Sidebar({
   const [isDragging, setIsDragging] = useState(false)
   const [_currentLogId, setCurrentLogId] = useState<string | null>(null)
   const [isTraceExpanded, setIsTraceExpanded] = useState(false)
+  const [isModelsExpanded, setIsModelsExpanded] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Update currentLogId when log changes
@@ -238,11 +240,15 @@ export function Sidebar({
   // Determine if this is a workflow execution log
   const isWorkflowExecutionLog = useMemo(() => {
     if (!log) return false
-    // Check if message contains "workflow executed" or similar phrases
+    // Check if message contains workflow execution phrases (success or failure)
     return (
       log.message.toLowerCase().includes('workflow executed') ||
       log.message.toLowerCase().includes('execution completed') ||
-      (log.trigger === 'manual' && log.duration)
+      log.message.toLowerCase().includes('workflow execution failed') ||
+      log.message.toLowerCase().includes('execution failed') ||
+      (log.trigger === 'manual' && log.duration) ||
+      // Also check if we have enhanced logging metadata with trace spans
+      (log.metadata?.enhanced && log.metadata?.traceSpans)
     )
   }, [log])
 
@@ -253,7 +259,11 @@ export function Sidebar({
 
   // Helper to determine if we have cost information to display
   const hasCostInfo = useMemo(() => {
-    return !!(log?.metadata?.cost && (log.metadata.cost.input || log.metadata.cost.output))
+    return !!(log?.metadata?.cost && (
+      (log.metadata.cost.input && log.metadata.cost.input > 0) ||
+      (log.metadata.cost.output && log.metadata.cost.output > 0) ||
+      (log.metadata.cost.total && log.metadata.cost.total > 0)
+    ))
   }, [log])
 
   const isWorkflowWithCost = useMemo(() => {
@@ -487,6 +497,69 @@ export function Sidebar({
                 </div>
               )}
 
+              {/* Enhanced Stats - only show for enhanced logs */}
+              {log.metadata?.enhanced && log.metadata?.blockStats && (
+                <div>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Block Execution Stats</h3>
+                  <div className='space-y-1 text-sm'>
+                    <div className='flex justify-between'>
+                      <span>Total Blocks:</span>
+                      <span className='font-medium'>{log.metadata.blockStats.total}</span>
+                    </div>
+                    <div className='flex justify-between'>
+                      <span>Successful:</span>
+                      <span className='font-medium text-green-600'>{log.metadata.blockStats.success}</span>
+                    </div>
+                    {log.metadata.blockStats.error > 0 && (
+                      <div className='flex justify-between'>
+                        <span>Failed:</span>
+                        <span className='font-medium text-red-600'>{log.metadata.blockStats.error}</span>
+                      </div>
+                    )}
+                    {log.metadata.blockStats.skipped > 0 && (
+                      <div className='flex justify-between'>
+                        <span>Skipped:</span>
+                        <span className='font-medium text-yellow-600'>{log.metadata.blockStats.skipped}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Enhanced Cost - only show for enhanced logs with actual cost data */}
+              {log.metadata?.enhanced && hasCostInfo && (
+                <div>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Cost Breakdown</h3>
+                  <div className='space-y-1 text-sm'>
+                    {log.metadata.cost.total && (
+                      <div className='flex justify-between'>
+                        <span>Total Cost:</span>
+                        <span className='font-medium'>${log.metadata.cost.total.toFixed(4)}</span>
+                      </div>
+                    )}
+                    {log.metadata.cost.input && (
+                      <div className='flex justify-between'>
+                        <span>Input Cost:</span>
+                        <span className='text-muted-foreground'>${log.metadata.cost.input.toFixed(4)}</span>
+                      </div>
+                    )}
+                    {log.metadata.cost.output && (
+                      <div className='flex justify-between'>
+                        <span>Output Cost:</span>
+                        <span className='text-muted-foreground'>${log.metadata.cost.output.toFixed(4)}</span>
+                      </div>
+                    )}
+                    {log.metadata.cost.tokens?.total && (
+                      <div className='flex justify-between'>
+                        <span>Total Tokens:</span>
+                        <span className='text-muted-foreground'>{log.metadata.cost.tokens.total.toLocaleString()}</span>
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+              )}
+
               {/* Message Content */}
               <div className='w-full pb-2'>
                 <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Message</h3>
@@ -517,10 +590,10 @@ export function Sidebar({
               )}
 
               {/* Cost Information (moved to bottom) */}
-              {hasCostInfo && log.metadata?.cost && (
+              {hasCostInfo && (
                 <div>
                   <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
-                    {isWorkflowWithCost ? 'Total Model Cost' : 'Model Cost'}
+                    Models
                   </h3>
                   <div className='overflow-hidden rounded-md border'>
                     <div className='space-y-2 p-3'>
@@ -552,6 +625,53 @@ export function Sidebar({
                         </span>
                       </div>
                     </div>
+
+                    {/* Models Breakdown */}
+                    {log.metadata.cost.models && Object.keys(log.metadata.cost.models).length > 0 && (
+                      <div className='border-t'>
+                        <button
+                          onClick={() => setIsModelsExpanded(!isModelsExpanded)}
+                          className='flex w-full items-center justify-between p-3 text-left hover:bg-muted/50 transition-colors'
+                        >
+                          <span className='text-muted-foreground text-xs font-medium'>
+                            Model Breakdown ({Object.keys(log.metadata.cost.models).length})
+                          </span>
+                          {isModelsExpanded ? (
+                            <ChevronUp className='h-3 w-3 text-muted-foreground' />
+                          ) : (
+                            <ChevronDown className='h-3 w-3 text-muted-foreground' />
+                          )}
+                        </button>
+
+                        {isModelsExpanded && (
+                          <div className='border-t bg-muted/30 p-3 space-y-3'>
+                            {Object.entries(log.metadata.cost.models).map(([model, cost]: [string, any]) => (
+                              <div key={model} className='space-y-1'>
+                                <div className='font-mono text-xs font-medium'>{model}</div>
+                                <div className='space-y-1 text-xs'>
+                                  <div className='flex justify-between'>
+                                    <span className='text-muted-foreground'>Input:</span>
+                                    <span>{formatCost(cost.input || 0)}</span>
+                                  </div>
+                                  <div className='flex justify-between'>
+                                    <span className='text-muted-foreground'>Output:</span>
+                                    <span>{formatCost(cost.output || 0)}</span>
+                                  </div>
+                                  <div className='flex justify-between border-t pt-1'>
+                                    <span className='text-muted-foreground'>Total:</span>
+                                    <span className='font-medium'>{formatCost(cost.total || 0)}</span>
+                                  </div>
+                                  <div className='flex justify-between'>
+                                    <span className='text-muted-foreground'>Tokens:</span>
+                                    <span>{cost.tokens?.prompt || 0} in / {cost.tokens?.completion || 0} out</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {isWorkflowWithCost && (
                       <div className='border-t bg-muted p-3 text-muted-foreground text-xs'>
