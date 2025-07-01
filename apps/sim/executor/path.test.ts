@@ -408,4 +408,206 @@ describe('PathTracker', () => {
       }).not.toThrow()
     })
   })
+
+  describe('Router downstream path activation', () => {
+    beforeEach(() => {
+      // Create router workflow with downstream connections
+      mockWorkflow = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'router1',
+            metadata: { id: 'router', name: 'Router' },
+            position: { x: 0, y: 0 },
+            config: { tool: 'router', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'api1',
+            metadata: { id: 'api', name: 'API 1' },
+            position: { x: 0, y: 0 },
+            config: { tool: 'api', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'api2',
+            metadata: { id: 'api', name: 'API 2' },
+            position: { x: 0, y: 0 },
+            config: { tool: 'api', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'agent1',
+            metadata: { id: 'agent', name: 'Agent' },
+            position: { x: 0, y: 0 },
+            config: { tool: 'agent', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          { source: 'router1', target: 'api1' },
+          { source: 'router1', target: 'api2' },
+          { source: 'api1', target: 'agent1' },
+          { source: 'api2', target: 'agent1' },
+        ],
+        loops: {},
+        parallels: {},
+      }
+
+      pathTracker = new PathTracker(mockWorkflow)
+      mockContext = {
+        workflowId: 'test-router-workflow',
+        blockStates: new Map(),
+        blockLogs: [],
+        metadata: { duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        loopItems: new Map(),
+        completedLoops: new Set(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(),
+        workflow: mockWorkflow,
+      }
+    })
+
+    it('should activate downstream paths when router selects a target', () => {
+      // Mock router output selecting api1
+      mockContext.blockStates.set('router1', {
+        output: {
+          response: {
+            selectedPath: {
+              blockId: 'api1',
+              blockType: 'api',
+              blockTitle: 'API 1',
+            },
+          },
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      // Update paths for router
+      pathTracker.updateExecutionPaths(['router1'], mockContext)
+
+      // Both api1 and agent1 should be activated (downstream from api1)
+      expect(mockContext.activeExecutionPath.has('api1')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(true)
+
+      // api2 should NOT be activated (not selected by router)
+      expect(mockContext.activeExecutionPath.has('api2')).toBe(false)
+    })
+
+    it('should handle multiple levels of downstream connections', () => {
+      // Add another level to test deep activation
+      mockWorkflow.blocks.push({
+        id: 'finalStep',
+        metadata: { id: 'api', name: 'Final Step' },
+        position: { x: 0, y: 0 },
+        config: { tool: 'api', params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      })
+      mockWorkflow.connections.push({ source: 'agent1', target: 'finalStep' })
+
+      pathTracker = new PathTracker(mockWorkflow)
+
+      // Mock router output selecting api1
+      mockContext.blockStates.set('router1', {
+        output: {
+          response: {
+            selectedPath: {
+              blockId: 'api1',
+              blockType: 'api',
+              blockTitle: 'API 1',
+            },
+          },
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      pathTracker.updateExecutionPaths(['router1'], mockContext)
+
+      // All downstream blocks should be activated
+      expect(mockContext.activeExecutionPath.has('api1')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('finalStep')).toBe(true)
+
+      // Non-selected path should not be activated
+      expect(mockContext.activeExecutionPath.has('api2')).toBe(false)
+    })
+
+    it('should not create infinite loops in cyclic workflows', () => {
+      // Add a cycle to test loop prevention
+      mockWorkflow.connections.push({ source: 'agent1', target: 'api1' })
+      pathTracker = new PathTracker(mockWorkflow)
+
+      mockContext.blockStates.set('router1', {
+        output: {
+          response: {
+            selectedPath: {
+              blockId: 'api1',
+              blockType: 'api',
+              blockTitle: 'API 1',
+            },
+          },
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      // This should not throw or cause infinite recursion
+      expect(() => {
+        pathTracker.updateExecutionPaths(['router1'], mockContext)
+      }).not.toThrow()
+
+      // Both api1 and agent1 should still be activated
+      expect(mockContext.activeExecutionPath.has('api1')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(true)
+    })
+
+    it('should handle router with no downstream connections', () => {
+      // Create isolated router
+      const isolatedWorkflow = {
+        ...mockWorkflow,
+        connections: [
+          { source: 'router1', target: 'api1' },
+          { source: 'router1', target: 'api2' },
+          // Remove downstream connections from api1/api2
+        ],
+      }
+      pathTracker = new PathTracker(isolatedWorkflow)
+
+      mockContext.blockStates.set('router1', {
+        output: {
+          response: {
+            selectedPath: {
+              blockId: 'api1',
+              blockType: 'api',
+              blockTitle: 'API 1',
+            },
+          },
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      pathTracker.updateExecutionPaths(['router1'], mockContext)
+
+      // Only the selected target should be activated
+      expect(mockContext.activeExecutionPath.has('api1')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('api2')).toBe(false)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(false)
+    })
+  })
 })

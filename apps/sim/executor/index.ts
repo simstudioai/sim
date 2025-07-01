@@ -877,6 +877,9 @@ export class Executor {
     insideParallel?: string,
     iterationIndex?: number
   ): boolean {
+    if (incomingConnections.length === 0) {
+      return true
+    }
     // Check if this is a loop block
     const isLoopBlock = incomingConnections.some((conn) => {
       const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
@@ -994,6 +997,12 @@ export class Executor {
         return sourceExecuted && conn.target === selectedTarget
       }
 
+      // If source is not in active path, consider this dependency met
+      // This allows blocks with multiple inputs to execute even if some inputs are from inactive paths
+      if (!context.activeExecutionPath.has(conn.source)) {
+        return true
+      }
+
       // For error connections, check if the source had an error
       if (conn.sourceHandle === 'error') {
         return sourceExecuted && hasSourceError
@@ -1002,12 +1011,6 @@ export class Executor {
       // For regular connections, check if the source was executed without error
       if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
         return sourceExecuted && !hasSourceError
-      }
-
-      // If source is not in active path, consider this dependency met
-      // This allows blocks with multiple inputs to execute even if some inputs are from inactive paths
-      if (!context.activeExecutionPath.has(conn.source)) {
-        return true
       }
 
       // For regular blocks, dependency is met if source is executed

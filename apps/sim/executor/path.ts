@@ -165,7 +165,25 @@ export class PathTracker {
     if (selectedPath) {
       context.decisions.router.set(block.id, selectedPath)
       context.activeExecutionPath.add(selectedPath)
+
+      this.activateDownstreamPaths(selectedPath, context)
+
       logger.info(`Router ${block.id} selected path: ${selectedPath}`)
+    }
+  }
+
+  /**
+   * Recursively activate downstream paths from a block
+   */
+  private activateDownstreamPaths(blockId: string, context: ExecutionContext): void {
+    const outgoingConnections = this.getOutgoingConnections(blockId)
+
+    for (const conn of outgoingConnections) {
+      if (!context.activeExecutionPath.has(conn.target)) {
+        context.activeExecutionPath.add(conn.target)
+
+        this.activateDownstreamPaths(conn.target, context)
+      }
     }
   }
 
@@ -219,9 +237,7 @@ export class PathTracker {
     const isPartOfLoop = blockLoops.length > 0
 
     for (const conn of outgoingConnections) {
-      if (
-        this.shouldActivateConnection(conn, block.id, hasError, isPartOfLoop, blockLoops, context)
-      ) {
+      if (this.shouldActivateConnection(conn, hasError, isPartOfLoop, blockLoops, context)) {
         context.activeExecutionPath.add(conn.target)
       }
     }
@@ -253,7 +269,6 @@ export class PathTracker {
    */
   private shouldActivateConnection(
     conn: SerializedConnection,
-    sourceBlockId: string,
     hasError: boolean,
     isPartOfLoop: boolean,
     blockLoops: Array<{ id: string; loop: any }>,

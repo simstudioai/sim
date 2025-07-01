@@ -668,4 +668,238 @@ describe('Executor', () => {
       expect(createContextSpy).toHaveBeenCalled()
     })
   })
+
+  /**
+   * Dependency checking logic tests
+   */
+  describe('dependency checking', () => {
+    test('should handle multi-input blocks with inactive sources correctly', () => {
+      // Create workflow with router -> multiple APIs -> single agent
+      const routerWorkflow = {
+        blocks: [
+          {
+            id: 'start',
+            metadata: { id: 'starter', name: 'Start' },
+            config: { params: {} },
+            enabled: true,
+          },
+          {
+            id: 'router',
+            metadata: { id: 'router', name: 'Router' },
+            config: { params: { prompt: 'test', model: 'gpt-4' } },
+            enabled: true,
+          },
+          {
+            id: 'api1',
+            metadata: { id: 'api', name: 'API 1' },
+            config: { params: { url: 'http://api1.com', method: 'GET' } },
+            enabled: true,
+          },
+          {
+            id: 'api2',
+            metadata: { id: 'api', name: 'API 2' },
+            config: { params: { url: 'http://api2.com', method: 'GET' } },
+            enabled: true,
+          },
+          {
+            id: 'agent',
+            metadata: { id: 'agent', name: 'Agent' },
+            config: { params: { model: 'gpt-4', userPrompt: 'test' } },
+            enabled: true,
+          },
+        ],
+        connections: [
+          { source: 'start', target: 'router' },
+          { source: 'router', target: 'api1' },
+          { source: 'router', target: 'api2' },
+          { source: 'api1', target: 'agent' },
+          { source: 'api2', target: 'agent' },
+        ],
+        loops: {},
+        parallels: {},
+      }
+
+      const executor = new Executor(routerWorkflow)
+      const checkDependencies = (executor as any).checkDependencies.bind(executor)
+
+      // Mock context simulating: router selected api1, api1 executed, api2 not in active path
+      const mockContext = {
+        blockStates: new Map(),
+        decisions: {
+          router: new Map([['router', 'api1']]),
+          condition: new Map(),
+        },
+        activeExecutionPath: new Set(['start', 'router', 'api1', 'agent']),
+        workflow: routerWorkflow,
+      } as any
+
+      const executedBlocks = new Set(['start', 'router', 'api1'])
+
+      // Test agent's dependencies
+      const agentConnections = [
+        { source: 'api1', target: 'agent', sourceHandle: 'source' },
+        { source: 'api2', target: 'agent', sourceHandle: 'source' },
+      ]
+
+      const dependenciesMet = checkDependencies(agentConnections, executedBlocks, mockContext)
+
+      // Both dependencies should be met:
+      // - api1: in active path AND executed = met
+      // - api2: NOT in active path = automatically met
+      expect(dependenciesMet).toBe(true)
+    })
+
+    test('should prioritize special connection types over active path check', () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+      const checkDependencies = (executor as any).checkDependencies.bind(executor)
+
+      const mockContext = {
+        blockStates: new Map(),
+        decisions: { router: new Map(), condition: new Map() },
+        activeExecutionPath: new Set(['block1']), // block2 not in active path
+        completedLoops: new Set(),
+        workflow: workflow,
+      } as any
+
+      const executedBlocks = new Set(['block1'])
+
+      // Test error connection (should be handled before active path check)
+      const errorConnections = [{ source: 'block2', target: 'block3', sourceHandle: 'error' }]
+
+      // Mock block2 with error state
+      mockContext.blockStates.set('block2', {
+        output: { error: 'test error' },
+      })
+
+      // Even though block2 is not in active path, error connection should be handled specially
+      const errorDepsResult = checkDependencies(errorConnections, new Set(['block2']), mockContext)
+      expect(errorDepsResult).toBe(true) // source executed + has error = dependency met
+
+      // Test loop connection
+      const loopConnections = [
+        { source: 'block2', target: 'block3', sourceHandle: 'loop-end-source' },
+      ]
+
+      mockContext.completedLoops.add('block2')
+      const loopDepsResult = checkDependencies(loopConnections, new Set(['block2']), mockContext)
+      expect(loopDepsResult).toBe(true) // loop completed = dependency met
+    })
+
+    test('should handle router decisions correctly in dependency checking', () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+      const checkDependencies = (executor as any).checkDependencies.bind(executor)
+
+      // Add router block to workflow
+      workflow.blocks.push({
+        id: 'router1',
+        metadata: { id: 'router', name: 'Router' },
+        config: { params: {} },
+        enabled: true,
+      })
+
+      const mockContext = {
+        blockStates: new Map(),
+        decisions: {
+          router: new Map([['router1', 'target1']]), // router selected target1
+          condition: new Map(),
+        },
+        activeExecutionPath: new Set(['router1', 'target1', 'target2']),
+        workflow: workflow,
+      } as any
+
+      const executedBlocks = new Set(['router1'])
+
+      // Test selected target
+      const selectedConnections = [{ source: 'router1', target: 'target1', sourceHandle: 'source' }]
+      const selectedResult = checkDependencies(selectedConnections, executedBlocks, mockContext)
+      expect(selectedResult).toBe(true) // router executed + target selected = dependency met
+
+      // Test non-selected target
+      const nonSelectedConnections = [
+        { source: 'router1', target: 'target2', sourceHandle: 'source' },
+      ]
+      const nonSelectedResult = checkDependencies(
+        nonSelectedConnections,
+        executedBlocks,
+        mockContext
+      )
+      expect(nonSelectedResult).toBe(true) // router executed + target NOT selected = dependency auto-met
+    })
+
+    test('should handle condition decisions correctly in dependency checking', () => {
+      const conditionWorkflow = createWorkflowWithCondition()
+      const executor = new Executor(conditionWorkflow)
+      const checkDependencies = (executor as any).checkDependencies.bind(executor)
+
+      const mockContext = {
+        blockStates: new Map(),
+        decisions: {
+          router: new Map(),
+          condition: new Map([['condition1', 'true']]), // condition selected true path
+        },
+        activeExecutionPath: new Set(['condition1', 'trueTarget']),
+        workflow: conditionWorkflow,
+      } as any
+
+      const executedBlocks = new Set(['condition1'])
+
+      // Test selected condition path
+      const trueConnections = [
+        { source: 'condition1', target: 'trueTarget', sourceHandle: 'condition-true' },
+      ]
+      const trueResult = checkDependencies(trueConnections, executedBlocks, mockContext)
+      expect(trueResult).toBe(true)
+
+      // Test non-selected condition path
+      const falseConnections = [
+        { source: 'condition1', target: 'falseTarget', sourceHandle: 'condition-false' },
+      ]
+      const falseResult = checkDependencies(falseConnections, executedBlocks, mockContext)
+      expect(falseResult).toBe(true) // condition executed + path NOT selected = dependency auto-met
+    })
+
+    test('should handle regular sequential dependencies correctly', () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+      const checkDependencies = (executor as any).checkDependencies.bind(executor)
+
+      const mockContext = {
+        blockStates: new Map(),
+        decisions: { router: new Map(), condition: new Map() },
+        activeExecutionPath: new Set(['block1', 'block2']),
+        workflow: workflow,
+      } as any
+
+      const executedBlocks = new Set(['block1'])
+
+      // Test normal sequential dependency
+      const normalConnections = [{ source: 'block1', target: 'block2', sourceHandle: 'source' }]
+
+      // Without error
+      const normalResult = checkDependencies(normalConnections, executedBlocks, mockContext)
+      expect(normalResult).toBe(true) // source executed + no error = dependency met
+
+      // With error should fail regular connection
+      mockContext.blockStates.set('block1', {
+        output: { error: 'test error' },
+      })
+      const errorResult = checkDependencies(normalConnections, executedBlocks, mockContext)
+      expect(errorResult).toBe(false) // source executed + has error = regular dependency not met
+    })
+
+    test('should handle empty dependency list', () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+      const checkDependencies = (executor as any).checkDependencies.bind(executor)
+
+      const mockContext = createMockContext()
+      const executedBlocks = new Set<string>()
+
+      // Empty connections should return true
+      const result = checkDependencies([], executedBlocks, mockContext)
+      expect(result).toBe(true)
+    })
+  })
 })
