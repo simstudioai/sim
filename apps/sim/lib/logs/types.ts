@@ -1,7 +1,7 @@
 import type { Edge } from 'reactflow'
-import type { WorkflowState, Loop, Parallel } from '@/stores/workflows/workflow/types'
+import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
 import type { DeploymentStatus } from '@/stores/workflows/registry/types'
-import type { NormalizedBlockOutput, BlockLog } from '@/executor/types'
+import type { Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 
 export type { WorkflowState, Loop, Parallel, DeploymentStatus }
 export type WorkflowEdge = Edge
@@ -334,7 +334,7 @@ export interface ExecutionLoggerService {
     workflowLog: WorkflowExecutionLog
     snapshot: WorkflowExecutionSnapshot
   }>
-  
+
   logBlockExecution(params: {
     executionId: string
     workflowId: string
@@ -356,7 +356,7 @@ export interface ExecutionLoggerService {
     cost?: CostBreakdown
     metadata?: BlockExecutionLog['metadata']
   }): Promise<BlockExecutionLog>
-  
+
   completeWorkflowExecution(params: {
     executionId: string
     endedAt: string
