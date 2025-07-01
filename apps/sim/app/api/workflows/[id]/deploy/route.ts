@@ -139,7 +139,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Get the workflow to find the user
+    // Get the workflow to find the user (removed deprecated state column)
     const workflowData = await db
       .select({
         userId: workflow.userId,
