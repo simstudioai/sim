@@ -43,9 +43,6 @@ async function initializeApplication(): Promise<void> {
     // Mark data as initialized only after sync managers have loaded data from DB
     dataInitialized = true
 
-    // Register cleanup
-    window.addEventListener('beforeunload', handleBeforeUnload)
-
     // Log initialization timing information
     const initDuration = Date.now() - initStartTime
     logger.info(`Application initialization completed in ${initDuration}ms`)
