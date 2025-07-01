@@ -330,6 +330,13 @@
       "when": 1750794256278,
       "tag": "0047_new_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1751398800587,
+      "tag": "0048_shallow_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }
