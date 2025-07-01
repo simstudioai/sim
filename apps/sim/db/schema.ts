@@ -272,6 +272,52 @@ export const workflowExecutionSnapshots = pgTable(
   })
 )
 
+export const workflowExecutionLogs = pgTable(
+  'workflow_execution_logs',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    executionId: text('execution_id').notNull(),
+    stateSnapshotId: text('state_snapshot_id')
+      .notNull()
+      .references(() => workflowExecutionSnapshots.id),
+
+    level: text('level').notNull(), // 'info', 'error'
+    message: text('message').notNull(),
+    trigger: text('trigger').notNull(), // 'api', 'webhook', 'schedule', 'manual', 'chat'
+
+    startedAt: timestamp('started_at').notNull(),
+    endedAt: timestamp('ended_at'),
+    totalDurationMs: integer('total_duration_ms'),
+
+    blockCount: integer('block_count').notNull().default(0),
+    successCount: integer('success_count').notNull().default(0),
+    errorCount: integer('error_count').notNull().default(0),
+    skippedCount: integer('skipped_count').notNull().default(0),
+
+    totalCost: decimal('total_cost', { precision: 10, scale: 6 }),
+    totalInputCost: decimal('total_input_cost', { precision: 10, scale: 6 }),
+    totalOutputCost: decimal('total_output_cost', { precision: 10, scale: 6 }),
+    totalTokens: integer('total_tokens'),
+    primaryModel: text('primary_model'),
+
+    metadata: jsonb('metadata').notNull().default('{}'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowIdIdx: index('workflow_execution_logs_workflow_id_idx').on(table.workflowId),
+    executionIdIdx: index('workflow_execution_logs_execution_id_idx').on(table.executionId),
+    triggerIdx: index('workflow_execution_logs_trigger_idx').on(table.trigger),
+    levelIdx: index('workflow_execution_logs_level_idx').on(table.level),
+    startedAtIdx: index('workflow_execution_logs_started_at_idx').on(table.startedAt),
+    costIdx: index('workflow_execution_logs_cost_idx').on(table.totalCost),
+    durationIdx: index('workflow_execution_logs_duration_idx').on(table.totalDurationMs),
+    executionIdUnique: uniqueIndex('workflow_execution_logs_execution_id_unique').on(table.executionId),
+  })
+)
+
 export const workflowExecutionBlocks = pgTable(
   'workflow_execution_blocks',
   {

@@ -88,6 +88,7 @@ describe('Workflow Execution API Route', () => {
     vi.doMock('@/executor', () => ({
       Executor: vi.fn().mockImplementation(() => ({
         execute: executeMock,
+        setEnhancedLogger: vi.fn(),
       })),
     }))
 
@@ -102,6 +103,14 @@ describe('Workflow Execution API Route', () => {
     vi.doMock('@/lib/logs/execution-logger', () => ({
       persistExecutionLogs: vi.fn().mockResolvedValue(undefined),
       persistExecutionError: vi.fn().mockResolvedValue(undefined),
+    }))
+
+    vi.doMock('@/lib/logs/enhanced-execution-logger', () => ({
+      enhancedExecutionLogger: {
+        startWorkflowExecution: vi.fn().mockResolvedValue(undefined),
+        logBlockExecution: vi.fn().mockResolvedValue(undefined),
+        completeWorkflowExecution: vi.fn().mockResolvedValue(undefined),
+      },
     }))
 
     vi.doMock('@/lib/logs/trace-spans', () => ({
@@ -401,6 +410,7 @@ describe('Workflow Execution API Route', () => {
     vi.doMock('@/executor', () => ({
       Executor: vi.fn().mockImplementation(() => ({
         execute: vi.fn().mockRejectedValue(new Error('Execution failed')),
+        setEnhancedLogger: vi.fn(),
       })),
     }))
 
@@ -424,10 +434,10 @@ describe('Workflow Execution API Route', () => {
     expect(data).toHaveProperty('error')
     expect(data.error).toContain('Execution failed')
 
-    // Verify error logger was called
-    const persistExecutionError = (await import('@/lib/logs/execution-logger'))
-      .persistExecutionError
-    expect(persistExecutionError).toHaveBeenCalled()
+    // Verify enhanced logger was called for error completion
+    const enhancedExecutionLogger = (await import('@/lib/logs/enhanced-execution-logger'))
+      .enhancedExecutionLogger
+    expect(enhancedExecutionLogger.completeWorkflowExecution).toHaveBeenCalled()
   })
 
   /**
