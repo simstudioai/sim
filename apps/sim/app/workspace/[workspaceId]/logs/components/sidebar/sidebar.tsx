@@ -185,7 +185,6 @@ export function Sidebar({
   hasNext = false,
   hasPrev = false,
 }: LogSidebarProps) {
-
   const MIN_WIDTH = 400
   const DEFAULT_WIDTH = 600
   const EXPANDED_WIDTH = 800
@@ -259,11 +258,12 @@ export function Sidebar({
 
   // Helper to determine if we have cost information to display
   const hasCostInfo = useMemo(() => {
-    return !!(log?.metadata?.cost && (
-      (log.metadata.cost.input && log.metadata.cost.input > 0) ||
-      (log.metadata.cost.output && log.metadata.cost.output > 0) ||
-      (log.metadata.cost.total && log.metadata.cost.total > 0)
-    ))
+    return !!(
+      log?.metadata?.cost &&
+      ((log.metadata.cost.input && log.metadata.cost.input > 0) ||
+        (log.metadata.cost.output && log.metadata.cost.output > 0) ||
+        (log.metadata.cost.total && log.metadata.cost.total > 0))
+    )
   }, [log])
 
   const isWorkflowWithCost = useMemo(() => {
@@ -500,7 +500,9 @@ export function Sidebar({
               {/* Enhanced Stats - only show for enhanced logs */}
               {log.metadata?.enhanced && log.metadata?.blockStats && (
                 <div>
-                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Block Execution Stats</h3>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
+                    Block Execution Stats
+                  </h3>
                   <div className='space-y-1 text-sm'>
                     <div className='flex justify-between'>
                       <span>Total Blocks:</span>
@@ -508,18 +510,24 @@ export function Sidebar({
                     </div>
                     <div className='flex justify-between'>
                       <span>Successful:</span>
-                      <span className='font-medium text-green-600'>{log.metadata.blockStats.success}</span>
+                      <span className='font-medium text-green-600'>
+                        {log.metadata.blockStats.success}
+                      </span>
                     </div>
                     {log.metadata.blockStats.error > 0 && (
                       <div className='flex justify-between'>
                         <span>Failed:</span>
-                        <span className='font-medium text-red-600'>{log.metadata.blockStats.error}</span>
+                        <span className='font-medium text-red-600'>
+                          {log.metadata.blockStats.error}
+                        </span>
                       </div>
                     )}
                     {log.metadata.blockStats.skipped > 0 && (
                       <div className='flex justify-between'>
                         <span>Skipped:</span>
-                        <span className='font-medium text-yellow-600'>{log.metadata.blockStats.skipped}</span>
+                        <span className='font-medium text-yellow-600'>
+                          {log.metadata.blockStats.skipped}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -540,22 +548,27 @@ export function Sidebar({
                     {log.metadata.cost.input && (
                       <div className='flex justify-between'>
                         <span>Input Cost:</span>
-                        <span className='text-muted-foreground'>${log.metadata.cost.input.toFixed(4)}</span>
+                        <span className='text-muted-foreground'>
+                          ${log.metadata.cost.input.toFixed(4)}
+                        </span>
                       </div>
                     )}
                     {log.metadata.cost.output && (
                       <div className='flex justify-between'>
                         <span>Output Cost:</span>
-                        <span className='text-muted-foreground'>${log.metadata.cost.output.toFixed(4)}</span>
+                        <span className='text-muted-foreground'>
+                          ${log.metadata.cost.output.toFixed(4)}
+                        </span>
                       </div>
                     )}
                     {log.metadata.cost.tokens?.total && (
                       <div className='flex justify-between'>
                         <span>Total Tokens:</span>
-                        <span className='text-muted-foreground'>{log.metadata.cost.tokens.total.toLocaleString()}</span>
+                        <span className='text-muted-foreground'>
+                          {log.metadata.cost.tokens.total.toLocaleString()}
+                        </span>
                       </div>
                     )}
-
                   </div>
                 </div>
               )}
@@ -592,9 +605,7 @@ export function Sidebar({
               {/* Cost Information (moved to bottom) */}
               {hasCostInfo && (
                 <div>
-                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
-                    Models
-                  </h3>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Models</h3>
                   <div className='overflow-hidden rounded-md border'>
                     <div className='space-y-2 p-3'>
                       {log.metadata.cost.model && (
@@ -627,51 +638,59 @@ export function Sidebar({
                     </div>
 
                     {/* Models Breakdown */}
-                    {log.metadata.cost.models && Object.keys(log.metadata.cost.models).length > 0 && (
-                      <div className='border-t'>
-                        <button
-                          onClick={() => setIsModelsExpanded(!isModelsExpanded)}
-                          className='flex w-full items-center justify-between p-3 text-left hover:bg-muted/50 transition-colors'
-                        >
-                          <span className='text-muted-foreground text-xs font-medium'>
-                            Model Breakdown ({Object.keys(log.metadata.cost.models).length})
-                          </span>
-                          {isModelsExpanded ? (
-                            <ChevronUp className='h-3 w-3 text-muted-foreground' />
-                          ) : (
-                            <ChevronDown className='h-3 w-3 text-muted-foreground' />
-                          )}
-                        </button>
+                    {log.metadata.cost.models &&
+                      Object.keys(log.metadata.cost.models).length > 0 && (
+                        <div className='border-t'>
+                          <button
+                            onClick={() => setIsModelsExpanded(!isModelsExpanded)}
+                            className='flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-muted/50'
+                          >
+                            <span className='font-medium text-muted-foreground text-xs'>
+                              Model Breakdown ({Object.keys(log.metadata.cost.models).length})
+                            </span>
+                            {isModelsExpanded ? (
+                              <ChevronUp className='h-3 w-3 text-muted-foreground' />
+                            ) : (
+                              <ChevronDown className='h-3 w-3 text-muted-foreground' />
+                            )}
+                          </button>
 
-                        {isModelsExpanded && (
-                          <div className='border-t bg-muted/30 p-3 space-y-3'>
-                            {Object.entries(log.metadata.cost.models).map(([model, cost]: [string, any]) => (
-                              <div key={model} className='space-y-1'>
-                                <div className='font-mono text-xs font-medium'>{model}</div>
-                                <div className='space-y-1 text-xs'>
-                                  <div className='flex justify-between'>
-                                    <span className='text-muted-foreground'>Input:</span>
-                                    <span>{formatCost(cost.input || 0)}</span>
+                          {isModelsExpanded && (
+                            <div className='space-y-3 border-t bg-muted/30 p-3'>
+                              {Object.entries(log.metadata.cost.models).map(
+                                ([model, cost]: [string, any]) => (
+                                  <div key={model} className='space-y-1'>
+                                    <div className='font-medium font-mono text-xs'>{model}</div>
+                                    <div className='space-y-1 text-xs'>
+                                      <div className='flex justify-between'>
+                                        <span className='text-muted-foreground'>Input:</span>
+                                        <span>{formatCost(cost.input || 0)}</span>
+                                      </div>
+                                      <div className='flex justify-between'>
+                                        <span className='text-muted-foreground'>Output:</span>
+                                        <span>{formatCost(cost.output || 0)}</span>
+                                      </div>
+                                      <div className='flex justify-between border-t pt-1'>
+                                        <span className='text-muted-foreground'>Total:</span>
+                                        <span className='font-medium'>
+                                          {formatCost(cost.total || 0)}
+                                        </span>
+                                      </div>
+                                      <div className='flex justify-between'>
+                                        <span className='text-muted-foreground'>Tokens:</span>
+                                        <span>
+                                          {cost.tokens?.prompt || 0} in /{' '}
+                                          {cost.tokens?.completion || 0} out
+                                        </span>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className='flex justify-between'>
-                                    <span className='text-muted-foreground'>Output:</span>
-                                    <span>{formatCost(cost.output || 0)}</span>
-                                  </div>
-                                  <div className='flex justify-between border-t pt-1'>
-                                    <span className='text-muted-foreground'>Total:</span>
-                                    <span className='font-medium'>{formatCost(cost.total || 0)}</span>
-                                  </div>
-                                  <div className='flex justify-between'>
-                                    <span className='text-muted-foreground'>Tokens:</span>
-                                    <span>{cost.tokens?.prompt || 0} in / {cost.tokens?.completion || 0} out</span>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                     {isWorkflowWithCost && (
                       <div className='border-t bg-muted p-3 text-muted-foreground text-xs'>

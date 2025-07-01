@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, test } from 'vitest'
 import { SnapshotService } from './snapshot-service'
 import type { WorkflowState } from './types'
 
@@ -13,7 +13,7 @@ describe('SnapshotService', () => {
     test('should generate consistent hashes for identical states', () => {
       const state: WorkflowState = {
         blocks: {
-          'block1': {
+          block1: {
             id: 'block1',
             type: 'agent',
             position: { x: 100, y: 200 },
@@ -28,9 +28,7 @@ describe('SnapshotService', () => {
             height: '0',
           },
         },
-        edges: [
-          { id: 'edge1', source: 'block1', target: 'block2' },
-        ],
+        edges: [{ id: 'edge1', source: 'block1', target: 'block2' }],
         loops: {},
         parallels: {},
       }
@@ -45,7 +43,7 @@ describe('SnapshotService', () => {
     test('should ignore position changes', () => {
       const baseState: WorkflowState = {
         blocks: {
-          'block1': {
+          block1: {
             id: 'block1',
             type: 'agent',
             position: { x: 100, y: 200 },
@@ -68,8 +66,8 @@ describe('SnapshotService', () => {
       const stateWithDifferentPosition: WorkflowState = {
         ...baseState,
         blocks: {
-          'block1': {
-            ...baseState.blocks['block1'],
+          block1: {
+            ...baseState.blocks.block1,
             position: { x: 500, y: 600 }, // Different position
           },
         },
@@ -84,7 +82,7 @@ describe('SnapshotService', () => {
     test('should detect meaningful changes', () => {
       const baseState: WorkflowState = {
         blocks: {
-          'block1': {
+          block1: {
             id: 'block1',
             type: 'agent',
             position: { x: 100, y: 200 },
@@ -107,8 +105,8 @@ describe('SnapshotService', () => {
       const stateWithDifferentPrompt: WorkflowState = {
         ...baseState,
         blocks: {
-          'block1': {
-            ...baseState.blocks['block1'],
+          block1: {
+            ...baseState.blocks.block1,
             config: { params: { prompt: 'Different prompt' } }, // Different prompt
           },
         },
@@ -162,26 +160,26 @@ describe('SnapshotService', () => {
     test('should handle complex nested structures', () => {
       const complexState: WorkflowState = {
         blocks: {
-          'block1': {
+          block1: {
             id: 'block1',
             type: 'agent',
             position: { x: 100, y: 200 },
             metadata: { id: 'agent', name: 'Complex Agent' },
-            config: { 
-              params: { 
+            config: {
+              params: {
                 prompt: 'Hello',
                 model: 'gpt-4',
                 temperature: 0.7,
-                tools: ['search', 'calculator']
-              } 
+                tools: ['search', 'calculator'],
+              },
             },
             subBlocks: {
-              'prompt': {
+              prompt: {
                 id: 'prompt',
                 type: 'short-input',
                 value: 'Test prompt',
               },
-              'model': {
+              model: {
                 id: 'model',
                 type: 'short-input',
                 value: 'gpt-4',
@@ -200,11 +198,9 @@ describe('SnapshotService', () => {
             height: '200',
           },
         },
-        edges: [
-          { id: 'edge1', source: 'block1', target: 'block2', sourceHandle: 'output' },
-        ],
+        edges: [{ id: 'edge1', source: 'block1', target: 'block2', sourceHandle: 'output' }],
         loops: {
-          'loop1': {
+          loop1: {
             id: 'loop1',
             type: 'loop',
             config: {
@@ -214,7 +210,7 @@ describe('SnapshotService', () => {
           },
         },
         parallels: {
-          'parallel1': {
+          parallel1: {
             id: 'parallel1',
             type: 'parallel',
             config: {

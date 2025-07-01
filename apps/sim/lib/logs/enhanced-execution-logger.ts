@@ -1,21 +1,21 @@
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/db'
-import { workflowExecutionLogs, workflowExecutionBlocks } from '@/db/schema'
+import { workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
 import { createLogger } from './console-logger'
 import { snapshotService } from './snapshot-service'
 import type {
-  WorkflowState,
-  WorkflowExecutionLog,
-  WorkflowExecutionSnapshot,
   BlockExecutionLog,
-  ExecutionTrigger,
-  ExecutionEnvironment,
   BlockInputData,
   BlockOutputData,
   CostBreakdown,
-  TraceSpan,
+  ExecutionEnvironment,
+  ExecutionTrigger,
   ExecutionLoggerService as IExecutionLoggerService,
+  TraceSpan,
+  WorkflowExecutionLog,
+  WorkflowExecutionSnapshot,
+  WorkflowState,
 } from './types'
 
 const logger = createLogger('EnhancedExecutionLogger')
@@ -225,9 +225,10 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     logger.debug(`Completing workflow execution ${executionId}`)
 
     const level = blockStats.error > 0 ? 'error' : 'info'
-    const message = blockStats.error > 0
-      ? `Workflow execution failed: ${blockStats.error} error(s), ${blockStats.success} success(es)`
-      : `Workflow execution completed: ${blockStats.success} block(s) executed successfully`
+    const message =
+      blockStats.error > 0
+        ? `Workflow execution failed: ${blockStats.error} error(s), ${blockStats.success} success(es)`
+        : `Workflow execution completed: ${blockStats.success} block(s) executed successfully`
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
@@ -291,7 +292,7 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       .where(eq(workflowExecutionBlocks.executionId, executionId))
       .orderBy(workflowExecutionBlocks.startedAt)
 
-    return blockLogs.map(log => ({
+    return blockLogs.map((log) => ({
       id: log.id,
       executionId: log.executionId,
       workflowId: log.workflowId,
@@ -306,22 +307,24 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       errorStackTrace: log.errorStackTrace || undefined,
       inputData: log.inputData as BlockInputData,
       outputData: log.outputData as BlockOutputData,
-      cost: log.costTotal ? {
-        input: Number(log.costInput) || 0,
-        output: Number(log.costOutput) || 0,
-        total: Number(log.costTotal) || 0,
-        tokens: {
-          prompt: log.tokensPrompt || 0,
-          completion: log.tokensCompletion || 0,
-          total: log.tokensTotal || 0,
-        },
-        model: log.modelUsed || '',
-        pricing: {
-          input: 0,
-          output: 0,
-          updatedAt: new Date().toISOString(),
-        },
-      } : null,
+      cost: log.costTotal
+        ? {
+            input: Number(log.costInput) || 0,
+            output: Number(log.costOutput) || 0,
+            total: Number(log.costTotal) || 0,
+            tokens: {
+              prompt: log.tokensPrompt || 0,
+              completion: log.tokensCompletion || 0,
+              total: log.tokensTotal || 0,
+            },
+            model: log.modelUsed || '',
+            pricing: {
+              input: 0,
+              output: 0,
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        : null,
       metadata: (log.metadata as BlockExecutionLog['metadata']) || {},
       createdAt: log.createdAt.toISOString(),
     }))

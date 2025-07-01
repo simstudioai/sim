@@ -1,22 +1,24 @@
 import { createHash } from 'crypto'
-import { eq, and, lt } from 'drizzle-orm'
+import { and, eq, lt } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/db'
 import { workflowExecutionSnapshots } from '@/db/schema'
 import { createLogger } from './console-logger'
 import type {
-  WorkflowState,
+  SnapshotService as ISnapshotService,
+  SnapshotCreationResult,
   WorkflowExecutionSnapshot,
   WorkflowExecutionSnapshotInsert,
-  SnapshotCreationResult,
-  SnapshotService as ISnapshotService,
+  WorkflowState,
 } from './types'
-
 
 const logger = createLogger('SnapshotService')
 
 export class SnapshotService implements ISnapshotService {
-  async createSnapshot(workflowId: string, state: WorkflowState): Promise<WorkflowExecutionSnapshot> {
+  async createSnapshot(
+    workflowId: string,
+    state: WorkflowState
+  ): Promise<WorkflowExecutionSnapshot> {
     const result = await this.createSnapshotWithDeduplication(workflowId, state)
     return result.snapshot
   }

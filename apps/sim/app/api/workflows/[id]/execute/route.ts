@@ -67,7 +67,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   }
 
   // We'll update the environment with actual variables after fetching them
-  let executionEnvironment = {
+  const executionEnvironment = {
     variables: {},
     workflowId,
     executionId,
@@ -347,8 +347,8 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       // Calculate block stats from execution result
       const blockStats = {
         total: executionResult.logs?.length || 0,
-        success: executionResult.logs?.filter(log => log.success).length || 0,
-        error: executionResult.logs?.filter(log => !log.success).length || 0,
+        success: executionResult.logs?.filter((log) => log.success).length || 0,
+        error: executionResult.logs?.filter((log) => !log.success).length || 0,
         skipped: 0, // TODO: Add skipped block tracking
       }
 

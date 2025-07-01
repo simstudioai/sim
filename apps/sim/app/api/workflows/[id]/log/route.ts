@@ -1,8 +1,8 @@
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionLogs, persistLog } from '@/lib/logs/execution-logger'
 import { enhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
+import { persistExecutionLogs, persistLog } from '@/lib/logs/execution-logger'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           for (const blockLog of result.logs) {
             try {
               // Extract cost data from block output
-              let blockCost = undefined
+              let blockCost
               if (blockLog.output?.response?.cost) {
                 const cost = blockLog.output.response.cost
                 blockCost = {
@@ -107,17 +107,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                   durationMs: blockLog.durationMs || 0,
                 },
                 status: blockLog.success ? 'success' : 'error',
-                error: blockLog.success ? undefined : {
-                  message: blockLog.error || 'Block execution failed',
-                  stackTrace: undefined,
-                },
+                error: blockLog.success
+                  ? undefined
+                  : {
+                      message: blockLog.error || 'Block execution failed',
+                      stackTrace: undefined,
+                    },
                 cost: blockCost,
                 metadata: {
                   toolCalls: blockLog.toolCalls || [],
                 },
               })
             } catch (blockLogError) {
-              logger.error(`[${requestId}] Failed to log block execution ${blockLog.blockId}:`, blockLogError)
+              logger.error(
+                `[${requestId}] Failed to log block execution ${blockLog.blockId}:`,
+                blockLogError
+              )
             }
           }
         }
@@ -125,8 +130,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // Calculate stats from result
         const blockStats = {
           total: result.logs?.length || 0,
-          success: result.logs?.filter(log => log.success).length || 0,
-          error: result.logs?.filter(log => !log.success).length || 0,
+          success: result.logs?.filter((log) => log.success).length || 0,
+          error: result.logs?.filter((log) => !log.success).length || 0,
           skipped: 0,
         }
 
@@ -166,7 +171,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                     input: 0,
                     output: 0,
                     total: 0,
-                    tokens: { prompt: 0, completion: 0, total: 0 }
+                    tokens: { prompt: 0, completion: 0, total: 0 },
                   })
                 }
                 const modelCost = costSummary.models.get(model)!
@@ -192,7 +197,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             output = {
               error: blockLog.error,
               success: false,
-              ...(blockLog.output || {})
+              ...(blockLog.output || {}),
             }
           }
 
@@ -214,17 +219,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           }
         })
 
-        logger.debug(`[${requestId}] Built ${traceSpans.length} trace spans for execution ${executionId}:`, {
-          traceSpans: traceSpans.map(span => ({
-            id: span.id,
-            name: span.name,
-            status: span.status,
-            hasInput: !!span.input,
-            hasOutput: !!span.output,
-            input: span.input,
-            output: span.output,
-          }))
-        })
+        logger.debug(
+          `[${requestId}] Built ${traceSpans.length} trace spans for execution ${executionId}:`,
+          {
+            traceSpans: traceSpans.map((span) => ({
+              id: span.id,
+              name: span.name,
+              status: span.status,
+              hasInput: !!span.input,
+              hasOutput: !!span.output,
+              input: span.input,
+              output: span.output,
+            })),
+          }
+        )
 
         await enhancedExecutionLogger.completeWorkflowExecution({
           executionId,

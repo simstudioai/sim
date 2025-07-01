@@ -44,7 +44,7 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
     }
 
     // Remove null/undefined values for cleaner display
-    Object.keys(cleanInput).forEach(key => {
+    Object.keys(cleanInput).forEach((key) => {
       if (cleanInput[key] === null || cleanInput[key] === undefined) {
         delete cleanInput[key]
       }
@@ -64,21 +64,21 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
           model: response.model,
           tokens: response.tokens,
           toolCalls: response.toolCalls,
-          ...(response.cost && { cost: response.cost })
+          ...(response.cost && { cost: response.cost }),
         }
 
       case 'function':
         return {
           result: response.result,
           stdout: response.stdout,
-          ...(response.executionTime && { executionTime: `${response.executionTime}ms` })
+          ...(response.executionTime && { executionTime: `${response.executionTime}ms` }),
         }
 
       case 'api':
         return {
           data: response.data,
           status: response.status,
-          headers: response.headers
+          headers: response.headers,
         }
 
       default:
@@ -91,11 +91,16 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
 }
 
 // Component to display block input/output data in a clean, readable format
-function BlockDataDisplay({ data, blockType, isInput = false, isError = false }: {
-  data: any;
-  blockType?: string;
-  isInput?: boolean;
-  isError?: boolean;
+function BlockDataDisplay({
+  data,
+  blockType,
+  isInput = false,
+  isError = false,
+}: {
+  data: any
+  blockType?: string
+  isInput?: boolean
+  isError?: boolean
 }) {
   if (!data) return null
 
@@ -142,7 +147,7 @@ function BlockDataDisplay({ data, blockType, isInput = false, isError = false }:
         <div className='space-y-1'>
           {entries.map(([objKey, objValue]) => (
             <div key={objKey} className='flex gap-2'>
-              <span className='text-orange-700 dark:text-orange-400 font-medium'>{objKey}:</span>
+              <span className='font-medium text-orange-700 dark:text-orange-400'>{objKey}:</span>
               {renderValue(objValue, objKey)}
             </div>
           ))}
@@ -159,31 +164,31 @@ function BlockDataDisplay({ data, blockType, isInput = false, isError = false }:
   // Special handling for error output
   if (isError && data.error) {
     return (
-      <div className='text-xs space-y-2'>
-        <div className='p-2 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded'>
-          <div className='text-red-800 dark:text-red-400 font-medium mb-1'>Error</div>
+      <div className='space-y-2 text-xs'>
+        <div className='rounded border border-red-200 bg-red-50 p-2 dark:border-red-800 dark:bg-red-950/20'>
+          <div className='mb-1 font-medium text-red-800 dark:text-red-400'>Error</div>
           <div className='text-red-700 dark:text-red-300'>{data.error}</div>
         </div>
         {/* Show other output data if available */}
-        {transformedData && Object.keys(transformedData).filter(key => key !== 'error' && key !== 'success').length > 0 && (
-          <div className='space-y-1'>
-            {Object.entries(transformedData).filter(([key]) => key !== 'error' && key !== 'success').map(([key, value]) => (
-              <div key={key} className='flex gap-2'>
-                <span className='text-orange-700 dark:text-orange-400 font-medium'>{key}:</span>
-                {renderValue(value, key)}
-              </div>
-            ))}
-          </div>
-        )}
+        {transformedData &&
+          Object.keys(transformedData).filter((key) => key !== 'error' && key !== 'success')
+            .length > 0 && (
+            <div className='space-y-1'>
+              {Object.entries(transformedData)
+                .filter(([key]) => key !== 'error' && key !== 'success')
+                .map(([key, value]) => (
+                  <div key={key} className='flex gap-2'>
+                    <span className='font-medium text-orange-700 dark:text-orange-400'>{key}:</span>
+                    {renderValue(value, key)}
+                  </div>
+                ))}
+            </div>
+          )}
       </div>
     )
   }
 
-  return (
-    <div className='text-xs space-y-1'>
-      {renderValue(transformedData || data)}
-    </div>
-  )
+  return <div className='space-y-1 text-xs'>{renderValue(transformedData || data)}</div>
 }
 
 export function TraceSpansDisplay({
@@ -600,17 +605,13 @@ function TraceSpanItem({
         <div>
           {/* Block Input/Output Data */}
           {(span.input || span.output) && (
-            <div className='ml-8 mt-2 space-y-3'>
+            <div className='mt-2 ml-8 space-y-3'>
               {/* Input Data */}
               {span.input && (
                 <div>
-                  <h4 className='text-xs font-medium text-muted-foreground mb-2'>Input</h4>
+                  <h4 className='mb-2 font-medium text-muted-foreground text-xs'>Input</h4>
                   <div className='rounded-md bg-secondary/30 p-3'>
-                    <BlockDataDisplay
-                      data={span.input}
-                      blockType={span.type}
-                      isInput={true}
-                    />
+                    <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
                   </div>
                 </div>
               )}
@@ -618,7 +619,7 @@ function TraceSpanItem({
               {/* Output Data */}
               {span.output && (
                 <div>
-                  <h4 className='text-xs font-medium text-muted-foreground mb-2'>
+                  <h4 className='mb-2 font-medium text-muted-foreground text-xs'>
                     {span.status === 'error' ? 'Error Details' : 'Output'}
                   </h4>
                   <div className='rounded-md bg-secondary/30 p-3'>
