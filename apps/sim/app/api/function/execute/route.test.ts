@@ -391,6 +391,225 @@ describe('Function Execute API Route', () => {
     })
   })
 
+  describe('Enhanced Error Handling', () => {
+    it('should provide detailed syntax error with line content', async () => {
+      // Mock VM Script to throw a syntax error
+      const mockScript = vi.fn().mockImplementation(() => {
+        const error = new Error('Invalid or unexpected token')
+        error.name = 'SyntaxError'
+        error.stack = `user-function.js:5
+      description: "This has a missing closing quote
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+SyntaxError: Invalid or unexpected token
+    at new Script (node:vm:117:7)
+    at POST (/path/to/route.ts:123:24)`
+        throw error
+      })
+
+      vi.doMock('vm', () => ({
+        createContext: mockCreateContext,
+        Script: mockScript,
+      }))
+
+      const req = createMockRequest('POST', {
+        code: 'const obj = {\n  name: "test",\n  description: "This has a missing closing quote\n};\nreturn obj;',
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Syntax Error')
+      expect(data.error).toContain('Line 3')
+      expect(data.error).toContain('description: "This has a missing closing quote')
+      expect(data.error).toContain('Invalid or unexpected token')
+      expect(data.error).toContain('(Check for missing quotes, brackets, or semicolons)')
+
+      // Check debug information
+      expect(data.debug).toBeDefined()
+      expect(data.debug.line).toBe(3)
+      expect(data.debug.errorType).toBe('SyntaxError')
+      expect(data.debug.lineContent).toBe('description: "This has a missing closing quote')
+    })
+
+    it('should provide detailed runtime error with line and column', async () => {
+      // Create the error object first
+      const runtimeError = new Error("Cannot read properties of null (reading 'someMethod')")
+      runtimeError.name = 'TypeError'
+      runtimeError.stack = `TypeError: Cannot read properties of null (reading 'someMethod')
+    at user-function.js:4:16
+    at user-function.js:9:3
+    at Script.runInContext (node:vm:147:14)`
+
+      // Mock successful script creation but runtime error
+      const mockScript = vi.fn().mockImplementation(() => ({
+        runInContext: vi.fn().mockRejectedValue(runtimeError),
+      }))
+
+      vi.doMock('vm', () => ({
+        createContext: mockCreateContext,
+        Script: mockScript,
+      }))
+
+      const req = createMockRequest('POST', {
+        code: 'const obj = null;\nreturn obj.someMethod();',
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Type Error')
+      expect(data.error).toContain('Line 2')
+      expect(data.error).toContain('return obj.someMethod();')
+      expect(data.error).toContain('Cannot read properties of null')
+
+      // Check debug information
+      expect(data.debug).toBeDefined()
+      expect(data.debug.line).toBe(2)
+      expect(data.debug.column).toBe(16)
+      expect(data.debug.errorType).toBe('TypeError')
+      expect(data.debug.lineContent).toBe('return obj.someMethod();')
+    })
+
+    it('should handle ReferenceError with enhanced details', async () => {
+      // Create the error object first
+      const referenceError = new Error('undefinedVariable is not defined')
+      referenceError.name = 'ReferenceError'
+      referenceError.stack = `ReferenceError: undefinedVariable is not defined
+    at user-function.js:4:8
+    at Script.runInContext (node:vm:147:14)`
+
+      const mockScript = vi.fn().mockImplementation(() => ({
+        runInContext: vi.fn().mockRejectedValue(referenceError),
+      }))
+
+      vi.doMock('vm', () => ({
+        createContext: mockCreateContext,
+        Script: mockScript,
+      }))
+
+      const req = createMockRequest('POST', {
+        code: 'const x = 42;\nreturn undefinedVariable + x;',
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Reference Error')
+      expect(data.error).toContain('Line 2')
+      expect(data.error).toContain('return undefinedVariable + x;')
+      expect(data.error).toContain('undefinedVariable is not defined')
+    })
+
+    it('should handle errors without line content gracefully', async () => {
+      const mockScript = vi.fn().mockImplementation(() => {
+        const error = new Error('Generic error without stack trace')
+        error.name = 'Error'
+        // No stack trace
+        throw error
+      })
+
+      vi.doMock('vm', () => ({
+        createContext: mockCreateContext,
+        Script: mockScript,
+      }))
+
+      const req = createMockRequest('POST', {
+        code: 'return "test";',
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toBe('Generic error without stack trace')
+
+      // Should still have debug info, but without line details
+      expect(data.debug).toBeDefined()
+      expect(data.debug.errorType).toBe('Error')
+      expect(data.debug.line).toBeUndefined()
+      expect(data.debug.lineContent).toBeUndefined()
+    })
+
+    it('should extract line numbers from different stack trace formats', async () => {
+      const mockScript = vi.fn().mockImplementation(() => {
+        const error = new Error('Test error')
+        error.name = 'Error'
+        error.stack = `Error: Test error
+    at user-function.js:7:25
+    at async function
+    at Script.runInContext (node:vm:147:14)`
+        throw error
+      })
+
+      vi.doMock('vm', () => ({
+        createContext: mockCreateContext,
+        Script: mockScript,
+      }))
+
+      const req = createMockRequest('POST', {
+        code: 'const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nreturn a + b + c + d;',
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+
+      // Line 7 in VM should map to line 5 in user code (7 - 3 + 1 = 5)
+      expect(data.debug.line).toBe(5)
+      expect(data.debug.column).toBe(25)
+      expect(data.debug.lineContent).toBe('return a + b + c + d;')
+    })
+
+    it('should provide helpful suggestions for common syntax errors', async () => {
+      const mockScript = vi.fn().mockImplementation(() => {
+        const error = new Error('Unexpected end of input')
+        error.name = 'SyntaxError'
+        error.stack = 'user-function.js:4\nSyntaxError: Unexpected end of input'
+        throw error
+      })
+
+      vi.doMock('vm', () => ({
+        createContext: mockCreateContext,
+        Script: mockScript,
+      }))
+
+      const req = createMockRequest('POST', {
+        code: 'const obj = {\n  name: "test"\n// Missing closing brace',
+        timeout: 5000,
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Syntax Error')
+      expect(data.error).toContain('Unexpected end of input')
+      expect(data.error).toContain('(Check for missing closing brackets or braces)')
+    })
+  })
+
   describe('Utility Functions', () => {
     it('should properly escape regex special characters', async () => {
       // This tests the escapeRegExp function indirectly

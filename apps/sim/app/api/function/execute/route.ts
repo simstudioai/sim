@@ -18,12 +18,17 @@ interface EnhancedError {
   stack?: string
   name: string
   originalError: any
+  lineContent?: string
 }
 
 /**
  * Extract enhanced error information from VM execution errors
  */
-function extractEnhancedError(error: any, userCodeStartLine: number): EnhancedError {
+function extractEnhancedError(
+  error: any,
+  userCodeStartLine: number,
+  userCode?: string
+): EnhancedError {
   const enhanced: EnhancedError = {
     message: error.message || 'Unknown error',
     name: error.name || 'Error',
@@ -62,6 +67,14 @@ function extractEnhancedError(error: any, userCodeStartLine: number): EnhancedEr
         if (adjustedLine > 0) {
           enhanced.line = adjustedLine
           enhanced.column = stackColumn
+
+          // Extract the actual line content from user code
+          if (userCode) {
+            const codeLines = userCode.split('\n')
+            if (adjustedLine <= codeLines.length) {
+              enhanced.lineContent = codeLines[adjustedLine - 1]?.trim()
+            }
+          }
           break
         }
         if (stackLine <= userCodeStartLine) {
@@ -96,12 +109,23 @@ function extractEnhancedError(error: any, userCodeStartLine: number): EnhancedEr
 /**
  * Create a detailed error message for users
  */
-function createUserFriendlyErrorMessage(enhanced: EnhancedError, requestId: string): string {
+function createUserFriendlyErrorMessage(
+  enhanced: EnhancedError,
+  requestId: string,
+  userCode?: string
+): string {
   let errorMessage = enhanced.message
 
   // Add line and column information if available
   if (enhanced.line !== undefined) {
-    errorMessage = `Line ${enhanced.line}${enhanced.column !== undefined ? `:${enhanced.column}` : ''} - ${errorMessage}`
+    let lineInfo = `Line ${enhanced.line}${enhanced.column !== undefined ? `:${enhanced.column}` : ''}`
+
+    // Add the actual line content if available
+    if (enhanced.lineContent) {
+      lineInfo += `: \`${enhanced.lineContent}\``
+    }
+
+    errorMessage = `${lineInfo} - ${errorMessage}`
   } else {
     // If no line number, try to extract it from stack trace for display
     if (enhanced.stack) {
@@ -109,7 +133,22 @@ function createUserFriendlyErrorMessage(enhanced: EnhancedError, requestId: stri
       if (stackMatch) {
         const line = Number.parseInt(stackMatch[1], 10)
         const column = stackMatch[2] ? Number.parseInt(stackMatch[2], 10) : undefined
-        errorMessage = `Line ${line}${column ? `:${column}` : ''} - ${errorMessage}`
+        let lineInfo = `Line ${line}${column ? `:${column}` : ''}`
+
+        // Try to get line content if we have userCode
+        if (userCode) {
+          const codeLines = userCode.split('\n')
+          // Note: stackMatch gives us VM line number, need to adjust
+          // This is a fallback case, so we might not have perfect line mapping
+          if (line <= codeLines.length) {
+            const lineContent = codeLines[line - 1]?.trim()
+            if (lineContent) {
+              lineInfo += `: \`${lineContent}\``
+            }
+          }
+        }
+
+        errorMessage = `${lineInfo} - ${errorMessage}`
       }
     }
   }
@@ -257,6 +296,7 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now()
   let stdout = ''
   let userCodeStartLine = 3 // Default value for error reporting
+  let resolvedCode = '' // Store resolved code for error reporting
 
   try {
     const body = await req.json()
@@ -285,13 +325,15 @@ export async function POST(req: NextRequest) {
     })
 
     // Resolve variables in the code with workflow environment variables
-    const { resolvedCode, contextVariables } = resolveCodeVariables(
+    const codeResolution = resolveCodeVariables(
       code,
       executionParams,
       envVars,
       blockData,
       blockNameMapping
     )
+    resolvedCode = codeResolution.resolvedCode
+    const contextVariables = codeResolution.contextVariables
 
     const executionMethod = 'vm' // Default execution method
 
@@ -528,8 +570,12 @@ export async function POST(req: NextRequest) {
       executionTime,
     })
 
-    const enhancedError = extractEnhancedError(error, userCodeStartLine)
-    const userFriendlyErrorMessage = createUserFriendlyErrorMessage(enhancedError, requestId)
+    const enhancedError = extractEnhancedError(error, userCodeStartLine, resolvedCode)
+    const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
+      enhancedError,
+      requestId,
+      resolvedCode
+    )
 
     // Log enhanced error details for debugging
     logger.error(`[${requestId}] Enhanced error details`, {
@@ -537,6 +583,7 @@ export async function POST(req: NextRequest) {
       enhancedMessage: userFriendlyErrorMessage,
       line: enhancedError.line,
       column: enhancedError.column,
+      lineContent: enhancedError.lineContent,
       errorType: enhancedError.name,
       userCodeStartLine,
     })
@@ -554,6 +601,7 @@ export async function POST(req: NextRequest) {
         line: enhancedError.line,
         column: enhancedError.column,
         errorType: enhancedError.name,
+        lineContent: enhancedError.lineContent,
         stack: enhancedError.stack,
       },
     }
