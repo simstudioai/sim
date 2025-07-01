@@ -314,7 +314,9 @@ export const workflowExecutionLogs = pgTable(
     startedAtIdx: index('workflow_execution_logs_started_at_idx').on(table.startedAt),
     costIdx: index('workflow_execution_logs_cost_idx').on(table.totalCost),
     durationIdx: index('workflow_execution_logs_duration_idx').on(table.totalDurationMs),
-    executionIdUnique: uniqueIndex('workflow_execution_logs_execution_id_unique').on(table.executionId),
+    executionIdUnique: uniqueIndex('workflow_execution_logs_execution_id_unique').on(
+      table.executionId
+    ),
   })
 )
 

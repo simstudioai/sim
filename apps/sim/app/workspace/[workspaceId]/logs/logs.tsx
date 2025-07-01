@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -13,8 +13,6 @@ import { formatDate } from './utils/format-date'
 
 const logger = createLogger('Logs')
 const LOGS_PER_PAGE = 50
-
-
 
 const selectedRowAnimation = `
   @keyframes borderPulse {
@@ -61,16 +59,12 @@ export default function Logs() {
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
-
-
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
     const index = logs.findIndex((l) => l.id === log.id)
     setSelectedLogIndex(index)
     setIsSidebarOpen(true)
   }
-
-
 
   const handleNavigateNext = () => {
     if (selectedLogIndex < logs.length - 1) {
@@ -310,13 +304,13 @@ export default function Logs() {
           {/* Table container */}
           <div className='flex flex-1 flex-col overflow-hidden'>
             {/* Simple header */}
-            <div className='border-b border-border/50 px-4 py-3'>
-              <div className='flex items-center gap-4 text-muted-foreground text-xs font-medium'>
+            <div className='border-border/50 border-b px-4 py-3'>
+              <div className='flex items-center gap-4 font-medium text-muted-foreground text-xs'>
                 <div className='w-32'>Time</div>
                 <div className='w-20'>Status</div>
                 <div className='flex-1'>Workflow</div>
-                <div className='w-24 hidden lg:block'>Trigger</div>
-                <div className='w-20 hidden xl:block'>Cost</div>
+                <div className='hidden w-24 lg:block'>Trigger</div>
+                <div className='hidden w-20 xl:block'>Cost</div>
                 <div className='w-20'>Duration</div>
               </div>
             </div>
@@ -346,101 +340,105 @@ export default function Logs() {
                 </div>
               ) : (
                 <div className='space-y-1 p-4'>
-                    {logs.map((log) => {
-                      const formattedDate = formatDate(log.createdAt)
-                      const isSelected = selectedLog?.id === log.id
+                  {logs.map((log) => {
+                    const formattedDate = formatDate(log.createdAt)
+                    const isSelected = selectedLog?.id === log.id
 
-                      return (
-                        <div
-                          key={log.id}
-                          ref={isSelected ? selectedRowRef : null}
-                          className={`rounded-lg border transition-all duration-200 cursor-pointer ${
-                            isSelected
-                              ? 'border-primary bg-accent/40 shadow-sm'
-                              : 'border-border hover:border-border/80 hover:bg-accent/20'
-                          }`}
-                          onClick={() => handleLogClick(log)}
-                        >
-                          <div className='flex items-center gap-4 p-4'>
-                            {/* Time */}
-                            <div className='w-32 flex-shrink-0'>
-                              <div className='text-sm font-medium'>{formattedDate.formatted}</div>
-                              <div className='text-muted-foreground text-xs'>{formattedDate.relative}</div>
+                    return (
+                      <div
+                        key={log.id}
+                        ref={isSelected ? selectedRowRef : null}
+                        className={`cursor-pointer rounded-lg border transition-all duration-200 ${
+                          isSelected
+                            ? 'border-primary bg-accent/40 shadow-sm'
+                            : 'border-border hover:border-border/80 hover:bg-accent/20'
+                        }`}
+                        onClick={() => handleLogClick(log)}
+                      >
+                        <div className='flex items-center gap-4 p-4'>
+                          {/* Time */}
+                          <div className='w-32 flex-shrink-0'>
+                            <div className='font-medium text-sm'>{formattedDate.formatted}</div>
+                            <div className='text-muted-foreground text-xs'>
+                              {formattedDate.relative}
                             </div>
+                          </div>
 
-                            {/* Status */}
-                            <div className='w-20 flex-shrink-0'>
-                              <div
-                                className={`inline-flex items-center justify-center rounded-md px-2 py-1 text-xs ${
-                                  log.level === 'error'
-                                    ? 'bg-red-100 text-red-800'
-                                    : 'bg-green-100 text-green-800'
-                                }`}
-                              >
-                                <span className='font-medium'>{log.level === 'error' ? 'Failed' : 'Success'}</span>
-                              </div>
+                          {/* Status */}
+                          <div className='w-20 flex-shrink-0'>
+                            <div
+                              className={`inline-flex items-center justify-center rounded-md px-2 py-1 text-xs ${
+                                log.level === 'error'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-green-100 text-green-800'
+                              }`}
+                            >
+                              <span className='font-medium'>
+                                {log.level === 'error' ? 'Failed' : 'Success'}
+                              </span>
                             </div>
+                          </div>
 
-                            {/* Workflow */}
-                            <div className='flex-1 min-w-0'>
-                              <div className='text-sm font-medium truncate'>
-                                {log.workflow?.name || 'Unknown Workflow'}
-                              </div>
-                              <div className='text-muted-foreground text-xs truncate'>
-                                {log.message}
-                              </div>
+                          {/* Workflow */}
+                          <div className='min-w-0 flex-1'>
+                            <div className='truncate font-medium text-sm'>
+                              {log.workflow?.name || 'Unknown Workflow'}
                             </div>
-
-                            {/* Trigger */}
-                            <div className='w-24 flex-shrink-0 hidden lg:block'>
-                              <div className='text-muted-foreground text-xs'>
-                                {log.trigger || '—'}
-                              </div>
+                            <div className='truncate text-muted-foreground text-xs'>
+                              {log.message}
                             </div>
+                          </div>
 
-                            {/* Cost */}
-                            <div className='w-20 flex-shrink-0 hidden xl:block'>
-                              <div className='text-xs'>
-                                {log.metadata?.enhanced && log.metadata?.cost?.total ? (
-                                  <span className='text-muted-foreground'>
-                                    ${log.metadata.cost.total.toFixed(4)}
-                                  </span>
-                                ) : (
-                                  <span className='text-muted-foreground'>—</span>
-                                )}
-                              </div>
+                          {/* Trigger */}
+                          <div className='hidden w-24 flex-shrink-0 lg:block'>
+                            <div className='text-muted-foreground text-xs'>
+                              {log.trigger || '—'}
                             </div>
+                          </div>
 
-                            {/* Duration */}
-                            <div className='w-20 flex-shrink-0'>
-                              <div className='text-muted-foreground text-xs'>
-                                {log.duration || '—'}
-                              </div>
+                          {/* Cost */}
+                          <div className='hidden w-20 flex-shrink-0 xl:block'>
+                            <div className='text-xs'>
+                              {log.metadata?.enhanced && log.metadata?.cost?.total ? (
+                                <span className='text-muted-foreground'>
+                                  ${log.metadata.cost.total.toFixed(4)}
+                                </span>
+                              ) : (
+                                <span className='text-muted-foreground'>—</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Duration */}
+                          <div className='w-20 flex-shrink-0'>
+                            <div className='text-muted-foreground text-xs'>
+                              {log.duration || '—'}
                             </div>
                           </div>
                         </div>
-                      )
-                    })}
-
-                    {/* Infinite scroll loader */}
-                    {hasMore && (
-                      <div className='flex items-center justify-center py-4'>
-                        <div
-                          ref={loaderRef}
-                          className='flex items-center gap-2 text-muted-foreground'
-                        >
-                          {isFetchingMore ? (
-                            <>
-                              <Loader2 className='h-4 w-4 animate-spin' />
-                              <span className='text-sm'>Loading more...</span>
-                            </>
-                          ) : (
-                            <span className='text-sm'>Scroll to load more</span>
-                          )}
-                        </div>
                       </div>
-                    )}
-                  </div>
+                    )
+                  })}
+
+                  {/* Infinite scroll loader */}
+                  {hasMore && (
+                    <div className='flex items-center justify-center py-4'>
+                      <div
+                        ref={loaderRef}
+                        className='flex items-center gap-2 text-muted-foreground'
+                      >
+                        {isFetchingMore ? (
+                          <>
+                            <Loader2 className='h-4 w-4 animate-spin' />
+                            <span className='text-sm'>Loading more...</span>
+                          </>
+                        ) : (
+                          <span className='text-sm'>Scroll to load more</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

@@ -4,8 +4,8 @@ import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionError } from '@/lib/logs/execution-logger'
 import { enhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
+import { persistExecutionError } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import {
   type BlockState,
@@ -340,7 +340,9 @@ export async function GET() {
             workflowState,
           })
 
-          logger.debug(`[${requestId}] Started enhanced logging for scheduled execution ${executionId}`)
+          logger.debug(
+            `[${requestId}] Started enhanced logging for scheduled execution ${executionId}`
+          )
         } catch (enhancedError) {
           logger.error(`[${requestId}] Failed to start enhanced logging:`, enhancedError)
           // Continue with execution even if enhanced logging fails
@@ -391,7 +393,7 @@ export async function GET() {
           for (const blockLog of executionResult.logs) {
             try {
               // Extract cost data from block output
-              let blockCost = undefined
+              let blockCost
               if (blockLog.output?.response?.cost) {
                 const cost = blockLog.output.response.cost
                 blockCost = {
@@ -422,17 +424,22 @@ export async function GET() {
                   durationMs: blockLog.durationMs || 0,
                 },
                 status: blockLog.success ? 'success' : 'error',
-                error: blockLog.success ? undefined : {
-                  message: blockLog.error || 'Block execution failed',
-                  stackTrace: undefined,
-                },
+                error: blockLog.success
+                  ? undefined
+                  : {
+                      message: blockLog.error || 'Block execution failed',
+                      stackTrace: undefined,
+                    },
                 cost: blockCost,
                 metadata: {
                   toolCalls: (blockLog as any).toolCalls || [],
                 },
               })
             } catch (blockLogError) {
-              logger.error(`[${requestId}] Failed to log block execution ${blockLog.blockId}:`, blockLogError)
+              logger.error(
+                `[${requestId}] Failed to log block execution ${blockLog.blockId}:`,
+                blockLogError
+              )
             }
           }
         }
@@ -442,8 +449,8 @@ export async function GET() {
           // Calculate block stats from execution result
           const blockStats = {
             total: executionResult.logs?.length || 0,
-            success: executionResult.logs?.filter(log => log.success).length || 0,
-            error: executionResult.logs?.filter(log => !log.success).length || 0,
+            success: executionResult.logs?.filter((log) => log.success).length || 0,
+            error: executionResult.logs?.filter((log) => !log.success).length || 0,
             skipped: 0, // TODO: Add skipped block tracking
           }
 
@@ -492,7 +499,9 @@ export async function GET() {
             traceSpans: (traceSpans || []) as any,
           })
 
-          logger.debug(`[${requestId}] Completed enhanced logging for scheduled execution ${executionId}`)
+          logger.debug(
+            `[${requestId}] Completed enhanced logging for scheduled execution ${executionId}`
+          )
         } catch (enhancedError) {
           logger.error(`[${requestId}] Failed to complete enhanced logging:`, enhancedError)
         }
@@ -588,7 +597,10 @@ export async function GET() {
             traceSpans: [],
           })
         } catch (enhancedError) {
-          logger.error(`[${requestId}] Failed to complete enhanced logging for error:`, enhancedError)
+          logger.error(
+            `[${requestId}] Failed to complete enhanced logging for error:`,
+            enhancedError
+          )
         }
 
         let nextRunAt: Date

@@ -1,10 +1,10 @@
-import { and, eq, gte, lte, or, type SQL, sql, desc, inArray } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflow, workflowExecutionLogs, workflowExecutionBlocks } from '@/db/schema'
+import { workflow, workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
 
 const logger = createLogger('EnhancedLogsAPI')
 
@@ -66,7 +66,10 @@ export async function GET(request: NextRequest) {
         const workflowIds = params.workflowIds.split(',').filter(Boolean)
         const filteredWorkflowIds = workflowIds.filter((id) => userWorkflowIds.includes(id))
         if (filteredWorkflowIds.length > 0) {
-          conditions = and(conditions, inArray(workflowExecutionLogs.workflowId, filteredWorkflowIds))
+          conditions = and(
+            conditions,
+            inArray(workflowExecutionLogs.workflowId, filteredWorkflowIds)
+          )
         }
       }
 
@@ -76,9 +79,12 @@ export async function GET(request: NextRequest) {
         const workflowsInFolders = userWorkflows
           .filter((w) => w.folderId && folderIds.includes(w.folderId))
           .map((w) => w.id)
-        
+
         if (workflowsInFolders.length > 0) {
-          conditions = and(conditions, inArray(workflowExecutionLogs.workflowId, workflowsInFolders))
+          conditions = and(
+            conditions,
+            inArray(workflowExecutionLogs.workflowId, workflowsInFolders)
+          )
         }
       }
 
@@ -92,7 +98,10 @@ export async function GET(request: NextRequest) {
 
       // Filter by date range
       if (params.startDate) {
-        conditions = and(conditions, gte(workflowExecutionLogs.startedAt, new Date(params.startDate)))
+        conditions = and(
+          conditions,
+          gte(workflowExecutionLogs.startedAt, new Date(params.startDate))
+        )
       }
       if (params.endDate) {
         conditions = and(conditions, lte(workflowExecutionLogs.startedAt, new Date(params.endDate)))
@@ -139,38 +148,43 @@ export async function GET(request: NextRequest) {
           .orderBy(workflowExecutionBlocks.startedAt)
 
         // Group block logs by execution ID
-        blockExecutionsByExecution = blockLogs.reduce((acc, blockLog) => {
-          if (!acc[blockLog.executionId]) {
-            acc[blockLog.executionId] = []
-          }
-          acc[blockLog.executionId].push({
-            id: blockLog.id,
-            blockId: blockLog.blockId,
-            blockName: blockLog.blockName || '',
-            blockType: blockLog.blockType,
-            startedAt: blockLog.startedAt.toISOString(),
-            endedAt: blockLog.endedAt?.toISOString() || blockLog.startedAt.toISOString(),
-            durationMs: blockLog.durationMs || 0,
-            status: blockLog.status,
-            errorMessage: blockLog.errorMessage || undefined,
-            errorStackTrace: blockLog.errorStackTrace || undefined,
-            inputData: blockLog.inputData,
-            outputData: blockLog.outputData,
-            cost: blockLog.costTotal ? {
-              input: Number(blockLog.costInput) || 0,
-              output: Number(blockLog.costOutput) || 0,
-              total: Number(blockLog.costTotal) || 0,
-              tokens: {
-                prompt: blockLog.tokensPrompt || 0,
-                completion: blockLog.tokensCompletion || 0,
-                total: blockLog.tokensTotal || 0,
-              },
-              model: blockLog.modelUsed || '',
-            } : undefined,
-            metadata: blockLog.metadata || {},
-          })
-          return acc
-        }, {} as Record<string, any[]>)
+        blockExecutionsByExecution = blockLogs.reduce(
+          (acc, blockLog) => {
+            if (!acc[blockLog.executionId]) {
+              acc[blockLog.executionId] = []
+            }
+            acc[blockLog.executionId].push({
+              id: blockLog.id,
+              blockId: blockLog.blockId,
+              blockName: blockLog.blockName || '',
+              blockType: blockLog.blockType,
+              startedAt: blockLog.startedAt.toISOString(),
+              endedAt: blockLog.endedAt?.toISOString() || blockLog.startedAt.toISOString(),
+              durationMs: blockLog.durationMs || 0,
+              status: blockLog.status,
+              errorMessage: blockLog.errorMessage || undefined,
+              errorStackTrace: blockLog.errorStackTrace || undefined,
+              inputData: blockLog.inputData,
+              outputData: blockLog.outputData,
+              cost: blockLog.costTotal
+                ? {
+                    input: Number(blockLog.costInput) || 0,
+                    output: Number(blockLog.costOutput) || 0,
+                    total: Number(blockLog.costTotal) || 0,
+                    tokens: {
+                      prompt: blockLog.tokensPrompt || 0,
+                      completion: blockLog.tokensCompletion || 0,
+                      total: blockLog.tokensTotal || 0,
+                    },
+                    model: blockLog.modelUsed || '',
+                  }
+                : undefined,
+              metadata: blockLog.metadata || {},
+            })
+            return acc
+          },
+          {} as Record<string, any[]>
+        )
       }
 
       // Create clean trace spans from block executions
@@ -203,7 +217,7 @@ export async function GET(request: NextRequest) {
         let totalCompletionTokens = 0
         const models = new Map()
 
-        blockExecutions.forEach(block => {
+        blockExecutions.forEach((block) => {
           if (block.cost) {
             totalCost += Number(block.cost.total) || 0
             totalInputCost += Number(block.cost.input) || 0
@@ -219,7 +233,7 @@ export async function GET(request: NextRequest) {
                   input: 0,
                   output: 0,
                   total: 0,
-                  tokens: { prompt: 0, completion: 0, total: 0 }
+                  tokens: { prompt: 0, completion: 0, total: 0 },
                 })
               }
               const modelCost = models.get(block.cost.model)
@@ -252,26 +266,26 @@ export async function GET(request: NextRequest) {
 
         // Use stored trace spans from metadata if available, otherwise create from block executions
         const storedTraceSpans = (log.metadata as any)?.traceSpans
-        const traceSpans = storedTraceSpans && Array.isArray(storedTraceSpans) && storedTraceSpans.length > 0
-          ? storedTraceSpans
-          : createTraceSpans(blockExecutions)
-
-
+        const traceSpans =
+          storedTraceSpans && Array.isArray(storedTraceSpans) && storedTraceSpans.length > 0
+            ? storedTraceSpans
+            : createTraceSpans(blockExecutions)
 
         // Use extracted cost summary if available, otherwise use stored values
-        const costSummary = blockExecutions.length > 0
-          ? extractCostSummary(blockExecutions)
-          : {
-              input: Number(log.totalInputCost) || 0,
-              output: Number(log.totalOutputCost) || 0,
-              total: Number(log.totalCost) || 0,
-              tokens: {
-                total: log.totalTokens || 0,
-                prompt: 0, // Legacy logs don't have breakdown
-                completion: 0, // Legacy logs don't have breakdown
-              },
-              models: {}, // Legacy logs don't have model breakdown
-            }
+        const costSummary =
+          blockExecutions.length > 0
+            ? extractCostSummary(blockExecutions)
+            : {
+                input: Number(log.totalInputCost) || 0,
+                output: Number(log.totalOutputCost) || 0,
+                total: Number(log.totalCost) || 0,
+                tokens: {
+                  total: log.totalTokens || 0,
+                  prompt: 0, // Legacy logs don't have breakdown
+                  completion: 0, // Legacy logs don't have breakdown
+                },
+                models: {}, // Legacy logs don't have model breakdown
+              }
 
         return {
           id: log.id,
@@ -326,7 +340,7 @@ export async function GET(request: NextRequest) {
       // Include block execution data if requested
       if (params.includeBlocks === 'true') {
         const executionIds = logs.map((log) => log.executionId)
-        
+
         if (executionIds.length > 0) {
           const blockLogs = await db
             .select()
@@ -335,36 +349,41 @@ export async function GET(request: NextRequest) {
             .orderBy(workflowExecutionBlocks.startedAt)
 
           // Group block logs by execution ID
-          const blockLogsByExecution = blockLogs.reduce((acc, blockLog) => {
-            if (!acc[blockLog.executionId]) {
-              acc[blockLog.executionId] = []
-            }
-            acc[blockLog.executionId].push({
-              id: blockLog.id,
-              blockId: blockLog.blockId,
-              blockName: blockLog.blockName || '',
-              blockType: blockLog.blockType,
-              startedAt: blockLog.startedAt.toISOString(),
-              endedAt: blockLog.endedAt?.toISOString() || blockLog.startedAt.toISOString(),
-              durationMs: blockLog.durationMs || 0,
-              status: blockLog.status,
-              errorMessage: blockLog.errorMessage || undefined,
-              inputData: blockLog.inputData,
-              outputData: blockLog.outputData,
-              cost: blockLog.costTotal ? {
-                input: Number(blockLog.costInput) || 0,
-                output: Number(blockLog.costOutput) || 0,
-                total: Number(blockLog.costTotal) || 0,
-                tokens: {
-                  prompt: blockLog.tokensPrompt || 0,
-                  completion: blockLog.tokensCompletion || 0,
-                  total: blockLog.tokensTotal || 0,
-                },
-                model: blockLog.modelUsed || '',
-              } : undefined,
-            })
-            return acc
-          }, {} as Record<string, any[]>)
+          const blockLogsByExecution = blockLogs.reduce(
+            (acc, blockLog) => {
+              if (!acc[blockLog.executionId]) {
+                acc[blockLog.executionId] = []
+              }
+              acc[blockLog.executionId].push({
+                id: blockLog.id,
+                blockId: blockLog.blockId,
+                blockName: blockLog.blockName || '',
+                blockType: blockLog.blockType,
+                startedAt: blockLog.startedAt.toISOString(),
+                endedAt: blockLog.endedAt?.toISOString() || blockLog.startedAt.toISOString(),
+                durationMs: blockLog.durationMs || 0,
+                status: blockLog.status,
+                errorMessage: blockLog.errorMessage || undefined,
+                inputData: blockLog.inputData,
+                outputData: blockLog.outputData,
+                cost: blockLog.costTotal
+                  ? {
+                      input: Number(blockLog.costInput) || 0,
+                      output: Number(blockLog.costOutput) || 0,
+                      total: Number(blockLog.costTotal) || 0,
+                      tokens: {
+                        prompt: blockLog.tokensPrompt || 0,
+                        completion: blockLog.tokensCompletion || 0,
+                        total: blockLog.tokensTotal || 0,
+                      },
+                      model: blockLog.modelUsed || '',
+                    }
+                  : undefined,
+              })
+              return acc
+            },
+            {} as Record<string, any[]>
+          )
 
           // Add block logs to metadata
           const logsWithBlocks = enhancedLogs.map((log) => ({

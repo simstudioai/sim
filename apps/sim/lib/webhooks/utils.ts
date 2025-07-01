@@ -2,8 +2,8 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionError } from '@/lib/logs/execution-logger'
 import { enhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
+import { persistExecutionError } from '@/lib/logs/execution-logger'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -792,8 +792,6 @@ export async function executeWorkflowFromPayload(
       })
     }
 
-
-
     // Calculate total duration for enhanced logging
     const totalDuration = executionResult.metadata?.duration || 0
 
@@ -805,7 +803,7 @@ export async function executeWorkflowFromPayload(
         output = {
           error: blockLog.error,
           success: false,
-          ...(blockLog.output || {})
+          ...(blockLog.output || {}),
         }
       }
 
@@ -832,7 +830,7 @@ export async function executeWorkflowFromPayload(
       for (const blockLog of executionResult.logs) {
         try {
           // Extract cost data from block output
-          let blockCost = undefined
+          let blockCost
           if (blockLog.output?.response?.cost) {
             const cost = blockLog.output.response.cost
             blockCost = {
@@ -863,17 +861,22 @@ export async function executeWorkflowFromPayload(
               durationMs: blockLog.durationMs || 0,
             },
             status: blockLog.success ? 'success' : 'error',
-            error: blockLog.success ? undefined : {
-              message: blockLog.error || 'Block execution failed',
-              stackTrace: undefined,
-            },
+            error: blockLog.success
+              ? undefined
+              : {
+                  message: blockLog.error || 'Block execution failed',
+                  stackTrace: undefined,
+                },
             cost: blockCost,
             metadata: {
               toolCalls: (blockLog as any).toolCalls || [],
             },
           })
         } catch (blockLogError) {
-          logger.error(`[${requestId}] Failed to log block execution ${blockLog.blockId}:`, blockLogError)
+          logger.error(
+            `[${requestId}] Failed to log block execution ${blockLog.blockId}:`,
+            blockLogError
+          )
         }
       }
     }
@@ -883,8 +886,8 @@ export async function executeWorkflowFromPayload(
       // Calculate block stats from execution result
       const blockStats = {
         total: executionResult.logs?.length || 0,
-        success: executionResult.logs?.filter(log => log.success).length || 0,
-        error: executionResult.logs?.filter(log => !log.success).length || 0,
+        success: executionResult.logs?.filter((log) => log.success).length || 0,
+        error: executionResult.logs?.filter((log) => !log.success).length || 0,
         skipped: 0, // TODO: Add skipped block tracking
       }
 
