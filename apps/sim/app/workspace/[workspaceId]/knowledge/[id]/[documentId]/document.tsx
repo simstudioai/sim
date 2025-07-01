@@ -88,7 +88,7 @@ export function Document({
 
       router.replace(`?${params.toString()}`, { scroll: false })
     },
-    [router, searchParams]
+    [router]
   )
 
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
@@ -155,19 +155,19 @@ export function Document({
       // User just started typing, save current page
       setPageBeforeSearch(currentPageFromURL)
     }
-  }, [searchQuery, searchQueryFromURL, currentPageFromURL])
+  }, [searchQuery, searchQueryFromURL])
 
   const handlePrevPage = useCallback(() => {
     if (hasPrevPage) {
       updateURL(searchQuery, currentPageFromURL - 1)
     }
-  }, [hasPrevPage, updateURL, searchQuery, currentPageFromURL])
+  }, [updateURL, searchQuery])
 
   const handleNextPage = useCallback(() => {
     if (hasNextPage) {
       updateURL(searchQuery, currentPageFromURL + 1)
     }
-  }, [hasNextPage, updateURL, searchQuery, currentPageFromURL])
+  }, [updateURL, searchQuery])
 
   const handleGoToPage = useCallback(
     (page: number) => {
