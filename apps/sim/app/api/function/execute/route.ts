@@ -64,6 +64,23 @@ function extractEnhancedError(
         // The user code starts at a specific line in our wrapper
         const adjustedLine = stackLine - userCodeStartLine + 1
 
+        // Check if this is a syntax error in wrapper code caused by incomplete user code
+        const isWrapperSyntaxError =
+          stackLine > userCodeStartLine &&
+          error.name === 'SyntaxError' &&
+          (error.message.includes('Unexpected token') ||
+            error.message.includes('Unexpected end of input'))
+
+        if (isWrapperSyntaxError && userCode) {
+          // Map wrapper syntax errors to the last line of user code
+          const codeLines = userCode.split('\n')
+          const lastUserLine = codeLines.length
+          enhanced.line = lastUserLine
+          enhanced.column = codeLines[lastUserLine - 1]?.length || 0
+          enhanced.lineContent = codeLines[lastUserLine - 1]?.trim()
+          break
+        }
+
         if (adjustedLine > 0) {
           enhanced.line = adjustedLine
           enhanced.column = stackColumn
@@ -77,8 +94,9 @@ function extractEnhancedError(
           }
           break
         }
+
         if (stackLine <= userCodeStartLine) {
-          // If the error is in the wrapper code itself, show the actual line
+          // Error is in wrapper code itself
           enhanced.line = stackLine
           enhanced.column = stackColumn
           break
@@ -176,6 +194,18 @@ function createUserFriendlyErrorMessage(
       errorMessage += ' (Check for missing quotes, brackets, or semicolons)'
     } else if (errorMessage.includes('Unexpected end of input')) {
       errorMessage += ' (Check for missing closing brackets or braces)'
+    } else if (errorMessage.includes('Unexpected token')) {
+      // Check if this might be due to incomplete code
+      if (
+        enhanced.lineContent &&
+        ((enhanced.lineContent.includes('(') && !enhanced.lineContent.includes(')')) ||
+          (enhanced.lineContent.includes('[') && !enhanced.lineContent.includes(']')) ||
+          (enhanced.lineContent.includes('{') && !enhanced.lineContent.includes('}')))
+      ) {
+        errorMessage += ' (Check for missing closing parentheses, brackets, or braces)'
+      } else {
+        errorMessage += ' (Check your syntax)'
+      }
     }
   }
 
