@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -215,7 +216,7 @@ export async function DELETE(
     // This prevents "Block not found" errors when collaborative updates try to process
     // after the workflow has been deleted
     try {
-      const socketUrl = process.env.SOCKET_SERVER_URL || 'http://localhost:3002'
+      const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
       const socketResponse = await fetch(`${socketUrl}/api/workflow-deleted`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

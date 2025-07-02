@@ -1,3 +1,5 @@
+import { env } from '../env'
+
 /**
  * Returns the base URL of the application, respecting environment variables for deployment environments
  * @returns The base URL string (e.g., 'http://localhost:3000' or 'https://example.com')
@@ -7,13 +9,13 @@ export function getBaseUrl(): string {
     return window.location.origin
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  const baseUrl = env.NEXT_PUBLIC_APP_URL
   if (baseUrl) {
     if (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')) {
       return baseUrl
     }
 
-    const isProd = process.env.NODE_ENV === 'production'
+    const isProd = env.NODE_ENV === 'production'
     const protocol = isProd ? 'https://' : 'http://'
     return `${protocol}${baseUrl}`
   }
@@ -30,11 +32,11 @@ export function getBaseDomain(): string {
     const url = new URL(getBaseUrl())
     return url.host // host includes port if specified
   } catch (_e) {
-    const fallbackUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const fallbackUrl = env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     try {
       return new URL(fallbackUrl).host
     } catch {
-      const isProd = process.env.NODE_ENV === 'production'
+      const isProd = env.NODE_ENV === 'production'
       return isProd ? 'simstudio.ai' : 'localhost:3000'
     }
   }
@@ -49,7 +51,7 @@ export function getEmailDomain(): string {
     const baseDomain = getBaseDomain()
     return baseDomain.startsWith('www.') ? baseDomain.substring(4) : baseDomain
   } catch (_e) {
-    const isProd = process.env.NODE_ENV === 'production'
+    const isProd = env.NODE_ENV === 'production'
     return isProd ? 'simstudio.ai' : 'localhost:3000'
   }
 }

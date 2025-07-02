@@ -38,4 +38,4 @@ declare global {
 }
 
 export const db = global.database || drizzleClient
-if (process.env.NODE_ENV !== 'production') global.database = db
+if (env.NODE_ENV !== 'production') global.database = db

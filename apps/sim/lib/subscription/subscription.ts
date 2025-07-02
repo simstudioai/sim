@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { member, subscription, userStats } from '@/db/schema'
 import { client } from '../auth-client'
+import { env } from '../env'
 import { calculateUsageLimit, checkEnterprisePlan, checkProPlan, checkTeamPlan } from './utils'
 
 const logger = createLogger('Subscription')
@@ -172,9 +173,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
         limit,
       })
     } else {
-      limit = process.env.FREE_TIER_COST_LIMIT
-        ? Number.parseFloat(process.env.FREE_TIER_COST_LIMIT)
-        : 5
+      limit = env.FREE_TIER_COST_LIMIT || 5
       logger.info('Using free tier limit', { userId, limit })
     }
 
