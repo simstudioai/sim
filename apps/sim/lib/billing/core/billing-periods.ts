@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { subscription, userStats } from '@/db/schema'
 
 const logger = createLogger('BillingPeriodManager')
 
@@ -44,25 +44,23 @@ export function calculateBillingPeriod(subscriptionPeriodStart?: Date): {
 export async function initializeBillingPeriod(userId: string): Promise<void> {
   try {
     // Get user's subscription to determine billing period
-    const subscription = await db
+    const subscriptionData = await db
       .select()
-      .from(schema.subscription)
-      .where(
-        and(eq(schema.subscription.referenceId, userId), eq(schema.subscription.status, 'active'))
-      )
+      .from(subscription)
+      .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'active')))
       .limit(1)
 
-    const { start, end } = calculateBillingPeriod(subscription[0]?.periodStart || undefined)
+    const { start, end } = calculateBillingPeriod(subscriptionData[0]?.periodStart || undefined)
 
     // Update user stats with billing period info
     await db
-      .update(schema.userStats)
+      .update(userStats)
       .set({
         billingPeriodStart: start,
         billingPeriodEnd: end,
         currentPeriodCost: '0',
       })
-      .where(eq(schema.userStats.userId, userId))
+      .where(eq(userStats.userId, userId))
 
     logger.info('Billing period initialized for user', {
       userId,
@@ -85,13 +83,13 @@ export async function getCurrentPeriodUsage(userId: string): Promise<{
   daysRemaining: number
 }> {
   try {
-    const userStats = await db
+    const userStatsData = await db
       .select()
-      .from(schema.userStats)
-      .where(eq(schema.userStats.userId, userId))
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
       .limit(1)
 
-    if (userStats.length === 0) {
+    if (userStatsData.length === 0) {
       return {
         currentPeriodCost: 0,
         billingPeriodStart: null,
@@ -100,7 +98,7 @@ export async function getCurrentPeriodUsage(userId: string): Promise<{
       }
     }
 
-    const stats = userStats[0]
+    const stats = userStatsData[0]
     const currentPeriodCost = Number.parseFloat(stats.currentPeriodCost || '0')
     const billingPeriodEnd = stats.billingPeriodEnd
 

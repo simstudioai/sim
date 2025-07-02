@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { member, user, userStats } from '@/db/schema'
 
 const logger = createLogger('OrganizationMemberAPI')
 
@@ -29,13 +29,8 @@ export async function GET(
     // Verify user has access to this organization
     const userMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
     if (userMember.length === 0) {
@@ -51,24 +46,22 @@ export async function GET(
     // Get target member details
     const memberQuery = db
       .select({
-        id: schema.member.id,
-        userId: schema.member.userId,
-        organizationId: schema.member.organizationId,
-        role: schema.member.role,
-        createdAt: schema.member.createdAt,
-        userName: schema.user.name,
-        userEmail: schema.user.email,
+        id: member.id,
+        userId: member.userId,
+        organizationId: member.organizationId,
+        role: member.role,
+        createdAt: member.createdAt,
+        userName: user.name,
+        userEmail: user.email,
       })
-      .from(schema.member)
-      .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, memberId))
-      )
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
       .limit(1)
 
-    const member = await memberQuery
+    const memberEntry = await memberQuery
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
@@ -79,29 +72,29 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden - Insufficient permissions' }, { status: 403 })
     }
 
-    let memberData = member[0]
+    let memberData = memberEntry[0]
 
     // Include usage data if requested and user has permission
     if (includeUsage && hasAdminAccess) {
       const usageData = await db
         .select({
-          currentPeriodCost: schema.userStats.currentPeriodCost,
-          currentUsageLimit: schema.userStats.currentUsageLimit,
-          billingPeriodStart: schema.userStats.billingPeriodStart,
-          billingPeriodEnd: schema.userStats.billingPeriodEnd,
-          usageLimitSetBy: schema.userStats.usageLimitSetBy,
-          usageLimitUpdatedAt: schema.userStats.usageLimitUpdatedAt,
-          lastPeriodCost: schema.userStats.lastPeriodCost,
+          currentPeriodCost: userStats.currentPeriodCost,
+          currentUsageLimit: userStats.currentUsageLimit,
+          billingPeriodStart: userStats.billingPeriodStart,
+          billingPeriodEnd: userStats.billingPeriodEnd,
+          usageLimitSetBy: userStats.usageLimitSetBy,
+          usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
+          lastPeriodCost: userStats.lastPeriodCost,
         })
-        .from(schema.userStats)
-        .where(eq(schema.userStats.userId, memberId))
+        .from(userStats)
+        .where(eq(userStats.userId, memberId))
         .limit(1)
 
       if (usageData.length > 0) {
         memberData = {
           ...memberData,
           usage: usageData[0],
-        }
+        } as typeof memberData & { usage: (typeof usageData)[0] }
       }
     }
 
@@ -148,13 +141,8 @@ export async function PUT(
     // Verify user has admin access
     const userMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
     if (userMember.length === 0) {
@@ -171,10 +159,8 @@ export async function PUT(
     // Check if target member exists
     const targetMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, memberId))
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
       .limit(1)
 
     if (targetMember.length === 0) {
@@ -196,11 +182,9 @@ export async function PUT(
 
     // Update member role
     const updatedMember = await db
-      .update(schema.member)
+      .update(member)
       .set({ role })
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, memberId))
-      )
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
       .returning()
 
     if (updatedMember.length === 0) {
@@ -255,13 +239,8 @@ export async function DELETE(
     // Verify user has admin access
     const userMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
     if (userMember.length === 0) {
@@ -281,10 +260,8 @@ export async function DELETE(
     // Check if target member exists
     const targetMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, memberId))
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
       .limit(1)
 
     if (targetMember.length === 0) {
@@ -298,10 +275,8 @@ export async function DELETE(
 
     // Remove member
     const removedMember = await db
-      .delete(schema.member)
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, memberId))
-      )
+      .delete(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
       .returning()
 
     if (removedMember.length === 0) {

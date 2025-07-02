@@ -1,7 +1,7 @@
 import { and, count, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { invitation, member, organization, user, userStats } from '@/db/schema'
 import { getHighestPrioritySubscription } from '../core/subscription'
 
 const logger = createLogger('SeatManagement')
@@ -59,8 +59,8 @@ export async function validateSeatAvailability(
     // Get current member count
     const memberCount = await db
       .select({ count: count() })
-      .from(schema.member)
-      .where(eq(schema.member.organizationId, organizationId))
+      .from(member)
+      .where(eq(member.organizationId, organizationId))
 
     const currentSeats = memberCount[0]?.count || 0
 
@@ -128,16 +128,16 @@ export async function getOrganizationSeatInfo(
 ): Promise<OrganizationSeatInfo | null> {
   try {
     // Get organization details
-    const organization = await db
+    const organizationData = await db
       .select({
-        id: schema.organization.id,
-        name: schema.organization.name,
+        id: organization.id,
+        name: organization.name,
       })
-      .from(schema.organization)
-      .where(eq(schema.organization.id, organizationId))
+      .from(organization)
+      .where(eq(organization.id, organizationId))
       .limit(1)
 
-    if (organization.length === 0) {
+    if (organizationData.length === 0) {
       return null
     }
 
@@ -151,8 +151,8 @@ export async function getOrganizationSeatInfo(
     // Get current member count
     const memberCount = await db
       .select({ count: count() })
-      .from(schema.member)
-      .where(eq(schema.member.organizationId, organizationId))
+      .from(member)
+      .where(eq(member.organizationId, organizationId))
 
     const currentSeats = memberCount[0]?.count || 0
 
@@ -177,7 +177,7 @@ export async function getOrganizationSeatInfo(
 
     return {
       organizationId,
-      organizationName: organization[0].name,
+      organizationName: organizationData[0].name,
       currentSeats,
       maxSeats,
       availableSeats,
@@ -214,24 +214,19 @@ export async function validateBulkInvitations(
 
     // Check for existing members
     const existingMembers = await db
-      .select({ userEmail: schema.user.email })
-      .from(schema.member)
-      .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
-      .where(eq(schema.member.organizationId, organizationId))
+      .select({ userEmail: user.email })
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(eq(member.organizationId, organizationId))
 
     const existingEmails = existingMembers.map((m) => m.userEmail)
     const newEmails = validEmails.filter((email) => !existingEmails.includes(email))
 
     // Check for pending invitations
     const pendingInvitations = await db
-      .select({ email: schema.invitation.email })
-      .from(schema.invitation)
-      .where(
-        and(
-          eq(schema.invitation.organizationId, organizationId),
-          eq(schema.invitation.status, 'pending')
-        )
-      )
+      .select({ email: invitation.email })
+      .from(invitation)
+      .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
 
     const pendingEmails = pendingInvitations.map((i) => i.email)
     const finalEmailsToInvite = newEmails.filter((email) => !pendingEmails.includes(email))
@@ -295,8 +290,8 @@ export async function updateOrganizationSeats(
     // Validate minimum seat requirements
     const memberCount = await db
       .select({ count: count() })
-      .from(schema.member)
-      .where(eq(schema.member.organizationId, organizationId))
+      .from(member)
+      .where(eq(member.organizationId, organizationId))
 
     const currentMembers = memberCount[0]?.count || 0
 
@@ -309,11 +304,11 @@ export async function updateOrganizationSeats(
 
     // Update subscription seat count
     await db
-      .update(schema.subscription)
+      .update(subscription)
       .set({
         seats: newSeatCount,
       })
-      .where(eq(schema.subscription.id, subscription.id))
+      .where(eq(subscription.id, subscription.id))
 
     logger.info('Organization seat count updated', {
       organizationId,
@@ -348,41 +343,34 @@ export async function validateMemberRemoval(
 ): Promise<{ canRemove: boolean; reason?: string }> {
   try {
     // Get member details
-    const member = await db
-      .select({ role: schema.member.role })
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, userIdToRemove)
-        )
-      )
+    const memberRecord = await db
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, userIdToRemove)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberRecord.length === 0) {
       return { canRemove: false, reason: 'Member not found in organization' }
     }
 
     // Check if trying to remove the organization owner
-    if (member[0].role === 'owner') {
+    if (memberRecord[0].role === 'owner') {
       return { canRemove: false, reason: 'Cannot remove organization owner' }
     }
 
     // Check if the person removing has sufficient permissions
-    const removerMember = await db
-      .select({ role: schema.member.role })
-      .from(schema.member)
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, removedBy))
-      )
+    const removerMemberRecord = await db
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, removedBy)))
       .limit(1)
 
-    if (removerMember.length === 0) {
+    if (removerMemberRecord.length === 0) {
       return { canRemove: false, reason: 'You are not a member of this organization' }
     }
 
-    const removerRole = removerMember[0].role
-    const targetRole = member[0].role
+    const removerRole = removerMemberRecord[0].role
+    const targetRole = memberRecord[0].role
 
     // Permission hierarchy: owner > admin > member
     if (removerRole === 'owner') {
@@ -427,25 +415,25 @@ export async function getOrganizationSeatAnalytics(organizationId: string) {
     // Get member activity data
     const memberActivity = await db
       .select({
-        userId: schema.member.userId,
-        userName: schema.user.name,
-        userEmail: schema.user.email,
-        role: schema.member.role,
-        joinedAt: schema.member.createdAt,
-        lastActive: schema.userStats.lastActive,
+        userId: member.userId,
+        userName: user.name,
+        userEmail: user.email,
+        role: member.role,
+        joinedAt: member.createdAt,
+        lastActive: userStats.lastActive,
       })
-      .from(schema.member)
-      .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
-      .leftJoin(schema.userStats, eq(schema.member.userId, schema.userStats.userId))
-      .where(eq(schema.member.organizationId, organizationId))
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .leftJoin(userStats, eq(member.userId, userStats.userId))
+      .where(eq(member.organizationId, organizationId))
 
     // Calculate utilization metrics
     const utilizationRate =
       seatInfo.maxSeats > 0 ? (seatInfo.currentSeats / seatInfo.maxSeats) * 100 : 0
 
-    const recentlyActive = memberActivity.filter((member) => {
-      if (!member.lastActive) return false
-      const daysSinceActive = (Date.now() - member.lastActive.getTime()) / (1000 * 60 * 60 * 24)
+    const recentlyActive = memberActivity.filter((memberData) => {
+      if (!memberData.lastActive) return false
+      const daysSinceActive = (Date.now() - memberData.lastActive.getTime()) / (1000 * 60 * 60 * 24)
       return daysSinceActive <= 30 // Active in last 30 days
     }).length
 

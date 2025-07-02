@@ -1,13 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth-client'
+import { getSession } from '@/lib/auth'
 import {
   getOrganizationBillingData,
   getOrganizationBillingSummary,
 } from '@/lib/billing/core/organization-billing'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { member } from '@/db/schema'
 
 const logger = createLogger('OrganizationBillingAPI')
 
@@ -26,25 +26,20 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const organizationId = params.id
 
     // Verify user has access to this organization
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    const userRole = member[0].role
+    const userRole = memberEntry[0].role
 
     // Check if user has admin permissions for detailed billing data
     const hasAdminAccess = ['owner', 'admin'].includes(userRole)
