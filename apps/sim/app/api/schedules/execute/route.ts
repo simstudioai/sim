@@ -493,7 +493,6 @@ export async function GET() {
               totalInputCost: costSummary.totalInputCost,
               totalOutputCost: costSummary.totalOutputCost,
               totalTokens: costSummary.totalTokens,
-              primaryModel: '', // No longer used
             },
             finalOutput: executionResult.output || {},
             traceSpans: (traceSpans || []) as any,
@@ -584,7 +583,6 @@ export async function GET() {
             totalInputCost: 0,
             totalOutputCost: 0,
             totalTokens: 0,
-            primaryModel: '',
           }
 
           await enhancedExecutionLogger.completeWorkflowExecution({

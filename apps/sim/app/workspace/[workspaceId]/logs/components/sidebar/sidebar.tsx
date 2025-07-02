@@ -539,33 +539,33 @@ export function Sidebar({
                 <div>
                   <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Cost Breakdown</h3>
                   <div className='space-y-1 text-sm'>
-                    {log.metadata.cost.total && (
+                    {log.metadata?.cost?.total && (
                       <div className='flex justify-between'>
                         <span>Total Cost:</span>
-                        <span className='font-medium'>${log.metadata.cost.total.toFixed(4)}</span>
+                        <span className='font-medium'>${log.metadata?.cost?.total?.toFixed(4)}</span>
                       </div>
                     )}
-                    {log.metadata.cost.input && (
+                    {log.metadata?.cost?.input && (
                       <div className='flex justify-between'>
                         <span>Input Cost:</span>
                         <span className='text-muted-foreground'>
-                          ${log.metadata.cost.input.toFixed(4)}
+                          ${log.metadata?.cost?.input?.toFixed(4)}
                         </span>
                       </div>
                     )}
-                    {log.metadata.cost.output && (
+                    {log.metadata?.cost?.output && (
                       <div className='flex justify-between'>
                         <span>Output Cost:</span>
                         <span className='text-muted-foreground'>
-                          ${log.metadata.cost.output.toFixed(4)}
+                          ${log.metadata?.cost?.output?.toFixed(4)}
                         </span>
                       </div>
                     )}
-                    {log.metadata.cost.tokens?.total && (
+                    {log.metadata?.cost?.tokens?.total && (
                       <div className='flex justify-between'>
                         <span>Total Tokens:</span>
                         <span className='text-muted-foreground'>
-                          {log.metadata.cost.tokens.total.toLocaleString()}
+                          {log.metadata?.cost?.tokens?.total?.toLocaleString()}
                         </span>
                       </div>
                     )}
@@ -608,45 +608,40 @@ export function Sidebar({
                   <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Models</h3>
                   <div className='overflow-hidden rounded-md border'>
                     <div className='space-y-2 p-3'>
-                      {log.metadata.cost.model && (
-                        <div className='flex items-center justify-between'>
-                          <span className='text-muted-foreground text-sm'>Model:</span>
-                          <span className='text-sm'>{log.metadata.cost.model}</span>
-                        </div>
-                      )}
+
                       <div className='flex items-center justify-between'>
                         <span className='text-muted-foreground text-sm'>Input:</span>
-                        <span className='text-sm'>{formatCost(log.metadata.cost.input || 0)}</span>
+                        <span className='text-sm'>{formatCost(log.metadata?.cost?.input || 0)}</span>
                       </div>
                       <div className='flex items-center justify-between'>
                         <span className='text-muted-foreground text-sm'>Output:</span>
-                        <span className='text-sm'>{formatCost(log.metadata.cost.output || 0)}</span>
+                        <span className='text-sm'>{formatCost(log.metadata?.cost?.output || 0)}</span>
                       </div>
                       <div className='mt-1 flex items-center justify-between border-t pt-2'>
                         <span className='text-muted-foreground text-sm'>Total:</span>
                         <span className='text-foreground text-sm'>
-                          {formatCost(log.metadata.cost.total || 0)}
+                          {formatCost(log.metadata?.cost?.total || 0)}
                         </span>
                       </div>
                       <div className='flex items-center justify-between'>
                         <span className='text-muted-foreground text-xs'>Tokens:</span>
                         <span className='text-muted-foreground text-xs'>
-                          {log.metadata.cost.tokens?.prompt || 0} in /{' '}
-                          {log.metadata.cost.tokens?.completion || 0} out
+                          {log.metadata?.cost?.tokens?.prompt || 0} in /{' '}
+                          {log.metadata?.cost?.tokens?.completion || 0} out
                         </span>
                       </div>
                     </div>
 
                     {/* Models Breakdown */}
-                    {log.metadata.cost.models &&
-                      Object.keys(log.metadata.cost.models).length > 0 && (
+                    {log.metadata?.cost?.models &&
+                      Object.keys(log.metadata?.cost?.models).length > 0 && (
                         <div className='border-t'>
                           <button
                             onClick={() => setIsModelsExpanded(!isModelsExpanded)}
                             className='flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-muted/50'
                           >
                             <span className='font-medium text-muted-foreground text-xs'>
-                              Model Breakdown ({Object.keys(log.metadata.cost.models).length})
+                              Model Breakdown ({Object.keys(log.metadata?.cost?.models || {}).length})
                             </span>
                             {isModelsExpanded ? (
                               <ChevronUp className='h-3 w-3 text-muted-foreground' />
@@ -657,7 +652,7 @@ export function Sidebar({
 
                           {isModelsExpanded && (
                             <div className='space-y-3 border-t bg-muted/30 p-3'>
-                              {Object.entries(log.metadata.cost.models).map(
+                              {Object.entries(log.metadata?.cost?.models || {}).map(
                                 ([model, cost]: [string, any]) => (
                                   <div key={model} className='space-y-1'>
                                     <div className='font-medium font-mono text-xs'>{model}</div>

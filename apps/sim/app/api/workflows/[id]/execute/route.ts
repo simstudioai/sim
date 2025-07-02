@@ -391,7 +391,6 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
           totalInputCost: costSummary.totalInputCost,
           totalOutputCost: costSummary.totalOutputCost,
           totalTokens: costSummary.totalTokens,
-          primaryModel: '', // No longer used
         },
         finalOutput: executionResult.output || {},
         traceSpans: (traceSpans || []) as any,

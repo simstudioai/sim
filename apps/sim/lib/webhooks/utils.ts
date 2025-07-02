@@ -930,7 +930,6 @@ export async function executeWorkflowFromPayload(
           totalInputCost: costSummary.totalInputCost,
           totalOutputCost: costSummary.totalOutputCost,
           totalTokens: costSummary.totalTokens,
-          primaryModel: '', // No longer used
         },
         finalOutput: executionResult.output || {},
         traceSpans: (traceSpans || []) as any,
@@ -981,7 +980,6 @@ export async function executeWorkflowFromPayload(
         totalInputCost: 0,
         totalOutputCost: 0,
         totalTokens: 0,
-        primaryModel: '',
       }
 
       await enhancedExecutionLogger.completeWorkflowExecution({

@@ -676,35 +676,66 @@ describe('Executor', () => {
     test('should handle multi-input blocks with inactive sources correctly', () => {
       // Create workflow with router -> multiple APIs -> single agent
       const routerWorkflow = {
+        version: '1.0.0',
         blocks: [
           {
             id: 'start',
+            position: { x: 0, y: 0 },
             metadata: { id: 'starter', name: 'Start' },
-            config: { params: {} },
+            config: {
+              tool: 'starter',
+              params: {}
+            },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
           {
             id: 'router',
+            position: { x: 100, y: 0 },
             metadata: { id: 'router', name: 'Router' },
-            config: { params: { prompt: 'test', model: 'gpt-4' } },
+            config: {
+              tool: 'router',
+              params: { prompt: 'test', model: 'gpt-4' }
+            },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
           {
             id: 'api1',
+            position: { x: 200, y: 0 },
             metadata: { id: 'api', name: 'API 1' },
-            config: { params: { url: 'http://api1.com', method: 'GET' } },
+            config: {
+              tool: 'api',
+              params: { url: 'http://api1.com', method: 'GET' }
+            },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
           {
             id: 'api2',
+            position: { x: 200, y: 100 },
             metadata: { id: 'api', name: 'API 2' },
-            config: { params: { url: 'http://api2.com', method: 'GET' } },
+            config: {
+              tool: 'api',
+              params: { url: 'http://api2.com', method: 'GET' }
+            },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
           {
             id: 'agent',
+            position: { x: 300, y: 0 },
             metadata: { id: 'agent', name: 'Agent' },
-            config: { params: { model: 'gpt-4', userPrompt: 'test' } },
+            config: {
+              tool: 'agent',
+              params: { model: 'gpt-4', userPrompt: 'test' }
+            },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
         ],
@@ -794,8 +825,14 @@ describe('Executor', () => {
       // Add router block to workflow
       workflow.blocks.push({
         id: 'router1',
+        position: { x: 0, y: 0 },
         metadata: { id: 'router', name: 'Router' },
-        config: { params: {} },
+        config: {
+          tool: 'router',
+          params: {}
+        },
+        inputs: {},
+        outputs: {},
         enabled: true,
       })
 

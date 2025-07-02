@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { enhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
-import { persistExecutionLogs, persistLog } from '@/lib/logs/execution-logger'
+import { persistLog } from '@/lib/logs/execution-logger'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -34,15 +34,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Check if this execution is from chat using only the explicit source flag
       const isChatExecution = result.metadata?.source === 'chat'
 
-      // Use persistExecutionLogs which handles tool call extraction
-      // Use 'chat' trigger type for chat executions, otherwise 'manual'
-      await persistExecutionLogs(id, executionId, result, isChatExecution ? 'chat' : 'manual')
+
 
       // Also log to enhanced system
       try {
+        const triggerType = isChatExecution ? 'chat' : 'manual'
         const trigger = {
-          type: (isChatExecution ? 'chat' : 'manual') as const,
-          source: isChatExecution ? 'chat' : 'manual',
+          type: triggerType as 'chat' | 'manual',
+          source: triggerType,
           timestamp: new Date().toISOString(),
         }
 
@@ -130,8 +129,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // Calculate stats from result
         const blockStats = {
           total: result.logs?.length || 0,
-          success: result.logs?.filter((log) => log.success).length || 0,
-          error: result.logs?.filter((log) => !log.success).length || 0,
+          success: result.logs?.filter((log: { success: boolean }) => log.success).length || 0,
+          error: result.logs?.filter((log: { success: boolean }) => !log.success).length || 0,
           skipped: 0,
         }
 
@@ -222,7 +221,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         logger.debug(
           `[${requestId}] Built ${traceSpans.length} trace spans for execution ${executionId}:`,
           {
-            traceSpans: traceSpans.map((span) => ({
+            traceSpans: traceSpans.map((span: { id: string; name: string; status?: string; input?: unknown; output?: unknown }) => ({
               id: span.id,
               name: span.name,
               status: span.status,
@@ -244,7 +243,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             totalInputCost: costSummary.totalInputCost,
             totalOutputCost: costSummary.totalOutputCost,
             totalTokens: costSummary.totalTokens,
-            primaryModel: '', // No longer used
+
           },
           finalOutput: result.output || {},
           traceSpans,

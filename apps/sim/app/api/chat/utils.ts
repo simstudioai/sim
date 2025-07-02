@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionLogs } from '@/lib/logs/execution-logger'
+
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { db } from '@/db'
@@ -481,8 +481,7 @@ export async function executeWorkflowForChat(
           ;(enrichedResult.metadata as any).conversationId = conversationId
         }
         const executionId = uuidv4()
-        await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
-        logger.debug(`Persisted logs for deployed chat: ${executionId}`)
+        logger.debug(`Generated execution ID for deployed chat: ${executionId}`)
 
         if (result.success) {
           try {
