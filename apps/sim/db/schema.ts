@@ -133,58 +133,43 @@ export const workflow = pgTable('workflow', {
   marketplaceData: json('marketplace_data'),
 })
 
-// New normalized workflow tables
 export const workflowBlocks = pgTable(
   'workflow_blocks',
   {
-    // Primary identification
-    id: text('id').primaryKey(), // Block UUID from the current JSON structure
+    id: text('id').primaryKey(),
     workflowId: text('workflow_id')
       .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }), // Link to parent workflow
+      .references(() => workflow.id, { onDelete: 'cascade' }),
 
-    // Block properties (from current BlockState interface)
-    type: text('type').notNull(), // e.g., 'starter', 'agent', 'api', 'function'
-    name: text('name').notNull(), // Display name of the block
+    type: text('type').notNull(), // 'starter', 'agent', 'api', 'function'
+    name: text('name').notNull(),
 
-    // Position coordinates (from position.x, position.y)
-    positionX: decimal('position_x').notNull(), // X coordinate on canvas
-    positionY: decimal('position_y').notNull(), // Y coordinate on canvas
+    positionX: decimal('position_x').notNull(),
+    positionY: decimal('position_y').notNull(),
 
-    // Block behavior flags (from current BlockState)
-    enabled: boolean('enabled').notNull().default(true), // Whether block is active
-    horizontalHandles: boolean('horizontal_handles').notNull().default(true), // UI layout preference
-    isWide: boolean('is_wide').notNull().default(false), // Whether block uses wide layout
-    advancedMode: boolean('advanced_mode').notNull().default(false), // Whether block is in advanced mode
-    height: decimal('height').notNull().default('0'), // Custom height override
+    enabled: boolean('enabled').notNull().default(true),
+    horizontalHandles: boolean('horizontal_handles').notNull().default(true),
+    isWide: boolean('is_wide').notNull().default(false),
+    advancedMode: boolean('advanced_mode').notNull().default(false),
+    height: decimal('height').notNull().default('0'),
 
-    // Block data (keeping JSON for flexibility as current system does)
-    subBlocks: jsonb('sub_blocks').notNull().default('{}'), // All subblock configurations
-    outputs: jsonb('outputs').notNull().default('{}'), // Output type definitions
-    data: jsonb('data').default('{}'), // Additional block-specific data
+    subBlocks: jsonb('sub_blocks').notNull().default('{}'),
+    outputs: jsonb('outputs').notNull().default('{}'),
+    data: jsonb('data').default('{}'),
 
-    // Hierarchy support (for loop/parallel child blocks)
-    parentId: text('parent_id'), // Self-reference handled by foreign key constraint in migration
-    extent: text('extent'), // 'parent' or null - for ReactFlow parent constraint
+    parentId: text('parent_id'),
+    extent: text('extent'), // 'parent' or null
 
-    // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Primary access pattern: get all blocks for a workflow
     workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
-
-    // For finding child blocks of a parent (loop/parallel containers)
     parentIdIdx: index('workflow_blocks_parent_id_idx').on(table.parentId),
-
-    // Composite index for efficient parent-child queries
     workflowParentIdx: index('workflow_blocks_workflow_parent_idx').on(
       table.workflowId,
       table.parentId
     ),
-
-    // For block type filtering/analytics
     workflowTypeIdx: index('workflow_blocks_workflow_type_idx').on(table.workflowId, table.type),
   })
 )
@@ -192,36 +177,26 @@ export const workflowBlocks = pgTable(
 export const workflowEdges = pgTable(
   'workflow_edges',
   {
-    // Primary identification
-    id: text('id').primaryKey(), // Edge UUID from ReactFlow
+    id: text('id').primaryKey(),
     workflowId: text('workflow_id')
       .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }), // Link to parent workflow
+      .references(() => workflow.id, { onDelete: 'cascade' }),
 
-    // Connection definition (from ReactFlow Edge interface)
     sourceBlockId: text('source_block_id')
       .notNull()
-      .references(() => workflowBlocks.id, { onDelete: 'cascade' }), // Source block ID
+      .references(() => workflowBlocks.id, { onDelete: 'cascade' }),
     targetBlockId: text('target_block_id')
       .notNull()
-      .references(() => workflowBlocks.id, { onDelete: 'cascade' }), // Target block ID
-    sourceHandle: text('source_handle'), // Specific output handle (optional)
-    targetHandle: text('target_handle'), // Specific input handle (optional)
+      .references(() => workflowBlocks.id, { onDelete: 'cascade' }),
+    sourceHandle: text('source_handle'),
+    targetHandle: text('target_handle'),
 
-    // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Primary access pattern: get all edges for a workflow
     workflowIdIdx: index('workflow_edges_workflow_id_idx').on(table.workflowId),
-
-    // For finding outgoing connections from a block
     sourceBlockIdx: index('workflow_edges_source_block_idx').on(table.sourceBlockId),
-
-    // For finding incoming connections to a block
     targetBlockIdx: index('workflow_edges_target_block_idx').on(table.targetBlockId),
-
-    // For comprehensive workflow topology queries
     workflowSourceIdx: index('workflow_edges_workflow_source_idx').on(
       table.workflowId,
       table.sourceBlockId
@@ -236,25 +211,19 @@ export const workflowEdges = pgTable(
 export const workflowSubflows = pgTable(
   'workflow_subflows',
   {
-    // Primary identification
-    id: text('id').primaryKey(), // Subflow UUID (currently loop/parallel ID)
+    id: text('id').primaryKey(),
     workflowId: text('workflow_id')
       .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }), // Link to parent workflow
+      .references(() => workflow.id, { onDelete: 'cascade' }),
 
-    // Subflow type and configuration
-    type: text('type').notNull(), // 'loop' or 'parallel' (extensible for future types)
-    config: jsonb('config').notNull().default('{}'), // Type-specific configuration
+    type: text('type').notNull(), // 'loop' or 'parallel'
+    config: jsonb('config').notNull().default('{}'),
 
-    // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Primary access pattern: get all subflows for a workflow
     workflowIdIdx: index('workflow_subflows_workflow_id_idx').on(table.workflowId),
-
-    // For filtering by subflow type
     workflowTypeIdx: index('workflow_subflows_workflow_type_idx').on(table.workflowId, table.type),
   })
 )
@@ -273,13 +242,135 @@ export const workflowLogs = pgTable('workflow_logs', {
     .notNull()
     .references(() => workflow.id, { onDelete: 'cascade' }),
   executionId: text('execution_id'),
-  level: text('level').notNull(), // e.g. "info", "error", etc.
+  level: text('level').notNull(), // "info", "error", etc.
   message: text('message').notNull(),
   duration: text('duration'), // Store as text to allow 'NA' for errors
-  trigger: text('trigger'), // e.g. "api", "schedule", "manual"
+  trigger: text('trigger'), // "api", "schedule", "manual"
   createdAt: timestamp('created_at').notNull().defaultNow(),
-  metadata: json('metadata'), // Optional JSON field for storing additional context like tool calls
+  metadata: json('metadata'),
 })
+
+export const workflowExecutionSnapshots = pgTable(
+  'workflow_execution_snapshots',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    stateHash: text('state_hash').notNull(),
+    stateData: jsonb('state_data').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowIdIdx: index('workflow_snapshots_workflow_id_idx').on(table.workflowId),
+    stateHashIdx: index('workflow_snapshots_hash_idx').on(table.stateHash),
+    workflowHashUnique: uniqueIndex('workflow_snapshots_workflow_hash_idx').on(
+      table.workflowId,
+      table.stateHash
+    ),
+    createdAtIdx: index('workflow_snapshots_created_at_idx').on(table.createdAt),
+  })
+)
+
+export const workflowExecutionLogs = pgTable(
+  'workflow_execution_logs',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    executionId: text('execution_id').notNull(),
+    stateSnapshotId: text('state_snapshot_id')
+      .notNull()
+      .references(() => workflowExecutionSnapshots.id),
+
+    level: text('level').notNull(), // 'info', 'error'
+    message: text('message').notNull(),
+    trigger: text('trigger').notNull(), // 'api', 'webhook', 'schedule', 'manual', 'chat'
+
+    startedAt: timestamp('started_at').notNull(),
+    endedAt: timestamp('ended_at'),
+    totalDurationMs: integer('total_duration_ms'),
+
+    blockCount: integer('block_count').notNull().default(0),
+    successCount: integer('success_count').notNull().default(0),
+    errorCount: integer('error_count').notNull().default(0),
+    skippedCount: integer('skipped_count').notNull().default(0),
+
+    totalCost: decimal('total_cost', { precision: 10, scale: 6 }),
+    totalInputCost: decimal('total_input_cost', { precision: 10, scale: 6 }),
+    totalOutputCost: decimal('total_output_cost', { precision: 10, scale: 6 }),
+    totalTokens: integer('total_tokens'),
+
+    metadata: jsonb('metadata').notNull().default('{}'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowIdIdx: index('workflow_execution_logs_workflow_id_idx').on(table.workflowId),
+    executionIdIdx: index('workflow_execution_logs_execution_id_idx').on(table.executionId),
+    triggerIdx: index('workflow_execution_logs_trigger_idx').on(table.trigger),
+    levelIdx: index('workflow_execution_logs_level_idx').on(table.level),
+    startedAtIdx: index('workflow_execution_logs_started_at_idx').on(table.startedAt),
+    costIdx: index('workflow_execution_logs_cost_idx').on(table.totalCost),
+    durationIdx: index('workflow_execution_logs_duration_idx').on(table.totalDurationMs),
+    executionIdUnique: uniqueIndex('workflow_execution_logs_execution_id_unique').on(
+      table.executionId
+    ),
+  })
+)
+
+export const workflowExecutionBlocks = pgTable(
+  'workflow_execution_blocks',
+  {
+    id: text('id').primaryKey(),
+    executionId: text('execution_id').notNull(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    blockId: text('block_id').notNull(),
+    blockName: text('block_name'),
+    blockType: text('block_type').notNull(),
+
+    startedAt: timestamp('started_at').notNull(),
+    endedAt: timestamp('ended_at'),
+    durationMs: integer('duration_ms'),
+
+    status: text('status').notNull(), // 'success', 'error', 'skipped'
+    errorMessage: text('error_message'),
+    errorStackTrace: text('error_stack_trace'),
+
+    inputData: jsonb('input_data'),
+    outputData: jsonb('output_data'),
+
+    costInput: decimal('cost_input', { precision: 10, scale: 6 }),
+    costOutput: decimal('cost_output', { precision: 10, scale: 6 }),
+    costTotal: decimal('cost_total', { precision: 10, scale: 6 }),
+    tokensPrompt: integer('tokens_prompt'),
+    tokensCompletion: integer('tokens_completion'),
+    tokensTotal: integer('tokens_total'),
+    modelUsed: text('model_used'),
+
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    executionIdIdx: index('execution_blocks_execution_id_idx').on(table.executionId),
+    workflowIdIdx: index('execution_blocks_workflow_id_idx').on(table.workflowId),
+    blockIdIdx: index('execution_blocks_block_id_idx').on(table.blockId),
+    statusIdx: index('execution_blocks_status_idx').on(table.status),
+    durationIdx: index('execution_blocks_duration_idx').on(table.durationMs),
+    costIdx: index('execution_blocks_cost_idx').on(table.costTotal),
+    workflowExecutionIdx: index('execution_blocks_workflow_execution_idx').on(
+      table.workflowId,
+      table.executionId
+    ),
+    executionStatusIdx: index('execution_blocks_execution_status_idx').on(
+      table.executionId,
+      table.status
+    ),
+    startedAtIdx: index('execution_blocks_started_at_idx').on(table.startedAt),
+  })
+)
 
 export const environment = pgTable('environment', {
   id: text('id').primaryKey(), // Use the user id as the key
@@ -401,6 +492,14 @@ export const userStats = pgTable('user_stats', {
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
+  currentUsageLimit: decimal('current_usage_limit').notNull().default('5'), // Default $5 for free plan
+  usageLimitSetBy: text('usage_limit_set_by'), // User ID who set the limit (for team admin tracking)
+  usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
+  // Billing period tracking
+  currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
+  billingPeriodStart: timestamp('billing_period_start').defaultNow(), // When current billing period started
+  billingPeriodEnd: timestamp('billing_period_end'), // When current billing period ends
+  lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
   lastActive: timestamp('last_active').notNull().defaultNow(),
 })
 
@@ -416,21 +515,34 @@ export const customTools = pgTable('custom_tools', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const subscription = pgTable('subscription', {
-  id: text('id').primaryKey(),
-  plan: text('plan').notNull(),
-  referenceId: text('reference_id').notNull(),
-  stripeCustomerId: text('stripe_customer_id'),
-  stripeSubscriptionId: text('stripe_subscription_id'),
-  status: text('status'),
-  periodStart: timestamp('period_start'),
-  periodEnd: timestamp('period_end'),
-  cancelAtPeriodEnd: boolean('cancel_at_period_end'),
-  seats: integer('seats'),
-  trialStart: timestamp('trial_start'),
-  trialEnd: timestamp('trial_end'),
-  metadata: json('metadata'),
-})
+export const subscription = pgTable(
+  'subscription',
+  {
+    id: text('id').primaryKey(),
+    plan: text('plan').notNull(),
+    referenceId: text('reference_id').notNull(),
+    stripeCustomerId: text('stripe_customer_id'),
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    status: text('status'),
+    periodStart: timestamp('period_start'),
+    periodEnd: timestamp('period_end'),
+    cancelAtPeriodEnd: boolean('cancel_at_period_end'),
+    seats: integer('seats'),
+    trialStart: timestamp('trial_start'),
+    trialEnd: timestamp('trial_end'),
+    metadata: json('metadata'),
+  },
+  (table) => ({
+    referenceStatusIdx: index('subscription_reference_status_idx').on(
+      table.referenceId,
+      table.status
+    ),
+    enterpriseMetadataCheck: check(
+      'check_enterprise_metadata',
+      sql`plan != 'enterprise' OR (metadata IS NOT NULL AND (metadata->>'perSeatAllowance' IS NOT NULL OR metadata->>'totalAllowance' IS NOT NULL))`
+    ),
+  })
+)
 
 export const chat = pgTable(
   'chat',
@@ -485,7 +597,7 @@ export const member = pgTable('member', {
   organizationId: text('organization_id')
     .notNull()
     .references(() => organization.id, { onDelete: 'cascade' }),
-  role: text('role').notNull(),
+  role: text('role').notNull(), // 'admin' or 'member' - team-level permissions only
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

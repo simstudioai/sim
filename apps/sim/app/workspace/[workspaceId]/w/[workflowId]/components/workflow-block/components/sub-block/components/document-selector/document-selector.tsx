@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronDown, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface DocumentData {
@@ -51,19 +50,16 @@ export function DocumentSelector({
   isPreview = false,
   previewValue,
 }: DocumentSelectorProps) {
-  const { getValue } = useSubBlockStore()
-
   const [documents, setDocuments] = useState<DocumentData[]>([])
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<DocumentData | null>(null)
-  const [initialFetchDone, setInitialFetchDone] = useState(false)
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
-  // Get the knowledge base ID from the same block's knowledgeBaseId subblock - memoize to prevent re-renders
-  const knowledgeBaseId = useMemo(() => getValue(blockId, 'knowledgeBaseId'), [getValue, blockId])
+  // Get the knowledge base ID from the same block's knowledgeBaseId subblock
+  const [knowledgeBaseId] = useSubBlockValue(blockId, 'knowledgeBaseId')
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
@@ -73,7 +69,6 @@ export function DocumentSelector({
     if (!knowledgeBaseId) {
       setDocuments([])
       setError('No knowledge base selected')
-      setInitialFetchDone(true)
       return
     }
 
@@ -94,7 +89,6 @@ export function DocumentSelector({
 
       const fetchedDocuments = result.data || []
       setDocuments(fetchedDocuments)
-      setInitialFetchDone(true)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       setError((err as Error).message)
@@ -138,16 +132,15 @@ export function DocumentSelector({
   useEffect(() => {
     setDocuments([])
     setSelectedDocument(null)
-    setInitialFetchDone(false)
     setError(null)
   }, [knowledgeBaseId])
 
-  // Fetch documents when knowledge base is available and we haven't fetched yet
+  // Fetch documents when knowledge base is available
   useEffect(() => {
-    if (knowledgeBaseId && !initialFetchDone && !isPreview) {
+    if (knowledgeBaseId && !isPreview) {
       fetchDocuments()
     }
-  }, [knowledgeBaseId, initialFetchDone, isPreview, fetchDocuments])
+  }, [knowledgeBaseId, isPreview, fetchDocuments])
 
   const formatDocumentName = (document: DocumentData) => {
     return document.filename
