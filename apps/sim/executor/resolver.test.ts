@@ -1153,4 +1153,316 @@ describe('InputResolver', () => {
       expect(result.code).toBe('["result1","result2"]')
     })
   })
+
+  describe('Connection-Based Reference Validation', () => {
+    let workflowWithConnections: SerializedWorkflow
+    let connectionResolver: InputResolver
+    let contextWithConnections: ExecutionContext
+
+    beforeEach(() => {
+      // Create a workflow with specific connections: Agent -> Function -> Response
+      workflowWithConnections = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'starter-1',
+            metadata: { id: 'starter', name: 'Start' },
+            position: { x: 0, y: 0 },
+            config: { tool: 'starter', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'agent-1',
+            metadata: { id: 'agent', name: 'Agent Block' },
+            position: { x: 100, y: 100 },
+            config: { tool: 'agent', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function-1',
+            metadata: { id: 'function', name: 'Function Block' },
+            position: { x: 200, y: 200 },
+            config: { tool: 'function', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'isolated-block',
+            metadata: { id: 'agent', name: 'Isolated Block' },
+            position: { x: 300, y: 300 },
+            config: { tool: 'agent', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          { source: 'starter-1', target: 'agent-1' },
+          { source: 'agent-1', target: 'function-1' },
+          // Note: isolated-block has no connections
+        ],
+        loops: {},
+      }
+
+      connectionResolver = new InputResolver(workflowWithConnections, {})
+      contextWithConnections = {
+        workflowId: 'test-workflow',
+        blockStates: new Map([
+          ['starter-1', { output: { input: 'Hello World' }, executed: true, executionTime: 0 }],
+          ['agent-1', { output: { content: 'Agent response' }, executed: true, executionTime: 0 }],
+          [
+            'function-1',
+            { output: { result: 'Function result' }, executed: true, executionTime: 0 },
+          ],
+          [
+            'isolated-block',
+            { output: { content: 'Isolated content' }, executed: true, executionTime: 0 },
+          ],
+        ]),
+        blockLogs: [],
+        metadata: { duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        loopItems: new Map(),
+        completedLoops: new Set(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(['starter-1', 'agent-1', 'function-1', 'isolated-block']),
+        workflow: workflowWithConnections,
+      }
+    })
+
+    it('should allow references to directly connected blocks', () => {
+      const functionBlock = workflowWithConnections.blocks[2] // function-1
+      const testBlock: SerializedBlock = {
+        ...functionBlock,
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <agent-1.content>', // function-1 can reference agent-1 (connected)
+          },
+        },
+      }
+
+      const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
+      expect(result.code).toBe('return "Agent response"')
+    })
+
+    it('should reject references to unconnected blocks', () => {
+      const functionBlock = workflowWithConnections.blocks[2] // function-1
+      const testBlock: SerializedBlock = {
+        ...functionBlock,
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <isolated-block.content>', // function-1 cannot reference isolated-block (not connected)
+          },
+        },
+      }
+
+      expect(() => connectionResolver.resolveInputs(testBlock, contextWithConnections)).toThrow(
+        /Block "isolated-block" is not connected to this block/
+      )
+    })
+
+    it('should always allow references to starter block', () => {
+      const functionBlock = workflowWithConnections.blocks[2] // function-1
+      const testBlock: SerializedBlock = {
+        ...functionBlock,
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <start.input>', // Any block can reference start
+          },
+        },
+      }
+
+      const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
+      expect(result.code).toBe('return "Hello World"')
+    })
+
+    it('should provide helpful error messages for unconnected blocks', () => {
+      const functionBlock = workflowWithConnections.blocks[2] // function-1
+      const testBlock: SerializedBlock = {
+        ...functionBlock,
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <nonexistent.value>',
+          },
+        },
+      }
+
+      expect(() => connectionResolver.resolveInputs(testBlock, contextWithConnections)).toThrow(
+        /Available connected blocks:.*Agent Block.*agent-1.*start/
+      )
+    })
+
+    it('should work with block names and normalized names', () => {
+      const functionBlock = workflowWithConnections.blocks[2] // function-1
+      const testBlock: SerializedBlock = {
+        ...functionBlock,
+        config: {
+          tool: 'function',
+          params: {
+            nameRef: '<Agent Block.content>', // Reference by actual name
+            normalizedRef: '<agentblock.content>', // Reference by normalized name
+            idRef: '<agent-1.content>', // Reference by ID
+          },
+        },
+      }
+
+      const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
+      expect(result.nameRef).toBe('"Agent response"')
+      expect(result.normalizedRef).toBe('"Agent response"')
+      expect(result.idRef).toBe('"Agent response"')
+    })
+
+    it('should handle complex connection graphs', () => {
+      // Add a new block connected to function-1
+      const extendedWorkflow = {
+        ...workflowWithConnections,
+        blocks: [
+          ...workflowWithConnections.blocks,
+          {
+            id: 'response-1',
+            metadata: { id: 'response', name: 'Response Block' },
+            position: { x: 400, y: 400 },
+            config: { tool: 'response', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          ...workflowWithConnections.connections,
+          { source: 'function-1', target: 'response-1' },
+        ],
+      }
+
+      const extendedResolver = new InputResolver(extendedWorkflow, {})
+      const responseBlock = extendedWorkflow.blocks[4] // response-1
+      const testBlock: SerializedBlock = {
+        ...responseBlock,
+        config: {
+          tool: 'response',
+          params: {
+            canReferenceFunction: '<function-1.result>', // Can reference directly connected function-1
+            cannotReferenceAgent: '<agent-1.content>', // Cannot reference agent-1 (not directly connected)
+          },
+        },
+      }
+
+      const extendedContext = {
+        ...contextWithConnections,
+        workflow: extendedWorkflow,
+        blockStates: new Map([
+          ...contextWithConnections.blockStates,
+          [
+            'response-1',
+            { output: { message: 'Final response' }, executed: true, executionTime: 0 },
+          ],
+        ]),
+      }
+
+      // Should work for direct connection
+      expect(() => {
+        const block1 = {
+          ...testBlock,
+          config: { tool: 'response', params: { test: '<function-1.result>' } },
+        }
+        extendedResolver.resolveInputs(block1, extendedContext)
+      }).not.toThrow()
+
+      // Should fail for indirect connection
+      expect(() => {
+        const block2 = {
+          ...testBlock,
+          config: { tool: 'response', params: { test: '<agent-1.content>' } },
+        }
+        extendedResolver.resolveInputs(block2, extendedContext)
+      }).toThrow(/Block "agent-1" is not connected to this block/)
+    })
+
+    it('should handle blocks in same loop referencing each other', () => {
+      const loopWorkflow: SerializedWorkflow = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'starter-1',
+            metadata: { id: 'starter', name: 'Start' },
+            position: { x: 0, y: 0 },
+            config: { tool: 'starter', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'loop-1',
+            metadata: { id: 'loop', name: 'Loop' },
+            position: { x: 100, y: 100 },
+            config: { tool: '', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function-1',
+            metadata: { id: 'function', name: 'Function 1' },
+            position: { x: 200, y: 200 },
+            config: { tool: 'function', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function-2',
+            metadata: { id: 'function', name: 'Function 2' },
+            position: { x: 300, y: 300 },
+            config: { tool: 'function', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [{ source: 'starter-1', target: 'loop-1' }],
+        loops: {
+          'loop-1': {
+            id: 'loop-1',
+            nodes: ['function-1', 'function-2'], // Both functions in same loop
+            iterations: 3,
+            loopType: 'for',
+          },
+        },
+      }
+
+      const loopResolver = new InputResolver(loopWorkflow, {})
+      const testBlock: SerializedBlock = {
+        ...loopWorkflow.blocks[2],
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <function-2.result>', // function-1 can reference function-2 (same loop)
+          },
+        },
+      }
+
+      const loopContext = {
+        ...contextWithConnections,
+        workflow: loopWorkflow,
+        blockStates: new Map([
+          ['starter-1', { output: { input: 'Hello' }, executed: true, executionTime: 0 }],
+          ['function-1', { output: { result: 'Result 1' }, executed: true, executionTime: 0 }],
+          ['function-2', { output: { result: 'Result 2' }, executed: true, executionTime: 0 }],
+        ]),
+      }
+
+      expect(() => loopResolver.resolveInputs(testBlock, loopContext)).not.toThrow()
+    })
+  })
 })

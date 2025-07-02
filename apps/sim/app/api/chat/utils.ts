@@ -227,7 +227,8 @@ export async function executeWorkflowForChat(
   const requestId = crypto.randomUUID().slice(0, 8)
 
   logger.debug(
-    `[${requestId}] Executing workflow for chat: ${chatId}${conversationId ? `, conversationId: ${conversationId}` : ''
+    `[${requestId}] Executing workflow for chat: ${chatId}${
+      conversationId ? `, conversationId: ${conversationId}` : ''
     }`
   )
 
@@ -477,7 +478,7 @@ export async function executeWorkflowForChat(
               startTime: new Date().toISOString(),
             }
           }
-          ; (enrichedResult.metadata as any).conversationId = conversationId
+          ;(enrichedResult.metadata as any).conversationId = conversationId
         }
         const executionId = uuidv4()
         await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')

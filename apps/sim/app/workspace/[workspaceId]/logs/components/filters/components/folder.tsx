@@ -1,13 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, Folder } from 'lucide-react'
-
-<<<<<<< HEAD:apps/sim/app/workspace/[workspaceId]/logs/components/filters/components/folder.tsx
-
 import { useParams } from 'next/navigation'
-
-=======
->>>>>>> improvement/connection:apps/sim/app/w/logs/components/filters/components/folder.tsx
-
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -16,18 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-
-<<<<<<< HEAD:apps/sim/app/workspace/[workspaceId]/logs/components/filters/components/folder.tsx
-
-
-
-=======
-
-import { useFilterStore } from '@/app/w/logs/stores/store'
+import { useFilterStore } from '@/app/workspace/[workspaceId]/logs/stores/store'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-
->>>>>>> improvement/connection:apps/sim/app/w/logs/components/filters/components/folder.tsx
 
 interface FolderOption {
   id: string
@@ -39,12 +22,8 @@ interface FolderOption {
 export default function FolderFilter() {
   const { folderIds, toggleFolderId, setFolderIds } = useFilterStore()
   const { getFolderTree, getFolderPath, fetchFolders } = useFolderStore()
-<<<<<<< HEAD:apps/sim/app/workspace/[workspaceId]/logs/components/filters/components/folder.tsx
   const params = useParams()
   const workspaceId = params.workspaceId as string
-=======
-  const { activeWorkspaceId } = useWorkflowRegistry()
->>>>>>> improvement/connection:apps/sim/app/w/logs/components/filters/components/folder.tsx
   const [folders, setFolders] = useState<FolderOption[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -53,15 +32,9 @@ export default function FolderFilter() {
     const fetchFoldersData = async () => {
       try {
         setLoading(true)
-<<<<<<< HEAD:apps/sim/app/workspace/[workspaceId]/logs/components/filters/components/folder.tsx
         if (workspaceId) {
           await fetchFolders(workspaceId)
           const folderTree = getFolderTree(workspaceId)
-=======
-        if (activeWorkspaceId) {
-          await fetchFolders(activeWorkspaceId)
-          const folderTree = getFolderTree(activeWorkspaceId)
->>>>>>> improvement/connection:apps/sim/app/w/logs/components/filters/components/folder.tsx
 
           // Flatten the folder tree and create options with full paths
           const flattenFolders = (nodes: any[], parentPath = ''): FolderOption[] => {
@@ -88,18 +61,15 @@ export default function FolderFilter() {
           const folderOptions = flattenFolders(folderTree)
           setFolders(folderOptions)
         }
-      } catch (error) 
-        console.error('Failed to fetch folders:', error)finally 
+      } catch (error) {
+        console.error('Failed to fetch folders:', error)
+      } finally {
         setLoading(false)
+      }
     }
 
     fetchFoldersData()
-<<<<<<< HEAD:apps/sim/app/workspace/[workspaceId]/logs/components/filters/components/folder.tsx
-  }
-    const [workspaceId, fetchFolders, getFolderTree])
-=======
-  }, [activeWorkspaceId, fetchFolders, getFolderTree])
->>>>>>> improvement/connection:apps/sim/app/w/logs/components/filters/components/folder.tsx
+  }, [workspaceId, fetchFolders, getFolderTree])
 
   // Get display text for the dropdown button
   const getSelectedFoldersText = () => {

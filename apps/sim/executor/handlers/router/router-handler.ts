@@ -16,7 +16,7 @@ export class RouterBlockHandler implements BlockHandler {
   /**
    * @param pathTracker - Utility for tracking execution paths
    */
-  constructor(private pathTracker: PathTracker) { }
+  constructor(private pathTracker: PathTracker) {}
 
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === 'router'

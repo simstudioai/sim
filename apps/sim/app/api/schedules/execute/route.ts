@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
             executionId,
             new Error(
               usageCheck.message ||
-              'Usage limit exceeded. Please upgrade your plan to continue running scheduled workflows.'
+                'Usage limit exceeded. Please upgrade your plan to continue running scheduled workflows.'
             ),
             'schedule'
           )

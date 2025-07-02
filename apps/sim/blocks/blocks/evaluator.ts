@@ -189,10 +189,10 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       connectionDroppable: false,
       condition: isHosted
         ? {
-          field: 'model',
-          value: getHostedModels(),
-          not: true,
-        }
+            field: 'model',
+            value: getHostedModels(),
+            not: true,
+          }
         : undefined,
     },
     {

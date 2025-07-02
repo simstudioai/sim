@@ -1,3 +1,4 @@
+import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -127,11 +128,18 @@ export class Executor {
 
     this.loopManager = new LoopManager(this.actualWorkflow.loops || {})
     this.parallelManager = new ParallelManager(this.actualWorkflow.parallels || {})
+
+    // Calculate accessible blocks for consistent reference resolution
+    const accessibleBlocksMap = BlockPathCalculator.calculateAccessibleBlocksForWorkflow(
+      this.actualWorkflow
+    )
+
     this.resolver = new InputResolver(
       this.actualWorkflow,
       this.environmentVariables,
       this.workflowVariables,
-      this.loopManager
+      this.loopManager,
+      accessibleBlocksMap
     )
     this.pathTracker = new PathTracker(this.actualWorkflow)
 

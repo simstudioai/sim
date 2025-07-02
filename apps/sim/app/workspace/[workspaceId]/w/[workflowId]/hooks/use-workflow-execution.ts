@@ -210,7 +210,7 @@ export function useWorkflowExecution() {
                 if (!result.metadata) {
                   result.metadata = { duration: 0, startTime: new Date().toISOString() }
                 }
-                ; (result.metadata as any).source = 'chat'
+                ;(result.metadata as any).source = 'chat'
                 result.logs?.forEach((log: BlockLog) => {
                   if (streamedContent.has(log.blockId)) {
                     const content = streamedContent.get(log.blockId) || ''
@@ -225,7 +225,8 @@ export function useWorkflowExecution() {
                   encoder.encode(`data: $JSON.stringify(event: 'final', data: result )\n\n`)
                 )
                 persistLogs(executionId, result).catch((err) =>
-                  logger.error('Error persisting logs:', err))
+                  logger.error('Error persisting logs:', err)
+                )
               }
             } catch (error: any) {
               controller.error(error)
@@ -268,7 +269,7 @@ export function useWorkflowExecution() {
             if (!result.metadata) {
               result.metadata = { duration: 0, startTime: new Date().toISOString() }
             }
-            ; (result.metadata as any).source = 'chat'
+            ;(result.metadata as any).source = 'chat'
           }
 
           if (activeWorkflowId) {

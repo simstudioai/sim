@@ -562,8 +562,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   )
 
   // Reset selection when search results change
-  useEffect(() => 
-    setSelectedIndex(0), [searchTerm])
+  useEffect(() => setSelectedIndex(0), [searchTerm])
 
   // Keep selection within bounds when tags change
   useEffect(() => {

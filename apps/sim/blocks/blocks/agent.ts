@@ -11,7 +11,6 @@ import {
   MODELS_WITH_TEMPERATURE_SUPPORT,
   providers,
 } from '@/providers/utils'
-
 import { useOllamaStore } from '@/stores/ollama/store'
 import type { ToolResponse } from '@/tools/types'
 import type { BlockConfig } from '../types'
@@ -159,10 +158,10 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       // Hide API key for all hosted models when running on hosted version
       condition: isHosted
         ? {
-          field: 'model',
-          value: getHostedModels(),
-          not: true, // Show for all models EXCEPT those listed
-        }
+            field: 'model',
+            value: getHostedModels(),
+            not: true, // Show for all models EXCEPT those listed
+          }
         : undefined, // Show for all models in non-hosted environments
     },
     {

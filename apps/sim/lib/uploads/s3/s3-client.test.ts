@@ -286,19 +286,8 @@ describe('S3 Client', () => {
       const client = getS3Client()
 
       expect(client).toBeDefined()
-<<<<<<< HEAD
       // Verify the client was constructed with the right configuration
       expect(S3Client).toHaveBeenCalledWith({ region: 'test-region' })
-=======
-      // Verify the client was constructed with the right configuration including fake credentials
-      expect(S3Client).toHaveBeenCalledWith({
-        region: 'test-region',
-        credentials: {
-          accessKeyId: 'AKIA_FAKE_KEY_FOR_TESTING',
-          secretAccessKey: 'fake-secret-key-for-testing-only',
-        },
-      })
->>>>>>> improvement/connection
     })
   })
 })
