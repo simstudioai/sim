@@ -310,11 +310,12 @@ export function TraceSpansDisplay({
       </div>
       <div className='overflow-hidden rounded-md border shadow-sm'>
         {traceSpans.map((span, index) => {
-          const hasSubItems =
+          const hasSubItems = Boolean(
             (span.children && span.children.length > 0) ||
             (span.toolCalls && span.toolCalls.length > 0) ||
             span.input ||
             span.output
+          )
           return (
             <TraceSpanItem
               key={index}
@@ -644,11 +645,12 @@ function TraceSpanItem({
           {hasChildren && (
             <div>
               {span.children?.map((childSpan, index) => {
-                const childHasSubItems =
+                const childHasSubItems = Boolean(
                   (childSpan.children && childSpan.children.length > 0) ||
                   (childSpan.toolCalls && childSpan.toolCalls.length > 0) ||
                   childSpan.input ||
                   childSpan.output
+                )
 
                 return (
                   <TraceSpanItem

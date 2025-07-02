@@ -63,7 +63,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         totalInputCost: null,
         totalOutputCost: null,
         totalTokens: null,
-        primaryModel: null,
         metadata: {
           environment,
           trigger,
@@ -93,7 +92,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         totalInputCost: Number(workflowLog.totalInputCost) || 0,
         totalOutputCost: Number(workflowLog.totalOutputCost) || 0,
         totalTokens: workflowLog.totalTokens || 0,
-        primaryModel: workflowLog.primaryModel || '',
         metadata: workflowLog.metadata as WorkflowExecutionLog['metadata'],
         createdAt: workflowLog.createdAt.toISOString(),
       },
@@ -207,7 +205,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       totalInputCost: number
       totalOutputCost: number
       totalTokens: number
-      primaryModel: string
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
@@ -245,7 +242,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         totalInputCost: costSummary.totalInputCost.toString(),
         totalOutputCost: costSummary.totalOutputCost.toString(),
         totalTokens: costSummary.totalTokens,
-        primaryModel: costSummary.primaryModel,
         metadata: {
           traceSpans,
           finalOutput,
@@ -279,7 +275,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       totalInputCost: Number(updatedLog.totalInputCost) || 0,
       totalOutputCost: Number(updatedLog.totalOutputCost) || 0,
       totalTokens: updatedLog.totalTokens || 0,
-      primaryModel: updatedLog.primaryModel || '',
       metadata: updatedLog.metadata as WorkflowExecutionLog['metadata'],
       createdAt: updatedLog.createdAt.toISOString(),
     }
@@ -358,7 +353,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       totalInputCost: Number(workflowLog.totalInputCost) || 0,
       totalOutputCost: Number(workflowLog.totalOutputCost) || 0,
       totalTokens: workflowLog.totalTokens || 0,
-      primaryModel: workflowLog.primaryModel || '',
       metadata: workflowLog.metadata as WorkflowExecutionLog['metadata'],
       createdAt: workflowLog.createdAt.toISOString(),
     }

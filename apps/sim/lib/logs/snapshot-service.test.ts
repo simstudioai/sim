@@ -15,17 +15,17 @@ describe('SnapshotService', () => {
         blocks: {
           block1: {
             id: 'block1',
+            name: 'Test Agent',
             type: 'agent',
             position: { x: 100, y: 200 },
-            metadata: { id: 'agent', name: 'Test Agent' },
-            config: { params: { prompt: 'Hello' } },
+
             subBlocks: {},
             outputs: {},
             enabled: true,
             horizontalHandles: true,
             isWide: false,
             advancedMode: false,
-            height: '0',
+            height: 0,
           },
         },
         edges: [{ id: 'edge1', source: 'block1', target: 'block2' }],
@@ -45,17 +45,17 @@ describe('SnapshotService', () => {
         blocks: {
           block1: {
             id: 'block1',
+            name: 'Test Agent',
             type: 'agent',
             position: { x: 100, y: 200 },
-            metadata: { id: 'agent', name: 'Test Agent' },
-            config: { params: { prompt: 'Hello' } },
+
             subBlocks: {},
             outputs: {},
             enabled: true,
             horizontalHandles: true,
             isWide: false,
             advancedMode: false,
-            height: '0',
+            height: 0,
           },
         },
         edges: [],
@@ -84,17 +84,17 @@ describe('SnapshotService', () => {
         blocks: {
           block1: {
             id: 'block1',
+            name: 'Test Agent',
             type: 'agent',
             position: { x: 100, y: 200 },
-            metadata: { id: 'agent', name: 'Test Agent' },
-            config: { params: { prompt: 'Hello' } },
+
             subBlocks: {},
             outputs: {},
             enabled: true,
             horizontalHandles: true,
             isWide: false,
             advancedMode: false,
-            height: '0',
+            height: 0,
           },
         },
         edges: [],
@@ -107,7 +107,8 @@ describe('SnapshotService', () => {
         blocks: {
           block1: {
             ...baseState.blocks.block1,
-            config: { params: { prompt: 'Different prompt' } }, // Different prompt
+            // Different block state - we can change outputs to make it different
+            outputs: { response: { content: 'different result' } as Record<string, any> },
           },
         },
       }
@@ -162,17 +163,10 @@ describe('SnapshotService', () => {
         blocks: {
           block1: {
             id: 'block1',
+            name: 'Complex Agent',
             type: 'agent',
             position: { x: 100, y: 200 },
-            metadata: { id: 'agent', name: 'Complex Agent' },
-            config: {
-              params: {
-                prompt: 'Hello',
-                model: 'gpt-4',
-                temperature: 0.7,
-                tools: ['search', 'calculator'],
-              },
-            },
+
             subBlocks: {
               prompt: {
                 id: 'prompt',
@@ -186,36 +180,30 @@ describe('SnapshotService', () => {
               },
             },
             outputs: {
-              response: {
-                type: 'string',
-                description: 'Agent response',
-              },
+              response: { content: 'Agent response' } as Record<string, any>,
             },
             enabled: true,
             horizontalHandles: true,
             isWide: false,
             advancedMode: true,
-            height: '200',
+            height: 200,
           },
         },
         edges: [{ id: 'edge1', source: 'block1', target: 'block2', sourceHandle: 'output' }],
         loops: {
           loop1: {
             id: 'loop1',
-            type: 'loop',
-            config: {
-              iterationVariable: 'item',
-              maxIterations: 10,
-            },
+            nodes: ['block1'],
+            iterations: 10,
+            loopType: 'for',
           },
         },
         parallels: {
           parallel1: {
             id: 'parallel1',
-            type: 'parallel',
-            config: {
-              maxConcurrency: 3,
-            },
+            nodes: ['block1'],
+            count: 3,
+            parallelType: 'count',
           },
         },
       }
