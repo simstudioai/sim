@@ -835,7 +835,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Generate workflow metadata with marketplace properties
         const newWorkflow: WorkflowMetadata = {
           id,
-          name: metadata.name || 'Marketplace workflow',
+          name: metadata.name || generateUniqueName(),
           lastModified: new Date(),
           description: metadata.description || 'Imported from marketplace',
           color: metadata.color || getNextWorkflowColor(),
