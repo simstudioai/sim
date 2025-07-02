@@ -31,6 +31,27 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
+    // Mock serializer
+    vi.doMock('@/serializer', () => ({
+      serializeWorkflow: vi.fn().mockReturnValue({
+        version: '1.0',
+        blocks: [
+          {
+            id: 'block-1',
+            metadata: { id: 'starter', name: 'Start' },
+            position: { x: 100, y: 100 },
+            config: { tool: 'starter', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [],
+        loops: {},
+        parallels: {},
+      }),
+    }))
+
     vi.doMock('@/lib/workflows/db-helpers', () => ({
       loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
         blocks: {
@@ -74,6 +95,12 @@ describe('Workflow Deployment API Route', () => {
           headers: { 'Content-Type': 'application/json' },
         })
       }),
+    }))
+
+    // Mock the database schema module
+    vi.doMock('@/db/schema', () => ({
+      workflows: {},
+      apiKeys: {},
     }))
   })
 

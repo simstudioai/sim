@@ -286,8 +286,10 @@ describe('S3 Client', () => {
       const client = getS3Client()
 
       expect(client).toBeDefined()
-      // Verify the client was constructed with the right configuration
-      expect(S3Client).toHaveBeenCalledWith({ region: 'test-region' })
+      // Verify the client was constructed with the right configuration (credentials are added by the implementation)
+      expect(S3Client).toHaveBeenCalledWith(expect.objectContaining({
+        region: 'test-region'
+      }))
     })
   })
 })

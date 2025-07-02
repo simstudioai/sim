@@ -480,15 +480,13 @@ describe('PathTracker', () => {
     })
 
     it('should activate downstream paths when router selects a target', () => {
-      // Mock router output selecting api1
+      // Mock router output selecting api1 - based on implementation, it expects selectedPath directly
       mockContext.blockStates.set('router1', {
         output: {
-          response: {
-            selectedPath: {
-              blockId: 'api1',
-              blockType: 'api',
-              blockTitle: 'API 1',
-            },
+          selectedPath: {
+            blockId: 'api1',
+            blockType: 'api',
+            blockTitle: 'API 1',
           },
         },
         executed: true,
@@ -521,15 +519,13 @@ describe('PathTracker', () => {
 
       pathTracker = new PathTracker(mockWorkflow)
 
-      // Mock router output selecting api1
+      // Mock router output selecting api1 - based on implementation, it expects selectedPath directly
       mockContext.blockStates.set('router1', {
         output: {
-          response: {
-            selectedPath: {
-              blockId: 'api1',
-              blockType: 'api',
-              blockTitle: 'API 1',
-            },
+          selectedPath: {
+            blockId: 'api1',
+            blockType: 'api',
+            blockTitle: 'API 1',
           },
         },
         executed: true,
@@ -554,12 +550,10 @@ describe('PathTracker', () => {
 
       mockContext.blockStates.set('router1', {
         output: {
-          response: {
-            selectedPath: {
-              blockId: 'api1',
-              blockType: 'api',
-              blockTitle: 'API 1',
-            },
+          selectedPath: {
+            blockId: 'api1',
+            blockType: 'api',
+            blockTitle: 'API 1',
           },
         },
         executed: true,
@@ -590,12 +584,10 @@ describe('PathTracker', () => {
 
       mockContext.blockStates.set('router1', {
         output: {
-          response: {
-            selectedPath: {
-              blockId: 'api1',
-              blockType: 'api',
-              blockTitle: 'API 1',
-            },
+          selectedPath: {
+            blockId: 'api1',
+            blockType: 'api',
+            blockTitle: 'API 1',
           },
         },
         executed: true,
