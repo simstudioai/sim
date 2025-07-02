@@ -28,7 +28,7 @@ import { getEmailDomain } from './urls/utils'
 
 const logger = createLogger('Auth')
 
-const isProd = true
+const isProd = env.NODE_ENV === 'production'
 
 // Only initialize Stripe if the key is provided
 // This allows local development without a Stripe account
@@ -46,7 +46,6 @@ if (validStripeKey) {
 
 // If there is no resend key, it might be a local dev environment
 // In that case, we don't want to send emails and just log them
-
 const validResendAPIKEY =
   env.RESEND_API_KEY && env.RESEND_API_KEY.trim() !== '' && env.RESEND_API_KEY !== 'placeholder'
 

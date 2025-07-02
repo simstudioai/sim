@@ -25,13 +25,9 @@ interface BillingSummaryData {
 }
 
 interface BillingSummaryProps {
-  /** Whether to show detailed billing info (plan minimum, projected charge) */
   showDetails?: boolean
-  /** Additional CSS classes */
   className?: string
-  /** Callback when billing data is loaded */
   onDataLoaded?: (data: BillingSummaryData) => void
-  /** Callback when error occurs */
   onError?: (error: string) => void
 }
 
@@ -48,7 +44,6 @@ export function BillingSummary({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Load billing summary
   useEffect(() => {
     async function loadBillingSummary() {
       if (!session?.user?.id) return
@@ -111,7 +106,6 @@ export function BillingSummary({
 
   const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`
 
-  // Don't render anything while loading or if there's an error
   if (isLoading || error || !billingSummary) {
     return null
   }
