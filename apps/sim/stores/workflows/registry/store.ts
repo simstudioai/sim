@@ -586,9 +586,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           if (!response.ok) {
             const errorData = await response.json()
-            throw new Error(
-              `Failed to create workflow: ${errorData.error || response.statusText}`
-            )
+            throw new Error(`Failed to create workflow: ${errorData.error || response.statusText}`)
           }
 
           const createdWorkflow = await response.json()
@@ -610,168 +608,168 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             folderId: createdWorkflow.folderId,
           }
 
-        let initialState: any
+          let initialState: any
 
-        // If this is a marketplace import with existing state
-        if (options.marketplaceId && options.marketplaceState) {
-          initialState = {
-            blocks: options.marketplaceState.blocks || {},
-            edges: options.marketplaceState.edges || [],
-            loops: options.marketplaceState.loops || {},
-            parallels: options.marketplaceState.parallels || {},
-            isDeployed: false,
-            deployedAt: undefined,
-            deploymentStatuses: {}, // Initialize empty deployment statuses map
-            workspaceId, // Include workspace ID in the state object
-            history: {
-              past: [],
-              present: {
-                state: {
-                  blocks: options.marketplaceState.blocks || {},
-                  edges: options.marketplaceState.edges || [],
-                  loops: options.marketplaceState.loops || {},
-                  parallels: options.marketplaceState.parallels || {},
-                  isDeployed: false,
-                  deployedAt: undefined,
-                  workspaceId, // Include workspace ID in history
-                },
-                timestamp: Date.now(),
-                action: 'Imported from marketplace',
-                subblockValues: {},
-              },
-              future: [],
-            },
-            lastSaved: Date.now(),
-          }
-
-          logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
-        } else {
-          // Create starter block for new workflow
-          const starterId = crypto.randomUUID()
-          const starterBlock = {
-            id: starterId,
-            type: 'starter' as const,
-            name: 'Start',
-            position: { x: 100, y: 100 },
-            subBlocks: {
-              startWorkflow: {
-                id: 'startWorkflow',
-                type: 'dropdown' as const,
-                value: 'manual',
-              },
-              webhookPath: {
-                id: 'webhookPath',
-                type: 'short-input' as const,
-                value: '',
-              },
-              webhookSecret: {
-                id: 'webhookSecret',
-                type: 'short-input' as const,
-                value: '',
-              },
-              scheduleType: {
-                id: 'scheduleType',
-                type: 'dropdown' as const,
-                value: 'daily',
-              },
-              minutesInterval: {
-                id: 'minutesInterval',
-                type: 'short-input' as const,
-                value: '',
-              },
-              minutesStartingAt: {
-                id: 'minutesStartingAt',
-                type: 'short-input' as const,
-                value: '',
-              },
-              hourlyMinute: {
-                id: 'hourlyMinute',
-                type: 'short-input' as const,
-                value: '',
-              },
-              dailyTime: {
-                id: 'dailyTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              weeklyDay: {
-                id: 'weeklyDay',
-                type: 'dropdown' as const,
-                value: 'MON',
-              },
-              weeklyDayTime: {
-                id: 'weeklyDayTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              monthlyDay: {
-                id: 'monthlyDay',
-                type: 'short-input' as const,
-                value: '',
-              },
-              monthlyTime: {
-                id: 'monthlyTime',
-                type: 'short-input' as const,
-                value: '',
-              },
-              cronExpression: {
-                id: 'cronExpression',
-                type: 'short-input' as const,
-                value: '',
-              },
-              timezone: {
-                id: 'timezone',
-                type: 'dropdown' as const,
-                value: 'UTC',
-              },
-            },
-            outputs: {
-              response: {
-                type: {
-                  input: 'any',
-                },
-              },
-            },
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            height: 0,
-          }
-
-          initialState = {
-            blocks: {
-              [starterId]: starterBlock,
-            },
-            edges: [],
-            loops: {},
-            parallels: {},
-            isDeployed: false,
-            deployedAt: undefined,
-            deploymentStatuses: {}, // Initialize empty deployment statuses map
-            workspaceId, // Include workspace ID in the state object
-            history: {
-              past: [],
-              present: {
-                state: {
-                  blocks: {
-                    [starterId]: starterBlock,
+          // If this is a marketplace import with existing state
+          if (options.marketplaceId && options.marketplaceState) {
+            initialState = {
+              blocks: options.marketplaceState.blocks || {},
+              edges: options.marketplaceState.edges || [],
+              loops: options.marketplaceState.loops || {},
+              parallels: options.marketplaceState.parallels || {},
+              isDeployed: false,
+              deployedAt: undefined,
+              deploymentStatuses: {}, // Initialize empty deployment statuses map
+              workspaceId, // Include workspace ID in the state object
+              history: {
+                past: [],
+                present: {
+                  state: {
+                    blocks: options.marketplaceState.blocks || {},
+                    edges: options.marketplaceState.edges || [],
+                    loops: options.marketplaceState.loops || {},
+                    parallels: options.marketplaceState.parallels || {},
+                    isDeployed: false,
+                    deployedAt: undefined,
+                    workspaceId, // Include workspace ID in history
                   },
-                  edges: [],
-                  loops: {},
-                  parallels: {},
-                  isDeployed: false,
-                  deployedAt: undefined,
-                  workspaceId, // Include workspace ID in history
+                  timestamp: Date.now(),
+                  action: 'Imported from marketplace',
+                  subblockValues: {},
                 },
-                timestamp: Date.now(),
-                action: 'Initial state',
-                subblockValues: {},
+                future: [],
               },
-              future: [],
-            },
-            lastSaved: Date.now(),
+              lastSaved: Date.now(),
+            }
+
+            logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
+          } else {
+            // Create starter block for new workflow
+            const starterId = crypto.randomUUID()
+            const starterBlock = {
+              id: starterId,
+              type: 'starter' as const,
+              name: 'Start',
+              position: { x: 100, y: 100 },
+              subBlocks: {
+                startWorkflow: {
+                  id: 'startWorkflow',
+                  type: 'dropdown' as const,
+                  value: 'manual',
+                },
+                webhookPath: {
+                  id: 'webhookPath',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                webhookSecret: {
+                  id: 'webhookSecret',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                scheduleType: {
+                  id: 'scheduleType',
+                  type: 'dropdown' as const,
+                  value: 'daily',
+                },
+                minutesInterval: {
+                  id: 'minutesInterval',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                minutesStartingAt: {
+                  id: 'minutesStartingAt',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                hourlyMinute: {
+                  id: 'hourlyMinute',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                dailyTime: {
+                  id: 'dailyTime',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                weeklyDay: {
+                  id: 'weeklyDay',
+                  type: 'dropdown' as const,
+                  value: 'MON',
+                },
+                weeklyDayTime: {
+                  id: 'weeklyDayTime',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                monthlyDay: {
+                  id: 'monthlyDay',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                monthlyTime: {
+                  id: 'monthlyTime',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                cronExpression: {
+                  id: 'cronExpression',
+                  type: 'short-input' as const,
+                  value: '',
+                },
+                timezone: {
+                  id: 'timezone',
+                  type: 'dropdown' as const,
+                  value: 'UTC',
+                },
+              },
+              outputs: {
+                response: {
+                  type: {
+                    input: 'any',
+                  },
+                },
+              },
+              enabled: true,
+              horizontalHandles: true,
+              isWide: false,
+              height: 0,
+            }
+
+            initialState = {
+              blocks: {
+                [starterId]: starterBlock,
+              },
+              edges: [],
+              loops: {},
+              parallels: {},
+              isDeployed: false,
+              deployedAt: undefined,
+              deploymentStatuses: {}, // Initialize empty deployment statuses map
+              workspaceId, // Include workspace ID in the state object
+              history: {
+                past: [],
+                present: {
+                  state: {
+                    blocks: {
+                      [starterId]: starterBlock,
+                    },
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                    isDeployed: false,
+                    deployedAt: undefined,
+                    workspaceId, // Include workspace ID in history
+                  },
+                  timestamp: Date.now(),
+                  action: 'Initial state',
+                  subblockValues: {},
+                },
+                future: [],
+              },
+              lastSaved: Date.now(),
+            }
           }
-        }
 
           // Add workflow to registry with server-generated ID
           set((state) => ({
@@ -784,7 +782,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           // Initialize subblock values if this is a marketplace import
           if (options.marketplaceId && options.marketplaceState?.blocks) {
-            useSubBlockStore.getState().initializeFromWorkflow(serverWorkflowId, options.marketplaceState.blocks)
+            useSubBlockStore
+              .getState()
+              .initializeFromWorkflow(serverWorkflowId, options.marketplaceState.blocks)
           }
 
           // Initialize subblock values to ensure they're available for sync
@@ -812,12 +812,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           set({ activeWorkflowId: serverWorkflowId })
           useWorkflowStore.setState(initialState)
 
-          logger.info(`Created new workflow with ID ${serverWorkflowId} in workspace ${workspaceId || 'none'}`)
+          logger.info(
+            `Created new workflow with ID ${serverWorkflowId} in workspace ${workspaceId || 'none'}`
+          )
 
           return serverWorkflowId
         } catch (error) {
           logger.error(`Failed to create new workflow:`, error)
-          set({ error: `Failed to create workflow: ${error instanceof Error ? error.message : 'Unknown error'}` })
+          set({
+            error: `Failed to create workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          })
           throw error
         }
       },
