@@ -7,8 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization, useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubscriptionStore } from '@/stores/subscription/store'
+import { BillingSummary } from './components/billing-summary'
 import { TeamSeatsDialog } from './components/team-seats-dialog'
-import { TeamUsageOverview } from './components/team-usage-overview'
 import { UsageLimitEditor } from './components/usage-limit-editor'
 
 const logger = createLogger('Subscription')
@@ -17,16 +17,11 @@ interface SubscriptionProps {
   onOpenChange: (open: boolean) => void
 }
 
-/**
- * Enhanced subscription component using subscription store for centralized state management
- * Eliminates duplicate API calls and provides cached data across components
- */
 export function Subscription({ onOpenChange }: SubscriptionProps) {
   const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
   const betterAuthSubscription = useSubscription()
 
-  // Use subscription store for all data
   const {
     isLoading,
     error,
@@ -77,7 +72,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     )
   }
 
-  const handleUpgrade = async () => {
+  const handleUpgrade = async (targetPlan: 'pro' | 'team') => {
     if (!session?.user?.id) return
 
     let referenceId = session.user.id
@@ -94,18 +89,29 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         typeof betterAuthSubscription.upgrade === 'function'
       ) {
         await betterAuthSubscription.upgrade({
-          plan: subscription.isFree ? 'pro' : 'team',
+          plan: targetPlan,
           referenceId,
           successUrl: currentUrl,
           cancelUrl: currentUrl,
-          seats: subscription.isFree ? undefined : 1, // Default to 1 seat for team plan
+          seats: targetPlan === 'team' ? 1 : undefined,
         })
       } else {
-        // Development fallback or manual upgrade flow
-        logger.warn('Stripe upgrade not available - development mode or missing configuration')
+        // Development fallback - log for debugging
+        logger.warn('Stripe upgrade not available - development mode or missing configuration', {
+          targetPlan,
+          referenceId,
+          betterAuthSubscription: typeof betterAuthSubscription,
+        })
+
+        // You might want to show a toast or alert to the user
+        alert(
+          `Upgrade to ${targetPlan} plan - Stripe integration not available in development mode`
+        )
       }
     } catch (error) {
       logger.error('Failed to initiate subscription upgrade:', error)
+      // You might want to show an error toast to the user
+      alert('Failed to initiate upgrade. Please try again or contact support.')
     }
   }
 
@@ -148,13 +154,17 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   return (
     <div className='p-6'>
       <div className='space-y-6'>
-        {/* Current Plan & Usage Overview - Keep at top */}
+        {/* Current Plan & Usage Overview with Billing Summary */}
         <div>
           <div className='mb-2 flex items-center justify-between'>
             <h3 className='font-medium text-sm'>Current Plan</h3>
-            <span className='text-muted-foreground text-sm capitalize'>
-              {subscription.plan} Plan
-            </span>
+            <div className='flex items-center gap-2'>
+              <span className='text-muted-foreground text-sm capitalize'>
+                {subscription.plan} Plan
+              </span>
+              {/* Billing Summary Badge - only show for paid plans */}
+              {!subscription.isFree && <BillingSummary showDetails={false} />}
+            </div>
           </div>
 
           <div className='mb-3 flex items-center justify-between'>
@@ -170,6 +180,9 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             value={usage.percentUsed}
             className={`h-2 ${billingStatus === 'exceeded' ? 'bg-destructive/20' : billingStatus === 'warning' ? 'bg-warning/20' : ''}`}
           />
+
+          {/* Enhanced billing info - only for paid plans */}
+          {!subscription.isFree && <BillingSummary showDetails={true} />}
 
           {usage.billingPeriodEnd && daysRemaining !== null && (
             <p className='mt-2 text-muted-foreground text-xs'>
@@ -201,7 +214,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           </Alert>
         )}
 
-        {/* Usage Limit Editor - Keep this */}
+        {/* Usage Limit Editor */}
         <div>
           <div className='flex items-center justify-between'>
             <span className='font-medium text-sm'>Monthly limit</span>
@@ -219,99 +232,36 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           )}
         </div>
 
-        {/* Plan Features - Compact */}
-        <div>
-          <h4 className='mb-3 font-medium text-sm'>Plan Features</h4>
-          <div className='grid grid-cols-3 gap-4 text-sm'>
-            <div className='text-center'>
-              <div
-                className={`text-xs ${features.sharingEnabled ? 'text-green-600' : 'text-muted-foreground'}`}
-              >
-                {features.sharingEnabled ? 'Enabled' : 'Disabled'}
-              </div>
-              <div className='text-muted-foreground text-xs'>Sharing</div>
-            </div>
-            <div className='text-center'>
-              <div
-                className={`text-xs ${features.multiplayerEnabled ? 'text-green-600' : 'text-muted-foreground'}`}
-              >
-                {features.multiplayerEnabled ? 'Enabled' : 'Disabled'}
-              </div>
-              <div className='text-muted-foreground text-xs'>Multiplayer</div>
-            </div>
-            <div className='text-center'>
-              <div
-                className={`text-xs ${features.workspaceCollaborationEnabled ? 'text-green-600' : 'text-muted-foreground'}`}
-              >
-                {features.workspaceCollaborationEnabled ? 'Enabled' : 'Disabled'}
-              </div>
-              <div className='text-muted-foreground text-xs'>Collaboration</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Team Management - Compact */}
+        {/* Team Management - Simplified */}
         {subscription.isTeam && (
           <div>
-            <div className='mb-3 flex items-center justify-between'>
+            <div className='flex items-center justify-between'>
               <h4 className='font-medium text-sm'>Team Subscription</h4>
               <Button variant='outline' size='sm' onClick={() => setIsSeatsDialogOpen(true)}>
                 Manage Seats ({subscription.seats || 1})
               </Button>
             </div>
-
-            {/* Team Usage Overview - Show if user is in an organization */}
-            {activeOrg?.id && (
-              <div className='mt-4'>
-                <h5 className='mb-2 font-medium text-sm'>Team Usage Overview</h5>
-                <TeamUsageOverview hasAdminAccess={true} />
-              </div>
-            )}
           </div>
         )}
 
         {/* Upgrade Actions */}
         {subscription.isFree && (
           <div className='space-y-3'>
-            <Button onClick={handleUpgrade} className='w-full'>
+            <Button onClick={() => handleUpgrade('pro')} className='w-full'>
               Upgrade to Pro - $20/month
             </Button>
-            <Button
-              onClick={() => {
-                // Handle team upgrade for free users
-                const handleTeamUpgrade = async () => {
-                  if (!session?.user?.id) return
-
-                  const currentUrl = window.location.origin + window.location.pathname
-
-                  try {
-                    if (
-                      'upgrade' in betterAuthSubscription &&
-                      typeof betterAuthSubscription.upgrade === 'function'
-                    ) {
-                      await betterAuthSubscription.upgrade({
-                        plan: 'team',
-                        referenceId: session.user.id,
-                        successUrl: currentUrl,
-                        cancelUrl: currentUrl,
-                        seats: 1,
-                      })
-                    }
-                  } catch (error) {
-                    logger.error('Failed to initiate team upgrade:', error)
-                  }
-                }
-                handleTeamUpgrade()
-              }}
-              variant='outline'
-              className='w-full'
-            >
+            <Button onClick={() => handleUpgrade('team')} variant='outline' className='w-full'>
               Upgrade to Team - $40/seat/month
             </Button>
             <div className='py-2 text-center'>
               <p className='text-muted-foreground text-xs'>
                 Need a custom plan?{' '}
-                <a href='mailto:support@simstudio.com' className='text-blue-500 hover:underline'>
+                <a
+                  href='https://5fyxh22cfgi.typeform.com/to/EcJFBt9W'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-blue-500 hover:underline'
+                >
                   Contact us
                 </a>{' '}
                 for Enterprise pricing
@@ -321,7 +271,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         )}
 
         {subscription.isPro && !subscription.isTeam && (
-          <Button onClick={handleUpgrade} className='w-full'>
+          <Button onClick={() => handleUpgrade('team')} className='w-full'>
             Upgrade to Team - $40/seat/month
           </Button>
         )}

@@ -14,7 +14,7 @@ const logger = createLogger('MemberUsageLimitAPI')
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; memberId: string } }
+  { params }: { params: Promise<{ id: string; memberId: string }> }
 ) {
   try {
     const session = await getSession()
@@ -23,7 +23,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: organizationId, memberId } = params
+    const { id: organizationId, memberId } = await params
     const { limit } = await request.json()
 
     // Validate input
@@ -71,8 +71,8 @@ export async function PUT(
     })
   } catch (error) {
     logger.error('Failed to update member usage limit', {
-      organizationId: params.id,
-      memberId: params.memberId,
+      organizationId: (await params).id,
+      memberId: (await params).memberId,
       error,
     })
 

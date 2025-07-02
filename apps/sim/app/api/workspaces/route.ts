@@ -90,7 +90,6 @@ async function createWorkspace(userId: string, name: string) {
         id: workspaceId,
         name,
         ownerId: userId,
-        organizationId: null, // Workspaces are independent of organizations
         createdAt: now,
         updatedAt: now,
       })
@@ -266,7 +265,6 @@ async function createWorkspace(userId: string, name: string) {
     id: workspaceId,
     name,
     ownerId: userId,
-    organizationId: null,
     createdAt: now,
     updatedAt: now,
     role: 'owner',
