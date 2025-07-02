@@ -3,7 +3,7 @@
 import { TimerOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { isProd } from '@/lib/environment'
-import { useUserSubscription } from '@/hooks/use-user-subscription'
+import { useSubscriptionState } from '@/hooks/use-subscription-state'
 import FilterSection from './components/filter-section'
 import FolderFilter from './components/folder'
 import Level from './components/level'
@@ -15,7 +15,8 @@ import Workflow from './components/workflow'
  * Filters component for logs page - includes timeline and other filter options
  */
 export function Filters() {
-  const { isPaid, isLoading } = useUserSubscription()
+  const { subscription, isLoading } = useSubscriptionState()
+  const isPaid = subscription.isPaid
 
   const handleUpgradeClick = (e: React.MouseEvent) => {
     e.preventDefault()

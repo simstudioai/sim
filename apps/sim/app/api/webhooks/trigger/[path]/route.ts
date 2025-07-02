@@ -1,9 +1,9 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { checkServerSideUsageLimits } from '@/lib/billing'
 import { createLogger } from '@/lib/logs/console-logger'
 import { acquireLock, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
-import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import {
   fetchAndProcessAirtablePayloads,
   handleSlackChallenge,

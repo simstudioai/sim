@@ -275,7 +275,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
 
     const fetchSubscriptionStatus = useCallback(async (userId: string) => {
       try {
-        const response = await fetch('/api/user/subscription')
+        const response = await fetch('/api/users/me/subscription')
         const data = await response.json()
         setPlan(data.isPro ? 'Pro Plan' : 'Free Plan')
       } catch (err) {
