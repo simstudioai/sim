@@ -401,6 +401,14 @@ export const userStats = pgTable('user_stats', {
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
+  currentUsageLimit: decimal('current_usage_limit').notNull().default('5'), // Default $5 for free plan
+  usageLimitSetBy: text('usage_limit_set_by'), // User ID who set the limit (for team admin tracking)
+  usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
+  // Billing period tracking
+  currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
+  billingPeriodStart: timestamp('billing_period_start').defaultNow(), // When current billing period started
+  billingPeriodEnd: timestamp('billing_period_end'), // When current billing period ends
+  lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
   lastActive: timestamp('last_active').notNull().defaultNow(),
 })
 
@@ -416,21 +424,37 @@ export const customTools = pgTable('custom_tools', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const subscription = pgTable('subscription', {
-  id: text('id').primaryKey(),
-  plan: text('plan').notNull(),
-  referenceId: text('reference_id').notNull(),
-  stripeCustomerId: text('stripe_customer_id'),
-  stripeSubscriptionId: text('stripe_subscription_id'),
-  status: text('status'),
-  periodStart: timestamp('period_start'),
-  periodEnd: timestamp('period_end'),
-  cancelAtPeriodEnd: boolean('cancel_at_period_end'),
-  seats: integer('seats'),
-  trialStart: timestamp('trial_start'),
-  trialEnd: timestamp('trial_end'),
-  metadata: json('metadata'),
-})
+export const subscription = pgTable(
+  'subscription',
+  {
+    id: text('id').primaryKey(),
+    plan: text('plan').notNull(),
+    referenceId: text('reference_id').notNull(),
+    stripeCustomerId: text('stripe_customer_id'),
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    status: text('status'),
+    periodStart: timestamp('period_start'),
+    periodEnd: timestamp('period_end'),
+    cancelAtPeriodEnd: boolean('cancel_at_period_end'),
+    seats: integer('seats'),
+    trialStart: timestamp('trial_start'),
+    trialEnd: timestamp('trial_end'),
+    metadata: json('metadata'),
+  },
+  (table) => ({
+    // Essential index for better-auth
+    referenceStatusIdx: index('subscription_reference_status_idx').on(
+      table.referenceId,
+      table.status
+    ),
+
+    // Enterprise metadata validation (essential for your requirements)
+    enterpriseMetadataCheck: check(
+      'check_enterprise_metadata',
+      sql`plan != 'enterprise' OR (metadata IS NOT NULL AND (metadata->>'perSeatAllowance' IS NOT NULL OR metadata->>'totalAllowance' IS NOT NULL))`
+    ),
+  })
+)
 
 export const chat = pgTable(
   'chat',
@@ -472,7 +496,7 @@ export const organization = pgTable('organization', {
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   logo: text('logo'),
-  metadata: json('metadata'),
+  metadata: json('metadata'), // Use for storing Stripe customer ID and other billing data
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -485,7 +509,7 @@ export const member = pgTable('member', {
   organizationId: text('organization_id')
     .notNull()
     .references(() => organization.id, { onDelete: 'cascade' }),
-  role: text('role').notNull(),
+  role: text('role').notNull(), // 'admin' or 'member' - team-level permissions only
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
