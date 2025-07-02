@@ -198,7 +198,7 @@ export class SnapshotService implements ISnapshotService {
 
     // Handle arrays
     if (Array.isArray(value)) {
-      return value.map(item => this.normalizeValue(item))
+      return value.map((item) => this.normalizeValue(item))
     }
 
     // Handle objects
