@@ -334,13 +334,8 @@
     {
       "idx": 48,
       "version": "7",
-<<<<<<< HEAD
       "when": 1751422991828,
       "tag": "0048_flawless_ultron",
-=======
-      "when": 1751417353073,
-      "tag": "0048_optimal_shinobi_shaw",
->>>>>>> 4924f443 (added store for subscription data to avoid refetching in multiple components on every re-render)
       "breakpoints": true
     },
     {
