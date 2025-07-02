@@ -181,7 +181,6 @@ export interface WorkflowExecutionSummary {
     inputCost: number
     outputCost: number
     tokens: number
-
   }
   stateSnapshotId: string
   errorSummary?: {
@@ -373,7 +372,6 @@ export interface ExecutionLoggerService {
       totalInputCost: number
       totalOutputCost: number
       totalTokens: number
-
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
