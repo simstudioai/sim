@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { isDev } from '@/lib/environment'
 import { cn } from '@/lib/utils'
+import { useSubscriptionStore } from '@/stores/subscription/store'
 
 interface SettingsNavigationProps {
   activeSection: string
@@ -24,8 +25,6 @@ interface SettingsNavigationProps {
       | 'team'
       | 'privacy'
   ) => void
-  isTeam?: boolean
-  isEnterprise?: boolean
   hasOrganization?: boolean
 }
 
@@ -95,17 +94,18 @@ const allNavigationItems: NavigationItem[] = [
 export function SettingsNavigation({
   activeSection,
   onSectionChange,
-  isTeam = false,
-  isEnterprise = false,
   hasOrganization = false,
 }: SettingsNavigationProps) {
+  const { getSubscriptionStatus } = useSubscriptionStore()
+  const subscription = getSubscriptionStatus()
+
   const navigationItems = allNavigationItems.filter((item) => {
     if (item.hideInDev && isDev) {
       return false
     }
 
     // Hide team tab if user doesn't have team or enterprise subscription
-    if (item.requiresTeam && !isTeam && !isEnterprise) {
+    if (item.requiresTeam && !subscription.isTeam && !subscription.isEnterprise) {
       return false
     }
 

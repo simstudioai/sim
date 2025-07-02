@@ -1,0 +1,268 @@
+import { create } from 'zustand'
+import { devtools } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console-logger'
+import type {
+  BillingStatus,
+  SubscriptionData,
+  SubscriptionFeatures,
+  SubscriptionStore,
+  UsageData,
+  UsageLimitData,
+} from './types'
+
+const logger = createLogger('SubscriptionStore')
+
+// Cache duration: 30 seconds (reasonable for subscription data)
+const CACHE_DURATION = 30 * 1000
+
+// Default values to avoid null checks throughout the app
+const defaultFeatures: SubscriptionFeatures = {
+  sharingEnabled: false,
+  multiplayerEnabled: false,
+  workspaceCollaborationEnabled: false,
+}
+
+const defaultUsage: UsageData = {
+  current: 0,
+  limit: 5,
+  percentUsed: 0,
+  isWarning: false,
+  isExceeded: false,
+  billingPeriodStart: null,
+  billingPeriodEnd: null,
+  lastPeriodCost: 0,
+}
+
+const defaultUsageLimit: UsageLimitData = {
+  currentLimit: 5,
+  canEdit: false,
+  minimumLimit: 5,
+  plan: 'free',
+  setBy: undefined,
+  updatedAt: undefined,
+}
+
+export const useSubscriptionStore = create<SubscriptionStore>()(
+  devtools(
+    (set, get) => ({
+      // State
+      subscriptionData: null,
+      usageLimitData: null,
+      isLoading: false,
+      error: null,
+      lastFetched: null,
+
+      // Core actions
+      loadSubscriptionData: async () => {
+        const state = get()
+
+        // Check cache validity
+        if (
+          state.subscriptionData &&
+          state.lastFetched &&
+          Date.now() - state.lastFetched < CACHE_DURATION
+        ) {
+          logger.debug('Using cached subscription data')
+          return
+        }
+
+        // Don't start multiple concurrent requests
+        if (state.isLoading) {
+          logger.debug('Subscription data already loading, skipping duplicate request')
+          return
+        }
+
+        set({ isLoading: true, error: null })
+
+        try {
+          const response = await fetch('/api/users/me/subscription')
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+
+          const data = await response.json()
+
+          // Transform dates
+          const transformedData: SubscriptionData = {
+            ...data,
+            usage: {
+              ...data.usage,
+              billingPeriodStart: data.usage?.billingPeriodStart
+                ? new Date(data.usage.billingPeriodStart)
+                : null,
+              billingPeriodEnd: data.usage?.billingPeriodEnd
+                ? new Date(data.usage.billingPeriodEnd)
+                : null,
+            },
+          }
+
+          set({
+            subscriptionData: transformedData,
+            isLoading: false,
+            error: null,
+            lastFetched: Date.now(),
+          })
+
+          logger.debug('Subscription data loaded successfully')
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Failed to load subscription data'
+          logger.error('Failed to load subscription data', { error })
+
+          set({
+            isLoading: false,
+            error: errorMessage,
+          })
+        }
+      },
+
+      loadUsageLimitData: async () => {
+        try {
+          const response = await fetch('/api/users/me/usage-limit')
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+
+          const data = await response.json()
+
+          // Transform dates
+          const transformedData: UsageLimitData = {
+            ...data,
+            updatedAt: data.updatedAt ? new Date(data.updatedAt) : undefined,
+          }
+
+          set({ usageLimitData: transformedData })
+          logger.debug('Usage limit data loaded successfully')
+        } catch (error) {
+          logger.error('Failed to load usage limit data', { error })
+          // Don't set error state for usage limit failures - subscription data is more critical
+        }
+      },
+
+      updateUsageLimit: async (newLimit: number) => {
+        try {
+          const response = await fetch('/api/users/me/usage-limit', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ limit: newLimit }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || 'Failed to update usage limit')
+          }
+
+          // Refresh both subscription and usage limit data
+          await Promise.all([get().loadSubscriptionData(), get().loadUsageLimitData()])
+
+          logger.debug('Usage limit updated successfully', { newLimit })
+          return { success: true }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Failed to update usage limit'
+          logger.error('Failed to update usage limit', { error, newLimit })
+          return { success: false, error: errorMessage }
+        }
+      },
+
+      refresh: async () => {
+        // Force refresh by clearing cache
+        set({ lastFetched: null })
+        await Promise.all([get().loadSubscriptionData(), get().loadUsageLimitData()])
+      },
+
+      clearError: () => {
+        set({ error: null })
+      },
+
+      reset: () => {
+        set({
+          subscriptionData: null,
+          usageLimitData: null,
+          isLoading: false,
+          error: null,
+          lastFetched: null,
+        })
+      },
+
+      // Computed getters
+      getSubscriptionStatus: () => {
+        const data = get().subscriptionData
+        return {
+          isPaid: data?.isPaid ?? false,
+          isPro: data?.isPro ?? false,
+          isTeam: data?.isTeam ?? false,
+          isEnterprise: data?.isEnterprise ?? false,
+          isFree: !(data?.isPaid ?? false),
+          plan: data?.plan ?? 'free',
+          status: data?.status ?? null,
+          seats: data?.seats ?? null,
+          metadata: data?.metadata ?? null,
+        }
+      },
+
+      getFeatures: () => {
+        return get().subscriptionData?.features ?? defaultFeatures
+      },
+
+      getUsage: () => {
+        return get().subscriptionData?.usage ?? defaultUsage
+      },
+
+      getBillingStatus: (): BillingStatus => {
+        const usage = get().getUsage()
+        if (usage.isExceeded) return 'exceeded'
+        if (usage.isWarning) return 'warning'
+        return 'ok'
+      },
+
+      getRemainingBudget: () => {
+        const usage = get().getUsage()
+        return Math.max(0, usage.limit - usage.current)
+      },
+
+      getDaysRemainingInPeriod: () => {
+        const usage = get().getUsage()
+        if (!usage.billingPeriodEnd) return null
+
+        const now = new Date()
+        const endDate = usage.billingPeriodEnd
+        const diffTime = endDate.getTime() - now.getTime()
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+        return Math.max(0, diffDays)
+      },
+
+      hasFeature: (feature: keyof SubscriptionFeatures) => {
+        return get().getFeatures()[feature] ?? false
+      },
+
+      isAtLeastPro: () => {
+        const status = get().getSubscriptionStatus()
+        return status.isPro || status.isTeam || status.isEnterprise
+      },
+
+      isAtLeastTeam: () => {
+        const status = get().getSubscriptionStatus()
+        return status.isTeam || status.isEnterprise
+      },
+
+      canUpgrade: () => {
+        const status = get().getSubscriptionStatus()
+        return status.plan === 'free' || status.plan === 'pro'
+      },
+    }),
+    { name: 'subscription-store' }
+  )
+)
+
+// Auto-load subscription data when store is first accessed
+if (typeof window !== 'undefined') {
+  // Load data on store creation
+  useSubscriptionStore.getState().loadSubscriptionData()
+  useSubscriptionStore.getState().loadUsageLimitData()
+}
