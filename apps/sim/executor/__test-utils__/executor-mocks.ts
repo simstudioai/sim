@@ -15,7 +15,7 @@ export const createMockHandler = (
     block.metadata?.id === handlerName || handlerName === 'generic'
 
   const defaultExecuteResult = {
-    response: { result: `${handlerName} executed` },
+    result: `${handlerName} executed`,
   }
 
   return vi.fn().mockImplementation(() => ({
@@ -614,12 +614,8 @@ export const createFunctionBlockHandler = vi.fn().mockImplementation(() => ({
   canHandle: (block: any) => block.metadata?.id === 'function',
   execute: vi.fn().mockImplementation(async (block, inputs) => {
     return {
-      response: {
-        result: inputs.code
-          ? new Function(inputs.code)()
-          : { key: inputs.key, value: inputs.value },
-        stdout: '',
-      },
+      result: inputs.code ? new Function(inputs.code)() : { key: inputs.key, value: inputs.value },
+      stdout: '',
     }
   }),
 }))
@@ -679,13 +675,11 @@ export const createParallelBlockHandler = vi.fn().mockImplementation(() => {
         }
 
         return {
-          response: {
-            parallelId,
-            parallelCount,
-            distributionType: 'distributed',
-            started: true,
-            message: `Initialized ${parallelCount} parallel executions`,
-          },
+          parallelId,
+          parallelCount,
+          distributionType: 'distributed',
+          started: true,
+          message: `Initialized ${parallelCount} parallel executions`,
         }
       }
 
@@ -714,22 +708,18 @@ export const createParallelBlockHandler = vi.fn().mockImplementation(() => {
         }
 
         return {
-          response: {
-            parallelId,
-            parallelCount: parallelState.parallelCount,
-            completed: true,
-            message: `Completed all ${parallelState.parallelCount} executions`,
-          },
+          parallelId,
+          parallelCount: parallelState.parallelCount,
+          completed: true,
+          message: `Completed all ${parallelState.parallelCount} executions`,
         }
       }
 
       return {
-        response: {
-          parallelId,
-          parallelCount: parallelState.parallelCount,
-          waiting: true,
-          message: 'Waiting for iterations to complete',
-        },
+        parallelId,
+        parallelCount: parallelState.parallelCount,
+        waiting: true,
+        message: 'Waiting for iterations to complete',
       }
     }),
   }

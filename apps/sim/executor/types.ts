@@ -5,37 +5,37 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
  * Standardized block output format that ensures compatibility with the execution engine.
  */
 export interface NormalizedBlockOutput {
-  /** Primary response data from the block execution */
-  response: {
-    [key: string]: any
-    content?: string // Text content from LLM responses
-    model?: string // Model identifier used for generation
-    tokens?: {
-      prompt?: number
-      completion?: number
-      total?: number
-    }
-    toolCalls?: {
-      list: any[]
-      count: number
-    }
-    selectedPath?: {
-      blockId: string
-      blockType?: string
-      blockTitle?: string
-    }
-    selectedConditionId?: string // ID of selected condition
-    conditionResult?: boolean // Whether condition evaluated to true
-    result?: any // Generic result value
-    stdout?: string // Standard output from function execution
-    executionTime?: number // Time taken to execute
-    data?: any // Response data from API calls
-    status?: number // HTTP status code
-    headers?: Record<string, string> // HTTP headers
-    error?: string // Error message if block execution failed
+  [key: string]: any
+  // Content fields
+  content?: string // Text content from LLM responses
+  model?: string // Model identifier used for generation
+  tokens?: {
+    prompt?: number
+    completion?: number
+    total?: number
   }
-  error?: string // Top-level error field for easy error checking
-  [key: string]: any // Additional properties
+  toolCalls?: {
+    list: any[]
+    count: number
+  }
+  // Path selection fields
+  selectedPath?: {
+    blockId: string
+    blockType?: string
+    blockTitle?: string
+  }
+  selectedConditionId?: string // ID of selected condition
+  conditionResult?: boolean // Whether condition evaluated to true
+  // Generic result fields
+  result?: any // Generic result value
+  stdout?: string // Standard output from function execution
+  executionTime?: number // Time taken to execute
+  // API response fields
+  data?: any // Response data from API calls
+  status?: number // HTTP status code
+  headers?: Record<string, string> // HTTP headers
+  // Error handling
+  error?: string // Error message if block execution failed
 }
 
 /**

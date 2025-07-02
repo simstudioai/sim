@@ -50,10 +50,6 @@ Plain Text: Best for populating a table in free-form style.
     data: { type: 'json', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        data: 'any',
-      },
-    },
+    data: 'any',
   },
 }

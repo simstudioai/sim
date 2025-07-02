@@ -79,8 +79,8 @@ describe('InputResolver', () => {
     mockContext = {
       workflowId: 'test-workflow',
       blockStates: new Map([
-        ['starter-block', { output: { response: { input: 'Hello World', type: 'text' } } }],
-        ['function-block', { output: { response: { result: '42' } } }], // String value as it would be in real app
+        ['starter-block', { output: { input: 'Hello World', type: 'text' } }],
+        ['function-block', { output: { result: '42' } }], // String value as it would be in real app
       ]),
       activeExecutionPath: new Set(['starter-block', 'function-block']),
       loopIterations: new Map(),
@@ -284,9 +284,9 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            starterRef: '<starter-block.response.input>',
-            functionRef: '<function-block.response.result>',
-            nameRef: '<Start.response.input>', // Reference by name
+            starterRef: '<starter-block.input>',
+            functionRef: '<function-block.result>',
+            nameRef: '<Start.input>', // Reference by name
           },
         },
         inputs: {
@@ -313,8 +313,8 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            startRef: '<start.response.input>',
-            startType: '<start.response.type>',
+            startRef: '<start.input>',
+            startType: '<start.type>',
           },
         },
         inputs: {
@@ -339,7 +339,7 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            inactiveRef: '<condition-block.response.result>', // Not in activeExecutionPath
+            inactiveRef: '<condition-block.result>', // Not in activeExecutionPath
           },
         },
         inputs: {
@@ -367,7 +367,7 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            disabledRef: '<disabled-block.response.result>',
+            disabledRef: '<disabled-block.result>',
           },
         },
         inputs: {
@@ -520,14 +520,14 @@ describe('InputResolver', () => {
                 id: 'row1',
                 cells: {
                   Key: 'inputKey',
-                  Value: '<start.response.input>',
+                  Value: '<start.input>',
                 },
               },
               {
                 id: 'row2',
                 cells: {
                   Key: 'resultKey',
-                  Value: '<function-block.response.result>',
+                  Value: '<function-block.result>',
                 },
               },
             ],
@@ -640,7 +640,7 @@ describe('InputResolver', () => {
         config: {
           tool: 'condition',
           params: {
-            conditions: '<start.response.input> === "Hello World"',
+            conditions: '<start.input> === "Hello World"',
           },
         },
         inputs: {
@@ -653,7 +653,7 @@ describe('InputResolver', () => {
       const result = resolver.resolveInputs(block, mockContext)
 
       // Conditions should be passed through without parsing for condition blocks
-      expect(result.conditions).toBe('<start.response.input> === "Hello World"')
+      expect(result.conditions).toBe('<start.input> === "Hello World"')
     })
   })
 
@@ -736,7 +736,7 @@ describe('InputResolver', () => {
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
         loopIterations: new Map([['loop-1', 1]]),
-        loopItems: new Map([['loop-1', 'item1']]),
+        loopItems: new Map([['loop-1', ['item1']]]),
         completedLoops: new Set(),
         executedBlocks: new Set(),
         activeExecutionPath: new Set(['function-1']),
@@ -745,7 +745,7 @@ describe('InputResolver', () => {
 
       const resolvedInputs = resolver.resolveInputs(functionBlock, context)
 
-      expect(resolvedInputs.item).toBe('item1') // Direct value, not quoted
+      expect(resolvedInputs.item).toEqual(['item1']) // Current loop items
     })
 
     it('should resolve direct loop.index reference without quotes', () => {
@@ -989,7 +989,7 @@ describe('InputResolver', () => {
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
         loopIterations: new Map(),
-        loopItems: new Map([['parallel-1', 'test-item']]),
+        loopItems: new Map([['parallel-1', ['test-item']]]),
         completedLoops: new Set(),
         executedBlocks: new Set(),
         activeExecutionPath: new Set(['function-1']),
@@ -999,7 +999,7 @@ describe('InputResolver', () => {
       const block = workflow.blocks[1]
       const result = resolver.resolveInputs(block, context)
 
-      expect(result.code).toBe('test-item')
+      expect(result.code).toEqual(['test-item'])
     })
 
     it('should resolve parallel references by block name when multiple parallels exist', () => {
@@ -1027,7 +1027,7 @@ describe('InputResolver', () => {
           {
             id: 'function-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'function', params: { code: '<Parallel1.response.results>' } },
+            config: { tool: 'function', params: { code: '<Parallel1.results>' } },
             inputs: {},
             outputs: {},
             metadata: { id: 'function', name: 'Function 1' },
@@ -1055,7 +1055,7 @@ describe('InputResolver', () => {
           [
             'parallel-1',
             {
-              output: { response: { results: ['result1', 'result2'] } },
+              output: { results: ['result1', 'result2'] },
               executed: true,
               executionTime: 0,
             },
@@ -1063,7 +1063,7 @@ describe('InputResolver', () => {
           [
             'parallel-2',
             {
-              output: { response: { results: ['result3', 'result4'] } },
+              output: { results: ['result3', 'result4'] },
               executed: true,
               executionTime: 0,
             },
@@ -1104,7 +1104,7 @@ describe('InputResolver', () => {
           {
             id: 'function-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'function', params: { code: '<parallel-1.response.results>' } },
+            config: { tool: 'function', params: { code: '<parallel-1.results>' } },
             inputs: {},
             outputs: {},
             metadata: { id: 'function', name: 'Function 1' },
@@ -1128,7 +1128,7 @@ describe('InputResolver', () => {
           [
             'parallel-1',
             {
-              output: { response: { results: ['result1', 'result2'] } },
+              output: { results: ['result1', 'result2'] },
               executed: true,
               executionTime: 0,
             },

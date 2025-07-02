@@ -8,6 +8,8 @@ import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+
+
 import {
   createHttpResponseFromBlock,
   updateWorkflowRunCounts,
@@ -106,7 +108,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
 
     if (normalizedData) {
       // Use normalized data as primary source
-      ;({ blocks, edges, loops, parallels } = normalizedData)
+      ; ({ blocks, edges, loops, parallels } = normalizedData)
       logger.info(`[${requestId}] Using normalized tables for workflow execution: ${workflowId}`)
     } else {
       // Fallback to deployed state if available (for legacy workflows)
@@ -121,7 +123,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       }
 
       const deployedState = workflow.deployedState as WorkflowState
-      ;({ blocks, edges, loops, parallels } = deployedState)
+        ; ({ blocks, edges, loops, parallels } = deployedState)
     }
 
     // Use the same execution flow as in scheduled executions

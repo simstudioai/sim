@@ -151,6 +151,33 @@ describe('Workflow Deployment API Route', () => {
               }),
             }),
           })
+          // Mock normalized table queries (blocks, edges, subflows)
+          .mockReturnValueOnce({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([
+                {
+                  id: 'block-1',
+                  type: 'starter',
+                  name: 'Start',
+                  positionX: '100',
+                  positionY: '100',
+                  enabled: true,
+                  subBlocks: {},
+                  data: {},
+                },
+              ]),
+            }),
+          })
+          .mockReturnValueOnce({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // No edges
+            }),
+          })
+          .mockReturnValueOnce({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // No subflows
+            }),
+          })
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
               where: vi.fn().mockResolvedValue([
@@ -235,6 +262,33 @@ describe('Workflow Deployment API Route', () => {
                   },
                 ]),
               }),
+            }),
+          })
+          // Mock normalized table queries (blocks, edges, subflows)
+          .mockReturnValueOnce({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([
+                {
+                  id: 'block-1',
+                  type: 'starter',
+                  name: 'Start',
+                  positionX: '100',
+                  positionY: '100',
+                  enabled: true,
+                  subBlocks: {},
+                  data: {},
+                },
+              ]),
+            }),
+          })
+          .mockReturnValueOnce({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // No edges
+            }),
+          })
+          .mockReturnValueOnce({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // No subflows
             }),
           })
           .mockReturnValueOnce({

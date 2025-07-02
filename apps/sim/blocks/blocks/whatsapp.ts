@@ -64,12 +64,8 @@ export const WhatsAppBlock: BlockConfig<WhatsAppBlockOutput> = {
     accessToken: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        success: 'boolean',
-        messageId: 'any',
-        error: 'any',
-      },
-    },
+    success: 'boolean',
+    messageId: 'any',
+    error: 'any',
   },
 }

@@ -26,7 +26,7 @@ export class TestExecutor extends Executor {
       return {
         success: true,
         output: {
-          response: { result: 'Test execution completed' },
+          result: 'Test execution completed',
         } as NormalizedBlockOutput,
         logs: [],
         metadata: {
@@ -39,7 +39,7 @@ export class TestExecutor extends Executor {
       // If validation fails, return a failure result
       return {
         success: false,
-        output: { response: {} } as NormalizedBlockOutput,
+        output: {} as NormalizedBlockOutput,
         error: error.message,
         logs: [],
       }

@@ -61,6 +61,31 @@ async function initializeApplication(): Promise<void> {
 }
 
 /**
+ * Extract workflow ID from current URL
+ * @returns workflow ID if found in URL, null otherwise
+ */
+function extractWorkflowIdFromUrl(): string | null {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const pathSegments = window.location.pathname.split('/')
+    // Check if URL matches pattern /w/{workflowId}
+    if (pathSegments.length >= 3 && pathSegments[1] === 'w') {
+      const workflowId = pathSegments[2]
+      // Basic UUID validation (36 characters, contains hyphens)
+      if (workflowId && workflowId.length === 36 && workflowId.includes('-')) {
+        logger.info(`Extracted workflow ID from URL: ${workflowId}`)
+        return workflowId
+      }
+    }
+    return null
+  } catch (error) {
+    logger.warn('Failed to extract workflow ID from URL:', error)
+    return null
+  }
+}
+
+/**
  * Checks if application is fully initialized
  */
 export function isAppInitialized(): boolean {

@@ -143,7 +143,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }
         })
 
-        const outputs = resolveOutputType(blockConfig.outputs, subBlocks)
+        const outputs = resolveOutputType(blockConfig.outputs)
 
         const newState = {
           blocks: {

@@ -199,16 +199,14 @@ export class ConditionBlockHandler implements BlockHandler {
 
     // Return output, preserving source output structure if possible
     return {
-      response: {
-        ...((sourceOutput as any)?.response || {}), // Keep original response fields if they exist
-        conditionResult: true, // Indicate a path was successfully chosen
-        selectedPath: {
-          blockId: targetBlock.id,
-          blockType: targetBlock.metadata?.id || 'unknown',
-          blockTitle: targetBlock.metadata?.name || 'Untitled Block',
-        },
-        selectedConditionId: selectedCondition.id,
+      ...((sourceOutput as any) || {}), // Keep original fields if they exist
+      conditionResult: true, // Indicate a path was successfully chosen
+      selectedPath: {
+        blockId: targetBlock.id,
+        blockType: targetBlock.metadata?.id || 'unknown',
+        blockTitle: targetBlock.metadata?.name || 'Untitled Block',
       },
+      selectedConditionId: selectedCondition.id,
     }
   }
 }

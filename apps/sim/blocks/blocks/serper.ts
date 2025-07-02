@@ -69,10 +69,6 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
     type: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        searchResults: 'json',
-      },
-    },
+    searchResults: 'json',
   },
 }

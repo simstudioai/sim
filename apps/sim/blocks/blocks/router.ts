@@ -55,8 +55,8 @@ Key Instructions:
 
 Available Target Blocks:
 ${targetBlocks
-  .map(
-    (block) => `
+      .map(
+        (block) => `
 ID: ${block.id}
 Type: ${block.type}
 Title: ${block.title}
@@ -65,8 +65,8 @@ System Prompt: ${JSON.stringify(block.subBlocks?.systemPrompt || '')}
 Configuration: ${JSON.stringify(block.subBlocks, null, 2)}
 ${block.currentState ? `Current State: ${JSON.stringify(block.currentState, null, 2)}` : ''}
 ---`
-  )
-  .join('\n')}
+      )
+      .join('\n')}
 
 Routing Instructions:
 1. Analyze the input request carefully against each block's:
@@ -134,10 +134,10 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       // Hide API key for all hosted models when running on hosted version
       condition: isHosted
         ? {
-            field: 'model',
-            value: getHostedModels(),
-            not: true, // Show for all models EXCEPT those listed
-          }
+          field: 'model',
+          value: getHostedModels(),
+          not: true, // Show for all models EXCEPT those listed
+        }
         : undefined, // Show for all models in non-hosted environments
     },
     {
@@ -180,14 +180,10 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     apiKey: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        model: 'string',
-        tokens: 'any',
-        cost: 'any',
-        selectedPath: 'json',
-      },
-    },
+    content: 'string',
+    model: 'string',
+    tokens: 'any',
+    cost: 'any',
+    selectedPath: 'json',
   },
 }

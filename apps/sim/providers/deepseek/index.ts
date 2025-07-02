@@ -151,31 +151,29 @@ export const deepseekProvider: ProviderConfig = {
           execution: {
             success: true,
             output: {
-              response: {
-                content: '', // Will be filled by streaming content in chat component
-                model: request.model || 'deepseek-chat',
-                tokens: tokenUsage,
-                toolCalls: undefined,
-                providerTiming: {
-                  startTime: providerStartTimeISO,
-                  endTime: new Date().toISOString(),
-                  duration: Date.now() - providerStartTime,
-                  timeSegments: [
-                    {
-                      type: 'model',
-                      name: 'Streaming response',
-                      startTime: providerStartTime,
-                      endTime: Date.now(),
-                      duration: Date.now() - providerStartTime,
-                    },
-                  ],
-                },
-                // Estimate token cost
-                cost: {
-                  total: 0.0,
-                  input: 0.0,
-                  output: 0.0,
-                },
+              content: '', // Will be filled by streaming content in chat component
+              model: request.model || 'deepseek-chat',
+              tokens: tokenUsage,
+              toolCalls: undefined,
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+                timeSegments: [
+                  {
+                    type: 'model',
+                    name: 'Streaming response',
+                    startTime: providerStartTime,
+                    endTime: Date.now(),
+                    duration: Date.now() - providerStartTime,
+                  },
+                ],
+              },
+              // Estimate token cost
+              cost: {
+                total: 0.0,
+                input: 0.0,
+                output: 0.0,
               },
             },
             logs: [], // No block logs for direct streaming
@@ -461,36 +459,34 @@ export const deepseekProvider: ProviderConfig = {
           execution: {
             success: true,
             output: {
-              response: {
-                content: '', // Will be filled by the callback
-                model: request.model || 'deepseek-chat',
-                tokens: {
-                  prompt: tokens.prompt,
-                  completion: tokens.completion,
-                  total: tokens.total,
-                },
-                toolCalls:
-                  toolCalls.length > 0
-                    ? {
-                        list: toolCalls,
-                        count: toolCalls.length,
-                      }
-                    : undefined,
-                providerTiming: {
-                  startTime: providerStartTimeISO,
-                  endTime: new Date().toISOString(),
-                  duration: Date.now() - providerStartTime,
-                  modelTime: modelTime,
-                  toolsTime: toolsTime,
-                  firstResponseTime: firstResponseTime,
-                  iterations: iterationCount + 1,
-                  timeSegments: timeSegments,
-                },
-                cost: {
-                  total: (tokens.total || 0) * 0.0001,
-                  input: (tokens.prompt || 0) * 0.0001,
-                  output: (tokens.completion || 0) * 0.0001,
-                },
+              content: '', // Will be filled by the callback
+              model: request.model || 'deepseek-chat',
+              tokens: {
+                prompt: tokens.prompt,
+                completion: tokens.completion,
+                total: tokens.total,
+              },
+              toolCalls:
+                toolCalls.length > 0
+                  ? {
+                      list: toolCalls,
+                      count: toolCalls.length,
+                    }
+                  : undefined,
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+                modelTime: modelTime,
+                toolsTime: toolsTime,
+                firstResponseTime: firstResponseTime,
+                iterations: iterationCount + 1,
+                timeSegments: timeSegments,
+              },
+              cost: {
+                total: (tokens.total || 0) * 0.0001,
+                input: (tokens.prompt || 0) * 0.0001,
+                output: (tokens.completion || 0) * 0.0001,
               },
             },
             logs: [], // No block logs at provider level

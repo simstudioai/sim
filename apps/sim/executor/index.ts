@@ -161,7 +161,7 @@ export class Executor {
   async execute(workflowId: string): Promise<ExecutionResult | StreamingExecution> {
     const { setIsExecuting, setIsDebugging, setPendingBlocks, reset } = useExecutionStore.getState()
     const startTime = new Date()
-    let finalOutput: NormalizedBlockOutput = { response: {} }
+    let finalOutput: NormalizedBlockOutput = {}
 
     // Track workflow execution start
     trackWorkflowTelemetry('workflow_execution_started', {
@@ -258,16 +258,16 @@ export class Executor {
 
                     const blockId = (streamingExec.execution as any).blockId
                     const blockState = context.blockStates.get(blockId)
-                    if (blockState?.output?.response) {
-                      blockState.output.response.content = fullContent
+                    if (blockState?.output) {
+                      blockState.output.content = fullContent
                     }
                   } catch (readerError: any) {
                     logger.error('Error reading stream for executor:', readerError)
                     // Set partial content if available
                     const blockId = (streamingExec.execution as any).blockId
                     const blockState = context.blockStates.get(blockId)
-                    if (blockState?.output?.response && fullContent) {
-                      blockState.output.response.content = fullContent
+                    if (blockState?.output && fullContent) {
+                      blockState.output.content = fullContent
                     }
                   } finally {
                     try {
@@ -376,7 +376,7 @@ export class Executor {
    */
   async continueExecution(blockIds: string[], context: ExecutionContext): Promise<ExecutionResult> {
     const { setPendingBlocks } = useExecutionStore.getState()
-    let finalOutput: NormalizedBlockOutput = { response: {} }
+    let finalOutput: NormalizedBlockOutput = {}
 
     try {
       // Execute the current layer - using the original context, not a clone
@@ -622,13 +622,10 @@ export class Executor {
           // Use the structured input if we processed fields, otherwise use raw input
           const finalInput = hasProcessedFields ? structuredInput : rawInputData
 
-          // Initialize the starter block with structured input
-          // Ensure both input and direct fields are available
+          // Initialize the starter block with structured input (flattened)
           const starterOutput = {
-            response: {
-              input: finalInput,
-              ...finalInput, // Add input fields directly at response level too
-            },
+            input: finalInput,
+            ...finalInput, // Add input fields directly at top level
           }
 
           logger.info(`[Executor] Starter output:`, JSON.stringify(starterOutput, null, 2))
@@ -641,16 +638,12 @@ export class Executor {
         } else {
           // Handle structured input (like API calls or chat messages)
           if (this.workflowInput && typeof this.workflowInput === 'object') {
-            // Preserve complete workflowInput structure to maintain JSON format
-            // when referenced through <start.response.input>
-
+            // Flatten structure: input is directly accessible as <start.input>
             const starterOutput = {
-              response: {
-                input: this.workflowInput,
-                // Add top-level fields for backward compatibility
-                message: this.workflowInput.input,
-                conversationId: this.workflowInput.conversationId,
-              },
+              input: this.workflowInput,
+              // Add compatibility fields directly at top level
+              message: this.workflowInput.input,
+              conversationId: this.workflowInput.conversationId,
             }
 
             context.blockStates.set(starterBlock.id, {
@@ -661,9 +654,7 @@ export class Executor {
           } else {
             // Fallback for primitive input values
             const starterOutput = {
-              response: {
-                input: this.workflowInput,
-              },
+              input: this.workflowInput,
             }
 
             context.blockStates.set(starterBlock.id, {
@@ -676,13 +667,11 @@ export class Executor {
       } catch (e) {
         logger.warn('Error processing starter block input format:', e)
 
-        // Error handler fallback - preserve structure for both direct access and backward compatibility
+        // Error handler fallback - flatten structure for direct access
         const starterOutput = {
-          response: {
-            input: this.workflowInput,
-            message: this.workflowInput?.input,
-            conversationId: this.workflowInput?.conversationId,
-          },
+          input: this.workflowInput,
+          message: this.workflowInput?.input,
+          conversationId: this.workflowInput?.conversationId,
         }
 
         logger.info('[Executor] Fallback starter output:', JSON.stringify(starterOutput, null, 2))
@@ -891,9 +880,7 @@ export class Executor {
       return incomingConnections.every((conn) => {
         const sourceExecuted = executedBlocks.has(conn.source)
         const sourceBlockState = context.blockStates.get(conn.source)
-        const hasSourceError =
-          sourceBlockState?.output?.error !== undefined ||
-          sourceBlockState?.output?.response?.error !== undefined
+        const hasSourceError = sourceBlockState?.output?.error !== undefined
 
         // For error connections, check if the source had an error
         if (conn.sourceHandle === 'error') {
@@ -933,9 +920,7 @@ export class Executor {
       const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
       const sourceBlockState =
         context.blockStates.get(sourceId) || context.blockStates.get(conn.source)
-      const hasSourceError =
-        sourceBlockState?.output?.error !== undefined ||
-        sourceBlockState?.output?.response?.error !== undefined
+      const hasSourceError = sourceBlockState?.output?.error !== undefined
 
       // Special handling for loop-start-source connections
       if (conn.sourceHandle === 'loop-start-source') {
@@ -1046,7 +1031,7 @@ export class Executor {
         }
       })
 
-      useExecutionStore.setState({ activeBlockIds })
+      setActiveBlocks(activeBlockIds)
 
       const results = await Promise.all(
         blockIds.map((blockId) => this.executeBlock(blockId, context))
@@ -1061,7 +1046,7 @@ export class Executor {
       return results
     } catch (error) {
       // If there's an uncaught error, clear all active blocks as a safety measure
-      useExecutionStore.setState({ activeBlockIds: new Set() })
+      setActiveBlocks(new Set())
       throw error
     }
   }
@@ -1131,7 +1116,7 @@ export class Executor {
       }
 
       // Check if this block needs the starter block's output
-      // This is especially relevant for API, function, and conditions that might reference <start.response.input>
+      // This is especially relevant for API, function, and conditions that might reference <start.input>
       const starterBlock = this.actualWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
       if (starterBlock) {
         const starterState = context.blockStates.get(starterBlock.id)
@@ -1265,8 +1250,13 @@ export class Executor {
         return streamingExec
       }
 
-      // Normalize the output
-      const output = this.normalizeBlockOutput(rawOutput, block)
+      // Handle error outputs and ensure object structure
+      const output: NormalizedBlockOutput =
+        rawOutput && typeof rawOutput === 'object' && rawOutput.error
+          ? { error: rawOutput.error, status: rawOutput.status || 500 }
+          : typeof rawOutput === 'object' && rawOutput !== null
+            ? rawOutput
+            : { result: rawOutput }
 
       // Update the context with the execution result
       // Use virtual block ID for parallel executions
@@ -1364,7 +1354,7 @@ export class Executor {
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
         addConsole({
-          output: { response: {} },
+          output: {},
           success: false,
           error:
             error.message ||
@@ -1392,11 +1382,8 @@ export class Executor {
 
       // Create error output with appropriate structure
       const errorOutput: NormalizedBlockOutput = {
-        response: {
-          error: this.extractErrorMessage(error),
-          status: error.status || 500,
-        },
         error: this.extractErrorMessage(error),
+        status: error.status || 500,
       }
 
       // Set block state with error output
@@ -1479,160 +1466,6 @@ export class Executor {
     }
 
     return true
-  }
-
-  /**
-   * Normalizes a block output to ensure it has the expected structure.
-   * Handles different block types with appropriate response formats.
-   *
-   * @param output - Raw output from block execution
-   * @param block - Block that produced the output
-   * @returns Normalized output with consistent structure
-   */
-  private normalizeBlockOutput(output: any, block: SerializedBlock): NormalizedBlockOutput {
-    // Handle error outputs
-    if (output && typeof output === 'object' && output.error) {
-      return {
-        response: {
-          error: output.error,
-          status: output.status || 500,
-        },
-        error: output.error,
-      }
-    }
-
-    if (output && typeof output === 'object' && 'response' in output) {
-      // If response already contains an error, maintain it
-      if (output.response?.error) {
-        return {
-          ...output,
-          error: output.response.error,
-        }
-      }
-      return output as NormalizedBlockOutput
-    }
-
-    const blockType = block.metadata?.id
-
-    if (blockType === 'agent') {
-      return output
-    }
-
-    if (blockType === 'router') {
-      return {
-        response: {
-          content: '',
-          model: '',
-          tokens: { prompt: 0, completion: 0, total: 0 },
-          selectedPath: output?.selectedPath || {
-            blockId: '',
-            blockType: '',
-            blockTitle: '',
-          },
-        },
-      }
-    }
-
-    if (blockType === 'condition') {
-      if (output && typeof output === 'object' && 'response' in output) {
-        return {
-          response: {
-            ...output.response,
-            conditionResult: output.response.conditionResult || false,
-            selectedPath: output.response.selectedPath || {
-              blockId: '',
-              blockType: '',
-              blockTitle: '',
-            },
-            selectedConditionId: output.response.selectedConditionId || '',
-          },
-        }
-      }
-
-      return {
-        response: {
-          conditionResult: output?.conditionResult || false,
-          selectedPath: output?.selectedPath || {
-            blockId: '',
-            blockType: '',
-            blockTitle: '',
-          },
-          selectedConditionId: output?.selectedConditionId || '',
-        },
-      }
-    }
-
-    if (blockType === 'function') {
-      return {
-        response: {
-          result: output?.result,
-          stdout: output?.stdout || '',
-        },
-      }
-    }
-
-    if (blockType === 'api') {
-      return {
-        response: {
-          data: output?.data,
-          status: output?.status || 0,
-          headers: output?.headers || {},
-        },
-      }
-    }
-
-    if (blockType === 'evaluator') {
-      const evaluatorResponse: {
-        content: string
-        model: string
-        [key: string]: any
-      } = {
-        content: output?.content || '',
-        model: output?.model || '',
-      }
-
-      if (output && typeof output === 'object') {
-        Object.keys(output).forEach((key) => {
-          if (key !== 'content' && key !== 'model') {
-            evaluatorResponse[key] = output[key]
-          }
-        })
-      }
-
-      return { response: evaluatorResponse }
-    }
-
-    if (blockType === 'loop') {
-      return {
-        response: {
-          loopId: output?.loopId || block.id,
-          currentIteration: output?.currentIteration || 0,
-          maxIterations: output?.maxIterations || 0,
-          loopType: output?.loopType || 'for',
-          completed: output?.completed || false,
-          results: output?.results || [],
-          message: output?.message || '',
-        },
-      }
-    }
-
-    if (blockType === 'parallel') {
-      return {
-        response: {
-          parallelId: output?.parallelId || block.id,
-          parallelCount: output?.parallelCount || 1,
-          distributionType: output?.distributionType || 'simple',
-          completed: output?.completed || false,
-          completedCount: output?.completedCount || 0,
-          results: output?.results || [],
-          message: output?.message || '',
-        },
-      }
-    }
-
-    return {
-      response: { result: output },
-    }
   }
 
   /**

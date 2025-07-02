@@ -172,12 +172,12 @@ describe('LoopManager', () => {
 
       // Add some block states to verify they get reset
       mockContext.blockStates.set('block-1', {
-        output: { response: { result: 'test' } },
+        output: { result: 'test' },
         executed: true,
         executionTime: 100,
       })
       mockContext.blockStates.set('block-2', {
-        output: { response: { result: 'test2' } },
+        output: { result: 'test2' },
         executed: true,
         executionTime: 200,
       })
@@ -215,9 +215,9 @@ describe('LoopManager', () => {
         loopType: 'for',
         forEachItems: null,
         executionResults: new Map([
-          ['iteration_0', { iteration: { 'block-1': { response: { result: 'result1' } } } }],
-          ['iteration_1', { iteration: { 'block-1': { response: { result: 'result2' } } } }],
-          ['iteration_2', { iteration: { 'block-1': { response: { result: 'result3' } } } }],
+          ['iteration_0', { iteration: { 'block-1': { result: 'result1' } } }],
+          ['iteration_1', { iteration: { 'block-1': { result: 'result2' } } }],
+          ['iteration_2', { iteration: { 'block-1': { result: 'result3' } } }],
         ]),
         currentIteration: 3,
       })
@@ -232,8 +232,8 @@ describe('LoopManager', () => {
       // Verify loop block state was updated with aggregated results
       const loopBlockState = mockContext.blockStates.get('loop-1')
       expect(loopBlockState).toBeDefined()
-      expect(loopBlockState?.output.response.completed).toBe(true)
-      expect(loopBlockState?.output.response.results).toHaveLength(3)
+      expect(loopBlockState?.output.completed).toBe(true)
+      expect(loopBlockState?.output.results).toHaveLength(3)
 
       // Verify end connection was activated
       expect(mockContext.activeExecutionPath.has('after-loop')).toBe(true)
@@ -259,8 +259,8 @@ describe('LoopManager', () => {
       expect(mockContext.completedLoops.has('loop-1')).toBe(true)
 
       const loopBlockState = mockContext.blockStates.get('loop-1')
-      expect(loopBlockState?.output.response.loopType).toBe('forEach')
-      expect(loopBlockState?.output.response.maxIterations).toBe(3)
+      expect(loopBlockState?.output.loopType).toBe('forEach')
+      expect(loopBlockState?.output.maxIterations).toBe(3)
     })
 
     test('should handle forEach loops with object items', async () => {
@@ -284,7 +284,7 @@ describe('LoopManager', () => {
       expect(mockContext.completedLoops.has('loop-1')).toBe(true)
 
       const loopBlockState = mockContext.blockStates.get('loop-1')
-      expect(loopBlockState?.output.response.maxIterations).toBe(2)
+      expect(loopBlockState?.output.maxIterations).toBe(2)
     })
 
     test('should handle forEach loops with string items', async () => {
@@ -307,7 +307,7 @@ describe('LoopManager', () => {
 
   describe('storeIterationResult', () => {
     test('should create new loop state if none exists', () => {
-      const output = { response: { result: 'test result' } }
+      const output = { result: 'test result' }
 
       manager.storeIterationResult(mockContext, 'loop-1', 0, 'block-1', output)
 
@@ -330,8 +330,8 @@ describe('LoopManager', () => {
         currentIteration: 0,
       })
 
-      const output1 = { response: { result: 'result1' } }
-      const output2 = { response: { result: 'result2' } }
+      const output1 = { result: 'result1' }
+      const output2 = { result: 'result2' }
 
       manager.storeIterationResult(mockContext, 'loop-1', 0, 'block-1', output1)
       manager.storeIterationResult(mockContext, 'loop-1', 0, 'block-2', output2)
@@ -346,7 +346,7 @@ describe('LoopManager', () => {
       const forEachLoop = createForEachLoop(['item1', 'item2'])
       manager = new LoopManager({ 'loop-1': forEachLoop })
 
-      const output = { response: { result: 'test result' } }
+      const output = { result: 'test result' }
 
       manager.storeIterationResult(mockContext, 'loop-1', 0, 'block-1', output)
 
@@ -391,11 +391,11 @@ describe('LoopManager', () => {
 
   describe('getCurrentItem', () => {
     test('should return current item for loop', () => {
-      mockContext.loopItems.set('loop-1', 'current-item')
+      mockContext.loopItems.set('loop-1', ['current-item'])
 
       const item = manager.getCurrentItem('loop-1', mockContext)
 
-      expect(item).toBe('current-item')
+      expect(item).toEqual(['current-item'])
     })
 
     test('should return undefined for non-existent loop item', () => {
@@ -477,7 +477,7 @@ describe('LoopManager', () => {
 
       // Set block-1 to have no error (successful execution)
       mockContext.blockStates.set('block-1', {
-        output: { response: { result: 'success' } },
+        output: { result: 'success' },
         executed: true,
         executionTime: 100,
       })
@@ -521,7 +521,6 @@ describe('LoopManager', () => {
       // Set block-1 to have an error
       mockContext.blockStates.set('block-1', {
         output: {
-          response: { error: 'Something went wrong' },
           error: 'Something went wrong',
         },
         executed: true,
@@ -633,8 +632,8 @@ describe('LoopManager', () => {
         loopType: 'for',
         forEachItems: null,
         executionResults: new Map([
-          ['iteration_0', { iteration: { 'block-1': { response: { result: 'result1' } } } }],
-          ['iteration_1', { iteration: { 'block-1': { response: { result: 'result2' } } } }],
+          ['iteration_0', { iteration: { 'block-1': { result: 'result1' } } }],
+          ['iteration_1', { iteration: { 'block-1': { result: 'result2' } } }],
         ]),
         currentIteration: 2,
       })

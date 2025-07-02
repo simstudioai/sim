@@ -379,7 +379,7 @@ export class InputResolver {
       }
 
       // Special case for "start" references
-      // This allows users to reference the starter block using <start.response.type.input>
+      // This allows users to reference the starter block using <start.input>
       // regardless of the actual name of the starter block
       if (blockRef.toLowerCase() === 'start') {
         // Find the starter block
@@ -387,7 +387,8 @@ export class InputResolver {
         if (starterBlock) {
           const blockState = context.blockStates.get(starterBlock.id)
           if (blockState) {
-            // Navigate through the path parts
+            // For starter block, start directly with the flattened output (skip nested .output)
+            // This enables <start.input> instead of <start.output.input>
             let replacementValue: any = blockState.output
 
             for (const part of pathParts) {
@@ -891,7 +892,7 @@ export class InputResolver {
     // As a fallback, look for the most recent array or object in any block's output
     // This is less reliable but might help in some cases
     for (const [_blockId, blockState] of context.blockStates.entries()) {
-      const output = blockState.output?.response
+      const output = blockState.output
       if (output) {
         for (const [_key, value] of Object.entries(output)) {
           if (Array.isArray(value) && value.length > 0) {

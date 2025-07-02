@@ -153,12 +153,8 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
     apiKey: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        image: 'string',
-        metadata: 'json',
-      },
-    },
+    content: 'string',
+    image: 'string',
+    metadata: 'json',
   },
 }
