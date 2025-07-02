@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -44,7 +44,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [usageData, setUsageData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const loadSettings = useGeneralStore((state) => state.loadSettings)
-  const subscription = useSubscription()
+  const subscription = useMemo(() => useSubscription(), [])
   const hasLoadedInitialData = useRef(false)
 
   useEffect(() => {
