@@ -32,13 +32,13 @@ export const client = createAuthClient({
     emailOTPClient(),
     genericOAuthClient(),
     // Only include Stripe client in production
-    ...(clientEnv.NODE_ENV === 'production'
-      ? [
-          stripeClient({
-            subscription: true, // Enable subscription management
-          }),
-        ]
-      : []),
+    // ...(clientEnv.NODE_ENV === 'production'
+    //   ? [
+    stripeClient({
+      subscription: true, // Enable subscription management
+    }),
+    //   ]
+    // : []),
     organizationClient(),
   ],
 })
@@ -47,16 +47,16 @@ export const { useSession, useActiveOrganization } = client
 
 export const useSubscription = () => {
   // In development, provide mock implementations
-  if (clientEnv.NODE_ENV === 'development') {
-    return {
-      list: async () => ({ data: [] }),
-      upgrade: async () => ({
-        error: { message: 'Subscriptions are disabled in development mode' },
-      }),
-      cancel: async () => ({ data: null }),
-      restore: async () => ({ data: null }),
-    }
-  }
+  // if (clientEnv.NODE_ENV === 'development') {
+  //   return {
+  //     list: async () => ({ data: [] }),
+  //     upgrade: async () => ({
+  //       error: { message: 'Subscriptions are disabled in development mode' },
+  //     }),
+  //     cancel: async () => ({ data: null }),
+  //     restore: async () => ({ data: null }),
+  //   }
+  // }
 
   // In production, use the real implementation
   return {

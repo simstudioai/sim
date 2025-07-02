@@ -15,7 +15,7 @@ const logger = createLogger('OrganizationBillingAPI')
  * GET /api/organizations/[id]/billing
  * Get comprehensive organization billing data
  */
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession()
 
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const organizationId = params.id
+    const organizationId = (await params).id
 
     // Verify user has access to this organization
     const memberEntry = await db
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     })
   } catch (error) {
     logger.error('Failed to get organization billing data', {
-      organizationId: params.id,
+      organizationId: (await params).id,
       error,
     })
 

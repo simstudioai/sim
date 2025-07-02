@@ -21,7 +21,7 @@ import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TeamSeatsDialog } from '../subscription/components/team-seats-dialog'
-import { TeamMemberUsage } from './components/team-member-usage'
+import { TeamUsageOverview } from '../subscription/components/team-usage-overview'
 
 const logger = createLogger('TeamManagement')
 
@@ -1180,7 +1180,7 @@ export function TeamManagement() {
         </TabsContent>
 
         <TabsContent value='usage' className='mt-4 space-y-4'>
-          <TeamMemberUsage organizationId={activeOrganization.id} isAdmin={isAdminOrOwner} />
+          <TeamUsageOverview hasAdminAccess={isAdminOrOwner} />
         </TabsContent>
 
         <TabsContent value='settings' className='mt-4 space-y-6'>
