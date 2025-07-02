@@ -94,7 +94,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       })
 
       if (response.ok) {
-        fetchScheduleInfo()
+        const workflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (workflowId) {
+          fetchScheduleInfo(workflowId)
+        }
       } else {
         console.error('Failed to reactivate schedule')
       }
@@ -103,10 +106,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  const fetchScheduleInfo = async () => {
+  const fetchScheduleInfo = async (workflowId: string) => {
     try {
       setIsLoadingScheduleInfo(true)
-      const workflowId = useWorkflowRegistry.getState().activeWorkflowId
       if (!workflowId) return
 
       const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
@@ -175,13 +177,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
+  // Get the current workflow ID from the registry
+  const { activeWorkflowId } = useWorkflowRegistry()
+
   useEffect(() => {
-    if (type === 'starter') {
-      fetchScheduleInfo()
+    if (type === 'starter' && activeWorkflowId) {
+      fetchScheduleInfo(activeWorkflowId)
     } else {
       setScheduleInfo(null)
     }
-  }, [type])
+  }, [type, activeWorkflowId])
 
   // Get webhook information for the tooltip
   useEffect(() => {

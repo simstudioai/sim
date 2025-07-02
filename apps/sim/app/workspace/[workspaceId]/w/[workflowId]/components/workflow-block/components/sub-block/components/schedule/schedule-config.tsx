@@ -110,10 +110,12 @@ export function ScheduleConfig({
 
   // Check for schedule on mount and when relevant dependencies change
   useEffect(() => {
-    // Always check for schedules regardless of the UI setting
-    // This ensures we detect schedules even when the UI is set to manual
-    checkSchedule()
-  }, [workflowId, scheduleType, isModalOpen, refreshCounter])
+    // Only check for schedules when workflowId changes or modal opens
+    // Avoid checking on every scheduleType change to prevent excessive API calls
+    if (workflowId && (isModalOpen || refreshCounter > 0)) {
+      checkSchedule()
+    }
+  }, [workflowId, isModalOpen, refreshCounter])
 
   // Format the schedule information for display
   const getScheduleInfo = () => {

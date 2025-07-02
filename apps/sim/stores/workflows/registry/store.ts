@@ -558,7 +558,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
        */
       createWorkflow: async (options = {}) => {
         const { workflows } = get()
-        const id = crypto.randomUUID()
 
         // Use provided workspace ID (must be provided since we no longer track active workspace)
         const workspaceId = options.workspaceId
@@ -570,19 +569,46 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }
 
         logger.info(`Creating new workflow in workspace: ${workspaceId || 'none'}`)
-        // Generate workflow metadata with appropriate name and color
-        const newWorkflow: WorkflowMetadata = {
-          id,
-          name: options.name || generateUniqueName(workflows),
-          lastModified: new Date(),
-          description: options.description || 'New workflow',
-          color: options.marketplaceId ? '#808080' : getNextWorkflowColor(workflows), // Gray for marketplace imports
-          marketplaceData: options.marketplaceId
-            ? { id: options.marketplaceId, status: 'temp' as const }
-            : undefined,
-          workspaceId, // Associate with workspace
-          folderId: options.folderId || null, // Associate with folder if provided
-        }
+
+        // Create the workflow on the server first to get the server-generated ID
+        try {
+          const response = await fetch('/api/workflows', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: options.name || generateUniqueName(workflows),
+              description: options.description || 'New workflow',
+              color: options.marketplaceId ? '#808080' : getNextWorkflowColor(workflows),
+              workspaceId,
+              folderId: options.folderId || null,
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(
+              `Failed to create workflow: ${errorData.error || response.statusText}`
+            )
+          }
+
+          const createdWorkflow = await response.json()
+          const serverWorkflowId = createdWorkflow.id
+
+          logger.info(`Successfully created workflow ${serverWorkflowId} on server`)
+
+          // Generate workflow metadata with server-generated ID
+          const newWorkflow: WorkflowMetadata = {
+            id: serverWorkflowId,
+            name: createdWorkflow.name,
+            lastModified: new Date(),
+            description: createdWorkflow.description,
+            color: createdWorkflow.color,
+            marketplaceData: options.marketplaceId
+              ? { id: options.marketplaceId, status: 'temp' as const }
+              : undefined,
+            workspaceId,
+            folderId: createdWorkflow.folderId,
+          }
 
         let initialState: any
 
@@ -747,115 +773,53 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }
         }
 
-        // Add workflow to registry first
-        set((state) => ({
-          workflows: {
-            ...state.workflows,
-            [id]: newWorkflow,
-          },
-          error: null,
-        }))
-
-        // Initialize subblock values if this is a marketplace import
-        if (options.marketplaceId && options.marketplaceState?.blocks) {
-          useSubBlockStore.getState().initializeFromWorkflow(id, options.marketplaceState.blocks)
-        }
-
-        // Initialize subblock values to ensure they're available for sync
-        if (!options.marketplaceId) {
-          // For non-marketplace workflows, initialize subblock values from the starter block
-          const subblockValues: Record<string, Record<string, any>> = {}
-          const blocks = initialState.blocks as Record<string, BlockState>
-          for (const [blockId, block] of Object.entries(blocks)) {
-            subblockValues[blockId] = {}
-            for (const [subblockId, subblock] of Object.entries(block.subBlocks)) {
-              subblockValues[blockId][subblockId] = (subblock as any).value
-            }
-          }
-
-          // Update the subblock store with the initial values
-          useSubBlockStore.setState((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [id]: subblockValues,
+          // Add workflow to registry with server-generated ID
+          set((state) => ({
+            workflows: {
+              ...state.workflows,
+              [serverWorkflowId]: newWorkflow,
             },
+            error: null,
           }))
-        }
 
-        // Properly set as active workflow and initialize state
-        set({ activeWorkflowId: id })
-        useWorkflowStore.setState(initialState)
-
-        // Immediately persist the new workflow to the database using dedicated endpoint
-        const persistWorkflow = async () => {
-          try {
-            const response = await fetch('/api/workflows', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: newWorkflow.name,
-                description: newWorkflow.description,
-                color: newWorkflow.color,
-                workspaceId: newWorkflow.workspaceId,
-                folderId: newWorkflow.folderId,
-              }),
-            })
-
-            if (!response.ok) {
-              const errorData = await response.json()
-              throw new Error(
-                `Failed to create workflow: ${errorData.error || response.statusText}`
-              )
-            }
-
-            const createdWorkflow = await response.json()
-            logger.info(`Successfully created workflow ${createdWorkflow.id} on server`)
-
-            // Update the local workflow ID to match the server-generated one
-            if (createdWorkflow.id !== id) {
-              logger.info(`Updating local workflow ID from ${id} to ${createdWorkflow.id}`)
-
-              // Update registry with server ID
-              set((state) => {
-                const { [id]: oldWorkflow, ...otherWorkflows } = state.workflows
-                return {
-                  workflows: {
-                    ...otherWorkflows,
-                    [createdWorkflow.id]: {
-                      ...oldWorkflow,
-                      id: createdWorkflow.id,
-                    },
-                  },
-                  activeWorkflowId: createdWorkflow.id,
-                }
-              })
-
-              // Return the server ID for the caller
-              return createdWorkflow.id
-            }
-
-            return id
-          } catch (error) {
-            logger.error(`Failed to create new workflow ${id}:`, error)
-            throw error // Re-throw to handle in calling code
+          // Initialize subblock values if this is a marketplace import
+          if (options.marketplaceId && options.marketplaceState?.blocks) {
+            useSubBlockStore.getState().initializeFromWorkflow(serverWorkflowId, options.marketplaceState.blocks)
           }
-        }
 
-        // Persist synchronously to ensure workflow exists before Socket.IO operations
-        let finalId = id
-        try {
-          finalId = await persistWorkflow()
+          // Initialize subblock values to ensure they're available for sync
+          if (!options.marketplaceId) {
+            // For non-marketplace workflows, initialize subblock values from the starter block
+            const subblockValues: Record<string, Record<string, any>> = {}
+            const blocks = initialState.blocks as Record<string, BlockState>
+            for (const [blockId, block] of Object.entries(blocks)) {
+              subblockValues[blockId] = {}
+              for (const [subblockId, subblock] of Object.entries(block.subBlocks)) {
+                subblockValues[blockId][subblockId] = (subblock as any).value
+              }
+            }
+
+            // Update the subblock store with the initial values
+            useSubBlockStore.setState((state) => ({
+              workflowValues: {
+                ...state.workflowValues,
+                [serverWorkflowId]: subblockValues,
+              },
+            }))
+          }
+
+          // Set as active workflow and initialize state
+          set({ activeWorkflowId: serverWorkflowId })
+          useWorkflowStore.setState(initialState)
+
+          logger.info(`Created new workflow with ID ${serverWorkflowId} in workspace ${workspaceId || 'none'}`)
+
+          return serverWorkflowId
         } catch (error) {
-          logger.error(
-            `Critical: Failed to persist new workflow ${id}, Socket.IO operations may fail:`,
-            error
-          )
-          // Don't throw - allow workflow creation to continue in memory
+          logger.error(`Failed to create new workflow:`, error)
+          set({ error: `Failed to create workflow: ${error instanceof Error ? error.message : 'Unknown error'}` })
+          throw error
         }
-
-        logger.info(`Created new workflow with ID ${finalId} in workspace ${workspaceId || 'none'}`)
-
-        return finalId
       },
 
       /**
