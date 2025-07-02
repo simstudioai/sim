@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { updateMemberUsageLimit } from '@/lib/billing/core/organization-billing'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { member, userStats } from '@/db/schema'
 
 const logger = createLogger('MemberUsageLimitAPI')
 
@@ -28,13 +28,8 @@ export async function GET(
     // Verify user has admin access or is the target member
     const userMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
     if (userMember.length === 0) {
@@ -55,10 +50,8 @@ export async function GET(
     // Check if target member exists
     const targetMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, memberId))
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
       .limit(1)
 
     if (targetMember.length === 0) {
@@ -68,16 +61,16 @@ export async function GET(
     // Get member's usage limit information
     const usageData = await db
       .select({
-        currentUsageLimit: schema.userStats.currentUsageLimit,
-        currentPeriodCost: schema.userStats.currentPeriodCost,
-        billingPeriodStart: schema.userStats.billingPeriodStart,
-        billingPeriodEnd: schema.userStats.billingPeriodEnd,
-        usageLimitSetBy: schema.userStats.usageLimitSetBy,
-        usageLimitUpdatedAt: schema.userStats.usageLimitUpdatedAt,
-        lastPeriodCost: schema.userStats.lastPeriodCost,
+        currentUsageLimit: userStats.currentUsageLimit,
+        currentPeriodCost: userStats.currentPeriodCost,
+        billingPeriodStart: userStats.billingPeriodStart,
+        billingPeriodEnd: userStats.billingPeriodEnd,
+        usageLimitSetBy: userStats.usageLimitSetBy,
+        usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
+        lastPeriodCost: userStats.lastPeriodCost,
       })
-      .from(schema.userStats)
-      .where(eq(schema.userStats.userId, memberId))
+      .from(userStats)
+      .where(eq(userStats.userId, memberId))
       .limit(1)
 
     if (usageData.length === 0) {
@@ -144,13 +137,8 @@ export async function PUT(
     // Verify admin has permission
     const adminMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
     if (adminMember.length === 0) {
@@ -167,10 +155,8 @@ export async function PUT(
     // Check if target member exists
     const targetMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, memberId))
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
       .limit(1)
 
     if (targetMember.length === 0) {

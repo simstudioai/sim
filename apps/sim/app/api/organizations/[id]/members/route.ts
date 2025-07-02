@@ -1,16 +1,15 @@
 import { randomUUID } from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { Resend } from 'resend'
 import { getSession } from '@/lib/auth'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
+import { sendEmail } from '@/lib/email/mailer'
+import { validateAndNormalizeEmail } from '@/lib/email/utils'
 import { createLogger } from '@/lib/logs/console-logger'
-import { validateAndNormalizeEmail } from '@/lib/utils/email-validation'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { invitation, member, organization, user, userStats } from '@/db/schema'
 
 const logger = createLogger('OrganizationMembersAPI')
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 /**
  * GET /api/organizations/[id]/members
@@ -29,64 +28,59 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const includeUsage = url.searchParams.get('include') === 'usage'
 
     // Verify user has access to this organization
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    const userRole = member[0].role
+    const userRole = memberEntry[0].role
     const hasAdminAccess = ['owner', 'admin'].includes(userRole)
 
     // Get organization members
     const query = db
       .select({
-        id: schema.member.id,
-        userId: schema.member.userId,
-        organizationId: schema.member.organizationId,
-        role: schema.member.role,
-        createdAt: schema.member.createdAt,
-        userName: schema.user.name,
-        userEmail: schema.user.email,
+        id: member.id,
+        userId: member.userId,
+        organizationId: member.organizationId,
+        role: member.role,
+        createdAt: member.createdAt,
+        userName: user.name,
+        userEmail: user.email,
       })
-      .from(schema.member)
-      .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
-      .where(eq(schema.member.organizationId, organizationId))
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(eq(member.organizationId, organizationId))
 
     // Include usage data if requested and user has admin access
     if (includeUsage && hasAdminAccess) {
       const membersWithUsage = await db
         .select({
-          id: schema.member.id,
-          userId: schema.member.userId,
-          organizationId: schema.member.organizationId,
-          role: schema.member.role,
-          createdAt: schema.member.createdAt,
-          userName: schema.user.name,
-          userEmail: schema.user.email,
-          currentPeriodCost: schema.userStats.currentPeriodCost,
-          currentUsageLimit: schema.userStats.currentUsageLimit,
-          billingPeriodStart: schema.userStats.billingPeriodStart,
-          billingPeriodEnd: schema.userStats.billingPeriodEnd,
-          usageLimitSetBy: schema.userStats.usageLimitSetBy,
-          usageLimitUpdatedAt: schema.userStats.usageLimitUpdatedAt,
+          id: member.id,
+          userId: member.userId,
+          organizationId: member.organizationId,
+          role: member.role,
+          createdAt: member.createdAt,
+          userName: user.name,
+          userEmail: user.email,
+          currentPeriodCost: userStats.currentPeriodCost,
+          currentUsageLimit: userStats.currentUsageLimit,
+          billingPeriodStart: userStats.billingPeriodStart,
+          billingPeriodEnd: userStats.billingPeriodEnd,
+          usageLimitSetBy: userStats.usageLimitSetBy,
+          usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
         })
-        .from(schema.member)
-        .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
-        .leftJoin(schema.userStats, eq(schema.user.id, schema.userStats.userId))
-        .where(eq(schema.member.organizationId, organizationId))
+        .from(member)
+        .innerJoin(user, eq(member.userId, user.id))
+        .leftJoin(userStats, eq(user.id, userStats.userId))
+        .where(eq(member.organizationId, organizationId))
 
       return NextResponse.json({
         success: true,
@@ -141,31 +135,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Validate and normalize email
-    const normalizedEmail = validateAndNormalizeEmail(email)
-    if (!normalizedEmail) {
+    const { isValid, normalized: normalizedEmail } = validateAndNormalizeEmail(email)
+    if (!isValid) {
       return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
     }
 
     // Verify user has admin access
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    if (!['owner', 'admin'].includes(member[0].role)) {
+    if (!['owner', 'admin'].includes(memberEntry[0].role)) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
@@ -183,20 +172,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Check if user is already a member
     const existingUser = await db
-      .select({ id: schema.user.id })
-      .from(schema.user)
-      .where(eq(schema.user.email, normalizedEmail))
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, normalizedEmail))
       .limit(1)
 
     if (existingUser.length > 0) {
       const existingMember = await db
         .select()
-        .from(schema.member)
+        .from(member)
         .where(
-          and(
-            eq(schema.member.organizationId, organizationId),
-            eq(schema.member.userId, existingUser[0].id)
-          )
+          and(eq(member.organizationId, organizationId), eq(member.userId, existingUser[0].id))
         )
         .limit(1)
 
@@ -211,12 +197,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Check for existing pending invitation
     const existingInvitation = await db
       .select()
-      .from(schema.invitation)
+      .from(invitation)
       .where(
         and(
-          eq(schema.invitation.organizationId, organizationId),
-          eq(schema.invitation.email, normalizedEmail),
-          eq(schema.invitation.status, 'pending')
+          eq(invitation.organizationId, organizationId),
+          eq(invitation.email, normalizedEmail),
+          eq(invitation.status, 'pending')
         )
       )
       .limit(1)
@@ -233,7 +219,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7) // 7 days expiry
 
-    await db.insert(schema.invitation).values({
+    await db.insert(invitation).values({
       id: invitationId,
       email: normalizedEmail,
       inviterId: session.user.id,
@@ -245,43 +231,43 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
 
     // Get organization and inviter details for email
-    const organization = await db
-      .select({ name: schema.organization.name })
-      .from(schema.organization)
-      .where(eq(schema.organization.id, organizationId))
+    const organizationEntry = await db
+      .select({ name: organization.name })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
       .limit(1)
 
     const inviter = await db
-      .select({ name: schema.user.name })
-      .from(schema.user)
-      .where(eq(schema.user.id, session.user.id))
+      .select({ name: user.name })
+      .from(user)
+      .where(eq(user.id, session.user.id))
       .limit(1)
 
     // Send invitation email
-    try {
-      await resend.emails.send({
-        from: 'SimStudio <noreply@simstudio.ai>',
-        to: normalizedEmail,
-        subject: `Invitation to join ${organization[0]?.name || 'organization'}`,
-        html: `
-          <h2>You've been invited to join ${organization[0]?.name || 'an organization'}!</h2>
-          <p><strong>${inviter[0]?.name || 'Someone'}</strong> has invited you to join their team on SimStudio.</p>
-          <p>Role: ${role.charAt(0).toUpperCase() + role.slice(1)}</p>
-          <p><a href="${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${invitationId}">Accept Invitation</a></p>
-          <p>This invitation will expire in 7 days.</p>
-        `,
-      })
+    const emailResult = await sendEmail({
+      to: normalizedEmail,
+      subject: `Invitation to join ${organizationEntry[0]?.name || 'organization'}`,
+      html: `
+        <h2>You've been invited to join ${organizationEntry[0]?.name || 'an organization'}!</h2>
+        <p><strong>${inviter[0]?.name || 'Someone'}</strong> has invited you to join their team on SimStudio.</p>
+        <p>Role: ${role.charAt(0).toUpperCase() + role.slice(1)}</p>
+        <p><a href="${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${invitationId}">Accept Invitation</a></p>
+        <p>This invitation will expire in 7 days.</p>
+      `,
+      emailType: 'transactional',
+    })
 
+    if (emailResult.success) {
       logger.info('Member invitation sent', {
         email: normalizedEmail,
         organizationId,
         invitationId,
         role,
       })
-    } catch (emailError) {
+    } else {
       logger.error('Failed to send invitation email', {
         email: normalizedEmail,
-        error: emailError,
+        error: emailResult.message,
       })
       // Don't fail the request if email fails
     }

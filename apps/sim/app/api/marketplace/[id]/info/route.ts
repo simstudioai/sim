@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { marketplace } from '@/db/schema'
 
 const logger = createLogger('MarketplaceInfoAPI')
 
@@ -24,8 +24,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Fetch marketplace data for the workflow
     const marketplaceEntry = await db
       .select()
-      .from(schema.marketplace)
-      .where(eq(schema.marketplace.workflowId, id))
+      .from(marketplace)
+      .where(eq(marketplace.workflowId, id))
       .limit(1)
       .then((rows) => rows[0])
 

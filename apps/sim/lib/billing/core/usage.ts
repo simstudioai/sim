@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { member, user, userStats } from '@/db/schema'
 import { calculateDefaultUsageLimit, canEditUsageLimit } from '../subscriptions/utils'
 import type { BillingData, UsageData, UsageLimitInfo } from '../types'
 import { getHighestPrioritySubscription } from './subscription'
@@ -18,13 +18,13 @@ const logger = createLogger('UsageManagement')
  */
 export async function getUserUsageData(userId: string): Promise<UsageData> {
   try {
-    const userStats = await db
+    const userStatsData = await db
       .select()
-      .from(schema.userStats)
-      .where(eq(schema.userStats.userId, userId))
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
       .limit(1)
 
-    if (userStats.length === 0) {
+    if (userStatsData.length === 0) {
       // Initialize user stats if they don't exist
       await initializeUserUsageLimit(userId)
       return {
@@ -39,7 +39,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       }
     }
 
-    const stats = userStats[0]
+    const stats = userStatsData[0]
     const currentUsage = Number.parseFloat(
       stats.currentPeriodCost?.toString() || stats.totalCost.toString()
     )
@@ -73,13 +73,13 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     const canEdit = canEditUsageLimit(subscription)
     const minimumLimit = calculateDefaultUsageLimit(subscription)
 
-    const userStats = await db
+    const userStatsRecord = await db
       .select()
-      .from(schema.userStats)
-      .where(eq(schema.userStats.userId, userId))
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
       .limit(1)
 
-    if (userStats.length === 0) {
+    if (userStatsRecord.length === 0) {
       await initializeUserUsageLimit(userId)
       return {
         currentLimit: 5,
@@ -91,7 +91,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
       }
     }
 
-    const stats = userStats[0]
+    const stats = userStatsRecord[0]
     return {
       currentLimit: Number.parseFloat(stats.currentUsageLimit),
       canEdit,
@@ -114,8 +114,8 @@ export async function initializeUserUsageLimit(userId: string): Promise<void> {
     // Check if user already has usage stats
     const existingStats = await db
       .select()
-      .from(schema.userStats)
-      .where(eq(schema.userStats.userId, userId))
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
       .limit(1)
 
     if (existingStats.length > 0) {
@@ -123,7 +123,7 @@ export async function initializeUserUsageLimit(userId: string): Promise<void> {
     }
 
     // Create initial usage stats with default $5 limit
-    await db.insert(schema.userStats).values({
+    await db.insert(userStats).values({
       id: crypto.randomUUID(),
       userId,
       currentUsageLimit: '5', // Default $5 for new users
@@ -166,13 +166,13 @@ export async function updateUserUsageLimit(
 
     // Update the usage limit
     await db
-      .update(schema.userStats)
+      .update(userStats)
       .set({
         currentUsageLimit: newLimit.toString(),
         usageLimitSetBy: setBy || userId,
         usageLimitUpdatedAt: new Date(),
       })
-      .where(eq(schema.userStats.userId, userId))
+      .where(eq(userStats.userId, userId))
 
     logger.info('Updated user usage limit', {
       userId,
@@ -193,19 +193,19 @@ export async function updateUserUsageLimit(
  */
 export async function getUserUsageLimit(userId: string): Promise<number> {
   try {
-    const userStats = await db
+    const userStatsQuery = await db
       .select()
-      .from(schema.userStats)
-      .where(eq(schema.userStats.userId, userId))
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
       .limit(1)
 
-    if (userStats.length === 0) {
+    if (userStatsQuery.length === 0) {
       // User doesn't have stats yet, initialize and return default
       await initializeUserUsageLimit(userId)
       return 5 // Default free plan limit
     }
 
-    return Number.parseFloat(userStats[0].currentUsageLimit)
+    return Number.parseFloat(userStatsQuery[0].currentUsageLimit)
   } catch (error) {
     logger.error('Failed to get user usage limit', { userId, error })
     return 5 // Fallback to safe default
@@ -248,15 +248,15 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
     const defaultLimit = calculateDefaultUsageLimit(subscription)
 
     // Get current user stats
-    const userStats = await db
+    const currentUserStats = await db
       .select()
-      .from(schema.userStats)
-      .where(eq(schema.userStats.userId, userId))
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
       .limit(1)
 
-    if (userStats.length === 0) {
+    if (currentUserStats.length === 0) {
       // Create new user stats with default limit
-      await db.insert(schema.userStats).values({
+      await db.insert(userStats).values({
         id: crypto.randomUUID(),
         userId,
         currentUsageLimit: defaultLimit.toString(),
@@ -266,30 +266,30 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
       return
     }
 
-    const currentStats = userStats[0]
+    const currentStats = currentUserStats[0]
     const currentLimit = Number.parseFloat(currentStats.currentUsageLimit)
 
     // Only update if subscription is free plan or if current limit is below new minimum
     if (!subscription || subscription.status !== 'active') {
       // User downgraded to free plan - cap at $5
       await db
-        .update(schema.userStats)
+        .update(userStats)
         .set({
           currentUsageLimit: '5',
           usageLimitUpdatedAt: new Date(),
         })
-        .where(eq(schema.userStats.userId, userId))
+        .where(eq(userStats.userId, userId))
 
       logger.info('Synced usage limit to free plan', { userId, limit: 5 })
     } else if (currentLimit < defaultLimit) {
       // User upgraded and current limit is below new minimum - raise to minimum
       await db
-        .update(schema.userStats)
+        .update(userStats)
         .set({
           currentUsageLimit: defaultLimit.toString(),
           usageLimitUpdatedAt: new Date(),
         })
-        .where(eq(schema.userStats.userId, userId))
+        .where(eq(userStats.userId, userId))
 
       logger.info('Synced usage limit to new minimum', {
         userId,
@@ -323,31 +323,31 @@ export async function getTeamUsageLimits(organizationId: string): Promise<
   try {
     const teamMembers = await db
       .select({
-        userId: schema.member.userId,
-        userName: schema.user.name,
-        userEmail: schema.user.email,
-        currentLimit: schema.userStats.currentUsageLimit,
-        currentPeriodCost: schema.userStats.currentPeriodCost,
-        totalCost: schema.userStats.totalCost,
-        lastActive: schema.userStats.lastActive,
-        limitSetBy: schema.userStats.usageLimitSetBy,
-        limitUpdatedAt: schema.userStats.usageLimitUpdatedAt,
+        userId: member.userId,
+        userName: user.name,
+        userEmail: user.email,
+        currentLimit: userStats.currentUsageLimit,
+        currentPeriodCost: userStats.currentPeriodCost,
+        totalCost: userStats.totalCost,
+        lastActive: userStats.lastActive,
+        limitSetBy: userStats.usageLimitSetBy,
+        limitUpdatedAt: userStats.usageLimitUpdatedAt,
       })
-      .from(schema.member)
-      .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
-      .leftJoin(schema.userStats, eq(schema.member.userId, schema.userStats.userId))
-      .where(eq(schema.member.organizationId, organizationId))
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .leftJoin(userStats, eq(member.userId, userStats.userId))
+      .where(eq(member.organizationId, organizationId))
 
-    return teamMembers.map((member) => ({
-      userId: member.userId,
-      userName: member.userName,
-      userEmail: member.userEmail,
-      currentLimit: Number.parseFloat(member.currentLimit || '5'),
-      currentUsage: Number.parseFloat(member.currentPeriodCost || '0'),
-      totalCost: Number.parseFloat(member.totalCost || '0'),
-      lastActive: member.lastActive,
-      limitSetBy: member.limitSetBy,
-      limitUpdatedAt: member.limitUpdatedAt,
+    return teamMembers.map((memberData) => ({
+      userId: memberData.userId,
+      userName: memberData.userName,
+      userEmail: memberData.userEmail,
+      currentLimit: Number.parseFloat(memberData.currentLimit || '5'),
+      currentUsage: Number.parseFloat(memberData.currentPeriodCost || '0'),
+      totalCost: Number.parseFloat(memberData.totalCost || '0'),
+      lastActive: memberData.lastActive,
+      limitSetBy: memberData.limitSetBy,
+      limitUpdatedAt: memberData.limitUpdatedAt,
     }))
   } catch (error) {
     logger.error('Failed to get team usage limits', { organizationId, error })

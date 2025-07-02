@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { updateMemberUsageLimit } from '@/lib/billing/core/organization-billing'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { member } from '@/db/schema'
 
 const logger = createLogger('MemberUsageLimitAPI')
 
@@ -34,13 +34,8 @@ export async function PUT(
     // Verify admin has permission
     const adminMember = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
     if (adminMember.length === 0) {
