@@ -1,8 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
-import { StarterBlock } from '@/blocks/blocks/starter'
-import type { SubBlockConfig } from '@/blocks/types'
 import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
 import { API_ENDPOINTS } from '../../constants'
 import { useSubBlockStore } from '../subblock/store'

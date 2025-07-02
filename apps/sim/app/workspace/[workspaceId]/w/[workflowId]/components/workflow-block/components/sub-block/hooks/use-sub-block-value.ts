@@ -234,16 +234,6 @@ export function useSubBlockValue<T = any>(
         // Use collaborative function which handles both local store update and socket emission
         collaborativeSetSubblockValue(blockId, subBlockId, valueCopy)
 
-        // Dispatch event to trigger socket emission only (not store update)
-        const event = new CustomEvent('update-subblock-value', {
-          detail: {
-            blockId,
-            subBlockId,
-            value: valueCopy,
-          },
-        })
-        window.dispatchEvent(event)
-
         if (triggerWorkflowUpdate) {
           useWorkflowStore.getState().triggerUpdate()
         }
