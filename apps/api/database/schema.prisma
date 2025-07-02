@@ -1,0 +1,46 @@
+generator client {
+    provider = "prisma-client-js"
+    output   = "./generated/prisma"
+}
+
+// generator client_prisma {
+//     provider             = "prisma-client-py"
+//     recursive_type_depth = -1
+// }
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+generator prismabox {
+    provider = "prismabox"
+
+    // you can optionally specify the output location. Defaults to ./prismabox
+    output = "./generated/typebox"
+
+    // Customize imported variable name
+    // typeboxImportVariableName = "t"
+
+    // Allow additional properties
+    additionalProperties = false
+
+    // Enable data model generation
+    inputModel = true
+}
+
+//========================================================================================
+// Example Module
+//========================================================================================
+model Example {
+    id             String    @id @default(uuid())
+    organizationId String
+    name           String
+    description    String?
+    createdAt      DateTime? @default(now())
+    updatedAt      DateTime? @default(now())
+
+    users User[]
+
+    @@unique([organizationId, name], map: "unique_tag_organization_id_name")
+}

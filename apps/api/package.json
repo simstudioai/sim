@@ -1,0 +1,29 @@
+{
+  "name": "@simstudio.com/api",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./auth/auth.ts": "./src/auth/auth.ts"
+  },
+  "scripts": {
+    "dev": "bun run dev:main",
+    "dev:main": "bun run --watch src/index.ts",
+    "dev:email": "email dev --dir src/assets/emails",
+    "build": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile dist/server ./src/index.ts",
+    "test": "bun test test/"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.2.0",
+    "@elysiajs/eden": "^1.2.0",
+    "@elysiajs/jwt": "^1.2.0",
+    "@letta-ai/letta-client": "^0.1.119",
+    "@simstudio.com/common": "*",
+    "elysia": "^1.2.25"
+  },
+  "devDependencies": {
+    "@elysiajs/swagger": "^1.2.2",
+    "@simstudio.com/biome-config": "*",
+    "@simstudio.com/typescript-config": "*"
+  }
+}
