@@ -218,10 +218,5 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
     total_items: 'number',
     page_count: 'number',
     items: 'json',
-    fileUrl: 'string',
-    contentType: 'string',
-    filename: 'string',
-    fields: 'json',
-    form: 'json',
-  } as any,
+  },
 }
