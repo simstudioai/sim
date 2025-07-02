@@ -1141,7 +1141,9 @@ export const auth = betterAuth({
                           id: orgId,
                           name: `${currentUser.name || 'User'}'s Team`,
                           slug: orgSlug,
-                          stripeCustomerId: orgStripeCustomerId, // Set organization's Stripe customer
+                          metadata: orgStripeCustomerId
+                            ? { stripeCustomerId: orgStripeCustomerId }
+                            : null,
                           createdAt: new Date(),
                           updatedAt: new Date(),
                         })

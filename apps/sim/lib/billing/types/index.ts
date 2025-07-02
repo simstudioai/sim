@@ -64,7 +64,7 @@ export interface BillingEntity {
   id: string
   type: 'user' | 'organization'
   referenceId: string
-  stripeCustomerId?: string
+  metadata?: { stripeCustomerId?: string; [key: string]: any } | null
   createdAt: Date
   updatedAt: Date
 }
