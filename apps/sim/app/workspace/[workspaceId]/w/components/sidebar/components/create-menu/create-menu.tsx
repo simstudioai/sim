@@ -15,9 +15,10 @@ import { useFolderStore } from '@/stores/folders/store'
 interface CreateMenuProps {
   onCreateWorkflow: (folderId?: string) => void
   isCollapsed?: boolean
+  isCreatingWorkflow?: boolean
 }
 
-export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
+export function CreateMenu({ onCreateWorkflow, isCollapsed, isCreatingWorkflow = false }: CreateMenuProps) {
   const [showFolderDialog, setShowFolderDialog] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
@@ -73,6 +74,7 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
             onClick={handleCreateWorkflow}
             onMouseEnter={() => setIsHoverOpen(true)}
             onMouseLeave={() => setIsHoverOpen(false)}
+            disabled={isCreatingWorkflow}
           >
             <Plus
               className={cn(
@@ -101,11 +103,17 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <button
-            className='flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground'
+            className={cn(
+              'flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors',
+              isCreatingWorkflow
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:bg-accent hover:text-accent-foreground'
+            )}
             onClick={handleCreateWorkflow}
+            disabled={isCreatingWorkflow}
           >
             <File className='h-4 w-4' />
-            New Workflow
+            {isCreatingWorkflow ? 'Creating...' : 'New Workflow'}
           </button>
           <button
             className='flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground'

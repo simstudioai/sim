@@ -26,10 +26,10 @@ interface ScheduleConfigProps {
 
 export function ScheduleConfig({
   blockId,
-  subBlockId,
+  subBlockId: _subBlockId,
   isConnecting,
   isPreview = false,
-  previewValue,
+  previewValue: _previewValue,
   disabled = false,
 }: ScheduleConfigProps) {
   const [error, setError] = useState<string | null>(null)
@@ -56,13 +56,7 @@ export function ScheduleConfig({
 
   // Get the startWorkflow value to determine if scheduling is enabled
   // and expose the setter so we can update it
-  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
-  const isScheduleEnabled = startWorkflow === 'schedule'
-
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-
-  // Use preview value when in preview mode, otherwise use store value
-  const value = isPreview ? previewValue : storeValue
+  const [_startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
 
   // Function to check if schedule exists in the database
   const checkSchedule = async () => {
