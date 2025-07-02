@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { db } from '@/db'

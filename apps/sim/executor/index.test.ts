@@ -684,7 +684,7 @@ describe('Executor', () => {
             metadata: { id: 'starter', name: 'Start' },
             config: {
               tool: 'starter',
-              params: {}
+              params: {},
             },
             inputs: {},
             outputs: {},
@@ -696,7 +696,7 @@ describe('Executor', () => {
             metadata: { id: 'router', name: 'Router' },
             config: {
               tool: 'router',
-              params: { prompt: 'test', model: 'gpt-4' }
+              params: { prompt: 'test', model: 'gpt-4' },
             },
             inputs: {},
             outputs: {},
@@ -708,7 +708,7 @@ describe('Executor', () => {
             metadata: { id: 'api', name: 'API 1' },
             config: {
               tool: 'api',
-              params: { url: 'http://api1.com', method: 'GET' }
+              params: { url: 'http://api1.com', method: 'GET' },
             },
             inputs: {},
             outputs: {},
@@ -720,7 +720,7 @@ describe('Executor', () => {
             metadata: { id: 'api', name: 'API 2' },
             config: {
               tool: 'api',
-              params: { url: 'http://api2.com', method: 'GET' }
+              params: { url: 'http://api2.com', method: 'GET' },
             },
             inputs: {},
             outputs: {},
@@ -732,7 +732,7 @@ describe('Executor', () => {
             metadata: { id: 'agent', name: 'Agent' },
             config: {
               tool: 'agent',
-              params: { model: 'gpt-4', userPrompt: 'test' }
+              params: { model: 'gpt-4', userPrompt: 'test' },
             },
             inputs: {},
             outputs: {},
@@ -829,7 +829,7 @@ describe('Executor', () => {
         metadata: { id: 'router', name: 'Router' },
         config: {
           tool: 'router',
-          params: {}
+          params: {},
         },
         inputs: {},
         outputs: {},
