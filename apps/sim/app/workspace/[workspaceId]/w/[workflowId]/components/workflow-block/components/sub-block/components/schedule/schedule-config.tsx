@@ -115,6 +115,11 @@ export function ScheduleConfig({
     if (workflowId && (isModalOpen || refreshCounter > 0)) {
       checkSchedule()
     }
+
+    // Cleanup function to reset loading state
+    return () => {
+      setIsLoading(false)
+    }
   }, [workflowId, isModalOpen, refreshCounter])
 
   // Format the schedule information for display
