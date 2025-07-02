@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -83,6 +84,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
   const isActive = dataIsActive || isActiveBlock
 
+  // Get the current workflow ID from URL params instead of global state
+  // This prevents race conditions when switching workflows rapidly
+  const params = useParams()
+  const currentWorkflowId = params.workflowId as string
+
   const reactivateSchedule = async (scheduleId: string) => {
     try {
       const response = await fetch(`/api/schedules/${scheduleId}`, {
@@ -94,7 +100,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       })
 
       if (response.ok) {
-        fetchScheduleInfo()
+        // Use the current workflow ID from params instead of global state
+        if (currentWorkflowId) {
+          fetchScheduleInfo(currentWorkflowId)
+        }
       } else {
         console.error('Failed to reactivate schedule')
       }
@@ -103,11 +112,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  const fetchScheduleInfo = async () => {
+  const fetchScheduleInfo = async (workflowId: string) => {
+    if (!workflowId) return
+
     try {
       setIsLoadingScheduleInfo(true)
-      const workflowId = useWorkflowRegistry.getState().activeWorkflowId
-      if (!workflowId) return
 
       const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
         cache: 'no-store',
@@ -176,12 +185,18 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }
 
   useEffect(() => {
-    if (type === 'starter') {
-      fetchScheduleInfo()
+    if (type === 'starter' && currentWorkflowId) {
+      fetchScheduleInfo(currentWorkflowId)
     } else {
       setScheduleInfo(null)
+      setIsLoadingScheduleInfo(false) // Reset loading state when not a starter block
     }
-  }, [type])
+
+    // Cleanup function to reset loading state when component unmounts or workflow changes
+    return () => {
+      setIsLoadingScheduleInfo(false)
+    }
+  }, [type, currentWorkflowId])
 
   // Get webhook information for the tooltip
   useEffect(() => {
