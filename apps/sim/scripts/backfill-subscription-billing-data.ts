@@ -14,7 +14,7 @@
  *   bun run scripts/backfill-subscription-billing-data.ts --dry-run # Dry run mode (no changes)
  */
 
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { member, organization, subscription, user, userStats } from '../db/schema'
 
@@ -62,7 +62,10 @@ function logAction(action: string, wouldDo: boolean = isDryRun) {
   console.log(`${prefix} ${action}`)
 }
 
-async function getDefaultUsageLimit(subscription: SubscriptionWithUser): Promise<number> {
+async function getDefaultUsageLimit(
+  subscription: SubscriptionWithUser,
+  memberCount?: number
+): Promise<number> {
   const plan = subscription.plan as keyof typeof PLAN_LIMITS
 
   switch (plan) {
@@ -73,9 +76,12 @@ async function getDefaultUsageLimit(subscription: SubscriptionWithUser): Promise
       return PLAN_LIMITS.pro
 
     case 'team': {
-      // For team plans, multiply by number of seats
+      // For team plans, calculate per-user limit
       const seats = subscription.seats || 1
-      return PLAN_LIMITS.team * seats
+      const totalTeamLimit = PLAN_LIMITS.team * seats
+      // Divide total team budget by actual number of members, fallback to seats
+      const actualMembers = memberCount || seats
+      return Math.round(totalTeamLimit / actualMembers)
     }
 
     case 'enterprise': {
@@ -148,8 +154,21 @@ async function backfillSubscriptionBillingData() {
       })
       .from(subscription)
       .where(eq(subscription.status, 'active'))
+      .orderBy(desc(subscription.id)) // Process newer subscriptions first (by ID)
 
     console.log(`📈 Found ${subscriptions.length} active subscriptions`)
+
+    // Group subscriptions by reference ID to handle multiple subscriptions per user/org
+    const subscriptionGroups = subscriptions.reduce(
+      (groups, sub) => {
+        if (!groups[sub.referenceId]) {
+          groups[sub.referenceId] = []
+        }
+        groups[sub.referenceId].push(sub)
+        return groups
+      },
+      {} as Record<string, typeof subscriptions>
+    )
 
     let processedCount = 0
     let skippedCount = 0
@@ -157,9 +176,33 @@ async function backfillSubscriptionBillingData() {
     let recordsToCreate = 0
     let recordsToUpdate = 0
 
-    for (const sub of subscriptions) {
+    for (const [referenceId, refSubscriptions] of Object.entries(subscriptionGroups)) {
       try {
-        logDryRun(`\n🔄 Processing subscription ${sub.id} (${sub.plan})...`)
+        // Sort subscriptions by priority: enterprise > team > pro > free, then by ID (newest first)
+        const planPriority = { enterprise: 4, team: 3, pro: 2, free: 1 }
+        const prioritizedSubs = refSubscriptions.sort((a, b) => {
+          const aPriority = planPriority[a.plan as keyof typeof planPriority] || 0
+          const bPriority = planPriority[b.plan as keyof typeof planPriority] || 0
+
+          if (aPriority !== bPriority) {
+            return bPriority - aPriority // Higher priority first
+          }
+
+          // If same priority, use newest ID first (assuming newer subscriptions have higher IDs)
+          return b.id.localeCompare(a.id)
+        })
+
+        const primarySub = prioritizedSubs[0]
+
+        if (refSubscriptions.length > 1) {
+          logDryRun(
+            `\n🔄 Processing ${refSubscriptions.length} subscriptions for referenceId ${referenceId}`
+          )
+          logDryRun(`  📋 Plans found: ${refSubscriptions.map((s) => s.plan).join(', ')}`)
+          logDryRun(`  🎯 Using highest priority: ${primarySub.plan} (${primarySub.id})`)
+        } else {
+          logDryRun(`\n🔄 Processing subscription ${primarySub.id} (${primarySub.plan})...`)
+        }
 
         // Determine if this is a user or organization subscription
         let userId: string | null = null
@@ -169,7 +212,7 @@ async function backfillSubscriptionBillingData() {
         const userData = await db
           .select({ id: user.id, email: user.email })
           .from(user)
-          .where(eq(user.id, sub.referenceId))
+          .where(eq(user.id, referenceId))
           .limit(1)
 
         if (userData.length > 0) {
@@ -180,24 +223,39 @@ async function backfillSubscriptionBillingData() {
           const orgData = await db
             .select({ id: organization.id, name: organization.name })
             .from(organization)
-            .where(eq(organization.id, sub.referenceId))
+            .where(eq(organization.id, referenceId))
             .limit(1)
 
           if (orgData.length > 0) {
             organizationId = orgData[0].id
             logDryRun(`  🏢 Organization subscription for: ${orgData[0].name}`)
           } else {
-            console.warn(
-              `  ⚠️  Could not find user or organization for referenceId: ${sub.referenceId}`
-            )
+            console.warn(`  ⚠️  Could not find user or organization for referenceId: ${referenceId}`)
             skippedCount++
             continue
           }
         }
 
         // Calculate usage limit and billing periods
-        const usageLimit = await getDefaultUsageLimit(sub as SubscriptionWithUser)
-        const billingPeriod = await calculateBillingPeriod(sub as SubscriptionWithUser)
+        let usageLimit: number
+
+        if (organizationId && primarySub.plan === 'team') {
+          // For team plans, we need to know member count to calculate per-user limit
+          const members = await db
+            .select({ userId: member.userId })
+            .from(member)
+            .where(eq(member.organizationId, organizationId))
+
+          usageLimit = await getDefaultUsageLimit(
+            primarySub as SubscriptionWithUser,
+            members.length
+          )
+          logDryRun(`  👥 Team has ${members.length} members, per-user limit: $${usageLimit}`)
+        } else {
+          usageLimit = await getDefaultUsageLimit(primarySub as SubscriptionWithUser)
+        }
+
+        const billingPeriod = await calculateBillingPeriod(primarySub as SubscriptionWithUser)
 
         logDryRun(`  💰 Usage limit: $${usageLimit}`)
         logDryRun(
@@ -224,7 +282,7 @@ async function backfillSubscriptionBillingData() {
         logDryRun(`  ✅ Processed successfully`)
       } catch (error) {
         errorCount++
-        console.error(`  ❌ Error processing subscription ${sub.id}:`, error)
+        console.error(`  ❌ Error processing subscriptions for ${referenceId}:`, error)
       }
     }
 
