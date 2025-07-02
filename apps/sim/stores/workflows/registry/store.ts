@@ -557,8 +557,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
        * @returns The ID of the newly created workflow
        */
       createWorkflow: async (options = {}) => {
-        const { workflows } = get()
-
         // Use provided workspace ID (must be provided since we no longer track active workspace)
         const workspaceId = options.workspaceId
 
@@ -576,9 +574,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              name: options.name || generateUniqueName(workflows),
+              name: options.name || generateUniqueName(),
               description: options.description || 'New workflow',
-              color: options.marketplaceId ? '#808080' : getNextWorkflowColor(workflows),
+              color: options.marketplaceId ? '#808080' : getNextWorkflowColor(),
               workspaceId,
               folderId: options.folderId || null,
             }),
@@ -808,10 +806,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             }))
           }
 
-          // Set as active workflow and initialize state
-          set({ activeWorkflowId: serverWorkflowId })
-          useWorkflowStore.setState(initialState)
-
+          // Don't set as active workflow here - let the navigation/URL change handle that
+          // This prevents race conditions and flickering
           logger.info(
             `Created new workflow with ID ${serverWorkflowId} in workspace ${workspaceId || 'none'}`
           )
@@ -834,7 +830,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         state: any,
         metadata: Partial<WorkflowMetadata>
       ) => {
-        const { workflows } = get()
         const id = crypto.randomUUID()
 
         // Generate workflow metadata with marketplace properties
@@ -843,7 +838,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           name: metadata.name || 'Marketplace workflow',
           lastModified: new Date(),
           description: metadata.description || 'Imported from marketplace',
-          color: metadata.color || getNextWorkflowColor(workflows),
+          color: metadata.color || getNextWorkflowColor(),
           marketplaceData: { id: marketplaceId, status: 'temp' as const },
         }
 
@@ -999,7 +994,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           name: `${sourceWorkflow.name} (Copy)`,
           lastModified: new Date(),
           description: sourceWorkflow.description,
-          color: getNextWorkflowColor(workflows),
+          color: getNextWorkflowColor(),
           workspaceId, // Include the workspaceId in the new workflow
           folderId: sourceWorkflow.folderId, // Include the folderId from source workflow
           // Do not copy marketplace data

@@ -1,5 +1,3 @@
-import type { WorkflowMetadata } from './types'
-
 // Available workflow colors
 export const WORKFLOW_COLORS = [
   '#3972F6',
@@ -11,52 +9,158 @@ export const WORKFLOW_COLORS = [
   '#F66839',
 ]
 
-// Generates a unique name for a new workflow
-export function generateUniqueName(existingWorkflows: Record<string, WorkflowMetadata>): string {
-  // Extract numbers from existing workflow names using regex
-  const numbers = Object.values(existingWorkflows)
-    .map((w) => {
-      const match = w.name.match(/Workflow (\d+)/)
-      return match ? Number.parseInt(match[1]) : 0
-    })
-    .filter((n) => n > 0)
+// Random adjectives and nouns for generating creative workflow names
+const ADJECTIVES = [
+  'Blazing',
+  'Crystal',
+  'Golden',
+  'Silver',
+  'Mystic',
+  'Cosmic',
+  'Electric',
+  'Frozen',
+  'Burning',
+  'Shining',
+  'Dancing',
+  'Flying',
+  'Roaring',
+  'Whispering',
+  'Glowing',
+  'Sparkling',
+  'Thunder',
+  'Lightning',
+  'Storm',
+  'Ocean',
+  'Mountain',
+  'Forest',
+  'Desert',
+  'Arctic',
+  'Tropical',
+  'Midnight',
+  'Dawn',
+  'Sunset',
+  'Rainbow',
+  'Diamond',
+  'Ruby',
+  'Emerald',
+  'Sapphire',
+  'Pearl',
+  'Jade',
+  'Amber',
+  'Coral',
+  'Ivory',
+  'Obsidian',
+  'Marble',
+  'Velvet',
+  'Silk',
+  'Satin',
+  'Linen',
+  'Cotton',
+  'Wool',
+  'Cashmere',
+  'Denim',
+  'Neon',
+  'Pastel',
+  'Vibrant',
+  'Muted',
+  'Bold',
+  'Subtle',
+  'Bright',
+  'Dark',
+]
 
-  if (numbers.length === 0) {
-    return 'Workflow 1'
-  }
+const NOUNS = [
+  'Phoenix',
+  'Dragon',
+  'Eagle',
+  'Wolf',
+  'Lion',
+  'Tiger',
+  'Panther',
+  'Falcon',
+  'Hawk',
+  'Raven',
+  'Swan',
+  'Dove',
+  'Butterfly',
+  'Firefly',
+  'Dragonfly',
+  'Hummingbird',
+  'Galaxy',
+  'Nebula',
+  'Comet',
+  'Meteor',
+  'Star',
+  'Moon',
+  'Sun',
+  'Planet',
+  'Asteroid',
+  'Constellation',
+  'Aurora',
+  'Eclipse',
+  'Solstice',
+  'Equinox',
+  'Horizon',
+  'Zenith',
+  'Castle',
+  'Tower',
+  'Bridge',
+  'Garden',
+  'Fountain',
+  'Palace',
+  'Temple',
+  'Cathedral',
+  'Lighthouse',
+  'Windmill',
+  'Waterfall',
+  'Canyon',
+  'Valley',
+  'Peak',
+  'Ridge',
+  'Cliff',
+  'Ocean',
+  'River',
+  'Lake',
+  'Stream',
+  'Pond',
+  'Bay',
+  'Cove',
+  'Harbor',
+  'Island',
+  'Peninsula',
+  'Archipelago',
+  'Atoll',
+  'Reef',
+  'Lagoon',
+  'Fjord',
+  'Delta',
+  'Cake',
+  'Cookie',
+  'Muffin',
+  'Cupcake',
+  'Pie',
+  'Tart',
+  'Brownie',
+  'Donut',
+  'Pancake',
+  'Waffle',
+  'Croissant',
+  'Bagel',
+  'Pretzel',
+  'Biscuit',
+  'Scone',
+  'Crumpet',
+]
 
-  // Find the maximum number and add 1
-  const nextNumber = Math.max(...numbers) + 1
-  return `Workflow ${nextNumber}`
+// Generates a random name for a new workflow
+export function generateUniqueName(): string {
+  const adjective = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)]
+  return `${adjective} ${noun}`
 }
 
-// Determines the next color to use for a new workflow based on the color of the newest workflow
-export function getNextWorkflowColor(existingWorkflows: Record<string, WorkflowMetadata>): string {
-  const workflowArray = Object.values(existingWorkflows)
-
-  if (workflowArray.length === 0) {
-    return WORKFLOW_COLORS[0]
-  }
-
-  // Sort workflows by lastModified date (newest first)
-  const sortedWorkflows = [...workflowArray].sort((a, b) => {
-    const dateA =
-      a.lastModified instanceof Date ? a.lastModified.getTime() : new Date(a.lastModified).getTime()
-    const dateB =
-      b.lastModified instanceof Date ? b.lastModified.getTime() : new Date(b.lastModified).getTime()
-    return dateB - dateA
-  })
-
-  // Get the newest workflow (first in sorted array)
-  const newestWorkflow = sortedWorkflows[0]
-
-  // Find the index of the newest workflow's color, defaulting to -1 if undefined
-  const currentColorIndex = newestWorkflow?.color
-    ? WORKFLOW_COLORS.indexOf(newestWorkflow.color)
-    : -1
-
-  // Get next color index, wrapping around to 0 if we reach the end
-  const nextColorIndex = (currentColorIndex + 1) % WORKFLOW_COLORS.length
-
-  return WORKFLOW_COLORS[nextColorIndex]
+// Generates a random color for a new workflow
+export function getNextWorkflowColor(): string {
+  // Simply return a random color from the available colors
+  return WORKFLOW_COLORS[Math.floor(Math.random() * WORKFLOW_COLORS.length)]
 }
