@@ -37,11 +37,6 @@ type SettingsSection =
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
-  const [isPro, setIsPro] = useState(false)
-  const [isTeam, setIsTeam] = useState(false)
-  const [isEnterprise, setIsEnterprise] = useState(false)
-  const [subscriptionData, setSubscriptionData] = useState<any>(null)
-  const [usageData, setUsageData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const loadSettings = useGeneralStore((state) => state.loadSettings)
   const subscription = useMemo(() => useSubscription(), [])
@@ -57,51 +52,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       setIsLoading(true)
 
       try {
+        // Only load general settings here - let individual components handle their own data
         await loadSettings()
-
-        const subResponse = await fetch('/api/users/me/subscription')
-
-        if (subResponse.ok) {
-          const subData = await subResponse.json()
-          setIsPro(subData.isPro)
-          setIsTeam(subData.isTeam)
-          setIsEnterprise(subData.isEnterprise)
-          setUsageData(subData.usage)
-        }
-
-        try {
-          const result = await subscription.list()
-
-          if (isEnterprise) {
-            try {
-              const enterpriseResponse = await fetch('/api/users/me/subscription/enterprise')
-              if (enterpriseResponse.ok) {
-                const enterpriseData = await enterpriseResponse.json()
-                if (enterpriseData.subscription) {
-                  setSubscriptionData(enterpriseData.subscription)
-                  return
-                }
-              }
-            } catch (error) {
-              logger.error('Error fetching enterprise subscription', error)
-            }
-          }
-
-          if (result.data && result.data.length > 0) {
-            const activeSubscription = result.data.find(
-              (sub) =>
-                sub.status === 'active' &&
-                (sub.plan === 'team' || sub.plan === 'pro' || sub.plan === 'enterprise')
-            )
-
-            if (activeSubscription) {
-              setSubscriptionData(activeSubscription)
-            }
-          }
-        } catch (error) {
-          logger.error('Error fetching subscription information', error)
-        }
-
         hasLoadedInitialData.current = true
       } catch (error) {
         logger.error('Error loading settings data:', error)
@@ -115,7 +67,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     } else {
       hasLoadedInitialData.current = false
     }
-  }, [open, loadSettings, subscription, activeSection, isEnterprise])
+  }, [open, loadSettings]) // Removed problematic dependencies
 
   useEffect(() => {
     const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {
@@ -131,8 +83,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   }, [onOpenChange])
 
   const isSubscriptionEnabled = !!client.subscription
-
-  const showTeamManagement = isTeam || isEnterprise
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -158,8 +108,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             <SettingsNavigation
               activeSection={activeSection}
               onSectionChange={setActiveSection}
-              isTeam={isTeam}
-              isEnterprise={isEnterprise}
               hasOrganization={!!activeOrg?.id}
             />
           </div>
@@ -186,11 +134,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <Subscription onOpenChange={onOpenChange} />
               </div>
             )}
-            {showTeamManagement && (
-              <div className={cn('h-full', activeSection === 'team' ? 'block' : 'hidden')}>
-                <TeamManagement />
-              </div>
-            )}
+            <div className={cn('h-full', activeSection === 'team' ? 'block' : 'hidden')}>
+              <TeamManagement />
+            </div>
             <div className={cn('h-full', activeSection === 'privacy' ? 'block' : 'hidden')}>
               <Privacy />
             </div>

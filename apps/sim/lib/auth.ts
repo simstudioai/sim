@@ -28,7 +28,7 @@ import { getEmailDomain } from './urls/utils'
 
 const logger = createLogger('Auth')
 
-const isProd = env.NODE_ENV === 'production'
+const isProd = true
 
 // Only initialize Stripe if the key is provided
 // This allows local development without a Stripe account
