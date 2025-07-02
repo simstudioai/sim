@@ -375,14 +375,27 @@ export class InputResolver {
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
-      // Skip XML-like tags (but allow valid block references without path parts)
+      // Skip XML-like tags
       if (blockRef.includes(':') || blockRef.includes(' ')) {
         continue
       }
 
+      // System references (start, loop, parallel, variable) are handled as special cases
+      const isSystemReference = ['start', 'loop', 'parallel', 'variable'].includes(
+        blockRef.toLowerCase()
+      )
+
+      if (!isSystemReference) {
+        // For regular block references, check if it's accessible
+        const isAccessible = this.isAccessibleBlockReference(blockRef, currentBlock.id)
+
+        if (!isAccessible) {
+          // Not an accessible block - leave pattern unchanged and continue
+          continue
+        }
+      }
+
       // Special case for "start" references
-      // This allows users to reference the starter block using <start.input>
-      // regardless of the actual name of the starter block
       if (blockRef.toLowerCase() === 'start') {
         // Find the starter block
         const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
