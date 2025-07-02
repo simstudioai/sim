@@ -1,11 +1,12 @@
 import { DocumentIcon } from '@/components/icons'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { FileParserOutput } from '@/tools/file/types'
 import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
 
 const logger = createLogger('FileBlock')
 
-const shouldEnableURLInput = process.env.NODE_ENV === 'production'
+const shouldEnableURLInput = env.NODE_ENV === 'production'
 
 const inputMethodBlock: SubBlockConfig = {
   id: 'inputMethod',
