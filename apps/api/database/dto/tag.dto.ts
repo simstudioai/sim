@@ -1,29 +1,27 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-export const TagSchema = Type.Object({
+export const ExampleSchema = Type.Object({
     id: Type.String(),
     name: Type.String(),
     color: Type.Optional(Type.String()),
-    created_at: Type.Optional(Type.String({ format: "date-time" })),
-    updated_at: Type.Optional(Type.String({ format: "date-time" })),
-    created_by_id: Type.Optional(Type.String()),
-    last_updated_by_id: Type.Optional(Type.String()),
-    organization_id: Type.String(),
+    createdAt: Type.Optional(Type.String({ format: "date-time" })),
+    updatedAt: Type.Optional(Type.String({ format: "date-time" })),
+    organizationId: Type.String(),
     metadata: Type.Optional(Type.Any())
 });
 
-export const TagCreateSchema = Type.Object({
+export const ExampleCreateSchema = Type.Object({
     name: Type.String(),
     color: Type.Optional(Type.String()),
     metadata: Type.Optional(Type.Any())
 });
 
-export const TagUpdateSchema = Type.Object({
+export const ExampleUpdateSchema = Type.Object({
     name: Type.Optional(Type.String()),
     color: Type.Optional(Type.String()),
     metadata: Type.Optional(Type.Any())
 });
 
-export type TagType = Static<typeof TagSchema>;
-export type TagCreateType = Static<typeof TagCreateSchema>;
-export type TagUpdateType = Static<typeof TagUpdateSchema>;
+export type ExampleType = Static<typeof ExampleSchema>;
+export type ExampleCreateType = Static<typeof ExampleCreateSchema>;
+export type ExampleUpdateType = Static<typeof ExampleUpdateSchema>;
