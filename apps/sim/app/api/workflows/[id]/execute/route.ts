@@ -419,7 +419,6 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
         totalInputCost: 0,
         totalOutputCost: 0,
         totalTokens: 0,
-
       }
 
       await enhancedExecutionLogger.completeWorkflowExecution({
