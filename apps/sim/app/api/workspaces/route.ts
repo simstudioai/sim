@@ -104,7 +104,7 @@ async function createWorkspace(userId: string, name: string) {
         updatedAt: now,
       })
 
-      // Create "Workflow 1" for the workspace with start block
+      // Create initial workflow for the workspace with start block
       const starterId = crypto.randomUUID()
       const initialState = {
         blocks: {
@@ -170,7 +170,7 @@ async function createWorkspace(userId: string, name: string) {
         userId,
         workspaceId,
         folderId: null,
-        name: 'Workflow 1',
+        name: 'default-agent',
         description: 'Your first workflow - start building here!',
         state: initialState,
         color: '#3972F6',
