@@ -424,9 +424,7 @@ export const customTools = pgTable('custom_tools', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const subscription = pgTable(
-  'subscription',
-  {
+export const subscription = pgTable('subscription', {
     id: text('id').primaryKey(),
     plan: text('plan').notNull(),
     referenceId: text('reference_id').notNull(),
@@ -442,13 +440,10 @@ export const subscription = pgTable(
     metadata: json('metadata'),
   },
   (table) => ({
-    // Essential index for better-auth
     referenceStatusIdx: index('subscription_reference_status_idx').on(
       table.referenceId,
       table.status
     ),
-
-    // Enterprise metadata validation (essential for your requirements)
     enterpriseMetadataCheck: check(
       'check_enterprise_metadata',
       sql`plan != 'enterprise' OR (metadata IS NOT NULL AND (metadata->>'perSeatAllowance' IS NOT NULL OR metadata->>'totalAllowance' IS NOT NULL))`
