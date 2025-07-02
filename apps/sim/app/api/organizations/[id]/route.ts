@@ -8,7 +8,7 @@ import {
 } from '@/lib/billing/validation/seat-management'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { member, organization } from '@/db/schema'
 
 const logger = createLogger('OrganizationAPI')
 
@@ -29,18 +29,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const includeSeats = url.searchParams.get('include') === 'seats'
 
     // Verify user has access to this organization
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
@@ -48,29 +43,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Get organization data
-    const organization = await db
+    const organizationEntry = await db
       .select()
-      .from(schema.organization)
-      .where(eq(schema.organization.id, organizationId))
+      .from(organization)
+      .where(eq(organization.id, organizationId))
       .limit(1)
 
-    if (organization.length === 0) {
+    if (organizationEntry.length === 0) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    const userRole = member[0].role
+    const userRole = memberEntry[0].role
     const hasAdminAccess = ['owner', 'admin'].includes(userRole)
 
     const response: any = {
       success: true,
       data: {
-        id: organization[0].id,
-        name: organization[0].name,
-        slug: organization[0].slug,
-        logo: organization[0].logo,
-        metadata: organization[0].metadata,
-        createdAt: organization[0].createdAt,
-        updatedAt: organization[0].updatedAt,
+        id: organizationEntry[0].id,
+        name: organizationEntry[0].name,
+        slug: organizationEntry[0].slug,
+        logo: organizationEntry[0].logo,
+        metadata: organizationEntry[0].metadata,
+        createdAt: organizationEntry[0].createdAt,
+        updatedAt: organizationEntry[0].updatedAt,
       },
       userRole,
       hasAdminAccess,
@@ -120,25 +115,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { name, slug, logo, seats } = body
 
     // Verify user has admin access
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    if (!['owner', 'admin'].includes(member[0].role)) {
+    if (!['owner', 'admin'].includes(memberEntry[0].role)) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
@@ -197,10 +187,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // Check if slug is already taken by another organization
         const existingSlug = await db
           .select()
-          .from(schema.organization)
-          .where(
-            and(eq(schema.organization.slug, slug), ne(schema.organization.id, organizationId))
-          )
+          .from(organization)
+          .where(and(eq(organization.slug, slug), ne(organization.id, organizationId)))
           .limit(1)
 
         if (existingSlug.length > 0) {
@@ -216,9 +204,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       // Update organization
       const updatedOrg = await db
-        .update(schema.organization)
+        .update(organization)
         .set(updateData)
-        .where(eq(schema.organization.id, organizationId))
+        .where(eq(organization.id, organizationId))
         .returning()
 
       if (updatedOrg.length === 0) {
@@ -273,25 +261,20 @@ export async function DELETE(
     const { id: organizationId } = await params
 
     // Verify user is owner of the organization
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    if (member[0].role !== 'owner') {
+    if (memberEntry[0].role !== 'owner') {
       return NextResponse.json(
         { error: 'Forbidden - Only organization owners can delete organizations' },
         { status: 403 }

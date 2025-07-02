@@ -1,21 +1,20 @@
 import { randomUUID } from 'crypto'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { Resend } from 'resend'
 import { getEmailSubject, renderBatchInvitationEmail } from '@/components/emails/render-email'
 import { getSession } from '@/lib/auth'
 import {
   validateBulkInvitations,
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
+import { sendEmail } from '@/lib/email/mailer'
 import { validateAndNormalizeEmail } from '@/lib/email/utils'
 import { createLogger } from '@/lib/logs/console-logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { invitation, member, organization, user, workspace, workspaceInvitation } from '@/db/schema'
 
 const logger = createLogger('OrganizationInvitationsAPI')
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -37,25 +36,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id: organizationId } = await params
 
     // Verify user has access to this organization
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    const userRole = member[0].role
+    const userRole = memberEntry[0].role
     const hasAdminAccess = ['owner', 'admin'].includes(userRole)
 
     if (!hasAdminAccess) {
@@ -65,19 +59,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Get all pending invitations for the organization
     const invitations = await db
       .select({
-        id: schema.invitation.id,
-        email: schema.invitation.email,
-        role: schema.invitation.role,
-        status: schema.invitation.status,
-        expiresAt: schema.invitation.expiresAt,
-        createdAt: schema.invitation.createdAt,
-        inviterName: schema.user.name,
-        inviterEmail: schema.user.email,
+        id: invitation.id,
+        email: invitation.email,
+        role: invitation.role,
+        status: invitation.status,
+        expiresAt: invitation.expiresAt,
+        createdAt: invitation.createdAt,
+        inviterName: user.name,
+        inviterEmail: user.email,
       })
-      .from(schema.invitation)
-      .leftJoin(schema.user, eq(schema.invitation.inviterId, schema.user.id))
-      .where(eq(schema.invitation.organizationId, organizationId))
-      .orderBy(schema.invitation.createdAt)
+      .from(invitation)
+      .leftJoin(user, eq(invitation.inviterId, user.id))
+      .where(eq(invitation.organizationId, organizationId))
+      .orderBy(invitation.createdAt)
 
     return NextResponse.json({
       success: true,
@@ -132,25 +126,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Verify user has admin access
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    if (!['owner', 'admin'].includes(member[0].role)) {
+    if (!['owner', 'admin'].includes(memberEntry[0].role)) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
@@ -192,13 +181,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Get organization details
-    const organization = await db
-      .select({ name: schema.organization.name })
-      .from(schema.organization)
-      .where(eq(schema.organization.id, organizationId))
+    const organizationEntry = await db
+      .select({ name: organization.name })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
       .limit(1)
 
-    if (organization.length === 0) {
+    if (organizationEntry.length === 0) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
@@ -236,24 +225,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Check for existing members
     const existingMembers = await db
-      .select({ userEmail: schema.user.email })
-      .from(schema.member)
-      .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
-      .where(eq(schema.member.organizationId, organizationId))
+      .select({ userEmail: user.email })
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(eq(member.organizationId, organizationId))
 
     const existingEmails = existingMembers.map((m) => m.userEmail)
     const newEmails = processedEmails.filter((email: string) => !existingEmails.includes(email))
 
     // Check for existing pending invitations
     const existingInvitations = await db
-      .select({ email: schema.invitation.email })
-      .from(schema.invitation)
-      .where(
-        and(
-          eq(schema.invitation.organizationId, organizationId),
-          eq(schema.invitation.status, 'pending')
-        )
-      )
+      .select({ email: invitation.email })
+      .from(invitation)
+      .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
 
     const pendingEmails = existingInvitations.map((i) => i.email)
     const emailsToInvite = newEmails.filter((email: string) => !pendingEmails.includes(email))
@@ -288,7 +272,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       createdAt: new Date(),
     }))
 
-    await db.insert(schema.invitation).values(invitationsToCreate)
+    await db.insert(invitation).values(invitationsToCreate)
 
     // Create workspace invitations if batch mode
     const workspaceInvitationIds: string[] = []
@@ -298,7 +282,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           const wsInvitationId = randomUUID()
           const token = randomUUID()
 
-          await db.insert(schema.workspaceInvitation).values({
+          await db.insert(workspaceInvitation).values({
             id: wsInvitationId,
             workspaceId: wsInvitation.workspaceId,
             email,
@@ -319,72 +303,73 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Send invitation emails
     const inviter = await db
-      .select({ name: schema.user.name })
-      .from(schema.user)
-      .where(eq(schema.user.id, session.user.id))
+      .select({ name: user.name })
+      .from(user)
+      .where(eq(user.id, session.user.id))
       .limit(1)
 
     for (const email of emailsToInvite) {
-      try {
-        const orgInvitation = invitationsToCreate.find((inv) => inv.email === email)
-        if (!orgInvitation) continue
+      const orgInvitation = invitationsToCreate.find((inv) => inv.email === email)
+      if (!orgInvitation) continue
 
-        if (isBatch && validWorkspaceInvitations.length > 0) {
-          // Get workspace details for batch email
-          const workspaceDetails = await db
-            .select({
-              id: schema.workspace.id,
-              name: schema.workspace.name,
-            })
-            .from(schema.workspace)
-            .where(
-              inArray(
-                schema.workspace.id,
-                validWorkspaceInvitations.map((w) => w.workspaceId)
-              )
+      let emailResult
+      if (isBatch && validWorkspaceInvitations.length > 0) {
+        // Get workspace details for batch email
+        const workspaceDetails = await db
+          .select({
+            id: workspace.id,
+            name: workspace.name,
+          })
+          .from(workspace)
+          .where(
+            inArray(
+              workspace.id,
+              validWorkspaceInvitations.map((w) => w.workspaceId)
             )
-
-          const workspaceInvitationsWithNames = validWorkspaceInvitations.map((wsInv) => ({
-            workspaceId: wsInv.workspaceId,
-            workspaceName:
-              workspaceDetails.find((w) => w.id === wsInv.workspaceId)?.name || 'Unknown Workspace',
-            permission: wsInv.permission,
-          }))
-
-          // Send batch invitation email using centralized renderer
-          const emailHtml = await renderBatchInvitationEmail(
-            inviter[0]?.name || 'Someone',
-            organization[0]?.name || 'organization',
-            role,
-            workspaceInvitationsWithNames,
-            `${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`
           )
 
-          await resend.emails.send({
-            from: 'SimStudio <noreply@simstudio.ai>',
-            to: email,
-            subject: getEmailSubject('batch-invitation'),
-            html: emailHtml,
-          })
-        } else {
-          // Send standard organization invitation
-          await resend.emails.send({
-            from: 'SimStudio <noreply@simstudio.ai>',
-            to: email,
-            subject: `Invitation to join ${organization[0]?.name || 'organization'}`,
-            html: `
-              <h2>You've been invited to join ${organization[0]?.name || 'an organization'}!</h2>
-              <p><strong>${inviter[0]?.name || 'Someone'}</strong> has invited you to join their team on SimStudio.</p>
-              <p>Role: ${role.charAt(0).toUpperCase() + role.slice(1)}</p>
-              <p><a href="${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}">Accept Invitation</a></p>
-              <p>This invitation will expire in 7 days.</p>
-            `,
-          })
-        }
-      } catch (emailError) {
+        const workspaceInvitationsWithNames = validWorkspaceInvitations.map((wsInv) => ({
+          workspaceId: wsInv.workspaceId,
+          workspaceName:
+            workspaceDetails.find((w) => w.id === wsInv.workspaceId)?.name || 'Unknown Workspace',
+          permission: wsInv.permission,
+        }))
+
+        // Send batch invitation email using centralized renderer
+        const emailHtml = await renderBatchInvitationEmail(
+          inviter[0]?.name || 'Someone',
+          organizationEntry[0]?.name || 'organization',
+          role,
+          workspaceInvitationsWithNames,
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`
+        )
+
+        emailResult = await sendEmail({
+          to: email,
+          subject: getEmailSubject('batch-invitation'),
+          html: emailHtml,
+          emailType: 'transactional',
+        })
+      } else {
+        // Send standard organization invitation
+        emailResult = await sendEmail({
+          to: email,
+          subject: `Invitation to join ${organizationEntry[0]?.name || 'organization'}`,
+          html: `
+            <h2>You've been invited to join ${organizationEntry[0]?.name || 'an organization'}!</h2>
+            <p><strong>${inviter[0]?.name || 'Someone'}</strong> has invited you to join their team on SimStudio.</p>
+            <p>Role: ${role.charAt(0).toUpperCase() + role.slice(1)}</p>
+            <p><a href="${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}">Accept Invitation</a></p>
+            <p>This invitation will expire in 7 days.</p>
+          `,
+          emailType: 'transactional',
+        })
+      }
+
+      if (!emailResult.success) {
         logger.error('Failed to send invitation email', {
           email,
-          error: emailError,
+          error: emailResult.message,
         })
       }
     }
@@ -457,39 +442,34 @@ export async function DELETE(
     }
 
     // Verify user has admin access
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    if (!['owner', 'admin'].includes(member[0].role)) {
+    if (!['owner', 'admin'].includes(memberEntry[0].role)) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
     // Cancel the invitation
     const result = await db
-      .update(schema.invitation)
+      .update(invitation)
       .set({
         status: 'cancelled',
       })
       .where(
         and(
-          eq(schema.invitation.id, invitationId),
-          eq(schema.invitation.organizationId, organizationId),
-          eq(schema.invitation.status, 'pending')
+          eq(invitation.id, invitationId),
+          eq(invitation.organizationId, organizationId),
+          eq(invitation.status, 'pending')
         )
       )
       .returning()

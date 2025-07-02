@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { member, permissions, user, workspace, workspaceMember } from '@/db/schema'
 
 const logger = createLogger('OrganizationWorkspacesAPI')
 
@@ -28,18 +28,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const memberId = url.searchParams.get('member')
 
     // Verify user is a member of this organization
-    const member = await db
+    const memberEntry = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(
-          eq(schema.member.organizationId, organizationId),
-          eq(schema.member.userId, session.user.id)
-        )
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (member.length === 0) {
+    if (memberEntry.length === 0) {
       return NextResponse.json(
         {
           error: 'Forbidden - Not a member of this organization',
@@ -48,38 +43,38 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    const userRole = member[0].role
+    const userRole = memberEntry[0].role
     const hasAdminAccess = ['owner', 'admin'].includes(userRole)
 
     if (availableOnly) {
       // Get workspaces where user has admin permissions (can invite others)
       const availableWorkspaces = await db
         .select({
-          id: schema.workspace.id,
-          name: schema.workspace.name,
-          ownerId: schema.workspace.ownerId,
-          createdAt: schema.workspace.createdAt,
-          isOwner: eq(schema.workspace.ownerId, session.user.id),
-          permissionType: schema.permissions.permissionType,
+          id: workspace.id,
+          name: workspace.name,
+          ownerId: workspace.ownerId,
+          createdAt: workspace.createdAt,
+          isOwner: eq(workspace.ownerId, session.user.id),
+          permissionType: permissions.permissionType,
         })
-        .from(schema.workspace)
+        .from(workspace)
         .leftJoin(
-          schema.permissions,
+          permissions,
           and(
-            eq(schema.permissions.entityType, 'workspace'),
-            eq(schema.permissions.entityId, schema.workspace.id),
-            eq(schema.permissions.userId, session.user.id)
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, workspace.id),
+            eq(permissions.userId, session.user.id)
           )
         )
         .where(
           or(
             // User owns the workspace
-            eq(schema.workspace.ownerId, session.user.id),
+            eq(workspace.ownerId, session.user.id),
             // User has admin permission on the workspace
             and(
-              eq(schema.permissions.userId, session.user.id),
-              eq(schema.permissions.entityType, 'workspace'),
-              eq(schema.permissions.permissionType, 'admin')
+              eq(permissions.userId, session.user.id),
+              eq(permissions.entityType, 'workspace'),
+              eq(permissions.permissionType, 'admin')
             )
           )
         )
@@ -118,39 +113,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // Get workspaces where specific member has access (admin only)
       const memberWorkspaces = await db
         .select({
-          id: schema.workspace.id,
-          name: schema.workspace.name,
-          ownerId: schema.workspace.ownerId,
-          createdAt: schema.workspace.createdAt,
-          isOwner: eq(schema.workspace.ownerId, memberId),
-          permissionType: schema.permissions.permissionType,
-          joinedAt: schema.workspaceMember.joinedAt,
+          id: workspace.id,
+          name: workspace.name,
+          ownerId: workspace.ownerId,
+          createdAt: workspace.createdAt,
+          isOwner: eq(workspace.ownerId, memberId),
+          permissionType: permissions.permissionType,
+          joinedAt: workspaceMember.joinedAt,
         })
-        .from(schema.workspace)
+        .from(workspace)
         .leftJoin(
-          schema.permissions,
+          permissions,
           and(
-            eq(schema.permissions.entityType, 'workspace'),
-            eq(schema.permissions.entityId, schema.workspace.id),
-            eq(schema.permissions.userId, memberId)
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, workspace.id),
+            eq(permissions.userId, memberId)
           )
         )
         .leftJoin(
-          schema.workspaceMember,
-          and(
-            eq(schema.workspaceMember.workspaceId, schema.workspace.id),
-            eq(schema.workspaceMember.userId, memberId)
-          )
+          workspaceMember,
+          and(eq(workspaceMember.workspaceId, workspace.id), eq(workspaceMember.userId, memberId))
         )
         .where(
           or(
             // Member owns the workspace
-            eq(schema.workspace.ownerId, memberId),
+            eq(workspace.ownerId, memberId),
             // Member has permissions on the workspace
-            and(
-              eq(schema.permissions.userId, memberId),
-              eq(schema.permissions.entityType, 'workspace')
-            )
+            and(eq(permissions.userId, memberId), eq(permissions.entityType, 'workspace'))
           )
         )
 
@@ -189,14 +178,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // For admins: Get summary of all workspaces
     const allWorkspaces = await db
       .select({
-        id: schema.workspace.id,
-        name: schema.workspace.name,
-        ownerId: schema.workspace.ownerId,
-        createdAt: schema.workspace.createdAt,
-        ownerName: schema.user.name,
+        id: workspace.id,
+        name: workspace.name,
+        ownerId: workspace.ownerId,
+        createdAt: workspace.createdAt,
+        ownerName: user.name,
       })
-      .from(schema.workspace)
-      .leftJoin(schema.user, eq(schema.workspace.ownerId, schema.user.id))
+      .from(workspace)
+      .leftJoin(user, eq(workspace.ownerId, user.id))
 
     return NextResponse.json({
       success: true,

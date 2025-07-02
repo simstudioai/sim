@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { member, organization, user, userStats } from '@/db/schema'
 import { getHighestPrioritySubscription } from './subscription'
 
 const logger = createLogger('OrganizationBilling')
@@ -44,8 +44,8 @@ export async function getOrganizationBillingData(
     // Get organization info
     const orgRecord = await db
       .select()
-      .from(schema.organization)
-      .where(eq(schema.organization.id, organizationId))
+      .from(organization)
+      .where(eq(organization.id, organizationId))
       .limit(1)
 
     if (orgRecord.length === 0) {
@@ -53,7 +53,7 @@ export async function getOrganizationBillingData(
       return null
     }
 
-    const organization = orgRecord[0]
+    const organizationData = orgRecord[0]
 
     // Get organization subscription
     const subscription = await getHighestPrioritySubscription(organizationId)
@@ -66,40 +66,40 @@ export async function getOrganizationBillingData(
     // Get all organization members with their usage data
     const membersWithUsage = await db
       .select({
-        userId: schema.member.userId,
-        userName: schema.user.name,
-        userEmail: schema.user.email,
-        role: schema.member.role,
-        joinedAt: schema.member.createdAt,
+        userId: member.userId,
+        userName: user.name,
+        userEmail: user.email,
+        role: member.role,
+        joinedAt: member.createdAt,
         // User stats fields
-        currentPeriodCost: schema.userStats.currentPeriodCost,
-        currentUsageLimit: schema.userStats.currentUsageLimit,
-        billingPeriodStart: schema.userStats.billingPeriodStart,
-        billingPeriodEnd: schema.userStats.billingPeriodEnd,
-        lastActive: schema.userStats.lastActive,
+        currentPeriodCost: userStats.currentPeriodCost,
+        currentUsageLimit: userStats.currentUsageLimit,
+        billingPeriodStart: userStats.billingPeriodStart,
+        billingPeriodEnd: userStats.billingPeriodEnd,
+        lastActive: userStats.lastActive,
       })
-      .from(schema.member)
-      .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
-      .leftJoin(schema.userStats, eq(schema.member.userId, schema.userStats.userId))
-      .where(eq(schema.member.organizationId, organizationId))
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .leftJoin(userStats, eq(member.userId, userStats.userId))
+      .where(eq(member.organizationId, organizationId))
 
     // Process member data
-    const members: MemberUsageData[] = membersWithUsage.map((member) => {
-      const currentUsage = Number(member.currentPeriodCost || 0)
-      const usageLimit = Number(member.currentUsageLimit || 5)
+    const members: MemberUsageData[] = membersWithUsage.map((memberRecord) => {
+      const currentUsage = Number(memberRecord.currentPeriodCost || 0)
+      const usageLimit = Number(memberRecord.currentUsageLimit || 5)
       const percentUsed = usageLimit > 0 ? (currentUsage / usageLimit) * 100 : 0
 
       return {
-        userId: member.userId,
-        userName: member.userName,
-        userEmail: member.userEmail,
+        userId: memberRecord.userId,
+        userName: memberRecord.userName,
+        userEmail: memberRecord.userEmail,
         currentUsage,
         usageLimit,
         percentUsed: Math.round(percentUsed * 100) / 100,
         isOverLimit: currentUsage > usageLimit,
-        role: member.role,
-        joinedAt: member.joinedAt,
-        lastActive: member.lastActive,
+        role: memberRecord.role,
+        joinedAt: memberRecord.joinedAt,
+        lastActive: memberRecord.lastActive,
       }
     })
 
@@ -115,7 +115,7 @@ export async function getOrganizationBillingData(
 
     return {
       organizationId,
-      organizationName: organization.name,
+      organizationName: organizationData.name,
       subscriptionPlan: subscription.plan,
       subscriptionStatus: subscription.status || 'active',
       totalSeats: subscription.seats || 1,
@@ -144,28 +144,24 @@ export async function updateMemberUsageLimit(
 ): Promise<void> {
   try {
     // Verify admin has permission to modify limits
-    const adminMember = await db
+    const adminMemberRecord = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, adminUserId))
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, adminUserId)))
       .limit(1)
 
-    if (adminMember.length === 0 || !['owner', 'admin'].includes(adminMember[0].role)) {
+    if (adminMemberRecord.length === 0 || !['owner', 'admin'].includes(adminMemberRecord[0].role)) {
       throw new Error('Insufficient permissions to modify usage limits')
     }
 
     // Verify member exists in organization
-    const targetMember = await db
+    const targetMemberRecord = await db
       .select()
-      .from(schema.member)
-      .where(
-        and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, memberId))
-      )
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
       .limit(1)
 
-    if (targetMember.length === 0) {
+    if (targetMemberRecord.length === 0) {
       throw new Error('Member not found in organization')
     }
 
@@ -199,13 +195,13 @@ export async function updateMemberUsageLimit(
 
     // Update the member's usage limit
     await db
-      .update(schema.userStats)
+      .update(userStats)
       .set({
         currentUsageLimit: newLimit.toString(),
         usageLimitSetBy: adminUserId,
         usageLimitUpdatedAt: new Date(),
       })
-      .where(eq(schema.userStats.userId, memberId))
+      .where(eq(userStats.userId, memberId))
 
     logger.info('Updated member usage limit', {
       organizationId,

@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { invitation, member, permissions, workspaceInvitation, workspaceMember } from '@/db/schema'
 
 const logger = createLogger('OrganizationInvitationAcceptance')
 
@@ -36,13 +36,13 @@ export async function GET(req: NextRequest) {
 
   try {
     // Find the organization invitation
-    const invitation = await db
+    const invitationResult = await db
       .select()
-      .from(schema.invitation)
-      .where(eq(schema.invitation.id, invitationId))
+      .from(invitation)
+      .where(eq(invitation.id, invitationId))
       .limit(1)
 
-    if (invitation.length === 0) {
+    if (invitationResult.length === 0) {
       return NextResponse.redirect(
         new URL(
           '/invite/invite-error?reason=invalid-invitation',
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const orgInvitation = invitation[0]
+    const orgInvitation = invitationResult[0]
 
     // Check if invitation has expired
     if (orgInvitation.expiresAt && new Date() > orgInvitation.expiresAt) {
@@ -86,11 +86,11 @@ export async function GET(req: NextRequest) {
     // Check if user is already a member of the organization
     const existingMember = await db
       .select()
-      .from(schema.member)
+      .from(member)
       .where(
         and(
-          eq(schema.member.organizationId, orgInvitation.organizationId),
-          eq(schema.member.userId, session.user.id)
+          eq(member.organizationId, orgInvitation.organizationId),
+          eq(member.userId, session.user.id)
         )
       )
       .limit(1)
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
     // Start transaction to accept both organization and workspace invitations
     await db.transaction(async (tx) => {
       // Accept organization invitation - add user as member
-      await tx.insert(schema.member).values({
+      await tx.insert(member).values({
         id: randomUUID(),
         userId: session.user.id,
         organizationId: orgInvitation.organizationId,
@@ -116,19 +116,16 @@ export async function GET(req: NextRequest) {
       })
 
       // Mark organization invitation as accepted
-      await tx
-        .update(schema.invitation)
-        .set({ status: 'accepted' })
-        .where(eq(schema.invitation.id, invitationId))
+      await tx.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, invitationId))
 
       // Find and accept any pending workspace invitations for the same email
       const workspaceInvitations = await tx
         .select()
-        .from(schema.workspaceInvitation)
+        .from(workspaceInvitation)
         .where(
           and(
-            eq(schema.workspaceInvitation.email, orgInvitation.email),
-            eq(schema.workspaceInvitation.status, 'pending')
+            eq(workspaceInvitation.email, orgInvitation.email),
+            eq(workspaceInvitation.status, 'pending')
           )
         )
 
@@ -138,11 +135,11 @@ export async function GET(req: NextRequest) {
           // Check if user isn't already a member of the workspace
           const existingWorkspaceMember = await tx
             .select()
-            .from(schema.workspaceMember)
+            .from(workspaceMember)
             .where(
               and(
-                eq(schema.workspaceMember.workspaceId, wsInvitation.workspaceId),
-                eq(schema.workspaceMember.userId, session.user.id)
+                eq(workspaceMember.workspaceId, wsInvitation.workspaceId),
+                eq(workspaceMember.userId, session.user.id)
               )
             )
             .limit(1)
@@ -150,19 +147,19 @@ export async function GET(req: NextRequest) {
           // Check if user doesn't already have permissions on the workspace
           const existingPermission = await tx
             .select()
-            .from(schema.permissions)
+            .from(permissions)
             .where(
               and(
-                eq(schema.permissions.userId, session.user.id),
-                eq(schema.permissions.entityType, 'workspace'),
-                eq(schema.permissions.entityId, wsInvitation.workspaceId)
+                eq(permissions.userId, session.user.id),
+                eq(permissions.entityType, 'workspace'),
+                eq(permissions.entityId, wsInvitation.workspaceId)
               )
             )
             .limit(1)
 
           if (existingWorkspaceMember.length === 0 && existingPermission.length === 0) {
             // Add user as workspace member
-            await tx.insert(schema.workspaceMember).values({
+            await tx.insert(workspaceMember).values({
               id: randomUUID(),
               workspaceId: wsInvitation.workspaceId,
               userId: session.user.id,
@@ -172,7 +169,7 @@ export async function GET(req: NextRequest) {
             })
 
             // Add workspace permissions
-            await tx.insert(schema.permissions).values({
+            await tx.insert(permissions).values({
               id: randomUUID(),
               userId: session.user.id,
               entityType: 'workspace',
@@ -184,9 +181,9 @@ export async function GET(req: NextRequest) {
 
             // Mark workspace invitation as accepted
             await tx
-              .update(schema.workspaceInvitation)
+              .update(workspaceInvitation)
               .set({ status: 'accepted' })
-              .where(eq(schema.workspaceInvitation.id, wsInvitation.id))
+              .where(eq(workspaceInvitation.id, wsInvitation.id))
 
             logger.info('Accepted workspace invitation', {
               workspaceId: wsInvitation.workspaceId,
@@ -240,17 +237,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Similar logic to GET but return JSON response
-    const invitation = await db
+    const invitationResult = await db
       .select()
-      .from(schema.invitation)
-      .where(eq(schema.invitation.id, invitationId))
+      .from(invitation)
+      .where(eq(invitation.id, invitationId))
       .limit(1)
 
-    if (invitation.length === 0) {
+    if (invitationResult.length === 0) {
       return NextResponse.json({ error: 'Invalid invitation' }, { status: 404 })
     }
 
-    const orgInvitation = invitation[0]
+    const orgInvitation = invitationResult[0]
 
     if (orgInvitation.expiresAt && new Date() > orgInvitation.expiresAt) {
       return NextResponse.json({ error: 'Invitation expired' }, { status: 400 })
@@ -267,11 +264,11 @@ export async function POST(req: NextRequest) {
     // Check if user is already a member
     const existingMember = await db
       .select()
-      .from(schema.member)
+      .from(member)
       .where(
         and(
-          eq(schema.member.organizationId, orgInvitation.organizationId),
-          eq(schema.member.userId, session.user.id)
+          eq(member.organizationId, orgInvitation.organizationId),
+          eq(member.userId, session.user.id)
         )
       )
       .limit(1)
@@ -285,7 +282,7 @@ export async function POST(req: NextRequest) {
     // Accept invitations in transaction
     await db.transaction(async (tx) => {
       // Accept organization invitation
-      await tx.insert(schema.member).values({
+      await tx.insert(member).values({
         id: randomUUID(),
         userId: session.user.id,
         organizationId: orgInvitation.organizationId,
@@ -293,19 +290,16 @@ export async function POST(req: NextRequest) {
         createdAt: new Date(),
       })
 
-      await tx
-        .update(schema.invitation)
-        .set({ status: 'accepted' })
-        .where(eq(schema.invitation.id, invitationId))
+      await tx.update(invitation).set({ status: 'accepted' }).where(eq(invitation.id, invitationId))
 
       // Accept workspace invitations
       const workspaceInvitations = await tx
         .select()
-        .from(schema.workspaceInvitation)
+        .from(workspaceInvitation)
         .where(
           and(
-            eq(schema.workspaceInvitation.email, orgInvitation.email),
-            eq(schema.workspaceInvitation.status, 'pending')
+            eq(workspaceInvitation.email, orgInvitation.email),
+            eq(workspaceInvitation.status, 'pending')
           )
         )
 
@@ -313,29 +307,29 @@ export async function POST(req: NextRequest) {
         if (wsInvitation.expiresAt && new Date() <= wsInvitation.expiresAt) {
           const existingWorkspaceMember = await tx
             .select()
-            .from(schema.workspaceMember)
+            .from(workspaceMember)
             .where(
               and(
-                eq(schema.workspaceMember.workspaceId, wsInvitation.workspaceId),
-                eq(schema.workspaceMember.userId, session.user.id)
+                eq(workspaceMember.workspaceId, wsInvitation.workspaceId),
+                eq(workspaceMember.userId, session.user.id)
               )
             )
             .limit(1)
 
           const existingPermission = await tx
             .select()
-            .from(schema.permissions)
+            .from(permissions)
             .where(
               and(
-                eq(schema.permissions.userId, session.user.id),
-                eq(schema.permissions.entityType, 'workspace'),
-                eq(schema.permissions.entityId, wsInvitation.workspaceId)
+                eq(permissions.userId, session.user.id),
+                eq(permissions.entityType, 'workspace'),
+                eq(permissions.entityId, wsInvitation.workspaceId)
               )
             )
             .limit(1)
 
           if (existingWorkspaceMember.length === 0 && existingPermission.length === 0) {
-            await tx.insert(schema.workspaceMember).values({
+            await tx.insert(workspaceMember).values({
               id: randomUUID(),
               workspaceId: wsInvitation.workspaceId,
               userId: session.user.id,
@@ -344,7 +338,7 @@ export async function POST(req: NextRequest) {
               updatedAt: new Date(),
             })
 
-            await tx.insert(schema.permissions).values({
+            await tx.insert(permissions).values({
               id: randomUUID(),
               userId: session.user.id,
               entityType: 'workspace',
@@ -355,9 +349,9 @@ export async function POST(req: NextRequest) {
             })
 
             await tx
-              .update(schema.workspaceInvitation)
+              .update(workspaceInvitation)
               .set({ status: 'accepted' })
-              .where(eq(schema.workspaceInvitation.id, wsInvitation.id))
+              .where(eq(workspaceInvitation.id, wsInvitation.id))
 
             acceptedWorkspaces++
           }
