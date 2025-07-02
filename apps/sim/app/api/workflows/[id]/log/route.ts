@@ -34,8 +34,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Check if this execution is from chat using only the explicit source flag
       const isChatExecution = result.metadata?.source === 'chat'
 
-
-
       // Also log to enhanced system
       try {
         const triggerType = isChatExecution ? 'chat' : 'manual'
@@ -221,15 +219,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         logger.debug(
           `[${requestId}] Built ${traceSpans.length} trace spans for execution ${executionId}:`,
           {
-            traceSpans: traceSpans.map((span: { id: string; name: string; status?: string; input?: unknown; output?: unknown }) => ({
-              id: span.id,
-              name: span.name,
-              status: span.status,
-              hasInput: !!span.input,
-              hasOutput: !!span.output,
-              input: span.input,
-              output: span.output,
-            })),
+            traceSpans: traceSpans.map(
+              (span: {
+                id: string
+                name: string
+                status?: string
+                input?: unknown
+                output?: unknown
+              }) => ({
+                id: span.id,
+                name: span.name,
+                status: span.status,
+                hasInput: !!span.input,
+                hasOutput: !!span.output,
+                input: span.input,
+                output: span.output,
+              })
+            ),
           }
         )
 
@@ -243,7 +249,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             totalInputCost: costSummary.totalInputCost,
             totalOutputCost: costSummary.totalOutputCost,
             totalTokens: costSummary.totalTokens,
-
           },
           finalOutput: result.output || {},
           traceSpans,

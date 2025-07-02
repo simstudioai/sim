@@ -542,7 +542,9 @@ export function Sidebar({
                     {log.metadata?.cost?.total && (
                       <div className='flex justify-between'>
                         <span>Total Cost:</span>
-                        <span className='font-medium'>${log.metadata?.cost?.total?.toFixed(4)}</span>
+                        <span className='font-medium'>
+                          ${log.metadata?.cost?.total?.toFixed(4)}
+                        </span>
                       </div>
                     )}
                     {log.metadata?.cost?.input && (
@@ -608,14 +610,17 @@ export function Sidebar({
                   <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Models</h3>
                   <div className='overflow-hidden rounded-md border'>
                     <div className='space-y-2 p-3'>
-
                       <div className='flex items-center justify-between'>
                         <span className='text-muted-foreground text-sm'>Input:</span>
-                        <span className='text-sm'>{formatCost(log.metadata?.cost?.input || 0)}</span>
+                        <span className='text-sm'>
+                          {formatCost(log.metadata?.cost?.input || 0)}
+                        </span>
                       </div>
                       <div className='flex items-center justify-between'>
                         <span className='text-muted-foreground text-sm'>Output:</span>
-                        <span className='text-sm'>{formatCost(log.metadata?.cost?.output || 0)}</span>
+                        <span className='text-sm'>
+                          {formatCost(log.metadata?.cost?.output || 0)}
+                        </span>
                       </div>
                       <div className='mt-1 flex items-center justify-between border-t pt-2'>
                         <span className='text-muted-foreground text-sm'>Total:</span>
@@ -641,7 +646,8 @@ export function Sidebar({
                             className='flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-muted/50'
                           >
                             <span className='font-medium text-muted-foreground text-xs'>
-                              Model Breakdown ({Object.keys(log.metadata?.cost?.models || {}).length})
+                              Model Breakdown (
+                              {Object.keys(log.metadata?.cost?.models || {}).length})
                             </span>
                             {isModelsExpanded ? (
                               <ChevronUp className='h-3 w-3 text-muted-foreground' />

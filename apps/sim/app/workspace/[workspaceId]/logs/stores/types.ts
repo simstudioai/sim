@@ -22,16 +22,19 @@ export interface ToolCallMetadata {
 }
 
 export interface CostMetadata {
-  models?: Record<string, {
-    input: number
-    output: number
-    total: number
-    tokens?: {
-      prompt?: number
-      completion?: number
-      total?: number
+  models?: Record<
+    string,
+    {
+      input: number
+      output: number
+      total: number
+      tokens?: {
+        prompt?: number
+        completion?: number
+        total?: number
+      }
     }
-  }>
+  >
   input?: number
   output?: number
   total?: number
