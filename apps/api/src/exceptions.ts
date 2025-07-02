@@ -14,23 +14,9 @@ export const Exceptions = {
     USER_IS_SOCIAL_ACCOUNT_PASSWORD: "Password is not accepted as the user created the account with a social provider",
     USER_INVALID_PASSWORD: "The provided password is invalid",
     USER_INVALID_PASSWORD_RESET_TOKEN: "The provided password reset token is invalid or has expired",
-    WORKSPACE_NOT_FOUND: "Organization was not found",
-    WORKSPACE_SOCIAL_PROFILE_ALREADY_CONNECTED: "The social profile has already been added to an account",
-    WORKSPACE_SOCIAL_PROFILE_NOT_FOUND: "Organization social profile was not found",
-    WORKSPACE_SOCIAL_PROFILE_PROVIDER_NOT_SUPPORTED: "The social profile provider is not supported",
-    WORKSPACE_QUESTION_NOT_FOUND: "Organization question was not found",
-    WORKSPACE_QUESTION_ANSWER_NOT_FOUND: "Organization question answer was not found",
-    WORKSPACE_BILLING_SUBSCRIPTION_NOT_FOUND: "Subscription was not found",
-    WORKSPACE_BILLING_PLAN_NOT_FOUND: "Plan was not found",
     INTERNAL_SERVER_ERROR: "An error occurred while processing your request",
     UNAUTHORIZED: "You are not authorized to perform this action",
-    FILE_UPLOAD_INVALID_IMAGE_DIMENSIONS: "The image dimensions are invalid",
     VALIDATION_ERROR: "Validation error",
-    INSIGHT_NOT_FOUND: "Insight was not found",
-    LEMONSQUEEZY_SIGNATURE_MISSING: "LemonSqueezy signature is missing",
-    LEMONSQUEEZY_SIGNATURE_INVALID: "LemonSqueezy signature is invalid",
-    LEMONSQUEEZY_SIGNATURE_BODY_MISSING: "No body was found, could not validate the signature",
-    LEMONSQUEEZY_SIGNING_KEY_INVALID: "LemonSqueezy signing key is invalid or not set",
     BLOCK_NOT_FOUND: 'BLOCK_NOT_FOUND'
 };
 

@@ -17,7 +17,6 @@
     "@elysiajs/cors": "^1.2.0",
     "@elysiajs/eden": "^1.2.0",
     "@elysiajs/jwt": "^1.2.0",
-    "@letta-ai/letta-client": "^0.1.119",
     "@simstudio.com/common": "*",
     "elysia": "^1.2.25"
   },
