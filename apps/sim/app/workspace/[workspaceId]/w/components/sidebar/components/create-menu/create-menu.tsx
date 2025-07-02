@@ -18,7 +18,11 @@ interface CreateMenuProps {
   isCreatingWorkflow?: boolean
 }
 
-export function CreateMenu({ onCreateWorkflow, isCollapsed, isCreatingWorkflow = false }: CreateMenuProps) {
+export function CreateMenu({
+  onCreateWorkflow,
+  isCollapsed,
+  isCreatingWorkflow = false,
+}: CreateMenuProps) {
   const [showFolderDialog, setShowFolderDialog] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
@@ -106,7 +110,7 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed, isCreatingWorkflow =
             className={cn(
               'flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors',
               isCreatingWorkflow
-                ? 'opacity-50 cursor-not-allowed'
+                ? 'cursor-not-allowed opacity-50'
                 : 'hover:bg-accent hover:text-accent-foreground'
             )}
             onClick={handleCreateWorkflow}
