@@ -1,5 +1,6 @@
 import { render } from '@react-email/components'
 import { generateUnsubscribeToken } from '@/lib/email/unsubscribe'
+import { BatchInvitationEmail } from './batch-invitation-email'
 import { InvitationEmail } from './invitation-email'
 import { OTPVerificationEmail } from './otp-verification-email'
 import { ResetPasswordEmail } from './reset-password-email'
@@ -41,6 +42,30 @@ export async function renderInvitationEmail(
   )
 }
 
+interface WorkspaceInvitation {
+  workspaceId: string
+  workspaceName: string
+  permission: 'admin' | 'write' | 'read'
+}
+
+export async function renderBatchInvitationEmail(
+  inviterName: string,
+  organizationName: string,
+  organizationRole: 'admin' | 'member',
+  workspaceInvitations: WorkspaceInvitation[],
+  acceptUrl: string
+): Promise<string> {
+  return await render(
+    BatchInvitationEmail({
+      inviterName,
+      organizationName,
+      organizationRole,
+      workspaceInvitations,
+      acceptUrl,
+    })
+  )
+}
+
 export async function renderWaitlistConfirmationEmail(email: string): Promise<string> {
   const unsubscribeToken = generateUnsubscribeToken(email, 'marketing')
   return await render(WaitlistConfirmationEmail({ email, unsubscribeToken }))
@@ -63,6 +88,7 @@ export function getEmailSubject(
     | 'waitlist-confirmation'
     | 'waitlist-approval'
     | 'invitation'
+    | 'batch-invitation'
 ): string {
   switch (type) {
     case 'sign-in':
@@ -79,6 +105,8 @@ export function getEmailSubject(
       return "You've Been Approved to Join Sim Studio!"
     case 'invitation':
       return "You've been invited to join a team on Sim Studio"
+    case 'batch-invitation':
+      return "You've been invited to join a team and workspaces on Sim Studio"
     default:
       return 'Sim Studio'
   }

@@ -3,7 +3,6 @@ import { Check, Edit2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useToast } from '@/hooks/use-toast'
 
 const logger = createLogger('UsageLimitEditor')
 
@@ -23,7 +22,7 @@ export function UsageLimitEditor({
   const [isEditing, setIsEditing] = useState(false)
   const [newLimit, setNewLimit] = useState(currentLimit.toString())
   const [isSaving, setIsSaving] = useState(false)
-  const { toast } = useToast()
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setNewLimit(currentLimit.toString())
@@ -33,26 +32,19 @@ export function UsageLimitEditor({
     const limitValue = Number.parseFloat(newLimit)
 
     if (Number.isNaN(limitValue) || limitValue <= 0) {
-      toast({
-        title: 'Invalid Limit',
-        description: 'Please enter a valid positive number',
-        variant: 'destructive',
-      })
+      setError('Please enter a valid positive number')
       return
     }
 
     if (limitValue < minimumLimit) {
-      toast({
-        title: 'Limit Too Low',
-        description: `Usage limit cannot be below your plan minimum of $${minimumLimit}`,
-        variant: 'destructive',
-      })
+      setError(`Usage limit cannot be below your plan minimum of $${minimumLimit}`)
       return
     }
 
     setIsSaving(true)
+    setError(null)
     try {
-      const response = await fetch('/api/user/usage-limit', {
+      const response = await fetch('/api/users/me/usage-limit', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -67,17 +59,9 @@ export function UsageLimitEditor({
 
       onLimitUpdated(limitValue)
       setIsEditing(false)
-      toast({
-        title: 'Limit Updated',
-        description: `Your usage limit has been set to $${limitValue}`,
-      })
     } catch (error) {
       logger.error('Failed to update usage limit', { error })
-      toast({
-        title: 'Update Failed',
-        description: error instanceof Error ? error.message : 'Failed to update usage limit',
-        variant: 'destructive',
-      })
+      setError(error instanceof Error ? error.message : 'Failed to update usage limit')
     } finally {
       setIsSaving(false)
     }
@@ -86,6 +70,7 @@ export function UsageLimitEditor({
   const handleCancel = () => {
     setNewLimit(currentLimit.toString())
     setIsEditing(false)
+    setError(null)
   }
 
   if (!canEdit) {
@@ -94,37 +79,40 @@ export function UsageLimitEditor({
 
   if (isEditing) {
     return (
-      <div className='flex items-center gap-1'>
-        <div className='flex items-center'>
-          <span className='text-xs'>$</span>
-          <Input
-            type='number'
-            value={newLimit}
-            onChange={(e) => setNewLimit(e.target.value)}
-            className='h-6 w-20 px-1 text-xs'
-            min={minimumLimit}
-            step='1'
+      <div className='flex flex-col gap-1'>
+        <div className='flex items-center gap-1'>
+          <div className='flex items-center'>
+            <span className='text-xs'>$</span>
+            <Input
+              type='number'
+              value={newLimit}
+              onChange={(e) => setNewLimit(e.target.value)}
+              className='h-6 w-20 px-1 text-xs'
+              min={minimumLimit}
+              step='1'
+              disabled={isSaving}
+            />
+          </div>
+          <Button
+            size='icon'
+            variant='ghost'
+            className='h-6 w-6'
+            onClick={handleSave}
             disabled={isSaving}
-          />
+          >
+            <Check className='h-3 w-3' />
+          </Button>
+          <Button
+            size='icon'
+            variant='ghost'
+            className='h-6 w-6'
+            onClick={handleCancel}
+            disabled={isSaving}
+          >
+            <X className='h-3 w-3' />
+          </Button>
         </div>
-        <Button
-          size='icon'
-          variant='ghost'
-          className='h-6 w-6'
-          onClick={handleSave}
-          disabled={isSaving}
-        >
-          <Check className='h-3 w-3' />
-        </Button>
-        <Button
-          size='icon'
-          variant='ghost'
-          className='h-6 w-6'
-          onClick={handleCancel}
-          disabled={isSaving}
-        >
-          <X className='h-3 w-3' />
-        </Button>
+        {error && <div className='text-destructive text-xs'>{error}</div>}
       </div>
     )
   }

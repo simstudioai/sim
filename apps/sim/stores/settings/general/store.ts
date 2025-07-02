@@ -84,7 +84,7 @@ export const useGeneralStore = create<GeneralStore>()(
             try {
               set({ isLoading: true, error: null })
 
-              const response = await fetch('/api/user/settings')
+              const response = await fetch('/api/users/me/settings')
 
               if (!response.ok) {
                 throw new Error('Failed to fetch settings')
@@ -127,7 +127,7 @@ export const useGeneralStore = create<GeneralStore>()(
             }
 
             try {
-              const response = await fetch('/api/user/settings', {
+              const response = await fetch('/api/users/me/settings', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ [key]: value }),
