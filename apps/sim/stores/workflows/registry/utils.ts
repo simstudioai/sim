@@ -86,7 +86,7 @@ export const WORKFLOW_COLORS = [
   '#F8C471', // Peach
   '#82E0AA', // Light Green
   '#F1948A', // Salmon
-  '#85C1E9', // Powder Blue
+  '#D7BDE2', // Lilac
   '#D7BDE2', // Lilac
 ]
 
