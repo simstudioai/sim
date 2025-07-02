@@ -355,12 +355,13 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     try {
-      const response = await fetch('/api/user/usage')
+      const response = await fetch('/api/users/me/subscription')
       if (!response.ok) {
         throw new Error('Failed to fetch usage data')
       }
 
-      const usage = await response.json()
+      const data = await response.json()
+      const usage = data.usage // Extract usage from consolidated response
 
       // Update cache
       usageDataCache = {

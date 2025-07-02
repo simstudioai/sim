@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle, Copy, PlusCircle, RefreshCw, UserX, XCircle } from 'lucide-react'
+import { Building2, CheckCircle, PlusCircle, RefreshCw, Save, UserX, XCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -11,13 +12,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { client, useSession } from '@/lib/auth-client'
+import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { checkEnterprisePlan } from '@/lib/subscription/utils'
 import { TeamSeatsDialog } from '../subscription/components/team-seats-dialog'
 import { TeamMemberUsage } from './components/team-member-usage'
 
@@ -112,6 +114,17 @@ export function TeamManagement() {
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false)
   const [hasTeamPlan, setHasTeamPlan] = useState(false)
   const [hasEnterprisePlan, setHasEnterprisePlan] = useState(false)
+
+  // Organization settings state
+  const [orgFormData, setOrgFormData] = useState({
+    name: '',
+    slug: '',
+    logo: '',
+  })
+  const [isSavingOrgSettings, setIsSavingOrgSettings] = useState(false)
+  const [orgSettingsError, setOrgSettingsError] = useState<string | null>(null)
+  const [orgSettingsSuccess, setOrgSettingsSuccess] = useState<string | null>(null)
+
   const { userRole, isAdminOrOwner } = useOrganizationRole(session?.user?.email, activeOrganization)
   const { used: usedSeats } = useMemo(
     () => calculateSeatUsage(activeOrganization),
@@ -134,7 +147,7 @@ export function TeamManagement() {
       setOrganizations(orgsResponse.data || [])
 
       // Check if user has a team or enterprise subscription
-      const response = await fetch('/api/user/subscription')
+      const response = await fetch('/api/users/me/subscription')
       const data = await response.json()
       setHasTeamPlan(data.isTeam)
       setHasEnterprisePlan(data.isEnterprise)
@@ -157,6 +170,13 @@ export function TeamManagement() {
   useEffect(() => {
     if (activeOrg) {
       setActiveOrganization(activeOrg)
+
+      // Initialize organization form data
+      setOrgFormData({
+        name: activeOrg.name || '',
+        slug: activeOrg.slug || '',
+        logo: activeOrg.logo || '',
+      })
 
       // Load subscription data for the organization
       if (activeOrg.id) {
@@ -207,7 +227,7 @@ export function TeamManagement() {
           // If no subscription found through client API, check for enterprise subscriptions
           if (hasEnterprisePlan) {
             try {
-              const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
+              const enterpriseResponse = await fetch('/api/users/me/subscription/enterprise')
               if (enterpriseResponse.ok) {
                 const enterpriseData = await enterpriseResponse.json()
                 if (enterpriseData.subscription) {
@@ -350,7 +370,7 @@ export function TeamManagement() {
         if (!teamSubscription && hasEnterprisePlan) {
           logger.info('No subscription found via client API, checking enterprise endpoint')
           try {
-            const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
+            const enterpriseResponse = await fetch('/api/users/me/subscription/enterprise')
             if (enterpriseResponse.ok) {
               const enterpriseData = await enterpriseResponse.json()
               if (enterpriseData.subscription) {
@@ -391,7 +411,7 @@ export function TeamManagement() {
           // Use a custom API endpoint to transfer the subscription without going to Stripe
           try {
             const transferResponse = await fetch(
-              `/api/user/subscription/${teamSubscription.id}/transfer`,
+              `/api/users/me/subscription/${teamSubscription.id}/transfer`,
               {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -706,6 +726,90 @@ export function TeamManagement() {
       setIsUpdatingSeats(false)
     }
   }
+
+  // Organization settings functions
+  const handleOrgInputChange = (field: string, value: string) => {
+    setOrgFormData((prev) => ({ ...prev, [field]: value }))
+
+    // Auto-generate slug from name if user is typing in name field
+    if (field === 'name' && value) {
+      const autoSlug = value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single
+        .trim()
+
+      setOrgFormData((prev) => ({ ...prev, slug: autoSlug }))
+    }
+  }
+
+  const handleSaveOrgSettings = async () => {
+    if (!activeOrganization?.id || !isAdminOrOwner) return
+
+    // Validate form
+    if (!orgFormData.name.trim()) {
+      setOrgSettingsError('Organization name is required')
+      return
+    }
+
+    if (!orgFormData.slug.trim()) {
+      setOrgSettingsError('Organization slug is required')
+      return
+    }
+
+    // Validate slug format
+    const slugRegex = /^[a-z0-9-_]+$/
+    if (!slugRegex.test(orgFormData.slug)) {
+      setOrgSettingsError(
+        'Slug can only contain lowercase letters, numbers, hyphens, and underscores'
+      )
+      return
+    }
+
+    try {
+      setIsSavingOrgSettings(true)
+      setOrgSettingsError(null)
+      setOrgSettingsSuccess(null)
+
+      const response = await fetch(`/api/organizations/${activeOrganization.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: orgFormData.name.trim(),
+          slug: orgFormData.slug.trim(),
+          logo: orgFormData.logo.trim() || null,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update organization settings')
+      }
+
+      const result = await response.json()
+      setOrgSettingsSuccess('Organization settings updated successfully')
+
+      // Refresh organization data
+      await refreshOrganization()
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setOrgSettingsSuccess(null), 3000)
+    } catch (error) {
+      logger.error('Failed to update organization settings', { error })
+      setOrgSettingsError(error instanceof Error ? error.message : 'Failed to update settings')
+    } finally {
+      setIsSavingOrgSettings(false)
+    }
+  }
+
+  const hasOrgChanges =
+    activeOrganization &&
+    (orgFormData.name !== activeOrganization.name ||
+      orgFormData.slug !== activeOrganization.slug ||
+      orgFormData.logo !== (activeOrganization.logo || ''))
 
   if (isLoading && !activeOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
     return <TeamManagementSkeleton />
@@ -1079,111 +1183,114 @@ export function TeamManagement() {
           <TeamMemberUsage organizationId={activeOrganization.id} isAdmin={isAdminOrOwner} />
         </TabsContent>
 
-        <TabsContent value='settings' className='mt-4 space-y-4'>
-          <div className='space-y-4 rounded-md border p-4'>
-            <div>
-              <h4 className='mb-2 font-medium text-sm'>Team Workspace Name</h4>
-              <div className='font-medium'>{activeOrganization.name}</div>
-            </div>
-
-            <div>
-              <h4 className='mb-2 font-medium text-sm'>URL Slug</h4>
-              <div className='flex items-center space-x-2'>
-                <code className='rounded bg-muted px-2 py-1 text-sm'>
-                  {activeOrganization.slug}
-                </code>
-                <Button variant='ghost' size='sm'>
-                  <Copy className='h-4 w-4' />
-                </Button>
-              </div>
-            </div>
-
-            <div>
-              <h4 className='mb-2 font-medium text-sm'>Created On</h4>
-              <div className='text-sm'>
-                {new Date(activeOrganization.createdAt).toLocaleDateString()}
-              </div>
-            </div>
-
-            {/* Only show subscription details to admins/owners */}
-            {isAdminOrOwner && (
-              <div>
-                <h4 className='mb-2 font-medium text-sm'>Subscription Status</h4>
-                {isLoadingSubscription ? (
-                  <TeamSeatsSkeleton />
-                ) : subscriptionData ? (
-                  <div className='space-y-2'>
-                    <div className='flex items-center space-x-2'>
-                      <div
-                        className={`h-2 w-2 rounded-full ${
-                          subscriptionData.status === 'active'
-                            ? 'bg-green-500'
-                            : subscriptionData.status === 'trialing'
-                              ? 'bg-amber-500'
-                              : 'bg-red-500'
-                        }`}
-                      />
-                      <span className='font-medium capitalize'>
-                        {getEffectivePlanName()} {subscriptionData.status}
-                        {subscriptionData.cancelAtPeriodEnd ? ' (Cancels at period end)' : ''}
-                      </span>
-                    </div>
-                    <div className='text-muted-foreground text-sm'>
-                      <div>Team seats: {subscriptionData.seats}</div>
-                      {checkEnterprisePlan(subscriptionData) && subscriptionData.metadata && (
-                        <div>
-                          {subscriptionData.metadata.perSeatAllowance && (
-                            <div>
-                              Per-seat allowance: ${subscriptionData.metadata.perSeatAllowance}
-                            </div>
-                          )}
-                          {subscriptionData.metadata.totalAllowance && (
-                            <div>Total allowance: ${subscriptionData.metadata.totalAllowance}</div>
-                          )}
-                        </div>
-                      )}
-                      {subscriptionData.periodEnd && (
-                        <div>
-                          Next billing date:{' '}
-                          {new Date(subscriptionData.periodEnd).toLocaleDateString()}
-                        </div>
-                      )}
-                      {subscriptionData.trialEnd && (
-                        <div>
-                          Trial ends: {new Date(subscriptionData.trialEnd).toLocaleDateString()}
-                        </div>
-                      )}
-                      <div className='mt-2 text-xs'>
-                        This subscription is associated with this team workspace.
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className='text-muted-foreground text-sm'>No active subscription found</div>
-                )}
-              </div>
-            )}
-
-            {!isAdminOrOwner && (
-              <div>
-                <h4 className='mb-2 font-medium text-sm'>Your Role</h4>
-                <div className='text-sm'>
-                  You are a <span className='font-medium capitalize'>{userRole}</span> of this
-                  workspace.
-                  {userRole === 'member' && (
-                    <p className='mt-2 text-muted-foreground text-xs'>
-                      Contact a workspace admin or owner for subscription changes or to invite new
-                      members.
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
+        <TabsContent value='settings' className='mt-4 space-y-6'>
+          <div className='flex items-center space-x-2'>
+            <Building2 className='h-5 w-5' />
+            <h3 className='font-semibold text-lg'>Team Settings</h3>
           </div>
+
+          {orgSettingsError && (
+            <Alert variant='destructive'>
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{orgSettingsError}</AlertDescription>
+            </Alert>
+          )}
+
+          {orgSettingsSuccess && (
+            <Alert>
+              <AlertTitle>Success</AlertTitle>
+              <AlertDescription>{orgSettingsSuccess}</AlertDescription>
+            </Alert>
+          )}
+
+          {!isAdminOrOwner && (
+            <Alert>
+              <AlertTitle>Read Only</AlertTitle>
+              <AlertDescription>
+                You need owner or admin permissions to modify team settings.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Basic Information</CardTitle>
+              <CardDescription>Update your team's basic information and branding</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='team-name'>Team Name</Label>
+                <Input
+                  id='team-name'
+                  value={orgFormData.name}
+                  onChange={(e) => handleOrgInputChange('name', e.target.value)}
+                  placeholder='Enter team name'
+                  disabled={!isAdminOrOwner}
+                />
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='team-slug'>Team Slug</Label>
+                <Input
+                  id='team-slug'
+                  value={orgFormData.slug}
+                  onChange={(e) => handleOrgInputChange('slug', e.target.value)}
+                  placeholder='team-slug'
+                  disabled={!isAdminOrOwner}
+                />
+                <p className='text-muted-foreground text-sm'>
+                  Used in URLs and API references. Can only contain lowercase letters, numbers,
+                  hyphens, and underscores.
+                </p>
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='team-logo'>Logo URL (Optional)</Label>
+                <Input
+                  id='team-logo'
+                  value={orgFormData.logo}
+                  onChange={(e) => handleOrgInputChange('logo', e.target.value)}
+                  placeholder='https://example.com/logo.png'
+                  disabled={!isAdminOrOwner}
+                />
+              </div>
+
+              {isAdminOrOwner && (
+                <div className='flex justify-end space-x-2 pt-4'>
+                  <Button
+                    onClick={handleSaveOrgSettings}
+                    disabled={!hasOrgChanges || isSavingOrgSettings}
+                    className='flex items-center space-x-2'
+                  >
+                    <Save className='h-4 w-4' />
+                    <span>{isSavingOrgSettings ? 'Saving...' : 'Save Changes'}</span>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Team Information</CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-2 text-sm'>
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>Team ID:</span>
+                <span className='font-mono'>{activeOrganization.id}</span>
+              </div>
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>Created:</span>
+                <span>{new Date(activeOrganization.createdAt).toLocaleDateString()}</span>
+              </div>
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>Your Role:</span>
+                <span className='font-medium capitalize'>{userRole}</span>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Member removal confirmation dialog */}
       <Dialog
         open={removeMemberDialog.open}
         onOpenChange={(open) => {
@@ -1244,8 +1351,6 @@ export function TeamManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Add Seat Dialog - using shared component */}
       <TeamSeatsDialog
         open={isAddSeatDialogOpen}
         onOpenChange={setIsAddSeatDialogOpen}

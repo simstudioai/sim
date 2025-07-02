@@ -101,7 +101,7 @@ export function DeployForm({
 
     setIsCreating(true)
     try {
-      const response = await fetch('/api/user/api-keys', {
+      const response = await fetch('/api/users/me/api-keys', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

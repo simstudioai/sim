@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { client, useSubscription } from '@/lib/auth-client'
+import { client, useActiveOrganization, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -45,6 +45,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [isLoading, setIsLoading] = useState(true)
   const loadSettings = useGeneralStore((state) => state.loadSettings)
   const subscription = useMemo(() => useSubscription(), [])
+  const { data: activeOrg } = useActiveOrganization()
   const hasLoadedInitialData = useRef(false)
 
   useEffect(() => {
@@ -58,19 +59,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       try {
         await loadSettings()
 
-        const proStatusResponse = await fetch('/api/user/subscription')
+        const subResponse = await fetch('/api/users/me/subscription')
 
-        if (proStatusResponse.ok) {
-          const subData = await proStatusResponse.json()
+        if (subResponse.ok) {
+          const subData = await subResponse.json()
           setIsPro(subData.isPro)
           setIsTeam(subData.isTeam)
           setIsEnterprise(subData.isEnterprise)
-        }
-
-        const usageResponse = await fetch('/api/user/usage')
-        if (usageResponse.ok) {
-          const usageData = await usageResponse.json()
-          setUsageData(usageData)
+          setUsageData(subData.usage)
         }
 
         try {
@@ -78,7 +74,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
           if (isEnterprise) {
             try {
-              const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
+              const enterpriseResponse = await fetch('/api/users/me/subscription/enterprise')
               if (enterpriseResponse.ok) {
                 const enterpriseData = await enterpriseResponse.json()
                 if (enterpriseData.subscription) {
@@ -164,6 +160,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               onSectionChange={setActiveSection}
               isTeam={isTeam}
               isEnterprise={isEnterprise}
+              hasOrganization={!!activeOrg?.id}
             />
           </div>
 
@@ -186,15 +183,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             </div>
             {isSubscriptionEnabled && (
               <div className={cn('h-full', activeSection === 'subscription' ? 'block' : 'hidden')}>
-                <Subscription
-                  onOpenChange={onOpenChange}
-                  cachedIsPro={isPro}
-                  cachedIsTeam={isTeam}
-                  cachedIsEnterprise={isEnterprise}
-                  cachedUsageData={usageData}
-                  cachedSubscriptionData={subscriptionData}
-                  isLoading={isLoading}
-                />
+                <Subscription onOpenChange={onOpenChange} />
               </div>
             )}
             {showTeamManagement && (

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useToast } from '@/hooks/use-toast'
 
 const logger = createLogger('TeamMemberUsage')
 
@@ -31,7 +30,7 @@ export function TeamMemberUsage({ organizationId, isAdmin }: TeamMemberUsageProp
   const [editingMember, setEditingMember] = useState<string | null>(null)
   const [newLimit, setNewLimit] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const { toast } = useToast()
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchTeamUsage()
@@ -50,11 +49,7 @@ export function TeamMemberUsage({ organizationId, isAdmin }: TeamMemberUsageProp
       setTeamUsage(data.teamUsageLimits)
     } catch (error) {
       logger.error('Failed to fetch team usage', { error })
-      toast({
-        title: 'Error',
-        description: 'Failed to load team usage data',
-        variant: 'destructive',
-      })
+      setError('Failed to load team usage data')
     } finally {
       setLoading(false)
     }
@@ -69,15 +64,12 @@ export function TeamMemberUsage({ organizationId, isAdmin }: TeamMemberUsageProp
     const limitValue = Number.parseFloat(newLimit)
 
     if (Number.isNaN(limitValue) || limitValue <= 0) {
-      toast({
-        title: 'Invalid Limit',
-        description: 'Please enter a valid positive number',
-        variant: 'destructive',
-      })
+      setError('Please enter a valid positive number')
       return
     }
 
     setIsSaving(true)
+    setError(null)
     try {
       const response = await fetch(`/api/team/${organizationId}/usage-limits/${userId}`, {
         method: 'PUT',
@@ -102,17 +94,9 @@ export function TeamMemberUsage({ organizationId, isAdmin }: TeamMemberUsageProp
       )
 
       setEditingMember(null)
-      toast({
-        title: 'Limit Updated',
-        description: `Updated usage limit to $${limitValue}`,
-      })
     } catch (error) {
       logger.error('Failed to update member usage limit', { error })
-      toast({
-        title: 'Update Failed',
-        description: error instanceof Error ? error.message : 'Failed to update usage limit',
-        variant: 'destructive',
-      })
+      setError(error instanceof Error ? error.message : 'Failed to update usage limit')
     } finally {
       setIsSaving(false)
     }
@@ -121,6 +105,7 @@ export function TeamMemberUsage({ organizationId, isAdmin }: TeamMemberUsageProp
   const handleCancelEdit = () => {
     setEditingMember(null)
     setNewLimit('')
+    setError(null)
   }
 
   if (loading) {
@@ -161,6 +146,12 @@ export function TeamMemberUsage({ organizationId, isAdmin }: TeamMemberUsageProp
         <TrendingUp className='h-4 w-4' />
         <h4 className='font-medium'>Team Usage Overview</h4>
       </div>
+
+      {error && (
+        <div className='rounded-md border border-destructive/50 bg-destructive/10 p-3 text-destructive text-sm'>
+          {error}
+        </div>
+      )}
 
       <div className='space-y-3'>
         {teamUsage.map((member) => {
