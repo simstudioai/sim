@@ -322,13 +322,21 @@ export async function GET() {
           workspaceId: workflowRecord.workspaceId || '',
         }
 
-        // Create workflow state from the current workflow data
-        const state = (workflowRecord.state as any) || {}
+        // Load the actual workflow state from normalized tables
+        const enhancedNormalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
+
+        if (!enhancedNormalizedData) {
+          throw new Error(
+            `Workflow ${schedule.workflowId} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
+          )
+        }
+
+        // Use the actual current workflow state
         const workflowState = {
-          blocks: state.blocks || {},
-          edges: state.edges || [],
-          loops: state.loops || {},
-          parallels: state.parallels || {},
+          blocks: enhancedNormalizedData.blocks || {},
+          edges: enhancedNormalizedData.edges || [],
+          loops: enhancedNormalizedData.loops || {},
+          parallels: enhancedNormalizedData.parallels || {},
         }
 
         try {

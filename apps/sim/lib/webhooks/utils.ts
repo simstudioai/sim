@@ -448,12 +448,21 @@ export async function executeWorkflowFromPayload(
     workspaceId: foundWorkflow.workspaceId,
   }
 
-  // Create workflow state from the current workflow data
+  // Load the actual workflow state from normalized tables
+  const normalizedData = await loadWorkflowFromNormalizedTables(foundWorkflow.id)
+
+  if (!normalizedData) {
+    throw new Error(
+      `Workflow ${foundWorkflow.id} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
+    )
+  }
+
+  // Use the actual current workflow state
   const workflowState = {
-    blocks: foundWorkflow.blocks || {},
-    edges: foundWorkflow.edges || [],
-    loops: foundWorkflow.loops || {},
-    parallels: foundWorkflow.parallels || {},
+    blocks: normalizedData.blocks || {},
+    edges: normalizedData.edges || [],
+    loops: normalizedData.loops || {},
+    parallels: normalizedData.parallels || {},
   }
 
   try {

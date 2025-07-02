@@ -51,12 +51,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           workspaceId: '', // TODO: Get from workflow
         }
 
-        // Create a basic workflow state - we don't have the full state here
+        // Load the actual workflow state from normalized tables
+        const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/db-helpers')
+        const normalizedData = await loadWorkflowFromNormalizedTables(id)
+
+        if (!normalizedData) {
+          throw new Error(
+            `Workflow ${id} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
+          )
+        }
+
+        // Use the actual current workflow state
         const workflowState = {
-          blocks: {},
-          edges: [],
-          loops: {},
-          parallels: {},
+          blocks: normalizedData.blocks || {},
+          edges: normalizedData.edges || [],
+          loops: normalizedData.loops || {},
+          parallels: normalizedData.parallels || {},
         }
 
         // Start enhanced logging

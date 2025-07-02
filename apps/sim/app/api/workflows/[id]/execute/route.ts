@@ -75,28 +75,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     workspaceId: workflow.workspaceId,
   }
 
-  // Create workflow state from the current workflow data
-  const workflowState = {
-    blocks: workflow.blocks || {},
-    edges: workflow.edges || [],
-    loops: workflow.loops || {},
-    parallels: workflow.parallels || {},
-  }
-
-  try {
-    await enhancedExecutionLogger.startWorkflowExecution({
-      workflowId,
-      executionId,
-      trigger,
-      environment: executionEnvironment,
-      workflowState,
-    })
-
-    logger.debug(`[${requestId}] Started enhanced logging for execution ${executionId}`)
-  } catch (enhancedError) {
-    logger.error(`[${requestId}] Failed to start enhanced logging:`, enhancedError)
-    // Continue with execution even if enhanced logging fails
-  }
+  // Note: We'll create the workflowState after loading normalized data to ensure we hash the current state
 
   // Check if the user has exceeded their usage limits
   const usageCheck = await checkServerSideUsageLimits(workflow.userId)
@@ -138,29 +117,44 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     logger.debug(`[${requestId}] Loading workflow ${workflowId} from normalized tables`)
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
-    let blocks: Record<string, any>
-    let edges: any[]
-    let loops: Record<string, any>
-    let parallels: Record<string, any>
-
-    if (normalizedData) {
-      // Use normalized data as primary source
-      ;({ blocks, edges, loops, parallels } = normalizedData)
-      logger.info(`[${requestId}] Using normalized tables for workflow execution: ${workflowId}`)
-    } else {
-      // Fallback to deployed state if available (for legacy workflows)
-      logger.warn(
-        `[${requestId}] No normalized data found, falling back to deployed state for workflow: ${workflowId}`
+    if (!normalizedData) {
+      throw new Error(
+        `Workflow ${workflowId} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
       )
+    }
 
-      if (!workflow.deployedState) {
-        throw new Error(
-          `Workflow ${workflowId} has no deployed state and no normalized data available`
-        )
-      }
+    // Use normalized data as primary source
+    const { blocks, edges, loops, parallels } = normalizedData
+    logger.info(`[${requestId}] Using normalized tables for workflow execution: ${workflowId}`)
+    logger.debug(`[${requestId}] Normalized data loaded:`, {
+      blocksCount: Object.keys(blocks || {}).length,
+      edgesCount: (edges || []).length,
+      loopsCount: Object.keys(loops || {}).length,
+      parallelsCount: Object.keys(parallels || {}).length,
+    })
 
-      const deployedState = workflow.deployedState as WorkflowState
-      ;({ blocks, edges, loops, parallels } = deployedState)
+    // Create workflow state from the current normalized data (not old JSON state)
+    const workflowState = {
+      blocks: blocks || {},
+      edges: edges || [],
+      loops: loops || {},
+      parallels: parallels || {},
+    }
+
+    // Start enhanced logging with the current state
+    try {
+      await enhancedExecutionLogger.startWorkflowExecution({
+        workflowId,
+        executionId,
+        trigger,
+        environment: executionEnvironment,
+        workflowState,
+      })
+
+      logger.debug(`[${requestId}] Started enhanced logging for execution ${executionId}`)
+    } catch (enhancedError) {
+      logger.error(`[${requestId}] Failed to start enhanced logging:`, enhancedError)
+      // Continue with execution even if enhanced logging fails
     }
 
     // Use the same execution flow as in scheduled executions
