@@ -73,18 +73,18 @@ export class Executor {
     private workflowParam:
       | SerializedWorkflow
       | {
-        workflow: SerializedWorkflow
-        currentBlockStates?: Record<string, BlockOutput>
-        envVarValues?: Record<string, string>
-        workflowInput?: any
-        workflowVariables?: Record<string, any>
-        contextExtensions?: {
-          stream?: boolean
-          selectedOutputIds?: string[]
-          edges?: Array<{ source: string; target: string }>
-          onStream?: (streamingExecution: StreamingExecution) => Promise<void>
-        }
-      },
+          workflow: SerializedWorkflow
+          currentBlockStates?: Record<string, BlockOutput>
+          envVarValues?: Record<string, string>
+          workflowInput?: any
+          workflowVariables?: Record<string, any>
+          contextExtensions?: {
+            stream?: boolean
+            selectedOutputIds?: string[]
+            edges?: Array<{ source: string; target: string }>
+            onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+          }
+        },
     private initialBlockStates: Record<string, BlockOutput> = {},
     private environmentVariables: Record<string, string> = {},
     workflowInput?: any,
@@ -648,7 +648,10 @@ export class Executor {
           // Handle structured input (like API calls or chat messages)
           if (this.workflowInput && typeof this.workflowInput === 'object') {
             // Check if this is a chat workflow input (has both input and conversationId)
-            if (this.workflowInput.hasOwnProperty('input') && this.workflowInput.hasOwnProperty('conversationId')) {
+            if (
+              Object.hasOwn(this.workflowInput, 'input') &&
+              Object.hasOwn(this.workflowInput, 'conversationId')
+            ) {
               // Chat workflow: extract input and conversationId to root level
               const starterOutput = {
                 input: this.workflowInput.input,
@@ -690,7 +693,10 @@ export class Executor {
         let starterOutput: any
         if (this.workflowInput && typeof this.workflowInput === 'object') {
           // Check if this is a chat workflow input (has both input and conversationId)
-          if (this.workflowInput.hasOwnProperty('input') && this.workflowInput.hasOwnProperty('conversationId')) {
+          if (
+            Object.hasOwn(this.workflowInput, 'input') &&
+            Object.hasOwn(this.workflowInput, 'conversationId')
+          ) {
             // Chat workflow: extract input and conversationId to root level
             starterOutput = {
               input: this.workflowInput.input,
@@ -1261,8 +1267,9 @@ export class Executor {
             workflowId: context.workflowId,
             blockId: parallelInfo ? blockId : block.id,
             blockName: parallelInfo
-              ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1
-              })`
+              ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
+                  parallelInfo.iterationIndex + 1
+                })`
               : block.metadata?.name || 'Unnamed Block',
             blockType: block.metadata?.id || 'unknown',
           })
@@ -1328,8 +1335,9 @@ export class Executor {
           workflowId: context.workflowId,
           blockId: parallelInfo ? blockId : block.id,
           blockName: parallelInfo
-            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1
-            })`
+            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
+                parallelInfo.iterationIndex + 1
+              })`
             : block.metadata?.name || 'Unnamed Block',
           blockType: block.metadata?.id || 'unknown',
         })

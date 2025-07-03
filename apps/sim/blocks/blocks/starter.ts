@@ -1,5 +1,4 @@
 import { StartIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
 import type { BlockConfig } from '../types'
 
 export const StarterBlock: BlockConfig = {

@@ -1,9 +1,9 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks'
-import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { Serializer } from '@/serializer'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
@@ -51,10 +51,10 @@ export const checkTagTrigger = (text: string, cursorPosition: number): { show: b
 // Generate output paths from block configuration outputs
 const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
   const paths: string[] = []
-  
+
   for (const [key, value] of Object.entries(outputs)) {
     const currentPath = prefix ? `${prefix}.${key}` : key
-    
+
     if (typeof value === 'string') {
       // Simple type like 'string', 'number', 'json', 'any'
       paths.push(currentPath)
@@ -67,7 +67,7 @@ const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[
       paths.push(currentPath)
     }
   }
-  
+
   return paths
 }
 
@@ -113,7 +113,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   }, [inputValue, cursorPosition])
 
   // Generate all available tags using BlockPathCalculator and clean block outputs
-  const { tags, variableInfoMap = {}, blockTagGroups = [] } = useMemo(() => {
+  const {
+    tags,
+    variableInfoMap = {},
+    blockTagGroups = [],
+  } = useMemo(() => {
     // Handle active source block (drag & drop from specific block)
     if (activeSourceBlockId) {
       const sourceBlock = blocks[activeSourceBlockId]
@@ -128,7 +132,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       const blockName = sourceBlock.name || sourceBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
-      
+
       // Handle blocks with no outputs (like starter) - show as just <blockname>
       let blockTags: string[]
       if (Object.keys(blockConfig.outputs).length === 0) {
@@ -250,7 +254,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       const blockName = accessibleBlock.name || accessibleBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
-      
+
       // Handle blocks with no outputs (like starter) - show as just <blockname>
       let blockTags: string[]
       if (Object.keys(blockConfig.outputs).length === 0) {
@@ -279,15 +283,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       variableInfoMap,
       blockTagGroups,
     }
-  }, [
-    blocks,
-    edges,
-    loops,
-    parallels,
-    blockId,
-    activeSourceBlockId,
-    workflowVariables,
-  ])
+  }, [blocks, edges, loops, parallels, blockId, activeSourceBlockId, workflowVariables])
 
   // Filter tags based on search term
   const filteredTags = useMemo(() => {
@@ -695,7 +691,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                   {group.blockName.charAt(0).toUpperCase()}
                                 </span>
                               </div>
-                              <span className='max-w-[calc(100%-32px)] truncate'>{displayText}</span>
+                              <span className='max-w-[calc(100%-32px)] truncate'>
+                                {displayText}
+                              </span>
                             </button>
                           )
                         })}

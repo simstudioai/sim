@@ -12,7 +12,7 @@ const logger = createLogger('ParallelBlockHandler')
  * create virtual instances for true parallel execution.
  */
 export class ParallelBlockHandler implements BlockHandler {
-  constructor(private resolver?: InputResolver) { }
+  constructor(private resolver?: InputResolver) {}
 
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === 'parallel'

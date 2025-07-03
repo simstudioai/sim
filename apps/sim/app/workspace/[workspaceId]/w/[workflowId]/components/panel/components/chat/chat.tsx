@@ -152,8 +152,8 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
                     for (const outputId of outputsToRender) {
                       const blockIdForOutput = outputId.includes('_')
-                         ? outputId.split('_')[0]
-                         : outputId.split('.')[0]
+                        ? outputId.split('_')[0]
+                        : outputId.split('.')[0]
                       const path = outputId.substring(blockIdForOutput.length + 1)
                       const log = nonStreamingLogs.find((l) => l.blockId === blockIdForOutput)
 

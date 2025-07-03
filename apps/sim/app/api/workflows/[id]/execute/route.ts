@@ -78,7 +78,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   )
 
   // Use input directly for API workflows
-  let processedInput = input
+  const processedInput = input
   logger.info(
     `[${requestId}] Using input directly for workflow:`,
     JSON.stringify(processedInput, null, 2)
@@ -99,7 +99,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
 
     if (normalizedData) {
       // Use normalized data as primary source
-      ; ({ blocks, edges, loops, parallels } = normalizedData)
+      ;({ blocks, edges, loops, parallels } = normalizedData)
       logger.info(`[${requestId}] Using normalized tables for workflow execution: ${workflowId}`)
     } else {
       // Fallback to deployed state if available (for legacy workflows)
@@ -114,7 +114,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       }
 
       const deployedState = workflow.deployedState as WorkflowState
-        ; ({ blocks, edges, loops, parallels } = deployedState)
+      ;({ blocks, edges, loops, parallels } = deployedState)
     }
 
     // Use the same execution flow as in scheduled executions

@@ -155,25 +155,31 @@ describe('InputResolver', () => {
     // Create accessibility map for block references
     const accessibleBlocksMap = new Map<string, Set<string>>()
     // Allow all blocks to reference each other for testing
-    const allBlockIds = sampleWorkflow.blocks.map(b => b.id)
+    const allBlockIds = sampleWorkflow.blocks.map((b) => b.id)
     // Add common test block IDs
     const testBlockIds = ['test-block', 'test-block-2', 'generic-block']
     const allIds = [...allBlockIds, ...testBlockIds]
 
     // Set up accessibility for workflow blocks
-    sampleWorkflow.blocks.forEach(block => {
+    sampleWorkflow.blocks.forEach((block) => {
       const accessibleBlocks = new Set(allIds)
       accessibleBlocksMap.set(block.id, accessibleBlocks)
     })
 
     // Set up accessibility for test blocks
-    testBlockIds.forEach(testId => {
+    testBlockIds.forEach((testId) => {
       const accessibleBlocks = new Set(allIds)
       accessibleBlocksMap.set(testId, accessibleBlocks)
     })
 
     // Create resolver
-    resolver = new InputResolver(sampleWorkflow, mockEnvironmentVars, mockWorkflowVars, undefined, accessibleBlocksMap)
+    resolver = new InputResolver(
+      sampleWorkflow,
+      mockEnvironmentVars,
+      mockWorkflowVars,
+      undefined,
+      accessibleBlocksMap
+    )
   })
 
   afterEach(() => {
@@ -1088,17 +1094,17 @@ describe('InputResolver', () => {
 
       // Create accessibility map
       const accessibilityMap = new Map<string, Set<string>>()
-      const allBlockIds = workflow.blocks.map(b => b.id)
+      const allBlockIds = workflow.blocks.map((b) => b.id)
       const testBlockIds = ['test-block', 'function-1']
       const allIds = [...allBlockIds, ...testBlockIds]
 
-      workflow.blocks.forEach(block => {
+      workflow.blocks.forEach((block) => {
         const accessibleBlocks = new Set(allIds)
         accessibilityMap.set(block.id, accessibleBlocks)
       })
 
       // Set up accessibility for test blocks
-      testBlockIds.forEach(testId => {
+      testBlockIds.forEach((testId) => {
         const accessibleBlocks = new Set(allIds)
         accessibilityMap.set(testId, accessibleBlocks)
       })
@@ -1178,17 +1184,17 @@ describe('InputResolver', () => {
 
       // Create accessibility map for second test
       const accessibilityMap = new Map<string, Set<string>>()
-      const allBlockIds = workflow.blocks.map(b => b.id)
+      const allBlockIds = workflow.blocks.map((b) => b.id)
       const testBlockIds = ['test-block', 'function-1']
       const allIds = [...allBlockIds, ...testBlockIds]
 
-      workflow.blocks.forEach(block => {
+      workflow.blocks.forEach((block) => {
         const accessibleBlocks = new Set(allIds)
         accessibilityMap.set(block.id, accessibleBlocks)
       })
 
       // Set up accessibility for test blocks
-      testBlockIds.forEach(testId => {
+      testBlockIds.forEach((testId) => {
         const accessibleBlocks = new Set(allIds)
         accessibilityMap.set(testId, accessibleBlocks)
       })
@@ -1285,16 +1291,18 @@ describe('InputResolver', () => {
       const accessibleBlocksMap = new Map<string, Set<string>>()
       const testBlockIds = ['test-block', 'test-block-2', 'test-response-block', 'generic-block']
 
-      workflowWithConnections.blocks.forEach(block => {
+      workflowWithConnections.blocks.forEach((block) => {
         const accessibleBlocks = new Set<string>()
         // Add directly connected blocks (sources that connect to this block)
-        workflowWithConnections.connections.forEach(conn => {
+        workflowWithConnections.connections.forEach((conn) => {
           if (conn.target === block.id) {
             accessibleBlocks.add(conn.source)
           }
         })
         // Always allow starter block access
-        const starterBlock = workflowWithConnections.blocks.find(b => b.metadata?.id === 'starter')
+        const starterBlock = workflowWithConnections.blocks.find(
+          (b) => b.metadata?.id === 'starter'
+        )
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
@@ -1305,23 +1313,31 @@ describe('InputResolver', () => {
       // For "test-block" - it should have connection from function-1, so it can reference function-1 and start
       workflowWithConnections.connections.push({ source: 'function-1', target: 'test-block' })
 
-      testBlockIds.forEach(testId => {
+      testBlockIds.forEach((testId) => {
         const accessibleBlocks = new Set<string>()
         // Add directly connected blocks (sources that connect to this test block)
-        workflowWithConnections.connections.forEach(conn => {
+        workflowWithConnections.connections.forEach((conn) => {
           if (conn.target === testId) {
             accessibleBlocks.add(conn.source)
           }
         })
         // Always allow starter block access
-        const starterBlock = workflowWithConnections.blocks.find(b => b.metadata?.id === 'starter')
+        const starterBlock = workflowWithConnections.blocks.find(
+          (b) => b.metadata?.id === 'starter'
+        )
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
         accessibleBlocksMap.set(testId, accessibleBlocks)
       })
 
-      connectionResolver = new InputResolver(workflowWithConnections, {}, {}, undefined, accessibleBlocksMap)
+      connectionResolver = new InputResolver(
+        workflowWithConnections,
+        {},
+        {},
+        undefined,
+        accessibleBlocksMap
+      )
       contextWithConnections = {
         workflowId: 'test-workflow',
         blockStates: new Map([
@@ -1467,7 +1483,7 @@ describe('InputResolver', () => {
 
       const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
       expect(result.nameRef).toBe('Agent response') // Should not be quoted for function blocks
-      expect(result.normalizedRef).toBe('Agent response') // Should not be quoted for function blocks  
+      expect(result.normalizedRef).toBe('Agent response') // Should not be quoted for function blocks
       expect(result.idRef).toBe('Agent response') // Should not be quoted for function blocks
     })
 
@@ -1495,18 +1511,23 @@ describe('InputResolver', () => {
 
       // Create accessibility map for extended workflow
       const extendedAccessibilityMap = new Map<string, Set<string>>()
-      const extendedTestBlockIds = ['test-response-block', 'test-block', 'test-block-2', 'generic-block']
+      const extendedTestBlockIds = [
+        'test-response-block',
+        'test-block',
+        'test-block-2',
+        'generic-block',
+      ]
 
-      extendedWorkflow.blocks.forEach(block => {
+      extendedWorkflow.blocks.forEach((block) => {
         const accessibleBlocks = new Set<string>()
         // Add directly connected blocks (sources that connect to this block)
-        extendedWorkflow.connections.forEach(conn => {
+        extendedWorkflow.connections.forEach((conn) => {
           if (conn.target === block.id) {
             accessibleBlocks.add(conn.source)
           }
         })
         // Always allow starter block access
-        const starterBlock = extendedWorkflow.blocks.find(b => b.metadata?.id === 'starter')
+        const starterBlock = extendedWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
@@ -1514,23 +1535,29 @@ describe('InputResolver', () => {
       })
 
       // Set up accessibility for test blocks
-      extendedTestBlockIds.forEach(testId => {
+      extendedTestBlockIds.forEach((testId) => {
         const accessibleBlocks = new Set<string>()
         // Add directly connected blocks
-        extendedWorkflow.connections.forEach(conn => {
+        extendedWorkflow.connections.forEach((conn) => {
           if (conn.target === testId) {
             accessibleBlocks.add(conn.source)
           }
         })
         // Always allow starter block access
-        const starterBlock = extendedWorkflow.blocks.find(b => b.metadata?.id === 'starter')
+        const starterBlock = extendedWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
         extendedAccessibilityMap.set(testId, accessibleBlocks)
       })
 
-      const extendedResolver = new InputResolver(extendedWorkflow, {}, {}, undefined, extendedAccessibilityMap)
+      const extendedResolver = new InputResolver(
+        extendedWorkflow,
+        {},
+        {},
+        undefined,
+        extendedAccessibilityMap
+      )
       const responseBlock = extendedWorkflow.blocks[4] // response-1
       const testBlock: SerializedBlock = {
         ...responseBlock,
@@ -1647,38 +1674,40 @@ describe('InputResolver', () => {
       const loopAccessibilityMap = new Map<string, Set<string>>()
       const loopTestBlockIds = ['test-block', 'test-block-2', 'generic-block']
 
-      loopWorkflow.blocks.forEach(block => {
+      loopWorkflow.blocks.forEach((block) => {
         const accessibleBlocks = new Set<string>()
         // Add directly connected blocks
-        loopWorkflow.connections.forEach(conn => {
+        loopWorkflow.connections.forEach((conn) => {
           if (conn.target === block.id) {
             accessibleBlocks.add(conn.source)
           }
         })
         // Always allow starter block access
-        const starterBlock = loopWorkflow.blocks.find(b => b.metadata?.id === 'starter')
+        const starterBlock = loopWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
         // Allow blocks in same loop to reference each other
-        const blockLoop = Object.values(loopWorkflow.loops || {}).find(loop => loop.nodes.includes(block.id))
+        const blockLoop = Object.values(loopWorkflow.loops || {}).find((loop) =>
+          loop.nodes.includes(block.id)
+        )
         if (blockLoop) {
-          blockLoop.nodes.forEach(nodeId => accessibleBlocks.add(nodeId))
+          blockLoop.nodes.forEach((nodeId) => accessibleBlocks.add(nodeId))
         }
         loopAccessibilityMap.set(block.id, accessibleBlocks)
       })
 
       // Set up accessibility for test blocks
-      loopTestBlockIds.forEach(testId => {
+      loopTestBlockIds.forEach((testId) => {
         const accessibleBlocks = new Set<string>()
         // Add directly connected blocks
-        loopWorkflow.connections.forEach(conn => {
+        loopWorkflow.connections.forEach((conn) => {
           if (conn.target === testId) {
             accessibleBlocks.add(conn.source)
           }
         })
         // Always allow starter block access
-        const starterBlock = loopWorkflow.blocks.find(b => b.metadata?.id === 'starter')
+        const starterBlock = loopWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
