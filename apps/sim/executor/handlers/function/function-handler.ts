@@ -53,6 +53,6 @@ export class FunctionBlockHandler implements BlockHandler {
       throw new Error(result.error || 'Function execution failed')
     }
 
-    return result.output
+    return { response: result.output }
   }
 }
