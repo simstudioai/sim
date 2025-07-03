@@ -1,6 +1,5 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { webhook } from '@/db/schema'
@@ -37,19 +36,8 @@ export async function GET(request: NextRequest) {
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
 
     // Construct the webhook URL
-    const requestOrigin = new URL(request.url).origin
-    // Ensure origin does not point to localhost for external API calls
-    const effectiveOrigin = requestOrigin.includes('localhost')
-      ? env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
-      : requestOrigin
-
-    const webhookUrl = `${effectiveOrigin}/api/webhooks/trigger/${foundWebhook.path}`
-
-    if (effectiveOrigin !== requestOrigin) {
-      logger.debug(
-        `[${requestId}] Remapped localhost origin to ${effectiveOrigin} for webhook testing`
-      )
-    }
+    const baseUrl = new URL(request.url).origin
+    const webhookUrl = `${baseUrl}/api/webhooks/trigger/${foundWebhook.path}`
 
     logger.info(`[${requestId}] Testing webhook for provider: ${provider}`, {
       webhookId,
