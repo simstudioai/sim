@@ -15,6 +15,7 @@ export async function executeTool(
   // Capture start time for precise timing
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
+  const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
     let tool: ToolConfig | undefined
@@ -23,9 +24,15 @@ export async function executeTool(
     if (toolId.startsWith('custom_')) {
       const workflowId = params._context?.workflowId
       tool = await getToolAsync(toolId, workflowId)
+      if (!tool) {
+        logger.error(`[${requestId}] Custom tool not found: ${toolId}`)
+      }
     } else {
       // For built-in tools, use the synchronous version
       tool = getTool(toolId)
+      if (!tool) {
+        logger.error(`[${requestId}] Built-in tool not found: ${toolId}`)
+      }
     }
 
     // Ensure context is preserved if it exists
@@ -41,7 +48,6 @@ export async function executeTool(
 
     // If we have a credential parameter, fetch the access token
     if (contextParams.credential) {
-      logger.info(`[executeTool] Credential found for ${toolId}, fetching access token.`)
       try {
         const baseUrl = env.NEXT_PUBLIC_APP_URL
         if (!baseUrl) {
@@ -60,9 +66,6 @@ export async function executeTool(
           const workflowId = contextParams.workflowId || contextParams._context?.workflowId
           if (workflowId) {
             tokenPayload.workflowId = workflowId
-            logger.info(
-              `[executeTool] Added workflowId ${workflowId} to token payload for ${toolId}`
-            )
           }
         }
 
@@ -75,19 +78,23 @@ export async function executeTool(
 
         if (!response.ok) {
           const errorText = await response.text()
-          logger.error('[executeTool] Token fetch failed:', response.status, errorText)
+          logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
+            status: response.status,
+            error: errorText,
+          })
           throw new Error(`Failed to fetch access token: ${response.status} ${errorText}`)
         }
 
         const data = await response.json()
         contextParams.accessToken = data.accessToken
-        logger.info(`[executeTool] Successfully fetched access token for ${toolId}`)
 
         // Clean up params we don't need to pass to the actual tool
         contextParams.credential = undefined
         if (contextParams.workflowId) contextParams.workflowId = undefined
-      } catch (error) {
-        logger.error('[executeTool] Error fetching access token:', { error })
+      } catch (error: any) {
+        logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
         // Re-throw the error to fail the tool execution if token fetching fails
         throw new Error(
           `Failed to obtain credential for tool ${toolId}: ${error instanceof Error ? error.message : String(error)}`
@@ -122,7 +129,9 @@ export async function executeTool(
                 },
               }
             } catch (error) {
-              logger.error(`Error in post-processing for tool ${toolId}:`, { error })
+              logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
+                error: error instanceof Error ? error.message : String(error),
+              })
               return {
                 ...directResult,
                 timing: {
@@ -144,8 +153,10 @@ export async function executeTool(
           }
         }
         // If directExecution returns undefined, fall back to API route
-      } catch (error) {
-        logger.warn(`Direct execution failed for tool ${toolId}, falling back to API:`, error)
+      } catch (error: any) {
+        logger.warn(`[${requestId}] Direct execution failed for ${toolId}, falling back to API:`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
         // Fall back to API route if direct execution fails
       }
     }
@@ -172,7 +183,9 @@ export async function executeTool(
             },
           }
         } catch (error) {
-          logger.error(`Error in post-processing for tool ${toolId}:`, { error })
+          logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
+            error: error instanceof Error ? error.message : String(error),
+          })
           // Return original result if post-processing fails
           // Still include timing data
           const endTime = new Date()
@@ -204,7 +217,6 @@ export async function executeTool(
     }
 
     // For external APIs, use the proxy
-    logger.info(`[executeTool] Using handleProxyRequest for toolId=${toolId}`)
     const result = await handleProxyRequest(toolId, contextParams)
 
     // Apply post-processing if available and not skipped
@@ -225,7 +237,9 @@ export async function executeTool(
           },
         }
       } catch (error) {
-        logger.error(`Error in post-processing for tool ${toolId}:`, { error })
+        logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
         // Return original result if post-processing fails, but include timing data
         const endTime = new Date()
         const endTimeISO = endTime.toISOString()
@@ -254,7 +268,10 @@ export async function executeTool(
       },
     }
   } catch (error: any) {
-    logger.error(`Error executing tool ${toolId}:`, { error })
+    logger.error(`[${requestId}] Error executing tool ${toolId}:`, {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
 
     // Process the error to ensure we have a useful message
     let errorMessage = 'Unknown error occurred'
@@ -305,8 +322,8 @@ export async function executeTool(
           errorMessage = error.message
         }
 
-        if (error.cause) {
-          errorMessage = `${errorMessage} (${error.cause})`
+        if ((error as any).cause) {
+          errorMessage = `${errorMessage} (${(error as any).cause})`
         }
       }
     }
@@ -336,6 +353,8 @@ async function handleInternalRequest(
   tool: ToolConfig,
   params: Record<string, any>
 ): Promise<ToolResponse> {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   // Format the request parameters
   const requestParams = formatRequestParams(tool, params)
 
@@ -354,7 +373,10 @@ async function handleInternalRequest(
         try {
           validateClientSideParams(requestBody.params, requestBody.schema)
         } catch (validationError) {
-          logger.error(`Custom tool params validation failed: ${validationError}`)
+          logger.error(`[${requestId}] Custom tool validation failed for ${toolId}:`, {
+            error:
+              validationError instanceof Error ? validationError.message : String(validationError),
+          })
           throw validationError
         }
       }
@@ -373,9 +395,15 @@ async function handleInternalRequest(
       let errorData
       try {
         errorData = await response.json()
-        logger.error(`Error response data: ${JSON.stringify(errorData)}`)
+        logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
+          status: response.status,
+          errorData,
+        })
       } catch (e) {
-        logger.error(`Failed to parse error response: ${e}`)
+        logger.error(`[${requestId}] Failed to parse error response for ${toolId}:`, {
+          status: response.status,
+          statusText: response.statusText,
+        })
         throw new Error(response.statusText || `Request failed with status ${response.status}`)
       }
 
@@ -394,7 +422,9 @@ async function handleInternalRequest(
         const data = await tool.transformResponse(response, params)
         return data
       } catch (transformError) {
-        logger.error(`Error in tool.transformResponse: ${transformError}`)
+        logger.error(`[${requestId}] Transform response error for ${toolId}:`, {
+          error: transformError instanceof Error ? transformError.message : String(transformError),
+        })
         throw transformError
       }
     }
@@ -408,12 +438,14 @@ async function handleInternalRequest(
         error: undefined,
       }
     } catch (jsonError) {
-      logger.error(`Error parsing JSON response: ${jsonError}`)
+      logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
+        error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+      })
       throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
     }
   } catch (error: any) {
-    logger.error(`Error executing internal tool ${toolId}:`, {
-      error: error.stack || error.message || error,
+    logger.error(`[${requestId}] Internal request error for ${toolId}:`, {
+      error: error instanceof Error ? error.message : String(error),
     })
 
     // Use the tool's error transformer if available
@@ -460,8 +492,8 @@ async function handleInternalRequest(
           error: 'Unknown error',
         }
       } catch (transformError) {
-        logger.error(`Error transforming error for tool ${toolId}:`, {
-          transformError,
+        logger.error(`[${requestId}] Error transform failed for ${toolId}:`, {
+          error: transformError instanceof Error ? transformError.message : String(transformError),
         })
         return {
           success: false,
@@ -545,13 +577,16 @@ async function handleProxyRequest(
   toolId: string,
   params: Record<string, any>
 ): Promise<ToolResponse> {
-  logger.info(`[handleProxyRequest] Entry: toolId=${toolId}`)
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   const baseUrl = env.NEXT_PUBLIC_APP_URL
   if (!baseUrl) {
+    logger.error(`[${requestId}] NEXT_PUBLIC_APP_URL not set`)
     throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
   }
 
   const proxyUrl = new URL('/api/proxy', baseUrl).toString()
+
   try {
     const response = await fetch(proxyUrl, {
       method: 'POST',
@@ -561,8 +596,13 @@ async function handleProxyRequest(
 
     if (!response.ok) {
       const errorText = await response.text()
+      logger.error(`[${requestId}] Proxy request failed for ${toolId}:`, {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText.substring(0, 200), // Limit error text length
+      })
+
       let errorMessage = `HTTP error ${response.status}: ${response.statusText}`
-      let errorDetails = { status: response.status, statusText: response.statusText }
 
       try {
         // Try to parse as JSON for more details
@@ -573,47 +613,28 @@ async function handleProxyRequest(
               ? errorJson.error
               : `API Error: ${response.status} ${response.statusText}`
         }
-        errorDetails = { ...errorDetails, ...errorJson }
-      } catch {
+      } catch (parseError) {
         // If not JSON, use the raw text
-        if (errorText && errorText !== 'undefined (undefined)') {
-          errorMessage = `${errorMessage} - ${errorText}`
+        if (errorText) {
+          errorMessage = `${errorMessage}: ${errorText}`
         }
       }
 
-      return {
-        success: false,
-        output: errorDetails,
-        error: errorMessage,
-      }
+      throw new Error(errorMessage)
     }
 
+    // Parse the successful response
     const result = await response.json()
-
-    if (!result.success) {
-      return {
-        success: false,
-        output: result.output || {},
-        error: result.error || `API request to ${toolId} failed with no error message`,
-      }
-    }
-
     return result
   } catch (error: any) {
-    // Handle network or other fetch errors
-    logger.error(`Error in proxy request for tool ${toolId}:`, { error })
-
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : typeof error === 'string'
-          ? error
-          : `Unknown error in API request to ${toolId}`
+    logger.error(`[${requestId}] Proxy request error for ${toolId}:`, {
+      error: error instanceof Error ? error.message : String(error),
+    })
 
     return {
       success: false,
-      output: { originalError: error },
-      error: errorMessage,
+      output: {},
+      error: error.message || 'Proxy request failed',
     }
   }
 }
