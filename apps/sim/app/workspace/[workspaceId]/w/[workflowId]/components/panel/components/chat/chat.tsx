@@ -144,13 +144,17 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                       // Extract block ID correctly - handle both formats:
                       // - "blockId" (direct block ID)
                       // - "blockId_response.result" (block ID with path)
-                      const blockIdForOutput = outputId.includes('_') ? outputId.split('_')[0] : outputId.split('.')[0]
+                      const blockIdForOutput = outputId.includes('_')
+                        ? outputId.split('_')[0]
+                        : outputId.split('.')[0]
                       return nonStreamingLogs.some((log) => log.blockId === blockIdForOutput)
                     })
 
                     for (const outputId of outputsToRender) {
                       // Extract block ID correctly - handle both formats
-                      const blockIdForOutput = outputId.includes('_') ? outputId.split('_')[0] : outputId.split('.')[0]
+                      const blockIdForOutput = outputId.includes('_')
+                        ? outputId.split('_')[0]
+                        : outputId.split('.')[0]
                       const path = outputId.includes('_')
                         ? outputId.substring(blockIdForOutput.length + 1) // Skip the underscore
                         : outputId.substring(blockIdForOutput.length + 1) // Skip the dot
