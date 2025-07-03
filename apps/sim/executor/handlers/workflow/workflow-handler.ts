@@ -1,4 +1,4 @@
-import { env } from '@/lib/env'
+import { generateInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
@@ -134,7 +134,8 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       // Add internal auth header for server-side calls
       if (typeof window === 'undefined') {
-        headers['x-internal-api-key'] = env.INTERNAL_API_KEY
+        const token = await generateInternalToken()
+        headers.Authorization = `Bearer ${token}`
       }
 
       const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {

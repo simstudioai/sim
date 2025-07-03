@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
+import { verifyInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -29,9 +29,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id: workflowId } = await params
 
   try {
-    // Check for internal API key for server-side calls
-    const internalApiKey = request.headers.get('x-internal-api-key')
-    const isInternalCall = internalApiKey === env.INTERNAL_API_KEY
+    // Check for internal JWT token for server-side calls
+    const authHeader = request.headers.get('authorization')
+    let isInternalCall = false
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1]
+      isInternalCall = await verifyInternalToken(token)
+    }
 
     let userId: string | null = null
 
