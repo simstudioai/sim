@@ -1,4 +1,6 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
@@ -125,8 +127,19 @@ export class WorkflowBlockHandler implements BlockHandler {
    */
   private async loadChildWorkflow(workflowId: string) {
     try {
-      // Fetch workflow from API
-      const response = await fetch(`/api/workflows/${workflowId}`)
+      // Fetch workflow from API with internal authentication header
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      // Add internal auth header for server-side calls
+      if (typeof window === 'undefined') {
+        headers['x-internal-api-key'] = env.INTERNAL_API_KEY
+      }
+
+      const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {
+        headers,
+      })
 
       if (!response.ok) {
         if (response.status === 404) {
