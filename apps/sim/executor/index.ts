@@ -73,18 +73,18 @@ export class Executor {
     private workflowParam:
       | SerializedWorkflow
       | {
-          workflow: SerializedWorkflow
-          currentBlockStates?: Record<string, BlockOutput>
-          envVarValues?: Record<string, string>
-          workflowInput?: any
-          workflowVariables?: Record<string, any>
-          contextExtensions?: {
-            stream?: boolean
-            selectedOutputIds?: string[]
-            edges?: Array<{ source: string; target: string }>
-            onStream?: (streamingExecution: StreamingExecution) => Promise<void>
-          }
-        },
+        workflow: SerializedWorkflow
+        currentBlockStates?: Record<string, BlockOutput>
+        envVarValues?: Record<string, string>
+        workflowInput?: any
+        workflowVariables?: Record<string, any>
+        contextExtensions?: {
+          stream?: boolean
+          selectedOutputIds?: string[]
+          edges?: Array<{ source: string; target: string }>
+          onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+        }
+      },
     private initialBlockStates: Record<string, BlockOutput> = {},
     private environmentVariables: Record<string, string> = {},
     workflowInput?: any,
@@ -624,7 +624,7 @@ export class Executor {
           // If no fields matched the input format, extract the raw input to use instead
           const rawInputData =
             this.workflowInput?.input !== undefined
-              ? this.workflowInput.input // Use the nested input data
+              ? this.workflowInput.input // Use the input value
               : this.workflowInput // Fallback to direct input
 
           // Use the structured input if we processed fields, otherwise use raw input
@@ -633,6 +633,7 @@ export class Executor {
           // Initialize the starter block with structured input (flattened)
           const starterOutput = {
             input: finalInput,
+            conversationId: this.workflowInput?.conversationId, // Add conversationId to root
             ...finalInput, // Add input fields directly at top level
           }
 
@@ -646,19 +647,29 @@ export class Executor {
         } else {
           // Handle structured input (like API calls or chat messages)
           if (this.workflowInput && typeof this.workflowInput === 'object') {
-            // Flatten structure: input is directly accessible as <start.input>
-            const starterOutput = {
-              input: this.workflowInput,
-              // Add compatibility fields directly at top level
-              message: this.workflowInput.input,
-              conversationId: this.workflowInput.conversationId,
-            }
+            // Check if this is a chat workflow input (has both input and conversationId)
+            if (this.workflowInput.hasOwnProperty('input') && this.workflowInput.hasOwnProperty('conversationId')) {
+              // Chat workflow: extract input and conversationId to root level
+              const starterOutput = {
+                input: this.workflowInput.input,
+                conversationId: this.workflowInput.conversationId,
+              }
 
-            context.blockStates.set(starterBlock.id, {
-              output: starterOutput,
-              executed: true,
-              executionTime: 0,
-            })
+              context.blockStates.set(starterBlock.id, {
+                output: starterOutput,
+                executed: true,
+                executionTime: 0,
+              })
+            } else {
+              // API workflow: spread the raw data directly (no wrapping)
+              const starterOutput = { ...this.workflowInput }
+
+              context.blockStates.set(starterBlock.id, {
+                output: starterOutput,
+                executed: true,
+                executionTime: 0,
+              })
+            }
           } else {
             // Fallback for primitive input values
             const starterOutput = {
@@ -675,11 +686,25 @@ export class Executor {
       } catch (e) {
         logger.warn('Error processing starter block input format:', e)
 
-        // Error handler fallback - flatten structure for direct access
-        const starterOutput = {
-          input: this.workflowInput,
-          message: this.workflowInput?.input,
-          conversationId: this.workflowInput?.conversationId,
+        // Error handler fallback - use appropriate structure
+        let starterOutput: any
+        if (this.workflowInput && typeof this.workflowInput === 'object') {
+          // Check if this is a chat workflow input (has both input and conversationId)
+          if (this.workflowInput.hasOwnProperty('input') && this.workflowInput.hasOwnProperty('conversationId')) {
+            // Chat workflow: extract input and conversationId to root level
+            starterOutput = {
+              input: this.workflowInput.input,
+              conversationId: this.workflowInput.conversationId,
+            }
+          } else {
+            // API workflow: spread the raw data directly (no wrapping)
+            starterOutput = { ...this.workflowInput }
+          }
+        } else {
+          // Primitive input
+          starterOutput = {
+            input: this.workflowInput,
+          }
         }
 
         logger.info('[Executor] Fallback starter output:', JSON.stringify(starterOutput, null, 2))
@@ -1236,9 +1261,8 @@ export class Executor {
             workflowId: context.workflowId,
             blockId: parallelInfo ? blockId : block.id,
             blockName: parallelInfo
-              ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
-                  parallelInfo.iterationIndex + 1
-                })`
+              ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1
+              })`
               : block.metadata?.name || 'Unnamed Block',
             blockType: block.metadata?.id || 'unknown',
           })
@@ -1304,9 +1328,8 @@ export class Executor {
           workflowId: context.workflowId,
           blockId: parallelInfo ? blockId : block.id,
           blockName: parallelInfo
-            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
-                parallelInfo.iterationIndex + 1
-              })`
+            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1
+            })`
             : block.metadata?.name || 'Unnamed Block',
           blockType: block.metadata?.id || 'unknown',
         })

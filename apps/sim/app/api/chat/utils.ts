@@ -128,10 +128,10 @@ export async function validateChatAuth(
         return { authorized: false, error: 'Password is required' }
       }
 
-      const { password, message } = parsedBody
+      const { password, input } = parsedBody
 
       // If this is a chat message, not an auth attempt
-      if (message && !password) {
+      if (input && !password) {
         return { authorized: false, error: 'auth_required_password' }
       }
 
@@ -170,10 +170,10 @@ export async function validateChatAuth(
         return { authorized: false, error: 'Email is required' }
       }
 
-      const { email, message } = parsedBody
+      const { email, input } = parsedBody
 
       // If this is a chat message, not an auth attempt
-      if (message && !email) {
+      if (input && !email) {
         return { authorized: false, error: 'auth_required_email' }
       }
 
@@ -211,24 +211,23 @@ export async function validateChatAuth(
 /**
  * Executes a workflow for a chat request and returns the formatted output.
  *
- * When workflows reference <start.input>, they receive a structured JSON
- * containing both the message and conversationId for maintaining chat context.
+ * When workflows reference <start.input>, they receive the input directly.
+ * The conversationId is available at <start.conversationId> for maintaining chat context.
  *
  * @param chatId - Chat deployment identifier
- * @param message - User's chat message
+ * @param input - User's chat input
  * @param conversationId - Optional ID for maintaining conversation context
  * @returns Workflow execution result formatted for the chat interface
  */
 export async function executeWorkflowForChat(
   chatId: string,
-  message: string,
+  input: string,
   conversationId?: string
 ): Promise<any> {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   logger.debug(
-    `[${requestId}] Executing workflow for chat: ${chatId}${
-      conversationId ? `, conversationId: ${conversationId}` : ''
+    `[${requestId}] Executing workflow for chat: ${chatId}${conversationId ? `, conversationId: ${conversationId}` : ''
     }`
   )
 
@@ -445,7 +444,7 @@ export async function executeWorkflowForChat(
         workflow: serializedWorkflow,
         currentBlockStates: processedBlockStates,
         envVarValues: decryptedEnvVars,
-        workflowInput: { input: message, conversationId },
+        workflowInput: { input: input, conversationId },
         workflowVariables,
         contextExtensions: {
           stream: true,
@@ -478,7 +477,7 @@ export async function executeWorkflowForChat(
               startTime: new Date().toISOString(),
             }
           }
-          ;(enrichedResult.metadata as any).conversationId = conversationId
+          ; (enrichedResult.metadata as any).conversationId = conversationId
         }
         const executionId = uuidv4()
         await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')

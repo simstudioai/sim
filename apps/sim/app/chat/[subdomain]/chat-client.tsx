@@ -297,7 +297,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     try {
       // Send structured payload to maintain chat context
       const payload = {
-        message:
+        input:
           typeof userMessage.content === 'string'
             ? userMessage.content
             : JSON.stringify(userMessage.content),

@@ -402,8 +402,8 @@ export class InputResolver {
         if (starterBlock) {
           const blockState = context.blockStates.get(starterBlock.id)
           if (blockState) {
-            // For starter block, start directly with the flattened output (skip nested .output)
-            // This enables <start.input> instead of <start.output.input>
+            // For starter block, start directly with the flattened output
+            // This enables direct access to <start.input> and <start.conversationId>
             let replacementValue: any = blockState.output
 
             for (const part of pathParts) {
@@ -448,7 +448,7 @@ export class InputResolver {
                 }
                 // For all other blocks, stringify objects
                 else {
-                  // Preserve full JSON structure for objects (especially for structured inputs with conversationId)
+                  // Preserve full JSON structure for objects
                   formattedValue = JSON.stringify(replacementValue)
                 }
               } else {

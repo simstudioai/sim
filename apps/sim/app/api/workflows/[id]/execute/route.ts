@@ -77,19 +77,12 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     input ? JSON.stringify(input, null, 2) : 'No input provided'
   )
 
-  // Validate and structure input for maximum compatibility
+  // Use input directly for API workflows
   let processedInput = input
-  if (input && typeof input === 'object') {
-    // Ensure input is properly structured for the starter block
-    if (input.input === undefined) {
-      // If input is not already nested, structure it properly
-      processedInput = { input: input }
-      logger.info(
-        `[${requestId}] Restructured input for workflow:`,
-        JSON.stringify(processedInput, null, 2)
-      )
-    }
-  }
+  logger.info(
+    `[${requestId}] Using input directly for workflow:`,
+    JSON.stringify(processedInput, null, 2)
+  )
 
   try {
     runningExecutions.add(executionKey)
@@ -106,7 +99,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
 
     if (normalizedData) {
       // Use normalized data as primary source
-      ;({ blocks, edges, loops, parallels } = normalizedData)
+      ; ({ blocks, edges, loops, parallels } = normalizedData)
       logger.info(`[${requestId}] Using normalized tables for workflow execution: ${workflowId}`)
     } else {
       // Fallback to deployed state if available (for legacy workflows)
@@ -121,7 +114,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       }
 
       const deployedState = workflow.deployedState as WorkflowState
-      ;({ blocks, edges, loops, parallels } = deployedState)
+        ; ({ blocks, edges, loops, parallels } = deployedState)
     }
 
     // Use the same execution flow as in scheduled executions
@@ -381,13 +374,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       logger.info(`[${requestId}] No request body provided`)
     }
 
-    // Don't double-nest the input if it's already structured
+    // Pass the raw body directly as input for API workflows
     const hasContent = Object.keys(body).length > 0
-    const input = hasContent ? { input: body } : {}
+    const input = hasContent ? body : {}
 
     logger.info(`[${requestId}] Input passed to workflow:`, JSON.stringify(input, null, 2))
 
-    // Execute workflow with the structured input
+    // Execute workflow with the raw input
     const result = await executeWorkflow(validation.workflow, requestId, input)
 
     // Check if the workflow execution contains a response block output

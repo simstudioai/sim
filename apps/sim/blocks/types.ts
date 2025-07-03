@@ -47,16 +47,16 @@ export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
 // Convert tool output to types
 export type ToolOutputToValueType<T> = T extends Record<string, any>
   ? {
-      [K in keyof T]: T[K] extends string
-        ? 'string'
-        : T[K] extends number
-          ? 'number'
-          : T[K] extends boolean
-            ? 'boolean'
-            : T[K] extends object
-              ? 'json'
-              : 'any'
-    }
+    [K in keyof T]: T[K] extends string
+    ? 'string'
+    : T[K] extends number
+    ? 'number'
+    : T[K] extends boolean
+    ? 'boolean'
+    : T[K] extends object
+    ? 'json'
+    : 'any'
+  }
   : never
 
 // Block output definition
@@ -92,11 +92,11 @@ export interface SubBlockConfig {
   layout?: SubBlockLayout
   mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
   options?:
+  | string[]
+  | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]
+  | (() =>
     | string[]
-    | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]
-    | (() =>
-        | string[]
-        | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])
+    | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])
   min?: number
   max?: number
   columns?: string[]

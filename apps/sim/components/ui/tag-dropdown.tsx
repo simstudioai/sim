@@ -128,8 +128,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       const blockName = sourceBlock.name || sourceBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
-      const outputPaths = generateOutputPaths(blockConfig.outputs)
-      const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+      
+      // Handle blocks with no outputs (like starter) - show as just <blockname>
+      let blockTags: string[]
+      if (Object.keys(blockConfig.outputs).length === 0) {
+        blockTags = [normalizedBlockName]
+      } else {
+        const outputPaths = generateOutputPaths(blockConfig.outputs)
+        blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+      }
 
       const blockTagGroups: BlockTagGroup[] = [
         {
@@ -243,8 +250,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       const blockName = accessibleBlock.name || accessibleBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
-      const outputPaths = generateOutputPaths(blockConfig.outputs)
-      const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+      
+      // Handle blocks with no outputs (like starter) - show as just <blockname>
+      let blockTags: string[]
+      if (Object.keys(blockConfig.outputs).length === 0) {
+        blockTags = [normalizedBlockName]
+      } else {
+        const outputPaths = generateOutputPaths(blockConfig.outputs)
+        blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+      }
 
       blockTagGroups.push({
         blockName,
@@ -645,8 +659,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         {group.tags.map((tag: string) => {
                           const tagIndex = tagIndexMap.get(tag) ?? -1
                           // Extract path after block name (e.g., "field" from "blockname.field")
+                          // For root reference blocks, show the block name instead of empty path
                           const tagParts = tag.split('.')
                           const path = tagParts.slice(1).join('.')
+                          const displayText = path || group.blockName
 
                           return (
                             <button
@@ -679,7 +695,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                   {group.blockName.charAt(0).toUpperCase()}
                                 </span>
                               </div>
-                              <span className='max-w-[calc(100%-32px)] truncate'>{path}</span>
+                              <span className='max-w-[calc(100%-32px)] truncate'>{displayText}</span>
                             </button>
                           )
                         })}
