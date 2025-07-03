@@ -97,6 +97,11 @@ export function TeamManagement() {
   const [organizations, setOrganizations] = useState<any[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [isInviting, setIsInviting] = useState(false)
+  const [showWorkspaceInvite, setShowWorkspaceInvite] = useState(false)
+  const [selectedWorkspaces, setSelectedWorkspaces] = useState<
+    Array<{ workspaceId: string; permission: string }>
+  >([])
+  const [userWorkspaces, setUserWorkspaces] = useState<any[]>([])
   const [isCreatingOrg, setIsCreatingOrg] = useState(false)
   const [createOrgDialogOpen, setCreateOrgDialogOpen] = useState(false)
   const [removeMemberDialog, setRemoveMemberDialog] = useState<{
@@ -264,6 +269,13 @@ export function TeamManagement() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // Load workspaces when component mounts
+  useEffect(() => {
+    if (session?.user && activeOrganization) {
+      loadUserWorkspaces()
+    }
+  }, [session?.user, activeOrganization])
 
   // Refresh organization data
   const refreshOrganization = useCallback(async () => {
@@ -508,6 +520,21 @@ export function TeamManagement() {
     }
   }
 
+  // Load user's workspaces for workspace invitation
+  const loadUserWorkspaces = async () => {
+    if (!session?.user) return
+
+    try {
+      const response = await fetch('/api/workspaces')
+      if (response.ok) {
+        const data = await response.json()
+        setUserWorkspaces(data.workspaces || [])
+      }
+    } catch (error) {
+      logger.error('Failed to load workspaces:', error)
+    }
+  }
+
   // Invite a member to the organization
   const handleInviteMember = async () => {
     if (!session?.user || !activeOrganization) return
@@ -548,23 +575,51 @@ export function TeamManagement() {
       logger.info('Sending invitation to member', {
         email: inviteEmail,
         organizationId: activeOrganization.id,
+        workspaceInvitations: selectedWorkspaces,
       })
 
-      // Invite the member
-      const inviteResult = await client.organization.inviteMember({
-        email: inviteEmail,
-        role: 'member',
-        organizationId: activeOrganization.id,
-      })
+      // Use direct API call with workspace invitations if selected
+      if (selectedWorkspaces.length > 0) {
+        const response = await fetch(
+          `/api/organizations/${activeOrganization.id}/invitations?batch=true`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: inviteEmail,
+              role: 'member',
+              workspaceInvitations: selectedWorkspaces,
+            }),
+          }
+        )
 
-      if (inviteResult.error) {
-        throw new Error(inviteResult.error.message || 'Failed to send invitation')
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to send invitation')
+        }
+
+        logger.info('Invitation with workspace access sent successfully')
+      } else {
+        // Use existing client method for organization-only invitations
+        const inviteResult = await client.organization.inviteMember({
+          email: inviteEmail,
+          role: 'member',
+          organizationId: activeOrganization.id,
+        })
+
+        if (inviteResult.error) {
+          throw new Error(inviteResult.error.message || 'Failed to send invitation')
+        }
+
+        logger.info('Invitation sent successfully')
       }
-
-      logger.info('Invitation sent successfully')
 
       // Clear the input and show success message
       setInviteEmail('')
+      setSelectedWorkspaces([])
+      setShowWorkspaceInvite(false)
       setInviteSuccess(true)
 
       // Refresh the organization
@@ -575,6 +630,17 @@ export function TeamManagement() {
     } finally {
       setIsInviting(false)
     }
+  }
+
+  // Handle workspace selection toggle
+  const handleWorkspaceToggle = (workspaceId: string, permission: string) => {
+    setSelectedWorkspaces((prev) => {
+      const exists = prev.find((w) => w.workspaceId === workspaceId)
+      if (exists) {
+        return prev.filter((w) => w.workspaceId !== workspaceId)
+      }
+      return [...prev, { workspaceId, permission }]
+    })
   }
 
   // Remove a member from the organization
@@ -1024,92 +1090,228 @@ export function TeamManagement() {
 
         <TabsContent value='members' className='mt-4 space-y-4'>
           {isAdminOrOwner && (
-            <div className='rounded-md border p-4'>
-              <h4 className='mb-4 font-medium text-sm'>Invite Team Members</h4>
-
-              <div className='flex items-center space-x-2'>
-                <Input
-                  placeholder='Email address'
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  disabled={isInviting}
-                />
-                <Button onClick={handleInviteMember} disabled={!inviteEmail || isInviting}>
-                  {isInviting ? <ButtonSkeleton /> : <PlusCircle className='mr-2 h-4 w-4' />}
-                  <span>Invite</span>
-                </Button>
-              </div>
-
-              {inviteSuccess && (
-                <p className='mt-2 text-green-500 text-sm'>Invitation sent successfully</p>
-              )}
-            </div>
-          )}
-
-          {/* Team Seats Usage - only show to admins/owners */}
-          {isAdminOrOwner && (
-            <div className='rounded-md border p-4'>
-              <h4 className='mb-2 font-medium text-sm'>Team Seats</h4>
-
-              {isLoadingSubscription ? (
-                <TeamSeatsSkeleton />
-              ) : subscriptionData ? (
-                <>
-                  <div className='mb-2 flex justify-between text-sm'>
-                    <span>Used</span>
-                    <span>
-                      {usedSeats}/{subscriptionData.seats || 0}
-                    </span>
-                  </div>
-                  <Progress
-                    value={(usedSeats / (subscriptionData.seats || 1)) * 100}
-                    className='h-2'
+            <Card>
+              <CardHeader className='pb-3'>
+                <CardTitle className='text-base'>Invite Team Members</CardTitle>
+                <CardDescription>
+                  Add new members to your team and optionally give them access to specific
+                  workspaces
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='flex items-center space-x-2'>
+                  <Input
+                    placeholder='Email address'
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    disabled={isInviting}
+                    className='flex-1'
                   />
-
-                  {checkEnterprisePlan(subscriptionData) ? (
-                    <div />
-                  ) : (
-                    <div className='mt-4 flex justify-between'>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={handleReduceSeats}
-                        disabled={(subscriptionData.seats || 0) <= 1 || isLoading}
-                      >
-                        Remove Seat
-                      </Button>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={handleAddSeatDialog}
-                        disabled={isLoading}
-                      >
-                        Add Seat
-                      </Button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className='space-y-2 text-muted-foreground text-sm'>
-                  <p>No active subscription found for this organization.</p>
-                  <p>
-                    This might happen if your subscription was created for your personal account but
-                    hasn't been properly transferred to the organization.
-                  </p>
                   <Button
                     variant='outline'
                     size='sm'
                     onClick={() => {
-                      setError(null)
-                      confirmTeamUpgrade(2) // Start with 2 seats as default
+                      setShowWorkspaceInvite(!showWorkspaceInvite)
+                      if (!showWorkspaceInvite) {
+                        loadUserWorkspaces()
+                      }
                     }}
-                    disabled={isLoading}
+                    disabled={isInviting}
                   >
-                    Set Up Team Subscription
+                    {showWorkspaceInvite ? 'Hide' : 'Add'} Workspaces
+                  </Button>
+                  <Button onClick={handleInviteMember} disabled={!inviteEmail || isInviting}>
+                    {isInviting ? <ButtonSkeleton /> : <PlusCircle className='mr-2 h-4 w-4' />}
+                    <span>Invite</span>
                   </Button>
                 </div>
-              )}
-            </div>
+
+                {showWorkspaceInvite && (
+                  <div className='space-y-3'>
+                    <div className='flex items-center justify-between'>
+                      <h5 className='font-medium text-sm'>Workspace Access</h5>
+                      <span className='text-muted-foreground text-xs'>Optional</span>
+                    </div>
+                    <p className='text-muted-foreground text-xs'>
+                      Grant access to specific workspaces. You can modify permissions later.
+                    </p>
+
+                    {userWorkspaces.length === 0 ? (
+                      <div className='py-4 text-center'>
+                        <p className='text-muted-foreground text-sm'>No workspaces available</p>
+                      </div>
+                    ) : (
+                      <div className='max-h-32 space-y-1 overflow-y-auto'>
+                        {userWorkspaces.map((workspace) => (
+                          <div
+                            key={workspace.id}
+                            className='group flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50'
+                          >
+                            <div className='flex items-center space-x-3'>
+                              <input
+                                type='checkbox'
+                                id={`workspace-${workspace.id}`}
+                                checked={selectedWorkspaces.some(
+                                  (w) => w.workspaceId === workspace.id
+                                )}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    handleWorkspaceToggle(workspace.id, 'read')
+                                  } else {
+                                    handleWorkspaceToggle(workspace.id, '')
+                                  }
+                                }}
+                                className='h-4 w-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary'
+                              />
+                              <label
+                                htmlFor={`workspace-${workspace.id}`}
+                                className='cursor-pointer font-medium text-sm'
+                              >
+                                {workspace.name}
+                              </label>
+                            </div>
+                            {selectedWorkspaces.some((w) => w.workspaceId === workspace.id) && (
+                              <select
+                                value={
+                                  selectedWorkspaces.find((w) => w.workspaceId === workspace.id)
+                                    ?.permission || 'read'
+                                }
+                                onChange={(e) =>
+                                  handleWorkspaceToggle(workspace.id, e.target.value)
+                                }
+                                className='ml-2 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                              >
+                                <option value='read'>Read</option>
+                                <option value='write'>Write</option>
+                                <option value='admin'>Admin</option>
+                              </select>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {inviteSuccess && (
+                  <Alert>
+                    <CheckCircle className='h-4 w-4' />
+                    <AlertDescription>
+                      Invitation sent successfully
+                      {selectedWorkspaces.length > 0 &&
+                        ` with access to ${selectedWorkspaces.length} workspace(s)`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Team Seats Usage - only show to admins/owners */}
+          {isAdminOrOwner && (
+            <Card>
+              <CardHeader className='pb-3'>
+                <CardTitle className='text-base'>Team Seats Overview</CardTitle>
+                <CardDescription>Manage your team's seat allocation and billing</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingSubscription ? (
+                  <TeamSeatsSkeleton />
+                ) : subscriptionData ? (
+                  <div className='space-y-4'>
+                    <div className='grid grid-cols-3 gap-4 text-center'>
+                      <div className='space-y-1'>
+                        <p className='font-bold text-2xl'>{subscriptionData.seats || 0}</p>
+                        <p className='text-muted-foreground text-xs'>Licensed Seats</p>
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='font-bold text-2xl'>{usedSeats}</p>
+                        <p className='text-muted-foreground text-xs'>Used Seats</p>
+                      </div>
+                      <div className='space-y-1'>
+                        <p className='font-bold text-2xl'>
+                          {(subscriptionData.seats || 0) - usedSeats}
+                        </p>
+                        <p className='text-muted-foreground text-xs'>Available</p>
+                      </div>
+                    </div>
+
+                    <div className='space-y-2'>
+                      <div className='flex justify-between text-sm'>
+                        <span>Seat Usage</span>
+                        <span>
+                          {usedSeats} of {subscriptionData.seats || 0} seats
+                        </span>
+                      </div>
+                      <Progress
+                        value={(usedSeats / (subscriptionData.seats || 1)) * 100}
+                        className='h-3'
+                      />
+                    </div>
+
+                    <div className='flex items-center justify-between border-t pt-2 text-sm'>
+                      <span>Seat Cost:</span>
+                      <span className='font-semibold'>
+                        ${((subscriptionData.seats || 0) * 40).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className='mt-2 text-muted-foreground text-xs'>
+                      Individual usage limits may vary. See Subscription tab for team totals.
+                    </div>
+
+                    {checkEnterprisePlan(subscriptionData) ? (
+                      <div className='rounded-lg bg-purple-50 p-4 text-center'>
+                        <p className='font-medium text-purple-700 text-sm'>Enterprise Plan</p>
+                        <p className='mt-1 text-purple-600 text-xs'>
+                          Contact support to modify seats
+                        </p>
+                      </div>
+                    ) : (
+                      <div className='flex gap-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={handleReduceSeats}
+                          disabled={(subscriptionData.seats || 0) <= 1 || isLoading}
+                          className='flex-1'
+                        >
+                          Remove Seat
+                        </Button>
+                        <Button
+                          size='sm'
+                          onClick={handleAddSeatDialog}
+                          disabled={isLoading}
+                          className='flex-1'
+                        >
+                          Add Seat
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className='space-y-4 p-6 text-center'>
+                    <div className='mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100'>
+                      <Building2 className='h-6 w-6 text-amber-600' />
+                    </div>
+                    <div className='space-y-2'>
+                      <p className='font-medium'>No Team Subscription Found</p>
+                      <p className='text-muted-foreground text-sm'>
+                        Your subscription may need to be transferred to this organization.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setError(null)
+                        confirmTeamUpgrade(2) // Start with 2 seats as default
+                      }}
+                      disabled={isLoading}
+                    >
+                      Set Up Team Subscription
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* Team Members - show to all users */}
@@ -1124,11 +1326,18 @@ export function TeamManagement() {
               <div className='divide-y'>
                 {activeOrganization.members?.map((member: any) => (
                   <div key={member.id} className='flex items-center justify-between p-4'>
-                    <div>
-                      <div className='font-medium'>{member.user?.name || 'Unknown'}</div>
-                      <div className='text-muted-foreground text-sm'>{member.user?.email}</div>
-                      <div className='mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-primary text-xs'>
-                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                    <div className='flex-1'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 font-medium text-primary text-sm'>
+                          {(member.user?.name || member.user?.email || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div className='flex-1'>
+                          <div className='font-medium'>{member.user?.name || 'Unknown'}</div>
+                          <div className='text-muted-foreground text-sm'>{member.user?.email}</div>
+                        </div>
+                        <div className='rounded-full bg-primary/10 px-3 py-1 font-medium text-primary text-xs'>
+                          {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                        </div>
                       </div>
                     </div>
 
@@ -1184,11 +1393,6 @@ export function TeamManagement() {
         </TabsContent>
 
         <TabsContent value='settings' className='mt-4 space-y-6'>
-          <div className='flex items-center space-x-2'>
-            <Building2 className='h-5 w-5' />
-            <h3 className='font-semibold text-lg'>Team Settings</h3>
-          </div>
-
           {orgSettingsError && (
             <Alert variant='destructive'>
               <AlertTitle>Error</AlertTitle>
