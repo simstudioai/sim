@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { verifyInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -28,14 +29,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id: workflowId } = await params
 
   try {
-    // Get the session
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Check for internal JWT token for server-side calls
+    const authHeader = request.headers.get('authorization')
+    let isInternalCall = false
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1]
+      isInternalCall = await verifyInternalToken(token)
     }
 
-    const userId = session.user.id
+    let userId: string | null = null
+
+    if (isInternalCall) {
+      // For internal calls, we'll skip user-specific access checks
+      logger.info(`[${requestId}] Internal API call for workflow ${workflowId}`)
+    } else {
+      // Get the session for regular user calls
+      const session = await getSession()
+      if (!session?.user?.id) {
+        logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      userId = session.user.id
+    }
 
     // Fetch the workflow
     const workflowData = await db
@@ -52,26 +68,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Check if user has access to this workflow
     let hasAccess = false
 
-    // Case 1: User owns the workflow
-    if (workflowData.userId === userId) {
+    if (isInternalCall) {
+      // Internal calls have full access
       hasAccess = true
-    }
-
-    // Case 2: Workflow belongs to a workspace the user has permissions for
-    if (!hasAccess && workflowData.workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        userId,
-        'workspace',
-        workflowData.workspaceId
-      )
-      if (userPermission !== null) {
+    } else {
+      // Case 1: User owns the workflow
+      if (workflowData.userId === userId) {
         hasAccess = true
       }
-    }
 
-    if (!hasAccess) {
-      logger.warn(`[${requestId}] User ${userId} denied access to workflow ${workflowId}`)
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      // Case 2: Workflow belongs to a workspace the user has permissions for
+      if (!hasAccess && workflowData.workspaceId && userId) {
+        const userPermission = await getUserEntityPermissions(
+          userId,
+          'workspace',
+          workflowData.workspaceId
+        )
+        if (userPermission !== null) {
+          hasAccess = true
+        }
+      }
+
+      if (!hasAccess) {
+        logger.warn(`[${requestId}] User ${userId} denied access to workflow ${workflowId}`)
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
     }
 
     // Try to load from normalized tables first

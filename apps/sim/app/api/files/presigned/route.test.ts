@@ -39,8 +39,9 @@ describe('/api/files/presigned', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(500) // Changed from 400 to 500 (StorageConfigError)
       expect(data.error).toBe('Direct uploads are only available when cloud storage is enabled')
+      expect(data.code).toBe('STORAGE_CONFIG_ERROR')
       expect(data.directUploadSupported).toBe(false)
     })
 
@@ -64,7 +65,8 @@ describe('/api/files/presigned', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Missing fileName or contentType')
+      expect(data.error).toBe('fileName is required and cannot be empty')
+      expect(data.code).toBe('VALIDATION_ERROR')
     })
 
     it('should return error when contentType is missing', async () => {
@@ -87,7 +89,59 @@ describe('/api/files/presigned', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Missing fileName or contentType')
+      expect(data.error).toBe('contentType is required and cannot be empty')
+      expect(data.code).toBe('VALIDATION_ERROR')
+    })
+
+    it('should return error when fileSize is invalid', async () => {
+      setupFileApiMocks({
+        cloudEnabled: true,
+        storageProvider: 's3',
+      })
+
+      const { POST } = await import('./route')
+
+      const request = new NextRequest('http://localhost:3000/api/files/presigned', {
+        method: 'POST',
+        body: JSON.stringify({
+          fileName: 'test.txt',
+          contentType: 'text/plain',
+          fileSize: 0,
+        }),
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('fileSize must be a positive number')
+      expect(data.code).toBe('VALIDATION_ERROR')
+    })
+
+    it('should return error when file size exceeds limit', async () => {
+      setupFileApiMocks({
+        cloudEnabled: true,
+        storageProvider: 's3',
+      })
+
+      const { POST } = await import('./route')
+
+      const largeFileSize = 150 * 1024 * 1024 // 150MB (exceeds 100MB limit)
+      const request = new NextRequest('http://localhost:3000/api/files/presigned', {
+        method: 'POST',
+        body: JSON.stringify({
+          fileName: 'large-file.txt',
+          contentType: 'text/plain',
+          fileSize: largeFileSize,
+        }),
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('exceeds maximum allowed size')
+      expect(data.code).toBe('VALIDATION_ERROR')
     })
 
     it('should generate S3 presigned URL successfully', async () => {
@@ -119,6 +173,34 @@ describe('/api/files/presigned', () => {
         size: 1024,
         type: 'text/plain',
       })
+      expect(data.directUploadSupported).toBe(true)
+    })
+
+    it('should generate knowledge-base S3 presigned URL with kb prefix', async () => {
+      setupFileApiMocks({
+        cloudEnabled: true,
+        storageProvider: 's3',
+      })
+
+      const { POST } = await import('./route')
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=knowledge-base',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'knowledge-doc.pdf',
+            contentType: 'application/pdf',
+            fileSize: 2048,
+          }),
+        }
+      )
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.fileInfo.key).toMatch(/^kb\/.*knowledge-doc\.pdf$/)
       expect(data.directUploadSupported).toBe(true)
     })
 
@@ -182,8 +264,9 @@ describe('/api/files/presigned', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(400)
-      expect(data.error).toBe('Unknown storage provider')
+      expect(response.status).toBe(500) // Changed from 400 to 500 (StorageConfigError)
+      expect(data.error).toBe('Unknown storage provider: unknown') // Updated error message
+      expect(data.code).toBe('STORAGE_CONFIG_ERROR')
       expect(data.directUploadSupported).toBe(false)
     })
 
@@ -225,8 +308,10 @@ describe('/api/files/presigned', () => {
       const data = await response.json()
 
       expect(response.status).toBe(500)
-      expect(data.error).toBe('Error')
-      expect(data.message).toBe('S3 service unavailable')
+      expect(data.error).toBe(
+        'Failed to generate S3 presigned URL - check AWS credentials and permissions'
+      ) // Updated error message
+      expect(data.code).toBe('STORAGE_CONFIG_ERROR')
     })
 
     it('should handle Azure Blob errors gracefully', async () => {
@@ -269,8 +354,8 @@ describe('/api/files/presigned', () => {
       const data = await response.json()
 
       expect(response.status).toBe(500)
-      expect(data.error).toBe('Error')
-      expect(data.message).toBe('Azure service unavailable')
+      expect(data.error).toBe('Failed to generate Azure Blob presigned URL') // Updated error message
+      expect(data.code).toBe('STORAGE_CONFIG_ERROR')
     })
 
     it('should handle malformed JSON gracefully', async () => {
@@ -289,9 +374,9 @@ describe('/api/files/presigned', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(data.error).toBe('SyntaxError')
-      expect(data.message).toContain('Unexpected token')
+      expect(response.status).toBe(400) // Changed from 500 to 400 (ValidationError)
+      expect(data.error).toBe('Invalid JSON in request body') // Updated error message
+      expect(data.code).toBe('VALIDATION_ERROR')
     })
   })
 

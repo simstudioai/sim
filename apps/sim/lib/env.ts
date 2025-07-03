@@ -13,6 +13,7 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: z.string().min(32),
     DISABLE_REGISTRATION: z.boolean().optional(),
     ENCRYPTION_KEY: z.string().min(32),
+    INTERNAL_API_SECRET: z.string().min(32),
 
     POSTGRES_URL: z.string().url().optional(),
     STRIPE_SECRET_KEY: z.string().min(1).optional(),
