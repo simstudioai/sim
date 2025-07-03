@@ -279,31 +279,16 @@ describe('S3 Client', () => {
   })
 
   describe('s3Client initialization', () => {
-    it('should initialize with correct configuration', async () => {
-      const { getS3Client } = await import('./s3-client')
-      const { S3Client } = await import('@aws-sdk/client-s3')
-
-      const client = getS3Client()
-
-      expect(client).toBeDefined()
-      // Verify the client was constructed with the right configuration
-      // The S3Client now includes credentials when available via env vars
-      expect(S3Client).toHaveBeenCalledWith({
-        region: 'test-region',
-        credentials: expect.any(Object), // Credentials object when AWS keys are available
-      })
-    })
-
-    it('should initialize without credentials when env vars are not available', async () => {
-      // Mock environment without AWS credentials
+    it('should initialize with correct configuration when credentials are available', async () => {
+      // Mock env with credentials
       vi.doMock('../../env', () => ({
         env: {
-          AWS_ACCESS_KEY_ID: undefined,
-          AWS_SECRET_ACCESS_KEY: undefined,
+          AWS_ACCESS_KEY_ID: 'test-access-key',
+          AWS_SECRET_ACCESS_KEY: 'test-secret-key',
         },
       }))
 
-      // Clear module cache and re-import
+      // Re-import to get fresh module with mocked env
       vi.resetModules()
       const { getS3Client } = await import('./s3-client')
       const { S3Client } = await import('@aws-sdk/client-s3')
@@ -311,7 +296,30 @@ describe('S3 Client', () => {
       const client = getS3Client()
 
       expect(client).toBeDefined()
-      // Verify the client was constructed without credentials
+      expect(S3Client).toHaveBeenCalledWith({
+        region: 'test-region',
+        credentials: {
+          accessKeyId: 'test-access-key',
+          secretAccessKey: 'test-secret-key',
+        },
+      })
+    })
+
+    it('should initialize without credentials when env vars are not available', async () => {
+      vi.doMock('../../env', () => ({
+        env: {
+          AWS_ACCESS_KEY_ID: undefined,
+          AWS_SECRET_ACCESS_KEY: undefined,
+        },
+      }))
+
+      vi.resetModules()
+      const { getS3Client } = await import('./s3-client')
+      const { S3Client } = await import('@aws-sdk/client-s3')
+
+      const client = getS3Client()
+
+      expect(client).toBeDefined()
       expect(S3Client).toHaveBeenCalledWith({
         region: 'test-region',
         credentials: undefined,
