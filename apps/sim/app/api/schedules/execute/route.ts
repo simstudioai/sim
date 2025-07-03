@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
-
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import {
   type BlockState,
@@ -301,7 +300,12 @@ export async function GET() {
         }
 
         // Start enhanced logging
-        loggingSession = new EnhancedLoggingSession(schedule.workflowId, executionId, 'schedule', requestId)
+        loggingSession = new EnhancedLoggingSession(
+          schedule.workflowId,
+          executionId,
+          'schedule',
+          requestId
+        )
 
         // Load the actual workflow state from normalized tables
         const enhancedNormalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)

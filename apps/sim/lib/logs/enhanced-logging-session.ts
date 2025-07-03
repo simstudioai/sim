@@ -1,13 +1,13 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { enhancedExecutionLogger } from './enhanced-execution-logger'
 import {
-  createTriggerObject,
-  createEnvironmentObject,
-  loadWorkflowStateForExecution,
   calculateBlockStats,
   calculateCostSummary,
+  createEnvironmentObject,
+  createTriggerObject,
+  loadWorkflowStateForExecution,
 } from './enhanced-logging-factory'
-import type { ExecutionTrigger, ExecutionEnvironment, WorkflowState } from './types'
+import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from './types'
 
 const logger = createLogger('EnhancedLoggingSession')
 
@@ -70,7 +70,9 @@ export class EnhancedLoggingSession {
       })
 
       if (this.requestId) {
-        logger.debug(`[${this.requestId}] Started enhanced logging for execution ${this.executionId}`)
+        logger.debug(
+          `[${this.requestId}] Started enhanced logging for execution ${this.executionId}`
+        )
       }
     } catch (error) {
       if (this.requestId) {
@@ -86,7 +88,9 @@ export class EnhancedLoggingSession {
   setupExecutor(executor: any): void {
     executor.setEnhancedLogger(this.enhancedLogger, this.executionId)
     if (this.requestId) {
-      logger.debug(`[${this.requestId}] Enhanced logger set on executor for execution ${this.executionId}`)
+      logger.debug(
+        `[${this.requestId}] Enhanced logger set on executor for execution ${this.executionId}`
+      )
     }
   }
 
@@ -108,7 +112,9 @@ export class EnhancedLoggingSession {
       })
 
       if (this.requestId) {
-        logger.debug(`[${this.requestId}] Completed enhanced logging for execution ${this.executionId}`)
+        logger.debug(
+          `[${this.requestId}] Completed enhanced logging for execution ${this.executionId}`
+        )
       }
     } catch (error) {
       if (this.requestId) {
@@ -133,11 +139,16 @@ export class EnhancedLoggingSession {
       })
 
       if (this.requestId) {
-        logger.debug(`[${this.requestId}] Completed enhanced logging with error for execution ${this.executionId}`)
+        logger.debug(
+          `[${this.requestId}] Completed enhanced logging with error for execution ${this.executionId}`
+        )
       }
     } catch (enhancedError) {
       if (this.requestId) {
-        logger.error(`[${this.requestId}] Failed to complete enhanced logging for error:`, enhancedError)
+        logger.error(
+          `[${this.requestId}] Failed to complete enhanced logging for error:`,
+          enhancedError
+        )
       }
     }
   }
@@ -148,7 +159,10 @@ export class EnhancedLoggingSession {
       return true
     } catch (error) {
       if (this.requestId) {
-        logger.error(`[${this.requestId}] Enhanced logging start failed, continuing execution:`, error)
+        logger.error(
+          `[${this.requestId}] Enhanced logging start failed, continuing execution:`,
+          error
+        )
       }
       return false
     }

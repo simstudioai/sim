@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
-
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -433,57 +432,62 @@ export async function executeWorkflowFromPayload(
     triggerSource: 'webhook-payload',
   })
 
-  const loggingSession = new EnhancedLoggingSession(foundWorkflow.id, executionId, 'webhook', requestId)
+  const loggingSession = new EnhancedLoggingSession(
+    foundWorkflow.id,
+    executionId,
+    'webhook',
+    requestId
+  )
 
   try {
     // Load the actual workflow state from normalized tables
-  const normalizedData = await loadWorkflowFromNormalizedTables(foundWorkflow.id)
+    const normalizedData = await loadWorkflowFromNormalizedTables(foundWorkflow.id)
 
-  if (!normalizedData) {
-    throw new Error(
-      `Workflow ${foundWorkflow.id} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
-    )
-  }
-
-  // DEBUG: Log specific payload details
-  if (input?.airtableChanges) {
-    logger.debug(`[${requestId}] TRACE: Execution received Airtable input`, {
-      changeCount: input.airtableChanges.length,
-      firstTableId: input.airtableChanges[0]?.tableId,
-      timestamp: new Date().toISOString(),
-    })
-  }
-
-  // Validate and ensure proper input structure
-  if (!input) {
-    logger.warn(`[${requestId}] Empty input for workflow execution, creating empty object`)
-    input = {}
-  }
-
-  // Special handling for Airtable webhook inputs
-  if (input.airtableChanges) {
-    if (!Array.isArray(input.airtableChanges)) {
-      logger.warn(
-        `[${requestId}] Invalid airtableChanges input type (${typeof input.airtableChanges}), converting to array`
+    if (!normalizedData) {
+      throw new Error(
+        `Workflow ${foundWorkflow.id} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
       )
-      // Force to array if somehow not an array
-      input.airtableChanges = [input.airtableChanges]
     }
 
-    // Log the structure of the payload for debugging
-    logger.info(`[${requestId}] Airtable webhook payload:`, {
-      changeCount: input.airtableChanges.length,
-      hasAirtableChanges: true,
-      sampleTableIds: input.airtableChanges.slice(0, 2).map((c: any) => c.tableId),
-    })
-  }
+    // DEBUG: Log specific payload details
+    if (input?.airtableChanges) {
+      logger.debug(`[${requestId}] TRACE: Execution received Airtable input`, {
+        changeCount: input.airtableChanges.length,
+        firstTableId: input.airtableChanges[0]?.tableId,
+        timestamp: new Date().toISOString(),
+      })
+    }
 
-  // Log the full input format to help diagnose data issues
-  logger.debug(`[${requestId}] Workflow input format:`, {
-    inputKeys: Object.keys(input || {}),
-    hasAirtableChanges: input?.airtableChanges && Array.isArray(input.airtableChanges),
-    airtableChangesCount: input?.airtableChanges?.length || 0,
-  })
+    // Validate and ensure proper input structure
+    if (!input) {
+      logger.warn(`[${requestId}] Empty input for workflow execution, creating empty object`)
+      input = {}
+    }
+
+    // Special handling for Airtable webhook inputs
+    if (input.airtableChanges) {
+      if (!Array.isArray(input.airtableChanges)) {
+        logger.warn(
+          `[${requestId}] Invalid airtableChanges input type (${typeof input.airtableChanges}), converting to array`
+        )
+        // Force to array if somehow not an array
+        input.airtableChanges = [input.airtableChanges]
+      }
+
+      // Log the structure of the payload for debugging
+      logger.info(`[${requestId}] Airtable webhook payload:`, {
+        changeCount: input.airtableChanges.length,
+        hasAirtableChanges: true,
+        sampleTableIds: input.airtableChanges.slice(0, 2).map((c: any) => c.tableId),
+      })
+    }
+
+    // Log the full input format to help diagnose data issues
+    logger.debug(`[${requestId}] Workflow input format:`, {
+      inputKeys: Object.keys(input || {}),
+      hasAirtableChanges: input?.airtableChanges && Array.isArray(input.airtableChanges),
+      airtableChangesCount: input?.airtableChanges?.length || 0,
+    })
 
     // Use normalized data for execution
     const { blocks, edges, loops, parallels } = normalizedData

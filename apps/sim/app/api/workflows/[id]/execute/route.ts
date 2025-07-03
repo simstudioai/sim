@@ -58,7 +58,6 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     throw new Error('Execution is already running')
   }
 
-
   const loggingSession = new EnhancedLoggingSession(workflowId, executionId, 'api', requestId)
 
   // Check if the user has exceeded their usage limits
@@ -292,7 +291,6 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
         })
         .where(eq(userStats.userId, workflow.userId))
     }
-
 
     const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 

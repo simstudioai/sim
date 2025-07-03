@@ -1,5 +1,5 @@
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
-import type { ExecutionTrigger, ExecutionEnvironment, WorkflowState } from './types'
+import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from './types'
 
 export function createTriggerObject(
   type: ExecutionTrigger['type'],
@@ -62,11 +62,13 @@ export function calculateBlockStats(traceSpans: any[]): {
 
     for (const span of spans) {
       // Check if this span is an actual workflow block
-      if (span.type &&
-          span.type !== 'workflow' &&
-          span.type !== 'provider' &&
-          span.type !== 'model' &&
-          span.blockId) {
+      if (
+        span.type &&
+        span.type !== 'workflow' &&
+        span.type !== 'provider' &&
+        span.type !== 'model' &&
+        span.blockId
+      ) {
         blocks.push(span)
       }
 
