@@ -71,10 +71,10 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       // Upload all files using presigned URLs
       for (const [index, file] of files.entries()) {
-        setUploadProgress((prev) => ({ 
-          ...prev, 
-          currentFile: file.name, 
-          filesCompleted: index 
+        setUploadProgress((prev) => ({
+          ...prev,
+          currentFile: file.name,
+          filesCompleted: index,
         }))
 
         try {
@@ -120,9 +120,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
               ? presignedData.fileInfo.path
               : `${window.location.origin}${presignedData.fileInfo.path}`
 
-            uploadedFiles.push(
-              createUploadedFile(file.name, fullFileUrl, file.size, file.type)
-            )
+            uploadedFiles.push(createUploadedFile(file.name, fullFileUrl, file.size, file.type))
           } else {
             // Fallback to traditional upload through API route
             const formData = new FormData()
@@ -135,7 +133,9 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
             if (!uploadResponse.ok) {
               const errorData = await uploadResponse.json()
-              throw new Error(`Failed to upload ${file.name}: ${errorData.error || 'Unknown error'}`)
+              throw new Error(
+                `Failed to upload ${file.name}: ${errorData.error || 'Unknown error'}`
+              )
             }
 
             const uploadResult = await uploadResponse.json()
@@ -190,12 +190,12 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         logger.error('Document processing failed:', {
           status: processResponse.status,
           error: errorData,
-          uploadedFiles: uploadedFiles.map(f => ({
+          uploadedFiles: uploadedFiles.map((f) => ({
             filename: f.filename,
             fileUrl: f.fileUrl,
             fileSize: f.fileSize,
-            mimeType: f.mimeType
-          }))
+            mimeType: f.mimeType,
+          })),
         })
         throw new Error(
           `Failed to start document processing: ${errorData.error || errorData.message || 'Unknown error'}`
@@ -224,7 +224,8 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     } catch (err) {
       logger.error('Error uploading documents:', err)
 
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred during upload'
+      const errorMessage =
+        err instanceof Error ? err.message : 'Unknown error occurred during upload'
       const error: UploadError = {
         message: errorMessage,
         timestamp: Date.now(),

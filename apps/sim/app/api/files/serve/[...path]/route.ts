@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises'
 import type { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { downloadFile, isUsingCloudStorage, getStorageProvider } from '@/lib/uploads'
+import { downloadFile, getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
 import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 
@@ -16,7 +16,6 @@ import {
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FilesServeAPI')
-
 
 async function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -100,7 +99,6 @@ async function handleLocalFile(filename: string): Promise<NextResponse> {
   }
 }
 
-
 async function downloadKBFile(cloudKey: string): Promise<Buffer> {
   const storageProvider = getStorageProvider()
 
@@ -159,9 +157,7 @@ async function handleCloudProxy(cloudKey: string): Promise<NextResponse> {
     // Check if this is a KB file (starts with 'kb/')
     const isKBFile = cloudKey.startsWith('kb/')
 
-    const fileBuffer = isKBFile
-      ? await downloadKBFile(cloudKey)
-      : await downloadFile(cloudKey)
+    const fileBuffer = isKBFile ? await downloadKBFile(cloudKey) : await downloadFile(cloudKey)
 
     // Extract the original filename from the key (last part after last /)
     const originalFilename = cloudKey.split('/').pop() || 'download'

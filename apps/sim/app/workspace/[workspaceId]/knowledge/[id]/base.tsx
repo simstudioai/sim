@@ -41,8 +41,6 @@ import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowle
 
 const logger = createLogger('KnowledgeBase')
 
-
-
 interface KnowledgeBaseProps {
   id: string
   knowledgeBaseName?: string

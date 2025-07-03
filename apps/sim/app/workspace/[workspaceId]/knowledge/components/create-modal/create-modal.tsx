@@ -29,8 +29,6 @@ const ACCEPTED_FILE_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]
 
-
-
 interface FileWithPreview extends File {
   preview: string
 }
@@ -88,7 +86,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const { uploadFiles } = useKnowledgeUpload({
     onUploadComplete: (uploadedFiles) => {
       logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
-    }
+    },
   })
 
   // Cleanup file preview URLs when component unmounts to prevent memory leaks
@@ -236,8 +234,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
-
-
 
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true)
