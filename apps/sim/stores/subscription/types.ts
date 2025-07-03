@@ -55,6 +55,7 @@ export interface SubscriptionStore {
   // Core actions
   loadSubscriptionData: () => Promise<void>
   loadUsageLimitData: () => Promise<void>
+  loadData: () => Promise<void>
   updateUsageLimit: (newLimit: number) => Promise<{ success: boolean; error?: string }>
   refresh: () => Promise<void>
   clearError: () => void

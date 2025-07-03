@@ -14,6 +14,37 @@ const logger = createLogger('UsageManagement')
  */
 
 /**
+ * Check if a user is a regular team member (not admin) in any organization
+ * NOTE: This function is currently unused but kept for potential future use
+ * @deprecated Usage limit validation now uses plan-based minimums instead of role-based
+ */
+async function isRegularTeamMember(userId: string, subscription: any): Promise<boolean> {
+  try {
+    // Only check for team/enterprise plans where members might have different limits
+    if (!subscription || !['team', 'enterprise'].includes(subscription.plan)) {
+      return false
+    }
+
+    // Check if user is a regular member (not admin) in any organization
+    const memberRecords = await db
+      .select({ role: member.role })
+      .from(member)
+      .where(eq(member.userId, userId))
+
+    // If user has any admin roles, they're not a regular team member
+    const hasAdminRole = memberRecords.some((record) => record.role === 'admin')
+
+    // If they have no admin roles but are a member, they're a regular team member
+    const hasMemberRole = memberRecords.some((record) => record.role === 'member')
+
+    return !hasAdminRole && hasMemberRole
+  } catch (error) {
+    logger.error('Failed to check team member status', { userId, error })
+    return false
+  }
+}
+
+/**
  * Get comprehensive usage data for a user
  */
 export async function getUserUsageData(userId: string): Promise<UsageData> {
@@ -71,7 +102,34 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
   try {
     const subscription = await getHighestPrioritySubscription(userId)
     const canEdit = canEditUsageLimit(subscription)
-    const minimumLimit = calculateDefaultUsageLimit(subscription)
+
+    // Use plan-based minimums instead of role-based minimums
+    let minimumLimit: number
+    if (!subscription || subscription.status !== 'active') {
+      // Free plan users
+      minimumLimit = 5
+    } else if (subscription.plan === 'pro') {
+      // Pro plan users: $20 minimum
+      minimumLimit = 20
+    } else if (subscription.plan === 'team') {
+      // Team plan users: $40 minimum (per-seat allocation, regardless of role)
+      minimumLimit = 40
+    } else if (subscription.plan === 'enterprise') {
+      // Enterprise plan users: per-seat allocation from their plan
+      const metadata = subscription.metadata || {}
+      if (metadata.perSeatAllowance) {
+        minimumLimit = Number.parseFloat(metadata.perSeatAllowance)
+      } else if (metadata.totalAllowance) {
+        // For total allowance, use per-seat calculation
+        const seats = subscription.seats || 1
+        minimumLimit = Number.parseFloat(metadata.totalAllowance) / seats
+      } else {
+        minimumLimit = 200 // Default enterprise per-seat limit
+      }
+    } else {
+      // Fallback to plan-based calculation
+      minimumLimit = calculateDefaultUsageLimit(subscription)
+    }
 
     const userStatsRecord = await db
       .select()
@@ -154,7 +212,41 @@ export async function updateUserUsageLimit(
       return { success: false, error: 'Free plan users cannot edit usage limits' }
     }
 
-    const minimumLimit = calculateDefaultUsageLimit(subscription)
+    // Use plan-based minimums instead of role-based minimums
+    let minimumLimit: number
+
+    if (!subscription || subscription.status !== 'active') {
+      // Free plan users (shouldn't reach here due to canEditUsageLimit check above)
+      minimumLimit = 5
+    } else if (subscription.plan === 'pro') {
+      // Pro plan users: $20 minimum
+      minimumLimit = 20
+    } else if (subscription.plan === 'team') {
+      // Team plan users: $40 minimum (per-seat allocation, regardless of role)
+      minimumLimit = 40
+    } else if (subscription.plan === 'enterprise') {
+      // Enterprise plan users: per-seat allocation from their plan
+      const metadata = subscription.metadata || {}
+      if (metadata.perSeatAllowance) {
+        minimumLimit = Number.parseFloat(metadata.perSeatAllowance)
+      } else if (metadata.totalAllowance) {
+        // For total allowance, use per-seat calculation
+        const seats = subscription.seats || 1
+        minimumLimit = Number.parseFloat(metadata.totalAllowance) / seats
+      } else {
+        minimumLimit = 200 // Default enterprise per-seat limit
+      }
+    } else {
+      // Fallback to plan-based calculation
+      minimumLimit = calculateDefaultUsageLimit(subscription)
+    }
+
+    logger.info('Applying plan-based validation', {
+      userId,
+      newLimit,
+      minimumLimit,
+      plan: subscription?.plan,
+    })
 
     // Validate new limit is not below minimum
     if (newLimit < minimumLimit) {
@@ -179,6 +271,7 @@ export async function updateUserUsageLimit(
       newLimit,
       setBy: setBy || userId,
       planMinimum: minimumLimit,
+      plan: subscription?.plan,
     })
 
     return { success: true }

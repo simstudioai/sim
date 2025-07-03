@@ -105,23 +105,13 @@ async function getDefaultUsageLimit(
 async function calculateBillingPeriod(subscription: SubscriptionWithUser) {
   const now = new Date()
 
-  // If subscription has period dates, use them
-  if (subscription.periodStart && subscription.periodEnd) {
-    return {
-      start: subscription.periodStart,
-      end: subscription.periodEnd,
-    }
-  }
+  // SAFEGUARD: For existing subscriptions, always start billing periods from today
+  // This prevents immediate charging of existing subscribers when usage-based billing is deployed
+  // TODO: Remove this safeguard after usage-based billing has been in place for 1+ months
+  console.log(
+    '⚠️  SAFEGUARD ACTIVE: Starting all billing periods from today to prevent immediate charges'
+  )
 
-  // If only period start, calculate monthly period
-  if (subscription.periodStart) {
-    const start = new Date(subscription.periodStart)
-    const end = new Date(start)
-    end.setMonth(end.getMonth() + 1)
-    return { start, end }
-  }
-
-  // Fallback: start from now, monthly period
   const start = now
   const end = new Date(now)
   end.setMonth(end.getMonth() + 1)

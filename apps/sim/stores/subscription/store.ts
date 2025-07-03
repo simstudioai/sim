@@ -156,8 +156,21 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             throw new Error(errorData.error || 'Failed to update usage limit')
           }
 
-          // Refresh both subscription and usage limit data
-          await Promise.all([get().loadSubscriptionData(), get().loadUsageLimitData()])
+          // Simple state update - just update the usage limit data
+          const currentState = get()
+          if (currentState.usageLimitData) {
+            set({
+              usageLimitData: {
+                ...currentState.usageLimitData,
+                currentLimit: newLimit,
+              },
+            })
+          }
+
+          // Trigger a background refresh without waiting
+          setTimeout(() => {
+            get().refresh()
+          }, 100)
 
           logger.debug('Usage limit updated successfully', { newLimit })
           return { success: true }
@@ -172,7 +185,97 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       refresh: async () => {
         // Force refresh by clearing cache
         set({ lastFetched: null })
-        await Promise.all([get().loadSubscriptionData(), get().loadUsageLimitData()])
+        await get().loadData()
+      },
+
+      // Load both subscription and usage limit data in parallel
+      loadData: async () => {
+        const state = get()
+
+        // Check cache validity for subscription data
+        if (
+          state.subscriptionData &&
+          state.lastFetched &&
+          Date.now() - state.lastFetched < CACHE_DURATION
+        ) {
+          logger.debug('Using cached data')
+          // Still load usage limit if not present
+          if (!state.usageLimitData) {
+            await get().loadUsageLimitData()
+          }
+          return
+        }
+
+        // Don't start multiple concurrent requests
+        if (state.isLoading) {
+          logger.debug('Data already loading, skipping duplicate request')
+          return
+        }
+
+        set({ isLoading: true, error: null })
+
+        try {
+          // Load both subscription and usage limit data in parallel
+          const [subscriptionResponse, usageLimitResponse] = await Promise.all([
+            fetch('/api/users/me/subscription'),
+            fetch('/api/users/me/usage-limit'),
+          ])
+
+          if (!subscriptionResponse.ok) {
+            throw new Error(`HTTP error! status: ${subscriptionResponse.status}`)
+          }
+
+          const subscriptionData = await subscriptionResponse.json()
+          let usageLimitData = null
+
+          if (usageLimitResponse.ok) {
+            usageLimitData = await usageLimitResponse.json()
+          } else {
+            logger.warn('Failed to load usage limit data, using defaults')
+          }
+
+          // Transform subscription data dates
+          const transformedSubscriptionData: SubscriptionData = {
+            ...subscriptionData,
+            usage: {
+              ...subscriptionData.usage,
+              billingPeriodStart: subscriptionData.usage?.billingPeriodStart
+                ? new Date(subscriptionData.usage.billingPeriodStart)
+                : null,
+              billingPeriodEnd: subscriptionData.usage?.billingPeriodEnd
+                ? new Date(subscriptionData.usage.billingPeriodEnd)
+                : null,
+            },
+          }
+
+          // Transform usage limit data dates if present
+          const transformedUsageLimitData: UsageLimitData | null = usageLimitData
+            ? {
+                ...usageLimitData,
+                updatedAt: usageLimitData.updatedAt
+                  ? new Date(usageLimitData.updatedAt)
+                  : undefined,
+              }
+            : null
+
+          set({
+            subscriptionData: transformedSubscriptionData,
+            usageLimitData: transformedUsageLimitData,
+            isLoading: false,
+            error: null,
+            lastFetched: Date.now(),
+          })
+
+          logger.debug('Data loaded successfully in parallel')
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to load data'
+          logger.error('Failed to load data', { error })
+
+          set({
+            isLoading: false,
+            error: errorMessage,
+          })
+        }
       },
 
       clearError: () => {
@@ -262,7 +365,6 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
 // Auto-load subscription data when store is first accessed
 if (typeof window !== 'undefined') {
-  // Load data on store creation
-  useSubscriptionStore.getState().loadSubscriptionData()
-  useSubscriptionStore.getState().loadUsageLimitData()
+  // Load data in parallel on store creation
+  useSubscriptionStore.getState().loadData()
 }
