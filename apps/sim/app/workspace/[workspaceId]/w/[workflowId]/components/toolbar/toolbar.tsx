@@ -145,11 +145,13 @@ export const Toolbar = React.memo(() => {
               {blocks.map((block) => (
                 <ToolbarBlock key={block.type} config={block} disabled={!userPermissions.canEdit} />
               ))}
-              {activeTab === 'blocks' && !searchQuery && (
-                <>
-                  <LoopToolbarItem disabled={!userPermissions.canEdit} />
-                  <ParallelToolbarItem disabled={!userPermissions.canEdit} />
-                </>
+              {((activeTab === 'blocks' && !searchQuery) ||
+                (searchQuery && 'loop'.includes(searchQuery.toLowerCase()))) && (
+                <LoopToolbarItem disabled={!userPermissions.canEdit} />
+              )}
+              {((activeTab === 'blocks' && !searchQuery) ||
+                (searchQuery && 'parallel'.includes(searchQuery.toLowerCase()))) && (
+                <ParallelToolbarItem disabled={!userPermissions.canEdit} />
               )}
             </div>
           </div>
