@@ -2,35 +2,17 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import {
-  type ConnectedBlock,
-  useBlockConnections,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-connections'
 import { getBlock } from '@/blocks'
+import { BlockPathCalculator } from '@/lib/block-path-calculator'
+import { Serializer } from '@/serializer'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('TagDropdown')
 
 // Type definitions for component data structures
-interface Field {
-  name: string
-  type: string
-  description?: string
-}
-
-interface Metric {
-  name: string
-  description: string
-  range: {
-    min: number
-    max: number
-  }
-}
-
 interface BlockTagGroup {
   blockName: string
   blockId: string
@@ -51,27 +33,6 @@ interface TagDropdownProps {
   style?: React.CSSProperties
 }
 
-export const extractFieldsFromSchema = (responseFormat: any): Field[] => {
-  if (!responseFormat) return []
-
-  const schema = responseFormat.schema || responseFormat
-  if (
-    !schema ||
-    typeof schema !== 'object' ||
-    !('properties' in schema) ||
-    typeof schema.properties !== 'object' ||
-    schema.properties === null
-  ) {
-    return []
-  }
-
-  return Object.entries(schema.properties).map(([name, prop]: [string, any]) => ({
-    name,
-    type: Array.isArray(prop) ? 'array' : prop.type || 'string',
-    description: prop.description,
-  }))
-}
-
 // Check if tag trigger '<' should show dropdown
 export const checkTagTrigger = (text: string, cursorPosition: number): { show: boolean } => {
   if (cursorPosition >= 1) {
@@ -85,6 +46,29 @@ export const checkTagTrigger = (text: string, cursorPosition: number): { show: b
     }
   }
   return { show: false }
+}
+
+// Generate output paths from block configuration outputs
+const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
+  const paths: string[] = []
+  
+  for (const [key, value] of Object.entries(outputs)) {
+    const currentPath = prefix ? `${prefix}.${key}` : key
+    
+    if (typeof value === 'string') {
+      // Simple type like 'string', 'number', 'json', 'any'
+      paths.push(currentPath)
+    } else if (typeof value === 'object' && value !== null) {
+      // Nested object - recurse
+      const subPaths = generateOutputPaths(value, currentPath)
+      paths.push(...subPaths)
+    } else {
+      // Fallback - add the path
+      paths.push(currentPath)
+    }
+  }
+  
+  return paths
 }
 
 export const TagDropdown: React.FC<TagDropdownProps> = ({
@@ -114,9 +98,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const variables = useVariablesStore((state) => state.variables)
   const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
 
-  // Get block connections
-  const { incomingConnections } = useBlockConnections(blockId)
-
   // Load variables when workflow changes
   useEffect(() => {
     if (workflowId) {
@@ -131,55 +112,76 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return match ? match[1].toLowerCase() : ''
   }, [inputValue, cursorPosition])
 
-  // Compute available tags and metadata
-  const {
-    tags,
-    variableInfoMap = {},
-    blockTagGroups = [],
-  } = useMemo(() => {
-    // Get output paths from block outputs recursively
-    const getOutputPaths = (obj: any, prefix = ''): string[] => {
-      if (typeof obj !== 'object' || obj === null) {
-        return prefix ? [prefix] : []
+  // Generate all available tags using BlockPathCalculator and clean block outputs
+  const { tags, variableInfoMap = {}, blockTagGroups = [] } = useMemo(() => {
+    // Handle active source block (drag & drop from specific block)
+    if (activeSourceBlockId) {
+      const sourceBlock = blocks[activeSourceBlockId]
+      if (!sourceBlock) {
+        return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
       }
 
-      if ('type' in obj && typeof obj.type === 'string') {
-        return [prefix]
+      const blockConfig = getBlock(sourceBlock.type)
+      if (!blockConfig) {
+        return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
       }
 
-      return Object.entries(obj).flatMap(([key, value]) => {
-        const newPrefix = prefix ? `${prefix}.${key}` : key
-        return getOutputPaths(value, newPrefix)
-      })
+      const blockName = sourceBlock.name || sourceBlock.type
+      const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
+      const outputPaths = generateOutputPaths(blockConfig.outputs)
+      const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+
+      const blockTagGroups: BlockTagGroup[] = [
+        {
+          blockName,
+          blockId: activeSourceBlockId,
+          blockType: sourceBlock.type,
+          tags: blockTags,
+          distance: 0,
+        },
+      ]
+
+      return {
+        tags: blockTags,
+        variableInfoMap: {},
+        blockTagGroups,
+      }
     }
 
-    // Calculate distances from starter block using BFS
-    const blockDistances: Record<string, number> = {}
-    const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
-    const starterBlockId = starterBlock?.id
+    // Create serialized workflow for BlockPathCalculator
+    const serializer = new Serializer()
+    const serializedWorkflow = serializer.serializeWorkflow(blocks, edges, loops, parallels)
 
-    if (starterBlockId) {
-      // Build adjacency list for efficient traversal
+    // Find accessible blocks using BlockPathCalculator
+    const accessibleBlockIds = BlockPathCalculator.findAllPathNodes(
+      serializedWorkflow.connections,
+      blockId
+    )
+
+    // Always include starter block
+    const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
+    if (starterBlock && !accessibleBlockIds.includes(starterBlock.id)) {
+      accessibleBlockIds.push(starterBlock.id)
+    }
+
+    // Calculate distances from starter block for ordering
+    const blockDistances: Record<string, number> = {}
+    if (starterBlock) {
       const adjList: Record<string, string[]> = {}
       for (const edge of edges) {
-        if (!adjList[edge.source]) {
-          adjList[edge.source] = []
-        }
+        if (!adjList[edge.source]) adjList[edge.source] = []
         adjList[edge.source].push(edge.target)
       }
 
-      // BFS to find distances from starter block
       const visited = new Set<string>()
-      const queue: [string, number][] = [[starterBlockId, 0]]
+      const queue: [string, number][] = [[starterBlock.id, 0]]
 
       while (queue.length > 0) {
         const [currentNodeId, distance] = queue.shift()!
-
         if (visited.has(currentNodeId)) continue
         visited.add(currentNodeId)
         blockDistances[currentNodeId] = distance
 
-        // Add outgoing nodes to queue with incremented distance
         const outgoingNodeIds = adjList[currentNodeId] || []
         for (const targetId of outgoingNodeIds) {
           queue.push([targetId, distance + 1])
@@ -187,7 +189,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
     }
 
-    // Create variable tags with type information
+    // Create variable tags
     const variableTags = workflowVariables.map(
       (variable: Variable) => `variable.${variable.name.replace(/\s+/g, '')}`
     )
@@ -207,13 +209,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     // Generate loop tags if current block is in a loop
     const loopTags: string[] = []
     const containingLoop = Object.entries(loops).find(([_, loop]) => loop.nodes.includes(blockId))
-
     if (containingLoop) {
       const [_loopId, loop] = containingLoop
       const loopType = loop.loopType || 'for'
-
       loopTags.push('loop.index')
-
       if (loopType === 'forEach') {
         loopTags.push('loop.currentItem')
         loopTags.push('loop.items')
@@ -225,229 +224,41 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     const containingParallel = Object.entries(parallels || {}).find(([_, parallel]) =>
       parallel.nodes.includes(blockId)
     )
-
     if (containingParallel) {
       parallelTags.push('parallel.index')
       parallelTags.push('parallel.currentItem')
       parallelTags.push('parallel.items')
     }
 
-    // Handle active source block (from drag & drop)
-    if (activeSourceBlockId) {
-      const sourceBlock = blocks[activeSourceBlockId]
-      if (!sourceBlock)
-        return { tags: [...variableTags, ...loopTags, ...parallelTags], variableInfoMap }
+    // Create block tag groups from accessible blocks
+    const blockTagGroups: BlockTagGroup[] = []
+    const allBlockTags: string[] = []
 
-      const blockName = sourceBlock.name || sourceBlock.type
+    for (const accessibleBlockId of accessibleBlockIds) {
+      const accessibleBlock = blocks[accessibleBlockId]
+      if (!accessibleBlock) continue
+
+      const blockConfig = getBlock(accessibleBlock.type)
+      if (!blockConfig) continue
+
+      const blockName = accessibleBlock.name || accessibleBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
+      const outputPaths = generateOutputPaths(blockConfig.outputs)
+      const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
 
-      let blockTags: string[] = []
+      blockTagGroups.push({
+        blockName,
+        blockId: accessibleBlockId,
+        blockType: accessibleBlock.type,
+        tags: blockTags,
+        distance: blockDistances[accessibleBlockId] || 0,
+      })
 
-      // Check for evaluator metrics first
-      if (sourceBlock.type === 'evaluator') {
-        try {
-          const metricsValue = useSubBlockStore
-            .getState()
-            .getValue(activeSourceBlockId, 'metrics') as unknown as Metric[]
-          if (Array.isArray(metricsValue)) {
-            blockTags = metricsValue.map(
-              (metric) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
-            )
-          }
-        } catch (e) {
-          logger.error('Error parsing metrics:', { e })
-        }
-      }
-
-      // Check for response format if no metrics
-      if (blockTags.length === 0) {
-        try {
-          const responseFormatValue = useSubBlockStore
-            .getState()
-            .getValue(activeSourceBlockId, 'responseFormat')
-          if (responseFormatValue) {
-            const responseFormat =
-              typeof responseFormatValue === 'string'
-                ? JSON.parse(responseFormatValue)
-                : responseFormatValue
-
-            if (responseFormat) {
-              const fields = extractFieldsFromSchema(responseFormat)
-              if (fields.length > 0) {
-                blockTags = fields.map((field: Field) => `${normalizedBlockName}.${field.name}`)
-              }
-            }
-          }
-        } catch (e) {
-          logger.error('Error parsing response format:', { e })
-        }
-      }
-
-      // Fall back to default outputs
-      if (blockTags.length === 0) {
-        const outputPaths = getOutputPaths(sourceBlock.outputs, '')
-        blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-      }
-
-      const blockTagGroups: BlockTagGroup[] = [
-        {
-          blockName,
-          blockId: activeSourceBlockId,
-          blockType: sourceBlock.type,
-          tags: blockTags,
-          distance: blockDistances[activeSourceBlockId] || 0,
-        },
-      ]
-
-      return {
-        tags: [...variableTags, ...loopTags, ...parallelTags, ...blockTags],
-        variableInfoMap,
-        blockTagGroups,
-      }
+      allBlockTags.push(...blockTags)
     }
 
-    // Find parallel/loop end-source connections
-    const endSourceConnections: ConnectedBlock[] = []
-    const incomingEdges = useWorkflowStore
-      .getState()
-      .edges.filter((edge) => edge.target === blockId)
-
-    for (const edge of incomingEdges) {
-      const sourceBlock = blocks[edge.source]
-      if (!sourceBlock) continue
-
-      // Handle parallel-end-source connections
-      if (edge.sourceHandle === 'parallel-end-source' && sourceBlock.type === 'parallel') {
-        const blockName = sourceBlock.name || sourceBlock.type
-
-        endSourceConnections.push({
-          id: sourceBlock.id,
-          type: sourceBlock.type,
-          outputType: ['completed', 'results', 'message'],
-          name: blockName,
-          responseFormat: {
-            schema: {
-              type: 'object',
-              properties: {
-                completed: {
-                  type: 'boolean',
-                  description: 'Whether all executions completed',
-                },
-                results: {
-                  type: 'array',
-                  description: 'Aggregated results from all parallel executions',
-                },
-                message: {
-                  type: 'string',
-                  description: 'Status message',
-                },
-              },
-            },
-          },
-        })
-      } else if (edge.sourceHandle === 'loop-end-source' && sourceBlock.type === 'loop') {
-        const blockName = sourceBlock.name || sourceBlock.type
-
-        endSourceConnections.push({
-          id: sourceBlock.id,
-          type: sourceBlock.type,
-          outputType: ['completed', 'results', 'message'],
-          name: blockName,
-          responseFormat: {
-            schema: {
-              type: 'object',
-              properties: {
-                completed: {
-                  type: 'boolean',
-                  description: 'Whether all iterations completed',
-                },
-                results: {
-                  type: 'array',
-                  description: 'Aggregated results from all loop iterations',
-                },
-                message: {
-                  type: 'string',
-                  description: 'Status message',
-                },
-              },
-            },
-          },
-        })
-      }
-    }
-
-    // Combine all connections
-    const allConnections = [...incomingConnections, ...endSourceConnections]
-
-    // Group block tags by source block
-    const blockTagsMap = new Map<
-      string,
-      {
-        blockName: string
-        blockId: string
-        blockType: string
-        tags: string[]
-        distance: number
-      }
-    >()
-
-    allConnections.forEach((connection: ConnectedBlock) => {
-      const blockName = connection.name || connection.type
-      const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
-      let connectionTags: string[] = []
-
-      // Extract fields from response format
-      if (connection.responseFormat) {
-        const fields = extractFieldsFromSchema(connection.responseFormat)
-        if (fields.length > 0) {
-          connectionTags = fields.map((field: Field) => `${normalizedBlockName}.${field.name}`)
-        }
-      }
-
-      // Handle evaluator blocks with metrics
-      if (connection.type === 'evaluator') {
-        try {
-          const metricsValue = useSubBlockStore
-            .getState()
-            .getValue(connection.id, 'metrics') as unknown as Metric[]
-          if (Array.isArray(metricsValue)) {
-            connectionTags = metricsValue.map(
-              (metric) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
-            )
-          }
-        } catch (e) {
-          logger.error('Error parsing metrics:', { e })
-          connectionTags = []
-        }
-      }
-
-      // Fall back to default outputs
-      if (connectionTags.length === 0) {
-        const sourceBlock = blocks[connection.id]
-        if (sourceBlock) {
-          const outputPaths = getOutputPaths(sourceBlock.outputs, '')
-          connectionTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-        }
-      }
-
-      // Add to map, combining tags if block already exists
-      const existingEntry = blockTagsMap.get(connection.id)
-      if (existingEntry) {
-        existingEntry.tags.push(...connectionTags)
-      } else {
-        blockTagsMap.set(connection.id, {
-          blockName,
-          blockId: connection.id,
-          blockType: connection.type,
-          tags: connectionTags,
-          distance: blockDistances[connection.id] || 0,
-        })
-      }
-    })
-
-    // Sort by distance (furthest first) and flatten tags
-    const blockTagGroups = Array.from(blockTagsMap.values()).sort((a, b) => b.distance - a.distance)
-    const allBlockTags = blockTagGroups.flatMap((group) => group.tags)
+    // Sort block groups by distance (closest first)
+    blockTagGroups.sort((a, b) => a.distance - b.distance)
 
     return {
       tags: [...variableTags, ...loopTags, ...parallelTags, ...allBlockTags],
@@ -456,13 +267,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     }
   }, [
     blocks,
-    incomingConnections,
+    edges,
+    loops,
+    parallels,
     blockId,
     activeSourceBlockId,
     workflowVariables,
-    loops,
-    parallels,
-    edges,
   ])
 
   // Filter tags based on search term
