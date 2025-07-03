@@ -54,6 +54,9 @@ export function buildTraceSpans(result: ExecutionResult): {
       children: [],
       // Store the block ID for later use in identifying direct parent-child relationships
       blockId: log.blockId,
+      // Include block input/output data
+      input: log.input || {},
+      output: log.output || {},
     }
 
     // Add provider timing data if it exists

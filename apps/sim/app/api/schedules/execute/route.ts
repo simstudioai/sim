@@ -4,8 +4,8 @@ import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
-import { enhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
-import { persistExecutionError } from '@/lib/logs/execution-logger'
+import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
+
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import {
   type BlockState,
@@ -86,6 +86,7 @@ export async function GET() {
 
     for (const schedule of dueSchedules) {
       const executionId = uuidv4()
+      let loggingSession: EnhancedLoggingSession | null = null
 
       try {
         if (runningExecutions.has(schedule.workflowId)) {
@@ -119,15 +120,7 @@ export async function GET() {
             }
           )
 
-          await persistExecutionError(
-            schedule.workflowId,
-            executionId,
-            new Error(
-              usageCheck.message ||
-                'Usage limit exceeded. Please upgrade your plan to continue running scheduled workflows.'
-            ),
-            'schedule'
-          )
+          // Error logging handled by enhanced logging session
 
           const retryDelay = 24 * 60 * 60 * 1000 // 24 hour delay for exceeded limits
           const nextRetryAt = new Date(now.getTime() + retryDelay)
@@ -308,19 +301,7 @@ export async function GET() {
         }
 
         // Start enhanced logging
-        const trigger = {
-          type: 'schedule' as const,
-          source: 'schedule',
-          timestamp: new Date().toISOString(),
-        }
-
-        const environment = {
-          variables: variables || {},
-          workflowId: schedule.workflowId,
-          executionId,
-          userId: workflowRecord.userId,
-          workspaceId: workflowRecord.workspaceId || '',
-        }
+        loggingSession = new EnhancedLoggingSession(schedule.workflowId, executionId, 'schedule', requestId)
 
         // Load the actual workflow state from normalized tables
         const enhancedNormalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
@@ -331,30 +312,12 @@ export async function GET() {
           )
         }
 
-        // Use the actual current workflow state
-        const workflowState = {
-          blocks: enhancedNormalizedData.blocks || {},
-          edges: enhancedNormalizedData.edges || [],
-          loops: enhancedNormalizedData.loops || {},
-          parallels: enhancedNormalizedData.parallels || {},
-        }
-
-        try {
-          await enhancedExecutionLogger.startWorkflowExecution({
-            workflowId: schedule.workflowId,
-            executionId,
-            trigger,
-            environment,
-            workflowState,
-          })
-
-          logger.debug(
-            `[${requestId}] Started enhanced logging for scheduled execution ${executionId}`
-          )
-        } catch (enhancedError) {
-          logger.error(`[${requestId}] Failed to start enhanced logging:`, enhancedError)
-          // Continue with execution even if enhanced logging fails
-        }
+        // Start enhanced logging with environment variables
+        await loggingSession.safeStart({
+          userId: workflowRecord.userId,
+          workspaceId: workflowRecord.workspaceId || '',
+          variables: variables || {},
+        })
 
         const executor = new Executor(
           serializedWorkflow,
@@ -364,8 +327,9 @@ export async function GET() {
           workflowVariables
         )
 
-        // Set the enhanced logger for block-level logging
-        executor.setEnhancedLogger(enhancedExecutionLogger, executionId)
+        // Set up enhanced logging on the executor
+        loggingSession.setupExecutor(executor)
+
         const result = await executor.execute(schedule.workflowId)
 
         const executionResult =
@@ -398,120 +362,16 @@ export async function GET() {
 
         // Log individual block executions to enhanced system
         if (executionResult.logs && Array.isArray(executionResult.logs)) {
-          for (const blockLog of executionResult.logs) {
-            try {
-              // Extract cost data from block output
-              let blockCost
-              if (blockLog.output?.response?.cost) {
-                const cost = blockLog.output.response.cost
-                blockCost = {
-                  input: Number(cost.input) || 0,
-                  output: Number(cost.output) || 0,
-                  total: Number(cost.total) || 0,
-                  tokens: {
-                    prompt: blockLog.output.response.tokens?.prompt || 0,
-                    completion: blockLog.output.response.tokens?.completion || 0,
-                    total: blockLog.output.response.tokens?.total || 0,
-                  },
-                  model: blockLog.output.response.model || '',
-                  pricing: cost.pricing || {},
-                }
-              }
-
-              await enhancedExecutionLogger.logBlockExecution({
-                executionId,
-                workflowId: schedule.workflowId,
-                blockId: blockLog.blockId,
-                blockName: blockLog.blockName || '',
-                blockType: blockLog.blockType || 'unknown',
-                input: blockLog.input || {},
-                output: blockLog.output || {},
-                timing: {
-                  startedAt: blockLog.startedAt,
-                  endedAt: blockLog.endedAt || blockLog.startedAt,
-                  durationMs: blockLog.durationMs || 0,
-                },
-                status: blockLog.success ? 'success' : 'error',
-                error: blockLog.success
-                  ? undefined
-                  : {
-                      message: blockLog.error || 'Block execution failed',
-                      stackTrace: undefined,
-                    },
-                cost: blockCost,
-                metadata: {
-                  toolCalls: (blockLog as any).toolCalls || [],
-                },
-              })
-            } catch (blockLogError) {
-              logger.error(
-                `[${requestId}] Failed to log block execution ${blockLog.blockId}:`,
-                blockLogError
-              )
-            }
-          }
+          // Block execution logging is handled by the session
         }
 
         // Complete enhanced logging
-        try {
-          // Calculate block stats from execution result
-          const blockStats = {
-            total: executionResult.logs?.length || 0,
-            success: executionResult.logs?.filter((log) => log.success).length || 0,
-            error: executionResult.logs?.filter((log) => !log.success).length || 0,
-            skipped: 0, // TODO: Add skipped block tracking
-          }
-
-          // Extract cost data from execution logs
-          const costSummary = {
-            totalCost: 0,
-            totalInputCost: 0,
-            totalOutputCost: 0,
-            totalTokens: 0,
-            totalPromptTokens: 0,
-            totalCompletionTokens: 0,
-          }
-
-          // Aggregate costs from all blocks
-          if (executionResult.logs && Array.isArray(executionResult.logs)) {
-            for (const blockLog of executionResult.logs) {
-              if (blockLog.output?.response?.cost) {
-                const cost = blockLog.output.response.cost
-                costSummary.totalCost += Number(cost.total) || 0
-                costSummary.totalInputCost += Number(cost.input) || 0
-                costSummary.totalOutputCost += Number(cost.output) || 0
-
-                if (blockLog.output.response.tokens) {
-                  const tokens = blockLog.output.response.tokens
-                  costSummary.totalTokens += tokens.total || 0
-                  costSummary.totalPromptTokens += tokens.prompt || 0
-                  costSummary.totalCompletionTokens += tokens.completion || 0
-                }
-              }
-            }
-          }
-
-          await enhancedExecutionLogger.completeWorkflowExecution({
-            executionId,
-            endedAt: new Date().toISOString(),
-            totalDurationMs: totalDuration || 0,
-            blockStats,
-            costSummary: {
-              totalCost: costSummary.totalCost,
-              totalInputCost: costSummary.totalInputCost,
-              totalOutputCost: costSummary.totalOutputCost,
-              totalTokens: costSummary.totalTokens,
-            },
-            finalOutput: executionResult.output || {},
-            traceSpans: (traceSpans || []) as any,
-          })
-
-          logger.debug(
-            `[${requestId}] Completed enhanced logging for scheduled execution ${executionId}`
-          )
-        } catch (enhancedError) {
-          logger.error(`[${requestId}] Failed to complete enhanced logging:`, enhancedError)
-        }
+        await loggingSession.safeComplete({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: totalDuration || 0,
+          finalOutput: executionResult.output || {},
+          traceSpans: (traceSpans || []) as any,
+        })
 
         if (executionResult.success) {
           logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
@@ -575,38 +435,17 @@ export async function GET() {
           error
         )
 
-        await persistExecutionError(schedule.workflowId, executionId, error, 'schedule')
+        // Error logging handled by enhanced logging session
 
-        // Complete enhanced logging with error
-        try {
-          const blockStats = {
-            total: 0,
-            success: 0,
-            error: 1,
-            skipped: 0,
-          }
-
-          const costSummary = {
-            totalCost: 0,
-            totalInputCost: 0,
-            totalOutputCost: 0,
-            totalTokens: 0,
-          }
-
-          await enhancedExecutionLogger.completeWorkflowExecution({
-            executionId,
+        if (loggingSession) {
+          await loggingSession.safeCompleteWithError({
             endedAt: new Date().toISOString(),
             totalDurationMs: 0,
-            blockStats,
-            costSummary,
-            finalOutput: null,
-            traceSpans: [],
+            error: {
+              message: error.message || 'Scheduled workflow execution failed',
+              stackTrace: error.stack,
+            },
           })
-        } catch (enhancedError) {
-          logger.error(
-            `[${requestId}] Failed to complete enhanced logging for error:`,
-            enhancedError
-          )
         }
 
         let nextRunAt: Date

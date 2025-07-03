@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
-import { enhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
+import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
@@ -58,23 +58,8 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     throw new Error('Execution is already running')
   }
 
-  // Start enhanced logging
-  const trigger = {
-    type: 'api' as const,
-    source: 'api',
-    timestamp: new Date().toISOString(),
-  }
 
-  // We'll update the environment with actual variables after fetching them
-  const executionEnvironment = {
-    variables: {},
-    workflowId,
-    executionId,
-    userId: workflow.userId,
-    workspaceId: workflow.workspaceId,
-  }
-
-  // Note: We'll create the workflowState after loading normalized data to ensure we hash the current state
+  const loggingSession = new EnhancedLoggingSession(workflowId, executionId, 'api', requestId)
 
   // Check if the user has exceeded their usage limits
   const usageCheck = await checkServerSideUsageLimits(workflow.userId)
@@ -132,30 +117,6 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       parallelsCount: Object.keys(parallels || {}).length,
     })
 
-    // Create workflow state from the current normalized data (not old JSON state)
-    const workflowState = {
-      blocks: blocks || {},
-      edges: edges || [],
-      loops: loops || {},
-      parallels: parallels || {},
-    }
-
-    // Start enhanced logging with the current state
-    try {
-      await enhancedExecutionLogger.startWorkflowExecution({
-        workflowId,
-        executionId,
-        trigger,
-        environment: executionEnvironment,
-        workflowState,
-      })
-
-      logger.debug(`[${requestId}] Started enhanced logging for execution ${executionId}`)
-    } catch (enhancedError) {
-      logger.error(`[${requestId}] Failed to start enhanced logging:`, enhancedError)
-      // Continue with execution even if enhanced logging fails
-    }
-
     // Use the same execution flow as in scheduled executions
     const mergedStates = mergeSubblockState(blocks)
 
@@ -172,11 +133,13 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       )
     }
 
-    // Parse and validate environment variables.
     const variables = EnvVarsSchema.parse(userEnv?.variables ?? {})
 
-    // Update execution environment with actual variables
-    executionEnvironment.variables = variables
+    await loggingSession.safeStart({
+      userId: workflow.userId,
+      workspaceId: workflow.workspaceId,
+      variables,
+    })
 
     // Replace environment variables in the block states
     const currentBlockStates = await Object.entries(mergedStates).reduce(
@@ -302,8 +265,8 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       workflowVariables
     )
 
-    // Set the enhanced logger for block-level logging
-    executor.setEnhancedLogger(enhancedExecutionLogger, executionId)
+    // Set up enhanced logging on the executor
+    loggingSession.setupExecutor(executor)
 
     const result = await executor.execute(workflowId)
 
@@ -330,102 +293,28 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
         .where(eq(userStats.userId, workflow.userId))
     }
 
-    // Build trace spans from execution logs
+
     const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
-    // We have trace spans and total duration for enhanced logging
-
-    // Complete enhanced logging
-    try {
-      // Calculate block stats from execution result
-      const blockStats = {
-        total: executionResult.logs?.length || 0,
-        success: executionResult.logs?.filter((log) => log.success).length || 0,
-        error: executionResult.logs?.filter((log) => !log.success).length || 0,
-        skipped: 0, // TODO: Add skipped block tracking
-      }
-
-      // Calculate cost summary from execution result
-      const costSummary = {
-        totalCost: 0,
-        totalInputCost: 0,
-        totalOutputCost: 0,
-        totalTokens: 0,
-        totalPromptTokens: 0,
-        totalCompletionTokens: 0,
-      }
-
-      // Extract cost data from execution logs
-      if (executionResult.logs && Array.isArray(executionResult.logs)) {
-        for (const blockLog of executionResult.logs) {
-          if (blockLog.output?.response?.cost) {
-            const cost = blockLog.output.response.cost
-            costSummary.totalCost += Number(cost.total) || 0
-            costSummary.totalInputCost += Number(cost.input) || 0
-            costSummary.totalOutputCost += Number(cost.output) || 0
-
-            if (blockLog.output.response.tokens) {
-              const tokens = blockLog.output.response.tokens
-              costSummary.totalTokens += tokens.total || 0
-              costSummary.totalPromptTokens += tokens.prompt || 0
-              costSummary.totalCompletionTokens += tokens.completion || 0
-            }
-          }
-        }
-      }
-
-      await enhancedExecutionLogger.completeWorkflowExecution({
-        executionId,
-        endedAt: new Date().toISOString(),
-        totalDurationMs: totalDuration || 0,
-        blockStats,
-        costSummary: {
-          totalCost: costSummary.totalCost,
-          totalInputCost: costSummary.totalInputCost,
-          totalOutputCost: costSummary.totalOutputCost,
-          totalTokens: costSummary.totalTokens,
-        },
-        finalOutput: executionResult.output || {},
-        traceSpans: (traceSpans || []) as any,
-      })
-
-      logger.debug(`[${requestId}] Completed enhanced logging for execution ${executionId}`)
-    } catch (enhancedError) {
-      logger.error(`[${requestId}] Failed to complete enhanced logging:`, enhancedError)
-    }
+    await loggingSession.safeComplete({
+      endedAt: new Date().toISOString(),
+      totalDurationMs: totalDuration || 0,
+      finalOutput: executionResult.output || {},
+      traceSpans: (traceSpans || []) as any,
+    })
 
     return executionResult
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, error)
 
-    // Complete enhanced logging with error
-    try {
-      const blockStats = {
-        total: 0,
-        success: 0,
-        error: 1,
-        skipped: 0,
-      }
-
-      const costSummary = {
-        totalCost: 0,
-        totalInputCost: 0,
-        totalOutputCost: 0,
-        totalTokens: 0,
-      }
-
-      await enhancedExecutionLogger.completeWorkflowExecution({
-        executionId,
-        endedAt: new Date().toISOString(),
-        totalDurationMs: 0,
-        blockStats,
-        costSummary,
-        finalOutput: null,
-        traceSpans: [],
-      })
-    } catch (enhancedError) {
-      logger.error(`[${requestId}] Failed to complete enhanced logging for error:`, enhancedError)
-    }
+    await loggingSession.safeCompleteWithError({
+      endedAt: new Date().toISOString(),
+      totalDurationMs: 0,
+      error: {
+        message: error.message || 'Workflow execution failed',
+        stackTrace: error.stack,
+      },
+    })
 
     throw error
   } finally {

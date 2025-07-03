@@ -2,8 +2,8 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { enhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
-import { persistExecutionError } from '@/lib/logs/execution-logger'
+import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
+
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -433,51 +433,16 @@ export async function executeWorkflowFromPayload(
     triggerSource: 'webhook-payload',
   })
 
-  // Start enhanced logging
-  const trigger = {
-    type: 'webhook' as const,
-    source: 'webhook',
-    timestamp: new Date().toISOString(),
-  }
+  const loggingSession = new EnhancedLoggingSession(foundWorkflow.id, executionId, 'webhook', requestId)
 
-  const environment = {
-    variables: {},
-    workflowId: foundWorkflow.id,
-    executionId,
-    userId: foundWorkflow.userId,
-    workspaceId: foundWorkflow.workspaceId,
-  }
-
-  // Load the actual workflow state from normalized tables
+  try {
+    // Load the actual workflow state from normalized tables
   const normalizedData = await loadWorkflowFromNormalizedTables(foundWorkflow.id)
 
   if (!normalizedData) {
     throw new Error(
       `Workflow ${foundWorkflow.id} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
     )
-  }
-
-  // Use the actual current workflow state
-  const workflowState = {
-    blocks: normalizedData.blocks || {},
-    edges: normalizedData.edges || [],
-    loops: normalizedData.loops || {},
-    parallels: normalizedData.parallels || {},
-  }
-
-  try {
-    await enhancedExecutionLogger.startWorkflowExecution({
-      workflowId: foundWorkflow.id,
-      executionId,
-      trigger,
-      environment,
-      workflowState,
-    })
-
-    logger.debug(`[${requestId}] Started enhanced logging for webhook execution ${executionId}`)
-  } catch (enhancedError) {
-    logger.error(`[${requestId}] Failed to start enhanced logging:`, enhancedError)
-    // Continue with execution even if enhanced logging fails
   }
 
   // DEBUG: Log specific payload details
@@ -520,20 +485,6 @@ export async function executeWorkflowFromPayload(
     airtableChangesCount: input?.airtableChanges?.length || 0,
   })
 
-  // Returns void as errors are handled internally
-  try {
-    // Load workflow data from normalized tables
-    logger.debug(`[${requestId}] Loading workflow ${foundWorkflow.id} from normalized tables`)
-    const normalizedData = await loadWorkflowFromNormalizedTables(foundWorkflow.id)
-
-    if (!normalizedData) {
-      logger.error(`[${requestId}] TRACE: No normalized data found for workflow`, {
-        workflowId: foundWorkflow.id,
-        hasNormalizedData: false,
-      })
-      throw new Error(`Workflow ${foundWorkflow.id} data not found in normalized tables`)
-    }
-
     // Use normalized data for execution
     const { blocks, edges, loops, parallels } = normalizedData
     logger.info(`[${requestId}] Loaded workflow ${foundWorkflow.id} from normalized tables`)
@@ -558,7 +509,6 @@ export async function executeWorkflowFromPayload(
     })
 
     // Retrieve and decrypt environment variables
-    const envStartTime = Date.now()
     const [userEnv] = await db
       .select()
       .from(environmentTable)
@@ -583,17 +533,17 @@ export async function executeWorkflowFromPayload(
       )
       const decryptedEntries = await Promise.all(decryptionPromises)
       decryptedEnvVars = Object.fromEntries(decryptedEntries)
-
-      // DEBUG: Log env vars retrieval
-      logger.debug(`[${requestId}] TRACE: Environment variables decrypted`, {
-        duration: `${Date.now() - envStartTime}ms`,
-        envVarCount: Object.keys(decryptedEnvVars).length,
-      })
     } else {
       logger.debug(`[${requestId}] TRACE: No environment variables found for user`, {
         userId: foundWorkflow.userId,
       })
     }
+
+    await loggingSession.safeStart({
+      userId: foundWorkflow.userId,
+      workspaceId: foundWorkflow.workspaceId,
+      variables: decryptedEnvVars,
+    })
 
     // Process block states (extract subBlock values, parse responseFormat)
     const blockStatesStartTime = Date.now()
@@ -730,8 +680,8 @@ export async function executeWorkflowFromPayload(
       workflowVariables
     )
 
-    // Set the enhanced logger for block-level logging
-    executor.setEnhancedLogger(enhancedExecutionLogger, executionId)
+    // Set up enhanced logging on the executor
+    loggingSession.setupExecutor(executor)
 
     // Log workflow execution start time for tracking
     const executionStartTime = Date.now()
@@ -793,20 +743,12 @@ export async function executeWorkflowFromPayload(
           lastActive: new Date(),
         })
         .where(eq(userStats.userId, foundWorkflow.userId))
-
-      // DEBUG: Log stats update
-      logger.debug(`[${requestId}] TRACE: Workflow stats updated`, {
-        workflowId: foundWorkflow.id,
-        userId: foundWorkflow.userId,
-      })
     }
 
     // Calculate total duration for enhanced logging
     const totalDuration = executionResult.metadata?.duration || 0
 
-    // Build trace spans from block logs for enhanced logging
     const traceSpans = (executionResult.logs || []).map((blockLog: any, index: number) => {
-      // For error cases, create an output object with error details
       let output = blockLog.output
       if (!blockLog.success && blockLog.error) {
         output = {
@@ -834,120 +776,12 @@ export async function executeWorkflowFromPayload(
       }
     })
 
-    // Log individual block executions to enhanced system
-    if (executionResult.logs && Array.isArray(executionResult.logs)) {
-      for (const blockLog of executionResult.logs) {
-        try {
-          // Extract cost data from block output
-          let blockCost
-          if (blockLog.output?.response?.cost) {
-            const cost = blockLog.output.response.cost
-            blockCost = {
-              input: Number(cost.input) || 0,
-              output: Number(cost.output) || 0,
-              total: Number(cost.total) || 0,
-              tokens: {
-                prompt: blockLog.output.response.tokens?.prompt || 0,
-                completion: blockLog.output.response.tokens?.completion || 0,
-                total: blockLog.output.response.tokens?.total || 0,
-              },
-              model: blockLog.output.response.model || '',
-              pricing: cost.pricing || {},
-            }
-          }
-
-          await enhancedExecutionLogger.logBlockExecution({
-            executionId,
-            workflowId: foundWorkflow.id,
-            blockId: blockLog.blockId,
-            blockName: blockLog.blockName || '',
-            blockType: blockLog.blockType || 'unknown',
-            input: blockLog.input || {},
-            output: blockLog.output || {},
-            timing: {
-              startedAt: blockLog.startedAt,
-              endedAt: blockLog.endedAt || blockLog.startedAt,
-              durationMs: blockLog.durationMs || 0,
-            },
-            status: blockLog.success ? 'success' : 'error',
-            error: blockLog.success
-              ? undefined
-              : {
-                  message: blockLog.error || 'Block execution failed',
-                  stackTrace: undefined,
-                },
-            cost: blockCost,
-            metadata: {
-              toolCalls: (blockLog as any).toolCalls || [],
-            },
-          })
-        } catch (blockLogError) {
-          logger.error(
-            `[${requestId}] Failed to log block execution ${blockLog.blockId}:`,
-            blockLogError
-          )
-        }
-      }
-    }
-
-    // Complete enhanced logging
-    try {
-      // Calculate block stats from execution result
-      const blockStats = {
-        total: executionResult.logs?.length || 0,
-        success: executionResult.logs?.filter((log) => log.success).length || 0,
-        error: executionResult.logs?.filter((log) => !log.success).length || 0,
-        skipped: 0, // TODO: Add skipped block tracking
-      }
-
-      // Extract cost data from execution logs
-      const costSummary = {
-        totalCost: 0,
-        totalInputCost: 0,
-        totalOutputCost: 0,
-        totalTokens: 0,
-        totalPromptTokens: 0,
-        totalCompletionTokens: 0,
-      }
-
-      // Aggregate costs from all blocks
-      if (executionResult.logs && Array.isArray(executionResult.logs)) {
-        for (const blockLog of executionResult.logs) {
-          if (blockLog.output?.response?.cost) {
-            const cost = blockLog.output.response.cost
-            costSummary.totalCost += Number(cost.total) || 0
-            costSummary.totalInputCost += Number(cost.input) || 0
-            costSummary.totalOutputCost += Number(cost.output) || 0
-
-            if (blockLog.output.response.tokens) {
-              const tokens = blockLog.output.response.tokens
-              costSummary.totalTokens += tokens.total || 0
-              costSummary.totalPromptTokens += tokens.prompt || 0
-              costSummary.totalCompletionTokens += tokens.completion || 0
-            }
-          }
-        }
-      }
-
-      await enhancedExecutionLogger.completeWorkflowExecution({
-        executionId,
-        endedAt: new Date().toISOString(),
-        totalDurationMs: totalDuration || 0,
-        blockStats,
-        costSummary: {
-          totalCost: costSummary.totalCost,
-          totalInputCost: costSummary.totalInputCost,
-          totalOutputCost: costSummary.totalOutputCost,
-          totalTokens: costSummary.totalTokens,
-        },
-        finalOutput: executionResult.output || {},
-        traceSpans: (traceSpans || []) as any,
-      })
-
-      logger.debug(`[${requestId}] Completed enhanced logging for webhook execution ${executionId}`)
-    } catch (enhancedError) {
-      logger.error(`[${requestId}] Failed to complete enhanced logging:`, enhancedError)
-    }
+    await loggingSession.safeComplete({
+      endedAt: new Date().toISOString(),
+      totalDurationMs: totalDuration || 0,
+      finalOutput: executionResult.output || {},
+      traceSpans: (traceSpans || []) as any,
+    })
 
     // DEBUG: Final success log
     logger.info(`[${requestId}] TRACE: Execution logs persisted successfully`, {
@@ -972,37 +806,16 @@ export async function executeWorkflowFromPayload(
       error: error.message,
       stack: error.stack,
     })
-    // Persist the error for this execution using the standard 'webhook' trigger type
-    await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook')
+    // Error logging handled by enhanced logging session
 
-    // Complete enhanced logging with error
-    try {
-      const blockStats = {
-        total: 0,
-        success: 0,
-        error: 1,
-        skipped: 0,
-      }
-
-      const costSummary = {
-        totalCost: 0,
-        totalInputCost: 0,
-        totalOutputCost: 0,
-        totalTokens: 0,
-      }
-
-      await enhancedExecutionLogger.completeWorkflowExecution({
-        executionId,
-        endedAt: new Date().toISOString(),
-        totalDurationMs: 0,
-        blockStats,
-        costSummary,
-        finalOutput: null,
-        traceSpans: [],
-      })
-    } catch (enhancedError) {
-      logger.error(`[${requestId}] Failed to complete enhanced logging for error:`, enhancedError)
-    }
+    await loggingSession.safeCompleteWithError({
+      endedAt: new Date().toISOString(),
+      totalDurationMs: 0,
+      error: {
+        message: error.message || 'Webhook workflow execution failed',
+        stackTrace: error.stack,
+      },
+    })
 
     // Re-throw the error so the caller knows it failed
     throw error
@@ -1135,8 +948,7 @@ export async function fetchAndProcessAirtablePayloads(
   workflowData: any,
   requestId: string // Original request ID from the ping, used for the final execution log
 ) {
-  // Use a prefix derived from requestId for *internal* polling logs/errors
-  const internalPollIdPrefix = `poll-${requestId}`
+  // Enhanced logging handles all error logging
   let currentCursor: number | null = null
   let mightHaveMore = true
   let payloadsFetched = 0 // Track total payloads fetched
@@ -1164,12 +976,7 @@ export async function fetchAndProcessAirtablePayloads(
       logger.error(
         `[${requestId}] Missing baseId or externalId in providerConfig for webhook ${webhookData.id}. Cannot fetch payloads.`
       )
-      await persistExecutionError(
-        workflowData.id,
-        `${internalPollIdPrefix}-config-error`,
-        new Error('Missing Airtable baseId or externalId in providerConfig'),
-        'webhook'
-      )
+      // Error logging handled by enhanced logging session
       return // Exit early
     }
 
@@ -1205,13 +1012,7 @@ export async function fetchAndProcessAirtablePayloads(
           error: initError.message,
           stack: initError.stack,
         })
-        // Persist the error specifically for cursor initialization failure
-        await persistExecutionError(
-          workflowData.id,
-          `${internalPollIdPrefix}-cursor-init-error`,
-          initError,
-          'webhook'
-        )
+        // Error logging handled by enhanced logging session
       }
     }
 
@@ -1249,12 +1050,7 @@ export async function fetchAndProcessAirtablePayloads(
           userId: workflowData.userId,
         }
       )
-      await persistExecutionError(
-        workflowData.id,
-        `${internalPollIdPrefix}-token-error`,
-        tokenError,
-        'webhook'
-      )
+      // Error logging handled by enhanced logging session
       return // Exit early
     }
 
@@ -1318,12 +1114,7 @@ export async function fetchAndProcessAirtablePayloads(
               error: errorMessage,
             }
           )
-          await persistExecutionError(
-            workflowData.id,
-            `${internalPollIdPrefix}-api-error-${apiCallCount}`,
-            new Error(`Airtable API Error: ${errorMessage}`),
-            'webhook'
-          )
+          // Error logging handled by enhanced logging session
           mightHaveMore = false
           break
         }
@@ -1467,12 +1258,7 @@ export async function fetchAndProcessAirtablePayloads(
               cursor: currentCursor,
               error: dbError.message,
             })
-            await persistExecutionError(
-              workflowData.id,
-              `${internalPollIdPrefix}-cursor-persist-error`,
-              dbError,
-              'webhook'
-            )
+            // Error logging handled by enhanced logging session
             mightHaveMore = false
             throw new Error('Failed to save Airtable cursor, stopping processing.') // Re-throw to break loop clearly
           }
@@ -1492,12 +1278,7 @@ export async function fetchAndProcessAirtablePayloads(
           `[${requestId}] Network error calling Airtable GET /payloads (Call ${apiCallCount}) for webhook ${webhookData.id}`,
           fetchError
         )
-        await persistExecutionError(
-          workflowData.id,
-          `${internalPollIdPrefix}-fetch-error-${apiCallCount}`,
-          fetchError,
-          'webhook'
-        )
+        // Error logging handled by enhanced logging session
         mightHaveMore = false
         break
       }
@@ -1568,13 +1349,7 @@ export async function fetchAndProcessAirtablePayloads(
         error: (error as Error).message,
       }
     )
-    // Persist this higher-level error
-    await persistExecutionError(
-      workflowData.id,
-      `${internalPollIdPrefix}-processing-error`,
-      error as Error,
-      'webhook'
-    )
+    // Error logging handled by enhanced logging session
   }
 
   // DEBUG: Log function completion
