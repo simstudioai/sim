@@ -222,7 +222,7 @@ export function useWorkflowExecution() {
                 })
 
                 controller.enqueue(
-                  encoder.encode(`data: $JSON.stringify(event: 'final', data: result )\n\n`)
+                  encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
                 )
                 persistLogs(executionId, result).catch((err) =>
                   logger.error('Error persisting logs:', err)
