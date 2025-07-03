@@ -155,9 +155,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                       const blockIdForOutput = outputId.includes('_')
                         ? outputId.split('_')[0]
                         : outputId.split('.')[0]
-                      const path = outputId.includes('_')
-                        ? outputId.substring(blockIdForOutput.length + 1) // Skip the underscore
-                        : outputId.substring(blockIdForOutput.length + 1) // Skip the dot
+                      const path = outputId.substring(blockIdForOutput.length + 1)
                       const log = nonStreamingLogs.find((l) => l.blockId === blockIdForOutput)
 
                       if (log) {
