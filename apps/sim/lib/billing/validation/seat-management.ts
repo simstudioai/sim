@@ -1,7 +1,7 @@
 import { and, count, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { invitation, member, organization, user, userStats } from '@/db/schema'
+import { invitation, member, organization, subscription, user, userStats } from '@/db/schema'
 import { getHighestPrioritySubscription } from '../core/subscription'
 
 const logger = createLogger('SeatManagement')
@@ -281,9 +281,9 @@ export async function updateOrganizationSeats(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Get current subscription
-    const subscription = await getHighestPrioritySubscription(organizationId)
+    const subscriptionRecord = await getHighestPrioritySubscription(organizationId)
 
-    if (!subscription) {
+    if (!subscriptionRecord) {
       return { success: false, error: 'No active subscription found' }
     }
 
@@ -308,11 +308,11 @@ export async function updateOrganizationSeats(
       .set({
         seats: newSeatCount,
       })
-      .where(eq(subscription.id, subscription.id))
+      .where(eq(subscription.id, subscriptionRecord.id))
 
     logger.info('Organization seat count updated', {
       organizationId,
-      oldSeatCount: subscription.seats,
+      oldSeatCount: subscriptionRecord.seats,
       newSeatCount,
       updatedBy,
     })

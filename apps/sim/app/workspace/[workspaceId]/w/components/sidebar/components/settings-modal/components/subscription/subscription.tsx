@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertCircle, Users } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization, useSession, useSubscription } from '@/lib/auth-client'
@@ -40,6 +41,11 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const [isSeatsDialogOpen, setIsSeatsDialogOpen] = useState(false)
   const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
 
+  // Organization billing data for team owners/admins
+  const [orgBillingData, setOrgBillingData] = useState<any>(null)
+  const [isLoadingOrgBilling, setIsLoadingOrgBilling] = useState(false)
+  const [userRole, setUserRole] = useState<string>('member')
+
   // Get computed values
   const subscription = getSubscriptionStatus()
   const features = getFeatures()
@@ -47,6 +53,37 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const billingStatus = getBillingStatus()
   const remainingBudget = getRemainingBudget()
   const daysRemaining = getDaysRemainingInPeriod()
+
+  // Load organization billing data for team owners/admins
+  const loadOrgBillingData = async () => {
+    if (!activeOrg?.id || !subscription.isTeam) return
+
+    try {
+      setIsLoadingOrgBilling(true)
+      const response = await fetch(`/api/organizations/${activeOrg.id}/billing`)
+
+      if (response.ok) {
+        const data = await response.json()
+        setOrgBillingData(data.data)
+        setUserRole(data.userRole || 'member')
+      }
+    } catch (error) {
+      logger.error('Failed to load organization billing data:', error)
+    } finally {
+      setIsLoadingOrgBilling(false)
+    }
+  }
+
+  // Load org billing data when component mounts or activeOrg changes
+  useEffect(() => {
+    if (subscription.isTeam && activeOrg?.id) {
+      loadOrgBillingData()
+    }
+  }, [activeOrg?.id, subscription.isTeam])
+
+  // Determine if user is team admin/owner
+  const isTeamAdmin = ['owner', 'admin'].includes(userRole)
+  const shouldShowOrgBilling = subscription.isTeam && isTeamAdmin && orgBillingData
 
   // Handle loading state
   if (isLoading) {
@@ -116,10 +153,12 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   }
 
   const handleLimitUpdated = async (newLimit: number) => {
+    // Update the store state directly for immediate UI feedback
     try {
-      const result = await updateUsageLimit(newLimit)
-      if (!result.success) {
-        logger.error('Failed to update usage limit:', result.error)
+      await updateUsageLimit(newLimit)
+      // Also refresh organization billing data to update team totals
+      if (subscription.isTeam && activeOrg?.id) {
+        await loadOrgBillingData()
       }
     } catch (error) {
       logger.error('Failed to update usage limit:', error)
@@ -127,11 +166,16 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   }
 
   const handleSeatsUpdate = async (seats: number) => {
+    if (!activeOrg?.id) {
+      logger.error('No active organization found for seat update')
+      return
+    }
+
     try {
       setIsUpdatingSeats(true)
 
-      const response = await fetch('/api/subscription/update-seats', {
-        method: 'POST',
+      const response = await fetch(`/api/organizations/${activeOrg.id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -139,11 +183,12 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to update seats')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update seats')
       }
 
       setIsSeatsDialogOpen(false)
-      await refresh() // Refresh subscription data
+      await Promise.all([refresh(), loadOrgBillingData()]) // Refresh both subscription and org billing data
     } catch (error) {
       logger.error('Failed to update seats:', error)
     } finally {
@@ -171,18 +216,17 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             <span className='font-semibold text-2xl'>
               ${usage.current.toFixed(2)} / ${usage.limit}
             </span>
-            <span className='text-muted-foreground text-sm'>
-              {usage.percentUsed}% used this period
-            </span>
+            <div className='text-right'>
+              <span className='block text-muted-foreground text-sm'>
+                {usage.percentUsed}% used this period
+              </span>
+            </div>
           </div>
 
           <Progress
             value={usage.percentUsed}
             className={`h-2 ${billingStatus === 'exceeded' ? 'bg-destructive/20' : billingStatus === 'warning' ? 'bg-warning/20' : ''}`}
           />
-
-          {/* Enhanced billing info - only for paid plans */}
-          {!subscription.isFree && <BillingSummary showDetails={true} />}
 
           {usage.billingPeriodEnd && daysRemaining !== null && (
             <p className='mt-2 text-muted-foreground text-xs'>
@@ -214,33 +258,119 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           </Alert>
         )}
 
-        {/* Usage Limit Editor */}
+        {/* Usage Limit Editor - Show for all users */}
         <div>
           <div className='flex items-center justify-between'>
-            <span className='font-medium text-sm'>Monthly limit</span>
-            <UsageLimitEditor
-              currentLimit={usageLimitData?.currentLimit ?? 5}
-              canEdit={usageLimitData?.canEdit ?? false}
-              minimumLimit={usageLimitData?.minimumLimit ?? 5}
-              onLimitUpdated={handleLimitUpdated}
-            />
+            <span className='font-medium text-sm'>
+              {subscription.isTeam ? 'Individual Limit' : 'Monthly Limit'}
+            </span>
+            {isLoadingOrgBilling ? (
+              <Skeleton className='h-8 w-16' />
+            ) : (
+              <UsageLimitEditor
+                currentLimit={usageLimitData?.currentLimit ?? 5}
+                canEdit={usageLimitData?.canEdit ?? false}
+                minimumLimit={usageLimitData?.minimumLimit ?? 5}
+                onLimitUpdated={handleLimitUpdated}
+              />
+            )}
           </div>
           {!usageLimitData?.canEdit && subscription.isFree && (
             <p className='mt-1 text-muted-foreground text-xs'>
               Upgrade to Pro or Team plan to customize your usage limit.
             </p>
           )}
+          {subscription.isTeam && isTeamAdmin && (
+            <p className='mt-1 text-muted-foreground text-xs'>
+              As a team owner, you can set individual limits for team members in the Team tab.
+            </p>
+          )}
         </div>
 
-        {/* Team Management - Simplified */}
+        {/* Team Management - Enhanced */}
         {subscription.isTeam && (
-          <div>
-            <div className='flex items-center justify-between'>
-              <h4 className='font-medium text-sm'>Team Subscription</h4>
-              <Button variant='outline' size='sm' onClick={() => setIsSeatsDialogOpen(true)}>
-                Manage Seats ({subscription.seats || 1})
-              </Button>
-            </div>
+          <div className='space-y-4'>
+            {isLoadingOrgBilling ? (
+              <Card>
+                <CardHeader className='pb-3'>
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      <Skeleton className='h-5 w-5' />
+                      <Skeleton className='h-6 w-24' />
+                    </div>
+                    <Skeleton className='h-8 w-24' />
+                  </div>
+                </CardHeader>
+                <CardContent className='space-y-4'>
+                  <div className='flex items-center justify-between'>
+                    <div className='space-y-1'>
+                      <Skeleton className='h-4 w-20' />
+                      <Skeleton className='h-6 w-32' />
+                    </div>
+                    <div className='space-y-1 text-right'>
+                      <Skeleton className='h-4 w-24' />
+                      <Skeleton className='h-6 w-16' />
+                    </div>
+                  </div>
+                  <Skeleton className='h-2 w-full' />
+                </CardContent>
+              </Card>
+            ) : shouldShowOrgBilling ? (
+              <Card>
+                <CardHeader className='pb-3'>
+                  <div className='flex items-center justify-between'>
+                    <CardTitle className='flex items-center gap-2 text-lg'>
+                      <Users className='h-5 w-5' />
+                      Team Plan
+                    </CardTitle>
+                    <Button variant='outline' size='sm' onClick={() => setIsSeatsDialogOpen(true)}>
+                      Manage Seats
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className='space-y-4'>
+                  <div className='flex items-center justify-between'>
+                    <div className='space-y-1'>
+                      <p className='text-muted-foreground text-sm'>Team Seats</p>
+                      <p className='font-semibold text-lg'>
+                        {orgBillingData.usedSeats} of {orgBillingData.totalSeats} used
+                      </p>
+                    </div>
+                    <div className='space-y-1 text-right'>
+                      <p className='text-muted-foreground text-sm'>Total Usage Limit</p>
+                      <p className='font-semibold text-lg'>
+                        ${orgBillingData.totalUsageLimit.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Progress
+                    value={(orgBillingData.usedSeats / orgBillingData.totalSeats) * 100}
+                    className='h-2'
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader className='pb-3'>
+                  <CardTitle className='flex items-center gap-2 text-lg'>
+                    <Users className='h-5 w-5' />
+                    Team Plan
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className='space-y-2'>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-muted-foreground text-sm'>Your monthly allowance</span>
+                      <span className='font-semibold'>${usage.limit}</span>
+                    </div>
+                    <p className='text-muted-foreground text-xs'>
+                      Contact your team owner to adjust your limit
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
@@ -289,9 +419,13 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           open={isSeatsDialogOpen}
           onOpenChange={setIsSeatsDialogOpen}
           title='Update Team Seats'
-          description='Adjust the number of seats for your team subscription.'
-          currentSeats={subscription.seats || 1}
-          initialSeats={subscription.seats || 1}
+          description='Each seat costs $40/month and provides $40 in monthly inference credits. Adjust the number of licensed seats for your team.'
+          currentSeats={
+            shouldShowOrgBilling ? orgBillingData?.totalSeats || 1 : subscription.seats || 1
+          }
+          initialSeats={
+            shouldShowOrgBilling ? orgBillingData?.totalSeats || 1 : subscription.seats || 1
+          }
           isLoading={isUpdatingSeats}
           onConfirm={handleSeatsUpdate}
           confirmButtonText='Update Seats'
