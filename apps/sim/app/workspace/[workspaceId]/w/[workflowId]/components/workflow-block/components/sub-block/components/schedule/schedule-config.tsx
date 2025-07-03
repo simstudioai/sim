@@ -26,10 +26,10 @@ interface ScheduleConfigProps {
 
 export function ScheduleConfig({
   blockId,
-  subBlockId,
+  subBlockId: _subBlockId,
   isConnecting,
   isPreview = false,
-  previewValue,
+  previewValue: _previewValue,
   disabled = false,
 }: ScheduleConfigProps) {
   const [error, setError] = useState<string | null>(null)
@@ -56,13 +56,7 @@ export function ScheduleConfig({
 
   // Get the startWorkflow value to determine if scheduling is enabled
   // and expose the setter so we can update it
-  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
-  const isScheduleEnabled = startWorkflow === 'schedule'
-
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-
-  // Use preview value when in preview mode, otherwise use store value
-  const value = isPreview ? previewValue : storeValue
+  const [_startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
 
   // Function to check if schedule exists in the database
   const checkSchedule = async () => {
@@ -110,10 +104,17 @@ export function ScheduleConfig({
 
   // Check for schedule on mount and when relevant dependencies change
   useEffect(() => {
-    // Always check for schedules regardless of the UI setting
-    // This ensures we detect schedules even when the UI is set to manual
-    checkSchedule()
-  }, [workflowId, scheduleType, isModalOpen, refreshCounter])
+    // Only check for schedules when workflowId changes or modal opens
+    // Avoid checking on every scheduleType change to prevent excessive API calls
+    if (workflowId && (isModalOpen || refreshCounter > 0)) {
+      checkSchedule()
+    }
+
+    // Cleanup function to reset loading state
+    return () => {
+      setIsLoading(false)
+    }
+  }, [workflowId, isModalOpen, refreshCounter])
 
   // Format the schedule information for display
   const getScheduleInfo = () => {

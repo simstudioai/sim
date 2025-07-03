@@ -41,6 +41,9 @@ export function Sidebar() {
   const { isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
   const isLoading = workflowsLoading || sessionLoading
+
+  // Add state to prevent multiple simultaneous workflow creations
+  const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -108,7 +111,14 @@ export function Sidebar() {
 
   // Create workflow handler
   const handleCreateWorkflow = async (folderId?: string) => {
+    // Prevent multiple simultaneous workflow creations
+    if (isCreatingWorkflow) {
+      logger.info('Workflow creation already in progress, ignoring request')
+      return
+    }
+
     try {
+      setIsCreatingWorkflow(true)
       const id = await createWorkflow({
         workspaceId: workspaceId || undefined,
         folderId: folderId || undefined,
@@ -116,6 +126,8 @@ export function Sidebar() {
       router.push(`/workspace/${workspaceId}/w/${id}`)
     } catch (error) {
       logger.error('Error creating workflow:', error)
+    } finally {
+      setIsCreatingWorkflow(false)
     }
   }
 
@@ -173,7 +185,11 @@ export function Sidebar() {
               {isLoading ? <Skeleton className='h-4 w-16' /> : 'Workflows'}
             </h2>
             {!isCollapsed && !isLoading && (
-              <CreateMenu onCreateWorkflow={handleCreateWorkflow} isCollapsed={false} />
+              <CreateMenu
+                onCreateWorkflow={handleCreateWorkflow}
+                isCollapsed={false}
+                isCreatingWorkflow={isCreatingWorkflow}
+              />
             )}
           </div>
           <FolderTree

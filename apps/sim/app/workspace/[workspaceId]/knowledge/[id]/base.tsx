@@ -36,15 +36,10 @@ import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowled
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
+import { useKnowledgeUpload } from '../hooks/use-knowledge-upload'
 import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowledge-base-loading'
 
 const logger = createLogger('KnowledgeBase')
-
-interface ProcessedDocumentResponse {
-  documentId: string
-  filename: string
-  status: string
-}
 
 interface KnowledgeBaseProps {
   id: string
@@ -145,17 +140,32 @@ export function KnowledgeBase({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadError, setUploadError] = useState<{
-    message: string
-    timestamp: number
-  } | null>(null)
-  const [uploadProgress, setUploadProgress] = useState<{
-    stage: 'idle' | 'uploading' | 'processing' | 'completing'
-    filesCompleted: number
-    totalFiles: number
-    currentFile?: string
-  }>({ stage: 'idle', filesCompleted: 0, totalFiles: 0 })
+
+  const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
+    onUploadComplete: async (uploadedFiles) => {
+      const pendingDocuments: DocumentData[] = uploadedFiles.map((file, index) => ({
+        id: `temp-${Date.now()}-${index}`,
+        knowledgeBaseId: id,
+        filename: file.filename,
+        fileUrl: file.fileUrl,
+        fileSize: file.fileSize,
+        mimeType: file.mimeType,
+        chunkCount: 0,
+        tokenCount: 0,
+        characterCount: 0,
+        processingStatus: 'pending' as const,
+        processingStartedAt: null,
+        processingCompletedAt: null,
+        processingError: null,
+        enabled: true,
+        uploadedAt: new Date().toISOString(),
+      }))
+
+      useKnowledgeStore.getState().addPendingDocuments(id, pendingDocuments)
+
+      await refreshDocuments()
+    },
+  })
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -240,11 +250,11 @@ export function KnowledgeBase({
   useEffect(() => {
     if (uploadError) {
       const timer = setTimeout(() => {
-        setUploadError(null)
+        clearError()
       }, 8000)
       return () => clearTimeout(timer)
     }
-  }, [uploadError])
+  }, [uploadError, clearError])
 
   // Filter documents based on search query
   const filteredDocuments = documents.filter((doc) =>
@@ -448,153 +458,18 @@ export function KnowledgeBase({
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    interface UploadedFile {
-      filename: string
-      fileUrl: string
-      fileSize: number
-      mimeType: string
-    }
-
     try {
-      setIsUploading(true)
-      setUploadError(null)
-      setUploadProgress({ stage: 'uploading', filesCompleted: 0, totalFiles: files.length })
-
-      // Upload all files and start processing
-      const uploadedFiles: UploadedFile[] = []
-      const fileArray = Array.from(files)
-
-      for (const [index, file] of fileArray.entries()) {
-        setUploadProgress((prev) => ({ ...prev, currentFile: file.name, filesCompleted: index }))
-        const formData = new FormData()
-        formData.append('file', file)
-
-        const uploadResponse = await fetch('/api/files/upload', {
-          method: 'POST',
-          body: formData,
-        })
-
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json()
-          throw new Error(`Failed to upload ${file.name}: ${errorData.error || 'Unknown error'}`)
-        }
-
-        const uploadResult = await uploadResponse.json()
-
-        // Validate upload result structure
-        if (!uploadResult.path) {
-          throw new Error(`Invalid upload response for ${file.name}: missing file path`)
-        }
-
-        uploadedFiles.push({
-          filename: file.name,
-          fileUrl: uploadResult.path.startsWith('http')
-            ? uploadResult.path
-            : `${window.location.origin}${uploadResult.path}`,
-          fileSize: file.size,
-          mimeType: file.type,
-        })
-      }
-
-      setUploadProgress((prev) => ({
-        ...prev,
-        stage: 'processing',
-        filesCompleted: fileArray.length,
-      }))
-
-      // Start async document processing
-      const processResponse = await fetch(`/api/knowledge/${id}/documents`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          documents: uploadedFiles,
-          processingOptions: {
-            chunkSize: knowledgeBase?.chunkingConfig?.maxSize || 1024,
-            minCharactersPerChunk: knowledgeBase?.chunkingConfig?.minSize || 100,
-            chunkOverlap: knowledgeBase?.chunkingConfig?.overlap || 200,
-            recipe: 'default',
-            lang: 'en',
-          },
-          bulk: true,
-        }),
+      const chunkingConfig = knowledgeBase?.chunkingConfig
+      await uploadFiles(Array.from(files), id, {
+        chunkSize: chunkingConfig?.maxSize || 1024,
+        minCharactersPerChunk: chunkingConfig?.minSize || 100,
+        chunkOverlap: chunkingConfig?.overlap || 200,
+        recipe: 'default',
       })
-
-      if (!processResponse.ok) {
-        const errorData = await processResponse.json()
-        throw new Error(
-          `Failed to start document processing: ${errorData.error || 'Unknown error'}`
-        )
-      }
-
-      const processResult = await processResponse.json()
-
-      // Validate process result structure
-      if (!processResult.success) {
-        throw new Error(`Document processing failed: ${processResult.error || 'Unknown error'}`)
-      }
-
-      if (!processResult.data || !processResult.data.documentsCreated) {
-        throw new Error('Invalid processing response: missing document data')
-      }
-
-      // Create pending document objects and add them to the store immediately
-      const pendingDocuments: DocumentData[] = processResult.data.documentsCreated.map(
-        (doc: ProcessedDocumentResponse, index: number) => {
-          if (!doc.documentId || !doc.filename) {
-            logger.error(`Invalid document data received:`, doc)
-            throw new Error(
-              `Invalid document data for ${uploadedFiles[index]?.filename || 'unknown file'}`
-            )
-          }
-
-          return {
-            id: doc.documentId,
-            knowledgeBaseId: id,
-            filename: doc.filename,
-            fileUrl: uploadedFiles[index].fileUrl,
-            fileSize: uploadedFiles[index].fileSize,
-            mimeType: uploadedFiles[index].mimeType,
-            chunkCount: 0,
-            tokenCount: 0,
-            characterCount: 0,
-            processingStatus: 'pending' as const,
-            processingStartedAt: null,
-            processingCompletedAt: null,
-            processingError: null,
-            enabled: true,
-            uploadedAt: new Date().toISOString(),
-          }
-        }
-      )
-
-      // Add pending documents to store for immediate UI update
-      useKnowledgeStore.getState().addPendingDocuments(id, pendingDocuments)
-
-      logger.info(`Successfully started processing ${uploadedFiles.length} documents`)
-
-      setUploadProgress((prev) => ({ ...prev, stage: 'completing' }))
-
-      // Trigger a refresh to ensure documents are properly loaded
-      await refreshDocuments()
-
-      setUploadProgress({ stage: 'idle', filesCompleted: 0, totalFiles: 0 })
-    } catch (err) {
-      logger.error('Error uploading documents:', err)
-
-      const errorMessage =
-        err instanceof Error ? err.message : 'Unknown error occurred during upload'
-      setUploadError({
-        message: errorMessage,
-        timestamp: Date.now(),
-      })
-
-      // Show user-friendly error message in console for debugging
-      console.error('Document upload failed:', errorMessage)
+    } catch (error) {
+      logger.error('Error uploading files:', error)
+      // Error handling is managed by the upload hook
     } finally {
-      setIsUploading(false)
-      setUploadProgress({ stage: 'idle', filesCompleted: 0, totalFiles: 0 })
       // Reset the file input
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
@@ -995,7 +870,7 @@ export function KnowledgeBase({
                           </tr>
                         ))
                       ) : (
-                        filteredDocuments.map((doc, index) => {
+                        filteredDocuments.map((doc) => {
                           const isSelected = selectedDocuments.has(doc.id)
                           const statusDisplay = getStatusDisplay(doc)
                           // const processingTime = getProcessingTime(doc)
@@ -1254,7 +1129,7 @@ export function KnowledgeBase({
               </p>
             </div>
             <button
-              onClick={() => setUploadError(null)}
+              onClick={() => clearError()}
               className='flex-shrink-0 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring'
             >
               <X className='h-4 w-4' />

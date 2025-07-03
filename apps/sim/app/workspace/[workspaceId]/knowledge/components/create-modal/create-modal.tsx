@@ -13,8 +13,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
-import type { DocumentData, KnowledgeBaseData } from '@/stores/knowledge/store'
-import { useKnowledgeStore } from '@/stores/knowledge/store'
+import type { KnowledgeBaseData } from '@/stores/knowledge/store'
+import { useKnowledgeUpload } from '../../hooks/use-knowledge-upload'
 
 const logger = createLogger('CreateModal')
 
@@ -28,12 +28,6 @@ const ACCEPTED_FILE_TYPES = [
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]
-
-interface ProcessedDocumentResponse {
-  documentId: string
-  filename: string
-  status: string
-}
 
 interface FileWithPreview extends File {
   preview: string
@@ -88,6 +82,12 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const [dragCounter, setDragCounter] = useState(0) // Track drag events to handle nested elements
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
+
+  const { uploadFiles } = useKnowledgeUpload({
+    onUploadComplete: (uploadedFiles) => {
+      logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
+    },
+  })
 
   // Cleanup file preview URLs when component unmounts to prevent memory leaks
   useEffect(() => {
@@ -235,19 +235,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
 
-  // Helper function to create uploadedFiles array from file uploads
-  const createUploadedFile = (
-    filename: string,
-    fileUrl: string,
-    fileSize: number,
-    mimeType: string
-  ) => ({
-    filename,
-    fileUrl: fileUrl.startsWith('http') ? fileUrl : `${window.location.origin}${fileUrl}`,
-    fileSize,
-    mimeType,
-  })
-
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true)
     setSubmitStatus(null)
@@ -285,137 +272,13 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
 
       const newKnowledgeBase = result.data
 
-      // If files are uploaded, upload them and start processing
       if (files.length > 0) {
-        // First, upload all files to get their URLs
-        interface UploadedFile {
-          filename: string
-          fileUrl: string
-          fileSize: number
-          mimeType: string
-        }
-
-        const uploadedFiles: UploadedFile[] = []
-
-        for (const file of files) {
-          try {
-            const presignedResponse = await fetch('/api/files/presigned', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                fileName: file.name,
-                contentType: file.type,
-                fileSize: file.size,
-              }),
-            })
-
-            const presignedData = await presignedResponse.json()
-
-            if (presignedResponse.ok && presignedData.directUploadSupported) {
-              const uploadHeaders: Record<string, string> = {
-                'Content-Type': file.type,
-              }
-
-              // Add Azure-specific headers if provided
-              if (presignedData.uploadHeaders) {
-                Object.assign(uploadHeaders, presignedData.uploadHeaders)
-              }
-
-              const uploadResponse = await fetch(presignedData.presignedUrl, {
-                method: 'PUT',
-                headers: uploadHeaders, // Use the merged headers
-                body: file,
-              })
-
-              if (!uploadResponse.ok) {
-                throw new Error(
-                  `Direct upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`
-                )
-              }
-
-              uploadedFiles.push(
-                createUploadedFile(file.name, presignedData.fileInfo.path, file.size, file.type)
-              )
-            } else {
-              const formData = new FormData()
-              formData.append('file', file)
-
-              const uploadResponse = await fetch('/api/files/upload', {
-                method: 'POST',
-                body: formData,
-              })
-
-              if (!uploadResponse.ok) {
-                const errorData = await uploadResponse.json()
-                throw new Error(
-                  `Failed to upload ${file.name}: ${errorData.error || 'Unknown error'}`
-                )
-              }
-
-              const uploadResult = await uploadResponse.json()
-              uploadedFiles.push(
-                createUploadedFile(file.name, uploadResult.path, file.size, file.type)
-              )
-            }
-          } catch (error) {
-            throw new Error(
-              `Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
-          }
-        }
-
-        // Start async document processing
-        const processResponse = await fetch(`/api/knowledge/${newKnowledgeBase.id}/documents`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            documents: uploadedFiles,
-            processingOptions: {
-              chunkSize: data.maxChunkSize,
-              minCharactersPerChunk: data.minChunkSize,
-              chunkOverlap: data.overlapSize,
-              recipe: 'default',
-              lang: 'en',
-            },
-            bulk: true,
-          }),
+        const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
+          chunkSize: data.maxChunkSize,
+          minCharactersPerChunk: data.minChunkSize,
+          chunkOverlap: data.overlapSize,
+          recipe: 'default',
         })
-
-        if (!processResponse.ok) {
-          throw new Error('Failed to start document processing')
-        }
-
-        const processResult = await processResponse.json()
-
-        // Create pending document objects and add them to the store immediately
-        if (processResult.success && processResult.data.documentsCreated) {
-          const pendingDocuments: DocumentData[] = processResult.data.documentsCreated.map(
-            (doc: ProcessedDocumentResponse, index: number) => ({
-              id: doc.documentId,
-              knowledgeBaseId: newKnowledgeBase.id,
-              filename: doc.filename,
-              fileUrl: uploadedFiles[index].fileUrl,
-              fileSize: uploadedFiles[index].fileSize,
-              mimeType: uploadedFiles[index].mimeType,
-              chunkCount: 0,
-              tokenCount: 0,
-              characterCount: 0,
-              processingStatus: 'pending' as const,
-              processingStartedAt: null,
-              processingCompletedAt: null,
-              processingError: null,
-              enabled: true,
-              uploadedAt: new Date().toISOString(),
-            })
-          )
-
-          // Add pending documents to store for immediate UI update
-          useKnowledgeStore.getState().addPendingDocuments(newKnowledgeBase.id, pendingDocuments)
-        }
 
         // Update the knowledge base object with the correct document count
         newKnowledgeBase.docCount = uploadedFiles.length

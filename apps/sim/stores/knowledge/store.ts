@@ -4,8 +4,11 @@ import { createLogger } from '@/lib/logs/console-logger'
 const logger = createLogger('KnowledgeStore')
 
 export interface ChunkingConfig {
-  chunkSize?: number
-  minCharactersPerChunk?: number
+  maxSize: number
+  minSize: number
+  overlap: number
+  chunkSize?: number // Legacy support
+  minCharactersPerChunk?: number // Legacy support
   recipe?: string
   lang?: string
   strategy?: 'recursive' | 'semantic' | 'sentence' | 'paragraph'
@@ -463,75 +466,65 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         throw new Error(result.error || 'Failed to fetch documents')
       }
 
-      const documents = result.data
+      const serverDocuments = result.data
 
       set((state) => {
-        // Merge with existing documents, being smart about when to use server data vs local optimistic updates
         const currentDocuments = state.documents[knowledgeBaseId] || []
 
-        // For each fetched document, decide whether to use server data or preserve local state
-        const mergedDocuments = documents.map((fetchedDoc: DocumentData) => {
-          const existingDoc = currentDocuments.find((doc) => doc.id === fetchedDoc.id)
+        // Create a map of server documents by filename for quick lookup
+        const serverDocumentsByFilename = new Map()
+        serverDocuments.forEach((doc: DocumentData) => {
+          serverDocumentsByFilename.set(doc.filename, doc)
+        })
 
-          if (!existingDoc) {
-            // New document from server, use it as-is
-            return fetchedDoc
+        // Filter out temporary documents that now have real server equivalents
+        const filteredCurrentDocs = currentDocuments.filter((doc) => {
+          // If this is a temporary document (starts with temp-) and a server document exists with the same filename
+          if (doc.id.startsWith('temp-') && serverDocumentsByFilename.has(doc.filename)) {
+            return false // Remove the temporary document
           }
 
-          // If processing status is different, generally prefer server data for these transitions:
-          if (existingDoc.processingStatus !== fetchedDoc.processingStatus) {
-            // Always allow these status progressions from server:
-            // pending -> processing, pending -> completed, pending -> failed
-            // processing -> completed, processing -> failed
-            const allowedTransitions = [
-              { from: 'pending', to: 'processing' },
-              { from: 'pending', to: 'completed' },
-              { from: 'pending', to: 'failed' },
-              { from: 'processing', to: 'completed' },
-              { from: 'processing', to: 'failed' },
-            ]
-
-            const transition = allowedTransitions.find(
-              (t) => t.from === existingDoc.processingStatus && t.to === fetchedDoc.processingStatus
-            )
-
-            if (transition) {
-              return fetchedDoc
+          // If this is a real document that still exists on the server, keep it for merging
+          if (!doc.id.startsWith('temp-')) {
+            const serverDoc = serverDocuments.find((sDoc: DocumentData) => sDoc.id === doc.id)
+            if (serverDoc) {
+              return false // Will be replaced by server version in merge below
             }
           }
 
-          const existingHasTimestamps =
-            existingDoc.processingStartedAt || existingDoc.processingCompletedAt
-          const fetchedHasTimestamps =
-            fetchedDoc.processingStartedAt || fetchedDoc.processingCompletedAt
-
-          if (fetchedHasTimestamps && !existingHasTimestamps) {
-            return fetchedDoc
-          }
-
-          // If the server document has updated stats (chunk count, token count, etc.), use it
-          if (
-            fetchedDoc.processingStatus === 'completed' &&
-            (fetchedDoc.chunkCount !== existingDoc.chunkCount ||
-              fetchedDoc.tokenCount !== existingDoc.tokenCount ||
-              fetchedDoc.characterCount !== existingDoc.characterCount)
-          ) {
-            return fetchedDoc
-          }
-
-          // Otherwise, preserve the existing document (keeps optimistic updates)
-          return existingDoc
+          // Keep temporary documents that don't have server equivalents yet
+          return true
         })
 
-        // Add any new documents that weren't in the existing set
-        const newDocuments = documents.filter(
-          (fetchedDoc: DocumentData) => !currentDocuments.find((doc) => doc.id === fetchedDoc.id)
-        )
+        // Merge server documents with any remaining local documents
+        const mergedDocuments = serverDocuments.map((serverDoc: DocumentData) => {
+          const existingDoc = currentDocuments.find((doc) => doc.id === serverDoc.id)
+
+          if (!existingDoc) {
+            // New document from server, use it as-is
+            return serverDoc
+          }
+
+          // Merge logic for existing documents (prefer server data for most fields)
+          return {
+            ...existingDoc,
+            ...serverDoc,
+            // Preserve any local optimistic updates that haven't been reflected on server yet
+            ...(existingDoc.processingStatus !== serverDoc.processingStatus &&
+            ['pending', 'processing'].includes(existingDoc.processingStatus) &&
+            !serverDoc.processingStartedAt
+              ? { processingStatus: existingDoc.processingStatus }
+              : {}),
+          }
+        })
+
+        // Add any remaining temporary documents that don't have server equivalents
+        const finalDocuments = [...mergedDocuments, ...filteredCurrentDocs]
 
         return {
           documents: {
             ...state.documents,
-            [knowledgeBaseId]: [...mergedDocuments, ...newDocuments],
+            [knowledgeBaseId]: finalDocuments,
           },
           loadingDocuments: new Set(
             [...state.loadingDocuments].filter((loadingId) => loadingId !== knowledgeBaseId)
@@ -540,7 +533,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       })
 
       logger.info(`Documents refreshed for knowledge base: ${knowledgeBaseId}`)
-      return documents
+      return serverDocuments
     } catch (error) {
       logger.error(`Error refreshing documents for knowledge base ${knowledgeBaseId}:`, error)
 

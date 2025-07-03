@@ -764,6 +764,20 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
         bucket: 'test-s3-bucket',
         region: 'us-east-1',
       },
+      S3_KB_CONFIG: {
+        bucket: 'test-s3-kb-bucket',
+        region: 'us-east-1',
+      },
+      BLOB_CONFIG: {
+        accountName: 'testaccount',
+        accountKey: 'testkey',
+        containerName: 'test-container',
+      },
+      BLOB_KB_CONFIG: {
+        accountName: 'testaccount',
+        accountKey: 'testkey',
+        containerName: 'test-kb-container',
+      },
     }))
 
     vi.doMock('@aws-sdk/client-s3', () => ({
@@ -805,6 +819,11 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
         accountName: 'testaccount',
         accountKey: 'testkey',
         containerName: 'test-container',
+      },
+      BLOB_KB_CONFIG: {
+        accountName: 'testaccount',
+        accountKey: 'testkey',
+        containerName: 'test-kb-container',
       },
     }))
 

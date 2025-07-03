@@ -767,6 +767,30 @@ export function Document({
           updateChunk(updatedChunk.id, updatedChunk)
           setSelectedChunk(updatedChunk)
         }}
+        allChunks={chunks}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onNavigateToChunk={(chunk: ChunkData) => {
+          setSelectedChunk(chunk)
+        }}
+        onNavigateToPage={async (page: number, selectChunk: 'first' | 'last') => {
+          await goToPage(page)
+
+          const checkAndSelectChunk = () => {
+            if (!isLoadingChunks && chunks.length > 0) {
+              if (selectChunk === 'first') {
+                setSelectedChunk(chunks[0])
+              } else {
+                setSelectedChunk(chunks[chunks.length - 1])
+              }
+            } else {
+              // Retry after a short delay if chunks aren't loaded yet
+              setTimeout(checkAndSelectChunk, 100)
+            }
+          }
+
+          setTimeout(checkAndSelectChunk, 0)
+        }}
       />
 
       {/* Create Chunk Modal */}
