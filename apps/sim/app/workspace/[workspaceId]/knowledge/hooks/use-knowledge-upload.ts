@@ -20,6 +20,8 @@ export interface UploadProgress {
 export interface UploadError {
   message: string
   timestamp: number
+  code?: string
+  details?: any
 }
 
 export interface ProcessingOptions {
@@ -32,6 +34,35 @@ export interface ProcessingOptions {
 export interface UseKnowledgeUploadOptions {
   onUploadComplete?: (uploadedFiles: UploadedFile[]) => void
   onError?: (error: UploadError) => void
+}
+
+class KnowledgeUploadError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public details?: any
+  ) {
+    super(message)
+    this.name = 'KnowledgeUploadError'
+  }
+}
+
+class PresignedUrlError extends KnowledgeUploadError {
+  constructor(message: string, details?: any) {
+    super(message, 'PRESIGNED_URL_ERROR', details)
+  }
+}
+
+class DirectUploadError extends KnowledgeUploadError {
+  constructor(message: string, details?: any) {
+    super(message, 'DIRECT_UPLOAD_ERROR', details)
+  }
+}
+
+class ProcessingError extends KnowledgeUploadError {
+  constructor(message: string, details?: any) {
+    super(message, 'PROCESSING_ERROR', details)
+  }
 }
 
 export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
@@ -55,12 +86,41 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     mimeType,
   })
 
+  const createErrorFromException = (error: unknown, defaultMessage: string): UploadError => {
+    if (error instanceof KnowledgeUploadError) {
+      return {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        timestamp: Date.now(),
+      }
+    }
+
+    if (error instanceof Error) {
+      return {
+        message: error.message,
+        timestamp: Date.now(),
+      }
+    }
+
+    return {
+      message: defaultMessage,
+      timestamp: Date.now(),
+    }
+  }
+
   const uploadFiles = async (
     files: File[],
     knowledgeBaseId: string,
     processingOptions: ProcessingOptions = {}
   ): Promise<UploadedFile[]> => {
-    if (files.length === 0) return []
+    if (files.length === 0) {
+      throw new KnowledgeUploadError('No files provided for upload', 'NO_FILES')
+    }
+
+    if (!knowledgeBaseId?.trim()) {
+      throw new KnowledgeUploadError('Knowledge base ID is required', 'INVALID_KB_ID')
+    }
 
     try {
       setIsUploading(true)
@@ -78,7 +138,8 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
         }))
 
         try {
-          const presignedResponse = await fetch('/api/knowledge/presigned', {
+          // Get presigned URL
+          const presignedResponse = await fetch('/api/files/presigned?type=knowledge-base', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -90,9 +151,23 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             }),
           })
 
+          if (!presignedResponse.ok) {
+            let errorDetails: any = null
+            try {
+              errorDetails = await presignedResponse.json()
+            } catch {
+              // Ignore JSON parsing errors
+            }
+
+            throw new PresignedUrlError(
+              `Failed to get presigned URL for ${file.name}: ${presignedResponse.status} ${presignedResponse.statusText}`,
+              errorDetails
+            )
+          }
+
           const presignedData = await presignedResponse.json()
 
-          if (presignedResponse.ok && presignedData.directUploadSupported) {
+          if (presignedData.directUploadSupported) {
             // Use presigned URL for direct upload
             const uploadHeaders: Record<string, string> = {
               'Content-Type': file.type,
@@ -110,8 +185,9 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             })
 
             if (!uploadResponse.ok) {
-              throw new Error(
-                `Direct upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`
+              throw new DirectUploadError(
+                `Direct upload failed for ${file.name}: ${uploadResponse.status} ${uploadResponse.statusText}`,
+                { uploadResponse: uploadResponse.statusText }
               )
             }
 
@@ -132,9 +208,16 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             })
 
             if (!uploadResponse.ok) {
-              const errorData = await uploadResponse.json()
-              throw new Error(
-                `Failed to upload ${file.name}: ${errorData.error || 'Unknown error'}`
+              let errorData: any = null
+              try {
+                errorData = await uploadResponse.json()
+              } catch {
+                // Ignore JSON parsing errors
+              }
+
+              throw new DirectUploadError(
+                `Failed to upload ${file.name}: ${errorData?.error || 'Unknown error'}`,
+                errorData
               )
             }
 
@@ -142,7 +225,10 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
             // Validate upload result structure
             if (!uploadResult.path) {
-              throw new Error(`Invalid upload response for ${file.name}: missing file path`)
+              throw new DirectUploadError(
+                `Invalid upload response for ${file.name}: missing file path`,
+                uploadResult
+              )
             }
 
             uploadedFiles.push(
@@ -158,35 +244,41 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           }
         } catch (fileError) {
           logger.error(`Error uploading file ${file.name}:`, fileError)
-          throw new Error(
-            `Failed to upload ${file.name}: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`
-          )
+          throw fileError // Re-throw to be caught by outer try-catch
         }
       }
 
       setUploadProgress((prev) => ({ ...prev, stage: 'processing' }))
 
       // Start async document processing
+      const processPayload = {
+        documents: uploadedFiles,
+        processingOptions: {
+          chunkSize: processingOptions.chunkSize || 1024,
+          minCharactersPerChunk: processingOptions.minCharactersPerChunk || 100,
+          chunkOverlap: processingOptions.chunkOverlap || 200,
+          recipe: processingOptions.recipe || 'default',
+          lang: 'en',
+        },
+        bulk: true,
+      }
+
       const processResponse = await fetch(`/api/knowledge/${knowledgeBaseId}/documents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          documents: uploadedFiles,
-          processingOptions: {
-            chunkSize: processingOptions.chunkSize || 1024,
-            minCharactersPerChunk: processingOptions.minCharactersPerChunk || 100,
-            chunkOverlap: processingOptions.chunkOverlap || 200,
-            recipe: processingOptions.recipe || 'default',
-            lang: 'en',
-          },
-          bulk: true,
-        }),
+        body: JSON.stringify(processPayload),
       })
 
       if (!processResponse.ok) {
-        const errorData = await processResponse.json()
+        let errorData: any = null
+        try {
+          errorData = await processResponse.json()
+        } catch {
+          // Ignore JSON parsing errors
+        }
+
         logger.error('Document processing failed:', {
           status: processResponse.status,
           error: errorData,
@@ -197,8 +289,10 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
             mimeType: f.mimeType,
           })),
         })
-        throw new Error(
-          `Failed to start document processing: ${errorData.error || errorData.message || 'Unknown error'}`
+
+        throw new ProcessingError(
+          `Failed to start document processing: ${errorData?.error || errorData?.message || 'Unknown error'}`,
+          errorData
         )
       }
 
@@ -206,11 +300,17 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       // Validate process result structure
       if (!processResult.success) {
-        throw new Error(`Document processing failed: ${processResult.error || 'Unknown error'}`)
+        throw new ProcessingError(
+          `Document processing failed: ${processResult.error || 'Unknown error'}`,
+          processResult
+        )
       }
 
       if (!processResult.data || !processResult.data.documentsCreated) {
-        throw new Error('Invalid processing response: missing document data')
+        throw new ProcessingError(
+          'Invalid processing response: missing document data',
+          processResult
+        )
       }
 
       setUploadProgress((prev) => ({ ...prev, stage: 'completing' }))
@@ -224,18 +324,12 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     } catch (err) {
       logger.error('Error uploading documents:', err)
 
-      const errorMessage =
-        err instanceof Error ? err.message : 'Unknown error occurred during upload'
-      const error: UploadError = {
-        message: errorMessage,
-        timestamp: Date.now(),
-      }
-
+      const error = createErrorFromException(err, 'Unknown error occurred during upload')
       setUploadError(error)
       options.onError?.(error)
 
       // Show user-friendly error message in console for debugging
-      console.error('Document upload failed:', errorMessage)
+      console.error('Document upload failed:', error.message)
 
       throw err
     } finally {

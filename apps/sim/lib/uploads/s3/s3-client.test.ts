@@ -287,7 +287,35 @@ describe('S3 Client', () => {
 
       expect(client).toBeDefined()
       // Verify the client was constructed with the right configuration
-      expect(S3Client).toHaveBeenCalledWith({ region: 'test-region' })
+      // The S3Client now includes credentials when available via env vars
+      expect(S3Client).toHaveBeenCalledWith({
+        region: 'test-region',
+        credentials: expect.any(Object), // Credentials object when AWS keys are available
+      })
+    })
+
+    it('should initialize without credentials when env vars are not available', async () => {
+      // Mock environment without AWS credentials
+      vi.doMock('../../env', () => ({
+        env: {
+          AWS_ACCESS_KEY_ID: undefined,
+          AWS_SECRET_ACCESS_KEY: undefined,
+        },
+      }))
+
+      // Clear module cache and re-import
+      vi.resetModules()
+      const { getS3Client } = await import('./s3-client')
+      const { S3Client } = await import('@aws-sdk/client-s3')
+
+      const client = getS3Client()
+
+      expect(client).toBeDefined()
+      // Verify the client was constructed without credentials
+      expect(S3Client).toHaveBeenCalledWith({
+        region: 'test-region',
+        credentials: undefined,
+      })
     })
   })
 })

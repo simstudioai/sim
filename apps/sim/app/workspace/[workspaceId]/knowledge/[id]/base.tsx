@@ -144,7 +144,7 @@ export function KnowledgeBase({
   const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
     onUploadComplete: async (uploadedFiles) => {
       const pendingDocuments: DocumentData[] = uploadedFiles.map((file, index) => ({
-        id: `temp-${Date.now()}-${index}`, // Temporary ID
+        id: `temp-${Date.now()}-${index}`,
         knowledgeBaseId: id,
         filename: file.filename,
         fileUrl: file.fileUrl,
@@ -459,12 +459,16 @@ export function KnowledgeBase({
     if (!files || files.length === 0) return
 
     try {
+      const chunkingConfig = knowledgeBase?.chunkingConfig
       await uploadFiles(Array.from(files), id, {
-        chunkSize: (knowledgeBase?.chunkingConfig as any)?.maxSize || 1024,
-        minCharactersPerChunk: (knowledgeBase?.chunkingConfig as any)?.minSize || 100,
-        chunkOverlap: (knowledgeBase?.chunkingConfig as any)?.overlap || 200,
+        chunkSize: chunkingConfig?.maxSize || 1024,
+        minCharactersPerChunk: chunkingConfig?.minSize || 100,
+        chunkOverlap: chunkingConfig?.overlap || 200,
         recipe: 'default',
       })
+    } catch (error) {
+      logger.error('Error uploading files:', error)
+      // Error handling is managed by the upload hook
     } finally {
       // Reset the file input
       if (fileInputRef.current) {
