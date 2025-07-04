@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     if (!workspacePermission || workspacePermission === 'read') {
       return NextResponse.json(
-        { error: 'Write access required to create folders' },
+        { error: 'Write or Admin access required to create folders' },
         { status: 403 }
       )
     }

@@ -353,7 +353,7 @@ describe('Folders API Route', () => {
       expect(response.status).toBe(403)
 
       const data = await response.json()
-      expect(data).toHaveProperty('error', 'Write access required to create folders')
+      expect(data).toHaveProperty('error', 'Write or Admin access required to create folders')
     })
 
     it('should allow folder creation for write permissions', async () => {
