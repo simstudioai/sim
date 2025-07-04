@@ -40,7 +40,7 @@ export function UsageLimitEditor({
     setIsSaving(true)
 
     try {
-      const response = await fetch('/api/users/me/usage-limit', {
+      const response = await fetch('/api/usage-limits?context=user', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ limit: newLimit }),

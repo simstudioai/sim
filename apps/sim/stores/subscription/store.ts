@@ -48,9 +48,12 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       // State
       subscriptionData: null,
       usageLimitData: null,
+      organizationBillingData: null,
       isLoading: false,
+      isLoadingOrgBilling: false,
       error: null,
       lastFetched: null,
+      lastOrgBillingFetched: null,
 
       // Core actions
       loadSubscriptionData: async () => {
@@ -75,13 +78,14 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         set({ isLoading: true, error: null })
 
         try {
-          const response = await fetch('/api/users/me/subscription')
+          const response = await fetch('/api/billing?context=user')
 
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`)
           }
 
-          const data = await response.json()
+          const result = await response.json()
+          const data = result.data
 
           // Transform dates
           const transformedData: SubscriptionData = {
@@ -96,6 +100,18 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
                 : null,
             },
           }
+
+          // Debug logging for billing periods
+          logger.debug('Billing period data', {
+            raw: {
+              billingPeriodStart: data.usage?.billingPeriodStart,
+              billingPeriodEnd: data.usage?.billingPeriodEnd,
+            },
+            transformed: {
+              billingPeriodStart: transformedData.usage.billingPeriodStart,
+              billingPeriodEnd: transformedData.usage.billingPeriodEnd,
+            },
+          })
 
           set({
             subscriptionData: transformedData,
@@ -119,7 +135,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
       loadUsageLimitData: async () => {
         try {
-          const response = await fetch('/api/users/me/usage-limit')
+          const response = await fetch('/api/usage-limits?context=user')
 
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`)
@@ -143,7 +159,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
       updateUsageLimit: async (newLimit: number) => {
         try {
-          const response = await fetch('/api/users/me/usage-limit', {
+          const response = await fetch('/api/usage-limits?context=user', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -178,6 +194,81 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           const errorMessage =
             error instanceof Error ? error.message : 'Failed to update usage limit'
           logger.error('Failed to update usage limit', { error, newLimit })
+          return { success: false, error: errorMessage }
+        }
+      },
+
+      loadOrganizationBillingData: async (organizationId: string) => {
+        const state = get()
+
+        // Check cache validity
+        if (
+          state.organizationBillingData &&
+          state.lastOrgBillingFetched &&
+          Date.now() - state.lastOrgBillingFetched < CACHE_DURATION
+        ) {
+          logger.debug('Using cached organization billing data')
+          return
+        }
+
+        // Don't start multiple concurrent requests
+        if (state.isLoadingOrgBilling) {
+          logger.debug('Organization billing data already loading, skipping duplicate request')
+          return
+        }
+
+        set({ isLoadingOrgBilling: true })
+
+        try {
+          const response = await fetch(`/api/billing?context=organization&id=${organizationId}`)
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+
+          const result = await response.json()
+          const data = result.data
+
+          set({
+            organizationBillingData: { ...data, userRole: result.userRole },
+            isLoadingOrgBilling: false,
+            lastOrgBillingFetched: Date.now(),
+          })
+
+          logger.debug('Organization billing data loaded successfully')
+        } catch (error) {
+          logger.error('Failed to load organization billing data', { error })
+          set({ isLoadingOrgBilling: false })
+        }
+      },
+
+      updateMemberUsageLimit: async (userId: string, organizationId: string, newLimit: number) => {
+        try {
+          const response = await fetch(
+            `/api/usage-limits?context=member&userId=${userId}&organizationId=${organizationId}`,
+            {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ limit: newLimit }),
+            }
+          )
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || 'Failed to update member usage limit')
+          }
+
+          // Refresh organization billing data
+          await get().loadOrganizationBillingData(organizationId)
+
+          logger.debug('Member usage limit updated successfully', { userId, newLimit })
+          return { success: true }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Failed to update member usage limit'
+          logger.error('Failed to update member usage limit', { error, userId, newLimit })
           return { success: false, error: errorMessage }
         }
       },
@@ -217,15 +308,16 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         try {
           // Load both subscription and usage limit data in parallel
           const [subscriptionResponse, usageLimitResponse] = await Promise.all([
-            fetch('/api/users/me/subscription'),
-            fetch('/api/users/me/usage-limit'),
+            fetch('/api/billing?context=user'),
+            fetch('/api/usage-limits?context=user'),
           ])
 
           if (!subscriptionResponse.ok) {
             throw new Error(`HTTP error! status: ${subscriptionResponse.status}`)
           }
 
-          const subscriptionData = await subscriptionResponse.json()
+          const subscriptionResult = await subscriptionResponse.json()
+          const subscriptionData = subscriptionResult.data
           let usageLimitData = null
 
           if (usageLimitResponse.ok) {
@@ -247,6 +339,18 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
                 : null,
             },
           }
+
+          // Debug logging for parallel billing periods
+          logger.debug('Parallel billing period data', {
+            raw: {
+              billingPeriodStart: subscriptionData.usage?.billingPeriodStart,
+              billingPeriodEnd: subscriptionData.usage?.billingPeriodEnd,
+            },
+            transformed: {
+              billingPeriodStart: transformedSubscriptionData.usage.billingPeriodStart,
+              billingPeriodEnd: transformedSubscriptionData.usage.billingPeriodEnd,
+            },
+          })
 
           // Transform usage limit data dates if present
           const transformedUsageLimitData: UsageLimitData | null = usageLimitData
@@ -286,9 +390,12 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         set({
           subscriptionData: null,
           usageLimitData: null,
+          organizationBillingData: null,
           isLoading: false,
+          isLoadingOrgBilling: false,
           error: null,
           lastFetched: null,
+          lastOrgBillingFetched: null,
         })
       },
 
@@ -357,6 +464,14 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       canUpgrade: () => {
         const status = get().getSubscriptionStatus()
         return status.plan === 'free' || status.plan === 'pro'
+      },
+
+      getOrganizationBillingData: () => {
+        return get().organizationBillingData
+      },
+
+      getUserRole: () => {
+        return get().organizationBillingData?.userRole || 'member'
       },
     }),
     { name: 'subscription-store' }

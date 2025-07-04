@@ -1,20 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Building2, CheckCircle, PlusCircle, RefreshCw, Save, UserX, XCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { client, useSession } from '@/lib/auth-client'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
@@ -22,6 +7,14 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TeamSeatsDialog } from '../subscription/components/team-seats-dialog'
 import { TeamUsageOverview } from '../subscription/components/team-usage-overview'
+import { MemberInvitationCard } from './components/member-invitation-card'
+import { NoOrganizationView } from './components/no-organization-view'
+import { OrganizationSettingsTab } from './components/organization-settings-tab'
+import { PendingInvitationsList } from './components/pending-invitations-list'
+import { RemoveMemberDialog } from './components/remove-member-dialog'
+import { TeamManagementSkeleton } from './components/team-management-skeleton'
+import { TeamMembersList } from './components/team-members-list'
+import { TeamSeatsOverview } from './components/team-seats-overview'
 
 const logger = createLogger('TeamManagement')
 
@@ -152,8 +145,9 @@ export function TeamManagement() {
       setOrganizations(orgsResponse.data || [])
 
       // Check if user has a team or enterprise subscription
-      const response = await fetch('/api/users/me/subscription')
-      const data = await response.json()
+      const response = await fetch('/api/billing?context=user')
+      const result = await response.json()
+      const data = result.data
       setHasTeamPlan(data.isTeam)
       setHasEnterprisePlan(data.isEnterprise)
 
@@ -229,23 +223,34 @@ export function TeamManagement() {
           })
           setSubscriptionData(activeSubscription)
         } else {
-          // If no subscription found through client API, check for enterprise subscriptions
+          // If no subscription found through client API, check billing endpoint for enterprise subscriptions
           if (hasEnterprisePlan) {
             try {
-              const enterpriseResponse = await fetch('/api/users/me/subscription/enterprise')
-              if (enterpriseResponse.ok) {
-                const enterpriseData = await enterpriseResponse.json()
-                if (enterpriseData.subscription) {
-                  logger.info('Found enterprise subscription', {
-                    id: enterpriseData.subscription.id,
-                    seats: enterpriseData.subscription.seats,
+              const billingResponse = await fetch('/api/billing?context=user')
+              if (billingResponse.ok) {
+                const billingData = await billingResponse.json()
+                if (
+                  billingData.success &&
+                  billingData.data.isEnterprise &&
+                  billingData.data.status
+                ) {
+                  const enterpriseSubscription = {
+                    id: `subscription_${Date.now()}`, // Mock ID since billing data doesn't include subscription ID
+                    plan: billingData.data.plan,
+                    status: billingData.data.status,
+                    seats: billingData.data.seats,
+                    referenceId: billingData.data.organizationId || 'unknown',
+                  }
+                  logger.info('Found enterprise subscription from billing data', {
+                    plan: enterpriseSubscription.plan,
+                    seats: enterpriseSubscription.seats,
                   })
-                  setSubscriptionData(enterpriseData.subscription)
+                  setSubscriptionData(enterpriseSubscription)
                   return
                 }
               }
             } catch (err) {
-              logger.error('Error fetching enterprise subscription', {
+              logger.error('Error fetching enterprise subscription from billing endpoint', {
                 error: err,
               })
             }
@@ -373,29 +378,35 @@ export function TeamManagement() {
       if (hasTeamPlan || hasEnterprisePlan) {
         const userSubResponse = await client.subscription.list()
 
-        let teamSubscription = userSubResponse.data?.find(
-          (sub) => (sub.plan === 'team' || sub.plan === 'enterprise') && sub.status === 'active'
-        )
+        let teamSubscription: Subscription | null =
+          (userSubResponse.data?.find(
+            (sub) => (sub.plan === 'team' || sub.plan === 'enterprise') && sub.status === 'active'
+          ) as Subscription | undefined) || null
 
         // If no subscription was found through the client API but user has enterprise plan,
-        // fetch it directly through our enterprise subscription endpoint
+        // fetch it from the consolidated billing endpoint
         if (!teamSubscription && hasEnterprisePlan) {
-          logger.info('No subscription found via client API, checking enterprise endpoint')
+          logger.info('No subscription found via client API, checking billing endpoint')
           try {
-            const enterpriseResponse = await fetch('/api/users/me/subscription/enterprise')
-            if (enterpriseResponse.ok) {
-              const enterpriseData = await enterpriseResponse.json()
-              if (enterpriseData.subscription) {
-                teamSubscription = enterpriseData.subscription
-                logger.info('Found enterprise subscription via direct API', {
-                  subscriptionId: teamSubscription?.id,
+            const billingResponse = await fetch('/api/billing?context=user')
+            if (billingResponse.ok) {
+              const billingData = await billingResponse.json()
+              if (billingData.success && billingData.data.isEnterprise && billingData.data.status) {
+                teamSubscription = {
+                  id: `subscription_${Date.now()}`, // Mock ID since billing data doesn't include subscription ID
+                  plan: billingData.data.plan,
+                  status: billingData.data.status,
+                  seats: billingData.data.seats,
+                  referenceId: billingData.data.organizationId || 'unknown',
+                }
+                logger.info('Found enterprise subscription via billing endpoint', {
                   plan: teamSubscription?.plan,
                   seats: teamSubscription?.seats,
                 })
               }
             }
           } catch (err) {
-            logger.error('Error fetching enterprise subscription details', {
+            logger.error('Error fetching enterprise subscription from billing endpoint', {
               error: err,
             })
           }
@@ -871,184 +882,27 @@ export function TeamManagement() {
     }
   }
 
-  const hasOrgChanges =
-    activeOrganization &&
-    (orgFormData.name !== activeOrganization.name ||
-      orgFormData.slug !== activeOrganization.slug ||
-      orgFormData.logo !== (activeOrganization.logo || ''))
-
   if (isLoading && !activeOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
     return <TeamManagementSkeleton />
-  }
-
-  const getInvitationStatus = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return (
-          <div className='flex items-center text-amber-500'>
-            <RefreshCw className='mr-1 h-4 w-4' />
-            <span>Pending</span>
-          </div>
-        )
-      case 'accepted':
-        return (
-          <div className='flex items-center text-green-500'>
-            <CheckCircle className='mr-1 h-4 w-4' />
-            <span>Accepted</span>
-          </div>
-        )
-      case 'canceled':
-        return (
-          <div className='flex items-center text-red-500'>
-            <XCircle className='mr-1 h-4 w-4' />
-            <span>Canceled</span>
-          </div>
-        )
-      default:
-        return status
-    }
   }
 
   // No organization yet - show creation UI
   if (!activeOrganization) {
     return (
-      <div className='space-y-6 p-6'>
-        <div className='space-y-6'>
-          <h3 className='font-medium text-lg'>
-            {hasTeamPlan || hasEnterprisePlan ? 'Create Your Team Workspace' : 'No Team Workspace'}
-          </h3>
-
-          {hasTeamPlan || hasEnterprisePlan ? (
-            <div className='space-y-6 rounded-lg border p-6'>
-              <p className='text-muted-foreground text-sm'>
-                You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
-                workspace to start collaborating with your team.
-              </p>
-
-              <div className='space-y-4'>
-                <div className='space-y-2'>
-                  <label htmlFor='orgName' className='font-medium text-sm'>
-                    Team Name
-                  </label>
-                  <Input value={orgName} onChange={handleOrgNameChange} placeholder='My Team' />
-                </div>
-
-                <div className='space-y-2'>
-                  <label htmlFor='orgSlug' className='font-medium text-sm'>
-                    Team URL
-                  </label>
-                  <div className='flex items-center space-x-2'>
-                    <div className='rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm'>
-                      simstudio.ai/team/
-                    </div>
-                    <Input
-                      value={orgSlug}
-                      onChange={(e) => setOrgSlug(e.target.value)}
-                      className='rounded-l-none'
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {error && (
-                <Alert variant='destructive'>
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <div className='flex justify-end space-x-2'>
-                <Button
-                  onClick={handleCreateOrganization}
-                  disabled={!orgName || !orgSlug || isCreatingOrg}
-                >
-                  {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
-                  Create Team Workspace
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <p className='text-muted-foreground text-sm'>
-                You don't have a team workspace yet. To collaborate with others, first upgrade to a
-                team or enterprise plan.
-              </p>
-
-              <Button
-                onClick={() => {
-                  // Open the subscription tab
-                  const event = new CustomEvent('open-settings', {
-                    detail: { tab: 'subscription' },
-                  })
-                  window.dispatchEvent(event)
-                }}
-              >
-                Upgrade to Team Plan
-              </Button>
-            </>
-          )}
-        </div>
-
-        <Dialog open={createOrgDialogOpen} onOpenChange={setCreateOrgDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Team Workspace</DialogTitle>
-              <DialogDescription>
-                Create a workspace for your team to collaborate on projects.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className='space-y-4 py-4'>
-              <div className='space-y-2'>
-                <label htmlFor='orgName' className='font-medium text-sm'>
-                  Team Name
-                </label>
-                <Input value={orgName} onChange={handleOrgNameChange} placeholder='My Team' />
-              </div>
-
-              <div className='space-y-2'>
-                <label htmlFor='orgSlug' className='font-medium text-sm'>
-                  Team URL
-                </label>
-                <div className='flex items-center space-x-2'>
-                  <div className='rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm'>
-                    simstudio.ai/team/
-                  </div>
-                  <Input
-                    value={orgSlug}
-                    onChange={(e) => setOrgSlug(e.target.value)}
-                    className='rounded-l-none'
-                  />
-                </div>
-              </div>
-            </div>
-
-            {error && (
-              <Alert variant='destructive'>
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <DialogFooter>
-              <Button
-                variant='outline'
-                onClick={() => setCreateOrgDialogOpen(false)}
-                disabled={isCreatingOrg}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateOrganization}
-                disabled={!orgName || !orgSlug || isCreatingOrg}
-              >
-                {isCreatingOrg && <ButtonSkeleton />}
-                <span className={isCreatingOrg ? 'ml-2' : ''}>Create Team Workspace</span>
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <NoOrganizationView
+        hasTeamPlan={hasTeamPlan}
+        hasEnterprisePlan={hasEnterprisePlan}
+        orgName={orgName}
+        setOrgName={setOrgName}
+        orgSlug={orgSlug}
+        setOrgSlug={setOrgSlug}
+        onOrgNameChange={handleOrgNameChange}
+        onCreateOrganization={handleCreateOrganization}
+        isCreatingOrg={isCreatingOrg}
+        error={error}
+        createOrgDialogOpen={createOrgDialogOpen}
+        setCreateOrgDialogOpen={setCreateOrgDialogOpen}
+      />
     )
   }
 
@@ -1090,301 +944,48 @@ export function TeamManagement() {
 
         <TabsContent value='members' className='mt-4 space-y-4'>
           {isAdminOrOwner && (
-            <Card>
-              <CardHeader className='pb-3'>
-                <CardTitle className='text-base'>Invite Team Members</CardTitle>
-                <CardDescription>
-                  Add new members to your team and optionally give them access to specific
-                  workspaces
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-4'>
-                <div className='flex items-center space-x-2'>
-                  <Input
-                    placeholder='Email address'
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    disabled={isInviting}
-                    className='flex-1'
-                  />
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => {
-                      setShowWorkspaceInvite(!showWorkspaceInvite)
-                      if (!showWorkspaceInvite) {
-                        loadUserWorkspaces()
-                      }
-                    }}
-                    disabled={isInviting}
-                  >
-                    {showWorkspaceInvite ? 'Hide' : 'Add'} Workspaces
-                  </Button>
-                  <Button onClick={handleInviteMember} disabled={!inviteEmail || isInviting}>
-                    {isInviting ? <ButtonSkeleton /> : <PlusCircle className='mr-2 h-4 w-4' />}
-                    <span>Invite</span>
-                  </Button>
-                </div>
-
-                {showWorkspaceInvite && (
-                  <div className='space-y-3'>
-                    <div className='flex items-center justify-between'>
-                      <h5 className='font-medium text-sm'>Workspace Access</h5>
-                      <span className='text-muted-foreground text-xs'>Optional</span>
-                    </div>
-                    <p className='text-muted-foreground text-xs'>
-                      Grant access to specific workspaces. You can modify permissions later.
-                    </p>
-
-                    {userWorkspaces.length === 0 ? (
-                      <div className='py-4 text-center'>
-                        <p className='text-muted-foreground text-sm'>No workspaces available</p>
-                      </div>
-                    ) : (
-                      <div className='max-h-32 space-y-1 overflow-y-auto'>
-                        {userWorkspaces.map((workspace) => (
-                          <div
-                            key={workspace.id}
-                            className='group flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50'
-                          >
-                            <div className='flex items-center space-x-3'>
-                              <input
-                                type='checkbox'
-                                id={`workspace-${workspace.id}`}
-                                checked={selectedWorkspaces.some(
-                                  (w) => w.workspaceId === workspace.id
-                                )}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    handleWorkspaceToggle(workspace.id, 'read')
-                                  } else {
-                                    handleWorkspaceToggle(workspace.id, '')
-                                  }
-                                }}
-                                className='h-4 w-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary'
-                              />
-                              <label
-                                htmlFor={`workspace-${workspace.id}`}
-                                className='cursor-pointer font-medium text-sm'
-                              >
-                                {workspace.name}
-                              </label>
-                            </div>
-                            {selectedWorkspaces.some((w) => w.workspaceId === workspace.id) && (
-                              <select
-                                value={
-                                  selectedWorkspaces.find((w) => w.workspaceId === workspace.id)
-                                    ?.permission || 'read'
-                                }
-                                onChange={(e) =>
-                                  handleWorkspaceToggle(workspace.id, e.target.value)
-                                }
-                                className='ml-2 rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                              >
-                                <option value='read'>Read</option>
-                                <option value='write'>Write</option>
-                                <option value='admin'>Admin</option>
-                              </select>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {inviteSuccess && (
-                  <Alert>
-                    <CheckCircle className='h-4 w-4' />
-                    <AlertDescription>
-                      Invitation sent successfully
-                      {selectedWorkspaces.length > 0 &&
-                        ` with access to ${selectedWorkspaces.length} workspace(s)`}
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
+            <MemberInvitationCard
+              inviteEmail={inviteEmail}
+              setInviteEmail={setInviteEmail}
+              isInviting={isInviting}
+              showWorkspaceInvite={showWorkspaceInvite}
+              setShowWorkspaceInvite={setShowWorkspaceInvite}
+              selectedWorkspaces={selectedWorkspaces}
+              userWorkspaces={userWorkspaces}
+              onInviteMember={handleInviteMember}
+              onLoadUserWorkspaces={loadUserWorkspaces}
+              onWorkspaceToggle={handleWorkspaceToggle}
+              inviteSuccess={inviteSuccess}
+            />
           )}
 
           {/* Team Seats Usage - only show to admins/owners */}
           {isAdminOrOwner && (
-            <Card>
-              <CardHeader className='pb-3'>
-                <CardTitle className='text-base'>Team Seats Overview</CardTitle>
-                <CardDescription>Manage your team's seat allocation and billing</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoadingSubscription ? (
-                  <TeamSeatsSkeleton />
-                ) : subscriptionData ? (
-                  <div className='space-y-4'>
-                    <div className='grid grid-cols-3 gap-4 text-center'>
-                      <div className='space-y-1'>
-                        <p className='font-bold text-2xl'>{subscriptionData.seats || 0}</p>
-                        <p className='text-muted-foreground text-xs'>Licensed Seats</p>
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='font-bold text-2xl'>{usedSeats}</p>
-                        <p className='text-muted-foreground text-xs'>Used Seats</p>
-                      </div>
-                      <div className='space-y-1'>
-                        <p className='font-bold text-2xl'>
-                          {(subscriptionData.seats || 0) - usedSeats}
-                        </p>
-                        <p className='text-muted-foreground text-xs'>Available</p>
-                      </div>
-                    </div>
-
-                    <div className='space-y-2'>
-                      <div className='flex justify-between text-sm'>
-                        <span>Seat Usage</span>
-                        <span>
-                          {usedSeats} of {subscriptionData.seats || 0} seats
-                        </span>
-                      </div>
-                      <Progress
-                        value={(usedSeats / (subscriptionData.seats || 1)) * 100}
-                        className='h-3'
-                      />
-                    </div>
-
-                    <div className='flex items-center justify-between border-t pt-2 text-sm'>
-                      <span>Seat Cost:</span>
-                      <span className='font-semibold'>
-                        ${((subscriptionData.seats || 0) * 40).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className='mt-2 text-muted-foreground text-xs'>
-                      Individual usage limits may vary. See Subscription tab for team totals.
-                    </div>
-
-                    {checkEnterprisePlan(subscriptionData) ? (
-                      <div className='rounded-lg bg-purple-50 p-4 text-center'>
-                        <p className='font-medium text-purple-700 text-sm'>Enterprise Plan</p>
-                        <p className='mt-1 text-purple-600 text-xs'>
-                          Contact support to modify seats
-                        </p>
-                      </div>
-                    ) : (
-                      <div className='flex gap-2'>
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          onClick={handleReduceSeats}
-                          disabled={(subscriptionData.seats || 0) <= 1 || isLoading}
-                          className='flex-1'
-                        >
-                          Remove Seat
-                        </Button>
-                        <Button
-                          size='sm'
-                          onClick={handleAddSeatDialog}
-                          disabled={isLoading}
-                          className='flex-1'
-                        >
-                          Add Seat
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className='space-y-4 p-6 text-center'>
-                    <div className='mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100'>
-                      <Building2 className='h-6 w-6 text-amber-600' />
-                    </div>
-                    <div className='space-y-2'>
-                      <p className='font-medium'>No Team Subscription Found</p>
-                      <p className='text-muted-foreground text-sm'>
-                        Your subscription may need to be transferred to this organization.
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => {
-                        setError(null)
-                        confirmTeamUpgrade(2) // Start with 2 seats as default
-                      }}
-                      disabled={isLoading}
-                    >
-                      Set Up Team Subscription
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <TeamSeatsOverview
+              subscriptionData={subscriptionData}
+              isLoadingSubscription={isLoadingSubscription}
+              usedSeats={usedSeats}
+              isLoading={isLoading}
+              onConfirmTeamUpgrade={confirmTeamUpgrade}
+              onReduceSeats={handleReduceSeats}
+              onAddSeatDialog={handleAddSeatDialog}
+            />
           )}
 
           {/* Team Members - show to all users */}
-          <div className='rounded-md border'>
-            <h4 className='border-b p-4 font-medium text-sm'>Team Members</h4>
-
-            {activeOrganization.members?.length === 0 ? (
-              <div className='p-4 text-muted-foreground text-sm'>
-                No members in this organization yet.
-              </div>
-            ) : (
-              <div className='divide-y'>
-                {activeOrganization.members?.map((member: any) => (
-                  <div key={member.id} className='flex items-center justify-between p-4'>
-                    <div className='flex-1'>
-                      <div className='flex items-center gap-3'>
-                        <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 font-medium text-primary text-sm'>
-                          {(member.user?.name || member.user?.email || 'U').charAt(0).toUpperCase()}
-                        </div>
-                        <div className='flex-1'>
-                          <div className='font-medium'>{member.user?.name || 'Unknown'}</div>
-                          <div className='text-muted-foreground text-sm'>{member.user?.email}</div>
-                        </div>
-                        <div className='rounded-full bg-primary/10 px-3 py-1 font-medium text-primary text-xs'>
-                          {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Only show remove button for non-owners and if current user is admin/owner */}
-                    {isAdminOrOwner &&
-                      member.role !== 'owner' &&
-                      member.user?.email !== session?.user?.email && (
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          onClick={() => handleRemoveMember(member)}
-                        >
-                          <UserX className='h-4 w-4' />
-                        </Button>
-                      )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <TeamMembersList
+            organization={activeOrganization}
+            currentUserEmail={session?.user?.email}
+            isAdminOrOwner={isAdminOrOwner}
+            onRemoveMember={handleRemoveMember}
+          />
 
           {/* Pending Invitations - only show to admins/owners */}
           {isAdminOrOwner && (activeOrganization.invitations?.length ?? 0) > 0 && (
-            <div className='rounded-md border'>
-              <h4 className='border-b p-4 font-medium text-sm'>Pending Invitations</h4>
-
-              <div className='divide-y'>
-                {activeOrganization.invitations?.map((invitation: any) => (
-                  <div key={invitation.id} className='flex items-center justify-between p-4'>
-                    <div>
-                      <div className='font-medium'>{invitation.email}</div>
-                      <div className='mt-1 text-xs'>{getInvitationStatus(invitation.status)}</div>
-                    </div>
-
-                    {invitation.status === 'pending' && (
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => handleCancelInvitation(invitation.id)}
-                      >
-                        <XCircle className='h-4 w-4' />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <PendingInvitationsList
+              organization={activeOrganization}
+              onCancelInvitation={handleCancelInvitation}
+            />
           )}
         </TabsContent>
 
@@ -1392,169 +993,43 @@ export function TeamManagement() {
           <TeamUsageOverview hasAdminAccess={isAdminOrOwner} />
         </TabsContent>
 
-        <TabsContent value='settings' className='mt-4 space-y-6'>
-          {orgSettingsError && (
-            <Alert variant='destructive'>
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{orgSettingsError}</AlertDescription>
-            </Alert>
-          )}
-
-          {orgSettingsSuccess && (
-            <Alert>
-              <AlertTitle>Success</AlertTitle>
-              <AlertDescription>{orgSettingsSuccess}</AlertDescription>
-            </Alert>
-          )}
-
-          {!isAdminOrOwner && (
-            <Alert>
-              <AlertTitle>Read Only</AlertTitle>
-              <AlertDescription>
-                You need owner or admin permissions to modify team settings.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>Update your team's basic information and branding</CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-4'>
-              <div className='space-y-2'>
-                <Label htmlFor='team-name'>Team Name</Label>
-                <Input
-                  id='team-name'
-                  value={orgFormData.name}
-                  onChange={(e) => handleOrgInputChange('name', e.target.value)}
-                  placeholder='Enter team name'
-                  disabled={!isAdminOrOwner}
-                />
-              </div>
-
-              <div className='space-y-2'>
-                <Label htmlFor='team-slug'>Team Slug</Label>
-                <Input
-                  id='team-slug'
-                  value={orgFormData.slug}
-                  onChange={(e) => handleOrgInputChange('slug', e.target.value)}
-                  placeholder='team-slug'
-                  disabled={!isAdminOrOwner}
-                />
-                <p className='text-muted-foreground text-sm'>
-                  Used in URLs and API references. Can only contain lowercase letters, numbers,
-                  hyphens, and underscores.
-                </p>
-              </div>
-
-              <div className='space-y-2'>
-                <Label htmlFor='team-logo'>Logo URL (Optional)</Label>
-                <Input
-                  id='team-logo'
-                  value={orgFormData.logo}
-                  onChange={(e) => handleOrgInputChange('logo', e.target.value)}
-                  placeholder='https://example.com/logo.png'
-                  disabled={!isAdminOrOwner}
-                />
-              </div>
-
-              {isAdminOrOwner && (
-                <div className='flex justify-end space-x-2 pt-4'>
-                  <Button
-                    onClick={handleSaveOrgSettings}
-                    disabled={!hasOrgChanges || isSavingOrgSettings}
-                    className='flex items-center space-x-2'
-                  >
-                    <Save className='h-4 w-4' />
-                    <span>{isSavingOrgSettings ? 'Saving...' : 'Save Changes'}</span>
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Information</CardTitle>
-            </CardHeader>
-            <CardContent className='space-y-2 text-sm'>
-              <div className='flex justify-between'>
-                <span className='text-muted-foreground'>Team ID:</span>
-                <span className='font-mono'>{activeOrganization.id}</span>
-              </div>
-              <div className='flex justify-between'>
-                <span className='text-muted-foreground'>Created:</span>
-                <span>{new Date(activeOrganization.createdAt).toLocaleDateString()}</span>
-              </div>
-              <div className='flex justify-between'>
-                <span className='text-muted-foreground'>Your Role:</span>
-                <span className='font-medium capitalize'>{userRole}</span>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value='settings'>
+          <OrganizationSettingsTab
+            organization={activeOrganization}
+            isAdminOrOwner={isAdminOrOwner}
+            userRole={userRole}
+            orgFormData={orgFormData}
+            onOrgInputChange={handleOrgInputChange}
+            onSaveOrgSettings={handleSaveOrgSettings}
+            isSavingOrgSettings={isSavingOrgSettings}
+            orgSettingsError={orgSettingsError}
+            orgSettingsSuccess={orgSettingsSuccess}
+          />
         </TabsContent>
       </Tabs>
-      <Dialog
+      <RemoveMemberDialog
         open={removeMemberDialog.open}
+        memberName={removeMemberDialog.memberName}
+        shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
         onOpenChange={(open) => {
           if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remove Team Member</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to remove {removeMemberDialog.memberName} from the team?
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className='py-4'>
-            <div className='flex items-center space-x-2'>
-              <input
-                type='checkbox'
-                id='reduce-seats'
-                className='rounded'
-                checked={removeMemberDialog.shouldReduceSeats}
-                onChange={(e) =>
-                  setRemoveMemberDialog({
-                    ...removeMemberDialog,
-                    shouldReduceSeats: e.target.checked,
-                  })
-                }
-              />
-              <label htmlFor='reduce-seats' className='text-sm'>
-                Also reduce seat count in my subscription
-              </label>
-            </div>
-            <p className='mt-1 text-muted-foreground text-xs'>
-              If selected, your team seat count will be reduced by 1, lowering your monthly billing.
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() =>
-                setRemoveMemberDialog({
-                  open: false,
-                  memberId: '',
-                  memberName: '',
-                  shouldReduceSeats: false,
-                })
-              }
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={() => confirmRemoveMember(removeMemberDialog.shouldReduceSeats)}
-            >
-              Remove
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onShouldReduceSeatsChange={(shouldReduce) =>
+          setRemoveMemberDialog({
+            ...removeMemberDialog,
+            shouldReduceSeats: shouldReduce,
+          })
+        }
+        onConfirmRemove={confirmRemoveMember}
+        onCancel={() =>
+          setRemoveMemberDialog({
+            open: false,
+            memberId: '',
+            memberName: '',
+            shouldReduceSeats: false,
+          })
+        }
+      />
       <TeamSeatsDialog
         open={isAddSeatDialogOpen}
         onOpenChange={setIsAddSeatDialogOpen}
@@ -1570,71 +1045,6 @@ export function TeamManagement() {
         confirmButtonText='Update Seats'
         showCostBreakdown={true}
       />
-    </div>
-  )
-}
-
-function TeamManagementSkeleton() {
-  return (
-    <div className='space-y-6 p-6'>
-      <div className='flex items-center justify-between'>
-        <Skeleton className='h-6 w-40' />
-        <Skeleton className='h-9 w-32' />
-      </div>
-
-      <div className='space-y-4'>
-        <div className='rounded-md border p-4'>
-          <Skeleton className='mb-4 h-5 w-32' />
-          <div className='flex items-center space-x-2'>
-            <Skeleton className='h-9 flex-1' />
-            <Skeleton className='h-9 w-24' />
-          </div>
-        </div>
-
-        <div className='rounded-md border p-4'>
-          <Skeleton className='mb-4 h-5 w-32' />
-          <div className='space-y-2'>
-            <div className='flex justify-between'>
-              <Skeleton className='h-4 w-16' />
-              <Skeleton className='h-4 w-24' />
-            </div>
-            <Skeleton className='h-2 w-full' />
-            <div className='mt-4 flex justify-between'>
-              <Skeleton className='h-9 w-24' />
-              <Skeleton className='h-9 w-24' />
-            </div>
-          </div>
-        </div>
-
-        <div className='rounded-md border'>
-          <Skeleton className='h-5 w-32 border-b p-4' />
-          <div className='space-y-4 p-4'>
-            {[1, 2, 3].map((i) => (
-              <div key={i} className='flex items-center justify-between'>
-                <div className='space-y-2'>
-                  <Skeleton className='h-5 w-32' />
-                  <Skeleton className='h-4 w-48' />
-                  <Skeleton className='h-4 w-16' />
-                </div>
-                <Skeleton className='h-9 w-9' />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ButtonSkeleton() {
-  return <Skeleton className='h-9 w-24' />
-}
-
-function TeamSeatsSkeleton() {
-  return (
-    <div className='flex items-center space-x-2'>
-      <Skeleton className='h-4 w-4' />
-      <Skeleton className='h-4 w-32' />
     </div>
   )
 }

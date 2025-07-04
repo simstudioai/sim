@@ -24,6 +24,35 @@ export interface UsageLimitData {
   updatedAt?: Date
 }
 
+export interface MemberUsageData {
+  userId: string
+  userName: string
+  userEmail: string
+  currentUsage: number
+  usageLimit: number
+  percentUsed: number
+  isOverLimit: boolean
+  role: string
+  joinedAt: string
+  lastActive: string | null
+}
+
+export interface OrganizationBillingData {
+  organizationId: string
+  organizationName: string
+  subscriptionPlan: string
+  subscriptionStatus: string
+  totalSeats: number
+  usedSeats: number
+  totalCurrentUsage: number
+  totalUsageLimit: number
+  averageUsagePerMember: number
+  billingPeriodStart: string | null
+  billingPeriodEnd: string | null
+  members?: MemberUsageData[]
+  userRole?: string
+}
+
 export interface SubscriptionData {
   // Subscription status
   isPaid: boolean
@@ -48,13 +77,22 @@ export interface SubscriptionStore {
   // State
   subscriptionData: SubscriptionData | null
   usageLimitData: UsageLimitData | null
+  organizationBillingData: OrganizationBillingData | null
   isLoading: boolean
+  isLoadingOrgBilling: boolean
   error: string | null
   lastFetched: number | null
+  lastOrgBillingFetched: number | null
 
   // Core actions
   loadSubscriptionData: () => Promise<void>
   loadUsageLimitData: () => Promise<void>
+  loadOrganizationBillingData: (organizationId: string) => Promise<void>
+  updateMemberUsageLimit: (
+    userId: string,
+    organizationId: string,
+    newLimit: number
+  ) => Promise<{ success: boolean; error?: string }>
   loadData: () => Promise<void>
   updateUsageLimit: (newLimit: number) => Promise<{ success: boolean; error?: string }>
   refresh: () => Promise<void>
@@ -78,6 +116,8 @@ export interface SubscriptionStore {
   getBillingStatus: () => BillingStatus
   getRemainingBudget: () => number
   getDaysRemainingInPeriod: () => number | null
+  getOrganizationBillingData: () => OrganizationBillingData | null
+  getUserRole: () => string
   hasFeature: (feature: keyof SubscriptionFeatures) => boolean
   isAtLeastPro: () => boolean
   isAtLeastTeam: () => boolean

@@ -28,7 +28,7 @@ import { getEmailDomain } from './urls/utils'
 
 const logger = createLogger('Auth')
 
-const isProd = env.NODE_ENV === 'production'
+const isProd = true
 
 // Only initialize Stripe if the key is provided
 // This allows local development without a Stripe account
@@ -1198,12 +1198,20 @@ export const auth = betterAuth({
                     referenceId: subscription.referenceId,
                   })
 
-                  // Initialize billing period for new subscription
+                  // Initialize billing period for new subscription using Stripe dates
                   if (subscription.plan !== 'free') {
-                    await initializeBillingPeriod(subscription.referenceId)
-                    logger.info('Billing period initialized for new subscription', {
-                      referenceId: subscription.referenceId,
-                    })
+                    const stripeStart = new Date(stripeSubscription.current_period_start * 1000)
+                    const stripeEnd = new Date(stripeSubscription.current_period_end * 1000)
+
+                    await initializeBillingPeriod(subscription.referenceId, stripeStart, stripeEnd)
+                    logger.info(
+                      'Billing period initialized for new subscription with Stripe dates',
+                      {
+                        referenceId: subscription.referenceId,
+                        billingStart: stripeStart,
+                        billingEnd: stripeEnd,
+                      }
+                    )
                   }
                 } catch (error) {
                   logger.error(

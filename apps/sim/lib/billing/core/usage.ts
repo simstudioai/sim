@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { member, user, userStats } from '@/db/schema'
@@ -12,37 +12,6 @@ const logger = createLogger('UsageManagement')
  * Consolidated usage management module
  * Handles user usage tracking, limits, and monitoring
  */
-
-/**
- * Check if a user is a regular team member (not admin) in any organization
- * NOTE: This function is currently unused but kept for potential future use
- * @deprecated Usage limit validation now uses plan-based minimums instead of role-based
- */
-async function isRegularTeamMember(userId: string, subscription: any): Promise<boolean> {
-  try {
-    // Only check for team/enterprise plans where members might have different limits
-    if (!subscription || !['team', 'enterprise'].includes(subscription.plan)) {
-      return false
-    }
-
-    // Check if user is a regular member (not admin) in any organization
-    const memberRecords = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(eq(member.userId, userId))
-
-    // If user has any admin roles, they're not a regular team member
-    const hasAdminRole = memberRecords.some((record) => record.role === 'admin')
-
-    // If they have no admin roles but are a member, they're a regular team member
-    const hasMemberRole = memberRecords.some((record) => record.role === 'member')
-
-    return !hasAdminRole && hasMemberRole
-  } catch (error) {
-    logger.error('Failed to check team member status', { userId, error })
-    return false
-  }
-}
 
 /**
  * Get comprehensive usage data for a user
@@ -101,7 +70,29 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
 export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitInfo> {
   try {
     const subscription = await getHighestPrioritySubscription(userId)
-    const canEdit = canEditUsageLimit(subscription)
+
+    // For team plans, check if user is owner/admin to determine if they can edit their own limit
+    let canEdit = canEditUsageLimit(subscription)
+
+    if (subscription?.plan === 'team') {
+      // For team plans, the subscription referenceId should be the organization ID
+      // Check user's role in that organization
+      const orgMemberRecord = await db
+        .select({ role: member.role })
+        .from(member)
+        .where(and(eq(member.userId, userId), eq(member.organizationId, subscription.referenceId)))
+        .limit(1)
+
+      if (orgMemberRecord.length > 0) {
+        const userRole = orgMemberRecord[0].role
+        // Team owners and admins can edit their own usage limits
+        // Regular team members cannot edit their own limits
+        canEdit = canEdit && ['owner', 'admin'].includes(userRole)
+      } else {
+        // User is not a member of the organization, should not be able to edit
+        canEdit = false
+      }
+    }
 
     // Use plan-based minimums instead of role-based minimums
     let minimumLimit: number
@@ -208,7 +199,32 @@ export async function updateUserUsageLimit(
     const subscription = await getHighestPrioritySubscription(userId)
 
     // Check if user can edit limits
-    if (!canEditUsageLimit(subscription)) {
+    let canEdit = canEditUsageLimit(subscription)
+
+    if (subscription?.plan === 'team') {
+      // For team plans, the subscription referenceId should be the organization ID
+      // Check user's role in that organization
+      const orgMemberRecord = await db
+        .select({ role: member.role })
+        .from(member)
+        .where(and(eq(member.userId, userId), eq(member.organizationId, subscription.referenceId)))
+        .limit(1)
+
+      if (orgMemberRecord.length > 0) {
+        const userRole = orgMemberRecord[0].role
+        // Team owners and admins can edit their own usage limits
+        // Regular team members cannot edit their own limits
+        canEdit = canEdit && ['owner', 'admin'].includes(userRole)
+      } else {
+        // User is not a member of the organization, should not be able to edit
+        canEdit = false
+      }
+    }
+
+    if (!canEdit) {
+      if (subscription?.plan === 'team') {
+        return { success: false, error: 'Only team owners and admins can edit usage limits' }
+      }
       return { success: false, error: 'Free plan users cannot edit usage limits' }
     }
 
