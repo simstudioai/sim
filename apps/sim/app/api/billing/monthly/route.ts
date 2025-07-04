@@ -4,12 +4,10 @@ import { getUsersWithEndedBillingPeriods } from '@/lib/billing/core/billing-peri
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('DailyBillingCron')
+const logger = createLogger('MonthlyBillingCron')
 
 /**
- * Daily billing CRON job endpoint
- * This endpoint should be called daily by a cron service (e.g., Vercel Cron, GitHub Actions, etc.)
- * to process usage billing for users and organizations whose billing periods end today
+ * Monthly billing CRON job endpoint that runs daily
  */
 export async function POST(request: NextRequest) {
   try {

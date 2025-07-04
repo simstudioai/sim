@@ -8,9 +8,8 @@ import { resetOrganizationBillingPeriod, resetUserBillingPeriod } from './billin
 import { getHighestPrioritySubscription } from './subscription'
 import { getUserUsageData } from './usage'
 
-const logger = createLogger('SimplifiedBilling')
+const logger = createLogger('Billing')
 
-// Initialize Stripe client
 const stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-02-24.acacia',
 })

@@ -7,7 +7,6 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('StripeInvoiceWebhook')
 
-// Initialize Stripe client
 const stripe = new Stripe(env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-02-24.acacia',
 })

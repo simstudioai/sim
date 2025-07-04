@@ -11,11 +11,6 @@ const logger = createLogger('UnifiedBillingAPI')
 
 /**
  * Unified Billing Endpoint
- * GET /api/billing?context=user|organization&id=<contextId>
- *
- * Replaces:
- * - /api/users/me/billing
- * - /api/organizations/[id]/billing
  */
 export async function GET(request: NextRequest) {
   const session = await getSession()
