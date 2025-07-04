@@ -47,13 +47,14 @@ export function useSubscriptionState() {
       setIsLoading(true)
       setError(null)
 
-      const response = await fetch('/api/users/me/subscription')
+      const response = await fetch('/api/billing?context=user')
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const subscriptionData = await response.json()
+      const result = await response.json()
+      const subscriptionData = result.data
       setData(subscriptionData)
     } catch (error) {
       const err = error instanceof Error ? error : new Error('Failed to fetch subscription state')
@@ -173,7 +174,7 @@ export function useUsageLimit() {
       setIsLoading(true)
       setError(null)
 
-      const response = await fetch('/api/users/me/usage-limit')
+      const response = await fetch('/api/usage-limits?context=user')
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -200,7 +201,7 @@ export function useUsageLimit() {
 
   const updateLimit = async (newLimit: number) => {
     try {
-      const response = await fetch('/api/users/me/usage-limit', {
+      const response = await fetch('/api/usage-limits?context=user', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

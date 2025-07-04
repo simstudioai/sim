@@ -41,10 +41,13 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const [isSeatsDialogOpen, setIsSeatsDialogOpen] = useState(false)
   const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
 
-  // Organization billing data for team owners/admins
-  const [orgBillingData, setOrgBillingData] = useState<any>(null)
-  const [isLoadingOrgBilling, setIsLoadingOrgBilling] = useState(false)
-  const [userRole, setUserRole] = useState<string>('member')
+  // Get organization billing data from store
+  const orgBillingData = useSubscriptionStore((state) => state.getOrganizationBillingData())
+  const isLoadingOrgBilling = useSubscriptionStore((state) => state.isLoadingOrgBilling)
+  const userRole = useSubscriptionStore((state) => state.getUserRole())
+  const loadOrganizationBillingData = useSubscriptionStore(
+    (state) => state.loadOrganizationBillingData
+  )
 
   // Get computed values
   const subscription = getSubscriptionStatus()
@@ -54,32 +57,23 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const remainingBudget = getRemainingBudget()
   const daysRemaining = getDaysRemainingInPeriod()
 
-  // Load organization billing data for team owners/admins
-  const loadOrgBillingData = async () => {
-    if (!activeOrg?.id || !subscription.isTeam) return
-
-    try {
-      setIsLoadingOrgBilling(true)
-      const response = await fetch(`/api/organizations/${activeOrg.id}/billing`)
-
-      if (response.ok) {
-        const data = await response.json()
-        setOrgBillingData(data.data)
-        setUserRole(data.userRole || 'member')
-      }
-    } catch (error) {
-      logger.error('Failed to load organization billing data:', error)
-    } finally {
-      setIsLoadingOrgBilling(false)
-    }
-  }
+  // Debug logging - remove this after debugging
+  useEffect(() => {
+    logger.info('Subscription debug info', {
+      subscription,
+      usage,
+      billingPeriodStart: usage.billingPeriodStart,
+      billingPeriodEnd: usage.billingPeriodEnd,
+      daysRemaining,
+    })
+  }, [subscription, usage, daysRemaining])
 
   // Load org billing data when component mounts or activeOrg changes
   useEffect(() => {
     if (subscription.isTeam && activeOrg?.id) {
-      loadOrgBillingData()
+      loadOrganizationBillingData(activeOrg.id)
     }
-  }, [activeOrg?.id, subscription.isTeam])
+  }, [activeOrg?.id, subscription.isTeam, loadOrganizationBillingData])
 
   // Determine if user is team admin/owner
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
@@ -158,7 +152,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       await updateUsageLimit(newLimit)
       // Also refresh organization billing data to update team totals
       if (subscription.isTeam && activeOrg?.id) {
-        await loadOrgBillingData()
+        await loadOrganizationBillingData(activeOrg.id)
       }
     } catch (error) {
       logger.error('Failed to update usage limit:', error)
@@ -188,7 +182,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       }
 
       setIsSeatsDialogOpen(false)
-      await Promise.all([refresh(), loadOrgBillingData()]) // Refresh both subscription and org billing data
+      await Promise.all([refresh(), loadOrganizationBillingData(activeOrg.id)]) // Refresh both subscription and org billing data
     } catch (error) {
       logger.error('Failed to update seats:', error)
     } finally {
@@ -222,17 +216,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
               </span>
             </div>
           </div>
-
-          <Progress
-            value={usage.percentUsed}
-            className={`h-2 ${billingStatus === 'exceeded' ? 'bg-destructive/20' : billingStatus === 'warning' ? 'bg-warning/20' : ''}`}
-          />
-
-          {usage.billingPeriodEnd && daysRemaining !== null && (
-            <p className='mt-2 text-muted-foreground text-xs'>
-              {daysRemaining} days remaining in current billing period
-            </p>
-          )}
         </div>
 
         {/* Usage Alerts */}
@@ -268,21 +251,31 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
               <Skeleton className='h-8 w-16' />
             ) : (
               <UsageLimitEditor
-                currentLimit={usageLimitData?.currentLimit ?? 5}
-                canEdit={usageLimitData?.canEdit ?? false}
+                currentLimit={usageLimitData?.currentLimit ?? usage.limit}
+                canEdit={
+                  subscription.isPro ||
+                  subscription.isTeam ||
+                  subscription.isEnterprise ||
+                  (subscription.isTeam && isTeamAdmin)
+                }
                 minimumLimit={usageLimitData?.minimumLimit ?? 5}
                 onLimitUpdated={handleLimitUpdated}
               />
             )}
           </div>
-          {!usageLimitData?.canEdit && subscription.isFree && (
+          {subscription.isFree && (
             <p className='mt-1 text-muted-foreground text-xs'>
               Upgrade to Pro or Team plan to customize your usage limit.
             </p>
           )}
+          {subscription.isTeam && !isTeamAdmin && (
+            <p className='mt-1 text-muted-foreground text-xs'>
+              Contact your team owner to adjust your limit.
+            </p>
+          )}
           {subscription.isTeam && isTeamAdmin && (
             <p className='mt-1 text-muted-foreground text-xs'>
-              As a team owner, you can set individual limits for team members in the Team tab.
+              Your individual usage limit. Manage team member limits in the Team tab.
             </p>
           )}
         </div>
@@ -323,9 +316,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                       <Users className='h-5 w-5' />
                       Team Plan
                     </CardTitle>
-                    <Button variant='outline' size='sm' onClick={() => setIsSeatsDialogOpen(true)}>
-                      Manage Seats
-                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className='space-y-4'>
