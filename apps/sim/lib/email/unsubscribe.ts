@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { settings, user } from '@/db/schema'
+import { env } from '../env'
 import type { EmailType } from './mailer'
 
 const logger = createLogger('Unsubscribe')
@@ -20,7 +21,7 @@ export interface EmailPreferences {
 export function generateUnsubscribeToken(email: string, emailType = 'marketing'): string {
   const salt = randomBytes(16).toString('hex')
   const hash = createHash('sha256')
-    .update(`${email}:${salt}:${emailType}:${process.env.BETTER_AUTH_SECRET}`)
+    .update(`${email}:${salt}:${emailType}:${env.BETTER_AUTH_SECRET}`)
     .digest('hex')
 
   return `${salt}:${hash}:${emailType}`
@@ -41,7 +42,7 @@ export function verifyUnsubscribeToken(
     if (parts.length === 2) {
       const [salt, expectedHash] = parts
       const hash = createHash('sha256')
-        .update(`${email}:${salt}:${process.env.BETTER_AUTH_SECRET}`)
+        .update(`${email}:${salt}:${env.BETTER_AUTH_SECRET}`)
         .digest('hex')
 
       return { valid: hash === expectedHash, emailType: 'marketing' }
@@ -52,7 +53,7 @@ export function verifyUnsubscribeToken(
     if (!salt || !expectedHash || !emailType) return { valid: false }
 
     const hash = createHash('sha256')
-      .update(`${email}:${salt}:${emailType}:${process.env.BETTER_AUTH_SECRET}`)
+      .update(`${email}:${salt}:${emailType}:${env.BETTER_AUTH_SECRET}`)
       .digest('hex')
 
     return { valid: hash === expectedHash, emailType }

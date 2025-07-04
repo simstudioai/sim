@@ -1,13 +1,14 @@
 import { stripeClient } from '@better-auth/stripe/client'
 import { emailOTPClient, genericOAuthClient, organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
+import { env } from './env'
 
 const clientEnv = {
-  NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
-  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-  NODE_ENV: process.env.NODE_ENV,
-  VERCEL_ENV: process.env.VERCEL_ENV || '',
-  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+  NEXT_PUBLIC_VERCEL_URL: env.NEXT_PUBLIC_VERCEL_URL,
+  NEXT_PUBLIC_APP_URL: env.NEXT_PUBLIC_APP_URL,
+  NODE_ENV: env.NODE_ENV,
+  VERCEL_ENV: env.VERCEL_ENV || '',
+  BETTER_AUTH_URL: env.BETTER_AUTH_URL,
 }
 
 export function getBaseURL() {
