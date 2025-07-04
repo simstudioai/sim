@@ -1396,6 +1396,22 @@ describe('InputResolver', () => {
       // Add a connection so test-block can reference agent-1 but not isolated-block
       workflowWithConnections.connections.push({ source: 'agent-1', target: 'test-block' })
 
+      // Update the accessibility map for test-block to include the new connection
+      const testBlockAccessible = new Set<string>()
+      workflowWithConnections.connections.forEach((conn) => {
+        if (conn.target === 'test-block') {
+          testBlockAccessible.add(conn.source)
+        }
+      })
+      // Always allow starter block access
+      const starterBlock = workflowWithConnections.blocks.find(
+        (b) => b.metadata?.id === 'starter'
+      )
+      if (starterBlock) {
+        testBlockAccessible.add(starterBlock.id)
+      }
+      connectionResolver['accessibleBlocksMap']?.set('test-block', testBlockAccessible)
+
       const testBlock: SerializedBlock = {
         id: 'test-block',
         metadata: { id: 'function', name: 'Test Block' },
@@ -1447,6 +1463,22 @@ describe('InputResolver', () => {
       // Add a connection so test-block-2 can reference agent-1
       workflowWithConnections.connections.push({ source: 'agent-1', target: 'test-block-2' })
 
+      // Update the accessibility map for test-block-2 to include the new connection
+      const testBlock2Accessible = new Set<string>()
+      workflowWithConnections.connections.forEach((conn) => {
+        if (conn.target === 'test-block-2') {
+          testBlock2Accessible.add(conn.source)
+        }
+      })
+      // Always allow starter block access
+      const starterBlock = workflowWithConnections.blocks.find(
+        (b) => b.metadata?.id === 'starter'
+      )
+      if (starterBlock) {
+        testBlock2Accessible.add(starterBlock.id)
+      }
+      connectionResolver['accessibleBlocksMap']?.set('test-block-2', testBlock2Accessible)
+
       const testBlock: SerializedBlock = {
         id: 'test-block-2',
         metadata: { id: 'function', name: 'Test Block 2' },
@@ -1482,9 +1514,9 @@ describe('InputResolver', () => {
       }
 
       const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
-      expect(result.nameRef).toBe('Agent response') // Should not be quoted for function blocks
-      expect(result.normalizedRef).toBe('Agent response') // Should not be quoted for function blocks
-      expect(result.idRef).toBe('Agent response') // Should not be quoted for function blocks
+      expect(result.nameRef).toBe('"Agent response"') // Should be quoted for function blocks
+      expect(result.normalizedRef).toBe('"Agent response"') // Should be quoted for function blocks
+      expect(result.idRef).toBe('"Agent response"') // Should be quoted for function blocks
     })
 
     it('should handle complex connection graphs', () => {

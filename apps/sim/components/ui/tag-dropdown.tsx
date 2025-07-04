@@ -21,6 +21,49 @@ interface BlockTagGroup {
   distance: number
 }
 
+interface Field {
+  name: string
+  type: string
+  description?: string
+}
+
+// Helper function to extract fields from JSON Schema
+export function extractFieldsFromSchema(schema: any): Field[] {
+  if (!schema || typeof schema !== 'object') {
+    return []
+  }
+
+  // Handle legacy format with fields array
+  if (Array.isArray(schema.fields)) {
+    return schema.fields
+  }
+
+  // Handle new JSON Schema format
+  const schemaObj = schema.schema || schema
+  if (!schemaObj || !schemaObj.properties || typeof schemaObj.properties !== 'object') {
+    return []
+  }
+
+  // Extract fields from schema properties
+  return Object.entries(schemaObj.properties).map(([name, prop]: [string, any]) => {
+    // Handle array format like ['string', 'array']
+    if (Array.isArray(prop)) {
+      return {
+        name,
+        type: prop.includes('array') ? 'array' : prop[0] || 'string',
+        description: undefined,
+      }
+    }
+
+    // Handle object format like { type: 'string', description: '...' }
+    return {
+      name,
+      type: prop.type || 'string',
+      description: prop.description,
+    }
+  })
+}
+
 interface TagDropdownProps {
   visible: boolean
   onSelect: (newValue: string) => void

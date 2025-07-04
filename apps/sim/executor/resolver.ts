@@ -375,8 +375,8 @@ export class InputResolver {
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
-      // Skip XML-like tags
-      if (blockRef.includes(':') || blockRef.includes(' ')) {
+      // Skip XML-like tags (but allow block names with spaces)
+      if (blockRef.includes(':')) {
         continue
       }
 
@@ -385,15 +385,8 @@ export class InputResolver {
         blockRef.toLowerCase()
       )
 
-      if (!isSystemReference) {
-        // For regular block references, check if it's accessible
-        const isAccessible = this.isAccessibleBlockReference(blockRef, currentBlock.id)
-
-        if (!isAccessible) {
-          // Not an accessible block - leave pattern unchanged and continue
-          continue
-        }
-      }
+      // System references and regular block references are both processed
+      // Accessibility validation happens later in validateBlockReference
 
       // Special case for "start" references
       if (blockRef.toLowerCase() === 'start') {
@@ -516,12 +509,6 @@ export class InputResolver {
             continue
           }
         }
-      }
-
-      // Check if this could potentially be a valid block reference before attempting validation
-      if (!this.isAccessibleBlockReference(blockRef, currentBlock.id)) {
-        // Not a valid block reference - leave as-is and continue to next match
-        continue
       }
 
       // Standard block reference resolution with connection validation
