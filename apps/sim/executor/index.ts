@@ -649,8 +649,13 @@ export class Executor {
           if (this.workflowInput && typeof this.workflowInput === 'object') {
             // Check if this is a chat workflow input (has both input and conversationId)
             if (
+<<<<<<< HEAD
               Object.hasOwn(this.workflowInput, 'input') &&
               Object.hasOwn(this.workflowInput, 'conversationId')
+=======
+              Object.prototype.hasOwnProperty.call(this.workflowInput, 'input') &&
+              Object.prototype.hasOwnProperty.call(this.workflowInput, 'conversationId')
+>>>>>>> 34b590a1 (merged improvement/connection into staging (#604))
             ) {
               // Chat workflow: extract input and conversationId to root level
               const starterOutput = {

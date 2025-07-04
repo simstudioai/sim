@@ -159,7 +159,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       logger.info(`Loaded child workflow: ${workflowData.name} (${workflowId})`)
 
-      // Extract the workflow state (API returns normalized data in state field)
+      // Extract the workflow state
       const workflowState = workflowData.state
 
       if (!workflowState || !workflowState.blocks) {
@@ -167,7 +167,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         return null
       }
 
-      // Use blocks directly since API returns data from normalized tables
+      // Use blocks directly since DB format should match UI format
       const serializedWorkflow = this.serializer.serializeWorkflow(
         workflowState.blocks,
         workflowState.edges || [],
