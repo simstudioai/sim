@@ -2,6 +2,7 @@ import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { workflowFolder } from '@/db/schema'
 
@@ -22,13 +23,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
     }
 
-    // Fetch all folders for the workspace, ordered by sortOrder and createdAt
+    // Check if user has workspace permissions
+    const workspacePermission = await getUserEntityPermissions(
+      session.user.id,
+      'workspace',
+      workspaceId
+    )
+
+    if (!workspacePermission) {
+      return NextResponse.json({ error: 'Access denied to this workspace' }, { status: 403 })
+    }
+
+    // If user has workspace permissions, fetch ALL folders in the workspace
+    // This allows shared workspace members to see folders created by other users
     const folders = await db
       .select()
       .from(workflowFolder)
-      .where(
-        and(eq(workflowFolder.workspaceId, workspaceId), eq(workflowFolder.userId, session.user.id))
-      )
+      .where(eq(workflowFolder.workspaceId, workspaceId))
       .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
 
     return NextResponse.json({ folders })
@@ -53,19 +64,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name and workspace ID are required' }, { status: 400 })
     }
 
+    // Check if user has workspace permissions (at least 'write' access to create folders)
+    const workspacePermission = await getUserEntityPermissions(
+      session.user.id,
+      'workspace',
+      workspaceId
+    )
+
+    if (!workspacePermission || workspacePermission === 'read') {
+      return NextResponse.json(
+        { error: 'Write or Admin access required to create folders' },
+        { status: 403 }
+      )
+    }
+
     // Generate a new ID
     const id = crypto.randomUUID()
 
     // Use transaction to ensure sortOrder consistency
     const newFolder = await db.transaction(async (tx) => {
       // Get the next sort order for the parent (or root level)
+      // Consider all folders in the workspace, not just those created by current user
       const existingFolders = await tx
         .select({ sortOrder: workflowFolder.sortOrder })
         .from(workflowFolder)
         .where(
           and(
             eq(workflowFolder.workspaceId, workspaceId),
-            eq(workflowFolder.userId, session.user.id),
             parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
           )
         )
