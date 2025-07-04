@@ -458,7 +458,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
    * Handle deleting the current workflow
    */
   const handleDeleteWorkflow = () => {
-    if (!activeWorkflowId || !userPermissions.canEdit) return
+    if (!activeWorkflowId || !userPermissions.canAdmin) return
 
     const sidebarWorkflows = getSidebarOrderedWorkflows()
     const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
@@ -691,12 +691,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
    * Render delete workflow button with confirmation dialog
    */
   const renderDeleteButton = () => {
-    const canEdit = userPermissions.canEdit
+    const canAdmin = userPermissions.canAdmin
     const hasMultipleWorkflows = Object.keys(workflows).length > 1
-    const isDisabled = !canEdit || !hasMultipleWorkflows
+    const isDisabled = !canAdmin || !hasMultipleWorkflows
 
     const getTooltipText = () => {
-      if (!canEdit) return 'Admin permission required to delete workflows'
+      if (!canAdmin) return 'Admin permission required to delete workflows'
       if (!hasMultipleWorkflows) return 'Cannot delete the last workflow'
       return 'Delete Workflow'
     }
