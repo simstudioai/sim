@@ -12,12 +12,13 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -56,11 +57,40 @@ export function Document({
   const { mode, isExpanded } = useSidebarStore()
   const { getCachedKnowledgeBase, getCachedDocuments } = useKnowledgeStore()
   const { workspaceId } = useParams()
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
-  const [searchQuery, setSearchQuery] = useState('')
+  const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
+  const searchQueryFromURL = searchParams.get('search') || ''
+
+  const [searchQuery, setSearchQuery] = useState(searchQueryFromURL)
+
+  const debouncedSearchQuery = useDebounce(searchQuery, 800)
+
+  const updateURL = useCallback(
+    (newSearch: string, newPage = 1) => {
+      const params = new URLSearchParams(searchParams)
+
+      if (newSearch) {
+        params.set('search', newSearch)
+      } else {
+        params.delete('search')
+      }
+
+      if (newPage > 1) {
+        params.set('page', newPage.toString())
+      } else {
+        params.delete('page')
+      }
+
+      router.replace(`?${params.toString()}`, { scroll: false })
+    },
+    [router]
+  )
+
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -68,12 +98,12 @@ export function Document({
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
+  const [pageBeforeSearch, setPageBeforeSearch] = useState(1)
 
   const [document, setDocument] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Use the updated chunks hook with pagination
   const {
     chunks,
     isLoading: isLoadingChunks,
@@ -87,47 +117,71 @@ export function Document({
     prevPage,
     refreshChunks,
     updateChunk,
-  } = useDocumentChunks(knowledgeBaseId, documentId)
+    searchChunks,
+  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, searchQueryFromURL)
 
-  // Combine errors
   const combinedError = error || chunksError
 
-  // Handle pagination navigation
-  const handlePrevPage = useCallback(() => {
-    if (hasPrevPage && !isLoadingChunks) {
-      prevPage()?.catch((err) => {
-        logger.error('Previous page failed:', err)
-      })
+  useEffect(() => {
+    if (!knowledgeBaseId || !documentId) return
+
+    if (debouncedSearchQuery !== searchQueryFromURL) {
+      if (debouncedSearchQuery.trim().length >= 2) {
+        // Starting a search - go to page 1
+        updateURL(debouncedSearchQuery, 1)
+      } else if (debouncedSearchQuery.trim() === '') {
+        // Clearing search - return to page before search
+        updateURL(debouncedSearchQuery, pageBeforeSearch)
+      }
     }
-  }, [hasPrevPage, isLoadingChunks, prevPage])
+  }, [
+    debouncedSearchQuery,
+    searchQueryFromURL,
+    updateURL,
+    knowledgeBaseId,
+    documentId,
+    pageBeforeSearch,
+  ])
+
+  useEffect(() => {
+    setSearchQuery(searchQueryFromURL)
+  }, [searchQueryFromURL])
+
+  // Track when search starts to save current page
+  useEffect(() => {
+    const isStartingSearch = !searchQueryFromURL && searchQuery.trim()
+
+    if (isStartingSearch) {
+      // User just started typing, save current page
+      setPageBeforeSearch(currentPageFromURL)
+    }
+  }, [searchQuery, searchQueryFromURL])
+
+  const handlePrevPage = useCallback(() => {
+    if (hasPrevPage) {
+      updateURL(searchQuery, currentPageFromURL - 1)
+    }
+  }, [updateURL, searchQuery])
 
   const handleNextPage = useCallback(() => {
-    if (hasNextPage && !isLoadingChunks) {
-      nextPage()?.catch((err) => {
-        logger.error('Next page failed:', err)
-      })
+    if (hasNextPage) {
+      updateURL(searchQuery, currentPageFromURL + 1)
     }
-  }, [hasNextPage, isLoadingChunks, nextPage])
+  }, [updateURL, searchQuery])
 
   const handleGoToPage = useCallback(
     (page: number) => {
-      if (page !== currentPage && !isLoadingChunks) {
-        goToPage(page)?.catch((err) => {
-          logger.error('Go to page failed:', err)
-        })
-      }
+      updateURL(searchQuery, page)
     },
-    [currentPage, isLoadingChunks, goToPage]
+    [updateURL, searchQuery]
   )
 
-  // Try to get document from store cache first, then fetch if needed
   useEffect(() => {
     const fetchDocument = async () => {
       try {
         setIsLoadingDocument(true)
         setError(null)
 
-        // First try to get from cached documents in the store
         const cachedDocuments = getCachedDocuments(knowledgeBaseId)
         const cachedDoc = cachedDocuments?.find((d) => d.id === documentId)
 
@@ -137,7 +191,6 @@ export function Document({
           return
         }
 
-        // If not in cache, fetch from API
         const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`)
 
         if (!response.ok) {
