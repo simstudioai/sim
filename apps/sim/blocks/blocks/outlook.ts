@@ -140,11 +140,7 @@ export const OutlookBlock: BlockConfig<
     maxResults: { type: 'number', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        message: 'string',
-        results: 'json',
-      },
-    },
+    message: 'string',
+    results: 'json',
   },
 }

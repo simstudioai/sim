@@ -332,25 +332,9 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     tools: { type: 'json', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        model: 'string',
-        tokens: 'any',
-        toolCalls: 'any',
-      },
-      dependsOn: {
-        subBlockId: 'responseFormat',
-        condition: {
-          whenEmpty: {
-            content: 'string',
-            model: 'string',
-            tokens: 'any',
-            toolCalls: 'any',
-          },
-          whenFilled: 'json',
-        },
-      },
-    },
+    content: 'string',
+    model: 'string',
+    tokens: 'any',
+    toolCalls: 'any',
   },
 }

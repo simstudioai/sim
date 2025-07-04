@@ -83,11 +83,7 @@ export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
     outputSchema: { type: 'json', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        agentResult: 'json',
-        structuredOutput: 'any',
-      },
-    },
+    agentResult: 'json',
+    structuredOutput: 'any',
   },
 }

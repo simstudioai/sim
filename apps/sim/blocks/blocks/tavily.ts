@@ -98,15 +98,11 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
     extract_depth: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        results: 'json',
-        answer: 'any',
-        query: 'string',
-        content: 'string',
-        title: 'string',
-        url: 'string',
-      },
-    },
+    results: 'json',
+    answer: 'any',
+    query: 'string',
+    content: 'string',
+    title: 'string',
+    url: 'string',
   },
 }

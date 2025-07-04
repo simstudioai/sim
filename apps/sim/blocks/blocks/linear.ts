@@ -99,11 +99,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     description: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        issues: 'json',
-        issue: 'json',
-      },
-    },
+    issues: 'json',
+    issue: 'json',
   },
 }

@@ -46,11 +46,7 @@ export const YouTubeBlock: BlockConfig<YouTubeSearchResponse> = {
     maxResults: { type: 'number', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        items: 'json',
-        totalResults: 'number',
-      },
-    },
+    items: 'json',
+    totalResults: 'number',
   },
 }

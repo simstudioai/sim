@@ -53,12 +53,8 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
     prompt: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        model: 'any',
-        tokens: 'any',
-      },
-    },
+    content: 'string',
+    model: 'any',
+    tokens: 'any',
   },
 }

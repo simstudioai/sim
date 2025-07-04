@@ -134,15 +134,13 @@ export class LoopManager {
 
           // Store the aggregated results in the loop block's state so subsequent blocks can reference them
           const aggregatedOutput = {
-            response: {
-              loopId,
-              currentIteration: maxIterations - 1, // Last iteration index
-              maxIterations,
-              loopType: loop.loopType || 'for',
-              completed: true,
-              results,
-              message: `Completed all ${maxIterations} iterations`,
-            },
+            loopId,
+            currentIteration: maxIterations - 1, // Last iteration index
+            maxIterations,
+            loopType: loop.loopType || 'for',
+            completed: true,
+            results,
+            message: `Completed all ${maxIterations} iterations`,
           }
 
           // Store the aggregated results in context so blocks connected to loop-end-source can access them
@@ -447,8 +445,7 @@ export class LoopManager {
   ): void {
     // For regular blocks, check if they had an error
     const blockState = context.blockStates.get(blockId)
-    const hasError =
-      blockState?.output?.error !== undefined || blockState?.output?.response?.error !== undefined
+    const hasError = blockState?.output?.error !== undefined
 
     // Follow appropriate connections based on error state
     for (const conn of outgoing) {

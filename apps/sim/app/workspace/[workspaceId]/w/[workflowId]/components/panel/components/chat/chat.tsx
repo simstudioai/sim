@@ -140,12 +140,20 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                     result.logs?.filter((log) => !messageIdMap.has(log.blockId)) || []
 
                   if (nonStreamingLogs.length > 0) {
-                    const outputsToRender = selectedOutputs.filter((outputId) =>
-                      nonStreamingLogs.some((log) => log.blockId === outputId.split('.')[0])
-                    )
+                    const outputsToRender = selectedOutputs.filter((outputId) => {
+                      // Extract block ID correctly - handle both formats:
+                      // - "blockId" (direct block ID)
+                      // - "blockId_response.result" (block ID with path)
+                      const blockIdForOutput = outputId.includes('_')
+                        ? outputId.split('_')[0]
+                        : outputId.split('.')[0]
+                      return nonStreamingLogs.some((log) => log.blockId === blockIdForOutput)
+                    })
 
                     for (const outputId of outputsToRender) {
-                      const blockIdForOutput = outputId.split('.')[0]
+                      const blockIdForOutput = outputId.includes('_')
+                        ? outputId.split('_')[0]
+                        : outputId.split('.')[0]
                       const path = outputId.substring(blockIdForOutput.length + 1)
                       const log = nonStreamingLogs.find((l) => l.blockId === blockIdForOutput)
 

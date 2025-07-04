@@ -53,13 +53,41 @@ export function OutputSelect({
         const addOutput = (path: string, outputObj: any, prefix = '') => {
           const fullPath = prefix ? `${prefix}.${path}` : path
 
-          if (typeof outputObj === 'object' && outputObj !== null) {
-            // For objects, recursively add each property
+          // If not an object or is null, treat as leaf node
+          if (typeof outputObj !== 'object' || outputObj === null) {
+            const output = {
+              id: `${block.id}_${fullPath}`,
+              label: `${blockName}.${fullPath}`,
+              blockId: block.id,
+              blockName: block.name || `Block ${block.id}`,
+              blockType: block.type,
+              path: fullPath,
+            }
+            outputs.push(output)
+            return
+          }
+
+          // If has 'type' property, treat as schema definition (leaf node)
+          if ('type' in outputObj && typeof outputObj.type === 'string') {
+            const output = {
+              id: `${block.id}_${fullPath}`,
+              label: `${blockName}.${fullPath}`,
+              blockId: block.id,
+              blockName: block.name || `Block ${block.id}`,
+              blockType: block.type,
+              path: fullPath,
+            }
+            outputs.push(output)
+            return
+          }
+
+          // For objects without type, recursively add each property
+          if (!Array.isArray(outputObj)) {
             Object.entries(outputObj).forEach(([key, value]) => {
               addOutput(key, value, fullPath)
             })
           } else {
-            // Add leaf node as output option
+            // For arrays, treat as leaf node
             outputs.push({
               id: `${block.id}_${fullPath}`,
               label: `${blockName}.${fullPath}`,
@@ -71,10 +99,10 @@ export function OutputSelect({
           }
         }
 
-        // Start with the response object
-        if (block.outputs.response) {
-          addOutput('response', block.outputs.response)
-        }
+        // Process all output properties directly (flattened structure)
+        Object.entries(block.outputs).forEach(([key, value]) => {
+          addOutput(key, value)
+        })
       }
     })
 

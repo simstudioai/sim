@@ -307,25 +307,9 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
     content: { type: 'string' as ParamType, required: true },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        model: 'string',
-        tokens: 'any',
-        cost: 'any',
-      },
-      dependsOn: {
-        subBlockId: 'metrics',
-        condition: {
-          whenEmpty: {
-            content: 'string',
-            model: 'string',
-            tokens: 'any',
-            cost: 'any',
-          },
-          whenFilled: 'json',
-        },
-      },
-    },
-  },
+    content: 'string',
+    model: 'string',
+    tokens: 'any',
+    cost: 'any',
+  } as any,
 }

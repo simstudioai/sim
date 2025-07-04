@@ -1,5 +1,4 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
@@ -19,7 +18,7 @@ export class ApiBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>,
     context: ExecutionContext
-  ): Promise<BlockOutput> {
+  ): Promise<any> {
     const tool = getTool(block.config.tool)
     if (!tool) {
       throw new Error(`Tool not found: ${block.config.tool}`)
@@ -27,7 +26,7 @@ export class ApiBlockHandler implements BlockHandler {
 
     // Early return with empty success response if URL is not provided or empty
     if (tool.name?.includes('HTTP') && (!inputs.url || inputs.url.trim() === '')) {
-      return { response: { content: '', success: true } }
+      return { data: null, status: 200, headers: {} }
     }
 
     // Pre-validate common HTTP request issues to provide better error messages
@@ -154,7 +153,7 @@ export class ApiBlockHandler implements BlockHandler {
         throw error
       }
 
-      return { response: result.output }
+      return result.output
     } catch (error: any) {
       // Ensure we have a meaningful error message
       if (!error.message || error.message === 'undefined (undefined)') {

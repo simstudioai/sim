@@ -71,19 +71,33 @@ describe('InputResolver', () => {
           enabled: false,
         },
       ],
-      connections: [], // Using connections instead of edges to match SerializedWorkflow type
+      connections: [
+        // Add connections so blocks can reference each other
+        { source: 'starter-block', target: 'function-block' },
+        { source: 'function-block', target: 'condition-block' },
+        { source: 'condition-block', target: 'api-block' },
+        { source: 'api-block', target: 'disabled-block' },
+      ],
       loops: {},
     }
 
     // Mock execution context
     mockContext = {
       workflowId: 'test-workflow',
+      workflow: sampleWorkflow, // Add workflow reference
       blockStates: new Map([
-        ['starter-block', { output: { response: { input: 'Hello World', type: 'text' } } }],
-        ['function-block', { output: { response: { result: '42' } } }], // String value as it would be in real app
+        ['starter-block', { output: { input: 'Hello World', type: 'text' } }],
+        ['function-block', { output: { result: '42' } }], // String value as it would be in real app
       ]),
       activeExecutionPath: new Set(['starter-block', 'function-block']),
+      blockLogs: [],
+      metadata: { duration: 0 },
+      environmentVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
       loopIterations: new Map(),
+      loopItems: new Map(),
+      completedLoops: new Set(),
+      executedBlocks: new Set(['starter-block', 'function-block']),
     }
 
     // Mock environment variables
@@ -138,8 +152,34 @@ describe('InputResolver', () => {
       },
     }
 
+    // Create accessibility map for block references
+    const accessibleBlocksMap = new Map<string, Set<string>>()
+    // Allow all blocks to reference each other for testing
+    const allBlockIds = sampleWorkflow.blocks.map((b) => b.id)
+    // Add common test block IDs
+    const testBlockIds = ['test-block', 'test-block-2', 'generic-block']
+    const allIds = [...allBlockIds, ...testBlockIds]
+
+    // Set up accessibility for workflow blocks
+    sampleWorkflow.blocks.forEach((block) => {
+      const accessibleBlocks = new Set(allIds)
+      accessibleBlocksMap.set(block.id, accessibleBlocks)
+    })
+
+    // Set up accessibility for test blocks
+    testBlockIds.forEach((testId) => {
+      const accessibleBlocks = new Set(allIds)
+      accessibleBlocksMap.set(testId, accessibleBlocks)
+    })
+
     // Create resolver
-    resolver = new InputResolver(sampleWorkflow, mockEnvironmentVars, mockWorkflowVars)
+    resolver = new InputResolver(
+      sampleWorkflow,
+      mockEnvironmentVars,
+      mockWorkflowVars,
+      undefined,
+      accessibleBlocksMap
+    )
   })
 
   afterEach(() => {
@@ -284,9 +324,9 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            starterRef: '<starter-block.response.input>',
-            functionRef: '<function-block.response.result>',
-            nameRef: '<Start.response.input>', // Reference by name
+            starterRef: '<starter-block.input>',
+            functionRef: '<function-block.result>',
+            nameRef: '<Start.input>', // Reference by name
           },
         },
         inputs: {
@@ -313,8 +353,8 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            startRef: '<start.response.input>',
-            startType: '<start.response.type>',
+            startRef: '<start.input>',
+            startType: '<start.type>',
           },
         },
         inputs: {
@@ -339,7 +379,7 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            inactiveRef: '<condition-block.response.result>', // Not in activeExecutionPath
+            inactiveRef: '<condition-block.result>', // Not in activeExecutionPath
           },
         },
         inputs: {
@@ -356,9 +396,13 @@ describe('InputResolver', () => {
     })
 
     it('should throw an error for references to disabled blocks', () => {
-      // Enable the disabled block but keep it out of execution path
+      // Add connection from disabled block to test block so it's accessible
+      sampleWorkflow.connections.push({ source: 'disabled-block', target: 'test-block' })
+
+      // Make sure disabled block stays disabled and add it to active path for validation
       const disabledBlock = sampleWorkflow.blocks.find((b) => b.id === 'disabled-block')!
       disabledBlock.enabled = false
+      mockContext.activeExecutionPath.add('disabled-block')
 
       const block: SerializedBlock = {
         id: 'test-block',
@@ -367,7 +411,7 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            disabledRef: '<disabled-block.response.result>',
+            disabledRef: '<disabled-block.result>',
           },
         },
         inputs: {
@@ -520,14 +564,14 @@ describe('InputResolver', () => {
                 id: 'row1',
                 cells: {
                   Key: 'inputKey',
-                  Value: '<start.response.input>',
+                  Value: '<start.input>',
                 },
               },
               {
                 id: 'row2',
                 cells: {
                   Key: 'resultKey',
-                  Value: '<function-block.response.result>',
+                  Value: '<function-block.result>',
                 },
               },
             ],
@@ -640,7 +684,7 @@ describe('InputResolver', () => {
         config: {
           tool: 'condition',
           params: {
-            conditions: '<start.response.input> === "Hello World"',
+            conditions: '<start.input> === "Hello World"',
           },
         },
         inputs: {
@@ -653,7 +697,7 @@ describe('InputResolver', () => {
       const result = resolver.resolveInputs(block, mockContext)
 
       // Conditions should be passed through without parsing for condition blocks
-      expect(result.conditions).toBe('<start.response.input> === "Hello World"')
+      expect(result.conditions).toBe('<start.input> === "Hello World"')
     })
   })
 
@@ -736,7 +780,7 @@ describe('InputResolver', () => {
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
         loopIterations: new Map([['loop-1', 1]]),
-        loopItems: new Map([['loop-1', 'item1']]),
+        loopItems: new Map([['loop-1', ['item1']]]),
         completedLoops: new Set(),
         executedBlocks: new Set(),
         activeExecutionPath: new Set(['function-1']),
@@ -745,7 +789,7 @@ describe('InputResolver', () => {
 
       const resolvedInputs = resolver.resolveInputs(functionBlock, context)
 
-      expect(resolvedInputs.item).toBe('item1') // Direct value, not quoted
+      expect(resolvedInputs.item).toEqual(['item1']) // Current loop items
     })
 
     it('should resolve direct loop.index reference without quotes', () => {
@@ -989,7 +1033,7 @@ describe('InputResolver', () => {
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
         loopIterations: new Map(),
-        loopItems: new Map([['parallel-1', 'test-item']]),
+        loopItems: new Map([['parallel-1', ['test-item']]]),
         completedLoops: new Set(),
         executedBlocks: new Set(),
         activeExecutionPath: new Set(['function-1']),
@@ -999,7 +1043,7 @@ describe('InputResolver', () => {
       const block = workflow.blocks[1]
       const result = resolver.resolveInputs(block, context)
 
-      expect(result.code).toBe('test-item')
+      expect(result.code).toEqual(['test-item'])
     })
 
     it('should resolve parallel references by block name when multiple parallels exist', () => {
@@ -1027,7 +1071,7 @@ describe('InputResolver', () => {
           {
             id: 'function-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'function', params: { code: '<Parallel1.response.results>' } },
+            config: { tool: 'function', params: { code: '<Parallel1.results>' } },
             inputs: {},
             outputs: {},
             metadata: { id: 'function', name: 'Function 1' },
@@ -1048,14 +1092,31 @@ describe('InputResolver', () => {
         },
       }
 
-      const resolver = new InputResolver(workflow, {})
+      // Create accessibility map
+      const accessibilityMap = new Map<string, Set<string>>()
+      const allBlockIds = workflow.blocks.map((b) => b.id)
+      const testBlockIds = ['test-block', 'function-1']
+      const allIds = [...allBlockIds, ...testBlockIds]
+
+      workflow.blocks.forEach((block) => {
+        const accessibleBlocks = new Set(allIds)
+        accessibilityMap.set(block.id, accessibleBlocks)
+      })
+
+      // Set up accessibility for test blocks
+      testBlockIds.forEach((testId) => {
+        const accessibleBlocks = new Set(allIds)
+        accessibilityMap.set(testId, accessibleBlocks)
+      })
+
+      const resolver = new InputResolver(workflow, {}, {}, undefined, accessibilityMap)
       const context: ExecutionContext = {
         workflowId: 'test',
         blockStates: new Map([
           [
             'parallel-1',
             {
-              output: { response: { results: ['result1', 'result2'] } },
+              output: { results: ['result1', 'result2'] },
               executed: true,
               executionTime: 0,
             },
@@ -1063,7 +1124,7 @@ describe('InputResolver', () => {
           [
             'parallel-2',
             {
-              output: { response: { results: ['result3', 'result4'] } },
+              output: { results: ['result3', 'result4'] },
               executed: true,
               executionTime: 0,
             },
@@ -1104,7 +1165,7 @@ describe('InputResolver', () => {
           {
             id: 'function-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'function', params: { code: '<parallel-1.response.results>' } },
+            config: { tool: 'function', params: { code: '<parallel-1.results>' } },
             inputs: {},
             outputs: {},
             metadata: { id: 'function', name: 'Function 1' },
@@ -1121,14 +1182,31 @@ describe('InputResolver', () => {
         },
       }
 
-      const resolver = new InputResolver(workflow, {})
+      // Create accessibility map for second test
+      const accessibilityMap = new Map<string, Set<string>>()
+      const allBlockIds = workflow.blocks.map((b) => b.id)
+      const testBlockIds = ['test-block', 'function-1']
+      const allIds = [...allBlockIds, ...testBlockIds]
+
+      workflow.blocks.forEach((block) => {
+        const accessibleBlocks = new Set(allIds)
+        accessibilityMap.set(block.id, accessibleBlocks)
+      })
+
+      // Set up accessibility for test blocks
+      testBlockIds.forEach((testId) => {
+        const accessibleBlocks = new Set(allIds)
+        accessibilityMap.set(testId, accessibleBlocks)
+      })
+
+      const resolver = new InputResolver(workflow, {}, {}, undefined, accessibilityMap)
       const context: ExecutionContext = {
         workflowId: 'test',
         blockStates: new Map([
           [
             'parallel-1',
             {
-              output: { response: { results: ['result1', 'result2'] } },
+              output: { results: ['result1', 'result2'] },
               executed: true,
               executionTime: 0,
             },
@@ -1151,6 +1229,541 @@ describe('InputResolver', () => {
 
       // Should successfully resolve the reference using block ID
       expect(result.code).toBe('["result1","result2"]')
+    })
+  })
+
+  describe('Connection-Based Reference Validation', () => {
+    let workflowWithConnections: SerializedWorkflow
+    let connectionResolver: InputResolver
+    let contextWithConnections: ExecutionContext
+
+    beforeEach(() => {
+      // Create a workflow with specific connections: Agent -> Function -> Response
+      workflowWithConnections = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'starter-1',
+            metadata: { id: 'starter', name: 'Start' },
+            position: { x: 0, y: 0 },
+            config: { tool: 'starter', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'agent-1',
+            metadata: { id: 'agent', name: 'Agent Block' },
+            position: { x: 100, y: 100 },
+            config: { tool: 'agent', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function-1',
+            metadata: { id: 'function', name: 'Function Block' },
+            position: { x: 200, y: 200 },
+            config: { tool: 'function', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'isolated-block',
+            metadata: { id: 'agent', name: 'Isolated Block' },
+            position: { x: 300, y: 300 },
+            config: { tool: 'agent', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          { source: 'starter-1', target: 'agent-1' },
+          { source: 'agent-1', target: 'function-1' },
+          // Note: isolated-block has no connections
+        ],
+        loops: {},
+      }
+
+      // Create accessibility map based on connections
+      const accessibleBlocksMap = new Map<string, Set<string>>()
+      const testBlockIds = ['test-block', 'test-block-2', 'test-response-block', 'generic-block']
+
+      workflowWithConnections.blocks.forEach((block) => {
+        const accessibleBlocks = new Set<string>()
+        // Add directly connected blocks (sources that connect to this block)
+        workflowWithConnections.connections.forEach((conn) => {
+          if (conn.target === block.id) {
+            accessibleBlocks.add(conn.source)
+          }
+        })
+        // Always allow starter block access
+        const starterBlock = workflowWithConnections.blocks.find(
+          (b) => b.metadata?.id === 'starter'
+        )
+        if (starterBlock) {
+          accessibleBlocks.add(starterBlock.id)
+        }
+        accessibleBlocksMap.set(block.id, accessibleBlocks)
+      })
+
+      // Set up accessibility for test blocks - they should only reference specific connected blocks
+      // For "test-block" - it should have connection from function-1, so it can reference function-1 and start
+      workflowWithConnections.connections.push({ source: 'function-1', target: 'test-block' })
+
+      testBlockIds.forEach((testId) => {
+        const accessibleBlocks = new Set<string>()
+        // Add directly connected blocks (sources that connect to this test block)
+        workflowWithConnections.connections.forEach((conn) => {
+          if (conn.target === testId) {
+            accessibleBlocks.add(conn.source)
+          }
+        })
+        // Always allow starter block access
+        const starterBlock = workflowWithConnections.blocks.find(
+          (b) => b.metadata?.id === 'starter'
+        )
+        if (starterBlock) {
+          accessibleBlocks.add(starterBlock.id)
+        }
+        accessibleBlocksMap.set(testId, accessibleBlocks)
+      })
+
+      connectionResolver = new InputResolver(
+        workflowWithConnections,
+        {},
+        {},
+        undefined,
+        accessibleBlocksMap
+      )
+      contextWithConnections = {
+        workflowId: 'test-workflow',
+        blockStates: new Map([
+          ['starter-1', { output: { input: 'Hello World' }, executed: true, executionTime: 0 }],
+          ['agent-1', { output: { content: 'Agent response' }, executed: true, executionTime: 0 }],
+          [
+            'function-1',
+            { output: { result: 'Function result' }, executed: true, executionTime: 0 },
+          ],
+          [
+            'isolated-block',
+            { output: { content: 'Isolated content' }, executed: true, executionTime: 0 },
+          ],
+        ]),
+        blockLogs: [],
+        metadata: { duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        loopItems: new Map(),
+        completedLoops: new Set(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(['starter-1', 'agent-1', 'function-1', 'isolated-block']),
+        workflow: workflowWithConnections,
+      }
+    })
+
+    it('should allow references to directly connected blocks', () => {
+      const functionBlock = workflowWithConnections.blocks[2] // function-1
+      const testBlock: SerializedBlock = {
+        ...functionBlock,
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <agent-1.content>', // function-1 can reference agent-1 (connected)
+          },
+        },
+      }
+
+      const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
+      expect(result.code).toBe('return "Agent response"')
+    })
+
+    it('should reject references to unconnected blocks', () => {
+      // Create a new block that is added to the workflow but not connected to isolated-block
+      workflowWithConnections.blocks.push({
+        id: 'test-block',
+        metadata: { id: 'function', name: 'Test Block' },
+        position: { x: 500, y: 500 },
+        config: { tool: 'function', params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      })
+
+      // Add a connection so test-block can reference agent-1 but not isolated-block
+      workflowWithConnections.connections.push({ source: 'agent-1', target: 'test-block' })
+
+      // Update the accessibility map for test-block to include the new connection
+      const testBlockAccessible = new Set<string>()
+      workflowWithConnections.connections.forEach((conn) => {
+        if (conn.target === 'test-block') {
+          testBlockAccessible.add(conn.source)
+        }
+      })
+      // Always allow starter block access
+      const starterBlock = workflowWithConnections.blocks.find((b) => b.metadata?.id === 'starter')
+      if (starterBlock) {
+        testBlockAccessible.add(starterBlock.id)
+      }
+      connectionResolver.accessibleBlocksMap?.set('test-block', testBlockAccessible)
+
+      const testBlock: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'function', name: 'Test Block' },
+        position: { x: 500, y: 500 },
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <isolated-block.content>', // test-block cannot reference isolated-block (not connected)
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => connectionResolver.resolveInputs(testBlock, contextWithConnections)).toThrow(
+        /Block "isolated-block" is not connected to this block/
+      )
+    })
+
+    it('should always allow references to starter block', () => {
+      const functionBlock = workflowWithConnections.blocks[2] // function-1
+      const testBlock: SerializedBlock = {
+        ...functionBlock,
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <start.input>', // Any block can reference start
+          },
+        },
+      }
+
+      const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
+      expect(result.code).toBe('return Hello World') // Should not be quoted for function blocks
+    })
+
+    it('should provide helpful error messages for unconnected blocks', () => {
+      // Create a test block in the workflow first
+      workflowWithConnections.blocks.push({
+        id: 'test-block-2',
+        metadata: { id: 'function', name: 'Test Block 2' },
+        position: { x: 600, y: 600 },
+        config: { tool: 'function', params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      })
+
+      // Add a connection so test-block-2 can reference agent-1
+      workflowWithConnections.connections.push({ source: 'agent-1', target: 'test-block-2' })
+
+      // Update the accessibility map for test-block-2 to include the new connection
+      const testBlock2Accessible = new Set<string>()
+      workflowWithConnections.connections.forEach((conn) => {
+        if (conn.target === 'test-block-2') {
+          testBlock2Accessible.add(conn.source)
+        }
+      })
+      // Always allow starter block access
+      const starterBlock = workflowWithConnections.blocks.find((b) => b.metadata?.id === 'starter')
+      if (starterBlock) {
+        testBlock2Accessible.add(starterBlock.id)
+      }
+      connectionResolver.accessibleBlocksMap?.set('test-block-2', testBlock2Accessible)
+
+      const testBlock: SerializedBlock = {
+        id: 'test-block-2',
+        metadata: { id: 'function', name: 'Test Block 2' },
+        position: { x: 600, y: 600 },
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <nonexistent.value>',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => connectionResolver.resolveInputs(testBlock, contextWithConnections)).toThrow(
+        /Available connected blocks:.*Agent Block.*agent-1.*start/
+      )
+    })
+
+    it('should work with block names and normalized names', () => {
+      const functionBlock = workflowWithConnections.blocks[2] // function-1
+      const testBlock: SerializedBlock = {
+        ...functionBlock,
+        config: {
+          tool: 'function',
+          params: {
+            nameRef: '<Agent Block.content>', // Reference by actual name
+            normalizedRef: '<agentblock.content>', // Reference by normalized name
+            idRef: '<agent-1.content>', // Reference by ID
+          },
+        },
+      }
+
+      const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
+      expect(result.nameRef).toBe('"Agent response"') // Should be quoted for function blocks
+      expect(result.normalizedRef).toBe('"Agent response"') // Should be quoted for function blocks
+      expect(result.idRef).toBe('"Agent response"') // Should be quoted for function blocks
+    })
+
+    it('should handle complex connection graphs', () => {
+      // Add a new block connected to function-1
+      const extendedWorkflow = {
+        ...workflowWithConnections,
+        blocks: [
+          ...workflowWithConnections.blocks,
+          {
+            id: 'response-1',
+            metadata: { id: 'response', name: 'Response Block' },
+            position: { x: 400, y: 400 },
+            config: { tool: 'response', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          ...workflowWithConnections.connections,
+          { source: 'function-1', target: 'response-1' },
+        ],
+      }
+
+      // Create accessibility map for extended workflow
+      const extendedAccessibilityMap = new Map<string, Set<string>>()
+      const extendedTestBlockIds = [
+        'test-response-block',
+        'test-block',
+        'test-block-2',
+        'generic-block',
+      ]
+
+      extendedWorkflow.blocks.forEach((block) => {
+        const accessibleBlocks = new Set<string>()
+        // Add directly connected blocks (sources that connect to this block)
+        extendedWorkflow.connections.forEach((conn) => {
+          if (conn.target === block.id) {
+            accessibleBlocks.add(conn.source)
+          }
+        })
+        // Always allow starter block access
+        const starterBlock = extendedWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
+        if (starterBlock) {
+          accessibleBlocks.add(starterBlock.id)
+        }
+        extendedAccessibilityMap.set(block.id, accessibleBlocks)
+      })
+
+      // Set up accessibility for test blocks
+      extendedTestBlockIds.forEach((testId) => {
+        const accessibleBlocks = new Set<string>()
+        // Add directly connected blocks
+        extendedWorkflow.connections.forEach((conn) => {
+          if (conn.target === testId) {
+            accessibleBlocks.add(conn.source)
+          }
+        })
+        // Always allow starter block access
+        const starterBlock = extendedWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
+        if (starterBlock) {
+          accessibleBlocks.add(starterBlock.id)
+        }
+        extendedAccessibilityMap.set(testId, accessibleBlocks)
+      })
+
+      const extendedResolver = new InputResolver(
+        extendedWorkflow,
+        {},
+        {},
+        undefined,
+        extendedAccessibilityMap
+      )
+      const responseBlock = extendedWorkflow.blocks[4] // response-1
+      const testBlock: SerializedBlock = {
+        ...responseBlock,
+        config: {
+          tool: 'response',
+          params: {
+            canReferenceFunction: '<function-1.result>', // Can reference directly connected function-1
+            cannotReferenceAgent: '<agent-1.content>', // Cannot reference agent-1 (not directly connected)
+          },
+        },
+      }
+
+      const extendedContext = {
+        ...contextWithConnections,
+        workflow: extendedWorkflow,
+        blockStates: new Map([
+          ...contextWithConnections.blockStates,
+          [
+            'response-1',
+            { output: { message: 'Final response' }, executed: true, executionTime: 0 },
+          ],
+        ]),
+      }
+
+      // Should work for direct connection
+      expect(() => {
+        const block1 = {
+          ...testBlock,
+          config: { tool: 'response', params: { test: '<function-1.result>' } },
+        }
+        extendedResolver.resolveInputs(block1, extendedContext)
+      }).not.toThrow()
+
+      // Should fail for indirect connection
+      expect(() => {
+        // Add the response block to the workflow so it can be validated properly
+        extendedWorkflow.blocks.push({
+          id: 'test-response-block',
+          metadata: { id: 'response', name: 'Test Response Block' },
+          position: { x: 500, y: 500 },
+          config: { tool: 'response', params: {} },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+        })
+        extendedWorkflow.connections.push({ source: 'function-1', target: 'test-response-block' })
+
+        const block2 = {
+          id: 'test-response-block',
+          metadata: { id: 'response', name: 'Test Response Block' },
+          position: { x: 500, y: 500 },
+          config: { tool: 'response', params: { test: '<agent-1.content>' } },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+        }
+        extendedResolver.resolveInputs(block2, extendedContext)
+      }).toThrow(/Block "agent-1" is not connected to this block/)
+    })
+
+    it('should handle blocks in same loop referencing each other', () => {
+      const loopWorkflow: SerializedWorkflow = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'starter-1',
+            metadata: { id: 'starter', name: 'Start' },
+            position: { x: 0, y: 0 },
+            config: { tool: 'starter', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'loop-1',
+            metadata: { id: 'loop', name: 'Loop' },
+            position: { x: 100, y: 100 },
+            config: { tool: '', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function-1',
+            metadata: { id: 'function', name: 'Function 1' },
+            position: { x: 200, y: 200 },
+            config: { tool: 'function', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function-2',
+            metadata: { id: 'function', name: 'Function 2' },
+            position: { x: 300, y: 300 },
+            config: { tool: 'function', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [{ source: 'starter-1', target: 'loop-1' }],
+        loops: {
+          'loop-1': {
+            id: 'loop-1',
+            nodes: ['function-1', 'function-2'], // Both functions in same loop
+            iterations: 3,
+            loopType: 'for',
+          },
+        },
+      }
+
+      // Create accessibility map for loop workflow
+      const loopAccessibilityMap = new Map<string, Set<string>>()
+      const loopTestBlockIds = ['test-block', 'test-block-2', 'generic-block']
+
+      loopWorkflow.blocks.forEach((block) => {
+        const accessibleBlocks = new Set<string>()
+        // Add directly connected blocks
+        loopWorkflow.connections.forEach((conn) => {
+          if (conn.target === block.id) {
+            accessibleBlocks.add(conn.source)
+          }
+        })
+        // Always allow starter block access
+        const starterBlock = loopWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
+        if (starterBlock) {
+          accessibleBlocks.add(starterBlock.id)
+        }
+        // Allow blocks in same loop to reference each other
+        const blockLoop = Object.values(loopWorkflow.loops || {}).find((loop) =>
+          loop.nodes.includes(block.id)
+        )
+        if (blockLoop) {
+          blockLoop.nodes.forEach((nodeId) => accessibleBlocks.add(nodeId))
+        }
+        loopAccessibilityMap.set(block.id, accessibleBlocks)
+      })
+
+      // Set up accessibility for test blocks
+      loopTestBlockIds.forEach((testId) => {
+        const accessibleBlocks = new Set<string>()
+        // Add directly connected blocks
+        loopWorkflow.connections.forEach((conn) => {
+          if (conn.target === testId) {
+            accessibleBlocks.add(conn.source)
+          }
+        })
+        // Always allow starter block access
+        const starterBlock = loopWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
+        if (starterBlock) {
+          accessibleBlocks.add(starterBlock.id)
+        }
+        loopAccessibilityMap.set(testId, accessibleBlocks)
+      })
+
+      const loopResolver = new InputResolver(loopWorkflow, {}, {}, undefined, loopAccessibilityMap)
+      const testBlock: SerializedBlock = {
+        ...loopWorkflow.blocks[2],
+        config: {
+          tool: 'function',
+          params: {
+            code: 'return <function-2.result>', // function-1 can reference function-2 (same loop)
+          },
+        },
+      }
+
+      const loopContext = {
+        ...contextWithConnections,
+        workflow: loopWorkflow,
+        blockStates: new Map([
+          ['starter-1', { output: { input: 'Hello' }, executed: true, executionTime: 0 }],
+          ['function-1', { output: { result: 'Result 1' }, executed: true, executionTime: 0 }],
+          ['function-2', { output: { result: 'Result 2' }, executed: true, executionTime: 0 }],
+        ]),
+      }
+
+      expect(() => loopResolver.resolveInputs(testBlock, loopContext)).not.toThrow()
     })
   })
 })

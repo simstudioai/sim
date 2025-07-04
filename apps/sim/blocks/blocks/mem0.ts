@@ -290,12 +290,8 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
     limit: { type: 'number', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        ids: 'any',
-        memories: 'any',
-        searchResults: 'any',
-      },
-    },
+    ids: 'any',
+    memories: 'any',
+    searchResults: 'any',
   },
 }

@@ -246,10 +246,7 @@ describe('Workflow Execution API Route', () => {
       expect.anything(), // serializedWorkflow
       expect.anything(), // processedBlockStates
       expect.anything(), // decryptedEnvVars
-      expect.objectContaining({
-        // processedInput
-        input: requestBody,
-      }),
+      requestBody, // processedInput (direct input, not wrapped)
       expect.anything() // workflowVariables
     )
   })
@@ -285,10 +282,7 @@ describe('Workflow Execution API Route', () => {
       expect.anything(), // serializedWorkflow
       expect.anything(), // processedBlockStates
       expect.anything(), // decryptedEnvVars
-      expect.objectContaining({
-        // processedInput
-        input: structuredInput,
-      }),
+      structuredInput, // processedInput (direct input, not wrapped)
       expect.anything() // workflowVariables
     )
   })

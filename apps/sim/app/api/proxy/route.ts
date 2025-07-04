@@ -46,11 +46,19 @@ const formatResponse = (responseData: any, status = 200) => {
  */
 const createErrorResponse = (error: any, status = 500, additionalData = {}) => {
   const errorMessage = error instanceof Error ? error.message : String(error)
+  const errorStack = error instanceof Error ? error.stack : undefined
+
+  logger.error('Creating error response', {
+    errorMessage,
+    status,
+    stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
+  })
 
   return formatResponse(
     {
       success: false,
       error: errorMessage,
+      stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
       ...additionalData,
     },
     status
@@ -67,6 +75,7 @@ export async function GET(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   if (!targetUrl) {
+    logger.error(`[${requestId}] Missing 'url' parameter`)
     return createErrorResponse("Missing 'url' parameter", 400)
   }
 
@@ -126,6 +135,10 @@ export async function GET(request: Request) {
         : response.statusText || `HTTP error ${response.status}`
       : undefined
 
+    if (!response.ok) {
+      logger.error(`[${requestId}] External API error: ${response.status} ${response.statusText}`)
+    }
+
     // Return the proxied response
     return formatResponse({
       success: response.ok,
@@ -139,6 +152,7 @@ export async function GET(request: Request) {
     logger.error(`[${requestId}] Proxy GET request failed`, {
       url: targetUrl,
       error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
     return createErrorResponse(error)
@@ -151,22 +165,40 @@ export async function POST(request: Request) {
   const startTimeISO = startTime.toISOString()
 
   try {
-    const { toolId, params } = await request.json()
+    // Parse request body
+    let requestBody
+    try {
+      requestBody = await request.json()
+    } catch (parseError) {
+      logger.error(`[${requestId}] Failed to parse request body`, {
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      })
+      throw new Error('Invalid JSON in request body')
+    }
 
-    logger.debug(`[${requestId}] Proxy request for tool`, {
-      toolId,
-      hasParams: !!params && Object.keys(params).length > 0,
-    })
+    const { toolId, params } = requestBody
 
+    if (!toolId) {
+      logger.error(`[${requestId}] Missing toolId in request`)
+      throw new Error('Missing toolId in request')
+    }
+
+    logger.info(`[${requestId}] Processing tool: ${toolId}`)
+
+    // Get tool
     const tool = getTool(toolId)
+
+    if (!tool) {
+      logger.error(`[${requestId}] Tool not found: ${toolId}`)
+      throw new Error(`Tool not found: ${toolId}`)
+    }
 
     // Validate the tool and its parameters
     try {
       validateToolRequest(toolId, tool, params)
-    } catch (error) {
-      logger.warn(`[${requestId}] Tool validation failed`, {
-        toolId,
-        error: error instanceof Error ? error.message : String(error),
+    } catch (validationError) {
+      logger.warn(`[${requestId}] Tool validation failed for ${toolId}`, {
+        error: validationError instanceof Error ? validationError.message : String(validationError),
       })
 
       // Add timing information even to error responses
@@ -174,23 +206,18 @@ export async function POST(request: Request) {
       const endTimeISO = endTime.toISOString()
       const duration = endTime.getTime() - startTime.getTime()
 
-      return createErrorResponse(error, 400, {
+      return createErrorResponse(validationError, 400, {
         startTime: startTimeISO,
         endTime: endTimeISO,
         duration,
       })
     }
-    if (!tool) {
-      logger.error(`[${requestId}] Tool not found`, { toolId })
-      throw new Error(`Tool not found: ${toolId}`)
-    }
 
-    // Use executeTool with skipProxy=true to prevent recursive proxy calls, and skipPostProcess=true to prevent duplicate post-processing
+    // Execute tool
     const result = await executeTool(toolId, params, true, true)
 
     if (!result.success) {
-      logger.warn(`[${requestId}] Tool execution failed`, {
-        toolId,
+      logger.warn(`[${requestId}] Tool execution failed for ${toolId}`, {
         error: result.error || 'Unknown error',
       })
 
@@ -217,9 +244,13 @@ export async function POST(request: Request) {
           }
           // Fallback
           throw new Error('Tool returned an error')
-        } catch (e) {
-          if (e instanceof Error) {
-            throw e
+        } catch (transformError) {
+          logger.error(`[${requestId}] Error transformation failed for ${toolId}`, {
+            error:
+              transformError instanceof Error ? transformError.message : String(transformError),
+          })
+          if (transformError instanceof Error) {
+            throw transformError
           }
           throw new Error('Tool returned an error')
         }
@@ -246,12 +277,7 @@ export async function POST(request: Request) {
       },
     }
 
-    logger.info(`[${requestId}] Tool executed successfully`, {
-      toolId,
-      duration,
-      startTime: startTimeISO,
-      endTime: endTimeISO,
-    })
+    logger.info(`[${requestId}] Tool executed successfully: ${toolId} (${duration}ms)`)
 
     // Return the response with CORS headers
     return formatResponse(responseWithTimingData)
@@ -259,6 +285,7 @@ export async function POST(request: Request) {
     logger.error(`[${requestId}] Proxy request failed`, {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined,
     })
 
     // Add timing information even to error responses

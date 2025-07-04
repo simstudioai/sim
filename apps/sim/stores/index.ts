@@ -250,5 +250,3 @@ export const logAllStores = () => {
 
   return state
 }
-
-// Removed sync managers - Socket.IO handles real-time sync

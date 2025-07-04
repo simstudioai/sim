@@ -72,11 +72,11 @@ export async function POST(
     }
 
     // Use the already parsed body
-    const { message, password, email, conversationId } = parsedBody
+    const { input, password, email, conversationId } = parsedBody
 
-    // If this is an authentication request (has password or email but no message),
+    // If this is an authentication request (has password or email but no input),
     // set auth cookie and return success
-    if ((password || email) && !message) {
+    if ((password || email) && !input) {
       const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
 
       // Set authentication cookie
@@ -86,8 +86,8 @@ export async function POST(
     }
 
     // For chat messages, create regular response
-    if (!message) {
-      return addCorsHeaders(createErrorResponse('No message provided', 400), request)
+    if (!input) {
+      return addCorsHeaders(createErrorResponse('No input provided', 400), request)
     }
 
     // Get the workflow for this chat
@@ -105,8 +105,8 @@ export async function POST(
     }
 
     try {
-      // Execute workflow with structured input (message + conversationId for context)
-      const result = await executeWorkflowForChat(deployment.id, message, conversationId)
+      // Execute workflow with structured input (input + conversationId for context)
+      const result = await executeWorkflowForChat(deployment.id, input, conversationId)
 
       // The result is always a ReadableStream that we can pipe to the client
       const streamResponse = new NextResponse(result, {

@@ -239,7 +239,7 @@ Example Scenario:
 User Prompt: "Fetch user data from an API. Use the User ID passed in as 'userId' and an API Key stored as the 'SERVICE_API_KEY' environment variable."
 
 Generated Code:
-const userId = <block.response.content>; // Correct: Accessing input parameter without quotes
+const userId = <block.content>; // Correct: Accessing input parameter without quotes
 const apiKey = {{SERVICE_API_KEY}}; // Correct: Accessing environment variable without quotes
 const url = \`https://api.example.com/users/\${userId}\`;
 
@@ -273,7 +273,7 @@ Do not include import/require statements unless absolutely necessary and they ar
 Do not include markdown formatting or explanations.
 Output only the raw TypeScript code. Use modern TypeScript features where appropriate. Do not use semicolons.
 Example:
-const userId = <block.response.content> as string
+const userId = <block.content> as string
 const apiKey = {{SERVICE_API_KEY}}
 const response = await fetch(\`https://api.example.com/users/\${userId}\`, { headers: { Authorization: \`Bearer \${apiKey}\` } })
 if (!response.ok) {

@@ -138,11 +138,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     text: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        ts: 'string',
-        channel: 'string',
-      },
-    },
+    ts: 'string',
+    channel: 'string',
   },
 }

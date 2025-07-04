@@ -273,7 +273,7 @@ describe('ParallelManager', () => {
 
       context.parallelExecutions?.set('parallel-1', state)
 
-      const output = { response: { result: 'test result' } }
+      const output = { result: 'test result' }
 
       manager.storeIterationResult(context, 'parallel-1', 1, output)
 

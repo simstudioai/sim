@@ -274,7 +274,7 @@ describe('TagDropdown Search and Filtering', () => {
       'loop.index',
       'loop.currentItem',
       'parallel.index',
-      'block.response.data',
+      'block.data',
     ]
 
     const searchTerm = 'user'
@@ -288,7 +288,7 @@ describe('TagDropdown Search and Filtering', () => {
       'variable.userName',
       'loop.index',
       'parallel.currentItem',
-      'block.response.data',
+      'block.data',
       'variable.userAge',
       'loop.currentItem',
     ]
@@ -313,7 +313,7 @@ describe('TagDropdown Search and Filtering', () => {
     expect(variableTags).toEqual(['variable.userName', 'variable.userAge'])
     expect(loopTags).toEqual(['loop.index', 'loop.currentItem'])
     expect(parallelTags).toEqual(['parallel.currentItem'])
-    expect(blockTags).toEqual(['block.response.data'])
+    expect(blockTags).toEqual(['block.data'])
   })
 })
 
@@ -358,22 +358,6 @@ describe('checkTagTrigger helper function', () => {
 })
 
 describe('extractFieldsFromSchema helper function logic', () => {
-  test('should extract fields from legacy format with fields array', () => {
-    const responseFormat = {
-      fields: [
-        { name: 'name', type: 'string', description: 'User name' },
-        { name: 'age', type: 'number', description: 'User age' },
-      ],
-    }
-
-    const fields = extractFieldsFromSchema(responseFormat)
-
-    expect(fields).toEqual([
-      { name: 'name', type: 'string', description: 'User name' },
-      { name: 'age', type: 'number', description: 'User age' },
-    ])
-  })
-
   test('should extract fields from JSON Schema format', () => {
     const responseFormat = {
       schema: {
@@ -450,6 +434,26 @@ describe('extractFieldsFromSchema helper function logic', () => {
       { name: 'age', type: 'number', description: undefined },
     ])
   })
+
+  test('should handle flattened response format (new format)', () => {
+    const responseFormat = {
+      schema: {
+        properties: {
+          name: { type: 'string', description: 'User name' },
+          age: { type: 'number', description: 'User age' },
+          status: { type: 'boolean', description: 'Active status' },
+        },
+      },
+    }
+
+    const fields = extractFieldsFromSchema(responseFormat)
+
+    expect(fields).toEqual([
+      { name: 'name', type: 'string', description: 'User name' },
+      { name: 'age', type: 'number', description: 'User age' },
+      { name: 'status', type: 'boolean', description: 'Active status' },
+    ])
+  })
 })
 
 describe('TagDropdown Tag Ordering', () => {
@@ -457,7 +461,7 @@ describe('TagDropdown Tag Ordering', () => {
     const variableTags = ['variable.userName', 'variable.userAge']
     const loopTags = ['loop.index', 'loop.currentItem']
     const parallelTags = ['parallel.index']
-    const blockTags = ['block.response.data']
+    const blockTags = ['block.data']
 
     const orderedTags = [...variableTags, ...loopTags, ...parallelTags, ...blockTags]
 
@@ -467,12 +471,12 @@ describe('TagDropdown Tag Ordering', () => {
       'loop.index',
       'loop.currentItem',
       'parallel.index',
-      'block.response.data',
+      'block.data',
     ])
   })
 
   test('should create tag index map correctly', () => {
-    const orderedTags = ['variable.userName', 'loop.index', 'block.response.data']
+    const orderedTags = ['variable.userName', 'loop.index', 'block.data']
 
     const tagIndexMap = new Map<string, number>()
     orderedTags.forEach((tag, index) => {
@@ -481,7 +485,7 @@ describe('TagDropdown Tag Ordering', () => {
 
     expect(tagIndexMap.get('variable.userName')).toBe(0)
     expect(tagIndexMap.get('loop.index')).toBe(1)
-    expect(tagIndexMap.get('block.response.data')).toBe(2)
+    expect(tagIndexMap.get('block.data')).toBe(2)
     expect(tagIndexMap.get('nonexistent')).toBeUndefined()
   })
 })
@@ -491,39 +495,39 @@ describe('TagDropdown Tag Selection Logic', () => {
     const testCases = [
       {
         description: 'should remove existing closing bracket from incomplete tag',
-        inputValue: 'Hello <start.response.>',
-        cursorPosition: 21, // cursor after the dot
-        tag: 'start.response.input',
-        expectedResult: 'Hello <start.response.input>',
+        inputValue: 'Hello <start.>',
+        cursorPosition: 13, // cursor after the dot
+        tag: 'start.input',
+        expectedResult: 'Hello <start.input>',
       },
       {
         description: 'should remove existing closing bracket when replacing tag content',
-        inputValue: 'Hello <start.response.input>',
-        cursorPosition: 22, // cursor after 'response.'
-        tag: 'start.response.data',
-        expectedResult: 'Hello <start.response.data>',
+        inputValue: 'Hello <start.input>',
+        cursorPosition: 12, // cursor after 'start.'
+        tag: 'start.data',
+        expectedResult: 'Hello <start.data>',
       },
       {
         description: 'should preserve content after closing bracket',
-        inputValue: 'Hello <start.response.> world',
-        cursorPosition: 21,
-        tag: 'start.response.input',
-        expectedResult: 'Hello <start.response.input> world',
+        inputValue: 'Hello <start.> world',
+        cursorPosition: 13,
+        tag: 'start.input',
+        expectedResult: 'Hello <start.input> world',
       },
       {
         description:
           'should not affect closing bracket if text between contains invalid characters',
-        inputValue: 'Hello <start.response.input> and <other>',
-        cursorPosition: 22,
-        tag: 'start.response.data',
-        expectedResult: 'Hello <start.response.data> and <other>',
+        inputValue: 'Hello <start.input> and <other>',
+        cursorPosition: 12,
+        tag: 'start.data',
+        expectedResult: 'Hello <start.data> and <other>',
       },
       {
         description: 'should handle case with no existing closing bracket',
-        inputValue: 'Hello <start.response',
-        cursorPosition: 21,
-        tag: 'start.response.input',
-        expectedResult: 'Hello <start.response.input>',
+        inputValue: 'Hello <start',
+        cursorPosition: 12,
+        tag: 'start.input',
+        expectedResult: 'Hello <start.input>',
       },
     ]
 
@@ -556,25 +560,25 @@ describe('TagDropdown Tag Selection Logic', () => {
     // Valid tag-like text
     expect(regex.test('')).toBe(true) // empty string
     expect(regex.test('input')).toBe(true)
-    expect(regex.test('response.data')).toBe(true)
+    expect(regex.test('content.data')).toBe(true)
     expect(regex.test('user_name')).toBe(true)
     expect(regex.test('item123')).toBe(true)
-    expect(regex.test('response.data.item_1')).toBe(true)
+    expect(regex.test('content.data.item_1')).toBe(true)
 
     // Invalid tag-like text (should not remove closing bracket)
     expect(regex.test('input> and more')).toBe(false)
-    expect(regex.test('response data')).toBe(false) // space
+    expect(regex.test('content data')).toBe(false) // space
     expect(regex.test('user-name')).toBe(false) // hyphen
     expect(regex.test('data[')).toBe(false) // bracket
-    expect(regex.test('response.data!')).toBe(false) // exclamation
+    expect(regex.test('content.data!')).toBe(false) // exclamation
   })
 
   test('should find correct position of last open bracket', () => {
     const testCases = [
-      { input: 'Hello <start.response', expected: 6 },
-      { input: 'Hello <var> and <start.response', expected: 16 },
+      { input: 'Hello <start', expected: 6 },
+      { input: 'Hello <var> and <start', expected: 16 },
       { input: 'No brackets here', expected: -1 },
-      { input: '<start.response', expected: 0 },
+      { input: '<start', expected: 0 },
       { input: 'Multiple < < < <last', expected: 15 },
     ]
 
@@ -587,7 +591,7 @@ describe('TagDropdown Tag Selection Logic', () => {
   test('should find correct position of next closing bracket', () => {
     const testCases = [
       { input: 'input>', expected: 5 },
-      { input: 'response.data> more text', expected: 13 },
+      { input: 'content.data> more text', expected: 12 },
       { input: 'no closing bracket', expected: -1 },
       { input: '>', expected: 0 },
       { input: 'multiple > > > >last', expected: 9 },

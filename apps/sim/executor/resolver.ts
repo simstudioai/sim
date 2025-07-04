@@ -1,3 +1,4 @@
+import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console-logger'
 import { VariableManager } from '@/lib/variables/variable-manager'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -18,7 +19,8 @@ export class InputResolver {
     private workflow: SerializedWorkflow,
     private environmentVariables: Record<string, string>,
     private workflowVariables: Record<string, any> = {},
-    private loopManager?: LoopManager
+    private loopManager?: LoopManager,
+    public accessibleBlocksMap?: Map<string, Set<string>>
   ) {
     // Create maps for efficient lookups
     this.blockById = new Map(workflow.blocks.map((block) => [block.id, block]))
@@ -373,21 +375,28 @@ export class InputResolver {
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
-      // Skip XML-like tags that have no path parts (not a valid block reference)
-      if (pathParts.length === 0 || blockRef.includes(':') || blockRef.includes(' ')) {
+      // Skip XML-like tags (but allow block names with spaces)
+      if (blockRef.includes(':')) {
         continue
       }
 
+      // System references (start, loop, parallel, variable) are handled as special cases
+      const isSystemReference = ['start', 'loop', 'parallel', 'variable'].includes(
+        blockRef.toLowerCase()
+      )
+
+      // System references and regular block references are both processed
+      // Accessibility validation happens later in validateBlockReference
+
       // Special case for "start" references
-      // This allows users to reference the starter block using <start.response.type.input>
-      // regardless of the actual name of the starter block
       if (blockRef.toLowerCase() === 'start') {
         // Find the starter block
         const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
         if (starterBlock) {
           const blockState = context.blockStates.get(starterBlock.id)
           if (blockState) {
-            // Navigate through the path parts
+            // For starter block, start directly with the flattened output
+            // This enables direct access to <start.input> and <start.conversationId>
             let replacementValue: any = blockState.output
 
             for (const part of pathParts) {
@@ -432,7 +441,7 @@ export class InputResolver {
                 }
                 // For all other blocks, stringify objects
                 else {
-                  // Preserve full JSON structure for objects (especially for structured inputs with conversationId)
+                  // Preserve full JSON structure for objects
                   formattedValue = JSON.stringify(replacementValue)
                 }
               } else {
@@ -502,20 +511,14 @@ export class InputResolver {
         }
       }
 
-      // Standard block reference resolution
-      let sourceBlock = this.blockById.get(blockRef)
-      if (!sourceBlock) {
-        const normalizedRef = this.normalizeBlockName(blockRef)
-        sourceBlock = this.blockByNormalizedName.get(normalizedRef)
+      // Standard block reference resolution with connection validation
+      const validation = this.validateBlockReference(blockRef, currentBlock.id, context)
+
+      if (!validation.isValid) {
+        throw new Error(validation.errorMessage!)
       }
 
-      if (!sourceBlock) {
-        // Provide a more helpful error message with available block names
-        const availableBlocks = Array.from(this.blockByNormalizedName.keys()).join(', ')
-        throw new Error(
-          `Block reference "${blockRef}" was not found. Available blocks: ${availableBlocks}. For the starter block, try using "start" or the exact block name.`
-        )
-      }
+      const sourceBlock = this.blockById.get(validation.resolvedBlockId!)!
 
       if (sourceBlock.enabled === false) {
         throw new Error(
@@ -834,6 +837,180 @@ export class InputResolver {
   }
 
   /**
+   * Gets all blocks that the current block can reference.
+   * Uses pre-calculated accessible blocks if available, otherwise falls back to legacy calculation.
+   *
+   * @param currentBlockId - ID of the block requesting references
+   * @returns Set of accessible block IDs
+   */
+  private getAccessibleBlocks(currentBlockId: string): Set<string> {
+    // Use pre-calculated accessible blocks if available
+    if (this.accessibleBlocksMap?.has(currentBlockId)) {
+      return this.accessibleBlocksMap.get(currentBlockId)!
+    }
+
+    // Fallback to legacy calculation for backward compatibility
+    return this.calculateAccessibleBlocksLegacy(currentBlockId)
+  }
+
+  /**
+   * Legacy method for calculating accessible blocks (for backward compatibility).
+   * This method is kept for cases where pre-calculated data is not available.
+   *
+   * @param currentBlockId - ID of the block requesting references
+   * @returns Set of accessible block IDs
+   */
+  private calculateAccessibleBlocksLegacy(currentBlockId: string): Set<string> {
+    const accessibleBlocks = new Set<string>()
+
+    // Add blocks that have outgoing connections TO this block
+    for (const connection of this.workflow.connections) {
+      if (connection.target === currentBlockId) {
+        accessibleBlocks.add(connection.source)
+      }
+    }
+
+    // Always allow referencing the starter block (special case)
+    const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
+    if (starterBlock) {
+      accessibleBlocks.add(starterBlock.id)
+    }
+
+    // Special case: blocks in the same loop can reference each other
+    const currentBlockLoop = this.loopsByBlockId.get(currentBlockId)
+    if (currentBlockLoop) {
+      const loop = this.workflow.loops?.[currentBlockLoop]
+      if (loop) {
+        for (const nodeId of loop.nodes) {
+          accessibleBlocks.add(nodeId)
+        }
+      }
+    }
+
+    // Special case: blocks in the same parallel can reference each other
+    for (const [parallelId, parallel] of Object.entries(this.workflow.parallels || {})) {
+      if (parallel.nodes.includes(currentBlockId)) {
+        for (const nodeId of parallel.nodes) {
+          accessibleBlocks.add(nodeId)
+        }
+      }
+    }
+
+    return accessibleBlocks
+  }
+
+  /**
+   * Gets block names that the current block can reference for helpful error messages.
+   * Uses shared utility when pre-calculated data is available.
+   *
+   * @param currentBlockId - ID of the block requesting references
+   * @returns Array of accessible block names and aliases
+   */
+  private getAccessibleBlockNames(currentBlockId: string): string[] {
+    // Use shared utility if pre-calculated data is available
+    if (this.accessibleBlocksMap) {
+      return BlockPathCalculator.getAccessibleBlockNames(
+        currentBlockId,
+        this.workflow,
+        this.accessibleBlocksMap
+      )
+    }
+
+    // Fallback to legacy calculation
+    const accessibleBlockIds = this.getAccessibleBlocks(currentBlockId)
+    const names: string[] = []
+
+    for (const blockId of accessibleBlockIds) {
+      const block = this.blockById.get(blockId)
+      if (block) {
+        // Add both the actual name and the normalized name
+        if (block.metadata?.name) {
+          names.push(block.metadata.name)
+          names.push(this.normalizeBlockName(block.metadata.name))
+        }
+        names.push(blockId)
+      }
+    }
+
+    // Add special aliases
+    names.push('start') // Always allow start alias
+
+    return [...new Set(names)] // Remove duplicates
+  }
+
+  /**
+   * Checks if a block reference could potentially be valid without throwing errors.
+   * Used to filter out non-block patterns like <test> from block reference resolution.
+   *
+   * @param blockRef - The block reference to check
+   * @param currentBlockId - ID of the current block
+   * @returns Whether this could be a valid block reference
+   */
+  private isAccessibleBlockReference(blockRef: string, currentBlockId: string): boolean {
+    // Special cases that are always allowed
+    const specialRefs = ['start', 'loop', 'parallel']
+    if (specialRefs.includes(blockRef.toLowerCase())) {
+      return true
+    }
+
+    // Get all accessible block names for this block
+    const accessibleNames = this.getAccessibleBlockNames(currentBlockId)
+
+    // Check if the reference matches any accessible block name
+    return accessibleNames.includes(blockRef) || accessibleNames.includes(blockRef.toLowerCase())
+  }
+
+  /**
+   * Validates if a block reference is accessible from the current block.
+   * Checks existence and connection-based access rules.
+   *
+   * @param blockRef - Name or ID of the referenced block
+   * @param currentBlockId - ID of the block making the reference
+   * @param context - Current execution context
+   * @returns Validation result with success status and resolved block ID or error message
+   */
+  private validateBlockReference(
+    blockRef: string,
+    currentBlockId: string,
+    context: ExecutionContext
+  ): { isValid: boolean; resolvedBlockId?: string; errorMessage?: string } {
+    // Special case: 'start' is always allowed
+    if (blockRef.toLowerCase() === 'start') {
+      const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
+      return starterBlock
+        ? { isValid: true, resolvedBlockId: starterBlock.id }
+        : { isValid: false, errorMessage: 'Starter block not found in workflow' }
+    }
+
+    // Check if block exists
+    let sourceBlock = this.blockById.get(blockRef)
+    if (!sourceBlock) {
+      const normalizedRef = this.normalizeBlockName(blockRef)
+      sourceBlock = this.blockByNormalizedName.get(normalizedRef)
+    }
+
+    if (!sourceBlock) {
+      const accessibleNames = this.getAccessibleBlockNames(currentBlockId)
+      return {
+        isValid: false,
+        errorMessage: `Block "${blockRef}" was not found. Available connected blocks: ${accessibleNames.join(', ')}`,
+      }
+    }
+
+    // Check if block is accessible (connected)
+    const accessibleBlocks = this.getAccessibleBlocks(currentBlockId)
+    if (!accessibleBlocks.has(sourceBlock.id)) {
+      const accessibleNames = this.getAccessibleBlockNames(currentBlockId)
+      return {
+        isValid: false,
+        errorMessage: `Block "${blockRef}" is not connected to this block. Available connected blocks: ${accessibleNames.join(', ')}`,
+      }
+    }
+
+    return { isValid: true, resolvedBlockId: sourceBlock.id }
+  }
+
+  /**
    * Gets the items for a forEach loop.
    * The items can be stored directly in loop.forEachItems or may need to be evaluated.
    *
@@ -891,7 +1068,7 @@ export class InputResolver {
     // As a fallback, look for the most recent array or object in any block's output
     // This is less reliable but might help in some cases
     for (const [_blockId, blockState] of context.blockStates.entries()) {
-      const output = blockState.output?.response
+      const output = blockState.output
       if (output) {
         for (const [_key, value] of Object.entries(output)) {
           if (Array.isArray(value) && value.length > 0) {

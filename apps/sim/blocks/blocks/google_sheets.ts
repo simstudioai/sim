@@ -211,16 +211,12 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
     insertDataOption: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        data: 'json',
-        metadata: 'json',
-        updatedRange: 'string',
-        updatedRows: 'number',
-        updatedColumns: 'number',
-        updatedCells: 'number',
-        tableRange: 'string',
-      },
-    },
+    data: 'json',
+    metadata: 'json',
+    updatedRange: 'string',
+    updatedRows: 'number',
+    updatedColumns: 'number',
+    updatedCells: 'number',
+    tableRange: 'string',
   },
 }

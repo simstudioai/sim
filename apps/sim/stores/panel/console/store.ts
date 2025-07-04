@@ -14,15 +14,11 @@ const updateBlockOutput = (
   existingOutput: NormalizedBlockOutput | undefined,
   contentUpdate: string
 ): NormalizedBlockOutput => {
-  const defaultOutput: NormalizedBlockOutput = { response: {} }
-  const baseOutput = existingOutput || defaultOutput
+  const baseOutput = existingOutput || {}
 
   return {
     ...baseOutput,
-    response: {
-      ...baseOutput.response,
-      content: contentUpdate,
-    },
+    content: contentUpdate,
   }
 }
 
@@ -198,14 +194,10 @@ export const useConsoleStore = create<ConsoleStore>()(
                 }
 
                 if (update.output !== undefined) {
-                  const existingOutput = entry.output || { response: {} }
+                  const existingOutput = entry.output || {}
                   updatedEntry.output = {
                     ...existingOutput,
                     ...update.output,
-                    response: {
-                      ...(existingOutput.response || {}),
-                      ...(update.output.response || {}),
-                    },
                   }
                 }
 

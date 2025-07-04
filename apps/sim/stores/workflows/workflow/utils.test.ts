@@ -67,7 +67,7 @@ describe('convertLoopBlockToLoop', () => {
         data: {
           loopType: 'forEach',
           count: 5,
-          collection: '<blockName.response.items>',
+          collection: '<blockName.items>',
         },
       },
     }
@@ -75,7 +75,7 @@ describe('convertLoopBlockToLoop', () => {
     const result = convertLoopBlockToLoop('loop1', blocks)
 
     expect(result).toBeDefined()
-    expect(result?.forEachItems).toBe('<blockName.response.items>')
+    expect(result?.forEachItems).toBe('<blockName.items>')
   })
 
   test('should handle empty collection', () => {

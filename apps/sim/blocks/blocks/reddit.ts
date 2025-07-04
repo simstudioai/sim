@@ -181,13 +181,9 @@ export const RedditBlock: BlockConfig<
     commentLimit: { type: 'number', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        subreddit: 'string',
-        posts: 'json',
-        post: 'json',
-        comments: 'json',
-      },
-    },
+    subreddit: 'string',
+    posts: 'json',
+    post: 'json',
+    comments: 'json',
   },
 }

@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import type { ExecutionContext } from '../../types'
@@ -81,7 +80,7 @@ describe('FunctionBlockHandler', () => {
       blockNameMapping: {},
       _context: { workflowId: mockContext.workflowId },
     }
-    const expectedOutput: BlockOutput = { response: { result: 'Success' } }
+    const expectedOutput: any = { result: 'Success' }
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
@@ -106,7 +105,7 @@ describe('FunctionBlockHandler', () => {
       blockNameMapping: {},
       _context: { workflowId: mockContext.workflowId },
     }
-    const expectedOutput: BlockOutput = { response: { result: 'Success' } }
+    const expectedOutput: any = { result: 'Success' }
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 

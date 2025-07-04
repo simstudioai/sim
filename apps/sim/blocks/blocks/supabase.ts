@@ -109,11 +109,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
     data: { type: 'string', required: false, requiredForToolCall: true },
   },
   outputs: {
-    response: {
-      type: {
-        message: 'string',
-        results: 'json',
-      },
-    },
+    message: 'string',
+    results: 'json',
   },
 }

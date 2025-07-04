@@ -106,12 +106,8 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
     apiKey: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        model: 'string',
-        usage: 'json',
-      },
-    },
+    content: 'string',
+    model: 'string',
+    usage: 'json',
   },
 }

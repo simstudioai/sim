@@ -93,7 +93,7 @@ export const sampleWorkflowState = {
         webhookPath: { id: 'webhookPath', type: 'short-input', value: '' },
       },
       outputs: {
-        response: { type: { input: 'any' } },
+        input: 'any',
       },
       enabled: true,
       horizontalHandles: true,
@@ -111,7 +111,7 @@ export const sampleWorkflowState = {
           type: 'long-input',
           value: 'You are a helpful assistant',
         },
-        context: { id: 'context', type: 'short-input', value: '<start.response.input>' },
+        context: { id: 'context', type: 'short-input', value: '<start.input>' },
         model: { id: 'model', type: 'dropdown', value: 'gpt-4o' },
         apiKey: { id: 'apiKey', type: 'short-input', value: '{{OPENAI_API_KEY}}' },
       },
@@ -138,6 +138,7 @@ export const sampleWorkflowState = {
     },
   ],
   loops: {},
+  parallels: {},
   lastSaved: Date.now(),
   isDeployed: false,
 }

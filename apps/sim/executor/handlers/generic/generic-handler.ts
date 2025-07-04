@@ -1,5 +1,4 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
@@ -22,7 +21,7 @@ export class GenericBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>,
     context: ExecutionContext
-  ): Promise<BlockOutput> {
+  ): Promise<any> {
     logger.info(`Executing block: ${block.id} (Type: ${block.metadata?.id})`)
     const tool = getTool(block.config.tool)
     if (!tool) {
@@ -60,7 +59,7 @@ export class GenericBlockHandler implements BlockHandler {
         throw error
       }
 
-      return { response: result.output }
+      return result.output
     } catch (error: any) {
       // Ensure we have a meaningful error message
       if (!error.message || error.message === 'undefined (undefined)') {

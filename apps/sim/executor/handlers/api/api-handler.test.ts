@@ -92,7 +92,7 @@ describe('ApiBlockHandler', () => {
       body: JSON.stringify({ key: 'value' }),
     }
 
-    const expectedOutput = { response: { data: 'Success' } }
+    const expectedOutput = { data: 'Success' }
 
     mockExecuteTool.mockResolvedValue({ success: true, output: { data: 'Success' } })
 
@@ -113,7 +113,7 @@ describe('ApiBlockHandler', () => {
       method: 'GET',
     }
 
-    const expectedOutput = { response: { content: '', success: true } }
+    const expectedOutput = { data: null, status: 200, headers: {} }
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 

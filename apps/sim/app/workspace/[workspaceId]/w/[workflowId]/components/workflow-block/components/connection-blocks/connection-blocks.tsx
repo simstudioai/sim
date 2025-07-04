@@ -4,10 +4,11 @@ import {
   type ConnectedBlock,
   useBlockConnections,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-connections'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { getBlock } from '@/blocks'
 
 interface ConnectionBlocksProps {
   blockId: string
+  horizontalHandles: boolean
   setIsConnecting: (isConnecting: boolean) => void
   isDisabled?: boolean
 }
@@ -20,6 +21,7 @@ interface ResponseField {
 
 export function ConnectionBlocks({
   blockId,
+  horizontalHandles,
   setIsConnecting,
   isDisabled = false,
 }: ConnectionBlocksProps) {
@@ -39,6 +41,10 @@ export function ConnectionBlocks({
 
     e.stopPropagation() // Prevent parent drag handlers from firing
     setIsConnecting(true)
+
+    // If no specific field is provided, use all available output types
+    const outputType = field ? field.name : connection.outputType
+
     e.dataTransfer.setData(
       'application/json',
       JSON.stringify({
@@ -46,9 +52,13 @@ export function ConnectionBlocks({
         connectionData: {
           id: connection.id,
           name: connection.name,
-          outputType: field ? field.name : connection.outputType,
+          outputType: outputType,
           sourceBlockId: connection.id,
           fieldType: field?.type,
+          // Include all available output types for reference
+          allOutputTypes: Array.isArray(connection.outputType)
+            ? connection.outputType
+            : [connection.outputType],
         },
       })
     )
@@ -59,147 +69,59 @@ export function ConnectionBlocks({
     setIsConnecting(false)
   }
 
-  // Helper function to extract fields from JSON Schema
-  const extractFieldsFromSchema = (connection: ConnectedBlock): ResponseField[] => {
-    // Handle legacy format with fields array
-    if (connection.responseFormat?.fields) {
-      return connection.responseFormat.fields
-    }
-
-    // Handle new JSON Schema format
-    const schema = connection.responseFormat?.schema || connection.responseFormat
-    // Safely check if schema and properties exist
-    if (
-      !schema ||
-      typeof schema !== 'object' ||
-      !('properties' in schema) ||
-      typeof schema.properties !== 'object'
-    ) {
-      return []
-    }
-    return Object.entries(schema.properties).map(([name, prop]: [string, any]) => ({
-      name,
-      type: Array.isArray(prop) ? 'array' : prop.type || 'string',
-      description: prop.description,
-    }))
-  }
-
-  // Extract fields from starter block input format
-  const extractFieldsFromStarterInput = (connection: ConnectedBlock): ResponseField[] => {
-    // Only process for starter blocks
-    if (connection.type !== 'starter') return []
-
-    try {
-      // Get input format from subblock store
-      const inputFormat = useSubBlockStore.getState().getValue(connection.id, 'inputFormat')
-
-      // Make sure we have a valid input format
-      if (!inputFormat || !Array.isArray(inputFormat) || inputFormat.length === 0) {
-        return [{ name: 'input', type: 'any' }]
-      }
-
-      // Check if any fields have been configured with names
-      const hasConfiguredFields = inputFormat.some(
-        (field: any) => field.name && field.name.trim() !== ''
-      )
-
-      // If no fields have been configured, return the default input field
-      if (!hasConfiguredFields) {
-        return [{ name: 'input', type: 'any' }]
-      }
-
-      // Map input fields to response fields
-      return inputFormat.map((field: any) => ({
-        name: `input.${field.name}`,
-        type: field.type || 'string',
-        description: field.description,
-      }))
-    } catch (e) {
-      console.error('Error extracting fields from starter input format:', e)
-      return [{ name: 'input', type: 'any' }]
-    }
-  }
-
-  // Deduplicate connections by ID
-  const connectionMap = incomingConnections.reduce(
-    (acc, connection) => {
-      acc[connection.id] = connection
-      return acc
-    },
-    {} as Record<string, ConnectedBlock>
-  )
-
-  // Sort connections by name
-  const sortedConnections = Object.values(connectionMap).sort((a, b) =>
-    a.name.localeCompare(b.name)
-  )
+  // Use connections in distance order (already sorted and deduplicated by the hook)
+  const sortedConnections = incomingConnections
 
   // Helper function to render a connection card
-  const renderConnectionCard = (connection: ConnectedBlock, field?: ResponseField) => {
-    const displayName = connection.name.replace(/\s+/g, '').toLowerCase()
+  const renderConnectionCard = (connection: ConnectedBlock) => {
+    // Get block configuration for icon and color
+    const blockConfig = getBlock(connection.type)
+    const displayName = connection.name // Use the actual block name instead of transforming it
+    const Icon = blockConfig?.icon
+    const bgColor = blockConfig?.bgColor || '#6B7280' // Fallback to gray
 
     return (
       <Card
-        key={`${field ? field.name : connection.id}`}
+        key={`${connection.id}-${connection.name}`}
         draggable={!isDisabled}
-        onDragStart={(e) => handleDragStart(e, connection, field)}
+        onDragStart={(e) => handleDragStart(e, connection)}
         onDragEnd={handleDragEnd}
         className={cn(
-          'group flex w-max items-center rounded-lg border bg-card p-2 shadow-sm transition-colors',
+          'group flex w-max items-center gap-2 rounded-lg border bg-card p-2 shadow-sm transition-colors',
           !isDisabled
             ? 'cursor-grab hover:bg-accent/50 active:cursor-grabbing'
             : 'cursor-not-allowed opacity-60'
         )}
       >
+        {/* Block icon with color */}
+        {Icon && (
+          <div
+            className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
+            style={{ backgroundColor: bgColor }}
+          >
+            <Icon className='h-3 w-3 text-white' />
+          </div>
+        )}
         <div className='text-sm'>
           <span className='font-medium leading-none'>{displayName}</span>
-          <span className='text-muted-foreground'>
-            {field
-              ? `.${field.name}`
-              : typeof connection.outputType === 'string'
-                ? `.${connection.outputType}`
-                : ''}
-          </span>
         </div>
       </Card>
     )
   }
 
-  return (
-    <div className='absolute top-0 right-full flex max-h-[400px] flex-col items-end space-y-2 overflow-y-auto pr-5'>
-      {sortedConnections.map((connection, index) => {
-        // Special handling for starter blocks with input format
-        if (connection.type === 'starter') {
-          const starterFields = extractFieldsFromStarterInput(connection)
+  // Generate all connection cards - one per block, not per output field
+  const connectionCards: React.ReactNode[] = []
 
-          if (starterFields.length > 0) {
-            return (
-              <div key={connection.id} className='space-y-2'>
-                {starterFields.map((field) => renderConnectionCard(connection, field))}
-              </div>
-            )
-          }
-        }
+  sortedConnections.forEach((connection) => {
+    connectionCards.push(renderConnectionCard(connection))
+  })
 
-        // Regular connection handling
-        return (
-          <div key={`${connection.id}-${index}`} className='space-y-2'>
-            {Array.isArray(connection.outputType)
-              ? // Handle array of field names
-                connection.outputType.map((fieldName) => {
-                  // Try to find field in response format
-                  const fields = extractFieldsFromSchema(connection)
-                  const field = fields.find((f) => f.name === fieldName) || {
-                    name: fieldName,
-                    type: 'string',
-                  }
+  // Position and layout based on handle orientation - reverse of ports
+  // When ports are horizontal: connection blocks on top, aligned to left, closest blocks on bottom row
+  // When ports are vertical (default): connection blocks on left, stack vertically, aligned to right
+  const containerClasses = horizontalHandles
+    ? 'absolute bottom-full left-0 flex max-w-[600px] flex-wrap-reverse gap-2 pb-3'
+    : 'absolute top-0 right-full flex max-h-[400px] max-w-[200px] flex-col items-end gap-2 overflow-y-auto pr-3'
 
-                  return renderConnectionCard(connection, field)
-                })
-              : renderConnectionCard(connection)}
-          </div>
-        )
-      })}
-    </div>
-  )
+  return <div className={containerClasses}>{connectionCards}</div>
 }

@@ -81,8 +81,8 @@ describe('LoopBlockHandler', () => {
       expect(mockContext.activeExecutionPath.has('inner-block')).toBe(true)
 
       // Type guard to check if result has the expected structure
-      if (typeof result === 'object' && result !== null && 'response' in result) {
-        const response = result.response as any
+      if (typeof result === 'object' && result !== null) {
+        const response = result as any
         expect(response.currentIteration).toBe(0) // Still shows current iteration as 0
         expect(response.maxIterations).toBe(3)
         expect(response.completed).toBe(false)
@@ -102,8 +102,8 @@ describe('LoopBlockHandler', () => {
       // But it should not activate the inner block either since we're at max iterations
       expect(mockContext.activeExecutionPath.has('inner-block')).toBe(false)
 
-      if (typeof result === 'object' && result !== null && 'response' in result) {
-        const response = result.response as any
+      if (typeof result === 'object' && result !== null) {
+        const response = result as any
         expect(response.completed).toBe(false) // Not completed until all blocks execute
         expect(response.message).toContain('Final iteration')
       }
@@ -122,8 +122,8 @@ describe('LoopBlockHandler', () => {
 
       expect(mockContext.loopItems.get('loop-1')).toBe('item1')
 
-      if (typeof result === 'object' && result !== null && 'response' in result) {
-        const response = result.response as any
+      if (typeof result === 'object' && result !== null) {
+        const response = result as any
         expect(response.loopType).toBe('forEach')
         expect(response.maxIterations).toBe(3) // Limited by items length
       }
@@ -162,8 +162,8 @@ describe('LoopBlockHandler', () => {
       expect(mockContext.loopIterations.get('loop-1')).toBe(1)
       expect(mockContext.loopItems.get('loop-1')).toBe('a')
 
-      if (typeof result === 'object' && result !== null && 'response' in result) {
-        const response = result.response as any
+      if (typeof result === 'object' && result !== null) {
+        const response = result as any
         expect(response.maxIterations).toBe(2) // Should be limited to 2, not 10
         expect(response.completed).toBe(false)
       }
@@ -173,8 +173,8 @@ describe('LoopBlockHandler', () => {
       expect(mockContext.loopIterations.get('loop-1')).toBe(2)
       expect(mockContext.loopItems.get('loop-1')).toBe('b')
 
-      if (typeof result === 'object' && result !== null && 'response' in result) {
-        const response = result.response as any
+      if (typeof result === 'object' && result !== null) {
+        const response = result as any
         expect(response.completed).toBe(false)
       }
 

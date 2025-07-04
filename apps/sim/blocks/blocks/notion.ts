@@ -174,11 +174,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     properties: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        metadata: 'any',
-      },
-    },
+    content: 'string',
+    metadata: 'any',
   },
 }

@@ -210,14 +210,12 @@ describe('AgentBlockHandler', () => {
       mockGetProviderFromModel.mockReturnValue('openai')
 
       const expectedOutput = {
-        response: {
-          content: 'Mocked response content',
-          model: 'mock-model',
-          tokens: { prompt: 10, completion: 20, total: 30 },
-          toolCalls: { list: [], count: 0 },
-          providerTiming: { total: 100 },
-          cost: 0.001,
-        },
+        content: 'Mocked response content',
+        model: 'mock-model',
+        tokens: { prompt: 10, completion: 20, total: 30 },
+        toolCalls: { list: [], count: 0 },
+        providerTiming: { total: 100 },
+        cost: 0.001,
       }
 
       const result = await handler.execute(mockBlock, inputs, mockContext)
@@ -587,14 +585,12 @@ describe('AgentBlockHandler', () => {
       mockGetProviderFromModel.mockReturnValue('openai')
 
       const expectedOutput = {
-        response: {
-          content: 'Mocked response content',
-          model: 'mock-model',
-          tokens: { prompt: 10, completion: 20, total: 30 },
-          toolCalls: { list: [], count: 0 }, // Assuming no tool calls in this mock response
-          providerTiming: { total: 100 },
-          cost: 0.001,
-        },
+        content: 'Mocked response content',
+        model: 'mock-model',
+        tokens: { prompt: 10, completion: 20, total: 30 },
+        toolCalls: { list: [], count: 0 }, // Assuming no tool calls in this mock response
+        providerTiming: { total: 100 },
+        cost: 0.001,
       }
 
       const result = await handler.execute(mockBlock, inputs, mockContext)
@@ -691,14 +687,12 @@ describe('AgentBlockHandler', () => {
       const result = await handler.execute(mockBlock, inputs, mockContext)
 
       expect(result).toEqual({
-        response: {
-          result: 'Success',
-          score: 0.95,
-          tokens: { prompt: 10, completion: 20, total: 30 },
-          toolCalls: { list: [], count: 0 },
-          providerTiming: { total: 100 },
-          cost: undefined,
-        },
+        result: 'Success',
+        score: 0.95,
+        tokens: { prompt: 10, completion: 20, total: 30 },
+        toolCalls: { list: [], count: 0 },
+        providerTiming: { total: 100 },
+        cost: undefined,
       })
     })
 
@@ -733,13 +727,12 @@ describe('AgentBlockHandler', () => {
       const result = await handler.execute(mockBlock, inputs, mockContext)
 
       expect(result).toEqual({
-        response: {
-          content: 'Regular text response',
-          model: 'mock-model',
-          tokens: { prompt: 10, completion: 20, total: 30 },
-          toolCalls: { list: [], count: 0 },
-          providerTiming: { total: 100 },
-        },
+        content: 'Regular text response',
+        model: 'mock-model',
+        tokens: { prompt: 10, completion: 20, total: 30 },
+        toolCalls: { list: [], count: 0 },
+        providerTiming: { total: 100 },
+        cost: undefined,
       })
     })
 
@@ -793,7 +786,7 @@ describe('AgentBlockHandler', () => {
               stream: mockStreamBody,
               execution: {
                 success: true,
-                output: { response: {} },
+                output: {},
                 logs: [],
                 metadata: {
                   duration: 0,
@@ -821,7 +814,7 @@ describe('AgentBlockHandler', () => {
 
       expect((result as StreamingExecution).execution).toHaveProperty('success', true)
       expect((result as StreamingExecution).execution).toHaveProperty('output')
-      expect((result as StreamingExecution).execution.output).toHaveProperty('response')
+      expect((result as StreamingExecution).execution.output).toBeDefined()
       expect((result as StreamingExecution).execution).toHaveProperty('logs')
     })
 
@@ -835,11 +828,9 @@ describe('AgentBlockHandler', () => {
       const mockExecutionData = {
         success: true,
         output: {
-          response: {
-            content: '',
-            model: 'mock-model',
-            tokens: { prompt: 10, completion: 20, total: 30 },
-          },
+          content: '',
+          model: 'mock-model',
+          tokens: { prompt: 10, completion: 20, total: 30 },
         },
         logs: [
           {
@@ -891,7 +882,7 @@ describe('AgentBlockHandler', () => {
       expect(result).toHaveProperty('execution')
 
       expect((result as StreamingExecution).execution.success).toBe(true)
-      expect((result as StreamingExecution).execution.output.response.model).toBe('mock-model')
+      expect((result as StreamingExecution).execution.output.model).toBe('mock-model')
       const logs = (result as StreamingExecution).execution.logs
       expect(logs?.length).toBe(1)
       if (logs && logs.length > 0 && logs[0]) {
@@ -918,11 +909,9 @@ describe('AgentBlockHandler', () => {
               execution: {
                 success: true,
                 output: {
-                  response: {
-                    content: 'Test streaming content',
-                    model: 'gpt-4o',
-                    tokens: { prompt: 10, completion: 5, total: 15 },
-                  },
+                  content: 'Test streaming content',
+                  model: 'gpt-4o',
+                  tokens: { prompt: 10, completion: 5, total: 15 },
                 },
                 logs: [],
                 metadata: {
@@ -950,10 +939,8 @@ describe('AgentBlockHandler', () => {
       expect(result).toHaveProperty('execution')
 
       expect((result as StreamingExecution).execution.success).toBe(true)
-      expect((result as StreamingExecution).execution.output.response.content).toBe(
-        'Test streaming content'
-      )
-      expect((result as StreamingExecution).execution.output.response.model).toBe('gpt-4o')
+      expect((result as StreamingExecution).execution.output.content).toBe('Test streaming content')
+      expect((result as StreamingExecution).execution.output.model).toBe('gpt-4o')
     })
 
     it('should process memories in advanced mode with system prompt and user prompt', async () => {
@@ -1006,18 +993,16 @@ describe('AgentBlockHandler', () => {
         systemPrompt: 'You are a helpful assistant.',
         userPrompt: 'Continue our conversation.',
         memories: {
-          response: {
-            memories: [
-              {
-                key: 'conversation-1',
-                type: 'agent',
-                data: [
-                  { role: 'user', content: 'Hi there!' },
-                  { role: 'assistant', content: 'Hello! How can I help you?' },
-                ],
-              },
-            ],
-          },
+          memories: [
+            {
+              key: 'conversation-1',
+              type: 'agent',
+              data: [
+                { role: 'user', content: 'Hi there!' },
+                { role: 'assistant', content: 'Hello! How can I help you?' },
+              ],
+            },
+          ],
         },
         apiKey: 'test-api-key',
       }

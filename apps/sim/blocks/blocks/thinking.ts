@@ -36,11 +36,7 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   },
 
   outputs: {
-    response: {
-      type: {
-        acknowledgedThought: 'string',
-      },
-    },
+    acknowledgedThought: 'string',
   },
 
   tools: {

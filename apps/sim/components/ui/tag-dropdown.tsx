@@ -1,19 +1,25 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import {
-  type ConnectedBlock,
-  useBlockConnections,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-connections'
 import { getBlock } from '@/blocks'
+import { Serializer } from '@/serializer'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('TagDropdown')
+
+// Type definitions for component data structures
+interface BlockTagGroup {
+  blockName: string
+  blockId: string
+  blockType: string
+  tags: string[]
+  distance: number
+}
 
 interface Field {
   name: string
@@ -21,13 +27,41 @@ interface Field {
   description?: string
 }
 
-interface Metric {
-  name: string
-  description: string
-  range: {
-    min: number
-    max: number
+// Helper function to extract fields from JSON Schema
+export function extractFieldsFromSchema(schema: any): Field[] {
+  if (!schema || typeof schema !== 'object') {
+    return []
   }
+
+  // Handle legacy format with fields array
+  if (Array.isArray(schema.fields)) {
+    return schema.fields
+  }
+
+  // Handle new JSON Schema format
+  const schemaObj = schema.schema || schema
+  if (!schemaObj || !schemaObj.properties || typeof schemaObj.properties !== 'object') {
+    return []
+  }
+
+  // Extract fields from schema properties
+  return Object.entries(schemaObj.properties).map(([name, prop]: [string, any]) => {
+    // Handle array format like ['string', 'array']
+    if (Array.isArray(prop)) {
+      return {
+        name,
+        type: prop.includes('array') ? 'array' : prop[0] || 'string',
+        description: undefined,
+      }
+    }
+
+    // Handle object format like { type: 'string', description: '...' }
+    return {
+      name,
+      type: prop.type || 'string',
+      description: prop.description,
+    }
+  })
 }
 
 interface TagDropdownProps {
@@ -42,32 +76,42 @@ interface TagDropdownProps {
   style?: React.CSSProperties
 }
 
-// Add a helper function to extract fields from JSON Schema
-export const extractFieldsFromSchema = (responseFormat: any): Field[] => {
-  if (!responseFormat) return []
+// Check if tag trigger '<' should show dropdown
+export const checkTagTrigger = (text: string, cursorPosition: number): { show: boolean } => {
+  if (cursorPosition >= 1) {
+    const textBeforeCursor = text.slice(0, cursorPosition)
+    const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
+    const lastCloseBracket = textBeforeCursor.lastIndexOf('>')
 
-  // Handle legacy format with fields array
-  if (Array.isArray(responseFormat.fields)) {
-    return responseFormat.fields
+    // Show if we have an unclosed '<' that's not part of a completed tag
+    if (lastOpenBracket !== -1 && (lastCloseBracket === -1 || lastCloseBracket < lastOpenBracket)) {
+      return { show: true }
+    }
+  }
+  return { show: false }
+}
+
+// Generate output paths from block configuration outputs
+const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[] => {
+  const paths: string[] = []
+
+  for (const [key, value] of Object.entries(outputs)) {
+    const currentPath = prefix ? `${prefix}.${key}` : key
+
+    if (typeof value === 'string') {
+      // Simple type like 'string', 'number', 'json', 'any'
+      paths.push(currentPath)
+    } else if (typeof value === 'object' && value !== null) {
+      // Nested object - recurse
+      const subPaths = generateOutputPaths(value, currentPath)
+      paths.push(...subPaths)
+    } else {
+      // Fallback - add the path
+      paths.push(currentPath)
+    }
   }
 
-  // Handle new JSON Schema format
-  const schema = responseFormat.schema || responseFormat
-  if (
-    !schema ||
-    typeof schema !== 'object' ||
-    !('properties' in schema) ||
-    typeof schema.properties !== 'object' ||
-    schema.properties === null
-  ) {
-    return []
-  }
-
-  return Object.entries(schema.properties).map(([name, prop]: [string, any]) => ({
-    name,
-    type: Array.isArray(prop) ? 'array' : prop.type || 'string',
-    description: prop.description,
-  }))
+  return paths
 }
 
 export const TagDropdown: React.FC<TagDropdownProps> = ({
@@ -81,90 +125,129 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   onClose,
   style,
 }) => {
+  // Component state
   const [selectedIndex, setSelectedIndex] = useState(0)
 
-  // Get available tags from workflow state
+  // Store hooks for workflow data
   const blocks = useWorkflowStore((state) => state.blocks)
   const loops = useWorkflowStore((state) => state.loops)
   const parallels = useWorkflowStore((state) => state.parallels)
-  const _edges = useWorkflowStore((state) => state.edges)
+  const edges = useWorkflowStore((state) => state.edges)
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
-  // Get variables from variables store
+  // Store hooks for variables
   const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
   const loadVariables = useVariablesStore((state) => state.loadVariables)
   const variables = useVariablesStore((state) => state.variables)
   const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
 
-  // Get all connected blocks using useBlockConnections
-  const { incomingConnections } = useBlockConnections(blockId)
-
-  // Load variables when workflowId changes
+  // Load variables when workflow changes
   useEffect(() => {
     if (workflowId) {
       loadVariables(workflowId)
     }
   }, [workflowId, loadVariables])
 
-  // Extract search term from input
+  // Extract current search term from input
   const searchTerm = useMemo(() => {
     const textBeforeCursor = inputValue.slice(0, cursorPosition)
     const match = textBeforeCursor.match(/<([^>]*)$/)
     return match ? match[1].toLowerCase() : ''
   }, [inputValue, cursorPosition])
 
-  // Get source block and compute tags
-  const { tags, variableInfoMap = {} } = useMemo(() => {
-    // Helper function to get output paths
-    const getOutputPaths = (obj: any, prefix = '', isStarterBlock = false): string[] => {
-      if (typeof obj !== 'object' || obj === null) {
-        return prefix ? [prefix] : []
+  // Generate all available tags using BlockPathCalculator and clean block outputs
+  const {
+    tags,
+    variableInfoMap = {},
+    blockTagGroups = [],
+  } = useMemo(() => {
+    // Handle active source block (drag & drop from specific block)
+    if (activeSourceBlockId) {
+      const sourceBlock = blocks[activeSourceBlockId]
+      if (!sourceBlock) {
+        return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
       }
 
-      // Special handling for starter block with input format
-      if (isStarterBlock && prefix === 'response') {
-        try {
-          // Check if there's an input format defined
-          const inputFormatValue = useSubBlockStore
-            .getState()
-            .getValue(activeSourceBlockId || blockId, 'inputFormat')
-          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
-            // Check if any fields have been configured with names
-            const hasConfiguredFields = inputFormatValue.some(
-              (field: any) => field.name && field.name.trim() !== ''
-            )
-
-            // If no fields have been configured, return the default input path
-            if (!hasConfiguredFields) {
-              return ['response.input']
-            }
-
-            // Return fields from input format
-            return inputFormatValue.map((field: any) => `response.input.${field.name}`)
-          }
-        } catch (e) {
-          logger.error('Error parsing input format:', { e })
-        }
-
-        return ['response.input']
+      const blockConfig = getBlock(sourceBlock.type)
+      if (!blockConfig) {
+        return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
       }
 
-      if ('type' in obj && typeof obj.type === 'string') {
-        return [prefix]
+      const blockName = sourceBlock.name || sourceBlock.type
+      const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
+
+      // Handle blocks with no outputs (like starter) - show as just <blockname>
+      let blockTags: string[]
+      if (Object.keys(blockConfig.outputs).length === 0) {
+        blockTags = [normalizedBlockName]
+      } else {
+        const outputPaths = generateOutputPaths(blockConfig.outputs)
+        blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
 
-      return Object.entries(obj).flatMap(([key, value]) => {
-        const newPrefix = prefix ? `${prefix}.${key}` : key
-        return getOutputPaths(value, newPrefix, isStarterBlock)
-      })
+      const blockTagGroups: BlockTagGroup[] = [
+        {
+          blockName,
+          blockId: activeSourceBlockId,
+          blockType: sourceBlock.type,
+          tags: blockTags,
+          distance: 0,
+        },
+      ]
+
+      return {
+        tags: blockTags,
+        variableInfoMap: {},
+        blockTagGroups,
+      }
     }
 
-    // Variables as tags - format as variable.{variableName}
+    // Create serialized workflow for BlockPathCalculator
+    const serializer = new Serializer()
+    const serializedWorkflow = serializer.serializeWorkflow(blocks, edges, loops, parallels)
+
+    // Find accessible blocks using BlockPathCalculator
+    const accessibleBlockIds = BlockPathCalculator.findAllPathNodes(
+      serializedWorkflow.connections,
+      blockId
+    )
+
+    // Always include starter block
+    const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
+    if (starterBlock && !accessibleBlockIds.includes(starterBlock.id)) {
+      accessibleBlockIds.push(starterBlock.id)
+    }
+
+    // Calculate distances from starter block for ordering
+    const blockDistances: Record<string, number> = {}
+    if (starterBlock) {
+      const adjList: Record<string, string[]> = {}
+      for (const edge of edges) {
+        if (!adjList[edge.source]) adjList[edge.source] = []
+        adjList[edge.source].push(edge.target)
+      }
+
+      const visited = new Set<string>()
+      const queue: [string, number][] = [[starterBlock.id, 0]]
+
+      while (queue.length > 0) {
+        const [currentNodeId, distance] = queue.shift()!
+        if (visited.has(currentNodeId)) continue
+        visited.add(currentNodeId)
+        blockDistances[currentNodeId] = distance
+
+        const outgoingNodeIds = adjList[currentNodeId] || []
+        for (const targetId of outgoingNodeIds) {
+          queue.push([targetId, distance + 1])
+        }
+      }
+    }
+
+    // Create variable tags
     const variableTags = workflowVariables.map(
       (variable: Variable) => `variable.${variable.name.replace(/\s+/g, '')}`
     )
 
-    // Create a map of variable tags to their type information
     const variableInfoMap = workflowVariables.reduce(
       (acc, variable) => {
         const tagName = `variable.${variable.name.replace(/\s+/g, '')}`
@@ -177,225 +260,73 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       {} as Record<string, { type: string; id: string }>
     )
 
-    // Loop tags - Add if this block is in a loop
+    // Generate loop tags if current block is in a loop
     const loopTags: string[] = []
-
-    // Check if the current block is part of a loop
     const containingLoop = Object.entries(loops).find(([_, loop]) => loop.nodes.includes(blockId))
-
     if (containingLoop) {
       const [_loopId, loop] = containingLoop
       const loopType = loop.loopType || 'for'
-
-      // Add loop.index for all loop types
       loopTags.push('loop.index')
-
-      // Add forEach specific properties
       if (loopType === 'forEach') {
-        // Add loop.currentItem and loop.items
         loopTags.push('loop.currentItem')
         loopTags.push('loop.items')
       }
     }
 
-    // Parallel tags - Add if this block is in a parallel
+    // Generate parallel tags if current block is in parallel
     const parallelTags: string[] = []
-
-    // Check if the current block is part of a parallel
     const containingParallel = Object.entries(parallels || {}).find(([_, parallel]) =>
       parallel.nodes.includes(blockId)
     )
-
     if (containingParallel) {
-      // Add parallel.index for all parallel blocks
       parallelTags.push('parallel.index')
-
-      // Add parallel.currentItem and parallel.items
       parallelTags.push('parallel.currentItem')
       parallelTags.push('parallel.items')
     }
 
-    // If we have an active source block ID from a drop, use that specific block only
-    if (activeSourceBlockId) {
-      const sourceBlock = blocks[activeSourceBlockId]
-      if (!sourceBlock) return { tags: [...variableTags] }
+    // Create block tag groups from accessible blocks
+    const blockTagGroups: BlockTagGroup[] = []
+    const allBlockTags: string[] = []
 
-      const blockName = sourceBlock.name || sourceBlock.type
+    for (const accessibleBlockId of accessibleBlockIds) {
+      const accessibleBlock = blocks[accessibleBlockId]
+      if (!accessibleBlock) continue
+
+      const blockConfig = getBlock(accessibleBlock.type)
+      if (!blockConfig) continue
+
+      const blockName = accessibleBlock.name || accessibleBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
-      // First check for evaluator metrics
-      if (sourceBlock.type === 'evaluator') {
-        try {
-          const metricsValue = useSubBlockStore
-            .getState()
-            .getValue(activeSourceBlockId, 'metrics') as unknown as Metric[]
-          if (Array.isArray(metricsValue)) {
-            return {
-              tags: [
-                ...variableTags,
-                ...metricsValue.map(
-                  (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`
-                ),
-              ],
-            }
-          }
-        } catch (e) {
-          logger.error('Error parsing metrics:', { e })
-        }
+      // Handle blocks with no outputs (like starter) - show as just <blockname>
+      let blockTags: string[]
+      if (Object.keys(blockConfig.outputs).length === 0) {
+        blockTags = [normalizedBlockName]
+      } else {
+        const outputPaths = generateOutputPaths(blockConfig.outputs)
+        blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
 
-      // Then check for response format
-      try {
-        const responseFormatValue = useSubBlockStore
-          .getState()
-          .getValue(activeSourceBlockId, 'responseFormat')
-        if (responseFormatValue) {
-          const responseFormat =
-            typeof responseFormatValue === 'string'
-              ? JSON.parse(responseFormatValue)
-              : responseFormatValue
+      blockTagGroups.push({
+        blockName,
+        blockId: accessibleBlockId,
+        blockType: accessibleBlock.type,
+        tags: blockTags,
+        distance: blockDistances[accessibleBlockId] || 0,
+      })
 
-          if (responseFormat) {
-            const fields = extractFieldsFromSchema(responseFormat)
-            if (fields.length > 0) {
-              return {
-                tags: [
-                  ...variableTags,
-                  ...fields.map((field: Field) => `${normalizedBlockName}.response.${field.name}`),
-                ],
-              }
-            }
-          }
-        }
-      } catch (e) {
-        logger.error('Error parsing response format:', { e })
-      }
-
-      // Fall back to default outputs if no response format
-      const outputPaths = getOutputPaths(sourceBlock.outputs, '', sourceBlock.type === 'starter')
-      return {
-        tags: [...variableTags, ...outputPaths.map((path) => `${normalizedBlockName}.${path}`)],
-      }
+      allBlockTags.push(...blockTags)
     }
 
-    // Find parallel and loop blocks connected via end-source handles
-    const endSourceConnections: ConnectedBlock[] = []
+    // Sort block groups by distance (closest first)
+    blockTagGroups.sort((a, b) => a.distance - b.distance)
 
-    // Get all edges that connect to this block
-    const incomingEdges = useWorkflowStore
-      .getState()
-      .edges.filter((edge) => edge.target === blockId)
-
-    for (const edge of incomingEdges) {
-      const sourceBlock = blocks[edge.source]
-      if (!sourceBlock) continue
-
-      // Check if this is a parallel-end-source or loop-end-source connection
-      if (edge.sourceHandle === 'parallel-end-source' && sourceBlock.type === 'parallel') {
-        const blockName = sourceBlock.name || sourceBlock.type
-        const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
-
-        // Add the parallel block as a referenceable block with its aggregated results
-        endSourceConnections.push({
-          id: sourceBlock.id,
-          type: sourceBlock.type,
-          outputType: ['response'],
-          name: blockName,
-          responseFormat: {
-            fields: [
-              {
-                name: 'completed',
-                type: 'boolean',
-                description: 'Whether all executions completed',
-              },
-              {
-                name: 'results',
-                type: 'array',
-                description: 'Aggregated results from all parallel executions',
-              },
-              { name: 'message', type: 'string', description: 'Status message' },
-            ],
-          },
-        })
-      } else if (edge.sourceHandle === 'loop-end-source' && sourceBlock.type === 'loop') {
-        const blockName = sourceBlock.name || sourceBlock.type
-        const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
-
-        // Add the loop block as a referenceable block with its aggregated results
-        endSourceConnections.push({
-          id: sourceBlock.id,
-          type: sourceBlock.type,
-          outputType: ['response'],
-          name: blockName,
-          responseFormat: {
-            fields: [
-              {
-                name: 'completed',
-                type: 'boolean',
-                description: 'Whether all iterations completed',
-              },
-              {
-                name: 'results',
-                type: 'array',
-                description: 'Aggregated results from all loop iterations',
-              },
-              { name: 'message', type: 'string', description: 'Status message' },
-            ],
-          },
-        })
-      }
+    return {
+      tags: [...variableTags, ...loopTags, ...parallelTags, ...allBlockTags],
+      variableInfoMap,
+      blockTagGroups,
     }
-
-    // Use all incoming connections plus end-source connections
-    const allConnections = [...incomingConnections, ...endSourceConnections]
-
-    const sourceTags = allConnections.flatMap((connection: ConnectedBlock) => {
-      const blockName = connection.name || connection.type
-      const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
-
-      // Extract fields from response format
-      if (connection.responseFormat) {
-        const fields = extractFieldsFromSchema(connection.responseFormat)
-        if (fields.length > 0) {
-          return fields.map((field: Field) => `${normalizedBlockName}.response.${field.name}`)
-        }
-      }
-
-      // For evaluator blocks, use metrics
-      if (connection.type === 'evaluator') {
-        try {
-          const metricsValue = useSubBlockStore
-            .getState()
-            .getValue(connection.id, 'metrics') as unknown as Metric[]
-          if (Array.isArray(metricsValue)) {
-            return metricsValue.map(
-              (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`
-            )
-          }
-        } catch (e) {
-          logger.error('Error parsing metrics:', { e })
-          return []
-        }
-      }
-
-      // Fall back to default outputs if no response format
-      const sourceBlock = blocks[connection.id]
-      if (!sourceBlock) return []
-
-      const outputPaths = getOutputPaths(sourceBlock.outputs, '', sourceBlock.type === 'starter')
-      return outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-    })
-
-    return { tags: [...variableTags, ...loopTags, ...parallelTags, ...sourceTags], variableInfoMap }
-  }, [
-    blocks,
-    incomingConnections,
-    blockId,
-    activeSourceBlockId,
-    workflowVariables,
-    loops,
-    parallels,
-  ])
+  }, [blocks, edges, loops, parallels, blockId, activeSourceBlockId, workflowVariables])
 
   // Filter tags based on search term
   const filteredTags = useMemo(() => {
@@ -403,12 +334,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return tags.filter((tag: string) => tag.toLowerCase().includes(searchTerm))
   }, [tags, searchTerm])
 
-  // Group tags into variables, loops, and blocks
-  const { variableTags, loopTags, parallelTags, blockTags } = useMemo(() => {
+  // Group filtered tags by category
+  const { variableTags, loopTags, parallelTags, filteredBlockTagGroups } = useMemo(() => {
     const varTags: string[] = []
     const loopTags: string[] = []
     const parTags: string[] = []
-    const blkTags: string[] = []
 
     filteredTags.forEach((tag) => {
       if (tag.startsWith('variable.')) {
@@ -417,20 +347,32 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         loopTags.push(tag)
       } else if (tag.startsWith('parallel.')) {
         parTags.push(tag)
-      } else {
-        blkTags.push(tag)
       }
     })
 
-    return { variableTags: varTags, loopTags: loopTags, parallelTags: parTags, blockTags: blkTags }
-  }, [filteredTags])
+    // Filter block tag groups based on search term
+    const filteredBlockTagGroups = blockTagGroups
+      .map((group) => ({
+        ...group,
+        tags: group.tags.filter((tag) => !searchTerm || tag.toLowerCase().includes(searchTerm)),
+      }))
+      .filter((group) => group.tags.length > 0)
 
-  // Create ordered tags array that matches the display order for keyboard navigation
+    return {
+      variableTags: varTags,
+      loopTags: loopTags,
+      parallelTags: parTags,
+      filteredBlockTagGroups,
+    }
+  }, [filteredTags, blockTagGroups, searchTerm])
+
+  // Create ordered tags for keyboard navigation
   const orderedTags = useMemo(() => {
-    return [...variableTags, ...loopTags, ...parallelTags, ...blockTags]
-  }, [variableTags, loopTags, parallelTags, blockTags])
+    const allBlockTags = filteredBlockTagGroups.flatMap((group) => group.tags)
+    return [...variableTags, ...loopTags, ...parallelTags, ...allBlockTags]
+  }, [variableTags, loopTags, parallelTags, filteredBlockTagGroups])
 
-  // Create a map for efficient tag index lookups
+  // Create efficient tag index lookup map
   const tagIndexMap = useMemo(() => {
     const map = new Map<string, number>()
     orderedTags.forEach((tag, index) => {
@@ -439,19 +381,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return map
   }, [orderedTags])
 
-  // Reset selection when filtered results change
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [searchTerm])
-
-  // Ensure selectedIndex stays within bounds when orderedTags changes
-  useEffect(() => {
-    if (selectedIndex >= orderedTags.length) {
-      setSelectedIndex(Math.max(0, orderedTags.length - 1))
-    }
-  }, [orderedTags.length, selectedIndex])
-
-  // Handle tag selection
+  // Handle tag selection and text replacement
   const handleTagSelect = useCallback(
     (tag: string) => {
       const textBeforeCursor = inputValue.slice(0, cursorPosition)
@@ -461,34 +391,26 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
       if (lastOpenBracket === -1) return
 
-      // Process the tag if it's a variable tag
+      // Process variable tags to maintain compatibility
       let processedTag = tag
       if (tag.startsWith('variable.')) {
-        // Get the variable name from the tag (after 'variable.')
         const variableName = tag.substring('variable.'.length)
-
-        // Find the variable in the store by name
         const variableObj = Object.values(variables).find(
           (v) => v.name.replace(/\s+/g, '') === variableName
         )
 
-        // We still use the full tag format internally to maintain compatibility
         if (variableObj) {
           processedTag = tag
         }
       }
 
-      // Check if there's a closing bracket in textAfterCursor that belongs to the current tag
-      // Find the first '>' in textAfterCursor (if any)
+      // Handle existing closing bracket
       const nextCloseBracket = textAfterCursor.indexOf('>')
       let remainingTextAfterCursor = textAfterCursor
 
-      // If there's a '>' right after the cursor or with only whitespace/tag content in between,
-      // it's likely part of the existing tag being edited, so we should skip it
       if (nextCloseBracket !== -1) {
         const textBetween = textAfterCursor.slice(0, nextCloseBracket)
-        // If the text between cursor and '>' contains only tag-like characters (letters, dots, numbers)
-        // then it's likely part of the current tag being edited
+        // If text between cursor and '>' contains only tag-like characters, skip it
         if (/^[a-zA-Z0-9._]*$/.test(textBetween)) {
           remainingTextAfterCursor = textAfterCursor.slice(nextCloseBracket + 1)
         }
@@ -502,7 +424,17 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [inputValue, cursorPosition, variables, onSelect, onClose]
   )
 
-  // Add and remove keyboard event listener
+  // Reset selection when search results change
+  useEffect(() => setSelectedIndex(0), [searchTerm])
+
+  // Keep selection within bounds when tags change
+  useEffect(() => {
+    if (selectedIndex >= orderedTags.length) {
+      setSelectedIndex(Math.max(0, orderedTags.length - 1))
+    }
+  }, [orderedTags.length, selectedIndex])
+
+  // Handle keyboard navigation
   useEffect(() => {
     if (visible) {
       const handleKeyboardEvent = (e: KeyboardEvent) => {
@@ -539,7 +471,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     }
   }, [visible, selectedIndex, orderedTags, handleTagSelect, onClose])
 
-  // Don't render if not visible or no tags
+  // Early return if dropdown should not be visible
   if (!visible || tags.length === 0 || orderedTags.length === 0) return null
 
   return (
@@ -555,6 +487,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           <div className='px-3 py-2 text-muted-foreground text-sm'>No matching tags found</div>
         ) : (
           <>
+            {/* Variables section */}
             {variableTags.length > 0 && (
               <>
                 <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
@@ -578,8 +511,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         )}
                         onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
                         onMouseDown={(e) => {
-                          e.preventDefault() // Prevent input blur
-                          e.stopPropagation() // Prevent event bubbling
+                          e.preventDefault()
+                          e.stopPropagation()
                           handleTagSelect(tag)
                         }}
                         onClick={(e) => {
@@ -609,6 +542,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               </>
             )}
 
+            {/* Loop section */}
             {loopTags.length > 0 && (
               <>
                 {variableTags.length > 0 && <div className='my-0' />}
@@ -620,10 +554,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                     const tagIndex = tagIndexMap.get(tag) ?? -1
                     const loopProperty = tag.split('.')[1]
 
-                    // Choose appropriate icon/label based on type
+                    // Choose appropriate icon and description based on loop property
                     let tagIcon = 'L'
                     let tagDescription = ''
-                    const bgColor = '#8857E6' // Purple for loop variables
+                    const bgColor = '#8857E6'
 
                     if (loopProperty === 'currentItem') {
                       tagIcon = 'i'
@@ -649,8 +583,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         )}
                         onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
                         onMouseDown={(e) => {
-                          e.preventDefault() // Prevent input blur
-                          e.stopPropagation() // Prevent event bubbling
+                          e.preventDefault()
+                          e.stopPropagation()
                           handleTagSelect(tag)
                         }}
                         onClick={(e) => {
@@ -676,6 +610,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               </>
             )}
 
+            {/* Parallel section */}
             {parallelTags.length > 0 && (
               <>
                 {loopTags.length > 0 && <div className='my-0' />}
@@ -687,10 +622,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                     const tagIndex = tagIndexMap.get(tag) ?? -1
                     const parallelProperty = tag.split('.')[1]
 
-                    // Choose appropriate icon/label based on type
+                    // Choose appropriate icon and description based on parallel property
                     let tagIcon = 'P'
                     let tagDescription = ''
-                    const bgColor = '#FF5757' // Red for parallel variables
+                    const bgColor = '#FF5757'
 
                     if (parallelProperty === 'currentItem') {
                       tagIcon = 'i'
@@ -716,8 +651,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         )}
                         onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
                         onMouseDown={(e) => {
-                          e.preventDefault() // Prevent input blur
-                          e.stopPropagation() // Prevent event bubbling
+                          e.preventDefault()
+                          e.stopPropagation()
                           handleTagSelect(tag)
                         }}
                         onClick={(e) => {
@@ -743,68 +678,72 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               </>
             )}
 
-            {blockTags.length > 0 && (
+            {/* Block sections */}
+            {filteredBlockTagGroups.length > 0 && (
               <>
                 {(variableTags.length > 0 || loopTags.length > 0 || parallelTags.length > 0) && (
                   <div className='my-0' />
                 )}
-                <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                  Blocks
-                </div>
-                <div className='-mx-1 -px-1'>
-                  {blockTags.map((tag: string) => {
-                    const tagIndex = tagIndexMap.get(tag) ?? -1
+                {filteredBlockTagGroups.map((group) => {
+                  // Get block color from configuration
+                  const blockConfig = getBlock(group.blockType)
+                  const blockColor = blockConfig?.bgColor || '#2F55FF'
 
-                    // Get block name from tag (first part before the dot)
-                    const blockName = tag.split('.')[0]
+                  return (
+                    <div key={group.blockId}>
+                      <div className='border-t px-2 pt-1.5 pb-0.5 font-medium text-muted-foreground text-xs first:border-t-0'>
+                        {group.blockName}
+                      </div>
+                      <div>
+                        {group.tags.map((tag: string) => {
+                          const tagIndex = tagIndexMap.get(tag) ?? -1
+                          // Extract path after block name (e.g., "field" from "blockname.field")
+                          // For root reference blocks, show the block name instead of empty path
+                          const tagParts = tag.split('.')
+                          const path = tagParts.slice(1).join('.')
+                          const displayText = path || group.blockName
 
-                    // Get block type from blocks
-                    const blockType = Object.values(blocks).find(
-                      (block) =>
-                        (block.name || block.type || '').replace(/\s+/g, '').toLowerCase() ===
-                        blockName
-                    )?.type
-
-                    // Get block color from block config
-                    const blockConfig = blockType ? getBlock(blockType) : null
-                    const blockColor = blockConfig?.bgColor || '#2F55FF' // Default to blue if not found
-
-                    return (
-                      <button
-                        key={tag}
-                        className={cn(
-                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
-                          'hover:bg-accent hover:text-accent-foreground',
-                          'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                          tagIndex === selectedIndex &&
-                            tagIndex >= 0 &&
-                            'bg-accent text-accent-foreground'
-                        )}
-                        onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
-                        onMouseDown={(e) => {
-                          e.preventDefault() // Prevent input blur
-                          e.stopPropagation() // Prevent event bubbling
-                          handleTagSelect(tag)
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleTagSelect(tag)
-                        }}
-                      >
-                        <div
-                          className='flex h-5 w-5 items-center justify-center rounded'
-                          style={{ backgroundColor: blockColor }}
-                        >
-                          <span className='h-3 w-3 font-bold text-white text-xs'>
-                            {blockName.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <span className='flex-1 truncate'>{tag}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+                          return (
+                            <button
+                              key={tag}
+                              className={cn(
+                                'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                                'hover:bg-accent hover:text-accent-foreground',
+                                'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                                tagIndex === selectedIndex &&
+                                  tagIndex >= 0 &&
+                                  'bg-accent text-accent-foreground'
+                              )}
+                              onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                handleTagSelect(tag)
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                handleTagSelect(tag)
+                              }}
+                            >
+                              <div
+                                className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
+                                style={{ backgroundColor: blockColor }}
+                              >
+                                <span className='h-3 w-3 font-bold text-white text-xs'>
+                                  {group.blockName.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <span className='max-w-[calc(100%-32px)] truncate'>
+                                {displayText}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
               </>
             )}
           </>
@@ -812,19 +751,4 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       </div>
     </div>
   )
-}
-
-// Helper function to check for '<' trigger
-export const checkTagTrigger = (text: string, cursorPosition: number): { show: boolean } => {
-  if (cursorPosition >= 1) {
-    const textBeforeCursor = text.slice(0, cursorPosition)
-    const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
-    const lastCloseBracket = textBeforeCursor.lastIndexOf('>')
-
-    // Show if we have an unclosed '<' that's not part of a completed tag
-    if (lastOpenBracket !== -1 && (lastCloseBracket === -1 || lastCloseBracket < lastOpenBracket)) {
-      return { show: true }
-    }
-  }
-  return { show: false }
 }

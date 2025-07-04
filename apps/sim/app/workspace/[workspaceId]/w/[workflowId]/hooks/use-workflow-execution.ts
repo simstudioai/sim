@@ -82,9 +82,9 @@ export function useWorkflowExecution() {
       }
 
       // If this was a streaming response and we have the final content, update it
-      if (streamContent && result.output?.response && typeof streamContent === 'string') {
+      if (streamContent && result.output && typeof streamContent === 'string') {
         // Update the content with the final streaming content
-        enrichedResult.output.response.content = streamContent
+        enrichedResult.output.content = streamContent
 
         // Also update any block logs to include the content where appropriate
         if (enrichedResult.logs) {
@@ -97,10 +97,9 @@ export function useWorkflowExecution() {
             if (
               isStreamingBlock &&
               (log.blockType === 'agent' || log.blockType === 'router') &&
-              log.output?.response
-            ) {
-              log.output.response.content = streamContent
-            }
+              log.output
+            )
+              log.output.content = streamContent
           }
         }
       }
@@ -122,7 +121,7 @@ export function useWorkflowExecution() {
 
       return executionId
     } catch (error) {
-      logger.error('Error persisting logs:', { error })
+      logger.error('Error persisting logs:', error)
       return executionId
     }
   }
@@ -215,8 +214,8 @@ export function useWorkflowExecution() {
                 result.logs?.forEach((log: BlockLog) => {
                   if (streamedContent.has(log.blockId)) {
                     const content = streamedContent.get(log.blockId) || ''
-                    if (log.output?.response) {
-                      log.output.response.content = content
+                    if (log.output) {
+                      log.output.content = content
                     }
                     useConsoleStore.getState().updateConsole(log.blockId, content)
                   }
@@ -225,9 +224,9 @@ export function useWorkflowExecution() {
                 controller.enqueue(
                   encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
                 )
-                persistLogs(executionId, result).catch((err) => {
-                  logger.error('Error persisting logs:', { error: err })
-                })
+                persistLogs(executionId, result).catch((err) =>
+                  logger.error('Error persisting logs:', err)
+                )
               }
             } catch (error: any) {
               controller.error(error)
@@ -437,7 +436,7 @@ export function useWorkflowExecution() {
 
     const errorResult: ExecutionResult = {
       success: false,
-      output: { response: {} },
+      output: {},
       error: errorMessage,
       logs: [],
     }
@@ -560,7 +559,7 @@ export function useWorkflowExecution() {
       // Create error result
       const errorResult = {
         success: false,
-        output: { response: {} },
+        output: {},
         error: errorMessage,
         logs: debugContext.blockLogs,
       }
@@ -647,7 +646,7 @@ export function useWorkflowExecution() {
 
       let currentResult: ExecutionResult = {
         success: true,
-        output: { response: {} },
+        output: {},
         logs: debugContext.blockLogs,
       }
 
@@ -743,7 +742,7 @@ export function useWorkflowExecution() {
       // Create error result
       const errorResult = {
         success: false,
-        output: { response: {} },
+        output: {},
         error: errorMessage,
         logs: debugContext.blockLogs,
       }

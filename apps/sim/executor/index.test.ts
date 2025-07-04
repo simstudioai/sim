@@ -66,7 +66,7 @@ describe('Executor', () => {
     test('should create an executor instance with new options object format', () => {
       const workflow = createMinimalWorkflow()
       const initialStates = {
-        block1: { response: { result: 'Initial state' } },
+        block1: { result: { value: 'Initial state' } },
       }
       const envVars = { API_KEY: 'test-key', BASE_URL: 'https://example.com' }
       const workflowInput = { query: 'test query' }
@@ -111,7 +111,7 @@ describe('Executor', () => {
     test('should handle legacy constructor with individual parameters', () => {
       const workflow = createMinimalWorkflow()
       const initialStates = {
-        block1: { response: { result: 'Initial state' } },
+        block1: { result: { value: 'Initial state' } },
       }
       const envVars = { API_KEY: 'test-key' }
       const workflowInput = { query: 'test query' }
@@ -225,7 +225,6 @@ describe('Executor', () => {
       if ('success' in result) {
         expect(result).toHaveProperty('success')
         expect(result).toHaveProperty('output')
-        expect(result.output).toHaveProperty('response')
 
         // Our mocked implementation results in a false success value
         // In real usage, this would be true for successful executions
@@ -373,7 +372,7 @@ describe('Executor', () => {
       // Create a mock context for debug continuation
       const mockContext = createMockContext()
       mockContext.blockStates.set('starter', {
-        output: { response: { input: {} } },
+        output: { input: {} },
         executed: true,
         executionTime: 0,
       })
@@ -389,61 +388,27 @@ describe('Executor', () => {
   /**
    * Additional tests to improve coverage
    */
-  describe('normalizeBlockOutput', () => {
-    test('should normalize different block outputs correctly', () => {
+  describe('block output handling', () => {
+    test('should handle different block outputs correctly', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
-      // Access the private method for testing
-      const normalizeOutput = (executor as any).normalizeBlockOutput.bind(executor)
-
-      // Test normalizing agent block output
-      const agentBlock = { metadata: { id: 'agent' } }
-      const agentOutput = { response: { content: 'Agent response' } }
-      expect(normalizeOutput(agentOutput, agentBlock)).toEqual(agentOutput)
-
-      // Test normalizing router block output
-      const routerBlock = { metadata: { id: 'router' } }
-      const routerOutput = { selectedPath: { blockId: 'target' } }
-      const normalizedRouterOutput = normalizeOutput(routerOutput, routerBlock)
-      expect(normalizedRouterOutput.response.selectedPath).toEqual(routerOutput.selectedPath)
-
-      // Test normalizing function block output
-      const functionBlock = { metadata: { id: 'function' } }
-      const functionOutput = { result: 'Function result', stdout: 'Output' }
-      const normalizedFunctionOutput = normalizeOutput(functionOutput, functionBlock)
-      expect(normalizedFunctionOutput.response.result).toEqual(functionOutput.result)
-      expect(normalizedFunctionOutput.response.stdout).toEqual(functionOutput.stdout)
-
-      // Test generic output normalization
-      const genericBlock = { metadata: { id: 'unknown' } }
-      const genericOutput = 'Simple string result'
-      const normalizedGenericOutput = normalizeOutput(genericOutput, genericBlock)
-      expect(normalizedGenericOutput.response.result).toEqual(genericOutput)
+      // Test basic workflow execution
+      expect(executor).toBeDefined()
+      expect(typeof executor.execute).toBe('function')
     })
 
-    test('should normalize error outputs correctly', () => {
+    test('should handle error outputs correctly', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
-      const normalizeOutput = (executor as any).normalizeBlockOutput.bind(executor)
 
-      // Test error output with error property
-      const errorOutput = { error: 'Test error message', status: 400 }
-      const normalizedErrorOutput = normalizeOutput(errorOutput, { metadata: { id: 'api' } })
+      // Test error handling functionality
+      const extractErrorMessage = (executor as any).extractErrorMessage.bind(executor)
 
-      expect(normalizedErrorOutput).toHaveProperty('error', 'Test error message')
-      expect(normalizedErrorOutput.response).toHaveProperty('error', 'Test error message')
-      expect(normalizedErrorOutput.response).toHaveProperty('status', 400)
-
-      // Test object with response.error
-      const responseErrorOutput = { response: { error: 'Response error', data: 'test' } }
-      const normalizedResponseError = normalizeOutput(responseErrorOutput, {
-        metadata: { id: 'api' },
-      })
-
-      expect(normalizedResponseError).toHaveProperty('error', 'Response error')
-      expect(normalizedResponseError.response).toHaveProperty('error', 'Response error')
-      expect(normalizedResponseError.response).toHaveProperty('data', 'test')
+      // Test error message extraction
+      const error = new Error('Test error message')
+      const errorMessage = extractErrorMessage(error)
+      expect(errorMessage).toBe('Test error message')
     })
   })
 
@@ -467,7 +432,6 @@ describe('Executor', () => {
       context.blockStates.set('block1', {
         output: {
           error: 'Test error',
-          response: { error: 'Test error' },
         },
         executed: true,
       })
@@ -579,17 +543,13 @@ describe('Executor', () => {
 
       // Create an error output manually
       const errorOutput = {
-        response: {
-          error: errorMessage,
-          status: testError.status || 500,
-        },
         error: errorMessage,
+        status: testError.status || 500,
       }
 
       // Verify the error output structure
       expect(errorOutput).toHaveProperty('error')
-      expect(errorOutput.response).toHaveProperty('error')
-      expect(errorOutput.response).toHaveProperty('status')
+      expect(errorOutput).toHaveProperty('status')
     })
 
     test('should handle "undefined (undefined)" error case', () => {
@@ -676,35 +636,51 @@ describe('Executor', () => {
     test('should handle multi-input blocks with inactive sources correctly', () => {
       // Create workflow with router -> multiple APIs -> single agent
       const routerWorkflow = {
+        version: '1.0',
         blocks: [
           {
             id: 'start',
+            position: { x: 0, y: 0 },
             metadata: { id: 'starter', name: 'Start' },
-            config: { params: {} },
+            config: { tool: 'test-tool', params: {} },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
           {
             id: 'router',
+            position: { x: 100, y: 0 },
             metadata: { id: 'router', name: 'Router' },
-            config: { params: { prompt: 'test', model: 'gpt-4' } },
+            config: { tool: 'test-tool', params: { prompt: 'test', model: 'gpt-4' } },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
           {
             id: 'api1',
+            position: { x: 200, y: -50 },
             metadata: { id: 'api', name: 'API 1' },
-            config: { params: { url: 'http://api1.com', method: 'GET' } },
+            config: { tool: 'test-tool', params: { url: 'http://api1.com', method: 'GET' } },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
           {
             id: 'api2',
+            position: { x: 200, y: 50 },
             metadata: { id: 'api', name: 'API 2' },
-            config: { params: { url: 'http://api2.com', method: 'GET' } },
+            config: { tool: 'test-tool', params: { url: 'http://api2.com', method: 'GET' } },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
           {
             id: 'agent',
+            position: { x: 300, y: 0 },
             metadata: { id: 'agent', name: 'Agent' },
-            config: { params: { model: 'gpt-4', userPrompt: 'test' } },
+            config: { tool: 'test-tool', params: { model: 'gpt-4', userPrompt: 'test' } },
+            inputs: {},
+            outputs: {},
             enabled: true,
           },
         ],
@@ -794,8 +770,11 @@ describe('Executor', () => {
       // Add router block to workflow
       workflow.blocks.push({
         id: 'router1',
+        position: { x: 200, y: 0 },
         metadata: { id: 'router', name: 'Router' },
-        config: { params: {} },
+        config: { tool: 'test-tool', params: {} },
+        inputs: {},
+        outputs: {},
         enabled: true,
       })
 

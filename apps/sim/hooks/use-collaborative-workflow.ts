@@ -351,7 +351,7 @@ export function useCollaborativeWorkflow() {
       }
 
       // Generate outputs using the same logic as the store
-      const outputs = resolveOutputType(blockConfig.outputs, subBlocks)
+      const outputs = resolveOutputType(blockConfig.outputs)
 
       const completeBlockData = {
         id,
