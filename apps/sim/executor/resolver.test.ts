@@ -1404,13 +1404,11 @@ describe('InputResolver', () => {
         }
       })
       // Always allow starter block access
-      const starterBlock = workflowWithConnections.blocks.find(
-        (b) => b.metadata?.id === 'starter'
-      )
+      const starterBlock = workflowWithConnections.blocks.find((b) => b.metadata?.id === 'starter')
       if (starterBlock) {
         testBlockAccessible.add(starterBlock.id)
       }
-      connectionResolver['accessibleBlocksMap']?.set('test-block', testBlockAccessible)
+      connectionResolver.accessibleBlocksMap?.set('test-block', testBlockAccessible)
 
       const testBlock: SerializedBlock = {
         id: 'test-block',
@@ -1471,13 +1469,11 @@ describe('InputResolver', () => {
         }
       })
       // Always allow starter block access
-      const starterBlock = workflowWithConnections.blocks.find(
-        (b) => b.metadata?.id === 'starter'
-      )
+      const starterBlock = workflowWithConnections.blocks.find((b) => b.metadata?.id === 'starter')
       if (starterBlock) {
         testBlock2Accessible.add(starterBlock.id)
       }
-      connectionResolver['accessibleBlocksMap']?.set('test-block-2', testBlock2Accessible)
+      connectionResolver.accessibleBlocksMap?.set('test-block-2', testBlock2Accessible)
 
       const testBlock: SerializedBlock = {
         id: 'test-block-2',

@@ -128,16 +128,18 @@ describe('Workflow Deployment API Route', () => {
                   }
                   // Second call: blocks lookup
                   if (selectCallCount === 2) {
-                    return Promise.resolve([{
-                      id: 'block-1',
-                      type: 'starter',
-                      name: 'Start',
-                      positionX: '100',
-                      positionY: '100',
-                      enabled: true,
-                      subBlocks: {},
-                      data: {},
-                    }])
+                    return Promise.resolve([
+                      {
+                        id: 'block-1',
+                        type: 'starter',
+                        name: 'Start',
+                        positionX: '100',
+                        positionY: '100',
+                        enabled: true,
+                        subBlocks: {},
+                        data: {},
+                      },
+                    ])
                   }
                   // Third call: edges lookup
                   if (selectCallCount === 3) {
@@ -155,7 +157,7 @@ describe('Workflow Deployment API Route', () => {
                   return Promise.resolve([])
                 }),
               })),
-            }))
+            })),
           }
         }),
         insert: vi.fn().mockImplementation(() => ({
@@ -222,44 +224,47 @@ describe('Workflow Deployment API Route', () => {
     // Override the global mock for this specific test
     vi.doMock('@/db', () => ({
       db: {
-        select: vi.fn()
+        select: vi
+          .fn()
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([{ userId: 'user-id', id: 'workflow-id' }])
-              })
-            })
+                limit: vi.fn().mockResolvedValue([{ userId: 'user-id', id: 'workflow-id' }]),
+              }),
+            }),
           })
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([{
-                id: 'block-1',
-                type: 'starter',
-                name: 'Start',
-                positionX: '100',
-                positionY: '100',
-                enabled: true,
-                subBlocks: {},
-                data: {},
-              }])
-            })
+              where: vi.fn().mockResolvedValue([
+                {
+                  id: 'block-1',
+                  type: 'starter',
+                  name: 'Start',
+                  positionX: '100',
+                  positionY: '100',
+                  enabled: true,
+                  subBlocks: {},
+                  data: {},
+                },
+              ]),
+            }),
           })
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([]) // No edges
-            })
+              where: vi.fn().mockResolvedValue([]), // No edges
+            }),
           })
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([]) // No subflows
-            })
+              where: vi.fn().mockResolvedValue([]), // No subflows
+            }),
           })
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([]) // No existing API key
-              })
-            })
+                limit: vi.fn().mockResolvedValue([]), // No existing API key
+              }),
+            }),
           }),
         insert: vi.fn().mockImplementation(() => ({
           values: vi.fn().mockResolvedValue([{ id: 'mock-api-key-id' }]),
@@ -279,8 +284,6 @@ describe('Workflow Deployment API Route', () => {
     const { POST } = await import('./route')
 
     const response = await POST(req, { params })
-
-
 
     expect(response.status).toBe(200)
 
@@ -299,44 +302,47 @@ describe('Workflow Deployment API Route', () => {
     // Override the global mock for this specific test
     vi.doMock('@/db', () => ({
       db: {
-        select: vi.fn()
+        select: vi
+          .fn()
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([{ userId: 'user-id', id: 'workflow-id' }])
-              })
-            })
+                limit: vi.fn().mockResolvedValue([{ userId: 'user-id', id: 'workflow-id' }]),
+              }),
+            }),
           })
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([{
-                id: 'block-1',
-                type: 'starter',
-                name: 'Start',
-                positionX: '100',
-                positionY: '100',
-                enabled: true,
-                subBlocks: {},
-                data: {},
-              }])
-            })
+              where: vi.fn().mockResolvedValue([
+                {
+                  id: 'block-1',
+                  type: 'starter',
+                  name: 'Start',
+                  positionX: '100',
+                  positionY: '100',
+                  enabled: true,
+                  subBlocks: {},
+                  data: {},
+                },
+              ]),
+            }),
           })
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([]) // No edges
-            })
+              where: vi.fn().mockResolvedValue([]), // No edges
+            }),
           })
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockResolvedValue([]) // No subflows
-            })
+              where: vi.fn().mockResolvedValue([]), // No subflows
+            }),
           })
           .mockReturnValueOnce({
             from: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue([{ key: 'sim_existingtestapikey12345' }]) // Existing API key
-              })
-            })
+                limit: vi.fn().mockResolvedValue([{ key: 'sim_existingtestapikey12345' }]), // Existing API key
+              }),
+            }),
           }),
         insert: vi.fn().mockImplementation(() => ({
           values: vi.fn().mockResolvedValue([{ id: 'mock-api-key-id' }]),
@@ -356,8 +362,6 @@ describe('Workflow Deployment API Route', () => {
     const { POST } = await import('./route')
 
     const response = await POST(req, { params })
-
-
 
     expect(response.status).toBe(200)
 
