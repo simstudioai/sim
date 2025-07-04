@@ -20,7 +20,7 @@ export class InputResolver {
     private environmentVariables: Record<string, string>,
     private workflowVariables: Record<string, any> = {},
     private loopManager?: LoopManager,
-    private accessibleBlocksMap?: Map<string, Set<string>>
+    public accessibleBlocksMap?: Map<string, Set<string>>
   ) {
     // Create maps for efficient lookups
     this.blockById = new Map(workflow.blocks.map((block) => [block.id, block]))
