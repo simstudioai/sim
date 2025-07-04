@@ -62,12 +62,8 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
     params: { type: 'json', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        data: 'any',
-        status: 'number',
-        headers: 'json',
-      },
-    },
+    data: 'any',
+    status: 'number',
+    headers: 'json',
   },
 }

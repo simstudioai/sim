@@ -179,11 +179,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     maxResults: { type: 'number', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        metadata: 'json',
-      },
-    },
+    content: 'string',
+    metadata: 'json',
   },
 }

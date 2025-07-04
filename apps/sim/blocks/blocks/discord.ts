@@ -149,11 +149,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     userId: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        message: 'string',
-        data: 'any',
-      },
-    },
+    message: 'string',
+    data: 'any',
   },
 }

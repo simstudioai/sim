@@ -180,14 +180,10 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     apiKey: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        model: 'string',
-        tokens: 'any',
-        cost: 'any',
-        selectedPath: 'json',
-      },
-    },
+    content: 'string',
+    model: 'string',
+    tokens: 'any',
+    cost: 'any',
+    selectedPath: 'json',
   },
 }

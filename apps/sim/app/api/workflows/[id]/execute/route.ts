@@ -77,19 +77,12 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     input ? JSON.stringify(input, null, 2) : 'No input provided'
   )
 
-  // Validate and structure input for maximum compatibility
-  let processedInput = input
-  if (input && typeof input === 'object') {
-    // Ensure input is properly structured for the starter block
-    if (input.input === undefined) {
-      // If input is not already nested, structure it properly
-      processedInput = { input: input }
-      logger.info(
-        `[${requestId}] Restructured input for workflow:`,
-        JSON.stringify(processedInput, null, 2)
-      )
-    }
-  }
+  // Use input directly for API workflows
+  const processedInput = input
+  logger.info(
+    `[${requestId}] Using input directly for workflow:`,
+    JSON.stringify(processedInput, null, 2)
+  )
 
   try {
     runningExecutions.add(executionKey)
@@ -381,13 +374,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       logger.info(`[${requestId}] No request body provided`)
     }
 
-    // Don't double-nest the input if it's already structured
+    // Pass the raw body directly as input for API workflows
     const hasContent = Object.keys(body).length > 0
-    const input = hasContent ? { input: body } : {}
+    const input = hasContent ? body : {}
 
     logger.info(`[${requestId}] Input passed to workflow:`, JSON.stringify(input, null, 2))
 
-    // Execute workflow with the structured input
+    // Execute workflow with the raw input
     const result = await executeWorkflow(validation.workflow, requestId, input)
 
     // Check if the workflow execution contains a response block output

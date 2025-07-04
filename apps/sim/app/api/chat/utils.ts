@@ -128,10 +128,10 @@ export async function validateChatAuth(
         return { authorized: false, error: 'Password is required' }
       }
 
-      const { password, message } = parsedBody
+      const { password, input } = parsedBody
 
       // If this is a chat message, not an auth attempt
-      if (message && !password) {
+      if (input && !password) {
         return { authorized: false, error: 'auth_required_password' }
       }
 
@@ -170,10 +170,10 @@ export async function validateChatAuth(
         return { authorized: false, error: 'Email is required' }
       }
 
-      const { email, message } = parsedBody
+      const { email, input } = parsedBody
 
       // If this is a chat message, not an auth attempt
-      if (message && !email) {
+      if (input && !email) {
         return { authorized: false, error: 'auth_required_email' }
       }
 
@@ -211,17 +211,17 @@ export async function validateChatAuth(
 /**
  * Executes a workflow for a chat request and returns the formatted output.
  *
- * When workflows reference <start.response.input>, they receive a structured JSON
- * containing both the message and conversationId for maintaining chat context.
+ * When workflows reference <start.input>, they receive the input directly.
+ * The conversationId is available at <start.conversationId> for maintaining chat context.
  *
  * @param chatId - Chat deployment identifier
- * @param message - User's chat message
+ * @param input - User's chat input
  * @param conversationId - Optional ID for maintaining conversation context
  * @returns Workflow execution result formatted for the chat interface
  */
 export async function executeWorkflowForChat(
   chatId: string,
-  message: string,
+  input: string,
   conversationId?: string
 ): Promise<any> {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -445,7 +445,7 @@ export async function executeWorkflowForChat(
         workflow: serializedWorkflow,
         currentBlockStates: processedBlockStates,
         envVarValues: decryptedEnvVars,
-        workflowInput: { input: message, conversationId },
+        workflowInput: { input: input, conversationId },
         workflowVariables,
         contextExtensions: {
           stream: true,
@@ -463,8 +463,8 @@ export async function executeWorkflowForChat(
       if (result && 'success' in result) {
         result.logs?.forEach((log: BlockLog) => {
           if (streamedContent.has(log.blockId)) {
-            if (log.output?.response) {
-              log.output.response.content = streamedContent.get(log.blockId)
+            if (log.output) {
+              log.output.content = streamedContent.get(log.blockId)
             }
           }
         })

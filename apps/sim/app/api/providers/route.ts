@@ -137,24 +137,22 @@ export async function POST(request: NextRequest) {
         const safeExecutionData = {
           success: executionData.success,
           output: {
-            response: {
-              // Sanitize content to remove non-ASCII characters that would cause ByteString errors
-              content: executionData.output?.response?.content
-                ? String(executionData.output.response.content).replace(/[\u0080-\uFFFF]/g, '')
-                : '',
-              model: executionData.output?.response?.model,
-              tokens: executionData.output?.response?.tokens || {
-                prompt: 0,
-                completion: 0,
-                total: 0,
-              },
-              // Sanitize any potential Unicode characters in tool calls
-              toolCalls: executionData.output?.response?.toolCalls
-                ? sanitizeToolCalls(executionData.output.response.toolCalls)
-                : undefined,
-              providerTiming: executionData.output?.response?.providerTiming,
-              cost: executionData.output?.response?.cost,
+            // Sanitize content to remove non-ASCII characters that would cause ByteString errors
+            content: executionData.output?.content
+              ? String(executionData.output.content).replace(/[\u0080-\uFFFF]/g, '')
+              : '',
+            model: executionData.output?.model,
+            tokens: executionData.output?.tokens || {
+              prompt: 0,
+              completion: 0,
+              total: 0,
             },
+            // Sanitize any potential Unicode characters in tool calls
+            toolCalls: executionData.output?.toolCalls
+              ? sanitizeToolCalls(executionData.output.toolCalls)
+              : undefined,
+            providerTiming: executionData.output?.providerTiming,
+            cost: executionData.output?.cost,
           },
           error: executionData.error,
           logs: [], // Strip logs from header to avoid encoding issues

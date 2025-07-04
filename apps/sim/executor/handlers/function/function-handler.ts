@@ -1,5 +1,4 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import type { BlockHandler, ExecutionContext } from '../../types'
@@ -18,7 +17,7 @@ export class FunctionBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>,
     context: ExecutionContext
-  ): Promise<BlockOutput> {
+  ): Promise<any> {
     const codeContent = Array.isArray(inputs.code)
       ? inputs.code.map((c: { content: string }) => c.content).join('\n')
       : inputs.code
@@ -53,6 +52,6 @@ export class FunctionBlockHandler implements BlockHandler {
       throw new Error(result.error || 'Function execution failed')
     }
 
-    return { response: result.output }
+    return result.output
   }
 }

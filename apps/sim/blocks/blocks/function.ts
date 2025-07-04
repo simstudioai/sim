@@ -27,11 +27,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
     timeout: { type: 'number', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        result: 'any',
-        stdout: 'string',
-      },
-    },
+    result: 'any',
+    stdout: 'string',
   },
 }

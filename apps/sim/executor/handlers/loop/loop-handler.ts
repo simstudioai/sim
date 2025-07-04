@@ -95,15 +95,13 @@ export class LoopBlockHandler implements BlockHandler {
       // Don't mark as completed here - let the loop manager handle it after all blocks execute
       // Just return that this is the final iteration
       return {
-        response: {
-          loopId: block.id,
-          currentIteration: currentIteration - 1, // Report the actual last iteration number
-          maxIterations,
-          loopType: loop.loopType || 'for',
-          completed: false, // Not completed until all blocks in this iteration execute
-          message: `Final iteration ${currentIteration} of ${maxIterations}`,
-        },
-      }
+        loopId: block.id,
+        currentIteration: currentIteration - 1, // Report the actual last iteration number
+        maxIterations,
+        loopType: loop.loopType || 'for',
+        completed: false, // Not completed until all blocks in this iteration execute
+        message: `Final iteration ${currentIteration} of ${maxIterations}`,
+      } as Record<string, any>
     }
 
     // For forEach loops, set the current item BEFORE incrementing
@@ -140,15 +138,13 @@ export class LoopBlockHandler implements BlockHandler {
     }
 
     return {
-      response: {
-        loopId: block.id,
-        currentIteration,
-        maxIterations,
-        loopType: loop.loopType || 'for',
-        completed: false,
-        message: `Starting iteration ${currentIteration + 1} of ${maxIterations}`,
-      },
-    }
+      loopId: block.id,
+      currentIteration,
+      maxIterations,
+      loopType: loop.loopType || 'for',
+      completed: false,
+      message: `Starting iteration ${currentIteration + 1} of ${maxIterations}`,
+    } as Record<string, any>
   }
 
   /**

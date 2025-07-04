@@ -115,46 +115,45 @@ export async function persistExecutionLogs(
           blockType: log.blockType,
           outputKeys: Object.keys(log.output),
           hasToolCalls: !!log.output.toolCalls,
-          hasResponse: !!log.output.response,
+          hasResponse: !!log.output,
         })
 
         // FIRST PASS - Check if this is a no-tool scenario with tokens data not propagated
         // In some cases, the token data from the streaming callback doesn't properly get into
         // the agent block response. This ensures we capture it.
         if (
-          log.output.response &&
-          (!log.output.response.tokens?.completion ||
-            log.output.response.tokens.completion === 0) &&
-          (!log.output.response.toolCalls ||
-            !log.output.response.toolCalls.list ||
-            log.output.response.toolCalls.list.length === 0)
+          log.output &&
+          (!log.output.tokens?.completion || log.output.tokens.completion === 0) &&
+          (!log.output.toolCalls ||
+            !log.output.toolCalls.list ||
+            log.output.toolCalls.list.length === 0)
         ) {
-          // Check if output response has providerTiming - this indicates it's a streaming response
-          if (log.output.response.providerTiming) {
+          // Check if output has providerTiming - this indicates it's a streaming response
+          if (log.output.providerTiming) {
             logger.debug('Processing streaming response without tool calls for token extraction', {
               blockId: log.blockId,
-              hasTokens: !!log.output.response.tokens,
-              hasProviderTiming: !!log.output.response.providerTiming,
+              hasTokens: !!log.output.tokens,
+              hasProviderTiming: !!log.output.providerTiming,
             })
 
             // Only for no-tool streaming cases, extract content length and estimate token count
-            const contentLength = log.output.response.content?.length || 0
+            const contentLength = log.output.content?.length || 0
             if (contentLength > 0) {
               // Estimate completion tokens based on content length as a fallback
               const estimatedCompletionTokens = Math.ceil(contentLength / 4)
-              const promptTokens = log.output.response.tokens?.prompt || 8
+              const promptTokens = log.output.tokens?.prompt || 8
 
               // Update the tokens object
-              log.output.response.tokens = {
+              log.output.tokens = {
                 prompt: promptTokens,
                 completion: estimatedCompletionTokens,
                 total: promptTokens + estimatedCompletionTokens,
               }
 
               // Update cost information using the provider's cost model
-              const model = log.output.response.model || 'gpt-4o'
+              const model = log.output.model || 'gpt-4o'
               const costInfo = calculateCost(model, promptTokens, estimatedCompletionTokens)
-              log.output.response.cost = {
+              log.output.cost = {
                 input: costInfo.input,
                 output: costInfo.output,
                 total: costInfo.total,
@@ -165,7 +164,7 @@ export async function persistExecutionLogs(
                 blockId: log.blockId,
                 contentLength,
                 estimatedCompletionTokens,
-                tokens: log.output.response.tokens,
+                tokens: log.output.tokens,
               })
             }
           }
@@ -185,74 +184,54 @@ export async function persistExecutionLogs(
           // Extract the executionData and use it as our primary source of information
           const executionData = log.output.executionData
 
-          // If executionData has output with response, use that as our response
+          // If executionData has output, merge it with our output
           // This is especially important for streaming responses where the final content
           // is set in the executionData structure by the executor
-          if (executionData.output?.response) {
-            log.output.response = executionData.output.response
-            logger.debug('Using response from executionData', {
-              responseKeys: Object.keys(log.output.response),
-              hasContent: !!log.output.response.content,
-              contentLength: log.output.response.content?.length || 0,
-              hasToolCalls: !!log.output.response.toolCalls,
-              hasTokens: !!log.output.response.tokens,
-              hasCost: !!log.output.response.cost,
+          if (executionData.output) {
+            log.output = { ...log.output, ...executionData.output }
+            logger.debug('Using output from executionData', {
+              outputKeys: Object.keys(log.output),
+              hasContent: !!log.output.content,
+              contentLength: log.output.content?.length || 0,
+              hasToolCalls: !!log.output.toolCalls,
+              hasTokens: !!log.output.tokens,
+              hasCost: !!log.output.cost,
             })
           }
         }
 
-        // Extract tool calls and other metadata
-        if (log.output.response) {
-          const response = log.output.response
-
-          // Process tool calls
-          if (response.toolCalls?.list) {
-            metadata = {
-              toolCalls: response.toolCalls.list.map((tc: any) => ({
-                name: stripCustomToolPrefix(tc.name),
-                duration: tc.duration || 0,
-                startTime: tc.startTime || new Date().toISOString(),
-                endTime: tc.endTime || new Date().toISOString(),
-                status: tc.error ? 'error' : 'success',
-                input: tc.input || tc.arguments,
-                output: tc.output || tc.result,
-                error: tc.error,
-              })),
-            }
+        // Add cost information if available
+        if (log.output?.cost) {
+          const output = log.output
+          if (!metadata) metadata = {}
+          metadata.cost = {
+            model: output.model,
+            input: output.cost.input,
+            output: output.cost.output,
+            total: output.cost.total,
+            tokens: output.tokens,
+            pricing: output.cost.pricing,
           }
 
-          // Add cost information if available
-          if (response.cost) {
-            if (!metadata) metadata = {}
-            metadata.cost = {
-              model: response.model,
-              input: response.cost.input,
-              output: response.cost.output,
-              total: response.cost.total,
-              tokens: response.tokens,
-              pricing: response.cost.pricing,
+          // Accumulate costs for workflow-level summary
+          if (output.cost.total) {
+            totalCost += output.cost.total
+            totalInputCost += output.cost.input || 0
+            totalOutputCost += output.cost.output || 0
+
+            // Track tokens
+            if (output.tokens) {
+              totalPromptTokens += output.tokens.prompt || 0
+              totalCompletionTokens += output.tokens.completion || 0
+              totalTokens += output.tokens.total || 0
             }
 
-            // Accumulate costs for workflow-level summary
-            if (response.cost.total) {
-              totalCost += response.cost.total
-              totalInputCost += response.cost.input || 0
-              totalOutputCost += response.cost.output || 0
-
-              // Track tokens
-              if (response.tokens) {
-                totalPromptTokens += response.tokens.prompt || 0
-                totalCompletionTokens += response.tokens.completion || 0
-                totalTokens += response.tokens.total || 0
-              }
-
-              // Track model usage
-              if (response.model) {
-                modelCounts[response.model] = (modelCounts[response.model] || 0) + 1
-                // Set the most frequently used model as primary
-                if (!primaryModel || modelCounts[response.model] > modelCounts[primaryModel]) {
-                  primaryModel = response.model
-                }
+            // Track model usage
+            if (output.model) {
+              modelCounts[output.model] = (modelCounts[output.model] || 0) + 1
+              // Set the most frequently used model as primary
+              if (!primaryModel || modelCounts[output.model] > modelCounts[primaryModel]) {
+                primaryModel = output.model
               }
             }
           }
@@ -342,50 +321,7 @@ export async function persistExecutionLogs(
             }
           })
         }
-        // Case 3: Response has toolCalls
-        else if (log.output.response?.toolCalls) {
-          const toolCalls = Array.isArray(log.output.response.toolCalls)
-            ? log.output.response.toolCalls
-            : log.output.response.toolCalls.list || []
-
-          logger.debug('Found toolCalls in response', {
-            count: toolCalls.length,
-          })
-
-          // Log raw timing data for debugging
-          toolCalls.forEach((tc: any, idx: number) => {
-            logger.debug(`Response tool call ${idx} raw timing data:`, {
-              name: stripCustomToolPrefix(tc.name),
-              startTime: tc.startTime,
-              endTime: tc.endTime,
-              duration: tc.duration,
-              timing: tc.timing,
-              argumentKeys: tc.arguments ? Object.keys(tc.arguments) : undefined,
-            })
-          })
-
-          toolCallData = toolCalls.map((toolCall: any) => {
-            // Extract timing info - try various formats that providers might use
-            const duration = extractDuration(toolCall)
-            const timing = extractTimingInfo(
-              toolCall,
-              blockStartTime ? new Date(blockStartTime) : undefined,
-              blockEndTime ? new Date(blockEndTime) : undefined
-            )
-
-            return {
-              name: toolCall.name,
-              duration: duration,
-              startTime: timing.startTime,
-              endTime: timing.endTime,
-              status: toolCall.error ? 'error' : 'success',
-              input: toolCall.arguments || toolCall.input,
-              output: toolCall.result || toolCall.output,
-              error: toolCall.error,
-            }
-          })
-        }
-        // Case 4: toolCalls is an object and has a list property
+        // Case 3: toolCalls is an object and has a list property
         else if (
           log.output.toolCalls &&
           typeof log.output.toolCalls === 'object' &&
@@ -438,9 +374,9 @@ export async function persistExecutionLogs(
             }
           })
         }
-        // Case 5: Look in executionData.output.response for streaming responses
-        else if (log.output.executionData?.output?.response?.toolCalls) {
-          const toolCallsObj = log.output.executionData.output.response.toolCalls
+        // Case 4: Look in executionData.output for streaming responses
+        else if (log.output.executionData?.output?.toolCalls) {
+          const toolCallsObj = log.output.executionData.output.toolCalls
           const list = Array.isArray(toolCallsObj) ? toolCallsObj : toolCallsObj.list || []
 
           logger.debug('Found toolCalls in executionData output response', {
@@ -480,9 +416,9 @@ export async function persistExecutionLogs(
             }
           })
         }
-        // Case 6: Parse the response string for toolCalls as a last resort
-        else if (typeof log.output.response === 'string') {
-          const match = log.output.response.match(/"toolCalls"\s*:\s*({[^}]*}|(\[.*?\]))/s)
+        // Case 5: Parse the output string for toolCalls as a last resort
+        else if (typeof log.output === 'string') {
+          const match = log.output.match(/"toolCalls"\s*:\s*({[^}]*}|(\[.*?\]))/s)
           if (match) {
             try {
               const toolCallsJson = JSON.parse(`{${match[0]}}`)
@@ -535,9 +471,9 @@ export async function persistExecutionLogs(
                 }
               })
             } catch (error) {
-              logger.error('Error parsing toolCalls from response string', {
+              logger.error('Error parsing toolCalls from output string', {
                 error,
-                response: log.output.response,
+                output: log.output,
               })
             }
           }
@@ -549,7 +485,7 @@ export async function persistExecutionLogs(
           })
         }
 
-        // Fill in missing timing information
+        // Fill in missing timing information and merge with existing metadata
         if (toolCallData.length > 0) {
           const getToolCalls = getToolCallTimings(
             toolCallData,
@@ -563,12 +499,13 @@ export async function persistExecutionLogs(
             input: redactApiKeys(toolCall.input),
           }))
 
-          metadata = {
-            toolCalls: redactedToolCalls,
-          }
+          // Merge with existing metadata instead of overwriting
+          if (!metadata) metadata = {}
+          metadata.toolCalls = redactedToolCalls
 
-          logger.debug('Created metadata with tool calls', {
+          logger.debug('Added tool calls to metadata', {
             count: redactedToolCalls.length,
+            existingMetadata: Object.keys(metadata).filter((k) => k !== 'toolCalls'),
           })
         }
       }
@@ -580,9 +517,9 @@ export async function persistExecutionLogs(
         level: log.success ? 'info' : 'error',
         message: log.success
           ? `Block ${log.blockName || log.blockId} (${log.blockType || 'unknown'}): ${
-              log.output?.response?.content ||
-              log.output?.executionData?.output?.response?.content ||
-              JSON.stringify(log.output?.response || {})
+              log.output?.content ||
+              log.output?.executionData?.output?.content ||
+              JSON.stringify(log.output || {})
             }`
           : `Block ${log.blockName || log.blockId} (${log.blockType || 'unknown'}): ${log.error || 'Failed'}`,
         duration: log.success ? `${log.durationMs}ms` : 'NA',
@@ -646,8 +583,8 @@ export async function persistExecutionLogs(
       if (primaryModel && result.logs && result.logs.length > 0) {
         // Find the first agent log with pricing info
         for (const log of result.logs) {
-          if (log.output?.response?.cost?.pricing) {
-            workflowMetadata.cost.pricing = log.output.response.cost.pricing
+          if (log.output?.cost?.pricing) {
+            workflowMetadata.cost.pricing = log.output.cost.pricing
             break
           }
         }
