@@ -73,7 +73,6 @@ describe('Folders API Route', () => {
     mockValues.mockReturnValue({ returning: mockReturning })
     mockReturning.mockReturnValue([mockFolders[0]])
 
-    // Mock permission function to return 'admin' by default
     mockGetUserEntityPermissions.mockResolvedValue('admin')
 
     vi.doMock('@/db', () => ({

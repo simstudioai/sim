@@ -111,7 +111,6 @@ describe('Individual Folder API Route', () => {
     vi.clearAllMocks()
     setupCommonApiMocks()
 
-    // Mock permission function to return 'admin' by default
     mockGetUserEntityPermissions.mockResolvedValue('admin')
 
     vi.doMock('@/lib/permissions/utils', () => ({
