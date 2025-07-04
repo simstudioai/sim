@@ -51,9 +51,12 @@ export function BillingSummary({
       try {
         setIsLoading(true)
 
-        const url = new URL('/api/users/me/billing', window.location.origin)
+        const url = new URL('/api/billing', window.location.origin)
         if (activeOrg?.id) {
-          url.searchParams.set('organizationId', activeOrg.id)
+          url.searchParams.set('context', 'organization')
+          url.searchParams.set('id', activeOrg.id)
+        } else {
+          url.searchParams.set('context', 'user')
         }
 
         const response = await fetch(url.toString())

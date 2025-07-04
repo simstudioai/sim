@@ -1,11 +1,11 @@
 import { render } from '@react-email/components'
-import { generateUnsubscribeToken } from '@/lib/email/unsubscribe'
 import { BatchInvitationEmail } from './batch-invitation-email'
+import { BillingConfirmationEmail } from './billing-confirmation-email'
 import { InvitationEmail } from './invitation-email'
+import { InvoiceNotificationEmail } from './invoice-notification-email'
 import { OTPVerificationEmail } from './otp-verification-email'
+import { PaymentFailureEmail } from './payment-failure-email'
 import { ResetPasswordEmail } from './reset-password-email'
-import { WaitlistApprovalEmail } from './waitlist-approval-email'
-import { WaitlistConfirmationEmail } from './waitlist-confirmation-email'
 
 export async function renderOTPEmail(
   otp: string,
@@ -66,17 +66,68 @@ export async function renderBatchInvitationEmail(
   )
 }
 
-export async function renderWaitlistConfirmationEmail(email: string): Promise<string> {
-  const unsubscribeToken = generateUnsubscribeToken(email, 'marketing')
-  return await render(WaitlistConfirmationEmail({ email, unsubscribeToken }))
+export async function renderBillingConfirmationEmail(
+  customerEmail: string,
+  chargedAmount: number,
+  planName: string,
+  billingPeriod: string,
+  invoiceId: string,
+  invoiceUrl?: string
+): Promise<string> {
+  return await render(
+    BillingConfirmationEmail({
+      customerEmail,
+      chargedAmount,
+      planName,
+      billingPeriod,
+      invoiceId,
+      invoiceUrl,
+    })
+  )
 }
 
-export async function renderWaitlistApprovalEmail(
-  email: string,
-  signupUrl: string
+export async function renderPaymentFailureEmail(
+  customerEmail: string,
+  failedAmount: number,
+  planName: string,
+  billingPeriod: string,
+  invoiceId: string,
+  invoiceUrl?: string,
+  attemptCount?: number
 ): Promise<string> {
-  const unsubscribeToken = generateUnsubscribeToken(email, 'updates')
-  return await render(WaitlistApprovalEmail({ email, signupUrl, unsubscribeToken }))
+  return await render(
+    PaymentFailureEmail({
+      customerEmail,
+      failedAmount,
+      planName,
+      billingPeriod,
+      invoiceId,
+      invoiceUrl,
+      attemptCount,
+    })
+  )
+}
+
+export async function renderInvoiceNotificationEmail(
+  customerEmail: string,
+  invoiceAmount: number,
+  planName: string,
+  billingPeriod: string,
+  invoiceId: string,
+  invoiceUrl?: string,
+  dueDate?: string
+): Promise<string> {
+  return await render(
+    InvoiceNotificationEmail({
+      customerEmail,
+      invoiceAmount,
+      planName,
+      billingPeriod,
+      invoiceId,
+      invoiceUrl,
+      dueDate,
+    })
+  )
 }
 
 export function getEmailSubject(
@@ -85,10 +136,11 @@ export function getEmailSubject(
     | 'email-verification'
     | 'forget-password'
     | 'reset-password'
-    | 'waitlist-confirmation'
-    | 'waitlist-approval'
     | 'invitation'
     | 'batch-invitation'
+    | 'billing-confirmation'
+    | 'payment-failure'
+    | 'invoice-notification'
 ): string {
   switch (type) {
     case 'sign-in':
@@ -99,14 +151,16 @@ export function getEmailSubject(
       return 'Reset your Sim Studio password'
     case 'reset-password':
       return 'Reset your Sim Studio password'
-    case 'waitlist-confirmation':
-      return 'Welcome to the Sim Studio Waitlist'
-    case 'waitlist-approval':
-      return "You've Been Approved to Join Sim Studio!"
     case 'invitation':
       return "You've been invited to join a team on Sim Studio"
     case 'batch-invitation':
       return "You've been invited to join a team and workspaces on Sim Studio"
+    case 'billing-confirmation':
+      return 'Payment Confirmed - Sim Studio'
+    case 'payment-failure':
+      return 'Payment Failed - Action Required'
+    case 'invoice-notification':
+      return 'Usage Invoice - Sim Studio'
     default:
       return 'Sim Studio'
   }
