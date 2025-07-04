@@ -168,7 +168,7 @@ describe('PathTracker', () => {
     describe('router blocks', () => {
       it('should update router decision and activate selected path', () => {
         const blockState: BlockState = {
-          output: { response: { selectedPath: { blockId: 'block1' } } },
+          output: { selectedPath: { blockId: 'block1' } },
           executed: true,
           executionTime: 100,
         }
@@ -182,7 +182,7 @@ describe('PathTracker', () => {
 
       it('should not update if no selected path', () => {
         const blockState: BlockState = {
-          output: { response: {} },
+          output: {},
           executed: true,
           executionTime: 100,
         }
@@ -198,7 +198,7 @@ describe('PathTracker', () => {
     describe('condition blocks', () => {
       it('should update condition decision and activate selected connection', () => {
         const blockState: BlockState = {
-          output: { response: { selectedConditionId: 'if' } },
+          output: { selectedConditionId: 'if' },
           executed: true,
           executionTime: 100,
         }
@@ -212,7 +212,7 @@ describe('PathTracker', () => {
 
       it('should not activate if no matching connection', () => {
         const blockState: BlockState = {
-          output: { response: { selectedConditionId: 'unknown' } },
+          output: { selectedConditionId: 'unknown' },
           executed: true,
           executionTime: 100,
         }
@@ -237,7 +237,7 @@ describe('PathTracker', () => {
     describe('regular blocks', () => {
       it('should activate outgoing connections on success', () => {
         const blockState: BlockState = {
-          output: { response: { data: 'success' } },
+          output: { data: 'success' },
           executed: true,
           executionTime: 100,
         }
@@ -259,7 +259,7 @@ describe('PathTracker', () => {
           sourceHandle: 'error',
         })
         const blockState: BlockState = {
-          output: { error: 'Something failed', response: { error: 'Something failed' } },
+          output: { error: 'Something failed' },
           executed: true,
           executionTime: 100,
         }
@@ -332,12 +332,12 @@ describe('PathTracker', () => {
 
     it('should handle multiple blocks in one update', () => {
       const blockState1: BlockState = {
-        output: { response: { data: 'success' } },
+        output: { data: 'success' },
         executed: true,
         executionTime: 100,
       }
       const blockState2: BlockState = {
-        output: { response: { selectedPath: { blockId: 'block1' } } },
+        output: { selectedPath: { blockId: 'block1' } },
         executed: true,
         executionTime: 150,
       }
@@ -480,15 +480,13 @@ describe('PathTracker', () => {
     })
 
     it('should activate downstream paths when router selects a target', () => {
-      // Mock router output selecting api1
+      // Mock router output selecting api1 - based on implementation, it expects selectedPath directly
       mockContext.blockStates.set('router1', {
         output: {
-          response: {
-            selectedPath: {
-              blockId: 'api1',
-              blockType: 'api',
-              blockTitle: 'API 1',
-            },
+          selectedPath: {
+            blockId: 'api1',
+            blockType: 'api',
+            blockTitle: 'API 1',
           },
         },
         executed: true,
@@ -521,15 +519,13 @@ describe('PathTracker', () => {
 
       pathTracker = new PathTracker(mockWorkflow)
 
-      // Mock router output selecting api1
+      // Mock router output selecting api1 - based on implementation, it expects selectedPath directly
       mockContext.blockStates.set('router1', {
         output: {
-          response: {
-            selectedPath: {
-              blockId: 'api1',
-              blockType: 'api',
-              blockTitle: 'API 1',
-            },
+          selectedPath: {
+            blockId: 'api1',
+            blockType: 'api',
+            blockTitle: 'API 1',
           },
         },
         executed: true,
@@ -554,12 +550,10 @@ describe('PathTracker', () => {
 
       mockContext.blockStates.set('router1', {
         output: {
-          response: {
-            selectedPath: {
-              blockId: 'api1',
-              blockType: 'api',
-              blockTitle: 'API 1',
-            },
+          selectedPath: {
+            blockId: 'api1',
+            blockType: 'api',
+            blockTitle: 'API 1',
           },
         },
         executed: true,
@@ -590,12 +584,10 @@ describe('PathTracker', () => {
 
       mockContext.blockStates.set('router1', {
         output: {
-          response: {
-            selectedPath: {
-              blockId: 'api1',
-              blockType: 'api',
-              blockTitle: 'API 1',
-            },
+          selectedPath: {
+            blockId: 'api1',
+            blockType: 'api',
+            blockTitle: 'API 1',
           },
         },
         executed: true,

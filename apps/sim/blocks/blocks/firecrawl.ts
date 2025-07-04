@@ -90,16 +90,12 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
     scrapeOptions: { type: 'json', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        // Scrape output
-        markdown: 'string',
-        html: 'any',
-        metadata: 'json',
-        // Search output
-        data: 'json',
-        warning: 'any',
-      },
-    },
+    // Scrape output
+    markdown: 'string',
+    html: 'any',
+    metadata: 'json',
+    // Search output
+    data: 'json',
+    warning: 'any',
   },
 }

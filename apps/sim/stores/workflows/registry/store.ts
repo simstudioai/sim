@@ -96,8 +96,6 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         apiKey,
       } = workflow
 
-      // No need to filter by workspace since we're already fetching for specific workspace
-
       // Add to registry
       registryWorkflows[id] = {
         id,

@@ -1,7 +1,6 @@
 import '../../__test-utils__/mock-dependencies'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import type { ToolConfig } from '@/tools/types'
@@ -88,7 +87,7 @@ describe('GenericBlockHandler', () => {
       ...inputs,
       _context: { workflowId: mockContext.workflowId },
     }
-    const expectedOutput: BlockOutput = { response: { customResult: 'OK' } }
+    const expectedOutput: any = { customResult: 'OK' }
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 

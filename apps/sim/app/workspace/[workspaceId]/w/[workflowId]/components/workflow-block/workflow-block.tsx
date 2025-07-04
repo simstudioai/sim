@@ -451,6 +451,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           blockId={id}
           setIsConnecting={setIsConnecting}
           isDisabled={!userPermissions.canEdit}
+          horizontalHandles={horizontalHandles}
         />
 
         {/* Input Handle - Don't show for starter blocks */}
@@ -698,7 +699,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                             {Object.entries(config.outputs).map(([key, value]) => (
                               <div key={key} className='mb-1'>
                                 <span className='text-muted-foreground'>{key}</span>{' '}
-                                {typeof value.type === 'object' ? (
+                                {typeof value === 'object' ? (
                                   <div className='mt-1 pl-3'>
                                     {Object.entries(value.type).map(([typeKey, typeValue]) => (
                                       <div key={typeKey} className='flex items-start'>
@@ -712,7 +713,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                                     ))}
                                   </div>
                                 ) : (
-                                  <span className='text-green-500'>{value.type as string}</span>
+                                  <span className='text-green-500'>{value as string}</span>
                                 )}
                               </div>
                             ))}

@@ -101,24 +101,22 @@ export class RouterBlockHandler implements BlockHandler {
       )
 
       return {
-        response: {
-          content: inputs.prompt,
-          model: result.model,
-          tokens: {
-            prompt: tokens.prompt || 0,
-            completion: tokens.completion || 0,
-            total: tokens.total || 0,
-          },
-          cost: {
-            input: cost.input,
-            output: cost.output,
-            total: cost.total,
-          },
-          selectedPath: {
-            blockId: chosenBlock.id,
-            blockType: chosenBlock.type || 'unknown',
-            blockTitle: chosenBlock.title || 'Untitled Block',
-          },
+        content: inputs.prompt,
+        model: result.model,
+        tokens: {
+          prompt: tokens.prompt || 0,
+          completion: tokens.completion || 0,
+          total: tokens.total || 0,
+        },
+        cost: {
+          input: cost.input,
+          output: cost.output,
+          total: cost.total,
+        },
+        selectedPath: {
+          blockId: chosenBlock.id,
+          blockType: chosenBlock.type || 'unknown',
+          blockTitle: chosenBlock.title || 'Untitled Block',
         },
       }
     } catch (error) {
