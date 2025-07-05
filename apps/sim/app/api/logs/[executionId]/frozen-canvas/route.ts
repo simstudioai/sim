@@ -44,8 +44,15 @@ export async function GET(request: NextRequest, { params }: { params: { executio
       .from(workflowExecutionBlocks)
       .where(eq(workflowExecutionBlocks.executionId, executionId))
 
+    // Debug: Log the raw query results
+    logger.debug(`Raw block executions query result:`, blockExecutions)
+    logger.debug(`Block executions count: ${blockExecutions.length}`)
+    if (blockExecutions.length > 0) {
+      logger.debug(`First block execution:`, blockExecutions[0])
+    }
+
     // Transform block executions into a map for easy lookup
-    const blockExecutionMap = blockExecutions.reduce(
+    let blockExecutionMap = blockExecutions.reduce(
       (acc, block) => {
         acc[block.blockId] = {
           id: block.id,
@@ -77,6 +84,58 @@ export async function GET(request: NextRequest, { params }: { params: { executio
       },
       {} as Record<string, any>
     )
+
+    // If no block executions found in workflowExecutionBlocks table,
+    // try to extract from workflowExecutionLogs metadata
+    if (blockExecutions.length === 0 && workflowLog.metadata) {
+      logger.debug('No block executions in workflowExecutionBlocks, checking metadata...')
+
+      // Check if metadata contains block execution data
+      const metadata = workflowLog.metadata as any
+      if (metadata?.traceSpans && Array.isArray(metadata.traceSpans)) {
+        logger.debug('Found traceSpans in metadata, extracting block executions...')
+
+        // Extract block executions from traceSpans children
+        const workflowSpan = metadata.traceSpans[0] // Main workflow span
+        if (workflowSpan?.children && Array.isArray(workflowSpan.children)) {
+          logger.debug(`Found ${workflowSpan.children.length} child spans in workflow span`)
+
+          blockExecutionMap = workflowSpan.children.reduce((acc: any, span: any) => {
+            if (span.blockId) {
+              acc[span.blockId] = {
+                id: span.id,
+                blockId: span.blockId,
+                blockName: span.name || span.blockId,
+                blockType: span.type,
+                status: span.status === 'success' ? 'success' : 'error',
+                startedAt: span.startTime,
+                endedAt: span.endTime,
+                durationMs: span.duration,
+                inputData: span.input || {},
+                outputData: span.output || {},
+                errorMessage: span.status === 'error' ? 'Execution failed' : null,
+                errorStackTrace: null,
+                cost: {
+                  input: span.cost?.input || null,
+                  output: span.cost?.output || null,
+                  total: span.cost?.total || null,
+                },
+                tokens: {
+                  prompt: span.tokens?.prompt || null,
+                  completion: span.tokens?.completion || null,
+                  total: span.tokens?.total || null,
+                },
+                modelUsed: span.model || null,
+                metadata: {},
+              }
+            }
+            return acc
+          }, {})
+
+          logger.debug(`Extracted ${Object.keys(blockExecutionMap).length} block executions from traceSpans children`)
+        }
+      }
+    }
 
     const response = {
       executionId,
@@ -110,6 +169,7 @@ export async function GET(request: NextRequest, { params }: { params: { executio
       `Workflow state contains ${Object.keys(snapshot.stateData.blocks || {}).length} blocks`
     )
     logger.debug(`Found ${blockExecutions.length} block executions`)
+    logger.debug(`Workflow log metadata:`, workflowLog.metadata)
 
     // Debug: Log the actual snapshot data structure
     logger.debug(`Snapshot state data:`, {

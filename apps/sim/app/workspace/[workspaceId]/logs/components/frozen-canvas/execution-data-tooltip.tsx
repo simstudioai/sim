@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, X, XCircle } from 'lucide-react'
 import { createPortal } from 'react-dom'
 
 interface ExecutionData {
@@ -32,6 +32,7 @@ interface ExecutionDataTooltipProps {
   executionData: ExecutionData
   mousePosition: { x: number; y: number }
   isVisible: boolean
+  onClose?: () => void
 }
 
 function formatJsonForDisplay(data: any): string {
@@ -63,6 +64,7 @@ export function ExecutionDataTooltip({
   executionData,
   mousePosition,
   isVisible,
+  onClose,
 }: ExecutionDataTooltipProps) {
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const tooltipRef = useRef<HTMLDivElement>(null)
@@ -94,17 +96,27 @@ export function ExecutionDataTooltip({
   return createPortal(
     <div
       ref={tooltipRef}
-      className='fixed z-[9999] max-w-md overflow-hidden rounded-lg border bg-white shadow-lg'
+      className='execution-data-tooltip fixed z-[9999] max-w-md overflow-hidden rounded-lg border bg-white shadow-lg'
       style={{
         left: tooltipPosition.x,
         top: tooltipPosition.y,
-        pointerEvents: 'none',
+        pointerEvents: 'auto',
       }}
     >
       {/* Header */}
-      <div className='border-b bg-gray-50 px-3 py-2'>
-        <div className='font-medium text-sm'>{executionData.blockName}</div>
-        <div className='text-muted-foreground text-xs'>{executionData.blockType}</div>
+      <div className='border-b bg-gray-50 px-3 py-2 flex items-center justify-between'>
+        <div>
+          <div className='font-medium text-sm'>{executionData.blockName}</div>
+          <div className='text-muted-foreground text-xs'>{executionData.blockType}</div>
+        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className='text-gray-400 hover:text-gray-600 p-1 rounded'
+          >
+            <X className='h-4 w-4' />
+          </button>
+        )}
       </div>
 
       {/* Content */}

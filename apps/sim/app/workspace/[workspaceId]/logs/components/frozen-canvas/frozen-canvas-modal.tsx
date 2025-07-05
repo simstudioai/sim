@@ -93,7 +93,7 @@ export function FrozenCanvasModal({
         {/* Footer with instructions */}
         <div className='border-gray-700 border-t bg-gray-900 px-6 py-3'>
           <div className='text-gray-300 text-sm'>
-            💡 Hover over blocks to see their input and output data at execution time. This canvas
+            💡 Click on blocks to see their input and output data at execution time. This canvas
             shows the exact state of the workflow when this execution was captured.
           </div>
         </div>
