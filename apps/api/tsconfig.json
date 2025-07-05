@@ -1,0 +1,16 @@
+{
+  "extends": "@simstudio.com/typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "dist/",
+    "baseUrl": ".",
+    "declarationDir": "./dist",
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "paths": {},
+    "maxNodeModuleJsDepth": 10,
+    "jsx": "react",
+    "allowJs": true
+  },
+  "include": ["src", "test"],
+  "exclude": ["node_modules", "dist"]
+}
