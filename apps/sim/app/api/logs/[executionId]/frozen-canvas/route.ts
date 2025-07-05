@@ -2,10 +2,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import {
-  workflowExecutionLogs,
-  workflowExecutionSnapshots,
-} from '@/db/schema'
+import { workflowExecutionLogs, workflowExecutionSnapshots } from '@/db/schema'
 
 const logger = createLogger('FrozenCanvasAPI')
 

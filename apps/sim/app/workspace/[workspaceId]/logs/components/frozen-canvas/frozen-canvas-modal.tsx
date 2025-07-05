@@ -89,7 +89,12 @@ export function FrozenCanvasModal({
 
         {/* Canvas Container */}
         <div className='min-h-0 flex-1'>
-          <FrozenCanvas executionId={executionId} traceSpans={traceSpans} height='100%' width='100%' />
+          <FrozenCanvas
+            executionId={executionId}
+            traceSpans={traceSpans}
+            height='100%'
+            width='100%'
+          />
         </div>
 
         {/* Footer with instructions */}

@@ -253,8 +253,6 @@ export function Sidebar({
     )
   }, [log])
 
-
-
   // Helper to determine if we have cost information to display
   const hasCostInfo = useMemo(() => {
     return !!(

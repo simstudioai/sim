@@ -447,8 +447,6 @@ export function FrozenCanvas({
     )
   }
 
-
-
   return (
     <>
       <div style={{ height, width }} className={cn('frozen-canvas-mode h-full w-full', className)}>
