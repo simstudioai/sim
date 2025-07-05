@@ -6,12 +6,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { snapshotService } from '@/lib/logs/snapshot-service'
 import { getS3Client } from '@/lib/uploads/s3/s3-client'
 import { db } from '@/db'
-import {
-  subscription,
-  user,
-  workflow,
-  workflowExecutionLogs,
-} from '@/db/schema'
+import { subscription, user, workflow, workflowExecutionLogs } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -171,7 +166,9 @@ export async function GET(request: Request) {
               results.enhancedLogs.deleted++
             } else {
               results.enhancedLogs.deleteFailed++
-              logger.warn(`Failed to delete enhanced log ${log.id} after archiving: No rows deleted`)
+              logger.warn(
+                `Failed to delete enhanced log ${log.id} after archiving: No rows deleted`
+              )
             }
           } catch (deleteError) {
             results.enhancedLogs.deleteFailed++
@@ -186,7 +183,9 @@ export async function GET(request: Request) {
       batchesProcessed++
       hasMoreLogs = oldEnhancedLogs.length === BATCH_SIZE
 
-      logger.info(`Processed enhanced logs batch ${batchesProcessed}: ${oldEnhancedLogs.length} logs`)
+      logger.info(
+        `Processed enhanced logs batch ${batchesProcessed}: ${oldEnhancedLogs.length} logs`
+      )
     }
 
     // Cleanup orphaned snapshots
