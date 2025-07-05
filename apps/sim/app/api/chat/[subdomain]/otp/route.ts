@@ -1,8 +1,7 @@
-import { render } from '@react-email/render'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
-import OTPVerificationEmail from '@/components/emails/otp-verification-email'
+import { renderOTPEmail } from '@/components/emails/render-email'
 import { sendEmail } from '@/lib/email/mailer'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getRedisClient, markMessageAsProcessed, releaseLock } from '@/lib/redis'
@@ -158,7 +157,6 @@ export async function POST(
         ? deployment.allowedEmails
         : []
 
-      // Check if the email is allowed
       const isEmailAllowed =
         allowedEmails.includes(email) ||
         allowedEmails.some((allowed: string) => {
@@ -176,24 +174,17 @@ export async function POST(
         )
       }
 
-      // Generate OTP
       const otp = generateOTP()
 
-      // Store OTP in Redis - AWAIT THIS BEFORE RETURNING RESPONSE
       await storeOTP(email, deployment.id, otp)
 
-      // Create the email
-      const emailContent = OTPVerificationEmail({
+      const emailHtml = await renderOTPEmail(
         otp,
         email,
-        type: 'chat-access',
-        chatTitle: deployment.title || 'Chat',
-      })
+        'email-verification',
+        deployment.title || 'Chat'
+      )
 
-      // await the render function
-      const emailHtml = await render(emailContent)
-
-      // MAKE SURE TO AWAIT THE EMAIL SENDING
       const emailResult = await sendEmail({
         to: email,
         subject: `Verification code for ${deployment.title || 'Chat'}`,

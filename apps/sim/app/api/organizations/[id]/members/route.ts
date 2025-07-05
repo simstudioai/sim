@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getEmailSubject, renderInvitationEmail } from '@/components/emails/render-email'
 import { getSession } from '@/lib/auth'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { sendEmail } from '@/lib/email/mailer'
@@ -230,7 +231,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       createdAt: new Date(),
     })
 
-    // Get organization and inviter details for email
     const organizationEntry = await db
       .select({ name: organization.name })
       .from(organization)
@@ -243,17 +243,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .where(eq(user.id, session.user.id))
       .limit(1)
 
-    // Send invitation email
+    const emailHtml = await renderInvitationEmail(
+      inviter[0]?.name || 'Someone',
+      organizationEntry[0]?.name || 'organization',
+      `${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${invitationId}`,
+      normalizedEmail
+    )
+
     const emailResult = await sendEmail({
       to: normalizedEmail,
-      subject: `Invitation to join ${organizationEntry[0]?.name || 'organization'}`,
-      html: `
-        <h2>You've been invited to join ${organizationEntry[0]?.name || 'an organization'}!</h2>
-        <p><strong>${inviter[0]?.name || 'Someone'}</strong> has invited you to join their team on SimStudio.</p>
-        <p>Role: ${role.charAt(0).toUpperCase() + role.slice(1)}</p>
-        <p><a href="${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${invitationId}">Accept Invitation</a></p>
-        <p>This invitation will expire in 7 days.</p>
-      `,
+      subject: getEmailSubject('invitation'),
+      html: emailHtml,
       emailType: 'transactional',
     })
 
