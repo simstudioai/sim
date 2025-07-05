@@ -736,7 +736,7 @@ export async function executeWorkflowFromPayload(
         blockId: blockLog.blockId,
         input: blockLog.input,
         output: output,
-        tokens: blockLog.output?.response?.tokens?.total || 0,
+        tokens: blockLog.output?.tokens?.total || 0,
         relativeStartMs: index * 100,
         children: [],
         toolCalls: (blockLog as any).toolCalls || [],

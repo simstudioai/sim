@@ -61,10 +61,10 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
       case 'agent':
         return {
           content: response.content,
-          model: response.model,
-          tokens: response.tokens,
+          model: data.model,
+          tokens: data.tokens,
           toolCalls: response.toolCalls,
-          ...(response.cost && { cost: response.cost }),
+          ...(data.cost && { cost: data.cost }),
         }
 
       case 'function':
