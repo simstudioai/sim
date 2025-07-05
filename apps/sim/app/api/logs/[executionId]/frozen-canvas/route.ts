@@ -6,9 +6,12 @@ import { workflowExecutionLogs, workflowExecutionSnapshots } from '@/db/schema'
 
 const logger = createLogger('FrozenCanvasAPI')
 
-export async function GET(_request: NextRequest, { params }: { params: { executionId: string } }) {
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ executionId: string }> }
+) {
   try {
-    const { executionId } = params
+    const { executionId } = await params
 
     logger.debug(`Fetching frozen canvas data for execution: ${executionId}`)
 
