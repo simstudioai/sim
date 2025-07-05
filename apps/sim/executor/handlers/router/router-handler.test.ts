@@ -11,7 +11,6 @@ import {
   vi,
 } from 'vitest'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
-import type { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { PathTracker } from '../../path'
@@ -147,24 +146,6 @@ describe('RouterBlockHandler', () => {
       },
     ]
 
-    const expectedOutput: BlockOutput = {
-      response: {
-        content: 'Choose the best option.',
-        model: 'mock-model',
-        tokens: { prompt: 100, completion: 5, total: 105 },
-        cost: {
-          input: 0,
-          output: 0,
-          total: 0,
-        },
-        selectedPath: {
-          blockId: 'target-block-1',
-          blockType: 'target',
-          blockTitle: 'Option A',
-        },
-      },
-    }
-
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
     expect(mockGenerateRouterPrompt).toHaveBeenCalledWith(inputs.prompt, expectedTargetBlocks)
@@ -189,7 +170,21 @@ describe('RouterBlockHandler', () => {
       temperature: 0.5,
     })
 
-    expect(result).toEqual(expectedOutput)
+    expect(result).toEqual({
+      content: 'Choose the best option.',
+      model: 'mock-model',
+      tokens: { prompt: 100, completion: 5, total: 105 },
+      cost: {
+        input: 0,
+        output: 0,
+        total: 0,
+      },
+      selectedPath: {
+        blockId: 'target-block-1',
+        blockType: 'target',
+        blockTitle: 'Option A',
+      },
+    })
   })
 
   it('should throw error if target block is missing', async () => {

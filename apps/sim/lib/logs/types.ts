@@ -95,7 +95,6 @@ export interface WorkflowExecutionLog {
   totalInputCost: number
   totalOutputCost: number
   totalTokens: number
-
   metadata: {
     environment: ExecutionEnvironment
     trigger: ExecutionTrigger

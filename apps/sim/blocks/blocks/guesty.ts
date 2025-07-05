@@ -82,17 +82,13 @@ export const GuestyBlock: BlockConfig<GuestyReservationResponse | GuestyGuestRes
     phoneNumber: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        id: 'string',
-        guest: 'json',
-        checkIn: 'string',
-        checkOut: 'string',
-        status: 'string',
-        listing: 'json',
-        money: 'json',
-        guests: 'json',
-      },
-    },
+    id: 'string',
+    guest: 'json',
+    checkIn: 'string',
+    checkOut: 'string',
+    status: 'string',
+    listing: 'json',
+    money: 'json',
+    guests: 'json',
   },
 }

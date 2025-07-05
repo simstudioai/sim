@@ -52,6 +52,7 @@ describe('Folders API Route', () => {
   const mockValues = vi.fn()
   const mockReturning = vi.fn()
   const mockTransaction = vi.fn()
+  const mockGetUserEntityPermissions = vi.fn()
 
   beforeEach(() => {
     vi.resetModules()
@@ -72,12 +73,18 @@ describe('Folders API Route', () => {
     mockValues.mockReturnValue({ returning: mockReturning })
     mockReturning.mockReturnValue([mockFolders[0]])
 
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+
     vi.doMock('@/db', () => ({
       db: {
         select: mockSelect,
         insert: mockInsert,
         transaction: mockTransaction,
       },
+    }))
+
+    vi.doMock('@/lib/permissions/utils', () => ({
+      getUserEntityPermissions: mockGetUserEntityPermissions,
     }))
   })
 
@@ -141,6 +148,42 @@ describe('Folders API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Workspace ID is required')
+    })
+
+    it('should return 403 when user has no workspace permissions', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue(null) // No permissions
+
+      const mockRequest = createMockRequest('GET')
+      Object.defineProperty(mockRequest, 'url', {
+        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
+      })
+
+      const { GET } = await import('./route')
+      const response = await GET(mockRequest)
+
+      expect(response.status).toBe(403)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('error', 'Access denied to this workspace')
+    })
+
+    it('should return 403 when user has only read permissions', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('read') // Read-only permissions
+
+      const mockRequest = createMockRequest('GET')
+      Object.defineProperty(mockRequest, 'url', {
+        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
+      })
+
+      const { GET } = await import('./route')
+      const response = await GET(mockRequest)
+
+      expect(response.status).toBe(200) // Should work for read permissions
+
+      const data = await response.json()
+      expect(data).toHaveProperty('folders')
     })
 
     it('should handle database errors gracefully', async () => {
@@ -293,6 +336,100 @@ describe('Folders API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Unauthorized')
+    })
+
+    it('should return 403 when user has only read permissions', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('read') // Read-only permissions
+
+      const req = createMockRequest('POST', {
+        name: 'Test Folder',
+        workspaceId: 'workspace-123',
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+
+      expect(response.status).toBe(403)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('error', 'Write or Admin access required to create folders')
+    })
+
+    it('should allow folder creation for write permissions', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('write') // Write permissions
+
+      mockTransaction.mockImplementationOnce(async (callback: any) => {
+        const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                orderBy: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue([]), // No existing folders
+                }),
+              }),
+            }),
+          }),
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockReturnValue({
+              returning: vi.fn().mockReturnValue([mockFolders[0]]),
+            }),
+          }),
+        }
+        return await callback(tx)
+      })
+
+      const req = createMockRequest('POST', {
+        name: 'Test Folder',
+        workspaceId: 'workspace-123',
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('folder')
+    })
+
+    it('should allow folder creation for admin permissions', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('admin') // Admin permissions
+
+      mockTransaction.mockImplementationOnce(async (callback: any) => {
+        const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockReturnValue({
+                orderBy: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue([]), // No existing folders
+                }),
+              }),
+            }),
+          }),
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockReturnValue({
+              returning: vi.fn().mockReturnValue([mockFolders[0]]),
+            }),
+          }),
+        }
+        return await callback(tx)
+      })
+
+      const req = createMockRequest('POST', {
+        name: 'Test Folder',
+        workspaceId: 'workspace-123',
+      })
+
+      const { POST } = await import('./route')
+      const response = await POST(req)
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('folder')
     })
 
     it('should return 400 when required fields are missing', async () => {

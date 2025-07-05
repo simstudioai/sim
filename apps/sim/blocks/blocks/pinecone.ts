@@ -268,15 +268,11 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   },
 
   outputs: {
-    response: {
-      type: {
-        matches: 'any',
-        upsertedCount: 'any',
-        data: 'any',
-        model: 'any',
-        vector_type: 'any',
-        usage: 'any',
-      },
-    },
+    matches: 'any',
+    upsertedCount: 'any',
+    data: 'any',
+    model: 'any',
+    vector_type: 'any',
+    usage: 'any',
   },
 }

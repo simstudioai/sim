@@ -168,7 +168,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('connect', () => {
           setIsConnected(true)
           setIsConnecting(false)
-
           logger.info('Socket connected successfully', {
             socketId: socketInstance.id,
             connected: socketInstance.connected,

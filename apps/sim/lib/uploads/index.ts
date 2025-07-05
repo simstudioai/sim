@@ -1,9 +1,5 @@
-// Export the storage abstraction layer
-
 export * as BlobClient from './blob/blob-client'
-// Export specific storage clients for advanced use cases
 export * as S3Client from './s3/s3-client'
-// Export configuration
 export {
   BLOB_CONFIG,
   BLOB_KB_CONFIG,

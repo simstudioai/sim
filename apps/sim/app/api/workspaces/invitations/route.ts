@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ invitations })
   } catch (error) {
-    console.error('Error fetching workspace invitations:', error)
+    logger.error('Error fetching workspace invitations:', error)
     return NextResponse.json({ error: 'Failed to fetch invitations' }, { status: 500 })
   }
 }
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, invitation: invitationData })
   } catch (error) {
-    console.error('Error creating workspace invitation:', error)
+    logger.error('Error creating workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })
   }
 }
@@ -252,9 +252,9 @@ async function sendInvitationEmail({
       html: emailHtml,
     })
 
-    console.log(`Invitation email sent to ${to}`)
+    logger.info(`Invitation email sent to ${to}`)
   } catch (error) {
-    console.error('Error sending invitation email:', error)
+    logger.error('Error sending invitation email:', error)
     // Continue even if email fails - the invitation is still created
   }
 }

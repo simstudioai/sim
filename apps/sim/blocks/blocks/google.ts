@@ -87,11 +87,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   },
 
   outputs: {
-    response: {
-      type: {
-        items: 'json',
-        searchInformation: 'json',
-      } as any,
-    },
+    items: 'json',
+    searchInformation: 'json',
   },
 }

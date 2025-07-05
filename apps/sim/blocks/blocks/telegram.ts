@@ -55,11 +55,7 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
     text: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        ok: 'boolean',
-        result: 'json',
-      },
-    },
+    ok: 'boolean',
+    result: 'json',
   },
 }

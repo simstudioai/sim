@@ -56,7 +56,7 @@ export class ParallelBlockHandler implements BlockHandler {
 
         // Check if we already have aggregated results stored (from a previous completion check)
         const existingBlockState = context.blockStates.get(block.id)
-        if (existingBlockState?.output?.response?.results) {
+        if (existingBlockState?.output?.results) {
           logger.info(`Parallel ${block.id} already has aggregated results, returning them`)
           return existingBlockState.output
         }
@@ -72,14 +72,12 @@ export class ParallelBlockHandler implements BlockHandler {
 
         // Store the aggregated results in the block state so subsequent blocks can reference them
         const aggregatedOutput = {
-          response: {
-            parallelId: block.id,
-            parallelCount: parallelState.parallelCount,
-            completed: true,
-            results,
-            message: `Completed all ${parallelState.parallelCount} executions`,
-          },
-        }
+          parallelId: block.id,
+          parallelCount: parallelState.parallelCount,
+          completed: true,
+          results,
+          message: `Completed all ${parallelState.parallelCount} executions`,
+        } as Record<string, any>
 
         // Store the aggregated results in context so blocks connected to parallel-end-source can access them
         context.blockStates.set(block.id, {
@@ -199,14 +197,12 @@ export class ParallelBlockHandler implements BlockHandler {
       }
 
       return {
-        response: {
-          parallelId: block.id,
-          parallelCount,
-          distributionType: parallelType === 'count' ? 'count' : 'distributed',
-          started: true,
-          message: `Initialized ${parallelCount} parallel execution${parallelCount > 1 ? 's' : ''}`,
-        },
-      }
+        parallelId: block.id,
+        parallelCount,
+        distributionType: parallelType === 'count' ? 'count' : 'distributed',
+        started: true,
+        message: `Initialized ${parallelCount} parallel execution${parallelCount > 1 ? 's' : ''}`,
+      } as Record<string, any>
     }
 
     // Check if all virtual blocks have completed
@@ -222,7 +218,7 @@ export class ParallelBlockHandler implements BlockHandler {
 
         // Check if we already have aggregated results stored (from a previous completion check)
         const existingBlockState = context.blockStates.get(block.id)
-        if (existingBlockState?.output?.response?.results) {
+        if (existingBlockState?.output?.results) {
           logger.info(`Parallel ${block.id} already has aggregated results, returning them`)
           return existingBlockState.output
         }
@@ -238,14 +234,12 @@ export class ParallelBlockHandler implements BlockHandler {
 
         // Store the aggregated results in the block state so subsequent blocks can reference them
         const aggregatedOutput = {
-          response: {
-            parallelId: block.id,
-            parallelCount: parallelState.parallelCount,
-            completed: true,
-            results,
-            message: `Completed all ${parallelState.parallelCount} executions`,
-          },
-        }
+          parallelId: block.id,
+          parallelCount: parallelState.parallelCount,
+          completed: true,
+          results,
+          message: `Completed all ${parallelState.parallelCount} executions`,
+        } as Record<string, any>
 
         // Store the aggregated results in context so blocks connected to parallel-end-source can access them
         context.blockStates.set(block.id, {
@@ -288,15 +282,13 @@ export class ParallelBlockHandler implements BlockHandler {
     // Still waiting for iterations to complete
     const completedCount = this.countCompletedIterations(block.id, context)
     return {
-      response: {
-        parallelId: block.id,
-        parallelCount: parallelState.parallelCount,
-        completedExecutions: completedCount,
-        activeIterations: parallelState.parallelCount - completedCount,
-        waiting: true,
-        message: `${completedCount} of ${parallelState.parallelCount} iterations completed`,
-      },
-    }
+      parallelId: block.id,
+      parallelCount: parallelState.parallelCount,
+      completedExecutions: completedCount,
+      activeIterations: parallelState.parallelCount - completedCount,
+      waiting: true,
+      message: `${completedCount} of ${parallelState.parallelCount} iterations completed`,
+    } as Record<string, any>
   }
 
   /**

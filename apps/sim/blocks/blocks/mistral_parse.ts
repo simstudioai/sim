@@ -202,11 +202,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
     // imageMinSize: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        content: 'string',
-        metadata: 'json',
-      },
-    },
+    content: 'string',
+    metadata: 'json',
   },
 }

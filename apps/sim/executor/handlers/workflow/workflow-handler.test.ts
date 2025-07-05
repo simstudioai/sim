@@ -208,7 +208,7 @@ describe('WorkflowBlockHandler', () => {
     it('should map successful child output correctly', () => {
       const childResult = {
         success: true,
-        output: { response: { data: 'test result' } },
+        output: { data: 'test result' },
       }
 
       const result = (handler as any).mapChildOutputToParent(
@@ -219,11 +219,9 @@ describe('WorkflowBlockHandler', () => {
       )
 
       expect(result).toEqual({
-        response: {
-          success: true,
-          childWorkflowName: 'Child Workflow',
-          result: { data: 'test result' },
-        },
+        success: true,
+        childWorkflowName: 'Child Workflow',
+        result: { data: 'test result' },
       })
     })
 
@@ -241,17 +239,15 @@ describe('WorkflowBlockHandler', () => {
       )
 
       expect(result).toEqual({
-        response: {
-          success: false,
-          childWorkflowName: 'Child Workflow',
-          error: 'Child workflow failed',
-        },
+        success: false,
+        childWorkflowName: 'Child Workflow',
+        error: 'Child workflow failed',
       })
     })
 
     it('should handle nested response structures', () => {
       const childResult = {
-        response: { response: { nested: 'data' } },
+        output: { nested: 'data' },
       }
 
       const result = (handler as any).mapChildOutputToParent(
@@ -262,11 +258,9 @@ describe('WorkflowBlockHandler', () => {
       )
 
       expect(result).toEqual({
-        response: {
-          success: true,
-          childWorkflowName: 'Child Workflow',
-          result: { nested: 'data' },
-        },
+        success: true,
+        childWorkflowName: 'Child Workflow',
+        result: { nested: 'data' },
       })
     })
   })

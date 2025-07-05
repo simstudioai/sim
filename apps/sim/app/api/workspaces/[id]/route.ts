@@ -26,9 +26,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const workspaceId = id
 
-  // Check if user has read access to this workspace
+  // Check if user has any access to this workspace
   const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-  if (userPermission !== 'read') {
+  if (!userPermission) {
     return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
   }
 

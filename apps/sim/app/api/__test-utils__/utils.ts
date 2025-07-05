@@ -93,7 +93,7 @@ export const sampleWorkflowState = {
         webhookPath: { id: 'webhookPath', type: 'short-input', value: '' },
       },
       outputs: {
-        response: { type: { input: 'any' } },
+        input: 'any',
       },
       enabled: true,
       horizontalHandles: true,
@@ -111,7 +111,7 @@ export const sampleWorkflowState = {
           type: 'long-input',
           value: 'You are a helpful assistant',
         },
-        context: { id: 'context', type: 'short-input', value: '<start.response.input>' },
+        context: { id: 'context', type: 'short-input', value: '<start.input>' },
         model: { id: 'model', type: 'dropdown', value: 'gpt-4o' },
         apiKey: { id: 'apiKey', type: 'short-input', value: '{{OPENAI_API_KEY}}' },
       },
@@ -138,6 +138,7 @@ export const sampleWorkflowState = {
     },
   ],
   loops: {},
+  parallels: {},
   lastSaved: Date.now(),
   isDeployed: false,
 }
@@ -764,6 +765,20 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
         bucket: 'test-s3-bucket',
         region: 'us-east-1',
       },
+      S3_KB_CONFIG: {
+        bucket: 'test-s3-kb-bucket',
+        region: 'us-east-1',
+      },
+      BLOB_CONFIG: {
+        accountName: 'testaccount',
+        accountKey: 'testkey',
+        containerName: 'test-container',
+      },
+      BLOB_KB_CONFIG: {
+        accountName: 'testaccount',
+        accountKey: 'testkey',
+        containerName: 'test-kb-container',
+      },
     }))
 
     vi.doMock('@aws-sdk/client-s3', () => ({
@@ -805,6 +820,11 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
         accountName: 'testaccount',
         accountKey: 'testkey',
         containerName: 'test-container',
+      },
+      BLOB_KB_CONFIG: {
+        accountName: 'testaccount',
+        accountKey: 'testkey',
+        containerName: 'test-kb-container',
       },
     }))
 
