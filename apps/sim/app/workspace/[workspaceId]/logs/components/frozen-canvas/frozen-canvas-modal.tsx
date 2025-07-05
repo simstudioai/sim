@@ -43,24 +43,24 @@ export function FrozenCanvasModal({
         hideCloseButton={true}
       >
         {/* Header */}
-        <DialogHeader className='flex flex-row items-center justify-between border-gray-700 border-b bg-gray-900 p-4'>
+        <DialogHeader className='flex flex-row items-center justify-between border-b bg-background p-4'>
           <div className='flex items-center gap-3'>
-            <Eye className='h-5 w-5 text-blue-400' />
+            <Eye className='h-5 w-5 text-blue-500 dark:text-blue-400' />
             <div>
-              <DialogTitle className='font-semibold text-lg text-white'>
+              <DialogTitle className='font-semibold text-lg text-foreground'>
                 Logged Workflow State
               </DialogTitle>
               <div className='mt-1 flex items-center gap-2'>
-                {workflowName && <span className='text-gray-300 text-sm'>{workflowName}</span>}
+                {workflowName && <span className='text-muted-foreground text-sm'>{workflowName}</span>}
                 {trigger && (
                   <Badge
                     variant='secondary'
-                    className='border-gray-600 bg-gray-700 text-gray-200 text-xs'
+                    className='text-xs'
                   >
                     {trigger}
                   </Badge>
                 )}
-                <span className='font-mono text-gray-400 text-xs'>
+                <span className='font-mono text-muted-foreground text-xs'>
                   {executionId.slice(0, 8)}...
                 </span>
               </div>
@@ -72,7 +72,7 @@ export function FrozenCanvasModal({
               variant='ghost'
               size='sm'
               onClick={toggleFullscreen}
-              className='h-8 w-8 p-0 text-gray-300 hover:bg-gray-800 hover:text-white'
+              className='h-8 w-8 p-0'
             >
               {isFullscreen ? <Minimize2 className='h-4 w-4' /> : <Maximize2 className='h-4 w-4' />}
             </Button>
@@ -80,7 +80,7 @@ export function FrozenCanvasModal({
               variant='ghost'
               size='sm'
               onClick={onClose}
-              className='h-8 w-8 p-0 text-gray-300 hover:bg-gray-800 hover:text-white'
+              className='h-8 w-8 p-0'
             >
               <X className='h-4 w-4' />
             </Button>
@@ -98,8 +98,8 @@ export function FrozenCanvasModal({
         </div>
 
         {/* Footer with instructions */}
-        <div className='border-gray-700 border-t bg-gray-900 px-6 py-3'>
-          <div className='text-gray-300 text-sm'>
+        <div className='border-t bg-background px-6 py-3'>
+          <div className='text-muted-foreground text-sm'>
             💡 Click on blocks to see their input and output data at execution time. This canvas
             shows the exact state of the workflow when this execution was captured.
           </div>
