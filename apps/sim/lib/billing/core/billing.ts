@@ -342,34 +342,37 @@ export async function processOrganizationOverageBilling(
       return { success: true, chargedAmount: 0 }
     }
 
-    // Calculate total overage for all members
-    let totalOverage = 0
+    // Calculate total team usage across all members
     const { basePrice: basePricePerSeat } = getPlanPricing(subscription.plan, subscription)
+    const licensedSeats = subscription.seats || 1
+    const baseSubscriptionAmount = licensedSeats * basePricePerSeat // What Stripe already charged
 
-    const memberOverageDetails = []
+    let totalTeamUsage = 0
+    const memberUsageDetails = []
 
     for (const memberInfo of members) {
       const usageData = await getUserUsageData(memberInfo.userId)
-      const memberOverage = Math.max(0, usageData.currentUsage - basePricePerSeat)
+      totalTeamUsage += usageData.currentUsage
 
-      totalOverage += memberOverage
-
-      memberOverageDetails.push({
+      memberUsageDetails.push({
         userId: memberInfo.userId,
         name: memberInfo.userName,
         email: memberInfo.userEmail,
         usage: usageData.currentUsage,
-        basePrice: basePricePerSeat,
-        overage: memberOverage,
       })
     }
+
+    // Calculate team-level overage: total usage beyond what was already paid to Stripe
+    const totalOverage = Math.max(0, totalTeamUsage - baseSubscriptionAmount)
 
     // Skip if no overage across the organization
     if (totalOverage <= 0) {
       logger.info('No overage to bill for organization', {
         organizationId,
+        licensedSeats,
         memberCount: members.length,
-        basePricePerSeat,
+        totalTeamUsage,
+        baseSubscriptionAmount,
       })
 
       // Still reset billing period for all members
@@ -386,15 +389,18 @@ export async function processOrganizationOverageBilling(
     }
 
     // Create consolidated overage invoice for the organization
-    const description = `Team usage overage for ${subscription.plan} plan - ${members.length} seats, $${totalOverage.toFixed(2)} total overage`
+    const description = `Team usage overage for ${subscription.plan} plan - ${licensedSeats} licensed seats, $${totalTeamUsage.toFixed(2)} total usage, $${totalOverage.toFixed(2)} overage`
     const metadata = {
       organizationId,
       plan: subscription.plan,
+      licensedSeats: licensedSeats.toString(),
       memberCount: members.length.toString(),
       basePricePerSeat: basePricePerSeat.toString(),
+      baseSubscriptionAmount: baseSubscriptionAmount.toString(),
+      totalTeamUsage: totalTeamUsage.toString(),
       totalOverage: totalOverage.toString(),
       billingPeriod: new Date().toISOString().slice(0, 7), // YYYY-MM format
-      memberDetails: JSON.stringify(memberOverageDetails),
+      memberDetails: JSON.stringify(memberUsageDetails),
     }
 
     const result = await createOverageBillingInvoice(
@@ -568,18 +574,19 @@ export async function getSimplifiedBillingSummary(
         .where(eq(member.organizationId, organizationId))
 
       const { basePrice: basePricePerSeat } = getPlanPricing(subscription.plan, subscription)
-      const seatCount = members.length
-      const totalBasePrice = basePricePerSeat * seatCount
+      const licensedSeats = subscription.seats || 1
+      const totalBasePrice = basePricePerSeat * licensedSeats // Based on licensed seats, not member count
 
       let totalCurrentUsage = 0
-      let totalOverage = 0
 
-      // Calculate totals across all members
+      // Calculate total team usage across all members
       for (const memberInfo of members) {
         const memberUsageData = await getUserUsageData(memberInfo.userId)
         totalCurrentUsage += memberUsageData.currentUsage
-        totalOverage += Math.max(0, memberUsageData.currentUsage - basePricePerSeat)
       }
+
+      // Calculate team-level overage: total usage beyond what was already paid to Stripe
+      const totalOverage = Math.max(0, totalCurrentUsage - totalBasePrice)
 
       // Get user's personal limits for warnings
       const percentUsed =
@@ -626,7 +633,7 @@ export async function getSimplifiedBillingSummary(
           daysRemaining,
         },
         organizationData: {
-          seatCount,
+          seatCount: licensedSeats,
           totalBasePrice,
           totalCurrentUsage,
           totalOverage,

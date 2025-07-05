@@ -139,18 +139,15 @@ export async function getOrganizationBillingData(
 
     // Calculate aggregated statistics
     const totalCurrentUsage = members.reduce((sum, member) => sum + member.currentUsage, 0)
-    const sumOfIndividualLimits = members.reduce((sum, member) => sum + member.usageLimit, 0)
 
     // Get per-seat pricing for the plan
     const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan, subscription)
     const seatsCount = subscription.seats || members.length
     const minimumBillingAmount = seatsCount * pricePerSeat
 
-    // Total usage limit is the maximum of:
-    // 1. Minimum billing amount (seats × price per seat)
-    // 2. Sum of individual member limits
-    // This represents the minimum amount the team will be billed
-    const totalUsageLimit = Math.max(minimumBillingAmount, sumOfIndividualLimits)
+    // Total usage limit represents the minimum amount the team will be billed
+    // This is based on licensed seats, not individual member limits (which are personal controls)
+    const totalUsageLimit = minimumBillingAmount
 
     const averageUsagePerMember = members.length > 0 ? totalCurrentUsage / members.length : 0
 

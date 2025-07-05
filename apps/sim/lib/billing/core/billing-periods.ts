@@ -1,4 +1,4 @@
-import { and, eq, gte, lt } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { member, subscription, userStats } from '@/db/schema'
@@ -95,54 +95,6 @@ export async function initializeBillingPeriod(
 }
 
 /**
- * Get current billing period usage for a user
- */
-export async function getCurrentPeriodUsage(userId: string): Promise<{
-  currentPeriodCost: number
-  billingPeriodStart: Date | null
-  billingPeriodEnd: Date | null
-  daysRemaining: number
-}> {
-  try {
-    const userStatsData = await db
-      .select()
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
-    if (userStatsData.length === 0) {
-      return {
-        currentPeriodCost: 0,
-        billingPeriodStart: null,
-        billingPeriodEnd: null,
-        daysRemaining: 0,
-      }
-    }
-
-    const stats = userStatsData[0]
-    const currentPeriodCost = Number.parseFloat(stats.currentPeriodCost || '0')
-    const billingPeriodEnd = stats.billingPeriodEnd
-
-    let daysRemaining = 0
-    if (billingPeriodEnd) {
-      const now = new Date()
-      const diffTime = billingPeriodEnd.getTime() - now.getTime()
-      daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
-    }
-
-    return {
-      currentPeriodCost,
-      billingPeriodStart: stats.billingPeriodStart,
-      billingPeriodEnd: stats.billingPeriodEnd,
-      daysRemaining,
-    }
-  } catch (error) {
-    logger.error('Failed to get current period usage', { userId, error })
-    throw error
-  }
-}
-
-/**
  * Reset billing period for a user (archive current usage and start new period)
  * This implements the Cursor model where usage resets monthly after billing
  */
@@ -218,101 +170,6 @@ export async function resetOrganizationBillingPeriod(organizationId: string): Pr
     })
   } catch (error) {
     logger.error('Failed to reset organization billing period', { organizationId, error })
-    throw error
-  }
-}
-
-/**
- * Get all users who have billing periods ending today
- */
-export async function getUsersWithEndedBillingPeriods(): Promise<string[]> {
-  try {
-    const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const startOfTomorrow = new Date(startOfToday)
-    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
-
-    const endedPeriods = await db
-      .select({ userId: userStats.userId })
-      .from(userStats)
-      .where(
-        and(
-          gte(userStats.billingPeriodEnd, startOfToday),
-          lt(userStats.billingPeriodEnd, startOfTomorrow)
-        )
-      )
-
-    const userIds = endedPeriods.map((record) => record.userId)
-
-    logger.info('Found users with billing periods ending today', {
-      count: userIds.length,
-      userIds,
-      startOfToday,
-      startOfTomorrow,
-    })
-
-    return userIds
-  } catch (error) {
-    logger.error('Failed to get users with ended billing periods', { error })
-    return []
-  }
-}
-
-/**
- * Check if a user's billing period has ended and needs reset
- */
-export async function shouldResetBillingPeriod(userId: string): Promise<boolean> {
-  try {
-    const currentUsage = await getCurrentPeriodUsage(userId)
-
-    if (!currentUsage.billingPeriodEnd) {
-      return false // No billing period set
-    }
-
-    const now = new Date()
-    return now >= currentUsage.billingPeriodEnd
-  } catch (error) {
-    logger.error('Failed to check if billing period should reset', { userId, error })
-    return false
-  }
-}
-
-/**
- * Get billing period summary for a user
- */
-export async function getBillingPeriodSummary(userId: string): Promise<{
-  currentPeriod: {
-    start: Date | null
-    end: Date | null
-    cost: number
-    daysRemaining: number
-  }
-  lastPeriod: {
-    cost: number
-  }
-}> {
-  try {
-    const [currentUsage, userStatsData] = await Promise.all([
-      getCurrentPeriodUsage(userId),
-      db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
-    ])
-
-    const lastPeriodCost =
-      userStatsData.length > 0 ? Number.parseFloat(userStatsData[0].lastPeriodCost || '0') : 0
-
-    return {
-      currentPeriod: {
-        start: currentUsage.billingPeriodStart,
-        end: currentUsage.billingPeriodEnd,
-        cost: currentUsage.currentPeriodCost,
-        daysRemaining: currentUsage.daysRemaining,
-      },
-      lastPeriod: {
-        cost: lastPeriodCost,
-      },
-    }
-  } catch (error) {
-    logger.error('Failed to get billing period summary', { userId, error })
     throw error
   }
 }
