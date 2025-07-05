@@ -38,103 +38,132 @@ export async function GET(request: NextRequest, { params }: { params: { executio
       return NextResponse.json({ error: 'Workflow state snapshot not found' }, { status: 404 })
     }
 
-    // Get all block executions for this execution
+    // Get all block executions for this execution, ordered by startedAt to maintain iteration order
     const blockExecutions = await db
       .select()
       .from(workflowExecutionBlocks)
       .where(eq(workflowExecutionBlocks.executionId, executionId))
+      .orderBy(workflowExecutionBlocks.startedAt)
 
     // Debug: Log the raw query results
     logger.debug(`Raw block executions query result:`, blockExecutions)
     logger.debug(`Block executions count: ${blockExecutions.length}`)
     if (blockExecutions.length > 0) {
+      logger.debug(`Total block executions found: ${blockExecutions.length}`)
       logger.debug(`First block execution:`, blockExecutions[0])
+
+      // Debug: Check for multiple executions of the same blockId
+      const blockIdCounts = blockExecutions.reduce((acc, block) => {
+        acc[block.blockId] = (acc[block.blockId] || 0) + 1
+        return acc
+      }, {} as Record<string, number>)
+
+      const multipleIterations = Object.entries(blockIdCounts).filter(([_, count]) => count > 1)
+      if (multipleIterations.length > 0) {
+        logger.debug(`Blocks with multiple iterations:`, multipleIterations)
+      }
     }
 
-    // Transform block executions into a map for easy lookup
-    let blockExecutionMap = blockExecutions.reduce(
-      (acc, block) => {
-        acc[block.blockId] = {
-          id: block.id,
-          blockId: block.blockId,
-          blockName: block.blockName,
-          blockType: block.blockType,
-          status: block.status,
-          startedAt: block.startedAt.toISOString(),
-          endedAt: block.endedAt?.toISOString(),
-          durationMs: block.durationMs,
-          inputData: block.inputData,
-          outputData: block.outputData,
-          errorMessage: block.errorMessage,
-          errorStackTrace: block.errorStackTrace,
-          cost: {
-            input: block.costInput ? Number.parseFloat(block.costInput) : null,
-            output: block.costOutput ? Number.parseFloat(block.costOutput) : null,
-            total: block.costTotal ? Number.parseFloat(block.costTotal) : null,
-          },
-          tokens: {
-            prompt: block.tokensPrompt,
-            completion: block.tokensCompletion,
-            total: block.tokensTotal,
-          },
-          modelUsed: block.modelUsed,
-          metadata: block.metadata,
-        }
-        return acc
-      },
-      {} as Record<string, any>
-    )
+    // Initialize blockExecutionMap - we'll populate it from traceSpans primarily
+    let blockExecutionMap: Record<string, any> = {}
 
-    // If no block executions found in workflowExecutionBlocks table,
-    // try to extract from workflowExecutionLogs metadata
-    if (blockExecutions.length === 0 && workflowLog.metadata) {
-      logger.debug('No block executions in workflowExecutionBlocks, checking metadata...')
-
-      // Check if metadata contains block execution data
+    // Extract iteration data from traceSpans metadata (primary source)
+    if (workflowLog.metadata) {
       const metadata = workflowLog.metadata as any
       if (metadata?.traceSpans && Array.isArray(metadata.traceSpans)) {
-        logger.debug('Found traceSpans in metadata, extracting block executions...')
+        logger.debug('Found traceSpans in metadata, extracting iteration data...')
 
         // Extract block executions from traceSpans children
         const workflowSpan = metadata.traceSpans[0] // Main workflow span
         if (workflowSpan?.children && Array.isArray(workflowSpan.children)) {
-          logger.debug(`Found ${workflowSpan.children.length} child spans in workflow span`)
+          logger.debug(`Found ${workflowSpan.children.length} trace spans`)
 
-          blockExecutionMap = workflowSpan.children.reduce((acc: any, span: any) => {
+          // Group trace spans by blockId to identify iterations
+          const traceSpansByBlockId = workflowSpan.children.reduce((acc: any, span: any) => {
             if (span.blockId) {
-              acc[span.blockId] = {
-                id: span.id,
-                blockId: span.blockId,
-                blockName: span.name || span.blockId,
-                blockType: span.type,
-                status: span.status === 'success' ? 'success' : 'error',
-                startedAt: span.startTime,
-                endedAt: span.endTime,
-                durationMs: span.duration,
-                inputData: span.input || {},
-                outputData: span.output || {},
-                errorMessage: span.status === 'error' ? 'Execution failed' : null,
-                errorStackTrace: null,
-                cost: {
-                  input: span.cost?.input || null,
-                  output: span.cost?.output || null,
-                  total: span.cost?.total || null,
-                },
-                tokens: {
-                  prompt: span.tokens?.prompt || null,
-                  completion: span.tokens?.completion || null,
-                  total: span.tokens?.total || null,
-                },
-                modelUsed: span.model || null,
-                metadata: {},
+              if (!acc[span.blockId]) {
+                acc[span.blockId] = []
               }
+              acc[span.blockId].push(span)
             }
             return acc
           }, {})
 
-          logger.debug(
-            `Extracted ${Object.keys(blockExecutionMap).length} block executions from traceSpans children`
+          // Create blockExecutionMap with iteration data from trace spans
+          for (const [blockId, spans] of Object.entries(traceSpansByBlockId)) {
+            const spanArray = spans as any[]
+            logger.debug(`Block ${blockId} has ${spanArray.length} executions in trace spans`)
+
+            // Convert trace spans to execution format and group as iterations
+            const iterations = spanArray.map((span: any) => ({
+              id: span.id,
+              blockId: span.blockId,
+              blockName: span.name,
+              blockType: span.type,
+              status: span.status,
+              startedAt: span.startTime,
+              endedAt: span.endTime,
+              durationMs: span.duration,
+              inputData: span.input,
+              outputData: span.output,
+              errorMessage: null,
+              errorStackTrace: null,
+              cost: {
+                input: null,
+                output: null,
+                total: null,
+              },
+              tokens: {
+                prompt: null,
+                completion: null,
+                total: null,
+              },
+              modelUsed: null,
+              metadata: {},
+            }))
+
+            // Add to blockExecutionMap with iteration data
+            blockExecutionMap[blockId] = {
+              iterations,
+              currentIteration: 0,
+              totalIterations: iterations.length
+            }
+          }
+        }
+      }
+    }
+
+    // Supplement with data from workflowExecutionBlocks table if available
+    if (blockExecutions.length > 0) {
+      logger.debug(`Found ${blockExecutions.length} block executions in workflowExecutionBlocks table`)
+
+      // Merge database data with traceSpan data where possible
+      for (const block of blockExecutions) {
+        if (blockExecutionMap[block.blockId]) {
+          // Find the matching iteration and supplement with database data
+          const iterations = blockExecutionMap[block.blockId].iterations
+          const matchingIteration = iterations.find((iter: any) =>
+            iter.blockId === block.blockId &&
+            Math.abs(new Date(iter.startedAt).getTime() - block.startedAt.getTime()) < 1000 // Within 1 second
           )
+
+          if (matchingIteration) {
+            // Supplement with richer data from database
+            matchingIteration.cost = {
+              input: block.costInput ? Number.parseFloat(block.costInput) : null,
+              output: block.costOutput ? Number.parseFloat(block.costOutput) : null,
+              total: block.costTotal ? Number.parseFloat(block.costTotal) : null,
+            }
+            matchingIteration.tokens = {
+              prompt: block.tokensPrompt,
+              completion: block.tokensCompletion,
+              total: block.tokensTotal,
+            }
+            matchingIteration.modelUsed = block.modelUsed
+            matchingIteration.errorMessage = block.errorMessage
+            matchingIteration.errorStackTrace = block.errorStackTrace
+            matchingIteration.metadata = block.metadata
+          }
         }
       }
     }

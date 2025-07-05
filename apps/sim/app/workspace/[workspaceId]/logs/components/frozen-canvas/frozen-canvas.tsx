@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, Clock, DollarSign, Hash, Loader2, X, Zap } from 'lucide-react'
+import { AlertCircle, Clock, DollarSign, Hash, Loader2, X, Zap, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -87,9 +87,77 @@ function formatExecutionData(executionData: any) {
   }
 }
 
+// Helper function to get current iteration data
+function getCurrentIterationData(blockExecutionData: any) {
+  // Handle both single execution and multiple iterations
+  if (blockExecutionData.iterations && Array.isArray(blockExecutionData.iterations)) {
+    const currentIndex = blockExecutionData.currentIteration ?? 0
+    return {
+      executionData: blockExecutionData.iterations[currentIndex],
+      currentIteration: currentIndex,
+      totalIterations: blockExecutionData.totalIterations ?? blockExecutionData.iterations.length,
+      hasMultipleIterations: blockExecutionData.iterations.length > 1
+    }
+  }
+
+  // Single execution (legacy format)
+  return {
+    executionData: blockExecutionData,
+    currentIteration: 0,
+    totalIterations: 1,
+    hasMultipleIterations: false
+  }
+}
+
 // PinnedLogs component
 function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: () => void }) {
-  const formatted = formatExecutionData(executionData)
+  const [currentIterationIndex, setCurrentIterationIndex] = useState(0)
+
+  // Get iteration data
+  console.log('PinnedLogs render - currentIterationIndex:', currentIterationIndex, 'executionData:', executionData)
+  const iterationInfo = getCurrentIterationData({
+    ...executionData,
+    currentIteration: currentIterationIndex
+  })
+  console.log('PinnedLogs render - iterationInfo:', iterationInfo)
+
+  const formatted = formatExecutionData(iterationInfo.executionData)
+
+  // Get total iterations from original executionData
+  const totalIterations = executionData.iterations?.length || 1
+
+  // Navigation handlers
+  const goToPreviousIteration = () => {
+    console.log('goToPreviousIteration clicked, currentIterationIndex:', currentIterationIndex)
+    if (currentIterationIndex > 0) {
+      const newIndex = currentIterationIndex - 1
+      console.log('Setting currentIterationIndex to:', newIndex)
+      setCurrentIterationIndex(newIndex)
+    }
+  }
+
+  const goToNextIteration = () => {
+    console.log('goToNextIteration clicked, currentIterationIndex:', currentIterationIndex, 'totalIterations:', totalIterations)
+    if (currentIterationIndex < totalIterations - 1) {
+      const newIndex = currentIterationIndex + 1
+      console.log('Setting currentIterationIndex to:', newIndex)
+      setCurrentIterationIndex(newIndex)
+    } else {
+      console.log('Cannot go to next iteration - at max')
+    }
+  }
+
+  // Reset iteration index when executionData changes
+  useEffect(() => {
+    setCurrentIterationIndex(0)
+    console.log('PinnedLogs executionData:', executionData)
+  }, [executionData])
+
+  // Log when currentIterationIndex changes
+  useEffect(() => {
+    console.log('PinnedLogs render - currentIterationIndex:', currentIterationIndex)
+    console.log('PinnedLogs render - iterationInfo:', iterationInfo)
+  }, [currentIterationIndex, iterationInfo])
 
   return (
     <Card className='fixed top-4 right-4 z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border-border bg-background shadow-lg'>
@@ -103,11 +171,36 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
             <X className='h-4 w-4' />
           </button>
         </div>
-        <div className='flex items-center gap-2'>
-          <Badge variant={formatted.status === 'success' ? 'default' : 'destructive'}>
-            {formatted.blockType}
-          </Badge>
-          <Badge variant='outline'>{formatted.status}</Badge>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-2'>
+            <Badge variant={formatted.status === 'success' ? 'default' : 'destructive'}>
+              {formatted.blockType}
+            </Badge>
+            <Badge variant='outline'>{formatted.status}</Badge>
+          </div>
+
+          {/* Iteration Navigation */}
+          {iterationInfo.hasMultipleIterations && (
+            <div className='flex items-center gap-1'>
+              <button
+                onClick={goToPreviousIteration}
+                disabled={currentIterationIndex === 0}
+                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed'
+              >
+                <ChevronLeft className='h-4 w-4' />
+              </button>
+              <span className='text-xs text-muted-foreground px-2'>
+                {currentIterationIndex + 1} / {iterationInfo.totalIterations}
+              </span>
+              <button
+                onClick={goToNextIteration}
+                disabled={currentIterationIndex === totalIterations - 1}
+                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed'
+              >
+                <ChevronRight className='h-4 w-4' />
+              </button>
+            </div>
+          )}
         </div>
       </CardHeader>
 
@@ -345,6 +438,14 @@ export function FrozenCanvas({
             console.log('Block clicked in frozen canvas:', blockId)
             console.log('Available execution data:', Object.keys(data.blockExecutions))
             console.log('Execution data for block:', data.blockExecutions[blockId])
+
+            // Debug: Check if this block has multiple iterations
+            const blockData = data.blockExecutions[blockId]
+            if (blockData?.iterations && Array.isArray(blockData.iterations)) {
+              console.log(`Block ${blockId} has ${blockData.iterations.length} iterations:`, blockData.iterations)
+            } else {
+              console.log(`Block ${blockId} has single execution (legacy format):`, blockData)
+            }
 
             if (data.blockExecutions[blockId]) {
               // Pin the logs for this block
