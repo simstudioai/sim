@@ -2,20 +2,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
-type Organization = {
-  id: string
-  name: string
-  slug: string
-  createdAt: string | Date
-  [key: string]: unknown
-}
-
-interface OrganizationFormData {
-  name: string
-  slug: string
-  logo: string
-}
+import type { Organization, OrganizationFormData } from '@/stores/organization'
 
 interface OrganizationSettingsTabProps {
   organization: Organization

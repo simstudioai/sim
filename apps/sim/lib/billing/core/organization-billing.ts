@@ -6,6 +6,40 @@ import { getHighestPrioritySubscription } from './subscription'
 
 const logger = createLogger('OrganizationBilling')
 
+/**
+ * Get plan pricing information
+ */
+function getPlanPricing(
+  plan: string,
+  subscription?: any
+): {
+  basePrice: number
+  minimum: number
+} {
+  switch (plan) {
+    case 'free':
+      return { basePrice: 0, minimum: 0 } // Free plan has no charges
+    case 'pro':
+      return { basePrice: 20, minimum: 20 } // $20/month subscription
+    case 'team':
+      return { basePrice: 40, minimum: 40 } // $40/seat/month subscription
+    case 'enterprise':
+      // Get per-seat pricing from metadata
+      if (subscription?.metadata) {
+        const metadata =
+          typeof subscription.metadata === 'string'
+            ? JSON.parse(subscription.metadata)
+            : subscription.metadata
+
+        const perSeatPrice = metadata.perSeatAllowance || 100
+        return { basePrice: perSeatPrice, minimum: perSeatPrice }
+      }
+      return { basePrice: 100, minimum: 100 } // Default enterprise pricing
+    default:
+      return { basePrice: 0, minimum: 0 }
+  }
+}
+
 interface OrganizationUsageData {
   organizationId: string
   organizationName: string
@@ -105,7 +139,19 @@ export async function getOrganizationBillingData(
 
     // Calculate aggregated statistics
     const totalCurrentUsage = members.reduce((sum, member) => sum + member.currentUsage, 0)
-    const totalUsageLimit = members.reduce((sum, member) => sum + member.usageLimit, 0)
+    const sumOfIndividualLimits = members.reduce((sum, member) => sum + member.usageLimit, 0)
+
+    // Get per-seat pricing for the plan
+    const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan, subscription)
+    const seatsCount = subscription.seats || members.length
+    const minimumBillingAmount = seatsCount * pricePerSeat
+
+    // Total usage limit is the maximum of:
+    // 1. Minimum billing amount (seats × price per seat)
+    // 2. Sum of individual member limits
+    // This represents the minimum amount the team will be billed
+    const totalUsageLimit = Math.max(minimumBillingAmount, sumOfIndividualLimits)
+
     const averageUsagePerMember = members.length > 0 ? totalCurrentUsage / members.length : 0
 
     // Get billing period from first member (should be consistent across org)
@@ -183,14 +229,17 @@ export async function updateMemberUsageLimit(
 
     // For enterprise, check metadata for custom limits
     if (subscription.plan === 'enterprise' && subscription.metadata) {
-      const metadata = JSON.parse(subscription.metadata)
+      const metadata =
+        typeof subscription.metadata === 'string'
+          ? JSON.parse(subscription.metadata)
+          : subscription.metadata
       if (metadata.perSeatAllowance) {
         minimumLimit = metadata.perSeatAllowance
       }
     }
 
     if (newLimit < minimumLimit) {
-      throw new Error(`Usage limit cannot be below ${minimumLimit} for ${subscription.plan} plan`)
+      throw new Error(`Usage limit cannot be below $${minimumLimit} for ${subscription.plan} plan`)
     }
 
     // Update the member's usage limit

@@ -48,12 +48,9 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       // State
       subscriptionData: null,
       usageLimitData: null,
-      organizationBillingData: null,
       isLoading: false,
-      isLoadingOrgBilling: false,
       error: null,
       lastFetched: null,
-      lastOrgBillingFetched: null,
 
       // Core actions
       loadSubscriptionData: async () => {
@@ -198,81 +195,6 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         }
       },
 
-      loadOrganizationBillingData: async (organizationId: string) => {
-        const state = get()
-
-        // Check cache validity
-        if (
-          state.organizationBillingData &&
-          state.lastOrgBillingFetched &&
-          Date.now() - state.lastOrgBillingFetched < CACHE_DURATION
-        ) {
-          logger.debug('Using cached organization billing data')
-          return
-        }
-
-        // Don't start multiple concurrent requests
-        if (state.isLoadingOrgBilling) {
-          logger.debug('Organization billing data already loading, skipping duplicate request')
-          return
-        }
-
-        set({ isLoadingOrgBilling: true })
-
-        try {
-          const response = await fetch(`/api/billing?context=organization&id=${organizationId}`)
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
-          }
-
-          const result = await response.json()
-          const data = result.data
-
-          set({
-            organizationBillingData: { ...data, userRole: result.userRole },
-            isLoadingOrgBilling: false,
-            lastOrgBillingFetched: Date.now(),
-          })
-
-          logger.debug('Organization billing data loaded successfully')
-        } catch (error) {
-          logger.error('Failed to load organization billing data', { error })
-          set({ isLoadingOrgBilling: false })
-        }
-      },
-
-      updateMemberUsageLimit: async (userId: string, organizationId: string, newLimit: number) => {
-        try {
-          const response = await fetch(
-            `/api/usage-limits?context=member&userId=${userId}&organizationId=${organizationId}`,
-            {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ limit: newLimit }),
-            }
-          )
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.error || 'Failed to update member usage limit')
-          }
-
-          // Refresh organization billing data
-          await get().loadOrganizationBillingData(organizationId)
-
-          logger.debug('Member usage limit updated successfully', { userId, newLimit })
-          return { success: true }
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : 'Failed to update member usage limit'
-          logger.error('Failed to update member usage limit', { error, userId, newLimit })
-          return { success: false, error: errorMessage }
-        }
-      },
-
       refresh: async () => {
         // Force refresh by clearing cache
         set({ lastFetched: null })
@@ -390,12 +312,9 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         set({
           subscriptionData: null,
           usageLimitData: null,
-          organizationBillingData: null,
           isLoading: false,
-          isLoadingOrgBilling: false,
           error: null,
           lastFetched: null,
-          lastOrgBillingFetched: null,
         })
       },
 
@@ -464,14 +383,6 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       canUpgrade: () => {
         const status = get().getSubscriptionStatus()
         return status.plan === 'free' || status.plan === 'pro'
-      },
-
-      getOrganizationBillingData: () => {
-        return get().organizationBillingData
-      },
-
-      getUserRole: () => {
-        return get().organizationBillingData?.userRole || 'member'
       },
     }),
     { name: 'subscription-store' }

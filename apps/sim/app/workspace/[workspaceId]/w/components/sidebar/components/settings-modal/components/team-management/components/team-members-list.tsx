@@ -1,23 +1,6 @@
 import { UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
-type User = { name?: string; email?: string }
-
-type Member = {
-  id: string
-  role: string
-  user?: User
-}
-
-type Organization = {
-  id: string
-  name: string
-  slug: string
-  members?: Member[]
-  invitations?: any[]
-  createdAt: string | Date
-  [key: string]: unknown
-}
+import type { Member, Organization } from '@/stores/organization'
 
 interface TeamMembersListProps {
   organization: Organization
