@@ -1,7 +1,11 @@
 import { randomUUID } from 'crypto'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getEmailSubject, renderBatchInvitationEmail } from '@/components/emails/render-email'
+import {
+  getEmailSubject,
+  renderBatchInvitationEmail,
+  renderInvitationEmail,
+} from '@/components/emails/render-email'
 import { getSession } from '@/lib/auth'
 import {
   validateBulkInvitations,
@@ -335,7 +339,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           permission: wsInv.permission,
         }))
 
-        // Send batch invitation email using centralized renderer
         const emailHtml = await renderBatchInvitationEmail(
           inviter[0]?.name || 'Someone',
           organizationEntry[0]?.name || 'organization',
@@ -351,17 +354,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           emailType: 'transactional',
         })
       } else {
-        // Send standard organization invitation
+        const emailHtml = await renderInvitationEmail(
+          inviter[0]?.name || 'Someone',
+          organizationEntry[0]?.name || 'organization',
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`,
+          email
+        )
+
         emailResult = await sendEmail({
           to: email,
-          subject: `Invitation to join ${organizationEntry[0]?.name || 'organization'}`,
-          html: `
-            <h2>You've been invited to join ${organizationEntry[0]?.name || 'an organization'}!</h2>
-            <p><strong>${inviter[0]?.name || 'Someone'}</strong> has invited you to join their team on SimStudio.</p>
-            <p>Role: ${role.charAt(0).toUpperCase() + role.slice(1)}</p>
-            <p><a href="${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}">Accept Invitation</a></p>
-            <p>This invitation will expire in 7 days.</p>
-          `,
+          subject: getEmailSubject('invitation'),
+          html: emailHtml,
           emailType: 'transactional',
         })
       }
