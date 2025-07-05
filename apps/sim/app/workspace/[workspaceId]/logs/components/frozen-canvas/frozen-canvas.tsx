@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, Loader2, X, Clock, DollarSign, Hash, Zap } from 'lucide-react'
+import { AlertCircle, Clock, DollarSign, Hash, Loader2, X, Zap } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
-import { ExecutionDataTooltip } from './execution-data-tooltip'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { ExecutionDataTooltip } from './execution-data-tooltip'
 
 const logger = createLogger('FrozenCanvas')
 
@@ -36,11 +36,13 @@ function redactSensitiveData(obj: any): any {
     const redacted: any = {}
     for (const [key, value] of Object.entries(obj)) {
       // Redact known sensitive field names
-      if (key.toLowerCase().includes('apikey') ||
-          key.toLowerCase().includes('api_key') ||
-          key.toLowerCase().includes('token') ||
-          key.toLowerCase().includes('secret') ||
-          key.toLowerCase().includes('password')) {
+      if (
+        key.toLowerCase().includes('apikey') ||
+        key.toLowerCase().includes('api_key') ||
+        key.toLowerCase().includes('token') ||
+        key.toLowerCase().includes('secret') ||
+        key.toLowerCase().includes('password')
+      ) {
         if (typeof value === 'string' && value.length > 8) {
           redacted[key] = `${value.substring(0, 7)}...${value.substring(value.length - 4)}`
         } else {
@@ -58,7 +60,8 @@ function redactSensitiveData(obj: any): any {
 
 // Helper function to format execution data for display
 function formatExecutionData(executionData: any) {
-  const { inputData, outputData, cost, tokens, durationMs, status, blockName, blockType } = executionData
+  const { inputData, outputData, cost, tokens, durationMs, status, blockName, blockType } =
+    executionData
 
   return {
     blockName: blockName || 'Unknown Block',
@@ -67,107 +70,100 @@ function formatExecutionData(executionData: any) {
     duration: durationMs ? `${durationMs}ms` : 'N/A',
     input: redactSensitiveData(inputData || {}),
     output: redactSensitiveData(outputData || {}),
-    cost: cost ? {
-      input: cost.input || 0,
-      output: cost.output || 0,
-      total: cost.total || 0
-    } : null,
-    tokens: tokens ? {
-      prompt: tokens.prompt || 0,
-      completion: tokens.completion || 0,
-      total: tokens.total || 0
-    } : null
+    cost: cost
+      ? {
+          input: cost.input || 0,
+          output: cost.output || 0,
+          total: cost.total || 0,
+        }
+      : null,
+    tokens: tokens
+      ? {
+          prompt: tokens.prompt || 0,
+          completion: tokens.completion || 0,
+          total: tokens.total || 0,
+        }
+      : null,
   }
 }
 
 // PinnedLogs component
-function PinnedLogs({
-  executionData,
-  onClose
-}: {
-  executionData: any
-  onClose: () => void
-}) {
+function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: () => void }) {
   const formatted = formatExecutionData(executionData)
 
   return (
-    <Card className="fixed top-4 right-4 w-96 max-h-[calc(100vh-8rem)] overflow-y-auto z-[100] shadow-lg bg-background border-border">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2 text-foreground">
-            <Zap className="h-5 w-5" />
+    <Card className='fixed top-4 right-4 z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border-border bg-background shadow-lg'>
+      <CardHeader className='pb-3'>
+        <div className='flex items-center justify-between'>
+          <CardTitle className='flex items-center gap-2 text-foreground text-lg'>
+            <Zap className='h-5 w-5' />
             {formatted.blockName}
           </CardTitle>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-muted rounded-sm text-foreground"
-          >
-            <X className="h-4 w-4" />
+          <button onClick={onClose} className='rounded-sm p-1 text-foreground hover:bg-muted'>
+            <X className='h-4 w-4' />
           </button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className='flex items-center gap-2'>
           <Badge variant={formatted.status === 'success' ? 'default' : 'destructive'}>
             {formatted.blockType}
           </Badge>
-          <Badge variant="outline">
-            {formatted.status}
-          </Badge>
+          <Badge variant='outline'>{formatted.status}</Badge>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className='space-y-4'>
         {/* Performance Metrics */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-foreground">{formatted.duration}</span>
+        <div className='grid grid-cols-2 gap-4'>
+          <div className='flex items-center gap-2'>
+            <Clock className='h-4 w-4 text-muted-foreground' />
+            <span className='text-foreground text-sm'>{formatted.duration}</span>
           </div>
 
           {formatted.cost && (
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-foreground">${formatted.cost.total.toFixed(5)}</span>
+            <div className='flex items-center gap-2'>
+              <DollarSign className='h-4 w-4 text-muted-foreground' />
+              <span className='text-foreground text-sm'>${formatted.cost.total.toFixed(5)}</span>
             </div>
           )}
 
           {formatted.tokens && (
-            <div className="flex items-center gap-2">
-              <Hash className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-foreground">{formatted.tokens.total} tokens</span>
+            <div className='flex items-center gap-2'>
+              <Hash className='h-4 w-4 text-muted-foreground' />
+              <span className='text-foreground text-sm'>{formatted.tokens.total} tokens</span>
             </div>
           )}
         </div>
 
         {/* Input Data */}
         <div>
-          <h4 className="font-medium text-sm mb-2 text-foreground">Input</h4>
-          <div className="bg-muted p-3 rounded text-xs font-mono max-h-32 overflow-y-auto">
-            <pre className="text-foreground">{JSON.stringify(formatted.input, null, 2)}</pre>
+          <h4 className='mb-2 font-medium text-foreground text-sm'>Input</h4>
+          <div className='max-h-32 overflow-y-auto rounded bg-muted p-3 font-mono text-xs'>
+            <pre className='text-foreground'>{JSON.stringify(formatted.input, null, 2)}</pre>
           </div>
         </div>
 
         {/* Output Data */}
         <div>
-          <h4 className="font-medium text-sm mb-2 text-foreground">Output</h4>
-          <div className="bg-muted p-3 rounded text-xs font-mono max-h-32 overflow-y-auto">
-            <pre className="text-foreground">{JSON.stringify(formatted.output, null, 2)}</pre>
+          <h4 className='mb-2 font-medium text-foreground text-sm'>Output</h4>
+          <div className='max-h-32 overflow-y-auto rounded bg-muted p-3 font-mono text-xs'>
+            <pre className='text-foreground'>{JSON.stringify(formatted.output, null, 2)}</pre>
           </div>
         </div>
 
         {/* Detailed Cost Breakdown */}
         {formatted.cost && (
           <div>
-            <h4 className="font-medium text-sm mb-2 text-foreground">Cost Breakdown</h4>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between text-foreground">
+            <h4 className='mb-2 font-medium text-foreground text-sm'>Cost Breakdown</h4>
+            <div className='space-y-1 text-sm'>
+              <div className='flex justify-between text-foreground'>
                 <span>Input:</span>
                 <span>${formatted.cost.input.toFixed(5)}</span>
               </div>
-              <div className="flex justify-between text-foreground">
+              <div className='flex justify-between text-foreground'>
                 <span>Output:</span>
                 <span>${formatted.cost.output.toFixed(5)}</span>
               </div>
-              <div className="flex justify-between font-medium border-t border-border pt-1 text-foreground">
+              <div className='flex justify-between border-border border-t pt-1 font-medium text-foreground'>
                 <span>Total:</span>
                 <span>${formatted.cost.total.toFixed(5)}</span>
               </div>
@@ -178,17 +174,17 @@ function PinnedLogs({
         {/* Detailed Token Breakdown */}
         {formatted.tokens && (
           <div>
-            <h4 className="font-medium text-sm mb-2 text-foreground">Token Usage</h4>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between text-foreground">
+            <h4 className='mb-2 font-medium text-foreground text-sm'>Token Usage</h4>
+            <div className='space-y-1 text-sm'>
+              <div className='flex justify-between text-foreground'>
                 <span>Prompt:</span>
                 <span>{formatted.tokens.prompt}</span>
               </div>
-              <div className="flex justify-between text-foreground">
+              <div className='flex justify-between text-foreground'>
                 <span>Completion:</span>
                 <span>{formatted.tokens.completion}</span>
               </div>
-              <div className="flex justify-between font-medium border-t border-border pt-1 text-foreground">
+              <div className='flex justify-between border-border border-t pt-1 font-medium text-foreground'>
                 <span>Total:</span>
                 <span>{formatted.tokens.total}</span>
               </div>

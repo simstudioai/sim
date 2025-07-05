@@ -258,10 +258,14 @@ export function WorkflowPreview({
           elementsSelectable={false}
           nodesDraggable={false}
           nodesConnectable={false}
-          onNodeClick={onNodeClick ? (event, node) => {
-            console.log('Node clicked:', node.id, 'Event:', event)
-            onNodeClick(node.id, { x: event.clientX, y: event.clientY })
-          } : undefined}
+          onNodeClick={
+            onNodeClick
+              ? (event, node) => {
+                  console.log('Node clicked:', node.id, 'Event:', event)
+                  onNodeClick(node.id, { x: event.clientX, y: event.clientY })
+                }
+              : undefined
+          }
         >
           <Background />
         </ReactFlow>

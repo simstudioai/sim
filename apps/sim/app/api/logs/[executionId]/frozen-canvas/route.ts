@@ -132,7 +132,9 @@ export async function GET(request: NextRequest, { params }: { params: { executio
             return acc
           }, {})
 
-          logger.debug(`Extracted ${Object.keys(blockExecutionMap).length} block executions from traceSpans children`)
+          logger.debug(
+            `Extracted ${Object.keys(blockExecutionMap).length} block executions from traceSpans children`
+          )
         }
       }
     }

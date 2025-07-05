@@ -104,16 +104,13 @@ export function ExecutionDataTooltip({
       }}
     >
       {/* Header */}
-      <div className='border-b bg-gray-50 px-3 py-2 flex items-center justify-between'>
+      <div className='flex items-center justify-between border-b bg-gray-50 px-3 py-2'>
         <div>
           <div className='font-medium text-sm'>{executionData.blockName}</div>
           <div className='text-muted-foreground text-xs'>{executionData.blockType}</div>
         </div>
         {onClose && (
-          <button
-            onClick={onClose}
-            className='text-gray-400 hover:text-gray-600 p-1 rounded'
-          >
+          <button onClick={onClose} className='rounded p-1 text-gray-400 hover:text-gray-600'>
             <X className='h-4 w-4' />
           </button>
         )}
