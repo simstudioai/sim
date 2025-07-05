@@ -539,7 +539,7 @@ export function Sidebar({
                 <div>
                   <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Cost Breakdown</h3>
                   <div className='space-y-1 text-sm'>
-                    {log.metadata?.cost?.total && (
+                    {(log.metadata?.cost?.total ?? 0) > 0 && (
                       <div className='flex justify-between'>
                         <span>Total Cost:</span>
                         <span className='font-medium'>
@@ -547,7 +547,7 @@ export function Sidebar({
                         </span>
                       </div>
                     )}
-                    {log.metadata?.cost?.input && (
+                    {(log.metadata?.cost?.input ?? 0) > 0 && (
                       <div className='flex justify-between'>
                         <span>Input Cost:</span>
                         <span className='text-muted-foreground'>
@@ -555,7 +555,7 @@ export function Sidebar({
                         </span>
                       </div>
                     )}
-                    {log.metadata?.cost?.output && (
+                    {(log.metadata?.cost?.output ?? 0) > 0 && (
                       <div className='flex justify-between'>
                         <span>Output Cost:</span>
                         <span className='text-muted-foreground'>
@@ -563,7 +563,7 @@ export function Sidebar({
                         </span>
                       </div>
                     )}
-                    {log.metadata?.cost?.tokens?.total && (
+                    {(log.metadata?.cost?.tokens?.total ?? 0) > 0 && (
                       <div className='flex justify-between'>
                         <span>Total Tokens:</span>
                         <span className='text-muted-foreground'>

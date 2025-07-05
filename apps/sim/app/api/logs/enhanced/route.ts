@@ -281,10 +281,10 @@ export async function GET(request: NextRequest) {
                 total: Number(log.totalCost) || 0,
                 tokens: {
                   total: log.totalTokens || 0,
-                  prompt: 0, // Legacy logs don't have breakdown
-                  completion: 0, // Legacy logs don't have breakdown
+                  prompt: (log.metadata as any)?.tokenBreakdown?.prompt || 0,
+                  completion: (log.metadata as any)?.tokenBreakdown?.completion || 0,
                 },
-                models: {}, // Legacy logs don't have model breakdown
+                models: (log.metadata as any)?.models || {},
               }
 
         return {

@@ -84,12 +84,13 @@ export class EnhancedLoggingSession {
 
   /**
    * Set up enhanced logging on an executor instance
+   * Note: Enhanced logging now works through trace spans only, no direct executor integration needed
    */
   setupExecutor(executor: any): void {
-    executor.setEnhancedLogger(this.enhancedLogger, this.executionId)
+    // No longer setting enhanced logger on executor - trace spans handle everything
     if (this.requestId) {
       logger.debug(
-        `[${this.requestId}] Enhanced logger set on executor for execution ${this.executionId}`
+        `[${this.requestId}] Enhanced logging session ready for execution ${this.executionId}`
       )
     }
   }
@@ -126,7 +127,7 @@ export class EnhancedLoggingSession {
   async completeWithError(error?: any): Promise<void> {
     try {
       const blockStats = { total: 0, success: 0, error: 1, skipped: 0 }
-      const costSummary = { totalCost: 0, totalInputCost: 0, totalOutputCost: 0, totalTokens: 0 }
+      const costSummary = { totalCost: 0, totalInputCost: 0, totalOutputCost: 0, totalTokens: 0, totalPromptTokens: 0, totalCompletionTokens: 0, models: {} }
 
       await enhancedExecutionLogger.completeWorkflowExecution({
         executionId: this.executionId,

@@ -205,6 +205,9 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       totalInputCost: number
       totalOutputCost: number
       totalTokens: number
+      totalPromptTokens: number
+      totalCompletionTokens: number
+      models: Record<string, { input: number; output: number; total: number; tokens: { prompt: number; completion: number; total: number } }>
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
@@ -245,6 +248,12 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         metadata: {
           traceSpans,
           finalOutput,
+          tokenBreakdown: {
+            prompt: costSummary.totalPromptTokens,
+            completion: costSummary.totalCompletionTokens,
+            total: costSummary.totalTokens,
+          },
+          models: costSummary.models,
         },
       })
       .where(eq(workflowExecutionLogs.executionId, executionId))
