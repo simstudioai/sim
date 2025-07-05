@@ -22,16 +22,13 @@ import { ExecutionDataTooltip } from './execution-data-tooltip'
 
 const logger = createLogger('FrozenCanvas')
 
-// Helper function to redact sensitive data
 function redactSensitiveData(obj: any): any {
   if (obj === null || obj === undefined) return obj
 
   if (typeof obj === 'string') {
-    // Redact API keys (OpenAI, Anthropic, etc.)
     if (obj.match(/^sk-[a-zA-Z0-9_-]+$/)) {
       return `${obj.substring(0, 7)}...${obj.substring(obj.length - 4)}`
     }
-    // Redact other potential API keys
     if (obj.match(/^[a-zA-Z0-9_-]{20,}$/)) {
       return `${obj.substring(0, 4)}...${obj.substring(obj.length - 4)}`
     }
@@ -45,7 +42,6 @@ function redactSensitiveData(obj: any): any {
   if (typeof obj === 'object') {
     const redacted: any = {}
     for (const [key, value] of Object.entries(obj)) {
-      // Redact known sensitive field names
       if (
         key.toLowerCase().includes('apikey') ||
         key.toLowerCase().includes('api_key') ||
@@ -68,7 +64,6 @@ function redactSensitiveData(obj: any): any {
   return obj
 }
 
-// Helper function to format execution data for display
 function formatExecutionData(executionData: any) {
   const { inputData, outputData, cost, tokens, durationMs, status, blockName, blockType } =
     executionData
@@ -97,9 +92,7 @@ function formatExecutionData(executionData: any) {
   }
 }
 
-// Helper function to get current iteration data
 function getCurrentIterationData(blockExecutionData: any) {
-  // Handle both single execution and multiple iterations
   if (blockExecutionData.iterations && Array.isArray(blockExecutionData.iterations)) {
     const currentIndex = blockExecutionData.currentIteration ?? 0
     return {
@@ -110,7 +103,6 @@ function getCurrentIterationData(blockExecutionData: any) {
     }
   }
 
-  // Single execution (legacy format)
   return {
     executionData: blockExecutionData,
     currentIteration: 0,
@@ -119,65 +111,33 @@ function getCurrentIterationData(blockExecutionData: any) {
   }
 }
 
-// PinnedLogs component
 function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: () => void }) {
   const [currentIterationIndex, setCurrentIterationIndex] = useState(0)
 
-  // Get iteration data
-  console.log(
-    'PinnedLogs render - currentIterationIndex:',
-    currentIterationIndex,
-    'executionData:',
-    executionData
-  )
   const iterationInfo = getCurrentIterationData({
     ...executionData,
     currentIteration: currentIterationIndex,
   })
-  console.log('PinnedLogs render - iterationInfo:', iterationInfo)
 
   const formatted = formatExecutionData(iterationInfo.executionData)
 
-  // Get total iterations from original executionData
   const totalIterations = executionData.iterations?.length || 1
 
-  // Navigation handlers
   const goToPreviousIteration = () => {
-    console.log('goToPreviousIteration clicked, currentIterationIndex:', currentIterationIndex)
     if (currentIterationIndex > 0) {
-      const newIndex = currentIterationIndex - 1
-      console.log('Setting currentIterationIndex to:', newIndex)
-      setCurrentIterationIndex(newIndex)
+      setCurrentIterationIndex(currentIterationIndex - 1)
     }
   }
 
   const goToNextIteration = () => {
-    console.log(
-      'goToNextIteration clicked, currentIterationIndex:',
-      currentIterationIndex,
-      'totalIterations:',
-      totalIterations
-    )
     if (currentIterationIndex < totalIterations - 1) {
-      const newIndex = currentIterationIndex + 1
-      console.log('Setting currentIterationIndex to:', newIndex)
-      setCurrentIterationIndex(newIndex)
-    } else {
-      console.log('Cannot go to next iteration - at max')
+      setCurrentIterationIndex(currentIterationIndex + 1)
     }
   }
 
-  // Reset iteration index when executionData changes
   useEffect(() => {
     setCurrentIterationIndex(0)
-    console.log('PinnedLogs executionData:', executionData)
   }, [executionData])
-
-  // Log when currentIterationIndex changes
-  useEffect(() => {
-    console.log('PinnedLogs render - currentIterationIndex:', currentIterationIndex)
-    console.log('PinnedLogs render - iterationInfo:', iterationInfo)
-  }, [currentIterationIndex, iterationInfo])
 
   return (
     <Card className='fixed top-4 right-4 z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border-border bg-background shadow-lg'>
@@ -225,7 +185,6 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
       </CardHeader>
 
       <CardContent className='space-y-4'>
-        {/* Performance Metrics */}
         <div className='grid grid-cols-2 gap-4'>
           <div className='flex items-center gap-2'>
             <Clock className='h-4 w-4 text-muted-foreground' />
@@ -247,7 +206,6 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
           )}
         </div>
 
-        {/* Input Data */}
         <div>
           <h4 className='mb-2 font-medium text-foreground text-sm'>Input</h4>
           <div className='max-h-32 overflow-y-auto rounded bg-muted p-3 font-mono text-xs'>
@@ -255,7 +213,6 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
           </div>
         </div>
 
-        {/* Output Data */}
         <div>
           <h4 className='mb-2 font-medium text-foreground text-sm'>Output</h4>
           <div className='max-h-32 overflow-y-auto rounded bg-muted p-3 font-mono text-xs'>
@@ -263,7 +220,6 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
           </div>
         </div>
 
-        {/* Detailed Cost Breakdown */}
         {formatted.cost && (
           <div>
             <h4 className='mb-2 font-medium text-foreground text-sm'>Cost Breakdown</h4>
@@ -284,7 +240,6 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
           </div>
         )}
 
-        {/* Detailed Token Breakdown */}
         {formatted.tokens && (
           <div>
             <h4 className='mb-2 font-medium text-foreground text-sm'>Token Usage</h4>
@@ -313,7 +268,6 @@ interface FrozenCanvasData {
   executionId: string
   workflowId: string
   workflowState: WorkflowState
-  blockExecutions: Record<string, any>
   executionMetadata: {
     trigger: string
     startedAt: string
@@ -336,27 +290,86 @@ interface FrozenCanvasData {
 
 interface FrozenCanvasProps {
   executionId: string
+  traceSpans?: any[]
   className?: string
   height?: string | number
   width?: string | number
 }
 
-// No need for custom node types - we'll use WorkflowPreview
-
 export function FrozenCanvas({
   executionId,
+  traceSpans,
   className,
   height = '100%',
   width = '100%',
 }: FrozenCanvasProps) {
   const [data, setData] = useState<FrozenCanvasData | null>(null)
+  const [blockExecutions, setBlockExecutions] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const [pinnedBlockId, setPinnedBlockId] = useState<string | null>(null)
 
-  // Fetch frozen canvas data
+  // Process traceSpans to create blockExecutions map
+  useEffect(() => {
+    if (traceSpans && Array.isArray(traceSpans)) {
+      const blockExecutionMap: Record<string, any> = {}
+
+      const workflowSpan = traceSpans[0]
+      if (workflowSpan?.children && Array.isArray(workflowSpan.children)) {
+        const traceSpansByBlockId = workflowSpan.children.reduce((acc: any, span: any) => {
+          if (span.blockId) {
+            if (!acc[span.blockId]) {
+              acc[span.blockId] = []
+            }
+            acc[span.blockId].push(span)
+          }
+          return acc
+        }, {})
+
+        for (const [blockId, spans] of Object.entries(traceSpansByBlockId)) {
+          const spanArray = spans as any[]
+
+          const iterations = spanArray.map((span: any) => ({
+            id: span.id,
+            blockId: span.blockId,
+            blockName: span.name,
+            blockType: span.type,
+            status: span.status,
+            startedAt: span.startTime,
+            endedAt: span.endTime,
+            durationMs: span.duration,
+            inputData: span.input,
+            outputData: span.output,
+            errorMessage: null,
+            errorStackTrace: null,
+            cost: span.cost || {
+              input: null,
+              output: null,
+              total: null,
+            },
+            tokens: span.tokens || {
+              prompt: null,
+              completion: null,
+              total: null,
+            },
+            modelUsed: span.model || null,
+            metadata: {},
+          }))
+
+          blockExecutionMap[blockId] = {
+            iterations,
+            currentIteration: 0,
+            totalIterations: iterations.length,
+          }
+        }
+      }
+
+      setBlockExecutions(blockExecutionMap)
+    }
+  }, [traceSpans])
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -369,8 +382,6 @@ export function FrozenCanvas({
         }
 
         const result = await response.json()
-        console.log('Frozen canvas API response:', result)
-        console.log('Block executions from API:', result.blockExecutions)
         setData(result)
         logger.debug(`Loaded frozen canvas data for execution: ${executionId}`)
       } catch (err) {
@@ -436,16 +447,7 @@ export function FrozenCanvas({
     )
   }
 
-  // Debug: Log the snapshot data structure
-  console.log('Snapshot data structure:', {
-    workflowState: data.workflowState,
-    blockCount: Object.keys(data.workflowState.blocks || {}).length,
-    blockTypes: Object.entries(data.workflowState.blocks || {}).map(([id, block]) => ({
-      id,
-      type: block?.type,
-      hasType: !!block?.type,
-    })),
-  })
+
 
   return (
     <>
@@ -455,48 +457,27 @@ export function FrozenCanvas({
           showSubBlocks={true}
           isPannable={true}
           onNodeClick={(blockId, mousePosition) => {
-            console.log('Block clicked in frozen canvas:', blockId)
-            console.log('Available execution data:', Object.keys(data.blockExecutions))
-            console.log('Execution data for block:', data.blockExecutions[blockId])
-
-            // Debug: Check if this block has multiple iterations
-            const blockData = data.blockExecutions[blockId]
-            if (blockData?.iterations && Array.isArray(blockData.iterations)) {
-              console.log(
-                `Block ${blockId} has ${blockData.iterations.length} iterations:`,
-                blockData.iterations
-              )
-            } else {
-              console.log(`Block ${blockId} has single execution (legacy format):`, blockData)
-            }
-
-            if (data.blockExecutions[blockId]) {
-              // Pin the logs for this block
+            if (blockExecutions[blockId]) {
               setPinnedBlockId(blockId)
-              // Also show tooltip for immediate feedback
               setSelectedBlockId(blockId)
               setMousePosition(mousePosition)
-            } else {
-              console.warn('No execution data found for block:', blockId)
             }
           }}
         />
       </div>
 
-      {/* Execution Data Tooltip */}
-      {selectedBlockId && data.blockExecutions[selectedBlockId] && (
+      {selectedBlockId && blockExecutions[selectedBlockId] && (
         <ExecutionDataTooltip
-          executionData={data.blockExecutions[selectedBlockId]}
+          executionData={blockExecutions[selectedBlockId]}
           mousePosition={mousePosition}
           isVisible={true}
           onClose={() => setSelectedBlockId(null)}
         />
       )}
 
-      {/* Pinned Logs */}
-      {pinnedBlockId && data.blockExecutions[pinnedBlockId] && (
+      {pinnedBlockId && blockExecutions[pinnedBlockId] && (
         <PinnedLogs
-          executionData={data.blockExecutions[pinnedBlockId]}
+          executionData={blockExecutions[pinnedBlockId]}
           onClose={() => setPinnedBlockId(null)}
         />
       )}

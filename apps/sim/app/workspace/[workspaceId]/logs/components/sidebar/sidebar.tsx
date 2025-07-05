@@ -253,10 +253,7 @@ export function Sidebar({
     )
   }, [log])
 
-  // Helper to determine if we have trace spans to display
-  const _hasTraceSpans = useMemo(() => {
-    return !!(log?.metadata?.traceSpans && log.metadata.traceSpans.length > 0)
-  }, [log])
+
 
   // Helper to determine if we have cost information to display
   const hasCostInfo = useMemo(() => {
@@ -736,6 +733,7 @@ export function Sidebar({
           executionId={log.executionId}
           workflowName={log.workflow?.name}
           trigger={log.trigger || undefined}
+          traceSpans={log.metadata?.traceSpans}
           isOpen={isFrozenCanvasOpen}
           onClose={() => setIsFrozenCanvasOpen(false)}
         />

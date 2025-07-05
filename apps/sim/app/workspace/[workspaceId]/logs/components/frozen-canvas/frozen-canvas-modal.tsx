@@ -12,6 +12,7 @@ interface FrozenCanvasModalProps {
   executionId: string
   workflowName?: string
   trigger?: string
+  traceSpans?: any[] // TraceSpans data from log metadata
   isOpen: boolean
   onClose: () => void
 }
@@ -20,6 +21,7 @@ export function FrozenCanvasModal({
   executionId,
   workflowName,
   trigger,
+  traceSpans,
   isOpen,
   onClose,
 }: FrozenCanvasModalProps) {
@@ -87,7 +89,7 @@ export function FrozenCanvasModal({
 
         {/* Canvas Container */}
         <div className='min-h-0 flex-1'>
-          <FrozenCanvas executionId={executionId} height='100%' width='100%' />
+          <FrozenCanvas executionId={executionId} traceSpans={traceSpans} height='100%' width='100%' />
         </div>
 
         {/* Footer with instructions */}
