@@ -19,7 +19,6 @@ import { cn } from '@/lib/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-
 const logger = createLogger('FrozenCanvas')
 
 function redactSensitiveData(obj: any): any {
@@ -65,8 +64,18 @@ function redactSensitiveData(obj: any): any {
 }
 
 function formatExecutionData(executionData: any) {
-  const { inputData, outputData, cost, tokens, durationMs, status, blockName, blockType, errorMessage, errorStackTrace } =
-    executionData
+  const {
+    inputData,
+    outputData,
+    cost,
+    tokens,
+    durationMs,
+    status,
+    blockName,
+    blockType,
+    errorMessage,
+    errorStackTrace,
+  } = executionData
 
   return {
     blockName: blockName || 'Unknown Block',
@@ -418,8 +427,6 @@ export function FrozenCanvas({
 
     fetchData()
   }, [executionId])
-
-
 
   // No need to create a temporary workflow - just use the workflowState directly
 

@@ -432,10 +432,14 @@ export async function GET(request: NextRequest) {
           // For executions with no block logs in the database,
           // extract block executions from stored trace spans in metadata
           logs.forEach((log) => {
-            if (!blockLogsByExecution[log.executionId] || blockLogsByExecution[log.executionId].length === 0) {
+            if (
+              !blockLogsByExecution[log.executionId] ||
+              blockLogsByExecution[log.executionId].length === 0
+            ) {
               const storedTraceSpans = (log.metadata as any)?.traceSpans
               if (storedTraceSpans && Array.isArray(storedTraceSpans)) {
-                blockLogsByExecution[log.executionId] = extractBlockExecutionsFromTraceSpans(storedTraceSpans)
+                blockLogsByExecution[log.executionId] =
+                  extractBlockExecutionsFromTraceSpans(storedTraceSpans)
               }
             }
           })
