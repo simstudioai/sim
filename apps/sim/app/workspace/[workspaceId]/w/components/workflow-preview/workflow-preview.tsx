@@ -261,7 +261,7 @@ export function WorkflowPreview({
           onNodeClick={
             onNodeClick
               ? (event, node) => {
-                  console.log('Node clicked:', node.id, 'Event:', event)
+                  logger.debug('Node clicked:', { nodeId: node.id, event })
                   onNodeClick(node.id, { x: event.clientX, y: event.clientY })
                 }
               : undefined
