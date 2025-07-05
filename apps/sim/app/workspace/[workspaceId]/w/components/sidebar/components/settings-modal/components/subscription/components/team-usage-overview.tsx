@@ -7,8 +7,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useSubscriptionStore } from '@/stores/subscription/store'
-import type { MemberUsageData } from '@/stores/subscription/types'
+import { useOrganizationStore } from '@/stores/organization'
+import type { MemberUsageData } from '@/stores/organization/types'
 import { EditMemberLimitDialog } from './edit-member-limit-dialog'
 
 const logger = createLogger('TeamUsageOverview')
@@ -24,14 +24,12 @@ export function TeamUsageOverview({ hasAdminAccess }: TeamUsageOverviewProps) {
   const [isUpdating, setIsUpdating] = useState(false)
 
   const {
-    getOrganizationBillingData,
+    organizationBillingData: billingData,
     loadOrganizationBillingData,
     updateMemberUsageLimit,
     isLoadingOrgBilling,
     error,
-  } = useSubscriptionStore()
-
-  const billingData = getOrganizationBillingData()
+  } = useOrganizationStore()
 
   useEffect(() => {
     if (activeOrg?.id) {
@@ -328,6 +326,7 @@ export function TeamUsageOverview({ hasAdminAccess }: TeamUsageOverviewProps) {
         member={selectedMember}
         onSave={handleSaveLimit}
         isLoading={isUpdating}
+        planType='team'
       />
     </div>
   )

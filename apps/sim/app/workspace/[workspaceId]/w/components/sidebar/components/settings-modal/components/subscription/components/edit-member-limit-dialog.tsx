@@ -27,6 +27,7 @@ interface EditMemberLimitDialogProps {
   } | null
   onSave: (userId: string, newLimit: number) => Promise<void>
   isLoading: boolean
+  planType?: string // Add plan type to show correct minimum
 }
 
 export function EditMemberLimitDialog({
@@ -35,6 +36,7 @@ export function EditMemberLimitDialog({
   member,
   onSave,
   isLoading,
+  planType = 'team',
 }: EditMemberLimitDialogProps) {
   const [limitValue, setLimitValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -47,6 +49,22 @@ export function EditMemberLimitDialog({
     }
   }, [member])
 
+  // Get plan minimum based on plan type
+  const getPlanMinimum = (plan: string): number => {
+    switch (plan) {
+      case 'pro':
+        return 20
+      case 'team':
+        return 40
+      case 'enterprise':
+        return 100
+      default:
+        return 5
+    }
+  }
+
+  const planMinimum = getPlanMinimum(planType)
+
   const handleSave = async () => {
     if (!member) return
 
@@ -54,6 +72,13 @@ export function EditMemberLimitDialog({
 
     if (Number.isNaN(newLimit) || newLimit < 0) {
       setError('Please enter a valid positive number')
+      return
+    }
+
+    if (newLimit < planMinimum) {
+      setError(
+        `The limit cannot be below the ${planType} plan minimum of $${planMinimum.toFixed(2)}`
+      )
       return
     }
 
@@ -109,7 +134,7 @@ export function EditMemberLimitDialog({
           </div>
 
           {/* Current Usage Stats */}
-          <div className='grid grid-cols-2 gap-4'>
+          <div className='grid grid-cols-3 gap-4'>
             <div className='space-y-1'>
               <div className='text-muted-foreground text-sm'>Current Usage</div>
               <div className='font-semibold text-lg'>{formatCurrency(member.currentUsage)}</div>
@@ -117,6 +142,12 @@ export function EditMemberLimitDialog({
             <div className='space-y-1'>
               <div className='text-muted-foreground text-sm'>Current Limit</div>
               <div className='font-semibold text-lg'>{formatCurrency(member.usageLimit)}</div>
+            </div>
+            <div className='space-y-1'>
+              <div className='text-muted-foreground text-sm'>Plan Minimum</div>
+              <div className='font-semibold text-blue-600 text-lg'>
+                {formatCurrency(planMinimum)}
+              </div>
             </div>
           </div>
 
@@ -131,11 +162,14 @@ export function EditMemberLimitDialog({
                 value={limitValue}
                 onChange={(e) => setLimitValue(e.target.value)}
                 className='pl-9'
-                min='0'
-                step='0.01'
-                placeholder='0.00'
+                min={planMinimum}
+                step='1'
+                placeholder={planMinimum.toString()}
               />
             </div>
+            <p className='text-muted-foreground text-xs'>
+              Minimum limit for {planType} plan: ${planMinimum}
+            </p>
           </div>
 
           {/* Change Indicator */}
@@ -158,8 +192,19 @@ export function EditMemberLimitDialog({
             </div>
           )}
 
+          {/* Warning for below plan minimum */}
+          {newLimit < planMinimum && newLimit > 0 && (
+            <Alert variant='destructive'>
+              <AlertTriangle className='h-4 w-4' />
+              <AlertDescription>
+                The limit cannot be below the {planType} plan minimum of{' '}
+                {formatCurrency(planMinimum)}.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Warning for decreasing below current usage */}
-          {newLimit < member.currentUsage && newLimit > 0 && (
+          {newLimit < member.currentUsage && newLimit >= planMinimum && (
             <Alert variant='destructive'>
               <AlertTriangle className='h-4 w-4' />
               <AlertDescription>
@@ -184,7 +229,7 @@ export function EditMemberLimitDialog({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isLoading || !limitValue || Number.isNaN(newLimit) || newLimit < 0}
+            disabled={isLoading || !limitValue || Number.isNaN(newLimit) || newLimit < planMinimum}
           >
             {isLoading ? 'Updating...' : 'Update Limit'}
           </Button>

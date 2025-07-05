@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Users } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useActiveOrganization, useSession, useSubscription } from '@/lib/auth-client'
+import { useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 import { BillingSummary } from './components/billing-summary'
 import { TeamSeatsDialog } from './components/team-seats-dialog'
@@ -20,66 +20,105 @@ interface SubscriptionProps {
 
 export function Subscription({ onOpenChange }: SubscriptionProps) {
   const { data: session } = useSession()
-  const { data: activeOrg } = useActiveOrganization()
   const betterAuthSubscription = useSubscription()
 
-  const {
-    isLoading,
-    error,
-    getSubscriptionStatus,
-    getFeatures,
-    getUsage,
-    getBillingStatus,
-    getRemainingBudget,
-    getDaysRemainingInPeriod,
-    usageLimitData,
-    updateUsageLimit,
-    refresh,
-  } = useSubscriptionStore()
+  const { isLoading, error, getSubscriptionStatus, getUsage, getBillingStatus, usageLimitData } =
+    useSubscriptionStore()
 
-  // Team seats dialog state
+  const {
+    activeOrganization,
+    organizationBillingData,
+    isLoadingOrgBilling,
+    loadOrganizationBillingData,
+    getUserRole,
+    addSeats,
+  } = useOrganizationStore()
+
   const [isSeatsDialogOpen, setIsSeatsDialogOpen] = useState(false)
   const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
 
-  // Get organization billing data from store
-  const orgBillingData = useSubscriptionStore((state) => state.getOrganizationBillingData())
-  const isLoadingOrgBilling = useSubscriptionStore((state) => state.isLoadingOrgBilling)
-  const userRole = useSubscriptionStore((state) => state.getUserRole())
-  const loadOrganizationBillingData = useSubscriptionStore(
-    (state) => state.loadOrganizationBillingData
-  )
-
-  // Get computed values
   const subscription = getSubscriptionStatus()
-  const features = getFeatures()
   const usage = getUsage()
   const billingStatus = getBillingStatus()
-  const remainingBudget = getRemainingBudget()
-  const daysRemaining = getDaysRemainingInPeriod()
+  const activeOrgId = activeOrganization?.id
 
-  // Debug logging - remove this after debugging
   useEffect(() => {
-    logger.info('Subscription debug info', {
-      subscription,
-      usage,
-      billingPeriodStart: usage.billingPeriodStart,
-      billingPeriodEnd: usage.billingPeriodEnd,
-      daysRemaining,
-    })
-  }, [subscription, usage, daysRemaining])
-
-  // Load org billing data when component mounts or activeOrg changes
-  useEffect(() => {
-    if (subscription.isTeam && activeOrg?.id) {
-      loadOrganizationBillingData(activeOrg.id)
+    if (subscription.isTeam && activeOrgId) {
+      loadOrganizationBillingData(activeOrgId)
     }
-  }, [activeOrg?.id, subscription.isTeam, loadOrganizationBillingData])
+  }, [activeOrgId, subscription.isTeam])
 
   // Determine if user is team admin/owner
+  const userRole = getUserRole(session?.user?.email)
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
-  const shouldShowOrgBilling = subscription.isTeam && isTeamAdmin && orgBillingData
+  const shouldShowOrgBilling = subscription.isTeam && isTeamAdmin && organizationBillingData
 
-  // Handle loading state
+  const handleUpgrade = useCallback(
+    async (targetPlan: 'pro' | 'team') => {
+      if (!session?.user?.id) return
+
+      let referenceId = session.user.id
+      if (subscription.isTeam && activeOrgId) {
+        referenceId = activeOrgId
+      }
+
+      const currentUrl = window.location.origin + window.location.pathname
+
+      try {
+        if (
+          'upgrade' in betterAuthSubscription &&
+          typeof betterAuthSubscription.upgrade === 'function'
+        ) {
+          await betterAuthSubscription.upgrade({
+            plan: targetPlan,
+            referenceId,
+            successUrl: currentUrl,
+            cancelUrl: currentUrl,
+            seats: targetPlan === 'team' ? 1 : undefined,
+          })
+        } else {
+          logger.warn('Stripe upgrade not available - development mode or missing configuration', {
+            targetPlan,
+            referenceId,
+            betterAuthSubscription: typeof betterAuthSubscription,
+          })
+
+          alert(
+            `Upgrade to ${targetPlan} plan - Stripe integration not available in development mode`
+          )
+        }
+      } catch (error) {
+        logger.error('Failed to initiate subscription upgrade:', error)
+        alert('Failed to initiate upgrade. Please try again or contact support.')
+      }
+    },
+    [session?.user?.id, subscription.isTeam, activeOrgId, betterAuthSubscription]
+  )
+
+  const handleLimitUpdated = useCallback(async (newLimit: number) => {
+    // UsageLimitEditor handles the update through store
+  }, [])
+
+  const handleSeatsUpdate = useCallback(
+    async (seats: number) => {
+      if (!activeOrgId) {
+        logger.error('No active organization found for seat update')
+        return
+      }
+
+      try {
+        setIsUpdatingSeats(true)
+        await addSeats(seats)
+        setIsSeatsDialogOpen(false)
+      } catch (error) {
+        logger.error('Failed to update seats:', error)
+      } finally {
+        setIsUpdatingSeats(false)
+      }
+    },
+    [activeOrgId]
+  )
+
   if (isLoading) {
     return (
       <div className='space-y-4 p-6'>
@@ -90,7 +129,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     )
   }
 
-  // Handle error state
   if (error) {
     return (
       <div className='p-6'>
@@ -103,97 +141,10 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     )
   }
 
-  const handleUpgrade = async (targetPlan: 'pro' | 'team') => {
-    if (!session?.user?.id) return
-
-    let referenceId = session.user.id
-    if (subscription.isTeam && activeOrg?.id) {
-      referenceId = activeOrg.id
-    }
-
-    const currentUrl = window.location.origin + window.location.pathname
-
-    try {
-      // Use the correct Better Auth subscription.upgrade method
-      if (
-        'upgrade' in betterAuthSubscription &&
-        typeof betterAuthSubscription.upgrade === 'function'
-      ) {
-        await betterAuthSubscription.upgrade({
-          plan: targetPlan,
-          referenceId,
-          successUrl: currentUrl,
-          cancelUrl: currentUrl,
-          seats: targetPlan === 'team' ? 1 : undefined,
-        })
-      } else {
-        // Development fallback - log for debugging
-        logger.warn('Stripe upgrade not available - development mode or missing configuration', {
-          targetPlan,
-          referenceId,
-          betterAuthSubscription: typeof betterAuthSubscription,
-        })
-
-        // You might want to show a toast or alert to the user
-        alert(
-          `Upgrade to ${targetPlan} plan - Stripe integration not available in development mode`
-        )
-      }
-    } catch (error) {
-      logger.error('Failed to initiate subscription upgrade:', error)
-      // You might want to show an error toast to the user
-      alert('Failed to initiate upgrade. Please try again or contact support.')
-    }
-  }
-
-  const handleLimitUpdated = async (newLimit: number) => {
-    // Update the store state directly for immediate UI feedback
-    try {
-      await updateUsageLimit(newLimit)
-      // Also refresh organization billing data to update team totals
-      if (subscription.isTeam && activeOrg?.id) {
-        await loadOrganizationBillingData(activeOrg.id)
-      }
-    } catch (error) {
-      logger.error('Failed to update usage limit:', error)
-    }
-  }
-
-  const handleSeatsUpdate = async (seats: number) => {
-    if (!activeOrg?.id) {
-      logger.error('No active organization found for seat update')
-      return
-    }
-
-    try {
-      setIsUpdatingSeats(true)
-
-      const response = await fetch(`/api/organizations/${activeOrg.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ seats }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update seats')
-      }
-
-      setIsSeatsDialogOpen(false)
-      await Promise.all([refresh(), loadOrganizationBillingData(activeOrg.id)]) // Refresh both subscription and org billing data
-    } catch (error) {
-      logger.error('Failed to update seats:', error)
-    } finally {
-      setIsUpdatingSeats(false)
-    }
-  }
-
   return (
     <div className='p-6'>
       <div className='space-y-6'>
-        {/* Current Plan & Usage Overview with Billing Summary */}
+        {/* Current Plan & Usage Overview */}
         <div>
           <div className='mb-2 flex items-center justify-between'>
             <h3 className='font-medium text-sm'>Current Plan</h3>
@@ -201,7 +152,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
               <span className='text-muted-foreground text-sm capitalize'>
                 {subscription.plan} Plan
               </span>
-              {/* Billing Summary Badge - only show for paid plans */}
               {!subscription.isFree && <BillingSummary showDetails={false} />}
             </div>
           </div>
@@ -241,7 +191,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           </Alert>
         )}
 
-        {/* Usage Limit Editor - Show for all users */}
+        {/* Usage Limit Editor */}
         <div>
           <div className='flex items-center justify-between'>
             <span className='font-medium text-sm'>
@@ -265,22 +215,27 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           </div>
           {subscription.isFree && (
             <p className='mt-1 text-muted-foreground text-xs'>
-              Upgrade to Pro or Team plan to customize your usage limit.
+              Upgrade to Pro ($20 minimum) or Team ($40 minimum) to customize your usage limit.
+            </p>
+          )}
+          {subscription.isPro && (
+            <p className='mt-1 text-muted-foreground text-xs'>
+              Pro plan minimum: $20. You can set your individual limit higher.
             </p>
           )}
           {subscription.isTeam && !isTeamAdmin && (
             <p className='mt-1 text-muted-foreground text-xs'>
-              Contact your team owner to adjust your limit.
+              Contact your team owner to adjust your limit. Team plan minimum: $40.
             </p>
           )}
           {subscription.isTeam && isTeamAdmin && (
             <p className='mt-1 text-muted-foreground text-xs'>
-              Your individual usage limit. Manage team member limits in the Team tab.
+              Team plan minimum: $40 per member. Manage team member limits in the Team tab.
             </p>
           )}
         </div>
 
-        {/* Team Management - Enhanced */}
+        {/* Team Management */}
         {subscription.isTeam && (
           <div className='space-y-4'>
             {isLoadingOrgBilling ? (
@@ -319,25 +274,37 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   </div>
                 </CardHeader>
                 <CardContent className='space-y-4'>
-                  <div className='flex items-center justify-between'>
-                    <div className='space-y-1'>
-                      <p className='text-muted-foreground text-sm'>Team Seats</p>
-                      <p className='font-semibold text-lg'>
-                        {orgBillingData.usedSeats} of {orgBillingData.totalSeats} used
-                      </p>
+                  {/* Team Summary */}
+                  <div className='space-y-3'>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-muted-foreground text-sm'>Licensed Seats</span>
+                      <span className='font-semibold'>
+                        {organizationBillingData.totalSeats} seats
+                      </span>
                     </div>
-                    <div className='space-y-1 text-right'>
-                      <p className='text-muted-foreground text-sm'>Total Usage Limit</p>
-                      <p className='font-semibold text-lg'>
-                        ${orgBillingData.totalUsageLimit.toFixed(2)}
-                      </p>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-muted-foreground text-sm'>Monthly Bill</span>
+                      <span className='font-semibold'>
+                        ${organizationBillingData.totalSeats * 40}
+                      </span>
+                    </div>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-muted-foreground text-sm'>Current Usage</span>
+                      <span className='font-semibold'>
+                        ${organizationBillingData.totalCurrentUsage.toFixed(2)}
+                      </span>
                     </div>
                   </div>
 
-                  <Progress
-                    value={(orgBillingData.usedSeats / orgBillingData.totalSeats) * 100}
-                    className='h-2'
-                  />
+                  {/* Simple Explanation */}
+                  <div className='rounded-lg bg-muted/50 p-3 text-muted-foreground text-sm'>
+                    <p>
+                      You pay ${organizationBillingData.totalSeats * 40}/month for{' '}
+                      {organizationBillingData.totalSeats} licensed seats, regardless of usage. If
+                      your team uses more than ${organizationBillingData.totalSeats * 40}, you'll be
+                      charged for the overage.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -411,10 +378,14 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           title='Update Team Seats'
           description='Each seat costs $40/month and provides $40 in monthly inference credits. Adjust the number of licensed seats for your team.'
           currentSeats={
-            shouldShowOrgBilling ? orgBillingData?.totalSeats || 1 : subscription.seats || 1
+            shouldShowOrgBilling
+              ? organizationBillingData?.totalSeats || 1
+              : subscription.seats || 1
           }
           initialSeats={
-            shouldShowOrgBilling ? orgBillingData?.totalSeats || 1 : subscription.seats || 1
+            shouldShowOrgBilling
+              ? organizationBillingData?.totalSeats || 1
+              : subscription.seats || 1
           }
           isLoading={isUpdatingSeats}
           onConfirm={handleSeatsUpdate}

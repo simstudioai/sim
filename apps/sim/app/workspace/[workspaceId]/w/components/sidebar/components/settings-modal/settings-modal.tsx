@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { client, useActiveOrganization, useSubscription } from '@/lib/auth-client'
+import { client, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { useOrganizationStore } from '@/stores/organization'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { Account } from './components/account/account'
 import { ApiKeys } from './components/api-keys/api-keys'
@@ -40,7 +41,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [isLoading, setIsLoading] = useState(true)
   const loadSettings = useGeneralStore((state) => state.loadSettings)
   const subscription = useMemo(() => useSubscription(), [])
-  const { data: activeOrg } = useActiveOrganization()
+  const { activeOrganization } = useOrganizationStore()
   const hasLoadedInitialData = useRef(false)
 
   useEffect(() => {
@@ -52,7 +53,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       setIsLoading(true)
 
       try {
-        // Only load general settings here - let individual components handle their own data
         await loadSettings()
         hasLoadedInitialData.current = true
       } catch (error) {
@@ -67,7 +67,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     } else {
       hasLoadedInitialData.current = false
     }
-  }, [open, loadSettings]) // Removed problematic dependencies
+  }, [open, loadSettings])
 
   useEffect(() => {
     const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {
@@ -108,7 +108,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             <SettingsNavigation
               activeSection={activeSection}
               onSectionChange={setActiveSection}
-              hasOrganization={!!activeOrg?.id}
+              hasOrganization={!!activeOrganization?.id}
             />
           </div>
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useSubscriptionStore } from '@/stores/subscription/store'
 
 const logger = createLogger('UsageLimitEditor')
 
@@ -8,7 +9,7 @@ interface UsageLimitEditorProps {
   currentLimit: number
   canEdit: boolean
   minimumLimit: number
-  onLimitUpdated: (newLimit: number) => void
+  onLimitUpdated?: (newLimit: number) => void
 }
 
 export function UsageLimitEditor({
@@ -20,7 +21,8 @@ export function UsageLimitEditor({
   const [inputValue, setInputValue] = useState(currentLimit.toString())
   const [isSaving, setIsSaving] = useState(false)
 
-  // Sync input value when currentLimit prop changes
+  const { updateUsageLimit } = useSubscriptionStore()
+
   useEffect(() => {
     setInputValue(currentLimit.toString())
   }, [currentLimit])
@@ -40,20 +42,14 @@ export function UsageLimitEditor({
     setIsSaving(true)
 
     try {
-      const response = await fetch('/api/usage-limits?context=user', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: newLimit }),
-      })
+      const result = await updateUsageLimit(newLimit)
 
-      if (!response.ok) {
-        throw new Error('Failed to update limit')
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update limit')
       }
 
-      // Update local state immediately for UI feedback
       setInputValue(newLimit.toString())
-      // Notify parent component
-      onLimitUpdated(newLimit)
+      onLimitUpdated?.(newLimit)
     } catch (error) {
       logger.error('Failed to update usage limit', { error })
       setInputValue(currentLimit.toString())
