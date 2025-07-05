@@ -364,10 +364,8 @@ export async function GET() {
 
         const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
-        // Log individual block executions to enhanced system
-        if (executionResult.logs && Array.isArray(executionResult.logs)) {
-          // Block execution logging is handled by the session
-        }
+        // Log individual block executions to enhanced system are automatically
+        // handled by the logging session
 
         // Complete enhanced logging
         await loggingSession.safeComplete({
