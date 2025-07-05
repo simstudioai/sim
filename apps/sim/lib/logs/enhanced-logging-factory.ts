@@ -98,10 +98,26 @@ export function calculateCostSummary(traceSpans: any[]): {
   totalTokens: number
   totalPromptTokens: number
   totalCompletionTokens: number
-  models: Record<string, { input: number; output: number; total: number; tokens: { prompt: number; completion: number; total: number } }>
+  models: Record<
+    string,
+    {
+      input: number
+      output: number
+      total: number
+      tokens: { prompt: number; completion: number; total: number }
+    }
+  >
 } {
   if (!traceSpans || traceSpans.length === 0) {
-    return { totalCost: 0, totalInputCost: 0, totalOutputCost: 0, totalTokens: 0, totalPromptTokens: 0, totalCompletionTokens: 0, models: {} }
+    return {
+      totalCost: 0,
+      totalInputCost: 0,
+      totalOutputCost: 0,
+      totalTokens: 0,
+      totalPromptTokens: 0,
+      totalCompletionTokens: 0,
+      models: {},
+    }
   }
 
   // Recursively collect all spans with cost information from the trace span tree
@@ -129,7 +145,15 @@ export function calculateCostSummary(traceSpans: any[]): {
   let totalTokens = 0
   let totalPromptTokens = 0
   let totalCompletionTokens = 0
-  const models: Record<string, { input: number; output: number; total: number; tokens: { prompt: number; completion: number; total: number } }> = {}
+  const models: Record<
+    string,
+    {
+      input: number
+      output: number
+      total: number
+      tokens: { prompt: number; completion: number; total: number }
+    }
+  > = {}
 
   for (const span of costSpans) {
     totalCost += span.cost.total || 0
@@ -144,7 +168,12 @@ export function calculateCostSummary(traceSpans: any[]): {
     if (span.model) {
       const model = span.model
       if (!models[model]) {
-        models[model] = { input: 0, output: 0, total: 0, tokens: { prompt: 0, completion: 0, total: 0 } }
+        models[model] = {
+          input: 0,
+          output: 0,
+          total: 0,
+          tokens: { prompt: 0, completion: 0, total: 0 },
+        }
       }
       models[model].input += span.cost.input || 0
       models[model].output += span.cost.output || 0
@@ -156,5 +185,13 @@ export function calculateCostSummary(traceSpans: any[]): {
     }
   }
 
-  return { totalCost, totalInputCost, totalOutputCost, totalTokens, totalPromptTokens, totalCompletionTokens, models }
+  return {
+    totalCost,
+    totalInputCost,
+    totalOutputCost,
+    totalTokens,
+    totalPromptTokens,
+    totalCompletionTokens,
+    models,
+  }
 }

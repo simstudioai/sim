@@ -69,7 +69,6 @@ export class Executor {
   private contextExtensions: any = {}
   private actualWorkflow: SerializedWorkflow
 
-
   constructor(
     private workflowParam:
       | SerializedWorkflow
@@ -160,8 +159,6 @@ export class Executor {
 
     this.isDebugging = useGeneralStore.getState().isDebugModeEnabled
   }
-
-
 
   /**
    * Executes the workflow and returns the result.
@@ -1259,8 +1256,6 @@ export class Executor {
 
         context.blockLogs.push(blockLog)
 
-
-
         // Skip console logging for infrastructure blocks like loops and parallels
         if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
           addConsole({
@@ -1329,8 +1324,6 @@ export class Executor {
 
       context.blockLogs.push(blockLog)
 
-
-
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
         addConsole({
@@ -1396,8 +1389,6 @@ export class Executor {
 
       // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
-
-
 
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {

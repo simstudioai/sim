@@ -207,7 +207,15 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       totalTokens: number
       totalPromptTokens: number
       totalCompletionTokens: number
-      models: Record<string, { input: number; output: number; total: number; tokens: { prompt: number; completion: number; total: number } }>
+      models: Record<
+        string,
+        {
+          input: number
+          output: number
+          total: number
+          tokens: { prompt: number; completion: number; total: number }
+        }
+      >
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
