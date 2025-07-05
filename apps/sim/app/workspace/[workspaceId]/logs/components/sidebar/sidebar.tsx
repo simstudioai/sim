@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, X, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -12,6 +12,7 @@ import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date
 import { formatCost } from '@/providers/utils'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '../trace-spans/trace-spans-display'
+import { FrozenCanvasModal } from '../frozen-canvas/frozen-canvas-modal'
 import LogMarkdownRenderer from './components/markdown-renderer'
 
 interface LogSidebarProps {
@@ -194,6 +195,7 @@ export function Sidebar({
   const [_currentLogId, setCurrentLogId] = useState<string | null>(null)
   const [isTraceExpanded, setIsTraceExpanded] = useState(false)
   const [isModelsExpanded, setIsModelsExpanded] = useState(false)
+  const [isFrozenCanvasOpen, setIsFrozenCanvasOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Update currentLogId when log changes
@@ -575,6 +577,25 @@ export function Sidebar({
                 </div>
               )}
 
+              {/* Frozen Canvas Button - only show for workflow execution logs with execution ID */}
+              {isWorkflowExecutionLog && log.executionId && (
+                <div>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Workflow State</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsFrozenCanvasOpen(true)}
+                    className="w-full justify-start gap-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Frozen Canvas
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    See the exact workflow state and block inputs/outputs at execution time
+                  </p>
+                </div>
+              )}
+
               {/* Message Content */}
               <div className='w-full pb-2'>
                 <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Message</h3>
@@ -707,6 +728,17 @@ export function Sidebar({
             </div>
           </ScrollArea>
         </>
+      )}
+
+      {/* Frozen Canvas Modal */}
+      {log && log.executionId && (
+        <FrozenCanvasModal
+          executionId={log.executionId}
+          workflowName={log.workflow?.name}
+          trigger={log.trigger || undefined}
+          isOpen={isFrozenCanvasOpen}
+          onClose={() => setIsFrozenCanvasOpen(false)}
+        />
       )}
     </div>
   )
