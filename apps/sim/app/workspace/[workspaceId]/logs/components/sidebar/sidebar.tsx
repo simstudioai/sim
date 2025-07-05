@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, X, Eye } from 'lucide-react'
+import { ChevronDown, ChevronUp, Eye, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -10,9 +10,9 @@ import { redactApiKeys } from '@/lib/utils'
 import type { WorkflowLog } from '@/app/workspace/[workspaceId]/logs/stores/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
+import { FrozenCanvasModal } from '../frozen-canvas/frozen-canvas-modal'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '../trace-spans/trace-spans-display'
-import { FrozenCanvasModal } from '../frozen-canvas/frozen-canvas-modal'
 import LogMarkdownRenderer from './components/markdown-renderer'
 
 interface LogSidebarProps {
@@ -582,15 +582,15 @@ export function Sidebar({
                 <div>
                   <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Workflow State</h3>
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant='outline'
+                    size='sm'
                     onClick={() => setIsFrozenCanvasOpen(true)}
-                    className="w-full justify-start gap-2"
+                    className='w-full justify-start gap-2'
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className='h-4 w-4' />
                     View Frozen Canvas
                   </Button>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className='mt-1 text-muted-foreground text-xs'>
                     See the exact workflow state and block inputs/outputs at execution time
                   </p>
                 </div>
@@ -731,7 +731,7 @@ export function Sidebar({
       )}
 
       {/* Frozen Canvas Modal */}
-      {log && log.executionId && (
+      {log?.executionId && (
         <FrozenCanvasModal
           executionId={log.executionId}
           workflowName={log.workflow?.name}

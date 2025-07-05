@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
@@ -43,7 +43,12 @@ interface FrozenCanvasProps {
 
 // No need for custom node types - we'll use WorkflowPreview
 
-export function FrozenCanvas({ executionId, className, height = '100%', width = '100%' }: FrozenCanvasProps) {
+export function FrozenCanvas({
+  executionId,
+  className,
+  height = '100%',
+  width = '100%',
+}: FrozenCanvasProps) {
   const [data, setData] = useState<FrozenCanvasData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -80,8 +85,8 @@ export function FrozenCanvas({ executionId, className, height = '100%', width = 
   if (loading) {
     return (
       <div className={cn('flex items-center justify-center', className)} style={{ height, width }}>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <div className='flex items-center gap-2 text-muted-foreground'>
+          <Loader2 className='h-5 w-5 animate-spin' />
           <span>Loading frozen canvas...</span>
         </div>
       </div>
@@ -91,8 +96,8 @@ export function FrozenCanvas({ executionId, className, height = '100%', width = 
   if (error) {
     return (
       <div className={cn('flex items-center justify-center', className)} style={{ height, width }}>
-        <div className="flex items-center gap-2 text-destructive">
-          <AlertCircle className="h-5 w-5" />
+        <div className='flex items-center gap-2 text-destructive'>
+          <AlertCircle className='h-5 w-5' />
           <span>Failed to load frozen canvas: {error}</span>
         </div>
       </div>
@@ -102,7 +107,7 @@ export function FrozenCanvas({ executionId, className, height = '100%', width = 
   if (!data) {
     return (
       <div className={cn('flex items-center justify-center', className)} style={{ height, width }}>
-        <div className="text-muted-foreground">No data available</div>
+        <div className='text-muted-foreground'>No data available</div>
       </div>
     )
   }
@@ -114,20 +119,13 @@ export function FrozenCanvas({ executionId, className, height = '100%', width = 
     blockTypes: Object.entries(data.workflowState.blocks || {}).map(([id, block]) => ({
       id,
       type: block?.type,
-      hasType: !!block?.type
-    }))
+      hasType: !!block?.type,
+    })),
   })
 
   return (
-    <div
-      style={{ height, width }}
-      className={cn('frozen-canvas-mode h-full w-full', className)}
-    >
-      <WorkflowPreview
-        workflowState={data.workflowState}
-        showSubBlocks={true}
-        isPannable={true}
-      />
+    <div style={{ height, width }} className={cn('frozen-canvas-mode h-full w-full', className)}>
+      <WorkflowPreview workflowState={data.workflowState} showSubBlocks={true} isPannable={true} />
     </div>
   )
 }

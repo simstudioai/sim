@@ -203,7 +203,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     }
 
     // Check for invalid blocks before serialization to prevent race conditions
-    const hasInvalidBlocks = Object.values(blocks).some(block => !block || !block.type)
+    const hasInvalidBlocks = Object.values(blocks).some((block) => !block || !block.type)
     if (hasInvalidBlocks) {
       return {
         tags: [],

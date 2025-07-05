@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface ExecutionData {
   blockId: string
@@ -39,7 +38,7 @@ function formatJsonForDisplay(data: any): string {
   if (data === null || data === undefined) return 'null'
   if (typeof data === 'string') return data
   if (typeof data === 'number' || typeof data === 'boolean') return String(data)
-  
+
   try {
     return JSON.stringify(data, null, 2)
   } catch {
@@ -50,17 +49,21 @@ function formatJsonForDisplay(data: any): string {
 function getStatusIcon(status: string) {
   switch (status) {
     case 'success':
-      return <CheckCircle className="h-4 w-4 text-green-500" />
+      return <CheckCircle className='h-4 w-4 text-green-500' />
     case 'error':
-      return <XCircle className="h-4 w-4 text-red-500" />
+      return <XCircle className='h-4 w-4 text-red-500' />
     case 'skipped':
-      return <Clock className="h-4 w-4 text-yellow-500" />
+      return <Clock className='h-4 w-4 text-yellow-500' />
     default:
-      return <AlertCircle className="h-4 w-4 text-gray-500" />
+      return <AlertCircle className='h-4 w-4 text-gray-500' />
   }
 }
 
-export function ExecutionDataTooltip({ executionData, mousePosition, isVisible }: ExecutionDataTooltipProps) {
+export function ExecutionDataTooltip({
+  executionData,
+  mousePosition,
+  isVisible,
+}: ExecutionDataTooltipProps) {
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const tooltipRef = useRef<HTMLDivElement>(null)
 
@@ -91,7 +94,7 @@ export function ExecutionDataTooltip({ executionData, mousePosition, isVisible }
   return createPortal(
     <div
       ref={tooltipRef}
-      className="fixed z-[9999] max-w-md bg-white border rounded-lg shadow-lg overflow-hidden"
+      className='fixed z-[9999] max-w-md overflow-hidden rounded-lg border bg-white shadow-lg'
       style={{
         left: tooltipPosition.x,
         top: tooltipPosition.y,
@@ -99,23 +102,21 @@ export function ExecutionDataTooltip({ executionData, mousePosition, isVisible }
       }}
     >
       {/* Header */}
-      <div className="px-3 py-2 bg-gray-50 border-b">
-        <div className="font-medium text-sm">{executionData.blockName}</div>
-        <div className="text-xs text-muted-foreground">{executionData.blockType}</div>
+      <div className='border-b bg-gray-50 px-3 py-2'>
+        <div className='font-medium text-sm'>{executionData.blockName}</div>
+        <div className='text-muted-foreground text-xs'>{executionData.blockType}</div>
       </div>
 
       {/* Content */}
-      <div className="p-3 space-y-3 max-h-96 overflow-y-auto">
+      <div className='max-h-96 space-y-3 overflow-y-auto p-3'>
         {/* Execution Status */}
         <div>
-          <div className="text-xs font-medium text-muted-foreground mb-1">Status</div>
-          <div className="flex items-center gap-2">
+          <div className='mb-1 font-medium text-muted-foreground text-xs'>Status</div>
+          <div className='flex items-center gap-2'>
             {getStatusIcon(executionData.status)}
-            <span className="text-sm">{executionData.status}</span>
+            <span className='text-sm'>{executionData.status}</span>
             {executionData.durationMs && (
-              <span className="text-xs text-muted-foreground">
-                ({executionData.durationMs}ms)
-              </span>
+              <span className='text-muted-foreground text-xs'>({executionData.durationMs}ms)</span>
             )}
           </div>
         </div>
@@ -123,8 +124,8 @@ export function ExecutionDataTooltip({ executionData, mousePosition, isVisible }
         {/* Input Data */}
         {executionData.inputData && (
           <div>
-            <div className="text-xs font-medium text-muted-foreground mb-1">Input</div>
-            <pre className="text-xs bg-gray-50 p-2 rounded border max-h-32 overflow-y-auto">
+            <div className='mb-1 font-medium text-muted-foreground text-xs'>Input</div>
+            <pre className='max-h-32 overflow-y-auto rounded border bg-gray-50 p-2 text-xs'>
               {formatJsonForDisplay(executionData.inputData)}
             </pre>
           </div>
@@ -133,8 +134,8 @@ export function ExecutionDataTooltip({ executionData, mousePosition, isVisible }
         {/* Output Data */}
         {executionData.outputData && (
           <div>
-            <div className="text-xs font-medium text-muted-foreground mb-1">Output</div>
-            <pre className="text-xs bg-gray-50 p-2 rounded border max-h-32 overflow-y-auto">
+            <div className='mb-1 font-medium text-muted-foreground text-xs'>Output</div>
+            <pre className='max-h-32 overflow-y-auto rounded border bg-gray-50 p-2 text-xs'>
               {formatJsonForDisplay(executionData.outputData)}
             </pre>
           </div>
@@ -143,8 +144,8 @@ export function ExecutionDataTooltip({ executionData, mousePosition, isVisible }
         {/* Error Message */}
         {executionData.errorMessage && (
           <div>
-            <div className="text-xs font-medium text-red-600 mb-1">Error</div>
-            <div className="text-xs bg-red-50 p-2 rounded border text-red-700">
+            <div className='mb-1 font-medium text-red-600 text-xs'>Error</div>
+            <div className='rounded border bg-red-50 p-2 text-red-700 text-xs'>
               {executionData.errorMessage}
             </div>
           </div>
@@ -152,17 +153,17 @@ export function ExecutionDataTooltip({ executionData, mousePosition, isVisible }
 
         {/* Cost and Token Info */}
         {(executionData.cost?.total || executionData.tokens?.total) && (
-          <div className="flex gap-4 text-xs">
+          <div className='flex gap-4 text-xs'>
             {executionData.cost?.total && (
               <div>
-                <span className="text-muted-foreground">Cost:</span>{' '}
-                <span className="font-medium">${executionData.cost.total.toFixed(6)}</span>
+                <span className='text-muted-foreground'>Cost:</span>{' '}
+                <span className='font-medium'>${executionData.cost.total.toFixed(6)}</span>
               </div>
             )}
             {executionData.tokens?.total && (
               <div>
-                <span className="text-muted-foreground">Tokens:</span>{' '}
-                <span className="font-medium">{executionData.tokens.total}</span>
+                <span className='text-muted-foreground'>Tokens:</span>{' '}
+                <span className='font-medium'>{executionData.tokens.total}</span>
               </div>
             )}
           </div>
@@ -170,9 +171,9 @@ export function ExecutionDataTooltip({ executionData, mousePosition, isVisible }
 
         {/* Model Used */}
         {executionData.modelUsed && (
-          <div className="text-xs">
-            <span className="text-muted-foreground">Model:</span>{' '}
-            <span className="font-medium">{executionData.modelUsed}</span>
+          <div className='text-xs'>
+            <span className='text-muted-foreground'>Model:</span>{' '}
+            <span className='font-medium'>{executionData.modelUsed}</span>
           </div>
         )}
       </div>
