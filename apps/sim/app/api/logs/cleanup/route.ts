@@ -3,9 +3,10 @@ import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { snapshotService } from '@/lib/logs/snapshot-service'
 import { getS3Client } from '@/lib/uploads/s3/s3-client'
 import { db } from '@/db'
-import { subscription, user, workflow, workflowLogs } from '@/db/schema'
+import { subscription, user, workflow, workflowExecutionLogs } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,99 +67,143 @@ export async function GET(request: Request) {
     const workflowIds = workflowsQuery.map((w) => w.id)
 
     const results = {
-      total: 0,
-      archived: 0,
-      archiveFailed: 0,
-      deleted: 0,
-      deleteFailed: 0,
+      enhancedLogs: {
+        total: 0,
+        archived: 0,
+        archiveFailed: 0,
+        deleted: 0,
+        deleteFailed: 0,
+      },
+      snapshots: {
+        cleaned: 0,
+        cleanupFailed: 0,
+      },
     }
 
     const startTime = Date.now()
     const MAX_BATCHES = 10
 
+    // Process enhanced logging cleanup
     let batchesProcessed = 0
     let hasMoreLogs = true
 
+    logger.info(`Starting enhanced logs cleanup for ${workflowIds.length} workflows`)
+
     while (hasMoreLogs && batchesProcessed < MAX_BATCHES) {
-      const oldLogs = await db
+      // Query enhanced execution logs that need cleanup
+      const oldEnhancedLogs = await db
         .select({
-          id: workflowLogs.id,
-          workflowId: workflowLogs.workflowId,
-          executionId: workflowLogs.executionId,
-          level: workflowLogs.level,
-          message: workflowLogs.message,
-          duration: workflowLogs.duration,
-          trigger: workflowLogs.trigger,
-          createdAt: workflowLogs.createdAt,
-          metadata: workflowLogs.metadata,
+          id: workflowExecutionLogs.id,
+          workflowId: workflowExecutionLogs.workflowId,
+          executionId: workflowExecutionLogs.executionId,
+          stateSnapshotId: workflowExecutionLogs.stateSnapshotId,
+          level: workflowExecutionLogs.level,
+          message: workflowExecutionLogs.message,
+          trigger: workflowExecutionLogs.trigger,
+          startedAt: workflowExecutionLogs.startedAt,
+          endedAt: workflowExecutionLogs.endedAt,
+          totalDurationMs: workflowExecutionLogs.totalDurationMs,
+          blockCount: workflowExecutionLogs.blockCount,
+          successCount: workflowExecutionLogs.successCount,
+          errorCount: workflowExecutionLogs.errorCount,
+          skippedCount: workflowExecutionLogs.skippedCount,
+          totalCost: workflowExecutionLogs.totalCost,
+          totalInputCost: workflowExecutionLogs.totalInputCost,
+          totalOutputCost: workflowExecutionLogs.totalOutputCost,
+          totalTokens: workflowExecutionLogs.totalTokens,
+          metadata: workflowExecutionLogs.metadata,
+          createdAt: workflowExecutionLogs.createdAt,
         })
-        .from(workflowLogs)
+        .from(workflowExecutionLogs)
         .where(
           and(
-            inArray(workflowLogs.workflowId, workflowIds),
-            lt(workflowLogs.createdAt, retentionDate)
+            inArray(workflowExecutionLogs.workflowId, workflowIds),
+            lt(workflowExecutionLogs.createdAt, retentionDate)
           )
         )
         .limit(BATCH_SIZE)
 
-      results.total += oldLogs.length
+      results.enhancedLogs.total += oldEnhancedLogs.length
 
-      for (const log of oldLogs) {
+      for (const log of oldEnhancedLogs) {
         const today = new Date().toISOString().split('T')[0]
 
-        const logKey = `archived-logs/${today}/${log.id}.json`
-        const logData = JSON.stringify(log)
+        // Archive enhanced log with more detailed structure
+        const enhancedLogKey = `archived-enhanced-logs/${today}/${log.id}.json`
+        const enhancedLogData = JSON.stringify({
+          ...log,
+          archivedAt: new Date().toISOString(),
+          logType: 'enhanced',
+        })
 
         try {
           await getS3Client().send(
             new PutObjectCommand({
               Bucket: S3_CONFIG.bucket,
-              Key: logKey,
-              Body: logData,
+              Key: enhancedLogKey,
+              Body: enhancedLogData,
               ContentType: 'application/json',
               Metadata: {
                 logId: String(log.id),
                 workflowId: String(log.workflowId),
+                executionId: String(log.executionId),
+                logType: 'enhanced',
                 archivedAt: new Date().toISOString(),
               },
             })
           )
 
-          results.archived++
+          results.enhancedLogs.archived++
 
           try {
+            // Delete enhanced log (will cascade to workflowExecutionBlocks due to foreign key)
             const deleteResult = await db
-              .delete(workflowLogs)
-              .where(eq(workflowLogs.id, log.id))
-              .returning({ id: workflowLogs.id })
+              .delete(workflowExecutionLogs)
+              .where(eq(workflowExecutionLogs.id, log.id))
+              .returning({ id: workflowExecutionLogs.id })
 
             if (deleteResult.length > 0) {
-              results.deleted++
+              results.enhancedLogs.deleted++
             } else {
-              results.deleteFailed++
-              logger.warn(`Failed to delete log ${log.id} after archiving: No rows deleted`)
+              results.enhancedLogs.deleteFailed++
+              logger.warn(
+                `Failed to delete enhanced log ${log.id} after archiving: No rows deleted`
+              )
             }
           } catch (deleteError) {
-            results.deleteFailed++
-            logger.error(`Error deleting log ${log.id} after archiving:`, { deleteError })
+            results.enhancedLogs.deleteFailed++
+            logger.error(`Error deleting enhanced log ${log.id} after archiving:`, { deleteError })
           }
         } catch (archiveError) {
-          results.archiveFailed++
-          logger.error(`Failed to archive log ${log.id}:`, { archiveError })
+          results.enhancedLogs.archiveFailed++
+          logger.error(`Failed to archive enhanced log ${log.id}:`, { archiveError })
         }
       }
 
       batchesProcessed++
-      hasMoreLogs = oldLogs.length === BATCH_SIZE
+      hasMoreLogs = oldEnhancedLogs.length === BATCH_SIZE
 
-      logger.info(`Processed batch ${batchesProcessed}: ${oldLogs.length} logs`)
+      logger.info(
+        `Processed enhanced logs batch ${batchesProcessed}: ${oldEnhancedLogs.length} logs`
+      )
+    }
+
+    // Cleanup orphaned snapshots
+    try {
+      const snapshotRetentionDays = Number(env.FREE_PLAN_LOG_RETENTION_DAYS || '7') + 1 // Keep snapshots 1 day longer
+      const cleanedSnapshots = await snapshotService.cleanupOrphanedSnapshots(snapshotRetentionDays)
+      results.snapshots.cleaned = cleanedSnapshots
+      logger.info(`Cleaned up ${cleanedSnapshots} orphaned snapshots`)
+    } catch (snapshotError) {
+      results.snapshots.cleanupFailed = 1
+      logger.error('Error cleaning up orphaned snapshots:', { snapshotError })
     }
 
     const timeElapsed = (Date.now() - startTime) / 1000
     const reachedLimit = batchesProcessed >= MAX_BATCHES && hasMoreLogs
 
     return NextResponse.json({
-      message: `Processed ${batchesProcessed} batches (${results.total} logs) in ${timeElapsed.toFixed(2)}s${reachedLimit ? ' (batch limit reached)' : ''}`,
+      message: `Processed ${batchesProcessed} enhanced log batches (${results.enhancedLogs.total} logs) in ${timeElapsed.toFixed(2)}s${reachedLimit ? ' (batch limit reached)' : ''}`,
       results,
       complete: !hasMoreLogs,
       batchLimitReached: reachedLimit,

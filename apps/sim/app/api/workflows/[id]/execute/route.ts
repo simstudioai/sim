@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
@@ -14,11 +14,10 @@ import {
   workflowHasResponseBlock,
 } from '@/lib/workflows/utils'
 import { db } from '@/db'
-import { environment, userStats } from '@/db/schema'
+import { environment as environmentTable, userStats } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -59,6 +58,8 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     throw new Error('Execution is already running')
   }
 
+  const loggingSession = new EnhancedLoggingSession(workflowId, executionId, 'api', requestId)
+
   // Check if the user has exceeded their usage limits
   const usageCheck = await checkServerSideUsageLimits(workflow.userId)
   if (usageCheck.isExceeded) {
@@ -92,30 +93,21 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     logger.debug(`[${requestId}] Loading workflow ${workflowId} from normalized tables`)
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
-    let blocks: Record<string, any>
-    let edges: any[]
-    let loops: Record<string, any>
-    let parallels: Record<string, any>
-
-    if (normalizedData) {
-      // Use normalized data as primary source
-      ;({ blocks, edges, loops, parallels } = normalizedData)
-      logger.info(`[${requestId}] Using normalized tables for workflow execution: ${workflowId}`)
-    } else {
-      // Fallback to deployed state if available (for legacy workflows)
-      logger.warn(
-        `[${requestId}] No normalized data found, falling back to deployed state for workflow: ${workflowId}`
+    if (!normalizedData) {
+      throw new Error(
+        `Workflow ${workflowId} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
       )
-
-      if (!workflow.deployedState) {
-        throw new Error(
-          `Workflow ${workflowId} has no deployed state and no normalized data available`
-        )
-      }
-
-      const deployedState = workflow.deployedState as WorkflowState
-      ;({ blocks, edges, loops, parallels } = deployedState)
     }
+
+    // Use normalized data as primary source
+    const { blocks, edges, loops, parallels } = normalizedData
+    logger.info(`[${requestId}] Using normalized tables for workflow execution: ${workflowId}`)
+    logger.debug(`[${requestId}] Normalized data loaded:`, {
+      blocksCount: Object.keys(blocks || {}).length,
+      edgesCount: (edges || []).length,
+      loopsCount: Object.keys(loops || {}).length,
+      parallelsCount: Object.keys(parallels || {}).length,
+    })
 
     // Use the same execution flow as in scheduled executions
     const mergedStates = mergeSubblockState(blocks)
@@ -123,8 +115,8 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     // Fetch the user's environment variables (if any)
     const [userEnv] = await db
       .select()
-      .from(environment)
-      .where(eq(environment.userId, workflow.userId))
+      .from(environmentTable)
+      .where(eq(environmentTable.userId, workflow.userId))
       .limit(1)
 
     if (!userEnv) {
@@ -133,8 +125,13 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       )
     }
 
-    // Parse and validate environment variables.
     const variables = EnvVarsSchema.parse(userEnv?.variables ?? {})
+
+    await loggingSession.safeStart({
+      userId: workflow.userId,
+      workspaceId: workflow.workspaceId,
+      variables,
+    })
 
     // Replace environment variables in the block states
     const currentBlockStates = await Object.entries(mergedStates).reduce(
@@ -260,6 +257,9 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       workflowVariables
     )
 
+    // Set up enhanced logging on the executor
+    loggingSession.setupExecutor(executor)
+
     const result = await executor.execute(workflowId)
 
     // Check if we got a StreamingExecution result (with stream + execution properties)
@@ -270,6 +270,9 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       success: executionResult.success,
       executionTime: executionResult.metadata?.duration,
     })
+
+    // Build trace spans from execution result (works for both success and failure)
+    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
     // Update workflow run counts if execution was successful
     if (executionResult.success) {
@@ -285,24 +288,26 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
         .where(eq(userStats.userId, workflow.userId))
     }
 
-    // Build trace spans from execution logs
-    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
-
-    // Add trace spans to the execution result
-    const enrichedResult = {
-      ...executionResult,
-      traceSpans,
-      totalDuration,
-    }
-
-    // Log each execution step and the final result
-    await persistExecutionLogs(workflowId, executionId, enrichedResult, 'api')
+    await loggingSession.safeComplete({
+      endedAt: new Date().toISOString(),
+      totalDurationMs: totalDuration || 0,
+      finalOutput: executionResult.output || {},
+      traceSpans: (traceSpans || []) as any,
+    })
 
     return executionResult
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, error)
-    // Log the error
-    await persistExecutionError(workflowId, executionId, error, 'api')
+
+    await loggingSession.safeCompleteWithError({
+      endedAt: new Date().toISOString(),
+      totalDurationMs: 0,
+      error: {
+        message: error.message || 'Workflow execution failed',
+        stackTrace: error.stack,
+      },
+    })
+
     throw error
   } finally {
     runningExecutions.delete(executionKey)

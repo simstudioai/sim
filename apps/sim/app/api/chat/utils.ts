@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { db } from '@/db'
@@ -252,11 +252,14 @@ export async function executeWorkflowForChat(
 
   const deployment = deploymentResult[0]
   const workflowId = deployment.workflowId
+  const executionId = uuidv4()
+
+  // Set up enhanced logging for chat execution
+  const loggingSession = new EnhancedLoggingSession(workflowId, executionId, 'chat', requestId)
 
   // Check for multi-output configuration in customizations
   const customizations = (deployment.customizations || {}) as Record<string, any>
   let outputBlockIds: string[] = []
-  let outputPaths: string[] = []
 
   // Extract output configs from the new schema format
   if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
@@ -271,13 +274,11 @@ export async function executeWorkflowForChat(
     })
 
     outputBlockIds = deployment.outputConfigs.map((config) => config.blockId)
-    outputPaths = deployment.outputConfigs.map((config) => config.path || '')
   } else {
     // Use customizations as fallback
     outputBlockIds = Array.isArray(customizations.outputBlockIds)
       ? customizations.outputBlockIds
       : []
-    outputPaths = Array.isArray(customizations.outputPaths) ? customizations.outputPaths : []
   }
 
   // Fall back to customizations if we still have no outputs
@@ -287,7 +288,6 @@ export async function executeWorkflowForChat(
     customizations.outputBlockIds.length > 0
   ) {
     outputBlockIds = customizations.outputBlockIds
-    outputPaths = customizations.outputPaths || new Array(outputBlockIds.length).fill('')
   }
 
   logger.debug(`[${requestId}] Using ${outputBlockIds.length} output blocks for extraction`)
@@ -407,6 +407,13 @@ export async function executeWorkflowForChat(
     {} as Record<string, Record<string, any>>
   )
 
+  // Start enhanced logging session
+  await loggingSession.safeStart({
+    userId: deployment.userId,
+    workspaceId: '', // TODO: Get from workflow
+    variables: workflowVariables,
+  })
+
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder()
@@ -458,7 +465,24 @@ export async function executeWorkflowForChat(
         },
       })
 
-      const result = await executor.execute(workflowId)
+      // Set up enhanced logging on the executor
+      loggingSession.setupExecutor(executor)
+
+      let result
+      try {
+        result = await executor.execute(workflowId)
+      } catch (error: any) {
+        logger.error(`[${requestId}] Chat workflow execution failed:`, error)
+        await loggingSession.safeCompleteWithError({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: 0,
+          error: {
+            message: error.message || 'Chat workflow execution failed',
+            stackTrace: error.stack,
+          },
+        })
+        throw error
+      }
 
       if (result && 'success' in result) {
         result.logs?.forEach((log: BlockLog) => {
@@ -481,8 +505,7 @@ export async function executeWorkflowForChat(
           ;(enrichedResult.metadata as any).conversationId = conversationId
         }
         const executionId = uuidv4()
-        await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
-        logger.debug(`Persisted logs for deployed chat: ${executionId}`)
+        logger.debug(`Generated execution ID for deployed chat: ${executionId}`)
 
         if (result.success) {
           try {
@@ -504,6 +527,17 @@ export async function executeWorkflowForChat(
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
         )
+      }
+
+      // Complete enhanced logging session (for both success and failure)
+      if (result && 'success' in result) {
+        const { traceSpans } = buildTraceSpans(result)
+        await loggingSession.safeComplete({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: result.metadata?.duration || 0,
+          finalOutput: result.output,
+          traceSpans,
+        })
       }
 
       controller.close()

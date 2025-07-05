@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionLogs, persistLog } from '@/lib/logs/execution-logger'
+import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -33,9 +33,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Check if this execution is from chat using only the explicit source flag
       const isChatExecution = result.metadata?.source === 'chat'
 
-      // Use persistExecutionLogs which handles tool call extraction
-      // Use 'chat' trigger type for chat executions, otherwise 'manual'
-      await persistExecutionLogs(id, executionId, result, isChatExecution ? 'chat' : 'manual')
+      // Also log to enhanced system
+      const triggerType = isChatExecution ? 'chat' : 'manual'
+      const loggingSession = new EnhancedLoggingSession(id, executionId, triggerType, requestId)
+
+      await loggingSession.safeStart({
+        userId: '', // TODO: Get from session
+        workspaceId: '', // TODO: Get from workflow
+        variables: {},
+      })
+
+      // Build trace spans from execution logs
+      const { traceSpans } = buildTraceSpans(result)
+
+      await loggingSession.safeComplete({
+        endedAt: new Date().toISOString(),
+        totalDurationMs: result.metadata?.duration || 0,
+        finalOutput: result.output || {},
+        traceSpans,
+      })
 
       return createSuccessResponse({
         message: 'Execution logs persisted successfully',
@@ -51,21 +67,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     logger.info(`[${requestId}] Persisting ${logs.length} logs for workflow: ${id}`, {
       executionId,
     })
-
-    // Persist each log using the original method
-    for (const log of logs) {
-      await persistLog({
-        id: uuidv4(),
-        workflowId: id,
-        executionId,
-        level: log.level,
-        message: log.message,
-        duration: log.duration,
-        trigger: log.trigger || 'manual',
-        createdAt: new Date(log.createdAt || new Date()),
-        metadata: log.metadata,
-      })
-    }
 
     return createSuccessResponse({ message: 'Logs persisted successfully' })
   } catch (error: any) {
