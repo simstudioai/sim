@@ -21,6 +21,16 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
       required: true,
       description: 'JSON schema defining the structure of the data to extract',
     },
+    model: {
+      type: 'string',
+      required: true,
+      description: 'Model to use for extraction (e.g., gpt-4o, claude-3-5-sonnet)',
+    },
+    env: {
+      type: 'string',
+      required: true,
+      description: 'Environment for extraction (browserbase or local)',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -44,6 +54,8 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
       schema: params.schema,
       apiKey: params.apiKey,
       url: params.url,
+      model: params.model,
+      env: params.env,
     }),
   },
 

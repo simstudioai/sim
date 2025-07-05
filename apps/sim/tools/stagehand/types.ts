@@ -6,6 +6,8 @@ export interface StagehandExtractParams {
   schema: Record<string, any>
   apiKey: string
   url: string
+  model: string
+  env: 'browserbase' | 'local'
 }
 
 export interface StagehandExtractResponse extends ToolResponse {
