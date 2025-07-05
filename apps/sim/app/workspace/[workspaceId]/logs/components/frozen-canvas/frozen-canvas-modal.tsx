@@ -47,16 +47,15 @@ export function FrozenCanvasModal({
           <div className='flex items-center gap-3'>
             <Eye className='h-5 w-5 text-blue-500 dark:text-blue-400' />
             <div>
-              <DialogTitle className='font-semibold text-lg text-foreground'>
+              <DialogTitle className='font-semibold text-foreground text-lg'>
                 Logged Workflow State
               </DialogTitle>
               <div className='mt-1 flex items-center gap-2'>
-                {workflowName && <span className='text-muted-foreground text-sm'>{workflowName}</span>}
+                {workflowName && (
+                  <span className='text-muted-foreground text-sm'>{workflowName}</span>
+                )}
                 {trigger && (
-                  <Badge
-                    variant='secondary'
-                    className='text-xs'
-                  >
+                  <Badge variant='secondary' className='text-xs'>
                     {trigger}
                   </Badge>
                 )}
@@ -68,20 +67,10 @@ export function FrozenCanvasModal({
           </div>
 
           <div className='flex items-center gap-2'>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={toggleFullscreen}
-              className='h-8 w-8 p-0'
-            >
+            <Button variant='ghost' size='sm' onClick={toggleFullscreen} className='h-8 w-8 p-0'>
               {isFullscreen ? <Minimize2 className='h-4 w-4' /> : <Maximize2 className='h-4 w-4' />}
             </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={onClose}
-              className='h-8 w-8 p-0'
-            >
+            <Button variant='ghost' size='sm' onClick={onClose} className='h-8 w-8 p-0'>
               <X className='h-4 w-4' />
             </Button>
           </div>
