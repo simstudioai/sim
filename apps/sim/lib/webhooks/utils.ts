@@ -2,15 +2,14 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
-import { environment, userStats, webhook } from '@/db/schema'
+import { environment as environmentTable, userStats, webhook } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockStateAsync } from '@/stores/workflows/server-utils'
@@ -433,47 +432,13 @@ export async function executeWorkflowFromPayload(
     triggerSource: 'webhook-payload',
   })
 
-  // DEBUG: Log specific payload details
-  if (input?.airtableChanges) {
-    logger.debug(`[${requestId}] TRACE: Execution received Airtable input`, {
-      changeCount: input.airtableChanges.length,
-      firstTableId: input.airtableChanges[0]?.tableId,
-      timestamp: new Date().toISOString(),
-    })
-  }
+  const loggingSession = new EnhancedLoggingSession(
+    foundWorkflow.id,
+    executionId,
+    'webhook',
+    requestId
+  )
 
-  // Validate and ensure proper input structure
-  if (!input) {
-    logger.warn(`[${requestId}] Empty input for workflow execution, creating empty object`)
-    input = {}
-  }
-
-  // Special handling for Airtable webhook inputs
-  if (input.airtableChanges) {
-    if (!Array.isArray(input.airtableChanges)) {
-      logger.warn(
-        `[${requestId}] Invalid airtableChanges input type (${typeof input.airtableChanges}), converting to array`
-      )
-      // Force to array if somehow not an array
-      input.airtableChanges = [input.airtableChanges]
-    }
-
-    // Log the structure of the payload for debugging
-    logger.info(`[${requestId}] Airtable webhook payload:`, {
-      changeCount: input.airtableChanges.length,
-      hasAirtableChanges: true,
-      sampleTableIds: input.airtableChanges.slice(0, 2).map((c: any) => c.tableId),
-    })
-  }
-
-  // Log the full input format to help diagnose data issues
-  logger.debug(`[${requestId}] Workflow input format:`, {
-    inputKeys: Object.keys(input || {}),
-    hasAirtableChanges: input?.airtableChanges && Array.isArray(input.airtableChanges),
-    airtableChangesCount: input?.airtableChanges?.length || 0,
-  })
-
-  // Returns void as errors are handled internally
   try {
     // Load workflow data from normalized tables
     logger.debug(`[${requestId}] Loading workflow ${foundWorkflow.id} from normalized tables`)
@@ -511,19 +476,18 @@ export async function executeWorkflowFromPayload(
     })
 
     // Retrieve and decrypt environment variables
-    const envStartTime = Date.now()
     const [userEnv] = await db
       .select()
-      .from(environment)
-      .where(eq(environment.userId, foundWorkflow.userId))
+      .from(environmentTable)
+      .where(eq(environmentTable.userId, foundWorkflow.userId))
       .limit(1)
     let decryptedEnvVars: Record<string, string> = {}
     if (userEnv) {
       // Decryption logic
-      const decryptionPromises = Object.entries(userEnv.variables as Record<string, string>).map(
+      const decryptionPromises = Object.entries((userEnv.variables as any) || {}).map(
         async ([key, encryptedValue]) => {
           try {
-            const { decrypted } = await decryptSecret(encryptedValue)
+            const { decrypted } = await decryptSecret(encryptedValue as string)
             return [key, decrypted] as const
           } catch (error: any) {
             logger.error(
@@ -536,17 +500,17 @@ export async function executeWorkflowFromPayload(
       )
       const decryptedEntries = await Promise.all(decryptionPromises)
       decryptedEnvVars = Object.fromEntries(decryptedEntries)
-
-      // DEBUG: Log env vars retrieval
-      logger.debug(`[${requestId}] TRACE: Environment variables decrypted`, {
-        duration: `${Date.now() - envStartTime}ms`,
-        envVarCount: Object.keys(decryptedEnvVars).length,
-      })
     } else {
       logger.debug(`[${requestId}] TRACE: No environment variables found for user`, {
         userId: foundWorkflow.userId,
       })
     }
+
+    await loggingSession.safeStart({
+      userId: foundWorkflow.userId,
+      workspaceId: foundWorkflow.workspaceId,
+      variables: decryptedEnvVars,
+    })
 
     // Process block states (extract subBlock values, parse responseFormat)
     const blockStatesStartTime = Date.now()
@@ -683,6 +647,9 @@ export async function executeWorkflowFromPayload(
       workflowVariables
     )
 
+    // Set up enhanced logging on the executor
+    loggingSession.setupExecutor(executor)
+
     // Log workflow execution start time for tracking
     const executionStartTime = Date.now()
     logger.info(`[${requestId}] TRACE: Executor instantiated, starting workflow execution now`, {
@@ -743,20 +710,45 @@ export async function executeWorkflowFromPayload(
           lastActive: new Date(),
         })
         .where(eq(userStats.userId, foundWorkflow.userId))
-
-      // DEBUG: Log stats update
-      logger.debug(`[${requestId}] TRACE: Workflow stats updated`, {
-        workflowId: foundWorkflow.id,
-        userId: foundWorkflow.userId,
-      })
     }
 
-    // Build and enrich result with trace spans
-    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
-    const enrichedResult = { ...executionResult, traceSpans, totalDuration }
+    // Calculate total duration for enhanced logging
+    const totalDuration = executionResult.metadata?.duration || 0
 
-    // Persist logs for this execution using the standard 'webhook' trigger type
-    await persistExecutionLogs(foundWorkflow.id, executionId, enrichedResult, 'webhook')
+    const traceSpans = (executionResult.logs || []).map((blockLog: any, index: number) => {
+      let output = blockLog.output
+      if (!blockLog.success && blockLog.error) {
+        output = {
+          error: blockLog.error,
+          success: false,
+          ...(blockLog.output || {}),
+        }
+      }
+
+      return {
+        id: blockLog.blockId,
+        name: `Block ${blockLog.blockName || blockLog.blockType} (${blockLog.blockType || 'unknown'})`,
+        type: blockLog.blockType || 'unknown',
+        duration: blockLog.durationMs || 0,
+        startTime: blockLog.startedAt,
+        endTime: blockLog.endedAt || blockLog.startedAt,
+        status: blockLog.success ? 'success' : 'error',
+        blockId: blockLog.blockId,
+        input: blockLog.input,
+        output: output,
+        tokens: blockLog.output?.tokens?.total || 0,
+        relativeStartMs: index * 100,
+        children: [],
+        toolCalls: (blockLog as any).toolCalls || [],
+      }
+    })
+
+    await loggingSession.safeComplete({
+      endedAt: new Date().toISOString(),
+      totalDurationMs: totalDuration || 0,
+      finalOutput: executionResult.output || {},
+      traceSpans: (traceSpans || []) as any,
+    })
 
     // DEBUG: Final success log
     logger.info(`[${requestId}] TRACE: Execution logs persisted successfully`, {
@@ -781,8 +773,17 @@ export async function executeWorkflowFromPayload(
       error: error.message,
       stack: error.stack,
     })
-    // Persist the error for this execution using the standard 'webhook' trigger type
-    await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook')
+    // Error logging handled by enhanced logging session
+
+    await loggingSession.safeCompleteWithError({
+      endedAt: new Date().toISOString(),
+      totalDurationMs: 0,
+      error: {
+        message: error.message || 'Webhook workflow execution failed',
+        stackTrace: error.stack,
+      },
+    })
+
     // Re-throw the error so the caller knows it failed
     throw error
   }
@@ -914,8 +915,7 @@ export async function fetchAndProcessAirtablePayloads(
   workflowData: any,
   requestId: string // Original request ID from the ping, used for the final execution log
 ) {
-  // Use a prefix derived from requestId for *internal* polling logs/errors
-  const internalPollIdPrefix = `poll-${requestId}`
+  // Enhanced logging handles all error logging
   let currentCursor: number | null = null
   let mightHaveMore = true
   let payloadsFetched = 0 // Track total payloads fetched
@@ -943,12 +943,7 @@ export async function fetchAndProcessAirtablePayloads(
       logger.error(
         `[${requestId}] Missing baseId or externalId in providerConfig for webhook ${webhookData.id}. Cannot fetch payloads.`
       )
-      await persistExecutionError(
-        workflowData.id,
-        `${internalPollIdPrefix}-config-error`,
-        new Error('Missing Airtable baseId or externalId in providerConfig'),
-        'webhook'
-      )
+      // Error logging handled by enhanced logging session
       return // Exit early
     }
 
@@ -984,13 +979,7 @@ export async function fetchAndProcessAirtablePayloads(
           error: initError.message,
           stack: initError.stack,
         })
-        // Persist the error specifically for cursor initialization failure
-        await persistExecutionError(
-          workflowData.id,
-          `${internalPollIdPrefix}-cursor-init-error`,
-          initError,
-          'webhook'
-        )
+        // Error logging handled by enhanced logging session
       }
     }
 
@@ -1028,12 +1017,7 @@ export async function fetchAndProcessAirtablePayloads(
           userId: workflowData.userId,
         }
       )
-      await persistExecutionError(
-        workflowData.id,
-        `${internalPollIdPrefix}-token-error`,
-        tokenError,
-        'webhook'
-      )
+      // Error logging handled by enhanced logging session
       return // Exit early
     }
 
@@ -1097,12 +1081,7 @@ export async function fetchAndProcessAirtablePayloads(
               error: errorMessage,
             }
           )
-          await persistExecutionError(
-            workflowData.id,
-            `${internalPollIdPrefix}-api-error-${apiCallCount}`,
-            new Error(`Airtable API Error: ${errorMessage}`),
-            'webhook'
-          )
+          // Error logging handled by enhanced logging session
           mightHaveMore = false
           break
         }
@@ -1246,12 +1225,7 @@ export async function fetchAndProcessAirtablePayloads(
               cursor: currentCursor,
               error: dbError.message,
             })
-            await persistExecutionError(
-              workflowData.id,
-              `${internalPollIdPrefix}-cursor-persist-error`,
-              dbError,
-              'webhook'
-            )
+            // Error logging handled by enhanced logging session
             mightHaveMore = false
             throw new Error('Failed to save Airtable cursor, stopping processing.') // Re-throw to break loop clearly
           }
@@ -1271,12 +1245,7 @@ export async function fetchAndProcessAirtablePayloads(
           `[${requestId}] Network error calling Airtable GET /payloads (Call ${apiCallCount}) for webhook ${webhookData.id}`,
           fetchError
         )
-        await persistExecutionError(
-          workflowData.id,
-          `${internalPollIdPrefix}-fetch-error-${apiCallCount}`,
-          fetchError,
-          'webhook'
-        )
+        // Error logging handled by enhanced logging session
         mightHaveMore = false
         break
       }
@@ -1347,13 +1316,7 @@ export async function fetchAndProcessAirtablePayloads(
         error: (error as Error).message,
       }
     )
-    // Persist this higher-level error
-    await persistExecutionError(
-      workflowData.id,
-      `${internalPollIdPrefix}-processing-error`,
-      error as Error,
-      'webhook'
-    )
+    // Error logging handled by enhanced logging session
   }
 
   // DEBUG: Log function completion

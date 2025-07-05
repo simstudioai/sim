@@ -22,7 +22,19 @@ export interface ToolCallMetadata {
 }
 
 export interface CostMetadata {
-  model?: string
+  models?: Record<
+    string,
+    {
+      input: number
+      output: number
+      total: number
+      tokens?: {
+        prompt?: number
+        completion?: number
+        total?: number
+      }
+    }
+  >
   input?: number
   output?: number
   total?: number
@@ -53,6 +65,7 @@ export interface TraceSpan {
   relativeStartMs?: number // Time in ms from the start of the parent span
   blockId?: string // Added to track the original block ID for relationship mapping
   input?: Record<string, any> // Added to store input data for this span
+  output?: Record<string, any> // Added to store output data for this span
 }
 
 export interface WorkflowLog {
@@ -70,6 +83,29 @@ export interface WorkflowLog {
     totalDuration?: number
     cost?: CostMetadata
     blockInput?: Record<string, any>
+    enhanced?: boolean
+    blockStats?: {
+      total: number
+      success: number
+      error: number
+      skipped: number
+    }
+    blockExecutions?: Array<{
+      id: string
+      blockId: string
+      blockName: string
+      blockType: string
+      startedAt: string
+      endedAt: string
+      durationMs: number
+      status: 'success' | 'error' | 'skipped'
+      errorMessage?: string
+      errorStackTrace?: string
+      inputData: any
+      outputData: any
+      cost?: CostMetadata
+      metadata: any
+    }>
   }
 }
 

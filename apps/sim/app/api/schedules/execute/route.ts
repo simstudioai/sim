@@ -1,10 +1,10 @@
 import { Cron } from 'croner'
 import { and, eq, lte, not, sql } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import {
   type BlockState,
@@ -17,7 +17,7 @@ import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
-import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
+import { environment as environmentTable, userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
@@ -58,7 +58,7 @@ const EnvVarsSchema = z.record(z.string())
 
 const runningExecutions = new Set<string>()
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   logger.info(`Scheduled execution triggered at ${new Date().toISOString()}`)
   const requestId = crypto.randomUUID().slice(0, 8)
   const now = new Date()
@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
 
     for (const schedule of dueSchedules) {
       const executionId = uuidv4()
+      let loggingSession: EnhancedLoggingSession | null = null
 
       try {
         if (runningExecutions.has(schedule.workflowId)) {
@@ -118,15 +119,7 @@ export async function GET(req: NextRequest) {
             }
           )
 
-          await persistExecutionError(
-            schedule.workflowId,
-            executionId,
-            new Error(
-              usageCheck.message ||
-                'Usage limit exceeded. Please upgrade your plan to continue running scheduled workflows.'
-            ),
-            'schedule'
-          )
+          // Error logging handled by enhanced logging session
 
           const retryDelay = 24 * 60 * 60 * 1000 // 24 hour delay for exceeded limits
           const nextRetryAt = new Date(now.getTime() + retryDelay)
@@ -176,8 +169,8 @@ export async function GET(req: NextRequest) {
         // Retrieve environment variables for this user (if any).
         const [userEnv] = await db
           .select()
-          .from(environment)
-          .where(eq(environment.userId, workflowRecord.userId))
+          .from(environmentTable)
+          .where(eq(environmentTable.userId, workflowRecord.userId))
           .limit(1)
 
         if (!userEnv) {
@@ -306,6 +299,30 @@ export async function GET(req: NextRequest) {
           logger.debug(`[${requestId}] No workflow variables found for: ${schedule.workflowId}`)
         }
 
+        // Start enhanced logging
+        loggingSession = new EnhancedLoggingSession(
+          schedule.workflowId,
+          executionId,
+          'schedule',
+          requestId
+        )
+
+        // Load the actual workflow state from normalized tables
+        const enhancedNormalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
+
+        if (!enhancedNormalizedData) {
+          throw new Error(
+            `Workflow ${schedule.workflowId} has no normalized data available. Ensure the workflow is properly saved to normalized tables.`
+          )
+        }
+
+        // Start enhanced logging with environment variables
+        await loggingSession.safeStart({
+          userId: workflowRecord.userId,
+          workspaceId: workflowRecord.workspaceId || '',
+          variables: variables || {},
+        })
+
         const executor = new Executor(
           serializedWorkflow,
           processedBlockStates,
@@ -313,6 +330,10 @@ export async function GET(req: NextRequest) {
           input,
           workflowVariables
         )
+
+        // Set up enhanced logging on the executor
+        loggingSession.setupExecutor(executor)
+
         const result = await executor.execute(schedule.workflowId)
 
         const executionResult =
@@ -343,13 +364,16 @@ export async function GET(req: NextRequest) {
 
         const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
-        const enrichedResult = {
-          ...executionResult,
-          traceSpans,
-          totalDuration,
-        }
+        // Log individual block executions to enhanced system are automatically
+        // handled by the logging session
 
-        await persistExecutionLogs(schedule.workflowId, executionId, enrichedResult, 'schedule')
+        // Complete enhanced logging
+        await loggingSession.safeComplete({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: totalDuration || 0,
+          finalOutput: executionResult.output || {},
+          traceSpans: (traceSpans || []) as any,
+        })
 
         if (executionResult.success) {
           logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
@@ -413,7 +437,18 @@ export async function GET(req: NextRequest) {
           error
         )
 
-        await persistExecutionError(schedule.workflowId, executionId, error, 'schedule')
+        // Error logging handled by enhanced logging session
+
+        if (loggingSession) {
+          await loggingSession.safeCompleteWithError({
+            endedAt: new Date().toISOString(),
+            totalDurationMs: 0,
+            error: {
+              message: error.message || 'Scheduled workflow execution failed',
+              stackTrace: error.stack,
+            },
+          })
+        }
 
         let nextRunAt: Date
         try {
