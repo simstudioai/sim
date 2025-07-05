@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { processUserOverageBilling } from '@/lib/billing/core/billing'
-import { getUsersWithEndedBillingPeriods } from '@/lib/billing/core/billing-periods'
+import { processMonthlyOverageBilling } from '@/lib/billing/core/billing'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -23,71 +22,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    logger.info('Starting daily billing cron job')
+    logger.info('Starting monthly billing cron job')
 
     const startTime = Date.now()
 
-    // Get users whose billing periods end today
-    const usersToProcess = await getUsersWithEndedBillingPeriods()
-
-    let processedUsers = 0
-    const processedOrganizations = 0
-    let totalChargedAmount = 0
-    const errors: string[] = []
-
-    // Process each user individually
-    for (const userId of usersToProcess) {
-      try {
-        const result = await processUserOverageBilling(userId)
-        if (result.success) {
-          processedUsers++
-          totalChargedAmount += result.chargedAmount || 0
-          logger.info('Successfully processed user billing period end', {
-            userId,
-            chargedAmount: result.chargedAmount,
-          })
-        } else {
-          errors.push(`User ${userId}: ${result.error}`)
-          logger.error('Failed to process user billing period end', { userId, error: result.error })
-        }
-      } catch (error) {
-        const errorMsg = `User ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`
-        errors.push(errorMsg)
-        logger.error('Exception during user billing period end processing', { userId, error })
-      }
-    }
+    // Process monthly overage billing for all users and organizations
+    const result = await processMonthlyOverageBilling()
 
     const duration = Date.now() - startTime
-    const success = errors.length === 0
 
-    if (success) {
-      logger.info('Daily billing completed successfully', {
-        usersToProcess: usersToProcess.length,
-        processedUsers,
-        processedOrganizations,
-        totalChargedAmount,
+    if (result.success) {
+      logger.info('Monthly billing completed successfully', {
+        processedUsers: result.processedUsers,
+        processedOrganizations: result.processedOrganizations,
+        totalChargedAmount: result.totalChargedAmount,
         duration: `${duration}ms`,
       })
 
       return NextResponse.json({
         success: true,
         summary: {
-          usersToProcess: usersToProcess.length,
-          processedUsers,
-          processedOrganizations,
-          totalChargedAmount,
+          processedUsers: result.processedUsers,
+          processedOrganizations: result.processedOrganizations,
+          totalChargedAmount: result.totalChargedAmount,
           duration: `${duration}ms`,
         },
       })
     }
 
-    logger.error('Daily billing completed with errors', {
-      usersToProcess: usersToProcess.length,
-      processedUsers,
-      processedOrganizations,
-      totalChargedAmount,
-      errorCount: errors.length,
-      errors,
+    logger.error('Monthly billing completed with errors', {
+      processedUsers: result.processedUsers,
+      processedOrganizations: result.processedOrganizations,
+      totalChargedAmount: result.totalChargedAmount,
+      errorCount: result.errors.length,
+      errors: result.errors,
       duration: `${duration}ms`,
     })
 
@@ -95,24 +63,23 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         summary: {
-          usersToProcess: usersToProcess.length,
-          processedUsers,
-          processedOrganizations,
-          totalChargedAmount,
-          errorCount: errors.length,
+          processedUsers: result.processedUsers,
+          processedOrganizations: result.processedOrganizations,
+          totalChargedAmount: result.totalChargedAmount,
+          errorCount: result.errors.length,
           duration: `${duration}ms`,
         },
-        errors,
+        errors: result.errors,
       },
       { status: 500 }
     )
   } catch (error) {
-    logger.error('Fatal error in daily billing cron job', { error })
+    logger.error('Fatal error in monthly billing cron job', { error })
 
     return NextResponse.json(
       {
         success: false,
-        error: 'Internal server error during daily billing',
+        error: 'Internal server error during monthly billing',
         details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
@@ -133,16 +100,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get billing summary without actually processing
-    const usersToProcess = await getUsersWithEndedBillingPeriods()
-
+    // For health checks, we can't easily predict what entities will be billed
+    // since it depends on active subscriptions
     return NextResponse.json({
       status: 'ready',
-      summary: {
-        usersWithBillingPeriodsEndingToday: usersToProcess.length,
-        userIds: usersToProcess,
-        currentDate: new Date().toISOString().split('T')[0],
-      },
+      message: 'Monthly billing cron job is ready to process both users and organizations',
+      currentDate: new Date().toISOString().split('T')[0],
     })
   } catch (error) {
     logger.error('Error in billing health check', { error })
