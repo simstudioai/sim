@@ -271,6 +271,9 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       executionTime: executionResult.metadata?.duration,
     })
 
+    // Build trace spans from execution result (works for both success and failure)
+    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
+
     // Update workflow run counts if execution was successful
     if (executionResult.success) {
       await updateWorkflowRunCounts(workflowId)
@@ -284,8 +287,6 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
         })
         .where(eq(userStats.userId, workflow.userId))
     }
-
-    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
     await loggingSession.safeComplete({
       endedAt: new Date().toISOString(),

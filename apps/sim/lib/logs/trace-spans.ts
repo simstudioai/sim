@@ -43,6 +43,16 @@ export function buildTraceSpans(result: ExecutionResult): {
     const duration = log.durationMs || 0
 
     // Create the span
+    let output = log.output || {}
+
+    // If there's an error, include it in the output
+    if (log.error) {
+      output = {
+        ...output,
+        error: log.error,
+      }
+    }
+
     const span: TraceSpan = {
       id: spanId,
       name: log.blockName || log.blockId,
@@ -56,7 +66,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       blockId: log.blockId,
       // Include block input/output data
       input: log.input || {},
-      output: log.output || {},
+      output: output,
     }
 
     // Add provider timing data if it exists

@@ -18,7 +18,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { ExecutionDataTooltip } from './execution-data-tooltip'
+
 
 const logger = createLogger('FrozenCanvas')
 
@@ -65,7 +65,7 @@ function redactSensitiveData(obj: any): any {
 }
 
 function formatExecutionData(executionData: any) {
-  const { inputData, outputData, cost, tokens, durationMs, status, blockName, blockType } =
+  const { inputData, outputData, cost, tokens, durationMs, status, blockName, blockType, errorMessage, errorStackTrace } =
     executionData
 
   return {
@@ -75,6 +75,8 @@ function formatExecutionData(executionData: any) {
     duration: durationMs ? `${durationMs}ms` : 'N/A',
     input: redactSensitiveData(inputData || {}),
     output: redactSensitiveData(outputData || {}),
+    errorMessage,
+    errorStackTrace,
     cost: cost
       ? {
           input: cost.input || 0,
@@ -307,8 +309,7 @@ export function FrozenCanvas({
   const [blockExecutions, setBlockExecutions] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+
   const [pinnedBlockId, setPinnedBlockId] = useState<string | null>(null)
 
   // Process traceSpans to create blockExecutions map
@@ -331,32 +332,54 @@ export function FrozenCanvas({
         for (const [blockId, spans] of Object.entries(traceSpansByBlockId)) {
           const spanArray = spans as any[]
 
-          const iterations = spanArray.map((span: any) => ({
-            id: span.id,
-            blockId: span.blockId,
-            blockName: span.name,
-            blockType: span.type,
-            status: span.status,
-            startedAt: span.startTime,
-            endedAt: span.endTime,
-            durationMs: span.duration,
-            inputData: span.input,
-            outputData: span.output,
-            errorMessage: null,
-            errorStackTrace: null,
-            cost: span.cost || {
-              input: null,
-              output: null,
-              total: null,
-            },
-            tokens: span.tokens || {
-              prompt: null,
-              completion: null,
-              total: null,
-            },
-            modelUsed: span.model || null,
-            metadata: {},
-          }))
+          const iterations = spanArray.map((span: any) => {
+            // Extract error information from span output if status is error
+            let errorMessage = null
+            let errorStackTrace = null
+
+            if (span.status === 'error' && span.output) {
+              // Error information can be in different formats in the output
+              if (typeof span.output === 'string') {
+                errorMessage = span.output
+              } else if (span.output.error) {
+                errorMessage = span.output.error
+                errorStackTrace = span.output.stackTrace || span.output.stack
+              } else if (span.output.message) {
+                errorMessage = span.output.message
+                errorStackTrace = span.output.stackTrace || span.output.stack
+              } else {
+                // Fallback: stringify the entire output for error cases
+                errorMessage = JSON.stringify(span.output)
+              }
+            }
+
+            return {
+              id: span.id,
+              blockId: span.blockId,
+              blockName: span.name,
+              blockType: span.type,
+              status: span.status,
+              startedAt: span.startTime,
+              endedAt: span.endTime,
+              durationMs: span.duration,
+              inputData: span.input,
+              outputData: span.output,
+              errorMessage,
+              errorStackTrace,
+              cost: span.cost || {
+                input: null,
+                output: null,
+                total: null,
+              },
+              tokens: span.tokens || {
+                prompt: null,
+                completion: null,
+                total: null,
+              },
+              modelUsed: span.model || null,
+              metadata: {},
+            }
+          })
 
           blockExecutionMap[blockId] = {
             iterations,
@@ -396,24 +419,7 @@ export function FrozenCanvas({
     fetchData()
   }, [executionId])
 
-  // Set up click outside handler to close tooltip
-  useEffect(() => {
-    const handleClickOutside = (event: Event) => {
-      const mouseEvent = event as MouseEvent
-      const target = mouseEvent.target as HTMLElement
-      const isTooltip = target.closest('.execution-data-tooltip')
 
-      if (!isTooltip) {
-        setSelectedBlockId(null)
-      }
-    }
-
-    document.addEventListener('click', handleClickOutside)
-
-    return () => {
-      document.removeEventListener('click', handleClickOutside)
-    }
-  }, [])
 
   // No need to create a temporary workflow - just use the workflowState directly
 
@@ -454,24 +460,13 @@ export function FrozenCanvas({
           workflowState={data.workflowState}
           showSubBlocks={true}
           isPannable={true}
-          onNodeClick={(blockId, mousePosition) => {
+          onNodeClick={(blockId) => {
             if (blockExecutions[blockId]) {
               setPinnedBlockId(blockId)
-              setSelectedBlockId(blockId)
-              setMousePosition(mousePosition)
             }
           }}
         />
       </div>
-
-      {selectedBlockId && blockExecutions[selectedBlockId] && (
-        <ExecutionDataTooltip
-          executionData={blockExecutions[selectedBlockId]}
-          mousePosition={mousePosition}
-          isVisible={true}
-          onClose={() => setSelectedBlockId(null)}
-        />
-      )}
 
       {pinnedBlockId && blockExecutions[pinnedBlockId] && (
         <PinnedLogs

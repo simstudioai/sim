@@ -529,7 +529,7 @@ export async function executeWorkflowForChat(
         )
       }
 
-      // Complete enhanced logging session
+      // Complete enhanced logging session (for both success and failure)
       if (result && 'success' in result) {
         const { traceSpans } = buildTraceSpans(result)
         await loggingSession.safeComplete({

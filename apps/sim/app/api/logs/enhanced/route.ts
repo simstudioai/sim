@@ -8,12 +8,45 @@ import { workflow, workflowExecutionBlocks, workflowExecutionLogs } from '@/db/s
 
 const logger = createLogger('EnhancedLogsAPI')
 
+// Helper function to extract block executions from trace spans
+function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): any[] {
+  const blockExecutions: any[] = []
+
+  function processSpan(span: any) {
+    if (span.blockId) {
+      blockExecutions.push({
+        id: span.id,
+        blockId: span.blockId,
+        blockName: span.name || '',
+        blockType: span.type,
+        startedAt: span.startTime,
+        endedAt: span.endTime,
+        durationMs: span.duration || 0,
+        status: span.status || 'success',
+        errorMessage: span.output?.error || undefined,
+        inputData: span.input || {},
+        outputData: span.output || {},
+        cost: span.cost || undefined,
+        metadata: {},
+      })
+    }
+
+    // Process children recursively
+    if (span.children && Array.isArray(span.children)) {
+      span.children.forEach(processSpan)
+    }
+  }
+
+  traceSpans.forEach(processSpan)
+  return blockExecutions
+}
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const QueryParamsSchema = z.object({
-  includeWorkflow: z.enum(['true', 'false']).optional().default('false'),
-  includeBlocks: z.enum(['true', 'false']).optional().default('false'),
+  includeWorkflow: z.coerce.boolean().optional().default(false),
+  includeBlocks: z.coerce.boolean().optional().default(false),
   limit: z.coerce.number().optional().default(100),
   offset: z.coerce.number().optional().default(0),
   level: z.string().optional(),
@@ -189,22 +222,34 @@ export async function GET(request: NextRequest) {
 
       // Create clean trace spans from block executions
       const createTraceSpans = (blockExecutions: any[]) => {
-        return blockExecutions.map((block, index) => ({
-          id: block.id,
-          name: `Block ${block.blockName || block.blockType} (${block.blockType})`,
-          type: block.blockType,
-          duration: block.durationMs,
-          startTime: block.startedAt,
-          endTime: block.endedAt,
-          status: block.status === 'success' ? 'success' : 'error',
-          blockId: block.blockId,
-          input: block.inputData,
-          output: block.outputData,
-          tokens: block.cost?.tokens?.total || 0,
-          relativeStartMs: index * 100,
-          children: [],
-          toolCalls: [],
-        }))
+        return blockExecutions.map((block, index) => {
+          // For error blocks, include error information in the output
+          let output = block.outputData
+          if (block.status === 'error' && block.errorMessage) {
+            output = {
+              ...output,
+              error: block.errorMessage,
+              stackTrace: block.errorStackTrace,
+            }
+          }
+
+          return {
+            id: block.id,
+            name: `Block ${block.blockName || block.blockType} (${block.blockType})`,
+            type: block.blockType,
+            duration: block.durationMs,
+            startTime: block.startedAt,
+            endTime: block.endedAt,
+            status: block.status === 'success' ? 'success' : 'error',
+            blockId: block.blockId,
+            input: block.inputData,
+            output,
+            tokens: block.cost?.tokens?.total || 0,
+            relativeStartMs: index * 100,
+            children: [],
+            toolCalls: [],
+          }
+        })
       }
 
       // Extract cost information from block executions
@@ -312,8 +357,7 @@ export async function GET(request: NextRequest) {
         }
       })
 
-      // Include workflow data if requested
-      if (params.includeWorkflow === 'true') {
+      if (params.includeWorkflow) {
         const workflowIds = [...new Set(logs.map((log) => log.workflowId))]
         const workflowConditions = inArray(workflow.id, workflowIds)
 
@@ -338,7 +382,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Include block execution data if requested
-      if (params.includeBlocks === 'true') {
+      if (params.includeBlocks) {
         const executionIds = logs.map((log) => log.executionId)
 
         if (executionIds.length > 0) {
@@ -384,6 +428,17 @@ export async function GET(request: NextRequest) {
             },
             {} as Record<string, any[]>
           )
+
+          // For executions with no block logs in the database,
+          // extract block executions from stored trace spans in metadata
+          logs.forEach((log) => {
+            if (!blockLogsByExecution[log.executionId] || blockLogsByExecution[log.executionId].length === 0) {
+              const storedTraceSpans = (log.metadata as any)?.traceSpans
+              if (storedTraceSpans && Array.isArray(storedTraceSpans)) {
+                blockLogsByExecution[log.executionId] = extractBlockExecutionsFromTraceSpans(storedTraceSpans)
+              }
+            }
+          })
 
           // Add block logs to metadata
           const logsWithBlocks = enhancedLogs.map((log) => ({
