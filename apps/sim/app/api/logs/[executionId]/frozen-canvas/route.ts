@@ -53,10 +53,13 @@ export async function GET(request: NextRequest, { params }: { params: { executio
       logger.debug(`First block execution:`, blockExecutions[0])
 
       // Debug: Check for multiple executions of the same blockId
-      const blockIdCounts = blockExecutions.reduce((acc, block) => {
-        acc[block.blockId] = (acc[block.blockId] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)
+      const blockIdCounts = blockExecutions.reduce(
+        (acc, block) => {
+          acc[block.blockId] = (acc[block.blockId] || 0) + 1
+          return acc
+        },
+        {} as Record<string, number>
+      )
 
       const multipleIterations = Object.entries(blockIdCounts).filter(([_, count]) => count > 1)
       if (multipleIterations.length > 0) {
@@ -65,7 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: { executio
     }
 
     // Initialize blockExecutionMap - we'll populate it from traceSpans primarily
-    let blockExecutionMap: Record<string, any> = {}
+    const blockExecutionMap: Record<string, any> = {}
 
     // Extract iteration data from traceSpans metadata (primary source)
     if (workflowLog.metadata) {
@@ -126,7 +129,7 @@ export async function GET(request: NextRequest, { params }: { params: { executio
             blockExecutionMap[blockId] = {
               iterations,
               currentIteration: 0,
-              totalIterations: iterations.length
+              totalIterations: iterations.length,
             }
           }
         }
@@ -135,16 +138,19 @@ export async function GET(request: NextRequest, { params }: { params: { executio
 
     // Supplement with data from workflowExecutionBlocks table if available
     if (blockExecutions.length > 0) {
-      logger.debug(`Found ${blockExecutions.length} block executions in workflowExecutionBlocks table`)
+      logger.debug(
+        `Found ${blockExecutions.length} block executions in workflowExecutionBlocks table`
+      )
 
       // Merge database data with traceSpan data where possible
       for (const block of blockExecutions) {
         if (blockExecutionMap[block.blockId]) {
           // Find the matching iteration and supplement with database data
           const iterations = blockExecutionMap[block.blockId].iterations
-          const matchingIteration = iterations.find((iter: any) =>
-            iter.blockId === block.blockId &&
-            Math.abs(new Date(iter.startedAt).getTime() - block.startedAt.getTime()) < 1000 // Within 1 second
+          const matchingIteration = iterations.find(
+            (iter: any) =>
+              iter.blockId === block.blockId &&
+              Math.abs(new Date(iter.startedAt).getTime() - block.startedAt.getTime()) < 1000 // Within 1 second
           )
 
           if (matchingIteration) {

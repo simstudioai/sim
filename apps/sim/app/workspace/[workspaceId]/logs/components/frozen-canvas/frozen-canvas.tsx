@@ -1,7 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, Clock, DollarSign, Hash, Loader2, X, Zap, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  DollarSign,
+  Hash,
+  Loader2,
+  X,
+  Zap,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -96,7 +106,7 @@ function getCurrentIterationData(blockExecutionData: any) {
       executionData: blockExecutionData.iterations[currentIndex],
       currentIteration: currentIndex,
       totalIterations: blockExecutionData.totalIterations ?? blockExecutionData.iterations.length,
-      hasMultipleIterations: blockExecutionData.iterations.length > 1
+      hasMultipleIterations: blockExecutionData.iterations.length > 1,
     }
   }
 
@@ -105,7 +115,7 @@ function getCurrentIterationData(blockExecutionData: any) {
     executionData: blockExecutionData,
     currentIteration: 0,
     totalIterations: 1,
-    hasMultipleIterations: false
+    hasMultipleIterations: false,
   }
 }
 
@@ -114,10 +124,15 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
   const [currentIterationIndex, setCurrentIterationIndex] = useState(0)
 
   // Get iteration data
-  console.log('PinnedLogs render - currentIterationIndex:', currentIterationIndex, 'executionData:', executionData)
+  console.log(
+    'PinnedLogs render - currentIterationIndex:',
+    currentIterationIndex,
+    'executionData:',
+    executionData
+  )
   const iterationInfo = getCurrentIterationData({
     ...executionData,
-    currentIteration: currentIterationIndex
+    currentIteration: currentIterationIndex,
   })
   console.log('PinnedLogs render - iterationInfo:', iterationInfo)
 
@@ -137,7 +152,12 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
   }
 
   const goToNextIteration = () => {
-    console.log('goToNextIteration clicked, currentIterationIndex:', currentIterationIndex, 'totalIterations:', totalIterations)
+    console.log(
+      'goToNextIteration clicked, currentIterationIndex:',
+      currentIterationIndex,
+      'totalIterations:',
+      totalIterations
+    )
     if (currentIterationIndex < totalIterations - 1) {
       const newIndex = currentIterationIndex + 1
       console.log('Setting currentIterationIndex to:', newIndex)
@@ -185,17 +205,17 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
               <button
                 onClick={goToPreviousIteration}
                 disabled={currentIterationIndex === 0}
-                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed'
+                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
               >
                 <ChevronLeft className='h-4 w-4' />
               </button>
-              <span className='text-xs text-muted-foreground px-2'>
+              <span className='px-2 text-muted-foreground text-xs'>
                 {currentIterationIndex + 1} / {iterationInfo.totalIterations}
               </span>
               <button
                 onClick={goToNextIteration}
                 disabled={currentIterationIndex === totalIterations - 1}
-                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed'
+                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
               >
                 <ChevronRight className='h-4 w-4' />
               </button>
@@ -442,7 +462,10 @@ export function FrozenCanvas({
             // Debug: Check if this block has multiple iterations
             const blockData = data.blockExecutions[blockId]
             if (blockData?.iterations && Array.isArray(blockData.iterations)) {
-              console.log(`Block ${blockId} has ${blockData.iterations.length} iterations:`, blockData.iterations)
+              console.log(
+                `Block ${blockId} has ${blockData.iterations.length} iterations:`,
+                blockData.iterations
+              )
             } else {
               console.log(`Block ${blockId} has single execution (legacy format):`, blockData)
             }
