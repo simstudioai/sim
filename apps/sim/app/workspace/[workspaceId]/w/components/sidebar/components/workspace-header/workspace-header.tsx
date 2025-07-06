@@ -244,7 +244,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
       useSidebarStore()
 
     const { data: sessionData, isPending } = useSession()
-    // Get plan from subscription store
+
     const { getSubscriptionStatus } = useSubscriptionStore()
     const subscription = getSubscriptionStatus()
     const plan = subscription.isPro

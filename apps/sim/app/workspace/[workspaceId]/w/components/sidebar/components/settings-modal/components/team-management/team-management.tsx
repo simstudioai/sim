@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSession } from '@/lib/auth-client'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
@@ -14,7 +15,6 @@ import { NoOrganizationView } from './components/no-organization-view'
 import { OrganizationSettingsTab } from './components/organization-settings-tab'
 import { PendingInvitationsList } from './components/pending-invitations-list'
 import { RemoveMemberDialog } from './components/remove-member-dialog'
-import { TeamManagementSkeleton } from './components/team-management-skeleton'
 import { TeamMembersList } from './components/team-members-list'
 import { TeamSeatsOverview } from './components/team-seats-overview'
 
@@ -231,7 +231,13 @@ export function TeamManagement() {
   )
 
   if (isLoading && !activeOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
-    return <TeamManagementSkeleton />
+    return (
+      <div className='space-y-4 p-6'>
+        <Skeleton className='h-4 w-full' />
+        <Skeleton className='h-20 w-full' />
+        <Skeleton className='h-4 w-3/4' />
+      </div>
+    )
   }
 
   if (!activeOrganization) {

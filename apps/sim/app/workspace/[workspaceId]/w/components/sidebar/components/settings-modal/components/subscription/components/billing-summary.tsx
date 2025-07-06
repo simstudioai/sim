@@ -141,5 +141,4 @@ export function BillingSummary({
   )
 }
 
-// Export the data type for use in other components
 export type { BillingSummaryData }
