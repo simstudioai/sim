@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { verifyCronAuth } from '@/lib/auth/internal'
 import { processMonthlyOverageBilling } from '@/lib/billing/core/billing'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('MonthlyBillingCron')
@@ -10,16 +10,9 @@ const logger = createLogger('MonthlyBillingCron')
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify the request is from an authorized source (cron job)
-    const authHeader = request.headers.get('authorization')
-    const expectedAuth = `Bearer ${env.CRON_SECRET || 'your-cron-secret'}`
-
-    if (authHeader !== expectedAuth) {
-      logger.warn('Unauthorized attempt to trigger daily billing', {
-        providedAuth: authHeader,
-        ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-      })
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authError = verifyCronAuth(request, 'monthly billing')
+    if (authError) {
+      return authError
     }
 
     logger.info('Starting monthly billing cron job')
@@ -92,12 +85,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // This endpoint can be used for testing or health checks
-    const authHeader = request.headers.get('authorization')
-    const expectedAuth = `Bearer ${env.CRON_SECRET || 'your-cron-secret'}`
-
-    if (authHeader !== expectedAuth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authError = verifyCronAuth(request, 'monthly billing health check')
+    if (authError) {
+      return authError
     }
 
     // For health checks, we can't easily predict what entities will be billed
