@@ -84,6 +84,8 @@ export default function Logs() {
 
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false)
+    setSelectedLog(null)
+    setSelectedLogIndex(-1)
   }
 
   useEffect(() => {
