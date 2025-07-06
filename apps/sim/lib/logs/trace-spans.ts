@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import type { TraceSpan } from '@/app/workspace/[workspaceId]/logs/stores/types'
 import type { ExecutionResult } from '@/executor/types'
+
+const logger = createLogger('TraceSpans')
 
 // Helper function to build a tree of trace spans from execution logs
 export function buildTraceSpans(result: ExecutionResult): {
@@ -86,16 +89,31 @@ export function buildTraceSpans(result: ExecutionResult): {
       // Add cost information if available
       if (log.output?.cost) {
         ;(span as any).cost = log.output.cost
+        logger.debug(`Added cost to span ${span.id}`, {
+          blockId: log.blockId,
+          blockType: log.blockType,
+          cost: log.output.cost
+        })
       }
 
       // Add token information if available
       if (log.output?.tokens) {
         ;(span as any).tokens = log.output.tokens
+        logger.debug(`Added tokens to span ${span.id}`, {
+          blockId: log.blockId,
+          blockType: log.blockType,
+          tokens: log.output.tokens
+        })
       }
 
       // Add model information
       if (log.output?.model) {
         ;(span as any).model = log.output.model
+        logger.debug(`Added model to span ${span.id}`, {
+          blockId: log.blockId,
+          blockType: log.blockType,
+          model: log.output.model
+        })
       }
     } else {
       // When not using provider timing, still add cost and token information
