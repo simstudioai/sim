@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { calculateDefaultUsageLimit, checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 
-vi.mock('../env', () => ({
+vi.mock('@/lib/env', () => ({
   env: {
     FREE_TIER_COST_LIMIT: 5,
     PRO_TIER_COST_LIMIT: 20,

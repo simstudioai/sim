@@ -1,4 +1,4 @@
-import { env } from '../env'
+import { env } from '@/lib/env'
 
 export function checkEnterprisePlan(subscription: any): boolean {
   return subscription?.plan === 'enterprise' && subscription?.status === 'active'
