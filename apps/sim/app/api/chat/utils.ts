@@ -5,6 +5,7 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { decryptSecret } from '@/lib/utils'
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
@@ -485,13 +486,21 @@ export async function executeWorkflowForChat(
       }
 
       if (result && 'success' in result) {
-        result.logs?.forEach((log: BlockLog) => {
-          if (streamedContent.has(log.blockId)) {
-            if (log.output) {
-              log.output.content = streamedContent.get(log.blockId)
+        // Update streamed content and apply tokenization
+        if (result.logs) {
+          result.logs.forEach((log: BlockLog) => {
+            if (streamedContent.has(log.blockId)) {
+              const content = streamedContent.get(log.blockId)
+              if (log.output) {
+                log.output.content = content
+              }
             }
-          }
-        })
+          })
+          
+          // Process all logs for streaming tokenization
+          const processedCount = processStreamingBlockLogs(result.logs, streamedContent)
+          logger.info(`[CHAT-API] Processed ${processedCount} blocks for streaming tokenization`)
+        }
 
         const { traceSpans, totalDuration } = buildTraceSpans(result)
         const enrichedResult = { ...result, traceSpans, totalDuration }

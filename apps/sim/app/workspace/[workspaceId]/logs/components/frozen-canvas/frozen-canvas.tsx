@@ -18,50 +18,9 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { redactApiKeys } from '@/lib/utils'
 
 const logger = createLogger('FrozenCanvas')
-
-function redactSensitiveData(obj: any): any {
-  if (obj === null || obj === undefined) return obj
-
-  if (typeof obj === 'string') {
-    if (obj.match(/^sk-[a-zA-Z0-9_-]+$/)) {
-      return `${obj.substring(0, 7)}...${obj.substring(obj.length - 4)}`
-    }
-    if (obj.match(/^[a-zA-Z0-9_-]{20,}$/)) {
-      return `${obj.substring(0, 4)}...${obj.substring(obj.length - 4)}`
-    }
-    return obj
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(redactSensitiveData)
-  }
-
-  if (typeof obj === 'object') {
-    const redacted: any = {}
-    for (const [key, value] of Object.entries(obj)) {
-      if (
-        key.toLowerCase().includes('apikey') ||
-        key.toLowerCase().includes('api_key') ||
-        key.toLowerCase().includes('token') ||
-        key.toLowerCase().includes('secret') ||
-        key.toLowerCase().includes('password')
-      ) {
-        if (typeof value === 'string' && value.length > 8) {
-          redacted[key] = `${value.substring(0, 7)}...${value.substring(value.length - 4)}`
-        } else {
-          redacted[key] = '[REDACTED]'
-        }
-      } else {
-        redacted[key] = redactSensitiveData(value)
-      }
-    }
-    return redacted
-  }
-
-  return obj
-}
 
 function formatExecutionData(executionData: any) {
   const {
@@ -82,8 +41,8 @@ function formatExecutionData(executionData: any) {
     blockType: blockType || 'unknown',
     status,
     duration: durationMs ? `${durationMs}ms` : 'N/A',
-    input: redactSensitiveData(inputData || {}),
-    output: redactSensitiveData(outputData || {}),
+    input: redactApiKeys(inputData || {}),
+    output: redactApiKeys(outputData || {}),
     errorMessage,
     errorStackTrace,
     cost: cost
