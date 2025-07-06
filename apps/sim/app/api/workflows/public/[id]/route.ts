@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { marketplace, workflow } from '@/db/schema'
 
 const logger = createLogger('PublicWorkflowAPI')
 
@@ -19,25 +19,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // First, check if the workflow exists and is published to the marketplace
     const marketplaceEntry = await db
       .select({
-        id: schema.marketplace.id,
-        workflowId: schema.marketplace.workflowId,
-        state: schema.marketplace.state,
-        name: schema.marketplace.name,
-        description: schema.marketplace.description,
-        authorId: schema.marketplace.authorId,
-        authorName: schema.marketplace.authorName,
+        id: marketplace.id,
+        workflowId: marketplace.workflowId,
+        state: marketplace.state,
+        name: marketplace.name,
+        description: marketplace.description,
+        authorId: marketplace.authorId,
+        authorName: marketplace.authorName,
       })
-      .from(schema.marketplace)
-      .where(eq(schema.marketplace.workflowId, id))
+      .from(marketplace)
+      .where(eq(marketplace.workflowId, id))
       .limit(1)
       .then((rows) => rows[0])
 
     if (!marketplaceEntry) {
       // Check if workflow exists but is not in marketplace
       const workflowExists = await db
-        .select({ id: schema.workflow.id })
-        .from(schema.workflow)
-        .where(eq(schema.workflow.id, id))
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.id, id))
         .limit(1)
         .then((rows) => rows.length > 0)
 

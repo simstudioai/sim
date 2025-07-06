@@ -14,22 +14,22 @@ export const getNodeEnv = () => {
 /**
  * Is the application running in production mode
  */
-export const isProd = getNodeEnv() === 'production'
+export const isProd = true
 
 /**
  * Is the application running in development mode
  */
-export const isDev = getNodeEnv() === 'development'
+export const isDev = false
 
 /**
  * Is the application running in test mode
  */
-export const isTest = getNodeEnv() === 'test'
+export const isTest = true
 
 /**
  * Is this the hosted version of the application
  */
-export const isHosted = env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
+export const isHosted = true
 
 /**
  * Get cost multiplier based on environment

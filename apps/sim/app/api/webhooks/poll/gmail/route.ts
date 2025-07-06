@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
-import { env } from '@/lib/env'
+import { verifyCronAuth } from '@/lib/auth/internal'
 import { Logger } from '@/lib/logs/console-logger'
 import { acquireLock, releaseLock } from '@/lib/redis'
 import { pollGmailWebhooks } from '@/lib/webhooks/gmail-polling-service'
@@ -20,16 +20,9 @@ export async function GET(request: NextRequest) {
   let lockValue: string | undefined
 
   try {
-    const authHeader = request.headers.get('authorization')
-    const webhookSecret = env.CRON_SECRET
-
-    if (!webhookSecret) {
-      return new NextResponse('Configuration error: Webhook secret is not set', { status: 500 })
-    }
-
-    if (!authHeader || authHeader !== `Bearer ${webhookSecret}`) {
-      logger.warn(`Unauthorized access attempt to Gmail polling endpoint (${requestId})`)
-      return new NextResponse('Unauthorized', { status: 401 })
+    const authError = verifyCronAuth(request, 'Gmail webhook polling')
+    if (authError) {
+      return authError
     }
 
     lockValue = requestId // unique value to identify the holder
