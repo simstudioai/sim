@@ -464,13 +464,17 @@ export function FrozenCanvas({
   const isMigratedLog = (data.workflowState as any)?._migrated === true
   if (isMigratedLog) {
     return (
-      <div className={cn('flex flex-col items-center justify-center gap-4 p-8', className)} style={{ height, width }}>
+      <div
+        className={cn('flex flex-col items-center justify-center gap-4 p-8', className)}
+        style={{ height, width }}
+      >
         <div className='flex items-center gap-3 text-amber-600 dark:text-amber-400'>
           <AlertCircle className='h-6 w-6' />
           <span className='font-medium text-lg'>Logged State Not Found</span>
         </div>
         <div className='max-w-md text-center text-muted-foreground text-sm'>
-          This log was migrated from the old logging system. The workflow state at execution time is not available.
+          This log was migrated from the old logging system. The workflow state at execution time is
+          not available.
         </div>
         <div className='text-muted-foreground text-xs'>
           Note: {(data.workflowState as any)?._note}
