@@ -1020,16 +1020,6 @@ export const auth = betterAuth({
                     workspaceCollaborationEnabled: 1,
                   },
                 },
-                {
-                  name: 'enterprise',
-                  priceId: env.STRIPE_ENTERPRISE_PRICE_ID || 'enterprise-manual',
-                  limits: {
-                    cost: env.ENTERPRISE_TIER_COST_LIMIT ?? 200, // Default $200 per seat (will be overridden by metadata)
-                    sharingEnabled: 1,
-                    multiplayerEnabled: 1,
-                    workspaceCollaborationEnabled: 1,
-                  },
-                },
               ],
               authorizeReference: async ({ user, referenceId, action }) => {
                 // User can always manage their own subscriptions
