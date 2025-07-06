@@ -274,14 +274,6 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      const mockTransaction = vi.fn().mockImplementation(async (callback) => {
-        await callback({
-          delete: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined),
-          }),
-        })
-      })
-
       vi.doMock('@/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
@@ -291,7 +283,9 @@ describe('Workflow By ID API Route', () => {
               }),
             }),
           }),
-          transaction: mockTransaction,
+          delete: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(undefined),
+          }),
         },
       }))
 
@@ -326,14 +320,6 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      const mockTransaction = vi.fn().mockImplementation(async (callback) => {
-        await callback({
-          delete: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined),
-          }),
-        })
-      })
-
       vi.doMock('@/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
@@ -343,7 +329,9 @@ describe('Workflow By ID API Route', () => {
               }),
             }),
           }),
-          transaction: mockTransaction,
+          delete: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(undefined),
+          }),
         },
       }))
 
