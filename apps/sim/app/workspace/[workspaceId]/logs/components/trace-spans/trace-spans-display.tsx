@@ -110,7 +110,7 @@ function BlockDataDisplay({
     if (value === undefined) return <span className='text-muted-foreground italic'>undefined</span>
 
     if (typeof value === 'string') {
-      return <span className='text-green-700 dark:text-green-400 break-all'>"{value}"</span>
+      return <span className='break-all text-green-700 dark:text-green-400'>"{value}"</span>
     }
 
     if (typeof value === 'number') {
@@ -128,11 +128,9 @@ function BlockDataDisplay({
           <span className='text-muted-foreground'>[</span>
           <div className='ml-4 space-y-1'>
             {value.map((item, index) => (
-              <div key={index} className='flex gap-2 min-w-0'>
-                <span className='text-muted-foreground text-xs flex-shrink-0'>{index}:</span>
-                <div className='min-w-0 flex-1 overflow-hidden'>
-                  {renderValue(item)}
-                </div>
+              <div key={index} className='flex min-w-0 gap-2'>
+                <span className='flex-shrink-0 text-muted-foreground text-xs'>{index}:</span>
+                <div className='min-w-0 flex-1 overflow-hidden'>{renderValue(item)}</div>
               </div>
             ))}
           </div>
@@ -148,11 +146,11 @@ function BlockDataDisplay({
       return (
         <div className='space-y-1'>
           {entries.map(([objKey, objValue]) => (
-            <div key={objKey} className='flex gap-2 min-w-0'>
-              <span className='font-medium text-orange-700 dark:text-orange-400 flex-shrink-0'>{objKey}:</span>
-              <div className='min-w-0 flex-1 overflow-hidden'>
-                {renderValue(objValue, objKey)}
-              </div>
+            <div key={objKey} className='flex min-w-0 gap-2'>
+              <span className='flex-shrink-0 font-medium text-orange-700 dark:text-orange-400'>
+                {objKey}:
+              </span>
+              <div className='min-w-0 flex-1 overflow-hidden'>{renderValue(objValue, objKey)}</div>
             </div>
           ))}
         </div>
@@ -192,7 +190,9 @@ function BlockDataDisplay({
     )
   }
 
-  return <div className='space-y-1 text-xs overflow-hidden'>{renderValue(transformedData || data)}</div>
+  return (
+    <div className='space-y-1 overflow-hidden text-xs'>{renderValue(transformedData || data)}</div>
+  )
 }
 
 export function TraceSpansDisplay({
@@ -312,7 +312,7 @@ export function TraceSpansDisplay({
           )}
         </button>
       </div>
-      <div className='overflow-hidden rounded-md border shadow-sm w-full'>
+      <div className='w-full overflow-hidden rounded-md border shadow-sm'>
         {traceSpans.map((span, index) => {
           const hasSubItems = Boolean(
             (span.children && span.children.length > 0) ||
@@ -615,7 +615,7 @@ function TraceSpanItem({
               {span.input && (
                 <div>
                   <h4 className='mb-2 font-medium text-muted-foreground text-xs'>Input</h4>
-                  <div className='rounded-md bg-secondary/30 p-3 overflow-hidden'>
+                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3'>
                     <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
                   </div>
                 </div>
@@ -627,7 +627,7 @@ function TraceSpanItem({
                   <h4 className='mb-2 font-medium text-muted-foreground text-xs'>
                     {span.status === 'error' ? 'Error Details' : 'Output'}
                   </h4>
-                  <div className='rounded-md bg-secondary/30 p-3 overflow-hidden'>
+                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3'>
                     <BlockDataDisplay
                       data={span.output}
                       blockType={span.type}

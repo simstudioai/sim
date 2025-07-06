@@ -223,7 +223,7 @@ export function useWorkflowExecution() {
                       useConsoleStore.getState().updateConsole(log.blockId, content)
                     }
                   })
-                  
+
                   // Process all logs for streaming tokenization
                   const processedCount = processStreamingBlockLogs(result.logs, streamedContent)
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)

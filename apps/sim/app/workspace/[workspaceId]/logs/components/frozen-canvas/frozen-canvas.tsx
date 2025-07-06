@@ -15,10 +15,9 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
-import { cn } from '@/lib/utils'
+import { cn, redactApiKeys } from '@/lib/utils'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { redactApiKeys } from '@/lib/utils'
 
 const logger = createLogger('FrozenCanvas')
 

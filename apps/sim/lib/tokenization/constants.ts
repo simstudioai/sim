@@ -13,7 +13,7 @@ export const TOKENIZATION_CONFIG = {
     },
     'azure-openai': {
       avgCharsPerToken: 4,
-      confidence: 'high', 
+      confidence: 'high',
       supportedMethods: ['heuristic', 'fallback'],
     },
     anthropic: {
@@ -52,13 +52,13 @@ export const TOKENIZATION_CONFIG = {
       supportedMethods: ['fallback'],
     },
   } satisfies Record<string, ProviderTokenizationConfig>,
-  
+
   fallback: {
     avgCharsPerToken: 4,
     confidence: 'low',
     supportedMethods: ['fallback'],
   } satisfies ProviderTokenizationConfig,
-  
+
   defaults: {
     model: 'gpt-4o',
     provider: 'openai',

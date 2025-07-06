@@ -92,7 +92,7 @@ export function buildTraceSpans(result: ExecutionResult): {
         logger.debug(`Added cost to span ${span.id}`, {
           blockId: log.blockId,
           blockType: log.blockType,
-          cost: log.output.cost
+          cost: log.output.cost,
         })
       }
 
@@ -102,7 +102,7 @@ export function buildTraceSpans(result: ExecutionResult): {
         logger.debug(`Added tokens to span ${span.id}`, {
           blockId: log.blockId,
           blockType: log.blockType,
-          tokens: log.output.tokens
+          tokens: log.output.tokens,
         })
       }
 
@@ -112,7 +112,7 @@ export function buildTraceSpans(result: ExecutionResult): {
         logger.debug(`Added model to span ${span.id}`, {
           blockId: log.blockId,
           blockType: log.blockType,
-          model: log.output.model
+          model: log.output.model,
         })
       }
     } else {

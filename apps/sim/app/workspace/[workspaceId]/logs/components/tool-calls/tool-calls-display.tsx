@@ -111,7 +111,7 @@ function ToolCallItem({ toolCall, index }: ToolCallItemProps) {
             {toolCall.input && (
               <div>
                 <div className='mb-1 text-muted-foreground'>Input</div>
-                <pre className='group relative max-h-32 overflow-x-hidden overflow-y-auto rounded bg-background p-2 whitespace-pre-wrap break-all'>
+                <pre className='group relative max-h-32 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded bg-background p-2'>
                   <CopyButton text={JSON.stringify(toolCall.input, null, 2)} />
                   <code>{JSON.stringify(toolCall.input, null, 2)}</code>
                 </pre>
@@ -122,7 +122,7 @@ function ToolCallItem({ toolCall, index }: ToolCallItemProps) {
             {toolCall.status === 'success' && toolCall.output && (
               <div>
                 <div className='mb-1 text-muted-foreground'>Output</div>
-                <pre className='group relative max-h-32 overflow-x-hidden overflow-y-auto rounded bg-background p-2 whitespace-pre-wrap break-all'>
+                <pre className='group relative max-h-32 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded bg-background p-2'>
                   <CopyButton text={JSON.stringify(toolCall.output, null, 2)} />
                   <code>{JSON.stringify(toolCall.output, null, 2)}</code>
                 </pre>
@@ -132,7 +132,7 @@ function ToolCallItem({ toolCall, index }: ToolCallItemProps) {
             {toolCall.status === 'error' && toolCall.error && (
               <div>
                 <div className='mb-1 text-destructive'>Error</div>
-                <pre className='group relative max-h-32 overflow-x-hidden overflow-y-auto rounded bg-destructive/10 p-2 text-destructive whitespace-pre-wrap break-all'>
+                <pre className='group relative max-h-32 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded bg-destructive/10 p-2 text-destructive'>
                   <CopyButton text={toolCall.error} />
                   <code>{toolCall.error}</code>
                 </pre>

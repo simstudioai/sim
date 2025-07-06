@@ -496,7 +496,7 @@ export async function executeWorkflowForChat(
               }
             }
           })
-          
+
           // Process all logs for streaming tokenization
           const processedCount = processStreamingBlockLogs(result.logs, streamedContent)
           logger.info(`[CHAT-API] Processed ${processedCount} blocks for streaming tokenization`)

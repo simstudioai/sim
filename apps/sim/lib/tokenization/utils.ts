@@ -4,9 +4,9 @@
 
 import { createLogger } from '@/lib/logs/console-logger'
 import { getProviderFromModel } from '@/providers/utils'
-import { TOKENIZATION_CONFIG, LLM_BLOCK_TYPES, MAX_PREVIEW_LENGTH } from './constants'
+import { LLM_BLOCK_TYPES, MAX_PREVIEW_LENGTH, TOKENIZATION_CONFIG } from './constants'
 import { createTokenizationError } from './errors'
-import type { TokenUsage, ProviderTokenizationConfig } from './types'
+import type { ProviderTokenizationConfig, TokenUsage } from './types'
 
 const logger = createLogger('TokenizationUtils')
 
@@ -14,13 +14,14 @@ const logger = createLogger('TokenizationUtils')
  * Gets tokenization configuration for a specific provider
  */
 export function getProviderConfig(providerId: string): ProviderTokenizationConfig {
-  const config = TOKENIZATION_CONFIG.providers[providerId as keyof typeof TOKENIZATION_CONFIG.providers]
-  
+  const config =
+    TOKENIZATION_CONFIG.providers[providerId as keyof typeof TOKENIZATION_CONFIG.providers]
+
   if (!config) {
     logger.debug(`No specific config for provider ${providerId}, using fallback`, { providerId })
     return TOKENIZATION_CONFIG.fallback
   }
-  
+
   return config
 }
 
@@ -31,9 +32,9 @@ export function getProviderForTokenization(model: string): string {
   try {
     return getProviderFromModel(model)
   } catch (error) {
-    logger.warn(`Failed to get provider for model ${model}, using default`, { 
-      model, 
-      error: error instanceof Error ? error.message : String(error) 
+    logger.warn(`Failed to get provider for model ${model}, using default`, {
+      model,
+      error: error instanceof Error ? error.message : String(error),
     })
     return TOKENIZATION_CONFIG.defaults.provider
   }
@@ -56,9 +57,13 @@ export function hasRealTokenData(tokens?: TokenUsage): boolean {
 }
 
 /**
- * Checks if cost data is meaningful (non-zero)  
+ * Checks if cost data is meaningful (non-zero)
  */
-export function hasRealCostData(cost?: { total?: number; input?: number; output?: number }): boolean {
+export function hasRealCostData(cost?: {
+  total?: number
+  input?: number
+  output?: number
+}): boolean {
   if (!cost) return false
   return (cost.total || 0) > 0 || (cost.input || 0) > 0 || (cost.output || 0) > 0
 }
@@ -70,19 +75,19 @@ export function extractTextContent(input: unknown): string {
   if (typeof input === 'string') {
     return input.trim()
   }
-  
+
   if (input && typeof input === 'object') {
     try {
       return JSON.stringify(input)
     } catch (error) {
-      logger.warn('Failed to stringify input object', { 
+      logger.warn('Failed to stringify input object', {
         inputType: typeof input,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
       return ''
     }
   }
-  
+
   return String(input || '')
 }
 
@@ -105,13 +110,9 @@ export function validateTokenizationInput(
   outputText: string
 ): void {
   if (!model?.trim()) {
-    throw createTokenizationError(
-      'INVALID_MODEL',
-      'Model is required for tokenization',
-      { model }
-    )
+    throw createTokenizationError('INVALID_MODEL', 'Model is required for tokenization', { model })
   }
-  
+
   if (!inputText?.trim() && !outputText?.trim()) {
     throw createTokenizationError(
       'MISSING_TEXT',

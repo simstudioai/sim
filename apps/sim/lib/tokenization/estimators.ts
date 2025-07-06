@@ -3,10 +3,9 @@
  */
 
 import { createLogger } from '@/lib/logs/console-logger'
-import { TOKENIZATION_CONFIG, MIN_TEXT_LENGTH_FOR_ESTIMATION } from './constants'
-import { createTokenizationError } from './errors'
-import { getProviderConfig, createTextPreview } from './utils'
+import { MIN_TEXT_LENGTH_FOR_ESTIMATION, TOKENIZATION_CONFIG } from './constants'
 import type { TokenEstimate } from './types'
+import { createTextPreview, getProviderConfig } from './utils'
 
 const logger = createLogger('TokenizationEstimators')
 
@@ -19,18 +18,18 @@ export function estimateTokenCount(text: string, providerId?: string): TokenEsti
       count: 0,
       confidence: 'high',
       provider: providerId || 'unknown',
-      method: 'fallback'
+      method: 'fallback',
     }
   }
 
   const effectiveProviderId = providerId || TOKENIZATION_CONFIG.defaults.provider
   const config = getProviderConfig(effectiveProviderId)
-  
+
   logger.debug('Starting token estimation', {
     provider: effectiveProviderId,
     textLength: text.length,
     preview: createTextPreview(text),
-    avgCharsPerToken: config.avgCharsPerToken
+    avgCharsPerToken: config.avgCharsPerToken,
   })
 
   let estimatedTokens: number
@@ -54,14 +53,14 @@ export function estimateTokenCount(text: string, providerId?: string): TokenEsti
     count: Math.max(1, Math.round(estimatedTokens)),
     confidence: config.confidence,
     provider: effectiveProviderId,
-    method: 'heuristic'
+    method: 'heuristic',
   }
 
   logger.debug('Token estimation completed', {
     provider: effectiveProviderId,
     textLength: text.length,
     estimatedTokens: result.count,
-    confidence: result.confidence
+    confidence: result.confidence,
   })
 
   return result
@@ -85,7 +84,7 @@ function estimateOpenAITokens(text: string): number {
     } else {
       tokenCount += Math.ceil(word.length / 4)
     }
-    
+
     // Add extra tokens for punctuation
     const punctuationCount = (word.match(/[.,!?;:"'()[\]{}<>]/g) || []).length
     tokenCount += punctuationCount * 0.5
@@ -161,35 +160,32 @@ function estimateGenericTokens(text: string, avgCharsPerToken: number): number {
  */
 export function estimateInputTokens(
   systemPrompt?: string,
-  context?: string, 
+  context?: string,
   messages?: Array<{ role: string; content: string }>,
   providerId?: string
 ): TokenEstimate {
   let totalText = ''
-  
+
   if (systemPrompt) {
-    totalText += systemPrompt + '\n'
+    totalText += `${systemPrompt}\n`
   }
-  
+
   if (context) {
-    totalText += context + '\n'
+    totalText += `${context}\n`
   }
-  
+
   if (messages) {
     for (const message of messages) {
       totalText += `${message.role}: ${message.content}\n`
     }
   }
-  
+
   return estimateTokenCount(totalText, providerId)
 }
 
 /**
  * Estimates tokens for output content
  */
-export function estimateOutputTokens(
-  content: string,
-  providerId?: string
-): TokenEstimate {
+export function estimateOutputTokens(content: string, providerId?: string): TokenEstimate {
   return estimateTokenCount(content, providerId)
 }
