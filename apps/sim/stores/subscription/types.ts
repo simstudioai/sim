@@ -25,7 +25,6 @@ export interface UsageLimitData {
 }
 
 export interface SubscriptionData {
-  // Subscription status
   isPaid: boolean
   isPro: boolean
   isTeam: boolean
@@ -34,25 +33,18 @@ export interface SubscriptionData {
   status: string | null
   seats: number | null
   metadata: any | null
-
-  // Feature permissions
   features: SubscriptionFeatures
-
-  // Usage information
   usage: UsageData
 }
 
 export type BillingStatus = 'unknown' | 'ok' | 'warning' | 'exceeded'
 
 export interface SubscriptionStore {
-  // State
   subscriptionData: SubscriptionData | null
   usageLimitData: UsageLimitData | null
   isLoading: boolean
   error: string | null
   lastFetched: number | null
-
-  // Core actions
   loadSubscriptionData: () => Promise<void>
   loadUsageLimitData: () => Promise<void>
   loadData: () => Promise<void>
@@ -60,8 +52,6 @@ export interface SubscriptionStore {
   refresh: () => Promise<void>
   clearError: () => void
   reset: () => void
-
-  // Computed getters
   getSubscriptionStatus: () => {
     isPaid: boolean
     isPro: boolean

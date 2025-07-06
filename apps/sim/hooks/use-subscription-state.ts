@@ -16,7 +16,6 @@ interface UsageData {
 }
 
 interface SubscriptionState {
-  // Subscription status
   isPaid: boolean
   isPro: boolean
   isTeam: boolean
@@ -25,11 +24,7 @@ interface SubscriptionState {
   status: string | null
   seats: number | null
   metadata: any | null
-
-  // Feature permissions
   features: SubscriptionFeatures
-
-  // Usage information
   usage: UsageData
 }
 
@@ -74,7 +69,6 @@ export function useSubscriptionState() {
   }, [fetchSubscriptionState])
 
   return {
-    // Subscription status
     subscription: {
       isPaid: data?.isPaid ?? false,
       isPro: data?.isPro ?? false,
@@ -87,14 +81,12 @@ export function useSubscriptionState() {
       metadata: data?.metadata,
     },
 
-    // Feature permissions
     features: {
       sharingEnabled: data?.features?.sharingEnabled ?? false,
       multiplayerEnabled: data?.features?.multiplayerEnabled ?? false,
       workspaceCollaborationEnabled: data?.features?.workspaceCollaborationEnabled ?? false,
     },
 
-    // Usage information
     usage: {
       current: data?.usage?.current ?? 0,
       limit: data?.usage?.limit ?? 5,
@@ -110,12 +102,10 @@ export function useSubscriptionState() {
       lastPeriodCost: data?.usage?.lastPeriodCost ?? 0,
     },
 
-    // Query state
     isLoading,
     error,
     refetch,
 
-    // Convenience methods
     hasFeature: (feature: keyof SubscriptionFeatures) => {
       return data?.features?.[feature] ?? false
     },
@@ -214,7 +204,6 @@ export function useUsageLimit() {
         throw new Error(errorData.error || 'Failed to update usage limit')
       }
 
-      // Refetch usage limit data
       await refetch()
 
       return { success: true }
@@ -231,11 +220,7 @@ export function useUsageLimit() {
     plan: data?.plan ?? 'free',
     setBy: data?.setBy,
     updatedAt: data?.updatedAt ? new Date(data.updatedAt) : null,
-
-    // Actions
     updateLimit,
-
-    // Query state
     isLoading,
     error,
     refetch,

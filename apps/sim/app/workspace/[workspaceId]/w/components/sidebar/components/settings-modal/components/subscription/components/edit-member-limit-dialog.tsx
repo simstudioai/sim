@@ -27,7 +27,7 @@ interface EditMemberLimitDialogProps {
   } | null
   onSave: (userId: string, newLimit: number) => Promise<void>
   isLoading: boolean
-  planType?: string // Add plan type to show correct minimum
+  planType?: string
 }
 
 export function EditMemberLimitDialog({

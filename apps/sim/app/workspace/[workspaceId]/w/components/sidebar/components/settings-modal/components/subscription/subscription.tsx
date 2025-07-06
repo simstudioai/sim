@@ -95,10 +95,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     [session?.user?.id, subscription.isTeam, activeOrgId, betterAuthSubscription]
   )
 
-  const handleLimitUpdated = useCallback(async (newLimit: number) => {
-    // UsageLimitEditor handles the update through store
-  }, [])
-
   const handleSeatsUpdate = useCallback(
     async (seats: number) => {
       if (!activeOrgId) {
@@ -209,7 +205,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   (subscription.isTeam && isTeamAdmin)
                 }
                 minimumLimit={usageLimitData?.minimumLimit ?? 5}
-                onLimitUpdated={handleLimitUpdated}
               />
             )}
           </div>

@@ -90,8 +90,6 @@ export async function GET(request: NextRequest) {
       return authError
     }
 
-    // For health checks, we can't easily predict what entities will be billed
-    // since it depends on active subscriptions
     return NextResponse.json({
       status: 'ready',
       message: 'Monthly billing cron job is ready to process both users and organizations',
