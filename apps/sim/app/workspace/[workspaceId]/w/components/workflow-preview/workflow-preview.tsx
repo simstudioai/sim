@@ -33,6 +33,7 @@ interface WorkflowPreviewProps {
   isPannable?: boolean
   defaultPosition?: { x: number; y: number }
   defaultZoom?: number
+  onNodeClick?: (blockId: string, mousePosition: { x: number; y: number }) => void
 }
 
 // Define node types - the components now handle preview mode internally
@@ -55,6 +56,7 @@ export function WorkflowPreview({
   isPannable = false,
   defaultPosition,
   defaultZoom,
+  onNodeClick,
 }: WorkflowPreviewProps) {
   const blocksStructure = useMemo(
     () => ({
@@ -256,6 +258,14 @@ export function WorkflowPreview({
           elementsSelectable={false}
           nodesDraggable={false}
           nodesConnectable={false}
+          onNodeClick={
+            onNodeClick
+              ? (event, node) => {
+                  logger.debug('Node clicked:', { nodeId: node.id, event })
+                  onNodeClick(node.id, { x: event.clientX, y: event.clientY })
+                }
+              : undefined
+          }
         >
           <Background />
         </ReactFlow>

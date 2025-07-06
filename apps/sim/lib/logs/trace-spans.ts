@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import type { TraceSpan } from '@/app/workspace/[workspaceId]/logs/stores/types'
 import type { ExecutionResult } from '@/executor/types'
+
+const logger = createLogger('TraceSpans')
 
 // Helper function to build a tree of trace spans from execution logs
 export function buildTraceSpans(result: ExecutionResult): {
@@ -43,6 +46,16 @@ export function buildTraceSpans(result: ExecutionResult): {
     const duration = log.durationMs || 0
 
     // Create the span
+    let output = log.output || {}
+
+    // If there's an error, include it in the output
+    if (log.error) {
+      output = {
+        ...output,
+        error: log.error,
+      }
+    }
+
     const span: TraceSpan = {
       id: spanId,
       name: log.blockName || log.blockId,
@@ -54,146 +67,68 @@ export function buildTraceSpans(result: ExecutionResult): {
       children: [],
       // Store the block ID for later use in identifying direct parent-child relationships
       blockId: log.blockId,
+      // Include block input/output data
+      input: log.input || {},
+      output: output,
     }
 
     // Add provider timing data if it exists
     if (log.output?.providerTiming) {
       const providerTiming = log.output.providerTiming
 
-      // If we have time segments, use them to create a more detailed timeline
-      if (providerTiming.timeSegments && providerTiming.timeSegments.length > 0) {
-        const segmentStartTime = new Date(log.startedAt).getTime()
-        const children: TraceSpan[] = []
+      // Store provider timing as metadata instead of creating child spans
+      // This keeps the UI cleaner while preserving timing information
 
-        // Process segments in order
-        providerTiming.timeSegments.forEach(
-          (
-            segment: {
-              type: string
-              name: string
-              startTime: number
-              endTime: number
-              duration: number
-            },
-            index: number
-          ) => {
-            // Ensure we have valid startTime and endTime
-            let segmentStart: number
-            let segmentEnd: number
-
-            // Handle different time formats - some providers use ISO strings, some use timestamps
-            if (typeof segment.startTime === 'string') {
-              try {
-                segmentStart = new Date(segment.startTime).getTime()
-              } catch (_e) {
-                segmentStart = segmentStartTime + index * 1000 // Fallback offset
-              }
-            } else {
-              segmentStart = segment.startTime
-            }
-
-            if (typeof segment.endTime === 'string') {
-              try {
-                segmentEnd = new Date(segment.endTime).getTime()
-              } catch (_e) {
-                segmentEnd = segmentStart + (segment.duration || 1000) // Fallback duration
-              }
-            } else {
-              segmentEnd = segment.endTime
-            }
-
-            // For streaming responses, make sure our timing is valid
-            if (
-              Number.isNaN(segmentStart) ||
-              Number.isNaN(segmentEnd) ||
-              segmentEnd < segmentStart
-            ) {
-              // Use fallback values
-              segmentStart = segmentStartTime + index * 1000
-              segmentEnd = segmentStart + (segment.duration || 1000)
-            }
-
-            const childSpan: TraceSpan = {
-              id: `${spanId}-segment-${index}`,
-              name: segment.name || `${segment.type} operation`,
-              startTime: new Date(segmentStart).toISOString(),
-              endTime: new Date(segmentEnd).toISOString(),
-              duration: segment.duration || segmentEnd - segmentStart,
-              type:
-                segment.type === 'model'
-                  ? 'model'
-                  : segment.type === 'tool'
-                    ? 'tool'
-                    : 'processing',
-              status: 'success',
-              children: [],
-            }
-
-            // Add any additional metadata
-            if (segment.type === 'tool' && typeof segment.name === 'string') {
-              // Add as a custom attribute using type assertion
-              ;(childSpan as any).toolName = segment.name
-            }
-
-            children.push(childSpan)
-          }
-        )
-
-        // Only add children if we have valid spans
-        if (children.length > 0) {
-          span.children = children
-        }
+      ;(span as any).providerTiming = {
+        duration: providerTiming.duration,
+        startTime: providerTiming.startTime,
+        endTime: providerTiming.endTime,
+        segments: providerTiming.timeSegments || [],
       }
-      // If no segments but we have provider timing, create a provider span
-      else {
-        // Create a child span for the provider execution
-        const providerSpan: TraceSpan = {
-          id: `${spanId}-provider`,
-          name: log.output.model || 'AI Provider',
-          type: 'provider',
-          duration: providerTiming.duration || 0,
-          startTime: providerTiming.startTime || log.startedAt,
-          endTime: providerTiming.endTime || log.endedAt,
-          status: 'success',
-          tokens: log.output.tokens?.total,
-        }
 
-        // If we have model time, create a child span for just the model processing
-        if (providerTiming.modelTime) {
-          const modelName = log.output.model || ''
-          const modelSpan: TraceSpan = {
-            id: `${spanId}-model`,
-            name: `Model Generation${modelName ? ` (${modelName})` : ''}`,
-            type: 'model',
-            duration: providerTiming.modelTime,
-            startTime: providerTiming.startTime, // Approximate
-            endTime: providerTiming.endTime, // Approximate
-            status: 'success',
-            tokens: log.output.tokens?.completion,
-          }
+      // Add cost information if available
+      if (log.output?.cost) {
+        ;(span as any).cost = log.output.cost
+        logger.debug(`Added cost to span ${span.id}`, {
+          blockId: log.blockId,
+          blockType: log.blockType,
+          cost: log.output.cost,
+        })
+      }
 
-          if (!providerSpan.children) providerSpan.children = []
-          providerSpan.children.push(modelSpan)
-        }
+      // Add token information if available
+      if (log.output?.tokens) {
+        ;(span as any).tokens = log.output.tokens
+        logger.debug(`Added tokens to span ${span.id}`, {
+          blockId: log.blockId,
+          blockType: log.blockType,
+          tokens: log.output.tokens,
+        })
+      }
 
-        if (!span.children) span.children = []
-        span.children.push(providerSpan)
-
-        // When using provider timing without segments, still add tool calls if they exist
-        if (log.output?.toolCalls?.list) {
-          span.toolCalls = log.output.toolCalls.list.map((tc: any) => ({
-            name: stripCustomToolPrefix(tc.name),
-            duration: tc.duration || 0,
-            startTime: tc.startTime || log.startedAt,
-            endTime: tc.endTime || log.endedAt,
-            status: tc.error ? 'error' : 'success',
-            input: tc.arguments || tc.input,
-            output: tc.result || tc.output,
-            error: tc.error,
-          }))
-        }
+      // Add model information
+      if (log.output?.model) {
+        ;(span as any).model = log.output.model
+        logger.debug(`Added model to span ${span.id}`, {
+          blockId: log.blockId,
+          blockType: log.blockType,
+          model: log.output.model,
+        })
       }
     } else {
+      // When not using provider timing, still add cost and token information
+      if (log.output?.cost) {
+        ;(span as any).cost = log.output.cost
+      }
+
+      if (log.output?.tokens) {
+        ;(span as any).tokens = log.output.tokens
+      }
+
+      if (log.output?.model) {
+        ;(span as any).model = log.output.model
+      }
+
       // When not using provider timing at all, add tool calls if they exist
       // Tool calls handling for different formats:
       // 1. Standard format in response.toolCalls.list
@@ -257,96 +192,30 @@ export function buildTraceSpans(result: ExecutionResult): {
     spanMap.set(spanId, span)
   })
 
-  // Second pass: Build the hierarchy based on direct relationships
-  // We'll first need to sort logs chronologically for proper order
+  // Second pass: Build a flat hierarchy for sequential workflow execution
+  // For most workflows, blocks execute sequentially and should be shown at the same level
+  // Only nest blocks that are truly hierarchical (like subflows, loops, etc.)
+
   const sortedLogs = [...result.logs].sort((a, b) => {
     const aTime = new Date(a.startedAt).getTime()
     const bTime = new Date(b.startedAt).getTime()
     return aTime - bTime
   })
 
-  // Map to track spans by block ID (for parent-child relationship identification)
-  const blockToSpanMap = new Map<string, string>()
-
-  // First, map block IDs to their span IDs
-  sortedLogs.forEach((log) => {
-    if (!log.blockId) return
-
-    const spanId = `${log.blockId}-${new Date(log.startedAt).getTime()}`
-    blockToSpanMap.set(log.blockId, spanId)
-  })
-
-  // Identify root spans and build relationships
   const rootSpans: TraceSpan[] = []
 
-  // For sequential blocks, we need to determine if they are true parent-child
-  // or just execution dependencies. True parent-child should be nested,
-  // while sequential execution blocks should be at the same level.
-
-  // Identify blocks at the top level (aka "layer 0")
-  const topLevelBlocks = new Set<string>()
-
-  // Create the array of parent values once before the loop
-  const parentValues = Array.from(parentChildMap.values())
-
-  workflowConnections.forEach((conn) => {
-    // If the source is starter or doesn't exist in our connections as a target, it's top level
-    if (conn.source === 'starter' || !parentValues.includes(conn.source)) {
-      topLevelBlocks.add(conn.target)
-    }
-  })
-
+  // For now, treat all blocks as top-level spans in execution order
+  // This gives a cleaner, more intuitive view of workflow execution
   sortedLogs.forEach((log) => {
     if (!log.blockId) return
 
     const spanId = `${log.blockId}-${new Date(log.startedAt).getTime()}`
     const span = spanMap.get(spanId)
-    if (!span) return
-
-    // Check if this block has a direct parent in the workflow
-    const parentBlockId = parentChildMap.get(log.blockId)
-
-    // Top level blocks are those that:
-    // 1. Have no parent (or parent is starter)
-    // 2. Are identified as top level in our analysis
-    const isTopLevel =
-      !parentBlockId || parentBlockId === 'starter' || topLevelBlocks.has(log.blockId)
-
-    if (isTopLevel) {
-      // This is a top level span
+    if (span) {
       rootSpans.push(span)
-    } else {
-      // This has a parent
-      // Only nest as a child if the parent block is NOT a top-level block
-      // This ensures sequential blocks at the same "layer" stay at the same level
-      // while true parent-child relationships are preserved
-      if (parentBlockId && !topLevelBlocks.has(parentBlockId)) {
-        const parentSpanId = blockToSpanMap.get(parentBlockId)
-
-        if (parentSpanId) {
-          const parentSpan = spanMap.get(parentSpanId)
-          if (parentSpan) {
-            // Add as child to direct parent
-            if (!parentSpan.children) parentSpan.children = []
-            parentSpan.children.push(span)
-          } else {
-            // Parent span not found, add as root
-            rootSpans.push(span)
-          }
-        } else {
-          // Parent block executed but no span, add as root
-          rootSpans.push(span)
-        }
-      } else {
-        // Parent is a top level block, so this should also be a top level span
-        // This prevents sequential top-level blocks from being nested
-        rootSpans.push(span)
-      }
     }
   })
 
-  // Fall back to time-based hierarchy only if we couldn't establish relationships
-  // This happens when we don't have workflow connection information
   if (rootSpans.length === 0 && workflowConnections.length === 0) {
     // Track parent spans using a stack
     const spanStack: TraceSpan[] = []

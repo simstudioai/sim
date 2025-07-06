@@ -84,20 +84,43 @@ describe('Socket Server Index Integration', () => {
     const httpHandler = createHttpHandler(roomManager, logger)
     httpServer.on('request', httpHandler)
 
-    // Start server
-    await new Promise<void>((resolve) => {
+    // Start server with timeout handling
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`Server failed to start on port ${PORT} within 15 seconds`))
+      }, 15000)
+
       httpServer.listen(PORT, '0.0.0.0', () => {
+        clearTimeout(timeout)
         resolve()
       })
+
+      httpServer.on('error', (err: any) => {
+        clearTimeout(timeout)
+        if (err.code === 'EADDRINUSE') {
+          // Try a different port
+          PORT = 3333 + Math.floor(Math.random() * 1000)
+          httpServer.listen(PORT, '0.0.0.0', () => {
+            resolve()
+          })
+        } else {
+          reject(err)
+        }
+      })
     })
-  })
+  }, 20000)
 
   afterEach(async () => {
+    // Properly close servers and wait for them to fully close
     if (io) {
-      io.close()
+      await new Promise<void>((resolve) => {
+        io.close(() => resolve())
+      })
     }
     if (httpServer) {
-      httpServer.close()
+      await new Promise<void>((resolve) => {
+        httpServer.close(() => resolve())
+      })
     }
     vi.clearAllMocks()
   })
@@ -322,7 +345,7 @@ describe('Socket Server Index Integration', () => {
       expect(() => WorkflowOperationSchema.parse(validEdgeOperation)).not.toThrow()
     })
 
-    it.concurrent('should validate subflow operations', async () => {
+    it('should validate subflow operations', async () => {
       const { WorkflowOperationSchema } = await import('./validation/schemas')
 
       const validSubflowOperation = {

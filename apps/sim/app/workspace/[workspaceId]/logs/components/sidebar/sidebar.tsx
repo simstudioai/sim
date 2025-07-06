@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Eye, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -10,6 +10,7 @@ import { redactApiKeys } from '@/lib/utils'
 import type { WorkflowLog } from '@/app/workspace/[workspaceId]/logs/stores/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
+import { FrozenCanvasModal } from '../frozen-canvas/frozen-canvas-modal'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '../trace-spans/trace-spans-display'
 import LogMarkdownRenderer from './components/markdown-renderer'
@@ -153,7 +154,7 @@ const BlockContentDisplay = ({
           <>
             <CopyButton text={redactedOutput} className='z-10 h-7 w-7' />
             {isJson ? (
-              <pre className='w-full overflow-visible whitespace-pre-wrap break-all text-sm'>
+              <pre className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all text-sm'>
                 {redactedOutput}
               </pre>
             ) : (
@@ -166,7 +167,7 @@ const BlockContentDisplay = ({
               text={JSON.stringify(redactedBlockInput, null, 2)}
               className='z-10 h-7 w-7'
             />
-            <pre className='w-full overflow-visible whitespace-pre-wrap break-all text-sm'>
+            <pre className='w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all text-sm'>
               {JSON.stringify(redactedBlockInput, null, 2)}
             </pre>
           </>
@@ -193,6 +194,8 @@ export function Sidebar({
   const [isDragging, setIsDragging] = useState(false)
   const [_currentLogId, setCurrentLogId] = useState<string | null>(null)
   const [isTraceExpanded, setIsTraceExpanded] = useState(false)
+  const [isModelsExpanded, setIsModelsExpanded] = useState(false)
+  const [isFrozenCanvasOpen, setIsFrozenCanvasOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Update currentLogId when log changes
@@ -238,22 +241,26 @@ export function Sidebar({
   // Determine if this is a workflow execution log
   const isWorkflowExecutionLog = useMemo(() => {
     if (!log) return false
-    // Check if message contains "workflow executed" or similar phrases
+    // Check if message contains workflow execution phrases (success or failure)
     return (
       log.message.toLowerCase().includes('workflow executed') ||
       log.message.toLowerCase().includes('execution completed') ||
-      (log.trigger === 'manual' && log.duration)
+      log.message.toLowerCase().includes('workflow execution failed') ||
+      log.message.toLowerCase().includes('execution failed') ||
+      (log.trigger === 'manual' && log.duration) ||
+      // Also check if we have enhanced logging metadata with trace spans
+      (log.metadata?.enhanced && log.metadata?.traceSpans)
     )
-  }, [log])
-
-  // Helper to determine if we have trace spans to display
-  const _hasTraceSpans = useMemo(() => {
-    return !!(log?.metadata?.traceSpans && log.metadata.traceSpans.length > 0)
   }, [log])
 
   // Helper to determine if we have cost information to display
   const hasCostInfo = useMemo(() => {
-    return !!(log?.metadata?.cost && (log.metadata.cost.input || log.metadata.cost.output))
+    return !!(
+      log?.metadata?.cost &&
+      ((log.metadata.cost.input && log.metadata.cost.input > 0) ||
+        (log.metadata.cost.output && log.metadata.cost.output > 0) ||
+        (log.metadata.cost.total && log.metadata.cost.total > 0))
+    )
   }, [log])
 
   const isWorkflowWithCost = useMemo(() => {
@@ -487,6 +494,103 @@ export function Sidebar({
                 </div>
               )}
 
+              {/* Enhanced Stats - only show for enhanced logs */}
+              {log.metadata?.enhanced && log.metadata?.blockStats && (
+                <div>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
+                    Block Execution Stats
+                  </h3>
+                  <div className='space-y-1 text-sm'>
+                    <div className='flex justify-between'>
+                      <span>Total Blocks:</span>
+                      <span className='font-medium'>{log.metadata.blockStats.total}</span>
+                    </div>
+                    <div className='flex justify-between'>
+                      <span>Successful:</span>
+                      <span className='font-medium text-green-600'>
+                        {log.metadata.blockStats.success}
+                      </span>
+                    </div>
+                    {log.metadata.blockStats.error > 0 && (
+                      <div className='flex justify-between'>
+                        <span>Failed:</span>
+                        <span className='font-medium text-red-600'>
+                          {log.metadata.blockStats.error}
+                        </span>
+                      </div>
+                    )}
+                    {log.metadata.blockStats.skipped > 0 && (
+                      <div className='flex justify-between'>
+                        <span>Skipped:</span>
+                        <span className='font-medium text-yellow-600'>
+                          {log.metadata.blockStats.skipped}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Enhanced Cost - only show for enhanced logs with actual cost data */}
+              {log.metadata?.enhanced && hasCostInfo && (
+                <div>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Cost Breakdown</h3>
+                  <div className='space-y-1 text-sm'>
+                    {(log.metadata?.cost?.total ?? 0) > 0 && (
+                      <div className='flex justify-between'>
+                        <span>Total Cost:</span>
+                        <span className='font-medium'>
+                          ${log.metadata?.cost?.total?.toFixed(4)}
+                        </span>
+                      </div>
+                    )}
+                    {(log.metadata?.cost?.input ?? 0) > 0 && (
+                      <div className='flex justify-between'>
+                        <span>Input Cost:</span>
+                        <span className='text-muted-foreground'>
+                          ${log.metadata?.cost?.input?.toFixed(4)}
+                        </span>
+                      </div>
+                    )}
+                    {(log.metadata?.cost?.output ?? 0) > 0 && (
+                      <div className='flex justify-between'>
+                        <span>Output Cost:</span>
+                        <span className='text-muted-foreground'>
+                          ${log.metadata?.cost?.output?.toFixed(4)}
+                        </span>
+                      </div>
+                    )}
+                    {(log.metadata?.cost?.tokens?.total ?? 0) > 0 && (
+                      <div className='flex justify-between'>
+                        <span>Total Tokens:</span>
+                        <span className='text-muted-foreground'>
+                          {log.metadata?.cost?.tokens?.total?.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Frozen Canvas Button - only show for workflow execution logs with execution ID */}
+              {isWorkflowExecutionLog && log.executionId && (
+                <div>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Workflow State</h3>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setIsFrozenCanvasOpen(true)}
+                    className='w-full justify-start gap-2'
+                  >
+                    <Eye className='h-4 w-4' />
+                    View Frozen Canvas
+                  </Button>
+                  <p className='mt-1 text-muted-foreground text-xs'>
+                    See the exact workflow state and block inputs/outputs at execution time
+                  </p>
+                </div>
+              )}
+
               {/* Message Content */}
               <div className='w-full pb-2'>
                 <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Message</h3>
@@ -517,41 +621,93 @@ export function Sidebar({
               )}
 
               {/* Cost Information (moved to bottom) */}
-              {hasCostInfo && log.metadata?.cost && (
+              {hasCostInfo && (
                 <div>
-                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
-                    {isWorkflowWithCost ? 'Total Model Cost' : 'Model Cost'}
-                  </h3>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Models</h3>
                   <div className='overflow-hidden rounded-md border'>
                     <div className='space-y-2 p-3'>
-                      {log.metadata.cost.model && (
-                        <div className='flex items-center justify-between'>
-                          <span className='text-muted-foreground text-sm'>Model:</span>
-                          <span className='text-sm'>{log.metadata.cost.model}</span>
-                        </div>
-                      )}
                       <div className='flex items-center justify-between'>
                         <span className='text-muted-foreground text-sm'>Input:</span>
-                        <span className='text-sm'>{formatCost(log.metadata.cost.input || 0)}</span>
+                        <span className='text-sm'>
+                          {formatCost(log.metadata?.cost?.input || 0)}
+                        </span>
                       </div>
                       <div className='flex items-center justify-between'>
                         <span className='text-muted-foreground text-sm'>Output:</span>
-                        <span className='text-sm'>{formatCost(log.metadata.cost.output || 0)}</span>
+                        <span className='text-sm'>
+                          {formatCost(log.metadata?.cost?.output || 0)}
+                        </span>
                       </div>
                       <div className='mt-1 flex items-center justify-between border-t pt-2'>
                         <span className='text-muted-foreground text-sm'>Total:</span>
                         <span className='text-foreground text-sm'>
-                          {formatCost(log.metadata.cost.total || 0)}
+                          {formatCost(log.metadata?.cost?.total || 0)}
                         </span>
                       </div>
                       <div className='flex items-center justify-between'>
                         <span className='text-muted-foreground text-xs'>Tokens:</span>
                         <span className='text-muted-foreground text-xs'>
-                          {log.metadata.cost.tokens?.prompt || 0} in /{' '}
-                          {log.metadata.cost.tokens?.completion || 0} out
+                          {log.metadata?.cost?.tokens?.prompt || 0} in /{' '}
+                          {log.metadata?.cost?.tokens?.completion || 0} out
                         </span>
                       </div>
                     </div>
+
+                    {/* Models Breakdown */}
+                    {log.metadata?.cost?.models &&
+                      Object.keys(log.metadata?.cost?.models).length > 0 && (
+                        <div className='border-t'>
+                          <button
+                            onClick={() => setIsModelsExpanded(!isModelsExpanded)}
+                            className='flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-muted/50'
+                          >
+                            <span className='font-medium text-muted-foreground text-xs'>
+                              Model Breakdown (
+                              {Object.keys(log.metadata?.cost?.models || {}).length})
+                            </span>
+                            {isModelsExpanded ? (
+                              <ChevronUp className='h-3 w-3 text-muted-foreground' />
+                            ) : (
+                              <ChevronDown className='h-3 w-3 text-muted-foreground' />
+                            )}
+                          </button>
+
+                          {isModelsExpanded && (
+                            <div className='space-y-3 border-t bg-muted/30 p-3'>
+                              {Object.entries(log.metadata?.cost?.models || {}).map(
+                                ([model, cost]: [string, any]) => (
+                                  <div key={model} className='space-y-1'>
+                                    <div className='font-medium font-mono text-xs'>{model}</div>
+                                    <div className='space-y-1 text-xs'>
+                                      <div className='flex justify-between'>
+                                        <span className='text-muted-foreground'>Input:</span>
+                                        <span>{formatCost(cost.input || 0)}</span>
+                                      </div>
+                                      <div className='flex justify-between'>
+                                        <span className='text-muted-foreground'>Output:</span>
+                                        <span>{formatCost(cost.output || 0)}</span>
+                                      </div>
+                                      <div className='flex justify-between border-t pt-1'>
+                                        <span className='text-muted-foreground'>Total:</span>
+                                        <span className='font-medium'>
+                                          {formatCost(cost.total || 0)}
+                                        </span>
+                                      </div>
+                                      <div className='flex justify-between'>
+                                        <span className='text-muted-foreground'>Tokens:</span>
+                                        <span>
+                                          {cost.tokens?.prompt || 0} in /{' '}
+                                          {cost.tokens?.completion || 0} out
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                     {isWorkflowWithCost && (
                       <div className='border-t bg-muted p-3 text-muted-foreground text-xs'>
@@ -567,6 +723,18 @@ export function Sidebar({
             </div>
           </ScrollArea>
         </>
+      )}
+
+      {/* Frozen Canvas Modal */}
+      {log?.executionId && (
+        <FrozenCanvasModal
+          executionId={log.executionId}
+          workflowName={log.workflow?.name}
+          trigger={log.trigger || undefined}
+          traceSpans={log.metadata?.traceSpans}
+          isOpen={isFrozenCanvasOpen}
+          onClose={() => setIsFrozenCanvasOpen(false)}
+        />
       )}
     </div>
   )
