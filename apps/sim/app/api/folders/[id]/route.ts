@@ -160,6 +160,7 @@ async function deleteFolderRecursively(
   }
 
   // Delete all workflows in this folder (workspace-scoped, not user-scoped)
+  // The database cascade will handle deleting related workflow_blocks, workflow_edges, workflow_subflows
   const workflowsInFolder = await db
     .select({ id: workflow.id })
     .from(workflow)
