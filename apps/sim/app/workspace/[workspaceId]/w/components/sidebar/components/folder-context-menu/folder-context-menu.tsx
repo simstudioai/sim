@@ -63,12 +63,17 @@ export function FolderContextMenu({
     setShowRenameDialog(true)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (onDelete) {
       onDelete(folderId)
     } else {
-      // Default delete behavior
-      deleteFolder(folderId, workspaceId)
+      // Default delete behavior with proper error handling
+      try {
+        await deleteFolder(folderId, workspaceId)
+        logger.info(`Successfully deleted folder from context menu: ${folderName}`)
+      } catch (error) {
+        logger.error('Failed to delete folder from context menu:', { error, folderId, folderName })
+      }
     }
   }
 

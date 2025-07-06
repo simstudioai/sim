@@ -314,6 +314,7 @@ export const useFolderStore = create<FolderState>()(
 
         const responseData = await response.json()
 
+        // Remove the folder from local state
         get().removeFolder(id)
 
         // Remove from expanded state
@@ -323,33 +324,19 @@ export const useFolderStore = create<FolderState>()(
           return { expandedFolders: newExpanded }
         })
 
+        // Remove subfolders from local state
+        get().removeSubfoldersRecursively(id)
+
+        // The backend has already deleted the workflows, so we just need to refresh
+        // the workflow registry to sync with the server state
         const workflowRegistry = useWorkflowRegistry.getState()
-        if (responseData.deletedItems) {
-          try {
-            const workflows = Object.values(workflowRegistry.workflows)
-            const workflowsToDelete = workflows.filter(
-              (workflow) =>
-                workflow.folderId === id || get().isWorkflowInDeletedSubfolder(workflow, id)
-            )
-
-            workflowsToDelete.forEach((workflow) => {
-              workflowRegistry.removeWorkflow(workflow.id)
-            })
-
-            get().removeSubfoldersRecursively(id)
-
-            logger.info(
-              `Deleted ${responseData.deletedItems.workflows} workflow(s) and ${responseData.deletedItems.folders} folder(s)`
-            )
-          } catch (error) {
-            logger.error('Error updating local state after folder deletion:', error)
-          }
-        }
-
         if (workspaceId) {
-          // Trigger workflow refresh through registry store
-          await workflowRegistry.switchToWorkspace(workspaceId)
+          await workflowRegistry.loadWorkflows(workspaceId)
         }
+
+        logger.info(
+          `Deleted ${responseData.deletedItems.workflows} workflow(s) and ${responseData.deletedItems.folders} folder(s)`
+        )
       },
 
       isWorkflowInDeletedSubfolder: (workflow: Workflow, deletedFolderId: string) => {
