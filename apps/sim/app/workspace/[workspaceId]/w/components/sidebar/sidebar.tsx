@@ -7,6 +7,7 @@ import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   getKeyboardShortcutText,
@@ -27,7 +28,7 @@ import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 const logger = createLogger('Sidebar')
 
-const IS_DEV = process.env.NODE_ENV === 'development'
+const IS_DEV = env.NODE_ENV === 'development'
 
 export function Sidebar() {
   useGlobalShortcuts()

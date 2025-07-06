@@ -1,18 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { calculateUsageLimit, checkEnterprisePlan } from './utils'
 
-const ORIGINAL_ENV = { ...process.env }
-
-beforeAll(() => {
-  process.env.FREE_TIER_COST_LIMIT = '5'
-  process.env.PRO_TIER_COST_LIMIT = '20'
-  process.env.TEAM_TIER_COST_LIMIT = '40'
-  process.env.ENTERPRISE_TIER_COST_LIMIT = '200'
-})
-
-afterAll(() => {
-  process.env = ORIGINAL_ENV
-})
+vi.mock('../env', () => ({
+  env: {
+    FREE_TIER_COST_LIMIT: 5,
+    PRO_TIER_COST_LIMIT: 20,
+    TEAM_TIER_COST_LIMIT: 40,
+    ENTERPRISE_TIER_COST_LIMIT: 200,
+  },
+}))
 
 describe('Subscription Utilities', () => {
   describe('checkEnterprisePlan', () => {
