@@ -63,11 +63,11 @@ export function WorkflowPreview({
     return (
       <div
         style={{ height, width }}
-        className="flex items-center justify-center bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+        className='flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'
       >
-        <div className="text-center text-gray-500 dark:text-gray-400">
-          <div className="text-lg font-medium mb-2">⚠️ Logged State Not Found</div>
-          <div className="text-sm">
+        <div className='text-center text-gray-500 dark:text-gray-400'>
+          <div className='mb-2 font-medium text-lg'>⚠️ Logged State Not Found</div>
+          <div className='text-sm'>
             This log was migrated from the old system and doesn't contain workflow state data.
           </div>
         </div>
