@@ -69,45 +69,30 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       const currentUrl = window.location.origin + window.location.pathname
 
       try {
-        if (
-          'upgrade' in betterAuthSubscription &&
-          typeof betterAuthSubscription.upgrade === 'function'
-        ) {
-          const upgradeParams: any = {
-            plan: targetPlan,
+        const upgradeParams: any = {
+          plan: targetPlan,
+          referenceId,
+          successUrl: currentUrl,
+          cancelUrl: currentUrl,
+          seats: targetPlan === 'team' ? 1 : undefined,
+        }
+
+        // Add subscriptionId if we have an existing subscription to ensure proper plan switching
+        if (currentSubscriptionId) {
+          upgradeParams.subscriptionId = currentSubscriptionId
+          logger.info('Upgrading existing subscription', {
+            targetPlan,
+            currentSubscriptionId,
             referenceId,
-            successUrl: currentUrl,
-            cancelUrl: currentUrl,
-            seats: targetPlan === 'team' ? 1 : undefined,
-          }
-
-          // Add subscriptionId if we have an existing subscription to ensure proper plan switching
-          if (currentSubscriptionId) {
-            upgradeParams.subscriptionId = currentSubscriptionId
-            logger.info('Upgrading existing subscription', {
-              targetPlan,
-              currentSubscriptionId,
-              referenceId,
-            })
-          } else {
-            logger.info('Creating new subscription (no existing subscription found)', {
-              targetPlan,
-              referenceId,
-            })
-          }
-
-          await betterAuthSubscription.upgrade(upgradeParams)
+          })
         } else {
-          logger.warn('Stripe upgrade not available - development mode or missing configuration', {
+          logger.info('Creating new subscription (no existing subscription found)', {
             targetPlan,
             referenceId,
-            betterAuthSubscription: typeof betterAuthSubscription,
           })
-
-          alert(
-            `Upgrade to ${targetPlan} plan - Stripe integration not available in development mode`
-          )
         }
+
+        await betterAuthSubscription.upgrade(upgradeParams)
       } catch (error) {
         logger.error('Failed to initiate subscription upgrade:', error)
         alert('Failed to initiate upgrade. Please try again or contact support.')
