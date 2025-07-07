@@ -21,7 +21,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { credentialId, workflowId } = body
 
-    logger.info(`[${requestId}] Token request for credential: ${credentialId}, workflow: ${workflowId}`)
+    logger.info(
+      `[${requestId}] Token request for credential: ${credentialId}, workflow: ${workflowId}`
+    )
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Credential ID is required`)
@@ -46,12 +48,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
-    logger.info(`[${requestId}] Found credential, provider: ${credential.providerId}, hasToken: ${!!credential.accessToken}, expiresAt: ${credential.accessTokenExpiresAt}`)
+    logger.info(
+      `[${requestId}] Found credential, provider: ${credential.providerId}, hasToken: ${!!credential.accessToken}, expiresAt: ${credential.accessTokenExpiresAt}`
+    )
 
     try {
       // Refresh the token if needed
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
-      logger.info(`[${requestId}] Successfully got access token, length: ${accessToken?.length || 0}`)
+      logger.info(
+        `[${requestId}] Successfully got access token, length: ${accessToken?.length || 0}`
+      )
       return NextResponse.json({ accessToken }, { status: 200 })
     } catch (error) {
       logger.error(`[${requestId}] Failed to refresh access token:`, error)

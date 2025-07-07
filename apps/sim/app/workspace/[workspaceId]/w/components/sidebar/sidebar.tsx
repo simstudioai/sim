@@ -7,7 +7,6 @@ import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   getKeyboardShortcutText,

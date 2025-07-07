@@ -12,7 +12,6 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import type { SubBlockConfig } from '@/blocks/types'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   type Credential,
@@ -22,6 +21,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { OAuthRequiredModal } from './components/oauth-required-modal'
 
