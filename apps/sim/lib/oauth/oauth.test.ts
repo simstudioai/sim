@@ -82,7 +82,11 @@ describe('OAuth Token Refresh', () => {
         endpoint: 'https://discord.com/api/v10/oauth2/token',
       },
       { name: 'Linear', providerId: 'linear', endpoint: 'https://api.linear.app/oauth/token' },
-      { name: 'Reddit', providerId: 'reddit', endpoint: 'https://www.reddit.com/api/v1/access_token' },
+      {
+        name: 'Reddit',
+        providerId: 'reddit',
+        endpoint: 'https://www.reddit.com/api/v1/access_token',
+      },
     ]
 
     basicAuthProviders.forEach(({ name, providerId, endpoint }) => {

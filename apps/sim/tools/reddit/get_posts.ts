@@ -84,7 +84,9 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
         if (response.status === 403 || response.status === 429) {
           throw new Error('Reddit API access blocked or rate limited. Please try again later.')
         }
-        throw new Error(`Reddit API returned ${response.status}: ${response.statusText}. Body: ${errorText}`)
+        throw new Error(
+          `Reddit API returned ${response.status}: ${response.statusText}. Body: ${errorText}`
+        )
       }
 
       // Attempt to parse JSON
@@ -99,7 +101,9 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
           responseText,
           contentType: response.headers.get('content-type'),
         })
-        throw new Error(`Failed to parse Reddit API response: Response was not valid JSON. Content: ${responseText}`)
+        throw new Error(
+          `Failed to parse Reddit API response: Response was not valid JSON. Content: ${responseText}`
+        )
       }
 
       // Check if response contains error
