@@ -49,7 +49,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     },
     method: 'GET',
     headers: (params: RedditCommentsParams) => {
-      if (!params.accessToken) {
+      if (!params.accessToken?.trim()) {
         throw new Error('Access token is required for Reddit API')
       }
 
