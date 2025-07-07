@@ -20,7 +20,6 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 const logger = new Logger('TeamsMessageSelector')
@@ -399,15 +398,6 @@ export function TeamsMessageSelector({
 
   // Handle adding a new credential
   const handleAddCredential = () => {
-    const effectiveServiceId = getServiceId()
-    const providerId = getProviderId()
-
-    // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
-
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)

@@ -22,7 +22,6 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { OAuthRequiredModal } from './components/oauth-required-modal'
 
@@ -169,12 +168,6 @@ export function CredentialSelector({
 
   // Handle adding a new credential
   const handleAddCredential = () => {
-    // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', effectiveProviderId)
-
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)

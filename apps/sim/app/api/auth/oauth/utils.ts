@@ -89,6 +89,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
   // Check if the token is expired and needs refreshing
   const now = new Date()
   const tokenExpiry = credential.accessTokenExpiresAt
+  // Only refresh if we have an expiration time AND it's expired AND we have a refresh token
   const needsRefresh = tokenExpiry && tokenExpiry < now && !!credential.refreshToken
 
   if (needsRefresh) {
@@ -166,7 +167,9 @@ export async function refreshAccessTokenIfNeeded(
   // Check if we need to refresh the token
   const expiresAt = credential.accessTokenExpiresAt
   const now = new Date()
-  const needsRefresh = !expiresAt || expiresAt <= now
+  // Only refresh if we have an expiration time AND it's expired
+  // If no expiration time is set (newly created credentials), assume token is valid
+  const needsRefresh = expiresAt && expiresAt <= now
 
   const accessToken = credential.accessToken
 
@@ -233,7 +236,9 @@ export async function refreshTokenIfNeeded(
   // Check if we need to refresh the token
   const expiresAt = credential.accessTokenExpiresAt
   const now = new Date()
-  const needsRefresh = !expiresAt || expiresAt <= now
+  // Only refresh if we have an expiration time AND it's expired
+  // If no expiration time is set (newly created credentials), assume token is valid
+  const needsRefresh = expiresAt && expiresAt <= now
 
   // If token is still valid, return it directly
   if (!needsRefresh || !credential.refreshToken) {

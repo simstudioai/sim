@@ -24,7 +24,6 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('GoogleDrivePicker')
@@ -286,15 +285,6 @@ export function GoogleDrivePicker({
 
   // Handle adding a new credential
   const handleAddCredential = () => {
-    const effectiveServiceId = getServiceId()
-    const providerId = getProviderId()
-
-    // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
-
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)
@@ -399,7 +389,7 @@ export function GoogleDrivePicker({
                   {getFileIcon(selectedFile, 'sm')}
                   <span className='truncate font-normal'>{selectedFile.name}</span>
                 </div>
-              ) : selectedFileId && (isLoadingSelectedFile || !selectedCredentialId) ? (
+              ) : selectedFileId && (isLoadingSelectedFile || selectedCredentialId === '') ? (
                 <div className='flex items-center gap-2'>
                   <RefreshCw className='h-4 w-4 animate-spin' />
                   <span className='text-muted-foreground'>Loading document...</span>
