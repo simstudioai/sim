@@ -297,27 +297,11 @@ export function SubBlock({
       case 'oauth-input':
         return (
           <CredentialSelector
-            value={
-              isPreview ? previewValue || '' : typeof config.value === 'string' ? config.value : ''
-            }
-            onChange={(value) => {
-              // Only allow changes in non-preview mode and when not disabled
-              if (!isPreview && !disabled) {
-                const event = new CustomEvent('update-subblock-value', {
-                  detail: {
-                    blockId,
-                    subBlockId: config.id,
-                    value,
-                  },
-                })
-                window.dispatchEvent(event)
-              }
-            }}
-            provider={config.provider as any}
-            requiredScopes={config.requiredScopes || []}
-            label={config.placeholder || 'Select a credential'}
-            serviceId={config.serviceId}
+            blockId={blockId}
+            subBlock={config}
             disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
           />
         )
       case 'file-selector':
