@@ -31,6 +31,18 @@ export const RedditBlock: BlockConfig<
       ],
     },
 
+    // Reddit OAuth Authentication
+    {
+      id: 'credential',
+      title: 'Reddit Account',
+      type: 'oauth-input',
+      layout: 'full',
+      provider: 'reddit',
+      serviceId: 'reddit',
+      requiredScopes: ['identity', 'read'],
+      placeholder: 'Select Reddit account',
+    },
+
     // Common fields - appear for all actions
     {
       id: 'subreddit',
@@ -151,27 +163,31 @@ export const RedditBlock: BlockConfig<
       },
       params: (inputs) => {
         const action = inputs.action || 'get_posts'
+        const { credential, ...rest } = inputs
 
         if (action === 'get_comments') {
           return {
-            postId: inputs.postId,
-            subreddit: inputs.subreddit,
-            sort: inputs.commentSort,
-            limit: inputs.commentLimit ? Number.parseInt(inputs.commentLimit) : undefined,
+            postId: rest.postId,
+            subreddit: rest.subreddit,
+            sort: rest.commentSort,
+            limit: rest.commentLimit ? Number.parseInt(rest.commentLimit) : undefined,
+            credential: credential,
           }
         }
 
         return {
-          subreddit: inputs.subreddit,
-          sort: inputs.sort,
-          limit: inputs.limit ? Number.parseInt(inputs.limit) : undefined,
-          time: inputs.sort === 'top' ? inputs.time : undefined,
+          subreddit: rest.subreddit,
+          sort: rest.sort,
+          limit: rest.limit ? Number.parseInt(rest.limit) : undefined,
+          time: rest.sort === 'top' ? rest.time : undefined,
+          credential: credential,
         }
       },
     },
   },
   inputs: {
     action: { type: 'string', required: true },
+    credential: { type: 'string', required: true },
     subreddit: { type: 'string', required: true },
     sort: { type: 'string', required: true },
     time: { type: 'string', required: false },
