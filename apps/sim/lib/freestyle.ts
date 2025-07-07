@@ -93,10 +93,10 @@ export async function executeCode(
       nodeModules: packages,
       timeout: null,
       // Add environment variables if needed
-      envVars: Object.entries(process.env).reduce(
+      envVars: Object.entries(env).reduce(
         (acc, [key, value]) => {
           if (value !== undefined) {
-            acc[key] = value
+            acc[key] = value as string
           }
           return acc
         },

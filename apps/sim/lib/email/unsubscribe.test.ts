@@ -6,7 +6,11 @@ import {
   verifyUnsubscribeToken,
 } from './unsubscribe'
 
-vi.stubEnv('BETTER_AUTH_SECRET', 'test-secret-key')
+vi.mock('../env', () => ({
+  env: {
+    BETTER_AUTH_SECRET: 'test-secret-key',
+  },
+}))
 
 describe('unsubscribe utilities', () => {
   const testEmail = 'test@example.com'
@@ -75,10 +79,9 @@ describe('unsubscribe utilities', () => {
     it.concurrent('should handle legacy tokens (2 parts) and default to marketing', () => {
       // Generate a real legacy token using the actual hashing logic to ensure backward compatibility
       const salt = 'abc123'
+      const secret = 'test-secret-key'
       const { createHash } = require('crypto')
-      const hash = createHash('sha256')
-        .update(`${testEmail}:${salt}:${process.env.BETTER_AUTH_SECRET}`)
-        .digest('hex')
+      const hash = createHash('sha256').update(`${testEmail}:${salt}:${secret}`).digest('hex')
       const legacyToken = `${salt}:${hash}`
 
       // This should return valid since we're using the actual legacy format properly

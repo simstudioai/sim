@@ -14,7 +14,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('FolderContextMenu')
@@ -43,6 +45,9 @@ export function FolderContextMenu({
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
+  // Get user permissions for the workspace
+  const userPermissions = useUserPermissionsContext()
+
   const { createFolder, updateFolder, deleteFolder } = useFolderStore()
 
   const handleCreateWorkflow = () => {
@@ -58,12 +63,17 @@ export function FolderContextMenu({
     setShowRenameDialog(true)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (onDelete) {
       onDelete(folderId)
     } else {
-      // Default delete behavior
-      deleteFolder(folderId, workspaceId)
+      // Default delete behavior with proper error handling
+      try {
+        await deleteFolder(folderId, workspaceId)
+        logger.info(`Successfully deleted folder from context menu: ${folderName}`)
+      } catch (error) {
+        logger.error('Failed to delete folder from context menu:', { error, folderId, folderName })
+      }
     }
   }
 
@@ -129,23 +139,46 @@ export function FolderContextMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' onClick={(e) => e.stopPropagation()}>
-          <DropdownMenuItem onClick={handleCreateWorkflow}>
-            <File className='mr-2 h-4 w-4' />
-            New Workflow
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleCreateSubfolder}>
-            <Folder className='mr-2 h-4 w-4' />
-            New Subfolder
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleRename}>
-            <Pencil className='mr-2 h-4 w-4' />
-            Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleDelete} className='text-destructive'>
-            <Trash2 className='mr-2 h-4 w-4' />
-            Delete
-          </DropdownMenuItem>
+          {userPermissions.canEdit && (
+            <>
+              <DropdownMenuItem onClick={handleCreateWorkflow}>
+                <File className='mr-2 h-4 w-4' />
+                New Workflow
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleCreateSubfolder}>
+                <Folder className='mr-2 h-4 w-4' />
+                New Subfolder
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleRename}>
+                <Pencil className='mr-2 h-4 w-4' />
+                Rename
+              </DropdownMenuItem>
+            </>
+          )}
+          {userPermissions.canAdmin ? (
+            <DropdownMenuItem onClick={handleDelete} className='text-destructive'>
+              <Trash2 className='mr-2 h-4 w-4' />
+              Delete
+            </DropdownMenuItem>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <DropdownMenuItem
+                    className='cursor-not-allowed text-muted-foreground opacity-50'
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    <Trash2 className='mr-2 h-4 w-4' />
+                    Delete
+                  </DropdownMenuItem>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Admin access required to delete folders</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

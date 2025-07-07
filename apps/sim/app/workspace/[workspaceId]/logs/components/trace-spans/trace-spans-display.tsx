@@ -27,6 +27,174 @@ interface TraceSpansDisplayProps {
   onExpansionChange?: (expanded: boolean) => void
 }
 
+// Transform raw block data into clean, user-friendly format
+function transformBlockData(data: any, blockType: string, isInput: boolean) {
+  if (!data) return null
+
+  // For input data, filter out sensitive information
+  if (isInput) {
+    const cleanInput = { ...data }
+
+    // Remove sensitive fields
+    if (cleanInput.apiKey) {
+      cleanInput.apiKey = '***'
+    }
+    if (cleanInput.azureApiKey) {
+      cleanInput.azureApiKey = '***'
+    }
+
+    // Remove null/undefined values for cleaner display
+    Object.keys(cleanInput).forEach((key) => {
+      if (cleanInput[key] === null || cleanInput[key] === undefined) {
+        delete cleanInput[key]
+      }
+    })
+
+    return cleanInput
+  }
+
+  // For output data, extract meaningful information based on block type
+  if (data.response) {
+    const response = data.response
+
+    switch (blockType) {
+      case 'agent':
+        return {
+          content: response.content,
+          model: data.model,
+          tokens: data.tokens,
+          toolCalls: response.toolCalls,
+          ...(data.cost && { cost: data.cost }),
+        }
+
+      case 'function':
+        return {
+          result: response.result,
+          stdout: response.stdout,
+          ...(response.executionTime && { executionTime: `${response.executionTime}ms` }),
+        }
+
+      case 'api':
+        return {
+          data: response.data,
+          status: response.status,
+          headers: response.headers,
+        }
+
+      default:
+        // For other block types, show the response content
+        return response
+    }
+  }
+
+  return data
+}
+
+// Component to display block input/output data in a clean, readable format
+function BlockDataDisplay({
+  data,
+  blockType,
+  isInput = false,
+  isError = false,
+}: {
+  data: any
+  blockType?: string
+  isInput?: boolean
+  isError?: boolean
+}) {
+  if (!data) return null
+
+  // Handle different data types
+  const renderValue = (value: any, key?: string): React.ReactNode => {
+    if (value === null) return <span className='text-muted-foreground italic'>null</span>
+    if (value === undefined) return <span className='text-muted-foreground italic'>undefined</span>
+
+    if (typeof value === 'string') {
+      return <span className='break-all text-green-700 dark:text-green-400'>"{value}"</span>
+    }
+
+    if (typeof value === 'number') {
+      return <span className='text-blue-700 dark:text-blue-400'>{value}</span>
+    }
+
+    if (typeof value === 'boolean') {
+      return <span className='text-purple-700 dark:text-purple-400'>{value.toString()}</span>
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) return <span className='text-muted-foreground'>[]</span>
+      return (
+        <div className='space-y-1'>
+          <span className='text-muted-foreground'>[</span>
+          <div className='ml-4 space-y-1'>
+            {value.map((item, index) => (
+              <div key={index} className='flex min-w-0 gap-2'>
+                <span className='flex-shrink-0 text-muted-foreground text-xs'>{index}:</span>
+                <div className='min-w-0 flex-1 overflow-hidden'>{renderValue(item)}</div>
+              </div>
+            ))}
+          </div>
+          <span className='text-muted-foreground'>]</span>
+        </div>
+      )
+    }
+
+    if (typeof value === 'object') {
+      const entries = Object.entries(value)
+      if (entries.length === 0) return <span className='text-muted-foreground'>{'{}'}</span>
+
+      return (
+        <div className='space-y-1'>
+          {entries.map(([objKey, objValue]) => (
+            <div key={objKey} className='flex min-w-0 gap-2'>
+              <span className='flex-shrink-0 font-medium text-orange-700 dark:text-orange-400'>
+                {objKey}:
+              </span>
+              <div className='min-w-0 flex-1 overflow-hidden'>{renderValue(objValue, objKey)}</div>
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    return <span>{String(value)}</span>
+  }
+
+  // Transform the data for better display
+  const transformedData = transformBlockData(data, blockType || 'unknown', isInput)
+
+  // Special handling for error output
+  if (isError && data.error) {
+    return (
+      <div className='space-y-2 text-xs'>
+        <div className='rounded border border-red-200 bg-red-50 p-2 dark:border-red-800 dark:bg-red-950/20'>
+          <div className='mb-1 font-medium text-red-800 dark:text-red-400'>Error</div>
+          <div className='text-red-700 dark:text-red-300'>{data.error}</div>
+        </div>
+        {/* Show other output data if available */}
+        {transformedData &&
+          Object.keys(transformedData).filter((key) => key !== 'error' && key !== 'success')
+            .length > 0 && (
+            <div className='space-y-1'>
+              {Object.entries(transformedData)
+                .filter(([key]) => key !== 'error' && key !== 'success')
+                .map(([key, value]) => (
+                  <div key={key} className='flex gap-2'>
+                    <span className='font-medium text-orange-700 dark:text-orange-400'>{key}:</span>
+                    {renderValue(value, key)}
+                  </div>
+                ))}
+            </div>
+          )}
+      </div>
+    )
+  }
+
+  return (
+    <div className='space-y-1 overflow-hidden text-xs'>{renderValue(transformedData || data)}</div>
+  )
+}
+
 export function TraceSpansDisplay({
   traceSpans,
   totalDuration = 0,
@@ -35,6 +203,30 @@ export function TraceSpansDisplay({
   // Keep track of expanded spans
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set())
 
+  // Function to collect all span IDs recursively (for expand all functionality)
+  const collectAllSpanIds = (spans: TraceSpan[]): string[] => {
+    const ids: string[] = []
+
+    const collectIds = (span: TraceSpan) => {
+      const spanId = span.id || `span-${span.name}-${span.startTime}`
+      ids.push(spanId)
+
+      // Process children
+      if (span.children && span.children.length > 0) {
+        span.children.forEach(collectIds)
+      }
+    }
+
+    spans.forEach(collectIds)
+    return ids
+  }
+
+  const allSpanIds = useMemo(() => {
+    if (!traceSpans || traceSpans.length === 0) return []
+    return collectAllSpanIds(traceSpans)
+  }, [traceSpans])
+
+  // Early return after all hooks
   if (!traceSpans || traceSpans.length === 0) {
     return <div className='text-muted-foreground text-sm'>No trace data available</div>
   }
@@ -60,26 +252,6 @@ export function TraceSpansDisplay({
   // Calculate the actual total workflow duration from start to end
   // This ensures parallel spans are represented correctly in the timeline
   const actualTotalDuration = workflowEndTime - workflowStartTime
-
-  // Function to collect all span IDs recursively (for expand all functionality)
-  const collectAllSpanIds = (spans: TraceSpan[]): string[] => {
-    const ids: string[] = []
-
-    const collectIds = (span: TraceSpan) => {
-      const spanId = span.id || `span-${span.name}-${span.startTime}`
-      ids.push(spanId)
-
-      // Process children
-      if (span.children && span.children.length > 0) {
-        span.children.forEach(collectIds)
-      }
-    }
-
-    spans.forEach(collectIds)
-    return ids
-  }
-
-  const allSpanIds = useMemo(() => collectAllSpanIds(traceSpans), [traceSpans])
 
   // Handle span toggling
   const handleSpanToggle = (spanId: string, expanded: boolean, hasSubItems: boolean) => {
@@ -140,11 +312,14 @@ export function TraceSpansDisplay({
           )}
         </button>
       </div>
-      <div className='overflow-hidden rounded-md border shadow-sm'>
+      <div className='w-full overflow-hidden rounded-md border shadow-sm'>
         {traceSpans.map((span, index) => {
-          const hasSubItems =
+          const hasSubItems = Boolean(
             (span.children && span.children.length > 0) ||
-            (span.toolCalls && span.toolCalls.length > 0)
+              (span.toolCalls && span.toolCalls.length > 0) ||
+              span.input ||
+              span.output
+          )
           return (
             <TraceSpanItem
               key={index}
@@ -433,13 +608,53 @@ function TraceSpanItem({
       {/* Children and tool calls */}
       {expanded && (
         <div>
+          {/* Block Input/Output Data */}
+          {(span.input || span.output) && (
+            <div className='mt-2 ml-8 space-y-3 overflow-hidden'>
+              {/* Input Data */}
+              {span.input && (
+                <div>
+                  <h4 className='mb-2 font-medium text-muted-foreground text-xs'>Input</h4>
+                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3'>
+                    <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
+                  </div>
+                </div>
+              )}
+
+              {/* Output Data */}
+              {span.output && (
+                <div>
+                  <h4 className='mb-2 font-medium text-muted-foreground text-xs'>
+                    {span.status === 'error' ? 'Error Details' : 'Output'}
+                  </h4>
+                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3'>
+                    <BlockDataDisplay
+                      data={span.output}
+                      blockType={span.type}
+                      isInput={false}
+                      isError={span.status === 'error'}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Children and tool calls */}
+      {expanded && (
+        <div>
           {/* Render child spans */}
           {hasChildren && (
             <div>
               {span.children?.map((childSpan, index) => {
-                const childHasSubItems =
+                const childHasSubItems = Boolean(
                   (childSpan.children && childSpan.children.length > 0) ||
-                  (childSpan.toolCalls && childSpan.toolCalls.length > 0)
+                    (childSpan.toolCalls && childSpan.toolCalls.length > 0) ||
+                    childSpan.input ||
+                    childSpan.output
+                )
 
                 return (
                   <TraceSpanItem

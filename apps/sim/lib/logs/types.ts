@@ -95,7 +95,6 @@ export interface WorkflowExecutionLog {
   totalInputCost: number
   totalOutputCost: number
   totalTokens: number
-  primaryModel: string
   metadata: {
     environment: ExecutionEnvironment
     trigger: ExecutionTrigger
@@ -157,6 +156,7 @@ export interface TraceSpan {
   relativeStartMs?: number
   blockId?: string
   input?: Record<string, unknown>
+  output?: Record<string, unknown>
 }
 
 export interface WorkflowExecutionSummary {
@@ -180,7 +180,6 @@ export interface WorkflowExecutionSummary {
     inputCost: number
     outputCost: number
     tokens: number
-    primaryModel: string
   }
   stateSnapshotId: string
   errorSummary?: {
@@ -372,7 +371,6 @@ export interface ExecutionLoggerService {
       totalInputCost: number
       totalOutputCost: number
       totalTokens: number
-      primaryModel: string
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]

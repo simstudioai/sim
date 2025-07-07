@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { processStreamingBlockLogs } from '@/lib/tokenization'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -211,15 +212,22 @@ export function useWorkflowExecution() {
                   result.metadata = { duration: 0, startTime: new Date().toISOString() }
                 }
                 ;(result.metadata as any).source = 'chat'
-                result.logs?.forEach((log: BlockLog) => {
-                  if (streamedContent.has(log.blockId)) {
-                    const content = streamedContent.get(log.blockId) || ''
-                    if (log.output) {
-                      log.output.content = content
+                // Update streamed content and apply tokenization
+                if (result.logs) {
+                  result.logs.forEach((log: BlockLog) => {
+                    if (streamedContent.has(log.blockId)) {
+                      const content = streamedContent.get(log.blockId) || ''
+                      if (log.output) {
+                        log.output.content = content
+                      }
+                      useConsoleStore.getState().updateConsole(log.blockId, content)
                     }
-                    useConsoleStore.getState().updateConsole(log.blockId, content)
-                  }
-                })
+                  })
+
+                  // Process all logs for streaming tokenization
+                  const processedCount = processStreamingBlockLogs(result.logs, streamedContent)
+                  logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
+                }
 
                 controller.enqueue(
                   encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)

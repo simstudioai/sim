@@ -2,13 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import {
-  workflow,
-  workflowBlocks,
-  workflowEdges,
-  workflowSubflows,
-  workspaceMember,
-} from '@/db/schema'
+import { workflow, workspaceMember } from '@/db/schema'
 
 const logger = createLogger('WorkspaceByIdAPI')
 
@@ -26,9 +20,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const workspaceId = id
 
-  // Check if user has read access to this workspace
+  // Check if user has any access to this workspace
   const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-  if (userPermission !== 'read') {
+  if (!userPermission) {
     return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
   }
 
@@ -126,20 +120,10 @@ export async function DELETE(
 
     // Delete workspace and all related data in a transaction
     await db.transaction(async (tx) => {
-      // Get all workflows in this workspace
-      const workspaceWorkflows = await tx
-        .select({ id: workflow.id })
-        .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId))
-
-      // Delete all workflow-related data for each workflow
-      for (const wf of workspaceWorkflows) {
-        await tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, wf.id))
-        await tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, wf.id))
-        await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, wf.id))
-      }
-
-      // Delete all workflows in the workspace
+      // Delete all workflows in the workspace - database cascade will handle all workflow-related data
+      // The database cascade will handle deleting related workflow_blocks, workflow_edges, workflow_subflows,
+      // workflow_logs, workflow_execution_snapshots, workflow_execution_logs, workflow_execution_trace_spans,
+      // workflow_schedule, webhook, marketplace, chat, and memory records
       await tx.delete(workflow).where(eq(workflow.workspaceId, workspaceId))
 
       // Delete workspace members

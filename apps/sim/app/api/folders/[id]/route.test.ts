@@ -40,6 +40,7 @@ describe('Individual Folder API Route', () => {
   }
 
   const { mockAuthenticatedUser, mockUnauthenticated } = mockAuth(TEST_USER)
+  const mockGetUserEntityPermissions = vi.fn()
 
   function createFolderDbMock(options: FolderDbMockOptions = {}) {
     const {
@@ -109,6 +110,12 @@ describe('Individual Folder API Route', () => {
     vi.resetModules()
     vi.clearAllMocks()
     setupCommonApiMocks()
+
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+    vi.doMock('@/lib/permissions/utils', () => ({
+      getUserEntityPermissions: mockGetUserEntityPermissions,
+    }))
   })
 
   afterEach(() => {
@@ -179,6 +186,72 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Unauthorized')
+    })
+
+    it('should return 403 when user has only read permissions', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('read') // Read-only permissions
+
+      const dbMock = createFolderDbMock()
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('PUT', {
+        name: 'Updated Folder',
+      })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { PUT } = await import('./route')
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(403)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('error', 'Write access required to update folders')
+    })
+
+    it('should allow folder update for write permissions', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('write') // Write permissions
+
+      const dbMock = createFolderDbMock()
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('PUT', {
+        name: 'Updated Folder',
+      })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { PUT } = await import('./route')
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('folder')
+    })
+
+    it('should allow folder update for admin permissions', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('admin') // Admin permissions
+
+      const dbMock = createFolderDbMock()
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('PUT', {
+        name: 'Updated Folder',
+      })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { PUT } = await import('./route')
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('folder')
     })
 
     it('should return 400 when trying to set folder as its own parent', async () => {
@@ -385,6 +458,68 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Unauthorized')
+    })
+
+    it('should return 403 when user has only read permissions for delete', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('read') // Read-only permissions
+
+      const dbMock = createFolderDbMock()
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('DELETE')
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { DELETE } = await import('./route')
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(403)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('error', 'Admin access required to delete folders')
+    })
+
+    it('should return 403 when user has only write permissions for delete', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('write') // Write permissions (not enough for delete)
+
+      const dbMock = createFolderDbMock()
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('DELETE')
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { DELETE } = await import('./route')
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(403)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('error', 'Admin access required to delete folders')
+    })
+
+    it('should allow folder deletion for admin permissions', async () => {
+      mockAuthenticatedUser()
+      mockGetUserEntityPermissions.mockResolvedValue('admin') // Admin permissions
+
+      const dbMock = createFolderDbMock({
+        folderLookupResult: mockFolder,
+      })
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('DELETE')
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { DELETE } = await import('./route')
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('success', true)
     })
 
     it('should handle database errors during deletion', async () => {

@@ -3,11 +3,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
+import { workflow } from '@/db/schema'
 
 const logger = createLogger('WorkflowByIdAPI')
 
@@ -206,16 +207,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Delete workflow and all related data in a transaction
-    await db.transaction(async (tx) => {
-      // Delete from normalized tables first (foreign key constraints)
-      await tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId))
-      await tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId))
-      await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
-
-      // Delete the main workflow record
-      await tx.delete(workflow).where(eq(workflow.id, workflowId))
-    })
+    await db.delete(workflow).where(eq(workflow.id, workflowId))
 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully deleted workflow ${workflowId} in ${elapsed}ms`)
@@ -224,7 +216,7 @@ export async function DELETE(
     // This prevents "Block not found" errors when collaborative updates try to process
     // after the workflow has been deleted
     try {
-      const socketUrl = process.env.SOCKET_SERVER_URL || 'http://localhost:3002'
+      const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
       const socketResponse = await fetch(`${socketUrl}/api/workflow-deleted`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
