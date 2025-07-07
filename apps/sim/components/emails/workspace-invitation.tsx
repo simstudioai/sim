@@ -1,55 +1,100 @@
 import {
   Body,
-  Column,
   Container,
   Head,
+  Heading,
   Html,
   Img,
   Link,
   Preview,
-  Row,
   Section,
   Text,
+  Row,
+  Column,
 } from '@react-email/components'
-import { env } from '@/lib/env'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
+import { whitelabelConfig } from '@/lib/whitelabel'
 
 interface WorkspaceInvitationEmailProps {
-  workspaceName?: string
+  workspaceName: string
+  inviteUrl: string
   inviterName?: string
-  invitationLink?: string
+  inviterEmail?: string
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const baseUrl = whitelabelConfig.appUrl
+
+const baseStyles = {
+  main: {
+    backgroundColor: '#ffffff',
+    fontFamily:
+      '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
+  },
+  container: {
+    margin: '0 auto',
+    padding: '20px 0 48px',
+    maxWidth: '560px',
+  },
+  sectionsBorders: {
+    width: '100%',
+    borderBottom: '1px solid #e6ebf1',
+    borderLeft: '1px solid #e6ebf1',
+    borderRight: '1px solid #e6ebf1',
+  },
+  sectionBorder: {
+    borderBottom: '1px solid #e6ebf1',
+    borderLeft: '1px solid #e6ebf1',
+    borderRight: '1px solid #e6ebf1',
+  },
+  sectionCenter: {
+    padding: '0 40px',
+  },
+  section: {
+    padding: '0 40px',
+  },
+  sectionText: {
+    fontSize: '16px',
+    lineHeight: '24px',
+    color: '#525f7f',
+  },
+  sectionLink: {
+    fontSize: '16px',
+    textDecoration: 'underline',
+  },
+  button: {
+    backgroundColor: whitelabelConfig.primaryColor,
+    borderRadius: '8px',
+    color: '#ffffff',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    textDecoration: 'none',
+    textAlign: 'center' as const,
+    display: 'inline-block',
+    padding: '12px 24px',
+    margin: '20px 0',
+  },
+  footer: {
+    borderTop: '1px solid #e6ebf1',
+    color: '#8898aa',
+    fontSize: '12px',
+    lineHeight: '16px',
+    textAlign: 'center' as const,
+    marginTop: '12px',
+    marginBottom: '24px',
+  },
+}
 
 export const WorkspaceInvitationEmail = ({
-  workspaceName = 'Workspace',
-  inviterName = 'Someone',
-  invitationLink = '',
+  workspaceName,
+  inviteUrl,
+  inviterName,
+  inviterEmail,
 }: WorkspaceInvitationEmailProps) => {
-  // Extract token from the link to ensure we're using the correct format
-  let enhancedLink = invitationLink
-
-  try {
-    // If the link is pointing to the API endpoint directly, update it to use the client route
-    if (invitationLink.includes('/api/workspaces/invitations/accept')) {
-      const url = new URL(invitationLink)
-      const token = url.searchParams.get('token')
-      if (token) {
-        enhancedLink = `${baseUrl}/invite/${token}?token=${token}`
-      }
-    }
-  } catch (e) {
-    console.error('Error enhancing invitation link:', e)
-  }
-
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
         <Preview>
-          You've been invited to join the "{workspaceName}" workspace on Sim Studio!
+          You've been invited to join the "{workspaceName}" workspace on {whitelabelConfig.appName}!
         </Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
@@ -58,7 +103,7 @@ export const WorkspaceInvitationEmail = ({
                 <Img
                   src={`${baseUrl}/static/sim.png`}
                   width='114'
-                  alt='Sim Studio'
+                  alt={whitelabelConfig.appName}
                   style={{
                     margin: '0 auto',
                   }}
@@ -75,31 +120,63 @@ export const WorkspaceInvitationEmail = ({
             </Row>
           </Section>
 
-          <Section style={baseStyles.content}>
-            <Text style={baseStyles.paragraph}>Hello,</Text>
-            <Text style={baseStyles.paragraph}>
-              {inviterName} has invited you to join the "{workspaceName}" workspace on Sim Studio!
+          <Section style={baseStyles.section}>
+            <Heading style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'center' }}>
+              You're invited to join the "{workspaceName}" workspace
+            </Heading>
+            <Text style={baseStyles.sectionText}>
+              Hi there,
             </Text>
-            <Text style={baseStyles.paragraph}>
-              Sim Studio is a powerful platform for building, testing, and optimizing AI workflows.
-              Join this workspace to collaborate with your team.
+            <Text style={baseStyles.sectionText}>
+              {inviterName || inviterEmail} has invited you to join the "{workspaceName}" workspace on {whitelabelConfig.appName}.
             </Text>
-            <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
-              <Text style={baseStyles.button}>Accept Invitation</Text>
-            </Link>
-            <Text style={baseStyles.paragraph}>
-              This invitation link will expire in 7 days. If you have any questions or need
-              assistance, feel free to reach out to our support team.
+            <Text style={baseStyles.sectionText}>
+              {whitelabelConfig.appName} is a powerful platform for building and deploying AI agents using a visual canvas interface.
             </Text>
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The Sim Studio Team
+            <Text style={baseStyles.sectionText}>
+              Click the button below to accept the invitation and get started:
+            </Text>
+            <Section style={{ textAlign: 'center' }}>
+              <Link href={inviteUrl} style={baseStyles.button}>
+                Accept Invitation
+              </Link>
+            </Section>
+            <Text style={baseStyles.sectionText}>
+              If the button doesn't work, you can copy and paste this link into your browser:
+            </Text>
+            <Text style={baseStyles.sectionText}>
+              <Link href={inviteUrl} style={baseStyles.sectionLink}>
+                {inviteUrl}
+              </Link>
+            </Text>
+          </Section>
+
+          <Section style={baseStyles.sectionsBorders}>
+            <Row>
+              <Column style={baseStyles.sectionBorder} />
+              <Column style={baseStyles.sectionCenter} />
+              <Column style={baseStyles.sectionBorder} />
+            </Row>
+          </Section>
+
+          <Section style={baseStyles.section}>
+            <Text style={baseStyles.sectionText}>
+              Thanks,<br />
+              The {whitelabelConfig.appName} Team
+            </Text>
+          </Section>
+
+          <Section style={baseStyles.footer}>
+            <Text>
+              © 2024 {whitelabelConfig.companyName}. All rights reserved.
+            </Text>
+            <Text>
+              <Link href={whitelabelConfig.appUrl} style={baseStyles.sectionLink}>
+                {whitelabelConfig.appUrl}
+              </Link>
             </Text>
           </Section>
         </Container>
-
-        <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>
   )

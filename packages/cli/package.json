@@ -1,11 +1,11 @@
 {
-  "name": "simstudio",
+  "name": "247-workforce-cli",
   "version": "0.1.19",
-  "description": "Sim Studio CLI - Run Sim Studio with a single command",
+  "description": "247 Workforce CLI - Run 247 Workforce with a single command",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "simstudio": "dist/index.js"
+    "247-workforce": "dist/index.js"
   },
   "scripts": {
     "build": "bun run build:tsc",
@@ -16,19 +16,19 @@
     "dist"
   ],
   "keywords": [
-    "simstudio",
+    "247-workforce",
     "ai",
     "workflow",
     "ui",
     "cli",
-    "sim",
-    "sim-studio",
+    "workforce",
+    "workforce-automation",
     "agent",
     "agents",
     "automation",
     "docker"
   ],
-  "author": "Sim Studio",
+  "author": "247 Workforce",
   "license": "Apache-2.0",
   "dependencies": {
     "chalk": "^4.1.2",

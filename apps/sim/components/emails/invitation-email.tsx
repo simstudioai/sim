@@ -3,6 +3,7 @@ import {
   Column,
   Container,
   Head,
+  Heading,
   Html,
   Img,
   Link,
@@ -11,49 +12,92 @@ import {
   Section,
   Text,
 } from '@react-email/components'
-import { format } from 'date-fns'
-import { env } from '@/lib/env'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
+import { whitelabelConfig } from '@/lib/whitelabel'
 
 interface InvitationEmailProps {
+  organizationName: string
+  inviteUrl: string
   inviterName?: string
-  organizationName?: string
-  inviteLink?: string
+  inviterEmail?: string
   invitedEmail?: string
   updatedDate?: Date
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const baseUrl = whitelabelConfig.appUrl
+
+const baseStyles = {
+  main: {
+    backgroundColor: '#ffffff',
+    fontFamily:
+      '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
+  },
+  container: {
+    margin: '0 auto',
+    padding: '20px 0 48px',
+    maxWidth: '560px',
+  },
+  sectionsBorders: {
+    width: '100%',
+    borderBottom: '1px solid #e6ebf1',
+    borderLeft: '1px solid #e6ebf1',
+    borderRight: '1px solid #e6ebf1',
+  },
+  sectionBorder: {
+    borderBottom: '1px solid #e6ebf1',
+    borderLeft: '1px solid #e6ebf1',
+    borderRight: '1px solid #e6ebf1',
+  },
+  sectionCenter: {
+    padding: '0 40px',
+  },
+  section: {
+    padding: '0 40px',
+  },
+  sectionText: {
+    fontSize: '16px',
+    lineHeight: '24px',
+    color: '#525f7f',
+  },
+  sectionLink: {
+    fontSize: '16px',
+    textDecoration: 'underline',
+  },
+  button: {
+    backgroundColor: whitelabelConfig.primaryColor,
+    borderRadius: '8px',
+    color: '#ffffff',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    textDecoration: 'none',
+    textAlign: 'center' as const,
+    display: 'inline-block',
+    padding: '12px 24px',
+    margin: '20px 0',
+  },
+  footer: {
+    borderTop: '1px solid #e6ebf1',
+    color: '#8898aa',
+    fontSize: '12px',
+    lineHeight: '16px',
+    textAlign: 'center' as const,
+    marginTop: '12px',
+    marginBottom: '24px',
+  },
+}
 
 export const InvitationEmail = ({
-  inviterName = 'A team member',
-  organizationName = 'an organization',
-  inviteLink = '',
+  organizationName,
+  inviteUrl,
+  inviterName,
+  inviterEmail,
   invitedEmail = '',
   updatedDate = new Date(),
 }: InvitationEmailProps) => {
-  // Extract invitation ID or token from inviteLink if present
-  let enhancedLink = inviteLink
-
-  // Check if link contains an ID (old format) and append token parameter if needed
-  if (inviteLink && !inviteLink.includes('token=')) {
-    try {
-      const url = new URL(inviteLink)
-      const invitationId = url.pathname.split('/').pop()
-      if (invitationId) {
-        enhancedLink = `${baseUrl}/invite/${invitationId}?token=${invitationId}`
-      }
-    } catch (e) {
-      console.error('Error parsing invite link:', e)
-    }
-  }
-
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>You've been invited to join {organizationName} on Sim Studio</Preview>
+        <Preview>You've been invited to join {organizationName} on {whitelabelConfig.appName}</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
@@ -61,7 +105,7 @@ export const InvitationEmail = ({
                 <Img
                   src={`${baseUrl}/static/sim.png`}
                   width='114'
-                  alt='Sim Studio'
+                  alt={whitelabelConfig.appName}
                   style={{
                     margin: '0 auto',
                   }}
@@ -78,40 +122,63 @@ export const InvitationEmail = ({
             </Row>
           </Section>
 
-          <Section style={baseStyles.content}>
-            <Text style={baseStyles.paragraph}>Hello,</Text>
-            <Text style={baseStyles.paragraph}>
-              <strong>{inviterName}</strong> has invited you to join{' '}
-              <strong>{organizationName}</strong> on Sim Studio. Sim Studio is a powerful,
-              user-friendly platform for building, testing, and optimizing agentic workflows.
+          <Section style={baseStyles.section}>
+            <Heading style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'center' }}>
+              You're invited to join {organizationName}
+            </Heading>
+            <Text style={baseStyles.sectionText}>
+              Hi there,
             </Text>
-            <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
-              <Text style={baseStyles.button}>Accept Invitation</Text>
-            </Link>
-            <Text style={baseStyles.paragraph}>
-              This invitation will expire in 48 hours. If you believe this invitation was sent in
-              error, please ignore this email.
+            <Text style={baseStyles.sectionText}>
+              {inviterName || inviterEmail} has invited you to join {organizationName} on {whitelabelConfig.appName}.
             </Text>
-            <Text style={baseStyles.paragraph}>
-              Best regards,
-              <br />
-              The Sim Studio Team
+            <Text style={baseStyles.sectionText}>
+              {whitelabelConfig.appName} is a powerful platform for building and deploying AI agents using a visual canvas interface.
             </Text>
-            <Text
-              style={{
-                ...baseStyles.footerText,
-                marginTop: '40px',
-                textAlign: 'left',
-                color: '#666666',
-              }}
-            >
-              This email was sent on {format(updatedDate, 'MMMM do, yyyy')} to {invitedEmail} with
-              an invitation to join {organizationName} on Sim Studio.
+            <Text style={baseStyles.sectionText}>
+              Click the button below to accept the invitation and get started:
+            </Text>
+            <Section style={{ textAlign: 'center' }}>
+              <Link href={inviteUrl} style={baseStyles.button}>
+                Accept Invitation
+              </Link>
+            </Section>
+            <Text style={baseStyles.sectionText}>
+              If the button doesn't work, you can copy and paste this link into your browser:
+            </Text>
+            <Text style={baseStyles.sectionText}>
+              <Link href={inviteUrl} style={baseStyles.sectionLink}>
+                {inviteUrl}
+              </Link>
+            </Text>
+          </Section>
+
+          <Section style={baseStyles.sectionsBorders}>
+            <Row>
+              <Column style={baseStyles.sectionBorder} />
+              <Column style={baseStyles.sectionCenter} />
+              <Column style={baseStyles.sectionBorder} />
+            </Row>
+          </Section>
+
+          <Section style={baseStyles.section}>
+            <Text style={baseStyles.sectionText}>
+              Thanks,<br />
+              The {whitelabelConfig.appName} Team
+            </Text>
+          </Section>
+
+          <Section style={baseStyles.footer}>
+            <Text>
+              © 2024 {whitelabelConfig.companyName}. All rights reserved.
+            </Text>
+            <Text>
+              <Link href={whitelabelConfig.appUrl} style={baseStyles.sectionLink}>
+                {whitelabelConfig.appUrl}
+              </Link>
             </Text>
           </Section>
         </Container>
-
-        <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>
   )

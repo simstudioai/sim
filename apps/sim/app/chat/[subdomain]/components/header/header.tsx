@@ -1,21 +1,22 @@
 'use client'
 
 import { GithubIcon } from '@/components/icons'
+import { whitelabelConfig } from '@/lib/whitelabel'
 
 interface ChatHeaderProps {
-  chatConfig: {
+  chatConfig?: {
     title?: string
     customizations?: {
-      headerText?: string
-      logoUrl?: string
       primaryColor?: string
+      logoUrl?: string
+      headerText?: string
     }
-  } | null
-  starCount: string
+  }
+  starCount?: string
 }
 
 export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
-  const primaryColor = chatConfig?.customizations?.primaryColor || '#701FFC'
+  const primaryColor = chatConfig?.customizations?.primaryColor || whitelabelConfig.primaryColor
 
   return (
     <div className='flex items-center justify-between bg-background/95 px-5 py-3 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:px-6 md:pt-3'>
@@ -33,7 +34,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
       </div>
       <div className='flex items-center gap-2'>
         <a
-          href='https://github.com/simstudioai/sim'
+          href={whitelabelConfig.githubUrl}
           className='flex items-center gap-1 text-foreground'
           aria-label='GitHub'
           target='_blank'
@@ -43,7 +44,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
           <span className='hidden font-medium text-xs sm:inline-block'>{starCount}</span>
         </a>
         <a
-          href='https://simstudio.ai'
+          href={whitelabelConfig.appUrl}
           target='_blank'
           rel='noopener noreferrer'
           className='flex items-center rounded-md p-1 text-foreground/80 transition-colors duration-200 hover:text-foreground/100'

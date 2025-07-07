@@ -8,16 +8,16 @@ import { createInterface } from 'readline'
 import chalk from 'chalk'
 import { Command } from 'commander'
 
-const NETWORK_NAME = 'simstudio-network'
-const DB_CONTAINER = 'simstudio-db'
-const MIGRATIONS_CONTAINER = 'simstudio-migrations'
-const REALTIME_CONTAINER = 'simstudio-realtime'
-const APP_CONTAINER = 'simstudio-app'
+const NETWORK_NAME = '247-workforce-network'
+const DB_CONTAINER = '247-workforce-db'
+const MIGRATIONS_CONTAINER = '247-workforce-migrations'
+const REALTIME_CONTAINER = '247-workforce-realtime'
+const APP_CONTAINER = '247-workforce-app'
 const DEFAULT_PORT = '3000'
 
 const program = new Command()
 
-program.name('simstudio').description('Run Sim Studio using Docker').version('0.1.0')
+program.name('247-workforce').description('Run 247 Workforce using Docker').version('0.1.0')
 
 program
   .option('-p, --port <port>', 'Port to run Sim Studio on', DEFAULT_PORT)

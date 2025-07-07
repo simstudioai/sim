@@ -106,6 +106,25 @@ export const env = createEnv({
     SOCKET_SERVER_URL: z.string().url().optional(),
     SOCKET_PORT: z.number().optional(),
     PORT: z.number().optional(),
+
+    // Whitelabel Configuration
+    WHITELABEL_APP_NAME: z.string().optional(),
+    WHITELABEL_APP_DESCRIPTION: z.string().optional(),
+    WHITELABEL_COMPANY_NAME: z.string().optional(),
+    WHITELABEL_PRIMARY_COLOR: z.string().optional(),
+    WHITELABEL_SECONDARY_COLOR: z.string().optional(),
+    WHITELABEL_APP_URL: z.string().url().optional(),
+    WHITELABEL_DOCS_URL: z.string().url().optional(),
+    WHITELABEL_SUPPORT_URL: z.string().url().optional(),
+    WHITELABEL_TWITTER_HANDLE: z.string().optional(),
+    WHITELABEL_GITHUB_URL: z.string().url().optional(),
+    WHITELABEL_DISCORD_URL: z.string().url().optional(),
+    WHITELABEL_ENABLE_TELEMETRY: z.boolean().optional(),
+    WHITELABEL_ENABLE_ANALYTICS: z.boolean().optional(),
+    WHITELABEL_ENABLE_MARKETPLACE: z.boolean().optional(),
+    WHITELABEL_CUSTOM_LOGO_URL: z.string().url().optional(),
+    WHITELABEL_CUSTOM_FAVICON_URL: z.string().url().optional(),
+    WHITELABEL_CUSTOM_EMAIL_TEMPLATE: z.string().optional(),
   },
 
   client: {
