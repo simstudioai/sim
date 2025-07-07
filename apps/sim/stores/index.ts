@@ -9,6 +9,7 @@ import { useNotificationStore } from './notifications/store'
 import { useConsoleStore } from './panel/console/store'
 import { useVariablesStore } from './panel/variables/store'
 import { useEnvironmentStore } from './settings/environment/store'
+import { useSubscriptionStore } from './subscription/store'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
@@ -206,6 +207,7 @@ export {
   useCustomToolsStore,
   useVariablesStore,
   useSubBlockStore,
+  useSubscriptionStore,
 }
 
 // Helper function to reset all stores
@@ -231,6 +233,7 @@ export const resetAllStores = () => {
   useCopilotStore.setState({ messages: [], isSendingMessage: false, error: null })
   useCustomToolsStore.setState({ tools: {} })
   useVariablesStore.getState().resetLoaded() // Reset variables store tracking
+  useSubscriptionStore.getState().reset() // Reset subscription store
 }
 
 // Helper function to log all store states
@@ -246,6 +249,7 @@ export const logAllStores = () => {
     customTools: useCustomToolsStore.getState(),
     subBlock: useSubBlockStore.getState(),
     variables: useVariablesStore.getState(),
+    subscription: useSubscriptionStore.getState(),
   }
 
   return state

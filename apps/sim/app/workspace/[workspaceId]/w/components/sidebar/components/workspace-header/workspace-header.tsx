@@ -32,6 +32,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useSidebarStore } from '@/stores/sidebar/store'
+import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkspaceHeader')
@@ -243,7 +244,17 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
       useSidebarStore()
 
     const { data: sessionData, isPending } = useSession()
-    const [plan, setPlan] = useState('Free Plan')
+
+    const { getSubscriptionStatus } = useSubscriptionStore()
+    const subscription = getSubscriptionStatus()
+    const plan = subscription.isPro
+      ? 'Pro Plan'
+      : subscription.isTeam
+        ? 'Team Plan'
+        : subscription.isEnterprise
+          ? 'Enterprise Plan'
+          : 'Free Plan'
+
     // Use client-side loading instead of isPending to avoid hydration mismatch
     const [isClientLoading, setIsClientLoading] = useState(true)
     const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -271,16 +282,6 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
     // Set isClientLoading to false after hydration
     useEffect(() => {
       setIsClientLoading(false)
-    }, [])
-
-    const fetchSubscriptionStatus = useCallback(async (userId: string) => {
-      try {
-        const response = await fetch('/api/user/subscription')
-        const data = await response.json()
-        setPlan(data.isPro ? 'Pro Plan' : 'Free Plan')
-      } catch (err) {
-        logger.error('Error fetching subscription status:', err)
-      }
     }, [])
 
     const fetchWorkspaces = useCallback(async () => {
@@ -327,10 +328,9 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
     useEffect(() => {
       // Fetch subscription status if user is logged in
       if (sessionData?.user?.id) {
-        fetchSubscriptionStatus(sessionData.user.id)
         fetchWorkspaces()
       }
-    }, [sessionData?.user?.id, fetchSubscriptionStatus, fetchWorkspaces])
+    }, [sessionData?.user?.id, fetchWorkspaces])
 
     const switchWorkspace = useCallback(
       async (workspace: Workspace) => {
