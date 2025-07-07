@@ -4,7 +4,7 @@ import type { RedditHotPostsResponse, RedditPost } from './types'
 interface HotPostsParams {
   subreddit: string
   limit?: number
-  accessToken?: string
+  accessToken: string
 }
 
 export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = {
