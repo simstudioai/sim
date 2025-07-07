@@ -135,6 +135,7 @@ export const auth = betterAuth({
         'notion',
         'microsoft',
         'slack',
+        'reddit',
       ],
     },
   },
@@ -820,6 +821,57 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in Notion getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        // Reddit provider
+        {
+          providerId: 'reddit',
+          clientId: env.REDDIT_CLIENT_ID as string,
+          clientSecret: env.REDDIT_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.reddit.com/api/v1/authorize',
+          tokenUrl: 'https://www.reddit.com/api/v1/access_token',
+          userInfoUrl: 'https://oauth.reddit.com/api/v1/me',
+          scopes: ['identity', 'read'],
+          responseType: 'code',
+          pkce: false,
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/reddit`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://oauth.reddit.com/api/v1/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  'User-Agent': 'sim-studio/1.0',
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Reddit user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const data = await response.json()
+              const now = new Date()
+
+              return {
+                id: data.id,
+                name: data.name || 'Reddit User',
+                email: `${data.name}@reddit.user`, // Reddit doesn't provide email in identity scope
+                image: data.icon_img || null,
+                emailVerified: false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Reddit getUserInfo:', { error })
               return null
             }
           },

@@ -17,6 +17,7 @@ import {
   MicrosoftTeamsIcon,
   NotionIcon,
   OutlookIcon,
+  RedditIcon,
   SlackIcon,
   SupabaseIcon,
   xIcon,
@@ -39,6 +40,7 @@ export type OAuthProvider =
   | 'microsoft'
   | 'linear'
   | 'slack'
+  | 'reddit'
   | string
 
 export type OAuthService =
@@ -61,6 +63,7 @@ export type OAuthService =
   | 'outlook'
   | 'linear'
   | 'slack'
+  | 'reddit'
 
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -387,6 +390,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'slack',
   },
+  reddit: {
+    id: 'reddit',
+    name: 'Reddit',
+    icon: (props) => RedditIcon(props),
+    services: {
+      reddit: {
+        id: 'reddit',
+        name: 'Reddit',
+        description: 'Access Reddit data and content from subreddits.',
+        providerId: 'reddit',
+        icon: (props) => RedditIcon(props),
+        baseProviderIcon: (props) => RedditIcon(props),
+        scopes: ['identity', 'read'],
+      },
+    },
+    defaultService: 'reddit',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -693,6 +713,18 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+      }
+    }
+    case 'reddit': {
+      const { clientId, clientSecret } = getCredentials(
+        env.REDDIT_CLIENT_ID,
+        env.REDDIT_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://www.reddit.com/api/v1/access_token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
       }
     }
     default:

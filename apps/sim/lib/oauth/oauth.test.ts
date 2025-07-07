@@ -26,6 +26,8 @@ vi.mock('../env', () => ({
     LINEAR_CLIENT_SECRET: 'linear_client_secret',
     SLACK_CLIENT_ID: 'slack_client_id',
     SLACK_CLIENT_SECRET: 'slack_client_secret',
+    REDDIT_CLIENT_ID: 'reddit_client_id',
+    REDDIT_CLIENT_SECRET: 'reddit_client_secret',
   },
 }))
 
@@ -80,6 +82,11 @@ describe('OAuth Token Refresh', () => {
         endpoint: 'https://discord.com/api/v10/oauth2/token',
       },
       { name: 'Linear', providerId: 'linear', endpoint: 'https://api.linear.app/oauth/token' },
+      {
+        name: 'Reddit',
+        providerId: 'reddit',
+        endpoint: 'https://www.reddit.com/api/v1/access_token',
+      },
     ]
 
     basicAuthProviders.forEach(({ name, providerId, endpoint }) => {
