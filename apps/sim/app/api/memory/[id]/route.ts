@@ -129,9 +129,7 @@ export async function DELETE(
     }
 
     // Hard delete the memory
-    await db
-      .delete(memory)
-      .where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
+    await db.delete(memory).where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
 
     logger.info(`[${requestId}] Memory deleted successfully: ${id} for workflow: ${workflowId}`)
     return NextResponse.json(
