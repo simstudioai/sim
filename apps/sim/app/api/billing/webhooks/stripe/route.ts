@@ -1,15 +1,12 @@
 import { headers } from 'next/headers'
 import { type NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
+import type Stripe from 'stripe'
+import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { handleInvoiceWebhook } from '@/lib/billing/webhooks/stripe-invoice-webhooks'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('StripeInvoiceWebhook')
-
-const stripe = new Stripe(env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-02-24.acacia',
-})
 
 /**
  * Stripe billing webhook endpoint for invoice-related events
@@ -30,6 +27,17 @@ export async function POST(request: NextRequest) {
     if (!env.STRIPE_WEBHOOK_SECRET) {
       logger.error('Missing Stripe webhook secret configuration')
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
+    }
+
+    // Check if Stripe client is available
+    let stripe
+    try {
+      stripe = requireStripeClient()
+    } catch (stripeError) {
+      logger.error('Stripe client not available for webhook processing', {
+        error: stripeError,
+      })
+      return NextResponse.json({ error: 'Stripe client not configured' }, { status: 500 })
     }
 
     // Verify webhook signature

@@ -1,18 +1,13 @@
 import { eq } from 'drizzle-orm'
-import Stripe from 'stripe'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { member, organization, subscription, user, userStats } from '@/db/schema'
+import { requireStripeClient } from '../stripe-client'
 import { resetOrganizationBillingPeriod, resetUserBillingPeriod } from './billing-periods'
 import { getHighestPrioritySubscription } from './subscription'
 import { getUserUsageData } from './usage'
 
 const logger = createLogger('Billing')
-
-const stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-02-24.acacia',
-})
 
 interface BillingResult {
   success: boolean
@@ -120,6 +115,7 @@ export async function createOverageBillingInvoice(
     }
 
     // Create invoice item for overage only
+    const stripeClient = requireStripeClient()
     const invoiceItem = await stripeClient.invoiceItems.create({
       customer: customerId,
       amount: Math.round(overageAmount * 100), // Convert to cents
