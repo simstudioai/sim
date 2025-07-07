@@ -585,7 +585,7 @@ export const organization = pgTable('organization', {
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   logo: text('logo'),
-  metadata: json('metadata'), // Use for storing Stripe customer ID and other billing data
+  metadata: json('metadata'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

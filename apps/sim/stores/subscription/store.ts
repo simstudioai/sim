@@ -12,10 +12,8 @@ import type {
 
 const logger = createLogger('SubscriptionStore')
 
-// Cache duration: 30 seconds (reasonable for subscription data)
 const CACHE_DURATION = 30 * 1000
 
-// Default values to avoid null checks throughout the app
 const defaultFeatures: SubscriptionFeatures = {
   sharingEnabled: false,
   multiplayerEnabled: false,
@@ -31,15 +29,6 @@ const defaultUsage: UsageData = {
   billingPeriodStart: null,
   billingPeriodEnd: null,
   lastPeriodCost: 0,
-}
-
-const defaultUsageLimit: UsageLimitData = {
-  currentLimit: 5,
-  canEdit: false,
-  minimumLimit: 5,
-  plan: 'free',
-  setBy: undefined,
-  updatedAt: undefined,
 }
 
 export const useSubscriptionStore = create<SubscriptionStore>()(
