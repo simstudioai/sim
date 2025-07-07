@@ -58,6 +58,22 @@ export function WorkflowPreview({
   defaultZoom,
   onNodeClick,
 }: WorkflowPreviewProps) {
+  // Handle migrated logs that don't have complete workflow state
+  if (!workflowState || !workflowState.blocks || !workflowState.edges) {
+    return (
+      <div
+        style={{ height, width }}
+        className='flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'
+      >
+        <div className='text-center text-gray-500 dark:text-gray-400'>
+          <div className='mb-2 font-medium text-lg'>⚠️ Logged State Not Found</div>
+          <div className='text-sm'>
+            This log was migrated from the old system and doesn't contain workflow state data.
+          </div>
+        </div>
+      </div>
+    )
+  }
   const blocksStructure = useMemo(
     () => ({
       count: Object.keys(workflowState.blocks || {}).length,
@@ -84,8 +100,8 @@ export function WorkflowPreview({
 
   const edgesStructure = useMemo(
     () => ({
-      count: workflowState.edges.length,
-      ids: workflowState.edges.map((e) => e.id).join(','),
+      count: workflowState.edges?.length || 0,
+      ids: workflowState.edges?.map((e) => e.id).join(',') || '',
     }),
     [workflowState.edges]
   )
@@ -115,7 +131,7 @@ export function WorkflowPreview({
   const nodes: Node[] = useMemo(() => {
     const nodeArray: Node[] = []
 
-    Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
+    Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
       if (!block || !block.type) {
         logger.warn(`Skipping invalid block: ${blockId}`)
         return
@@ -186,7 +202,7 @@ export function WorkflowPreview({
       })
 
       if (block.type === 'loop') {
-        const childBlocks = Object.entries(workflowState.blocks).filter(
+        const childBlocks = Object.entries(workflowState.blocks || {}).filter(
           ([_, childBlock]) => childBlock.data?.parentId === blockId
         )
 
@@ -223,7 +239,7 @@ export function WorkflowPreview({
   }, [blocksStructure, loopsStructure, parallelsStructure, showSubBlocks, workflowState.blocks])
 
   const edges: Edge[] = useMemo(() => {
-    return workflowState.edges.map((edge) => ({
+    return (workflowState.edges || []).map((edge) => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
