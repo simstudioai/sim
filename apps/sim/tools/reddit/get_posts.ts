@@ -93,7 +93,9 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       let data
       try {
         data = await response.json()
-        console.log('Reddit API Response:', JSON.stringify(data, null, 2))
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Reddit API Response:', JSON.stringify(data, null, 2))
+        }
       } catch (error) {
         const responseText = await response.text()
         console.error('Failed to parse Reddit API response as JSON:', {
