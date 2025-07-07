@@ -23,17 +23,17 @@ export function calculateBillingPeriod(
     const start = new Date(subscriptionPeriodStart)
     const end = new Date(subscriptionPeriodEnd)
 
-    // If we're past the current period, calculate the next period
+    // If we're past the current period, calculate the next period using calendar months
     if (now >= end) {
-      const cycleDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
       const newStart = new Date(end)
       const newEnd = new Date(end)
-      newEnd.setDate(newEnd.getDate() + cycleDays)
+
+      // Use UTC methods to avoid timezone issues
+      newEnd.setUTCMonth(newEnd.getUTCMonth() + 1)
 
       logger.info('Calculated next billing period from subscription dates', {
         originalStart: subscriptionPeriodStart,
         originalEnd: subscriptionPeriodEnd,
-        cycleDays,
         newStart,
         newEnd,
       })
@@ -54,13 +54,13 @@ export function calculateBillingPeriod(
     const start = new Date(subscriptionPeriodStart)
     const end = new Date(start)
 
-    // Add one month to start date
-    end.setMonth(end.getMonth() + 1)
+    // Add one month to start date using UTC to avoid timezone issues
+    end.setUTCMonth(end.getUTCMonth() + 1)
 
     // If we're past the end date, calculate the current period
     while (end <= now) {
-      start.setMonth(start.getMonth() + 1)
-      end.setMonth(end.getMonth() + 1)
+      start.setUTCMonth(start.getUTCMonth() + 1)
+      end.setUTCMonth(end.getUTCMonth() + 1)
     }
 
     logger.info('Calculated billing period from subscription start date', {
@@ -95,8 +95,8 @@ export function calculateNextBillingPeriod(periodEnd: Date): {
   const start = new Date(periodEnd)
   const end = new Date(start)
 
-  // Add one month for the next period
-  end.setMonth(end.getMonth() + 1)
+  // Add one month for the next period using UTC to avoid timezone issues
+  end.setUTCMonth(end.getUTCMonth() + 1)
 
   logger.info('Calculated next billing period', {
     previousPeriodEnd: periodEnd,

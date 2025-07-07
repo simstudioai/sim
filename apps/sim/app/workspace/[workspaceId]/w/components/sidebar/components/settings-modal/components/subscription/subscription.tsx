@@ -57,6 +57,10 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     async (targetPlan: 'pro' | 'team') => {
       if (!session?.user?.id) return
 
+      // Get current subscription data including stripeSubscriptionId
+      const subscriptionData = useSubscriptionStore.getState().subscriptionData
+      const currentSubscriptionId = subscriptionData?.stripeSubscriptionId
+
       let referenceId = session.user.id
       if (subscription.isTeam && activeOrgId) {
         referenceId = activeOrgId
@@ -69,13 +73,30 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           'upgrade' in betterAuthSubscription &&
           typeof betterAuthSubscription.upgrade === 'function'
         ) {
-          await betterAuthSubscription.upgrade({
+          const upgradeParams: any = {
             plan: targetPlan,
             referenceId,
             successUrl: currentUrl,
             cancelUrl: currentUrl,
             seats: targetPlan === 'team' ? 1 : undefined,
-          })
+          }
+
+          // Add subscriptionId if we have an existing subscription to ensure proper plan switching
+          if (currentSubscriptionId) {
+            upgradeParams.subscriptionId = currentSubscriptionId
+            logger.info('Upgrading existing subscription', {
+              targetPlan,
+              currentSubscriptionId,
+              referenceId,
+            })
+          } else {
+            logger.info('Creating new subscription (no existing subscription found)', {
+              targetPlan,
+              referenceId,
+            })
+          }
+
+          await betterAuthSubscription.upgrade(upgradeParams)
         } else {
           logger.warn('Stripe upgrade not available - development mode or missing configuration', {
             targetPlan,

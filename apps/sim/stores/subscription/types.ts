@@ -33,6 +33,7 @@ export interface SubscriptionData {
   status: string | null
   seats: number | null
   metadata: any | null
+  stripeSubscriptionId: string | null
   features: SubscriptionFeatures
   usage: UsageData
 }
