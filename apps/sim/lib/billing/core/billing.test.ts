@@ -28,6 +28,16 @@ vi.mock('@/lib/billing/core/usage', () => ({
   getUserUsageData: vi.fn(),
 }))
 
+vi.mock('../stripe-client', () => ({
+  getStripeClient: vi.fn().mockReturnValue(null),
+  requireStripeClient: vi.fn().mockImplementation(() => {
+    throw new Error(
+      'Stripe client is not available. Set STRIPE_SECRET_KEY in your environment variables.'
+    )
+  }),
+  hasValidStripeCredentials: vi.fn().mockReturnValue(false),
+}))
+
 describe('Billing Core Functions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -144,26 +154,12 @@ describe('Billing Core Functions', () => {
     })
   })
 
-  describe('calculateUserOverage', () => {
-    // Skip these tests for now as they require complex async mocking
-    it.skip('calculates overage correctly for pro user', async () => {
-      // This test is skipped due to complex async mocking requirements
-      expect(true).toBe(true)
-    })
+  describe('Stripe client integration', () => {
+    it.concurrent('does not fail when Stripe credentials are not available', async () => {
+      const result = await getUsersAndOrganizationsForOverageBilling()
 
-    it.skip('returns zero overage when usage is below base price', async () => {
-      // This test is skipped due to complex async mocking requirements
-      expect(true).toBe(true)
-    })
-
-    it.skip('handles free plan users correctly', async () => {
-      // This test is skipped due to complex async mocking requirements
-      expect(true).toBe(true)
-    })
-
-    it.skip('returns null for non-existent user', async () => {
-      // This test is skipped due to complex async mocking requirements
-      expect(true).toBe(true)
+      expect(result).toHaveProperty('users')
+      expect(result).toHaveProperty('organizations')
     })
   })
 
