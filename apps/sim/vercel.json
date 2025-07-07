@@ -13,8 +13,8 @@
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/billing/monthly",
-      "schedule": "0 0 1 * *"
+      "path": "/api/billing/daily",
+      "schedule": "0 2 * * *"
     }
   ]
 }

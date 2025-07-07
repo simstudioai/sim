@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { member, organization, subscription, user } from '@/db/schema'
+import { member, organization, subscription, user, userStats } from '@/db/schema'
 import { resetOrganizationBillingPeriod, resetUserBillingPeriod } from './billing-periods'
 import { getHighestPrioritySubscription } from './subscription'
 import { getUserUsageData } from './usage'
@@ -32,7 +32,7 @@ interface BillingResult {
 /**
  * Get plan pricing information
  */
-function getPlanPricing(
+export function getPlanPricing(
   plan: string,
   subscription?: any
 ): {
@@ -444,13 +444,23 @@ export async function processOrganizationOverageBilling(
 }
 
 /**
- * Get all users and organizations that need overage billing
+ * Get users and organizations whose billing periods end today
  */
 export async function getUsersAndOrganizationsForOverageBilling(): Promise<{
   users: string[]
   organizations: string[]
 }> {
   try {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Start of today
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1) // Start of tomorrow
+
+    logger.info('Checking for subscriptions with billing periods ending today', {
+      today: today.toISOString(),
+      tomorrow: tomorrow.toISOString(),
+    })
+
     // Get all active subscriptions (excluding free plans)
     const activeSubscriptions = await db
       .select()
@@ -465,39 +475,84 @@ export async function getUsersAndOrganizationsForOverageBilling(): Promise<{
         continue // Skip free plans
       }
 
-      // Check if referenceId is a user or organization
-      const userExists = await db
-        .select({ id: user.id })
-        .from(user)
-        .where(eq(user.id, sub.referenceId))
-        .limit(1)
+      // Check if subscription period ends today
+      let shouldBillToday = false
 
-      if (userExists.length > 0) {
-        // It's a user subscription (pro plan)
-        users.push(sub.referenceId)
+      if (sub.periodEnd) {
+        const periodEnd = new Date(sub.periodEnd)
+        periodEnd.setHours(0, 0, 0, 0) // Normalize to start of day
+
+        // Bill if the subscription period ends today
+        if (periodEnd.getTime() === today.getTime()) {
+          shouldBillToday = true
+          logger.info('Subscription period ends today', {
+            referenceId: sub.referenceId,
+            plan: sub.plan,
+            periodEnd: sub.periodEnd,
+          })
+        }
       } else {
-        // Check if it's an organization
-        const orgExists = await db
-          .select({ id: organization.id })
-          .from(organization)
-          .where(eq(organization.id, sub.referenceId))
+        // Fallback: Check userStats billing period for users
+        const userStatsRecord = await db
+          .select({
+            billingPeriodEnd: userStats.billingPeriodEnd,
+          })
+          .from(userStats)
+          .where(eq(userStats.userId, sub.referenceId))
           .limit(1)
 
-        if (orgExists.length > 0) {
-          // It's an organization subscription (team/enterprise)
-          organizations.push(sub.referenceId)
+        if (userStatsRecord.length > 0 && userStatsRecord[0].billingPeriodEnd) {
+          const billingPeriodEnd = new Date(userStatsRecord[0].billingPeriodEnd)
+          billingPeriodEnd.setHours(0, 0, 0, 0) // Normalize to start of day
+
+          if (billingPeriodEnd.getTime() === today.getTime()) {
+            shouldBillToday = true
+            logger.info('User billing period ends today (from userStats)', {
+              userId: sub.referenceId,
+              plan: sub.plan,
+              billingPeriodEnd: userStatsRecord[0].billingPeriodEnd,
+            })
+          }
+        }
+      }
+
+      if (shouldBillToday) {
+        // Check if referenceId is a user or organization
+        const userExists = await db
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.id, sub.referenceId))
+          .limit(1)
+
+        if (userExists.length > 0) {
+          // It's a user subscription (pro plan)
+          users.push(sub.referenceId)
+        } else {
+          // Check if it's an organization
+          const orgExists = await db
+            .select({ id: organization.id })
+            .from(organization)
+            .where(eq(organization.id, sub.referenceId))
+            .limit(1)
+
+          if (orgExists.length > 0) {
+            // It's an organization subscription (team/enterprise)
+            organizations.push(sub.referenceId)
+          }
         }
       }
     }
 
-    logger.info('Found entities for overage billing', {
+    logger.info('Found entities for daily billing check', {
       userCount: users.length,
       organizationCount: organizations.length,
+      users,
+      organizations,
     })
 
     return { users, organizations }
   } catch (error) {
-    logger.error('Failed to get entities for overage billing', { error })
+    logger.error('Failed to get entities for daily billing check', { error })
     return { users: [], organizations: [] }
   }
 }
@@ -734,9 +789,9 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
 }
 
 /**
- * Process monthly overage billing for all users and organizations
+ * Process daily billing check for users and organizations with periods ending today
  */
-export async function processMonthlyOverageBilling(): Promise<{
+export async function processDailyBillingCheck(): Promise<{
   success: boolean
   processedUsers: number
   processedOrganizations: number
@@ -744,7 +799,7 @@ export async function processMonthlyOverageBilling(): Promise<{
   errors: string[]
 }> {
   try {
-    logger.info('Starting monthly overage billing process')
+    logger.info('Starting daily billing check process')
 
     const { users, organizations } = await getUsersAndOrganizationsForOverageBilling()
 
@@ -800,7 +855,7 @@ export async function processMonthlyOverageBilling(): Promise<{
       }
     }
 
-    logger.info('Completed monthly overage billing process', {
+    logger.info('Completed daily billing check process', {
       processedUsers,
       processedOrganizations,
       totalChargedAmount,
@@ -815,13 +870,28 @@ export async function processMonthlyOverageBilling(): Promise<{
       errors,
     }
   } catch (error) {
-    logger.error('Fatal error during monthly overage billing process', { error })
+    logger.error('Fatal error during daily billing check process', { error })
     return {
       success: false,
       processedUsers: 0,
       processedOrganizations: 0,
       totalChargedAmount: 0,
-      errors: [error instanceof Error ? error.message : 'Fatal overage billing process error'],
+      errors: [error instanceof Error ? error.message : 'Fatal daily billing check process error'],
     }
   }
+}
+
+/**
+ * Legacy function for backward compatibility - now redirects to daily billing check
+ * @deprecated Use processDailyBillingCheck instead
+ */
+export async function processMonthlyOverageBilling(): Promise<{
+  success: boolean
+  processedUsers: number
+  processedOrganizations: number
+  totalChargedAmount: number
+  errors: string[]
+}> {
+  logger.warn('processMonthlyOverageBilling is deprecated, use processDailyBillingCheck instead')
+  return processDailyBillingCheck()
 }

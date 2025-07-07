@@ -2,43 +2,10 @@ import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { member, organization, user, userStats } from '@/db/schema'
+import { getPlanPricing } from './billing'
 import { getHighestPrioritySubscription } from './subscription'
 
 const logger = createLogger('OrganizationBilling')
-
-/**
- * Get plan pricing information
- */
-function getPlanPricing(
-  plan: string,
-  subscription?: any
-): {
-  basePrice: number
-  minimum: number
-} {
-  switch (plan) {
-    case 'free':
-      return { basePrice: 0, minimum: 0 } // Free plan has no charges
-    case 'pro':
-      return { basePrice: 20, minimum: 20 } // $20/month subscription
-    case 'team':
-      return { basePrice: 40, minimum: 40 } // $40/seat/month subscription
-    case 'enterprise':
-      // Get per-seat pricing from metadata
-      if (subscription?.metadata) {
-        const metadata =
-          typeof subscription.metadata === 'string'
-            ? JSON.parse(subscription.metadata)
-            : subscription.metadata
-
-        const perSeatPrice = metadata.perSeatAllowance || 100
-        return { basePrice: perSeatPrice, minimum: perSeatPrice }
-      }
-      return { basePrice: 100, minimum: 100 } // Default enterprise pricing
-    default:
-      return { basePrice: 0, minimum: 0 }
-  }
-}
 
 interface OrganizationUsageData {
   organizationId: string

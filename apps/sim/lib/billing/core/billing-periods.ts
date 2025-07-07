@@ -6,34 +6,103 @@ import { member, subscription, userStats } from '@/db/schema'
 const logger = createLogger('BillingPeriodManager')
 
 /**
- * Calculate billing period dates based on subscription
+ * Calculate billing period dates based on subscription for proper Stripe alignment
+ * Supports both subscription start date and full period alignment
  */
-export function calculateBillingPeriod(subscriptionPeriodStart?: Date): {
+export function calculateBillingPeriod(
+  subscriptionPeriodStart?: Date,
+  subscriptionPeriodEnd?: Date
+): {
   start: Date
   end: Date
 } {
   const now = new Date()
 
+  // If we have both subscription dates, use them for perfect alignment
+  if (subscriptionPeriodStart && subscriptionPeriodEnd) {
+    const start = new Date(subscriptionPeriodStart)
+    const end = new Date(subscriptionPeriodEnd)
+
+    // If we're past the current period, calculate the next period
+    if (now >= end) {
+      const cycleDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+      const newStart = new Date(end)
+      const newEnd = new Date(end)
+      newEnd.setDate(newEnd.getDate() + cycleDays)
+
+      logger.info('Calculated next billing period from subscription dates', {
+        originalStart: subscriptionPeriodStart,
+        originalEnd: subscriptionPeriodEnd,
+        cycleDays,
+        newStart,
+        newEnd,
+      })
+
+      return { start: newStart, end: newEnd }
+    }
+
+    logger.info('Using current subscription billing period', {
+      start,
+      end,
+    })
+
+    return { start, end }
+  }
+
+  // If we only have subscription start date, calculate monthly periods from that date
   if (subscriptionPeriodStart) {
-    // Use subscription start date to calculate billing period
     const start = new Date(subscriptionPeriodStart)
     const end = new Date(start)
 
     // Add one month to start date
     end.setMonth(end.getMonth() + 1)
 
-    // If we're past the end date, calculate the next period
+    // If we're past the end date, calculate the current period
     while (end <= now) {
       start.setMonth(start.getMonth() + 1)
       end.setMonth(end.getMonth() + 1)
     }
 
+    logger.info('Calculated billing period from subscription start date', {
+      subscriptionStart: subscriptionPeriodStart,
+      currentPeriodStart: start,
+      currentPeriodEnd: end,
+    })
+
     return { start, end }
   }
 
-  // Default monthly billing period (1st to last day of month)
+  // Fallback: Default monthly billing period (1st to last day of month)
+  // This should only be used for users without proper subscription data
   const start = new Date(now.getFullYear(), now.getMonth(), 1)
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+
+  logger.warn('Using fallback calendar month billing period', {
+    start,
+    end,
+  })
+
+  return { start, end }
+}
+
+/**
+ * Calculate the next billing period starting from a given period end date
+ */
+export function calculateNextBillingPeriod(periodEnd: Date): {
+  start: Date
+  end: Date
+} {
+  const start = new Date(periodEnd)
+  const end = new Date(start)
+
+  // Add one month for the next period
+  end.setMonth(end.getMonth() + 1)
+
+  logger.info('Calculated next billing period', {
+    previousPeriodEnd: periodEnd,
+    nextPeriodStart: start,
+    nextPeriodEnd: end,
+  })
 
   return { start, end }
 }
@@ -68,7 +137,10 @@ export async function initializeBillingPeriod(
         .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'active')))
         .limit(1)
 
-      const billingPeriod = calculateBillingPeriod(subscriptionData[0]?.periodStart || undefined)
+      const billingPeriod = calculateBillingPeriod(
+        subscriptionData[0]?.periodStart || undefined,
+        subscriptionData[0]?.periodEnd || undefined
+      )
       start = billingPeriod.start
       end = billingPeriod.end
     }
@@ -96,16 +168,19 @@ export async function initializeBillingPeriod(
 
 /**
  * Reset billing period for a user (archive current usage and start new period)
- * This implements the Cursor model where usage resets monthly after billing
+ * Now properly calculates next period based on subscription billing cycle
  */
 export async function resetUserBillingPeriod(userId: string): Promise<void> {
   try {
-    // Get current period data before reset
-    const currentStats = await db
-      .select()
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
+    // Get current period data and subscription info before reset
+    const [currentStats, userSubscription] = await Promise.all([
+      db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
+      db
+        .select()
+        .from(subscription)
+        .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'active')))
+        .limit(1),
+    ])
 
     if (currentStats.length === 0) {
       logger.warn('No user stats found for billing period reset', { userId })
@@ -115,8 +190,27 @@ export async function resetUserBillingPeriod(userId: string): Promise<void> {
     const stats = currentStats[0]
     const currentPeriodCost = stats.currentPeriodCost || '0'
 
-    // Calculate next billing period
-    const { start: newPeriodStart, end: newPeriodEnd } = calculateBillingPeriod()
+    // Calculate next billing period based on subscription or current period end
+    let newPeriodStart: Date
+    let newPeriodEnd: Date
+
+    if (userSubscription.length > 0 && userSubscription[0].periodEnd) {
+      // Use subscription-based period calculation
+      const nextPeriod = calculateNextBillingPeriod(userSubscription[0].periodEnd)
+      newPeriodStart = nextPeriod.start
+      newPeriodEnd = nextPeriod.end
+    } else if (stats.billingPeriodEnd) {
+      // Use current billing period end to calculate next period
+      const nextPeriod = calculateNextBillingPeriod(stats.billingPeriodEnd)
+      newPeriodStart = nextPeriod.start
+      newPeriodEnd = nextPeriod.end
+    } else {
+      // Fallback to subscription start date or default calculation
+      const subscriptionStart = userSubscription[0]?.periodStart
+      const billingPeriod = calculateBillingPeriod(subscriptionStart || undefined)
+      newPeriodStart = billingPeriod.start
+      newPeriodEnd = billingPeriod.end
+    }
 
     // Archive current period cost and reset for new period
     await db
@@ -134,6 +228,7 @@ export async function resetUserBillingPeriod(userId: string): Promise<void> {
       archivedAmount: currentPeriodCost,
       newPeriodStart,
       newPeriodEnd,
+      basedOnSubscription: !!userSubscription[0]?.periodEnd,
     })
   } catch (error) {
     logger.error('Failed to reset user billing period', { userId, error })

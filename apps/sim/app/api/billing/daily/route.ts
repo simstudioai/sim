@@ -1,31 +1,31 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { processMonthlyOverageBilling } from '@/lib/billing/core/billing'
+import { processDailyBillingCheck } from '@/lib/billing/core/billing'
 import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('MonthlyBillingCron')
+const logger = createLogger('DailyBillingCron')
 
 /**
- * Monthly billing CRON job endpoint that runs daily
+ * Daily billing CRON job endpoint that checks individual billing periods
  */
 export async function POST(request: NextRequest) {
   try {
-    const authError = verifyCronAuth(request, 'monthly billing')
+    const authError = verifyCronAuth(request, 'daily billing check')
     if (authError) {
       return authError
     }
 
-    logger.info('Starting monthly billing cron job')
+    logger.info('Starting daily billing check cron job')
 
     const startTime = Date.now()
 
-    // Process monthly overage billing for all users and organizations
-    const result = await processMonthlyOverageBilling()
+    // Process overage billing for users and organizations with periods ending today
+    const result = await processDailyBillingCheck()
 
     const duration = Date.now() - startTime
 
     if (result.success) {
-      logger.info('Monthly billing completed successfully', {
+      logger.info('Daily billing check completed successfully', {
         processedUsers: result.processedUsers,
         processedOrganizations: result.processedOrganizations,
         totalChargedAmount: result.totalChargedAmount,
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    logger.error('Monthly billing completed with errors', {
+    logger.error('Daily billing check completed with errors', {
       processedUsers: result.processedUsers,
       processedOrganizations: result.processedOrganizations,
       totalChargedAmount: result.totalChargedAmount,
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: 'Internal server error during monthly billing',
+        error: 'Internal server error during daily billing check',
         details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
@@ -85,14 +85,15 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const authError = verifyCronAuth(request, 'monthly billing health check')
+    const authError = verifyCronAuth(request, 'daily billing check health check')
     if (authError) {
       return authError
     }
 
     return NextResponse.json({
       status: 'ready',
-      message: 'Monthly billing cron job is ready to process both users and organizations',
+      message:
+        'Daily billing check cron job is ready to process users and organizations with periods ending today',
       currentDate: new Date().toISOString().split('T')[0],
     })
   } catch (error) {
