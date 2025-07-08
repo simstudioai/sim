@@ -17,7 +17,9 @@ export function Panel() {
   const [width, setWidth] = useState(336) // 84 * 4 = 336px (default width)
   const [isDragging, setIsDragging] = useState(false)
   const [chatMessage, setChatMessage] = useState<string>('')
+  const [copilotMessage, setCopilotMessage] = useState<string>('')
   const [isChatModalOpen, setIsChatModalOpen] = useState(false)
+  const [isCopilotModalOpen, setIsCopilotModalOpen] = useState(false)
   const copilotRef = useRef<{ clearMessages: () => void }>(null)
 
   const isOpen = usePanelStore((state) => state.isOpen)
@@ -155,7 +157,14 @@ export function Panel() {
           ) : activeTab === 'console' ? (
             <Console panelWidth={width} />
           ) : activeTab === 'copilot' ? (
-            <Copilot ref={copilotRef} panelWidth={width} />
+            <Copilot 
+              ref={copilotRef} 
+              panelWidth={width}
+              isFullscreen={isCopilotModalOpen}
+              onFullscreenToggle={setIsCopilotModalOpen}
+              fullscreenInput={copilotMessage}
+              onFullscreenInputChange={setCopilotMessage}
+            />
           ) : (
             <Variables panelWidth={width} />
           )}
@@ -188,6 +197,21 @@ export function Panel() {
                 </button>
               </TooltipTrigger>
               <TooltipContent side='left'>Expand Chat</TooltipContent>
+            </Tooltip>
+          )}
+
+          {activeTab === 'copilot' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setIsCopilotModalOpen(true)}
+                  className='flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
+                >
+                  <Expand className='h-5 w-5' />
+                  <span className='sr-only'>Expand Copilot</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side='left'>Expand Copilot</TooltipContent>
             </Tooltip>
           )}
         </div>

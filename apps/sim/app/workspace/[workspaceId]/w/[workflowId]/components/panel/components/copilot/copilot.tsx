@@ -1,17 +1,21 @@
 'use client'
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { Bot, Expand, Loader2, Send, User, X } from 'lucide-react'
+import { Bot, Loader2, Send, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console-logger'
+import { CopilotModal } from './components/copilot-modal/copilot-modal'
 
 const logger = createLogger('Copilot')
 
 interface CopilotProps {
   panelWidth: number
+  isFullscreen?: boolean
+  onFullscreenToggle?: (fullscreen: boolean) => void
+  fullscreenInput?: string
+  onFullscreenInputChange?: (input: string) => void
 }
 
 interface CopilotRef {
@@ -33,11 +37,16 @@ interface Message {
   isStreaming?: boolean
 }
 
-export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref) => {
+export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ 
+  panelWidth, 
+  isFullscreen = false,
+  onFullscreenToggle,
+  fullscreenInput = '',
+  onFullscreenInputChange
+}, ref) => {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -334,30 +343,159 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     )
   }
 
+  // Convert messages for modal (role -> type)
+  const modalMessages = messages.map(msg => ({
+    id: msg.id,
+    content: msg.content,
+    type: msg.role as 'user' | 'assistant',
+    timestamp: msg.timestamp,
+    citations: msg.sources?.map((source, index) => ({
+      id: index + 1,
+      title: source.title,
+      url: source.link
+    }))
+  }))
+
+  // Handle modal message sending
+  const handleModalSendMessage = useCallback(async (message: string) => {
+    // Use the same handleSubmit logic but with the message parameter
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: message,
+      timestamp: new Date(),
+    }
+
+    const streamingMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true,
+    }
+
+    setMessages((prev) => [...prev, userMessage, streamingMessage])
+    setIsLoading(true)
+
+    try {
+      logger.info('Sending docs RAG query:', { query: message })
+
+      const response = await fetch('/api/docs/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: message,
+          topK: 5,
+          stream: true,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+      }
+
+      // Handle streaming response
+      if (response.headers.get('content-type')?.includes('text/event-stream')) {
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let accumulatedContent = ''
+        let sources: any[] = []
+
+        if (!reader) {
+          throw new Error('Failed to get response reader')
+        }
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value, { stream: true })
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+
+                if (data.type === 'metadata') {
+                  sources = data.sources || []
+                } else if (data.type === 'content') {
+                  accumulatedContent += data.content
+
+                  // Update the streaming message with accumulated content
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === streamingMessage.id
+                        ? { ...msg, content: accumulatedContent, sources }
+                        : msg
+                    )
+                  )
+                } else if (data.type === 'done') {
+                  // Finish streaming
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === streamingMessage.id
+                        ? { ...msg, isStreaming: false, sources }
+                        : msg
+                    )
+                  )
+                } else if (data.type === 'error') {
+                  throw new Error(data.error || 'Streaming error')
+                }
+              } catch (parseError) {
+                logger.warn('Failed to parse SSE data:', parseError)
+              }
+            }
+          }
+        }
+
+        logger.info('Received docs RAG response:', {
+          contentLength: accumulatedContent.length,
+          sourcesCount: sources.length,
+        })
+      } else {
+        // Fallback to non-streaming response
+        const data = await response.json()
+
+        const assistantMessage: Message = {
+          id: streamingMessage.id,
+          role: 'assistant',
+          content: data.response || 'Sorry, I could not generate a response.',
+          timestamp: new Date(),
+          sources: data.sources || [],
+          isStreaming: false,
+        }
+
+        setMessages((prev) => prev.slice(0, -1).concat(assistantMessage))
+      }
+    } catch (error) {
+      logger.error('Docs RAG error:', error)
+
+      const errorMessage: Message = {
+        id: streamingMessage.id,
+        role: 'assistant',
+        content:
+          'Sorry, I encountered an error while searching the documentation. Please try again.',
+        timestamp: new Date(),
+        isStreaming: false,
+      }
+
+      setMessages((prev) => prev.slice(0, -1).concat(errorMessage))
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
   return (
     <>
-      {/* Main Panel Content */}
       <div className='flex h-full flex-col'>
         {/* Header */}
         <div className='border-b p-4'>
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-2'>
-              <Bot className='h-5 w-5 text-primary' />
-              <div>
-                <h3 className='font-medium text-sm'>Documentation Copilot</h3>
-                <p className='text-muted-foreground text-xs'>Ask questions about Sim Studio</p>
-              </div>
-            </div>
-            <div className='flex items-center gap-2'>
-              <Button
-                variant='ghost'
-                size='icon'
-                onClick={() => setIsFullscreen(true)}
-                className='h-8 w-8'
-                title='Expand'
-              >
-                <Expand className='h-4 w-4' />
-              </Button>
+          <div className='flex items-center gap-2'>
+            <Bot className='h-5 w-5 text-primary' />
+            <div>
+              <h3 className='font-medium text-sm'>Documentation Copilot</h3>
+              <p className='text-muted-foreground text-xs'>Ask questions about Sim Studio</p>
             </div>
           </div>
         </div>
@@ -420,95 +558,15 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       </div>
 
       {/* Fullscreen Modal */}
-      {isFullscreen && (
-        <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
-          <DialogContent className='h-[80vh] w-full max-w-4xl p-0'>
-            <div className='flex h-full flex-col'>
-              {/* Header */}
-              <div className='border-b p-4'>
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-2'>
-                    <Bot className='h-5 w-5 text-primary' />
-                    <div>
-                      <h3 className='font-medium text-sm'>Documentation Copilot</h3>
-                      <p className='text-muted-foreground text-xs'>
-                        Ask questions about Sim Studio
-                      </p>
-                    </div>
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      onClick={() => setIsFullscreen(false)}
-                      className='h-8 w-8'
-                      title='Close'
-                    >
-                      <X className='h-4 w-4' />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Messages */}
-              <ScrollArea className='flex-1'>
-                {messages.length === 0 ? (
-                  <div className='flex h-full flex-col items-center justify-center p-8 text-center'>
-                    <Bot className='mb-4 h-12 w-12 text-muted-foreground' />
-                    <h3 className='mb-2 font-medium text-sm'>Welcome to Documentation Copilot</h3>
-                    <p className='mb-4 max-w-xs text-muted-foreground text-xs'>
-                      Ask me anything about Sim Studio features, workflows, tools, or how to get
-                      started.
-                    </p>
-                    <div className='space-y-2 text-left'>
-                      <div className='text-muted-foreground text-xs'>Try asking:</div>
-                      <div className='space-y-1'>
-                        <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
-                          "How do I create a workflow?"
-                        </div>
-                        <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
-                          "What tools are available?"
-                        </div>
-                        <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
-                          "How do I deploy my workflow?"
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className='space-y-1'>{messages.map(renderMessage)}</div>
-                )}
-              </ScrollArea>
-
-              {/* Input */}
-              <div className='border-t p-4'>
-                <form onSubmit={handleSubmit} className='flex gap-2'>
-                  <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder='Ask about Sim Studio documentation...'
-                    disabled={isLoading}
-                    className='flex-1'
-                    autoComplete='off'
-                  />
-                  <Button
-                    type='submit'
-                    size='icon'
-                    disabled={!input.trim() || isLoading}
-                    className='h-10 w-10'
-                  >
-                    {isLoading ? (
-                      <Loader2 className='h-4 w-4 animate-spin' />
-                    ) : (
-                      <Send className='h-4 w-4' />
-                    )}
-                  </Button>
-                </form>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      <CopilotModal
+        open={isFullscreen}
+        onOpenChange={(open) => onFullscreenToggle?.(open)}
+        copilotMessage={fullscreenInput}
+        setCopilotMessage={(message) => onFullscreenInputChange?.(message)}
+        messages={modalMessages}
+        onSendMessage={handleModalSendMessage}
+        isLoading={isLoading}
+      />
     </>
   )
 })
