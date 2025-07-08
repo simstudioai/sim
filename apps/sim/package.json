@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "type": "module",
   "engines": {
     "bun": ">=1.2.13",
     "node": ">=20.0.0"
