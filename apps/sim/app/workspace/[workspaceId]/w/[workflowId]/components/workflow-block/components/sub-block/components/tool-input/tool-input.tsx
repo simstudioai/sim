@@ -347,6 +347,8 @@ export function ToolInput({
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
   const subBlockStore = useSubBlockStore()
@@ -668,6 +670,44 @@ export function ToolInput({
     )
   }
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (isPreview || disabled) return
+    setDraggedIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/html', '')
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    if (isPreview || disabled || draggedIndex === null) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverIndex(index)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+  }
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    if (isPreview || disabled || draggedIndex === null || draggedIndex === dropIndex) return
+    e.preventDefault()
+
+    const newTools = [...selectedTools]
+    const draggedTool = newTools[draggedIndex]
+
+    // Remove the dragged tool from its original position
+    newTools.splice(draggedIndex, 1)
+
+    // Insert the dragged tool at the new position
+    const adjustedDropIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex
+    newTools.splice(adjustedDropIndex, 0, draggedTool)
+
+    setStoreValue(newTools)
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+  }
+
   const IconComponent = ({ icon: Icon, className }: { icon: any; className?: string }) => {
     if (!Icon) return null
     return <Icon className={className} />
@@ -827,7 +867,17 @@ export function ToolInput({
             return (
               <div
                 key={`${tool.type}-${toolIndex}`}
-                className={cn('group flex flex-col', isWide ? 'w-[calc(50%-0.25rem)]' : 'w-full')}
+                className={cn(
+                  'group flex flex-col transition-opacity',
+                  isWide ? 'w-[calc(50%-0.25rem)]' : 'w-full',
+                  draggedIndex === toolIndex ? 'opacity-50' : '',
+                  dragOverIndex === toolIndex && draggedIndex !== toolIndex ? 'scale-105' : ''
+                )}
+                draggable={!isPreview && !disabled}
+                onDragStart={(e) => handleDragStart(e, toolIndex)}
+                onDragOver={(e) => handleDragOver(e, toolIndex)}
+                onDragEnd={handleDragEnd}
+                onDrop={(e) => handleDrop(e, toolIndex)}
               >
                 <div className='flex flex-col overflow-visible rounded-md border bg-card'>
                   <div
