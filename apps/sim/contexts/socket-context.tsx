@@ -163,7 +163,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         const socketInstance = io(socketUrl, {
           transports: ['websocket', 'polling'], // Keep polling fallback for reliability
           withCredentials: true,
-          reconnectionAttempts: Infinity, // Socket.IO handles base reconnection
+          reconnectionAttempts: Number.POSITIVE_INFINITY, // Socket.IO handles base reconnection
           reconnectionDelay: 1000, // Start with 1 second delay
           reconnectionDelayMax: 30000, // Max 30 second delay
           timeout: 10000, // Back to original timeout
