@@ -290,7 +290,13 @@ export function ResponseFormat({
       {showPreview && (
         <div className='rounded border bg-muted/30 p-2'>
           <pre className='max-h-32 overflow-auto text-xs'>
-            {JSON.stringify(generateJSON(properties), null, 2)}
+            {(() => {
+              try {
+                return JSON.stringify(generateJSON(properties), null, 2)
+              } catch (error) {
+                return `Error generating preview: ${error instanceof Error ? error.message : 'Unknown error'}`
+              }
+            })()}
           </pre>
         </div>
       )}

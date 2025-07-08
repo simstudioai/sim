@@ -736,7 +736,29 @@ describe('AgentBlockHandler', () => {
       })
     })
 
-    it('should throw an error for invalid JSON in responseFormat', async () => {
+    it('should handle invalid JSON in responseFormat gracefully', async () => {
+      mockFetch.mockImplementationOnce(() => {
+        return Promise.resolve({
+          ok: true,
+          headers: {
+            get: (name: string) => {
+              if (name === 'Content-Type') return 'application/json'
+              if (name === 'X-Execution-Data') return null
+              return null
+            },
+          },
+          json: () =>
+            Promise.resolve({
+              content: 'Regular text response',
+              model: 'mock-model',
+              tokens: { prompt: 10, completion: 20, total: 30 },
+              timing: { total: 100 },
+              toolCalls: [],
+              cost: undefined,
+            }),
+        })
+      })
+
       const inputs = {
         model: 'gpt-4o',
         userPrompt: 'Format this output.',
@@ -744,9 +766,60 @@ describe('AgentBlockHandler', () => {
         responseFormat: '{invalid-json',
       }
 
-      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
-        'Invalid response'
-      )
+      // Should not throw an error, but continue with default behavior
+      const result = await handler.execute(mockBlock, inputs, mockContext)
+
+      expect(result).toEqual({
+        content: 'Regular text response',
+        model: 'mock-model',
+        tokens: { prompt: 10, completion: 20, total: 30 },
+        toolCalls: { list: [], count: 0 },
+        providerTiming: { total: 100 },
+        cost: undefined,
+      })
+    })
+
+    it('should handle variable references in responseFormat gracefully', async () => {
+      mockFetch.mockImplementationOnce(() => {
+        return Promise.resolve({
+          ok: true,
+          headers: {
+            get: (name: string) => {
+              if (name === 'Content-Type') return 'application/json'
+              if (name === 'X-Execution-Data') return null
+              return null
+            },
+          },
+          json: () =>
+            Promise.resolve({
+              content: 'Regular text response',
+              model: 'mock-model',
+              tokens: { prompt: 10, completion: 20, total: 30 },
+              timing: { total: 100 },
+              toolCalls: [],
+              cost: undefined,
+            }),
+        })
+      })
+
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Format this output.',
+        apiKey: 'test-api-key',
+        responseFormat: '<start.input>',
+      }
+
+      // Should not throw an error, but continue with default behavior
+      const result = await handler.execute(mockBlock, inputs, mockContext)
+
+      expect(result).toEqual({
+        content: 'Regular text response',
+        model: 'mock-model',
+        tokens: { prompt: 10, completion: 20, total: 30 },
+        toolCalls: { list: [], count: 0 },
+        providerTiming: { total: 100 },
+        cost: undefined,
+      })
     })
 
     it('should handle errors from the provider request', async () => {

@@ -121,7 +121,7 @@ export class Serializer {
         // Include response format fields if available
         ...(params.responseFormat
           ? {
-              responseFormat: JSON.parse(params.responseFormat),
+              responseFormat: this.parseResponseFormatSafely(params.responseFormat),
             }
           : {}),
       },
@@ -134,6 +134,48 @@ export class Serializer {
       },
       enabled: block.enabled,
     }
+  }
+
+  private parseResponseFormatSafely(responseFormat: any): any {
+    if (!responseFormat) {
+      return undefined
+    }
+
+    // If already an object, return as-is
+    if (typeof responseFormat === 'object' && responseFormat !== null) {
+      return responseFormat
+    }
+
+    // Handle string values
+    if (typeof responseFormat === 'string') {
+      const trimmedValue = responseFormat.trim()
+
+      // Check for variable references like <start.input>
+      if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
+        // Keep variable references as-is
+        return trimmedValue
+      }
+
+      if (trimmedValue === '') {
+        return undefined
+      }
+
+      // Try to parse as JSON
+      try {
+        return JSON.parse(trimmedValue)
+      } catch (error) {
+        // If parsing fails, return undefined to avoid crashes
+        // This allows the workflow to continue without structured response format
+        logger.warn('Failed to parse response format as JSON in serializer, using undefined:', {
+          value: trimmedValue,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return undefined
+      }
+    }
+
+    // For any other type, return undefined
+    return undefined
   }
 
   private extractParams(block: BlockState): Record<string, any> {

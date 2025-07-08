@@ -29,6 +29,35 @@ export interface ConnectedBlock {
   }
 }
 
+function parseResponseFormatSafely(responseFormatValue: any, blockId: string): any {
+  if (!responseFormatValue) {
+    return undefined
+  }
+
+  if (typeof responseFormatValue === 'object' && responseFormatValue !== null) {
+    return responseFormatValue
+  }
+
+  if (typeof responseFormatValue === 'string') {
+    const trimmedValue = responseFormatValue.trim()
+
+    if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
+      return trimmedValue
+    }
+
+    if (trimmedValue === '') {
+      return undefined
+    }
+
+    try {
+      return JSON.parse(trimmedValue)
+    } catch (error) {
+      return undefined
+    }
+  }
+  return undefined
+}
+
 // Helper function to extract fields from JSON Schema
 function extractFieldsFromSchema(schema: any): Field[] {
   if (!schema || typeof schema !== 'object') {
@@ -77,15 +106,8 @@ export function useBlockConnections(blockId: string) {
 
       let responseFormat
 
-      try {
-        responseFormat =
-          typeof responseFormatValue === 'string' && responseFormatValue
-            ? JSON.parse(responseFormatValue)
-            : responseFormatValue // Handle case where it's already an object
-      } catch (e) {
-        logger.error('Failed to parse response format:', { e })
-        responseFormat = undefined
-      }
+      // Safely parse response format with proper error handling
+      responseFormat = parseResponseFormatSafely(responseFormatValue, sourceId)
 
       // Get the default output type from the block's outputs
       const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({
@@ -120,15 +142,8 @@ export function useBlockConnections(blockId: string) {
 
       let responseFormat
 
-      try {
-        responseFormat =
-          typeof responseFormatValue === 'string' && responseFormatValue
-            ? JSON.parse(responseFormatValue)
-            : responseFormatValue // Handle case where it's already an object
-      } catch (e) {
-        logger.error('Failed to parse response format:', { e })
-        responseFormat = undefined
-      }
+      // Safely parse response format with proper error handling
+      responseFormat = parseResponseFormatSafely(responseFormatValue, edge.source)
 
       // Get the default output type from the block's outputs
       const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({

@@ -197,18 +197,42 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       (acc, [blockId, blockState]) => {
         // Check if this block has a responseFormat that needs to be parsed
         if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
-          try {
-            logger.debug(`[${requestId}] Parsing responseFormat for block ${blockId}`)
-            // Attempt to parse the responseFormat if it's a string
-            const parsedResponseFormat = JSON.parse(blockState.responseFormat)
+          const responseFormatValue = blockState.responseFormat.trim()
 
+          // Check for variable references like <start.input>
+          if (responseFormatValue.startsWith('<') && responseFormatValue.includes('>')) {
+            logger.debug(
+              `[${requestId}] Response format contains variable reference for block ${blockId}`
+            )
+            // Keep variable references as-is - they will be resolved during execution
+            acc[blockId] = blockState
+          } else if (responseFormatValue === '') {
+            // Empty string - remove response format
             acc[blockId] = {
               ...blockState,
-              responseFormat: parsedResponseFormat,
+              responseFormat: undefined,
             }
-          } catch (error) {
-            logger.warn(`[${requestId}] Failed to parse responseFormat for block ${blockId}`, error)
-            acc[blockId] = blockState
+          } else {
+            try {
+              logger.debug(`[${requestId}] Parsing responseFormat for block ${blockId}`)
+              // Attempt to parse the responseFormat if it's a string
+              const parsedResponseFormat = JSON.parse(responseFormatValue)
+
+              acc[blockId] = {
+                ...blockState,
+                responseFormat: parsedResponseFormat,
+              }
+            } catch (error) {
+              logger.warn(
+                `[${requestId}] Failed to parse responseFormat for block ${blockId}, using undefined`,
+                error
+              )
+              // Set to undefined instead of keeping malformed JSON - this allows execution to continue
+              acc[blockId] = {
+                ...blockState,
+                responseFormat: undefined,
+              }
+            }
           }
         } else {
           acc[blockId] = blockState
