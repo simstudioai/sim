@@ -13,7 +13,7 @@
     "dev:classic": "next dev",
     "dev:sockets": "bun run socket-server/index.ts",
     "dev:full": "concurrently -n \"NextJS,Realtime\" -c \"cyan,magenta\" \"bun run dev\" \"bun run dev:sockets\"",
-    "build": "next build",
+    "build": "next build --turbopack",
     "start": "next start",
     "prepare": "cd ../.. && bun husky",
     "db:push": "bunx drizzle-kit push",
