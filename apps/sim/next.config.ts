@@ -115,6 +115,16 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Block access to sourcemap files (defense in depth)
+      {
+        source: '/(.*)\\.map$',
+        headers: [
+          {
+            key: 'x-robots-tag',
+            value: 'noindex',
+          },
+        ],
+      },
       // Apply security headers to all routes
       {
         source: '/:path*',
