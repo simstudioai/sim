@@ -163,9 +163,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         const socketInstance = io(socketUrl, {
           transports: ['websocket', 'polling'], // Keep polling fallback for reliability
           withCredentials: true,
-          reconnectionAttempts: 5, // Socket.IO handles base reconnection
+          reconnectionAttempts: Infinity, // Socket.IO handles base reconnection
           reconnectionDelay: 1000, // Start with 1 second delay
-          reconnectionDelayMax: 5000, // Max 5 second delay
+          reconnectionDelayMax: 30000, // Max 30 second delay
           timeout: 10000, // Back to original timeout
           auth: (cb) => {
             // Generate a fresh token for each connection attempt (including reconnections)
