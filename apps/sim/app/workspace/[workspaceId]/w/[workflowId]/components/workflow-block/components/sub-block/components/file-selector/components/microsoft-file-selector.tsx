@@ -238,6 +238,15 @@ export function MicrosoftFileSelector({
     }
   }, [value])
 
+  // Clear selected file when credentials are removed
+  useEffect(() => {
+    if (!selectedCredentialId && selectedFile) {
+      setSelectedFile(null)
+      setSelectedFileId('')
+      onChange('')
+    }
+  }, [selectedCredentialId, selectedFile, onChange])
+
   // Handle selecting a file from the available files
   const handleFileSelect = (file: MicrosoftFileInfo) => {
     setSelectedFileId(file.id)
@@ -371,7 +380,7 @@ export function MicrosoftFileSelector({
                   {getFileIcon(selectedFile, 'sm')}
                   <span className='truncate font-normal'>{selectedFile.name}</span>
                 </div>
-              ) : selectedFileId && (isLoadingSelectedFile || !selectedCredentialId) ? (
+              ) : selectedFileId && isLoadingSelectedFile && selectedCredentialId ? (
                 <div className='flex items-center gap-2'>
                   <RefreshCw className='h-4 w-4 animate-spin' />
                   <span className='text-muted-foreground'>Loading document...</span>

@@ -191,6 +191,15 @@ export function GoogleDrivePicker({
     }
   }, [value])
 
+  // Clear selected file when credentials are removed
+  useEffect(() => {
+    if (!selectedCredentialId && selectedFile) {
+      setSelectedFile(null)
+      setSelectedFileId('')
+      onChange('')
+    }
+  }, [selectedCredentialId, selectedFile, onChange])
+
   // Fetch the access token for the selected credential
   const fetchAccessToken = async (): Promise<string | null> => {
     if (!selectedCredentialId) {
@@ -389,7 +398,7 @@ export function GoogleDrivePicker({
                   {getFileIcon(selectedFile, 'sm')}
                   <span className='truncate font-normal'>{selectedFile.name}</span>
                 </div>
-              ) : selectedFileId && (isLoadingSelectedFile || selectedCredentialId === '') ? (
+              ) : selectedFileId && isLoadingSelectedFile && selectedCredentialId ? (
                 <div className='flex items-center gap-2'>
                   <RefreshCw className='h-4 w-4 animate-spin' />
                   <span className='text-muted-foreground'>Loading document...</span>
