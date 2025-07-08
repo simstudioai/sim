@@ -85,10 +85,10 @@ export function ConnectionBlocks({
 
     if (!blockConfig) {
       if (connection.type === 'loop') {
-        Icon = RepeatIcon
+        Icon = RepeatIcon as typeof Icon
         bgColor = '#2FB3FF' // Blue color for loop blocks
       } else if (connection.type === 'parallel') {
-        Icon = SplitIcon
+        Icon = SplitIcon as typeof Icon
         bgColor = '#FEE12B' // Yellow color for parallel blocks
       }
     }
