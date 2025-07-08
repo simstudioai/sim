@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Expand, PanelRight } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useChatStore } from '@/stores/panel/chat/store'
@@ -10,8 +10,8 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { Chat } from './components/chat/chat'
 import { ChatModal } from './components/chat/components/chat-modal/chat-modal'
 import { Console } from './components/console/console'
-import { Variables } from './components/variables/variables'
 import { Copilot } from './components/copilot/copilot'
+import { Variables } from './components/variables/variables'
 
 export function Panel() {
   const [width, setWidth] = useState(336) // 84 * 4 = 336px (default width)

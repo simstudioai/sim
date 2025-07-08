@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import { getRotatingApiKey } from '@/lib/utils'
+import { generateEmbeddings } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
 import { docsEmbeddings } from '@/db/schema'
-import { generateEmbeddings } from '@/app/api/knowledge/utils'
-import { createLogger } from '@/lib/logs/console-logger'
-import { sql } from 'drizzle-orm'
-import { env } from '@/lib/env'
 import { executeProviderRequest } from '@/providers'
 import { getProviderDefaultModel } from '@/providers/models'
-import { getRotatingApiKey } from '@/lib/utils'
 
 const logger = createLogger('DocsRAG')
 
@@ -74,10 +74,17 @@ async function searchDocs(queryEmbedding: number[], topK: number) {
 /**
  * Generate response using LLM with retrieved context
  */
-async function generateResponse(query: string, chunks: any[], provider?: string, model?: string, stream: boolean = false): Promise<string | ReadableStream> {
+async function generateResponse(
+  query: string,
+  chunks: any[],
+  provider?: string,
+  model?: string,
+  stream = false
+): Promise<string | ReadableStream> {
   // Determine which provider and model to use
   const selectedProvider = provider || DOCS_RAG_CONFIG.defaultProvider
-  const selectedModel = model || DOCS_RAG_CONFIG.defaultModel || getProviderDefaultModel(selectedProvider)
+  const selectedModel =
+    model || DOCS_RAG_CONFIG.defaultModel || getProviderDefaultModel(selectedProvider)
 
   // Get API key for the selected provider
   let apiKey: string
@@ -103,11 +110,19 @@ async function generateResponse(query: string, chunks: any[], provider?: string,
   const context = chunks
     .map((chunk, index) => {
       // Ensure all chunk properties are strings to avoid object serialization
-      const headerText = typeof chunk.headerText === 'string' ? chunk.headerText : String(chunk.headerText || 'Untitled Section')
-      const sourceDocument = typeof chunk.sourceDocument === 'string' ? chunk.sourceDocument : String(chunk.sourceDocument || 'Unknown Document')
-      const sourceLink = typeof chunk.sourceLink === 'string' ? chunk.sourceLink : String(chunk.sourceLink || '#')
-      const chunkText = typeof chunk.chunkText === 'string' ? chunk.chunkText : String(chunk.chunkText || '')
-      
+      const headerText =
+        typeof chunk.headerText === 'string'
+          ? chunk.headerText
+          : String(chunk.headerText || 'Untitled Section')
+      const sourceDocument =
+        typeof chunk.sourceDocument === 'string'
+          ? chunk.sourceDocument
+          : String(chunk.sourceDocument || 'Unknown Document')
+      const sourceLink =
+        typeof chunk.sourceLink === 'string' ? chunk.sourceLink : String(chunk.sourceLink || '#')
+      const chunkText =
+        typeof chunk.chunkText === 'string' ? chunk.chunkText : String(chunk.chunkText || '')
+
       return `[${index + 1}] ${headerText}
 Document: ${sourceDocument}
 URL: ${sourceLink}
@@ -117,15 +132,20 @@ Content: ${chunkText}`
 
   const systemPrompt = `You are a helpful assistant that answers questions about Sim Studio documentation.
 
-IMPORTANT: Use inline citations throughout your response. When referencing information from the sources, include the citation number in square brackets like [1], [2], etc.
+IMPORTANT: Use inline citations strategically and sparingly. When referencing information from the sources, include the citation number in curly braces like {cite:1}, {cite:2}, etc.
 
-Guidelines:
+Citation Guidelines:
+- Cite each source only ONCE at the specific header or topic that relates to that source
+- Do NOT repeatedly cite the same source throughout your response
+- Place citations directly after the header or concept that the source specifically addresses
+- If multiple sources support the same specific topic, cite them together like {cite:1}{cite:2}{cite:3}
+- Each citation should be placed at the relevant header/topic it supports, not grouped at the beginning
+- Avoid cluttering the text with excessive citations
+
+Content Guidelines:
 - Answer the user's question accurately using the provided documentation
-- Include inline citations [1], [2], etc. when referencing specific information 
-- Use multiple citations for comprehensive answers
 - Format your response in clean, readable markdown
 - Use bullet points, code blocks, and headers where appropriate
-- If information spans multiple sources, cite all relevant ones
 - If the question cannot be answered from the context, say so clearly
 - Be conversational but precise
 - NEVER include object representations like "[object Object]" - always use proper text
@@ -162,33 +182,33 @@ ${context}`
     if (response instanceof ReadableStream) {
       if (stream) {
         return response // Return the stream directly for streaming requests
-      } else {
-        throw new Error('Unexpected streaming response when non-streaming was requested')
       }
+      throw new Error('Unexpected streaming response when non-streaming was requested')
     }
 
     if ('stream' in response && 'execution' in response) {
       // Handle StreamingExecution for providers like Anthropic
       if (stream) {
         return response.stream // Return the stream from StreamingExecution
-      } else {
-        throw new Error('Unexpected streaming execution response when non-streaming was requested')
       }
+      throw new Error('Unexpected streaming execution response when non-streaming was requested')
     }
 
     // At this point, we have a ProviderResponse
     const content = response.content || 'Sorry, I could not generate a response.'
-    
+
     // Clean up any object serialization artifacts
     const cleanedContent = content
       .replace(/\[object Object\],?/g, '') // Remove [object Object] artifacts
       .replace(/\s+/g, ' ') // Normalize whitespace
       .trim()
-    
+
     return cleanedContent
   } catch (error) {
     logger.error('Failed to generate LLM response:', error)
-    throw new Error(`Failed to generate response using ${selectedProvider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `Failed to generate response using ${selectedProvider}: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 }
 
@@ -198,14 +218,17 @@ ${context}`
  */
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID()
-  
+
   try {
     const body = await req.json()
     const { query, topK, provider, model, stream } = DocsQuerySchema.parse(body)
 
     logger.info(`[${requestId}] Docs RAG query: "${query}"`, {
       provider: provider || DOCS_RAG_CONFIG.defaultProvider,
-      model: model || DOCS_RAG_CONFIG.defaultModel || getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
+      model:
+        model ||
+        DOCS_RAG_CONFIG.defaultModel ||
+        getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
       topK,
     })
 
@@ -214,10 +237,7 @@ export async function POST(req: NextRequest) {
     const queryEmbedding = await generateSearchEmbedding(query)
 
     if (queryEmbedding.length === 0) {
-      return NextResponse.json(
-        { error: 'Failed to generate query embedding' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Failed to generate query embedding' }, { status: 500 })
     }
 
     // Step 2: Search for relevant docs chunks
@@ -227,14 +247,18 @@ export async function POST(req: NextRequest) {
     if (chunks.length === 0) {
       return NextResponse.json({
         success: true,
-        response: "I couldn't find any relevant documentation for your question. Please try rephrasing your query or check if you're asking about a feature that exists in Sim Studio.",
+        response:
+          "I couldn't find any relevant documentation for your question. Please try rephrasing your query or check if you're asking about a feature that exists in Sim Studio.",
         sources: [],
         metadata: {
           requestId,
           chunksFound: 0,
           query,
           provider: provider || DOCS_RAG_CONFIG.defaultProvider,
-          model: model || DOCS_RAG_CONFIG.defaultModel || getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
+          model:
+            model ||
+            DOCS_RAG_CONFIG.defaultModel ||
+            getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
         },
       })
     }
@@ -254,16 +278,16 @@ export async function POST(req: NextRequest) {
     // Handle streaming response
     if (response instanceof ReadableStream) {
       logger.info(`[${requestId}] Returning streaming response`)
-      
+
       // Create a new stream that includes metadata
       const encoder = new TextEncoder()
       const decoder = new TextDecoder()
-      
+
       return new Response(
         new ReadableStream({
           async start(controller) {
             const reader = response.getReader()
-            
+
             // Send initial metadata
             const metadata = {
               type: 'metadata',
@@ -274,27 +298,30 @@ export async function POST(req: NextRequest) {
                 query,
                 topSimilarity: sources[0]?.similarity,
                 provider: provider || DOCS_RAG_CONFIG.defaultProvider,
-                model: model || DOCS_RAG_CONFIG.defaultModel || getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
+                model:
+                  model ||
+                  DOCS_RAG_CONFIG.defaultModel ||
+                  getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
               },
             }
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`))
-            
+
             try {
               while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
-                
-                                 // Forward the chunk with content type
-                 const chunkText = decoder.decode(value)
-                 // Clean up any object serialization artifacts in streaming content
-                 const cleanedChunk = chunkText.replace(/\[object Object\],?/g, '')
-                 const contentChunk = {
-                   type: 'content',
-                   content: cleanedChunk,
-                 }
-                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`))
+
+                // Forward the chunk with content type
+                const chunkText = decoder.decode(value)
+                // Clean up any object serialization artifacts in streaming content
+                const cleanedChunk = chunkText.replace(/\[object Object\],?/g, '')
+                const contentChunk = {
+                  type: 'content',
+                  content: cleanedChunk,
+                }
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`))
               }
-              
+
               // Send end marker
               controller.enqueue(encoder.encode(`data: {"type":"done"}\n\n`))
             } catch (error) {
@@ -313,7 +340,7 @@ export async function POST(req: NextRequest) {
           headers: {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
+            Connection: 'keep-alive',
           },
         }
       )
@@ -331,10 +358,12 @@ export async function POST(req: NextRequest) {
         query,
         topSimilarity: sources[0]?.similarity,
         provider: provider || DOCS_RAG_CONFIG.defaultProvider,
-        model: model || DOCS_RAG_CONFIG.defaultModel || getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
+        model:
+          model ||
+          DOCS_RAG_CONFIG.defaultModel ||
+          getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
       },
     })
-
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -344,9 +373,6 @@ export async function POST(req: NextRequest) {
     }
 
     logger.error(`[${requestId}] RAG error:`, error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}
