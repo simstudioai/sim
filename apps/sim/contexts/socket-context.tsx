@@ -50,6 +50,7 @@ interface SocketContextType {
   onUserJoined: (handler: (data: any) => void) => void
   onUserLeft: (handler: (data: any) => void) => void
   onWorkflowDeleted: (handler: (data: any) => void) => void
+  onWorkflowReverted: (handler: (data: any) => void) => void
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -71,6 +72,7 @@ const SocketContext = createContext<SocketContextType>({
   onUserJoined: () => {},
   onUserLeft: () => {},
   onWorkflowDeleted: () => {},
+  onWorkflowReverted: () => {},
 })
 
 export const useSocket = () => useContext(SocketContext)
@@ -100,6 +102,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     userJoined?: (data: any) => void
     userLeft?: (data: any) => void
     workflowDeleted?: (data: any) => void
+    workflowReverted?: (data: any) => void
   }>({})
 
   // Helper function to generate a fresh socket token
@@ -279,6 +282,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             setPresenceUsers([])
           }
           eventHandlers.current.workflowDeleted?.(data)
+        })
+
+        // Workflow revert events
+        socketInstance.on('workflow-reverted', (data) => {
+          logger.info(`Workflow ${data.workflowId} has been reverted to deployed state`)
+          eventHandlers.current.workflowReverted?.(data)
         })
 
         // Cursor update events
@@ -557,6 +566,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowDeleted = handler
   }, [])
 
+  const onWorkflowReverted = useCallback((handler: (data: any) => void) => {
+    eventHandlers.current.workflowReverted = handler
+  }, [])
+
   return (
     <SocketContext.Provider
       value={{
@@ -578,6 +591,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         onUserJoined,
         onUserLeft,
         onWorkflowDeleted,
+        onWorkflowReverted,
       }}
     >
       {children}

@@ -50,6 +50,27 @@ export function createHttpHandler(roomManager: RoomManager, logger: Logger) {
       return
     }
 
+    // Handle workflow revert notifications from the main API
+    if (req.method === 'POST' && req.url === '/api/workflow-reverted') {
+      let body = ''
+      req.on('data', (chunk) => {
+        body += chunk.toString()
+      })
+      req.on('end', () => {
+        try {
+          const { workflowId, timestamp } = JSON.parse(body)
+          roomManager.handleWorkflowRevert(workflowId, timestamp)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: true }))
+        } catch (error) {
+          logger.error('Error handling workflow revert notification:', error)
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Failed to process revert notification' }))
+        }
+      })
+      return
+    }
+
     res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'Not found' }))
   }
