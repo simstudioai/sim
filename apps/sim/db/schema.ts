@@ -946,7 +946,10 @@ export const docsEmbeddings = pgTable(
     headerLevelIdx: index('docs_emb_header_level_idx').on(table.headerLevel),
 
     // Combined source and header queries
-    sourceHeaderIdx: index('docs_emb_source_header_idx').on(table.sourceDocument, table.headerLevel),
+    sourceHeaderIdx: index('docs_emb_source_header_idx').on(
+      table.sourceDocument,
+      table.headerLevel
+    ),
 
     // Model-specific queries
     modelIdx: index('docs_emb_model_idx').on(table.embeddingModel),
@@ -970,6 +973,9 @@ export const docsEmbeddings = pgTable(
 
     // Constraints
     embeddingNotNullCheck: check('docs_embedding_not_null_check', sql`"embedding" IS NOT NULL`),
-    headerLevelCheck: check('docs_header_level_check', sql`"header_level" >= 1 AND "header_level" <= 6`),
+    headerLevelCheck: check(
+      'docs_header_level_check',
+      sql`"header_level" >= 1 AND "header_level" <= 6`
+    ),
   })
 )

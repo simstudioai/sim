@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 
 import path from 'path'
+import { sql } from 'drizzle-orm'
 import { DocsChunker } from '@/lib/documents/docs-chunker'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { docsEmbeddings } from '@/db/schema'
-import { sql } from 'drizzle-orm'
 
 const logger = createLogger('ProcessDocsEmbeddings')
 
@@ -83,7 +83,7 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
 
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize)
-      
+
       try {
         // Prepare batch data
         const batchData = batch.map((chunk) => ({
@@ -100,11 +100,13 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
 
         // Insert batch
         await db.insert(docsEmbeddings).values(batchData)
-        
+
         processedChunks += batch.length
-        
+
         if (i % (batchSize * 5) === 0 || i + batchSize >= chunks.length) {
-          logger.info(`  💾 Saved ${Math.min(i + batchSize, chunks.length)}/${chunks.length} chunks`)
+          logger.info(
+            `  💾 Saved ${Math.min(i + batchSize, chunks.length)}/${chunks.length} chunks`
+          )
         }
       } catch (error) {
         logger.error(`❌ Failed to save batch ${Math.floor(i / batchSize) + 1}:`, error)
@@ -119,7 +121,7 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
       .then((result) => result[0]?.count || 0)
 
     const duration = Date.now() - startTime
-    
+
     logger.info(`✅ Processing complete!`)
     logger.info(`📊 Results:`)
     logger.info(`  • Total chunks processed: ${chunks.length}`)
@@ -127,16 +129,19 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
     logger.info(`  • Failed: ${failedChunks}`)
     logger.info(`  • Database total: ${savedCount}`)
     logger.info(`  • Duration: ${Math.round(duration / 1000)}s`)
-    
+
     // Summary by document
-    const documentStats = chunks.reduce((acc, chunk) => {
-      if (!acc[chunk.sourceDocument]) {
-        acc[chunk.sourceDocument] = { chunks: 0, tokens: 0 }
-      }
-      acc[chunk.sourceDocument].chunks++
-      acc[chunk.sourceDocument].tokens += chunk.tokenCount
-      return acc
-    }, {} as Record<string, { chunks: number; tokens: number }>)
+    const documentStats = chunks.reduce(
+      (acc, chunk) => {
+        if (!acc[chunk.sourceDocument]) {
+          acc[chunk.sourceDocument] = { chunks: 0, tokens: 0 }
+        }
+        acc[chunk.sourceDocument].chunks++
+        acc[chunk.sourceDocument].tokens += chunk.tokenCount
+        return acc
+      },
+      {} as Record<string, { chunks: number; tokens: number }>
+    )
 
     logger.info(`📋 Document breakdown:`)
     Object.entries(documentStats)
@@ -158,7 +163,6 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
       databaseCount: savedCount,
       duration,
     }
-
   } catch (error) {
     logger.error('💥 Fatal error during processing:', error)
     return {
@@ -212,4 +216,4 @@ if (process.argv[1]?.includes('process-docs-embeddings')) {
   })
 }
 
-export { processDocsEmbeddings } 
+export { processDocsEmbeddings }

@@ -214,19 +214,23 @@ export class DocsChunker {
   private async splitContent(content: string): Promise<string[]> {
     // Clean the content first
     const cleanedContent = this.cleanContent(content)
-    
+
     // Detect table boundaries to avoid splitting them
     const tableBoundaries = this.detectTableBoundaries(cleanedContent)
-    
+
     // Use the existing TextChunker
     const chunks = await this.textChunker.chunk(cleanedContent)
-    
+
     // Post-process chunks to ensure tables aren't split
-    const processedChunks = this.mergeTableChunks(chunks.map(chunk => chunk.text), tableBoundaries, cleanedContent)
-    
+    const processedChunks = this.mergeTableChunks(
+      chunks.map((chunk) => chunk.text),
+      tableBoundaries,
+      cleanedContent
+    )
+
     // Ensure no chunk exceeds 300 tokens
     const finalChunks = this.enforceSizeLimit(processedChunks)
-    
+
     return finalChunks
   }
 
@@ -248,20 +252,20 @@ export class DocsChunker {
     )
   }
 
-    /**
+  /**
    * Parse frontmatter from MDX content
    */
   private parseFrontmatter(content: string): { data: Frontmatter; content: string } {
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/
     const match = content.match(frontmatterRegex)
-    
+
     if (!match) {
       return { data: {}, content }
     }
-    
+
     const [, frontmatterText, markdownContent] = match
     const data: Frontmatter = {}
-    
+
     // Simple YAML parsing for title and description
     const lines = frontmatterText.split('\n')
     for (const line of lines) {
@@ -275,34 +279,36 @@ export class DocsChunker {
         data[key] = value
       }
     }
-    
+
     return { data, content: markdownContent }
   }
 
   /**
    * Split content by headers to respect document structure
    */
-  private splitByHeaders(content: string): Array<{ header: string | null; content: string; level: number }> {
+  private splitByHeaders(
+    content: string
+  ): Array<{ header: string | null; content: string; level: number }> {
     const lines = content.split('\n')
     const sections: Array<{ header: string | null; content: string; level: number }> = []
-    
+
     let currentHeader: string | null = null
     let currentLevel = 0
     let currentContent: string[] = []
-    
+
     for (const line of lines) {
       const headerMatch = line.match(/^(#{1,3})\s+(.+)$/) // Only split on H1-H3, not H4-H6
-      
+
       if (headerMatch) {
         // Save previous section
         if (currentContent.length > 0) {
           sections.push({
             header: currentHeader,
             content: currentContent.join('\n').trim(),
-            level: currentLevel
+            level: currentLevel,
           })
         }
-        
+
         // Start new section
         currentHeader = line
         currentLevel = headerMatch[1].length
@@ -311,17 +317,17 @@ export class DocsChunker {
         currentContent.push(line)
       }
     }
-    
+
     // Add final section
     if (currentContent.length > 0) {
       sections.push({
         header: currentHeader,
         content: currentContent.join('\n').trim(),
-        level: currentLevel
+        level: currentLevel,
       })
     }
-    
-    return sections.filter(section => section.content.trim().length > 0)
+
+    return sections.filter((section) => section.content.trim().length > 0)
   }
 
   /**
@@ -338,11 +344,11 @@ export class DocsChunker {
   private mergeSmallChunks(chunks: string[]): string[] {
     const merged: string[] = []
     let currentChunk = ''
-    
+
     for (const chunk of chunks) {
       const currentTokens = this.estimateTokens(currentChunk)
       const chunkTokens = this.estimateTokens(chunk)
-      
+
       // If adding this chunk would exceed target size, save current and start new
       if (currentTokens > 0 && currentTokens + chunkTokens > 500) {
         if (currentChunk.trim()) {
@@ -354,39 +360,42 @@ export class DocsChunker {
         currentChunk = currentChunk ? `${currentChunk}\n\n${chunk}` : chunk
       }
     }
-    
+
     // Add final chunk
     if (currentChunk.trim()) {
       merged.push(currentChunk.trim())
     }
-    
+
     return merged
   }
 
   /**
    * Chunk a section while preserving tables and structure
    */
-  private async chunkSection(section: { header: string | null; content: string; level: number }): Promise<string[]> {
+  private async chunkSection(section: {
+    header: string | null
+    content: string
+    level: number
+  }): Promise<string[]> {
     const content = section.content
     const header = section.header
-    
+
     // Check if content contains tables
     const hasTable = this.containsTable(content)
-    
+
     if (hasTable) {
       // Split by tables and handle each part
       return this.splitContentWithTables(content, header)
-    } else {
-      // Regular chunking for text-only content
-      const chunks = await this.textChunker.chunk(content)
-      return chunks.map((chunk, index) => {
-        // Add header to first chunk only
-        if (index === 0 && header) {
-          return `${header}\n\n${chunk.text}`.trim()
-        }
-        return chunk.text
-      })
     }
+    // Regular chunking for text-only content
+    const chunks = await this.textChunker.chunk(content)
+    return chunks.map((chunk, index) => {
+      // Add header to first chunk only
+      if (index === 0 && header) {
+        return `${header}\n\n${chunk.text}`.trim()
+      }
+      return chunk.text
+    })
   }
 
   /**
@@ -397,7 +406,7 @@ export class DocsChunker {
     return lines.some((line, index) => {
       if (line.includes('|') && line.split('|').length >= 3) {
         const nextLine = lines[index + 1]
-        return nextLine && nextLine.includes('|') && nextLine.includes('-')
+        return nextLine?.includes('|') && nextLine.includes('-')
       }
       return false
     })
@@ -412,45 +421,50 @@ export class DocsChunker {
     let currentChunk: string[] = []
     let inTable = false
     let tableLines: string[] = []
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
-      
+
       // Detect table start
       if (line.includes('|') && line.split('|').length >= 3 && !inTable) {
         const nextLine = lines[i + 1]
-        if (nextLine && nextLine.includes('|') && nextLine.includes('-')) {
+        if (nextLine?.includes('|') && nextLine.includes('-')) {
           inTable = true
-          
+
           // Save current chunk if it has content
           if (currentChunk.length > 0 && currentChunk.join('\n').trim().length > 50) {
             const chunkText = currentChunk.join('\n').trim()
-            const withHeader = chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
+            const withHeader =
+              chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
             chunks.push(withHeader)
             currentChunk = []
           }
-          
+
           tableLines = [line]
           continue
         }
       }
-      
+
       if (inTable) {
         tableLines.push(line)
-        
+
         // Detect table end
         if (!line.includes('|') || line.trim() === '') {
           inTable = false
-          
+
           // Save table as its own chunk
-          const tableText = tableLines.filter(l => l.trim()).join('\n').trim()
+          const tableText = tableLines
+            .filter((l) => l.trim())
+            .join('\n')
+            .trim()
           if (tableText.length > 0) {
-            const withHeader = chunks.length === 0 && header ? `${header}\n\n${tableText}` : tableText
+            const withHeader =
+              chunks.length === 0 && header ? `${header}\n\n${tableText}` : tableText
             chunks.push(withHeader)
           }
-          
+
           tableLines = []
-          
+
           // Start new chunk if current line has content
           if (line.trim() !== '') {
             currentChunk = [line]
@@ -458,22 +472,26 @@ export class DocsChunker {
         }
       } else {
         currentChunk.push(line)
-        
+
         // If chunk is getting large, save it
         if (this.estimateTokens(currentChunk.join('\n')) > 250) {
           const chunkText = currentChunk.join('\n').trim()
           if (chunkText.length > 50) {
-            const withHeader = chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
+            const withHeader =
+              chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
             chunks.push(withHeader)
           }
           currentChunk = []
         }
       }
     }
-    
+
     // Handle remaining content
     if (inTable && tableLines.length > 0) {
-      const tableText = tableLines.filter(l => l.trim()).join('\n').trim()
+      const tableText = tableLines
+        .filter((l) => l.trim())
+        .join('\n')
+        .trim()
       if (tableText.length > 0) {
         const withHeader = chunks.length === 0 && header ? `${header}\n\n${tableText}` : tableText
         chunks.push(withHeader)
@@ -485,8 +503,8 @@ export class DocsChunker {
         chunks.push(withHeader)
       }
     }
-    
-    return chunks.filter(chunk => chunk.trim().length > 50)
+
+    return chunks.filter((chunk) => chunk.trim().length > 50)
   }
 
   /**
@@ -495,40 +513,40 @@ export class DocsChunker {
   private detectTableBoundaries(content: string): { start: number; end: number }[] {
     const tables: { start: number; end: number }[] = []
     const lines = content.split('\n')
-    
+
     let inTable = false
     let tableStart = -1
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim()
-      
+
       // Detect table start (markdown table row with pipes)
       if (line.includes('|') && line.split('|').length >= 3 && !inTable) {
         // Check if next line is table separator (contains dashes and pipes)
         const nextLine = lines[i + 1]?.trim()
-        if (nextLine && nextLine.includes('|') && nextLine.includes('-')) {
+        if (nextLine?.includes('|') && nextLine.includes('-')) {
           inTable = true
           tableStart = i
         }
       }
       // Detect table end (empty line or non-table content)
       else if (inTable && (!line.includes('|') || line === '' || line.startsWith('#'))) {
-        tables.push({ 
+        tables.push({
           start: this.getCharacterPosition(lines, tableStart),
-          end: this.getCharacterPosition(lines, i - 1) + lines[i - 1]?.length || 0
+          end: this.getCharacterPosition(lines, i - 1) + lines[i - 1]?.length || 0,
         })
         inTable = false
       }
     }
-    
+
     // Handle table at end of content
     if (inTable && tableStart >= 0) {
       tables.push({
         start: this.getCharacterPosition(lines, tableStart),
-        end: content.length
+        end: content.length,
       })
     }
-    
+
     return tables
   }
 
@@ -542,50 +560,56 @@ export class DocsChunker {
   /**
    * Merge chunks that would split tables
    */
-  private mergeTableChunks(chunks: string[], tableBoundaries: { start: number; end: number }[], originalContent: string): string[] {
+  private mergeTableChunks(
+    chunks: string[],
+    tableBoundaries: { start: number; end: number }[],
+    originalContent: string
+  ): string[] {
     if (tableBoundaries.length === 0) {
       return chunks
     }
 
     const mergedChunks: string[] = []
     let currentPosition = 0
-    
+
     for (const chunk of chunks) {
       const chunkStart = originalContent.indexOf(chunk, currentPosition)
       const chunkEnd = chunkStart + chunk.length
-      
+
       // Check if this chunk intersects with any table
-      const intersectsTable = tableBoundaries.some(table => 
-        (chunkStart >= table.start && chunkStart <= table.end) ||
-        (chunkEnd >= table.start && chunkEnd <= table.end) ||
-        (chunkStart <= table.start && chunkEnd >= table.end)
-      )
-      
-      if (intersectsTable) {
-        // Find which table(s) this chunk intersects with
-        const affectedTables = tableBoundaries.filter(table =>
+      const intersectsTable = tableBoundaries.some(
+        (table) =>
           (chunkStart >= table.start && chunkStart <= table.end) ||
           (chunkEnd >= table.start && chunkEnd <= table.end) ||
           (chunkStart <= table.start && chunkEnd >= table.end)
+      )
+
+      if (intersectsTable) {
+        // Find which table(s) this chunk intersects with
+        const affectedTables = tableBoundaries.filter(
+          (table) =>
+            (chunkStart >= table.start && chunkStart <= table.end) ||
+            (chunkEnd >= table.start && chunkEnd <= table.end) ||
+            (chunkStart <= table.start && chunkEnd >= table.end)
         )
-        
+
         // Create a chunk that includes the complete table(s)
-        const minStart = Math.min(chunkStart, ...affectedTables.map(t => t.start))
-        const maxEnd = Math.max(chunkEnd, ...affectedTables.map(t => t.end))
+        const minStart = Math.min(chunkStart, ...affectedTables.map((t) => t.start))
+        const maxEnd = Math.max(chunkEnd, ...affectedTables.map((t) => t.end))
         const completeChunk = originalContent.slice(minStart, maxEnd)
-        
+
         // Only add if we haven't already included this content
-        if (!mergedChunks.some(existing => existing.includes(completeChunk.trim()))) {
+        if (!mergedChunks.some((existing) => existing.includes(completeChunk.trim()))) {
           mergedChunks.push(completeChunk.trim())
         }
       } else {
         mergedChunks.push(chunk)
       }
-      
+
       currentPosition = chunkEnd
     }
-    
-    return mergedChunks.filter(chunk => chunk.length > 50) // Filter out tiny chunks
+
+    return mergedChunks.filter((chunk) => chunk.length > 50) // Filter out tiny chunks
   }
 
   /**
@@ -593,10 +617,10 @@ export class DocsChunker {
    */
   private enforceSizeLimit(chunks: string[]): string[] {
     const finalChunks: string[] = []
-    
+
     for (const chunk of chunks) {
       const tokens = this.estimateTokens(chunk)
-      
+
       if (tokens <= 300) {
         // Chunk is within limit
         finalChunks.push(chunk)
@@ -604,10 +628,10 @@ export class DocsChunker {
         // Chunk is too large - split it
         const lines = chunk.split('\n')
         let currentChunk = ''
-        
+
         for (const line of lines) {
           const testChunk = currentChunk ? `${currentChunk}\n${line}` : line
-          
+
           if (this.estimateTokens(testChunk) <= 300) {
             currentChunk = testChunk
           } else {
@@ -618,14 +642,14 @@ export class DocsChunker {
             currentChunk = line
           }
         }
-        
+
         // Add final chunk if it has content
         if (currentChunk.trim()) {
           finalChunks.push(currentChunk.trim())
         }
       }
     }
-    
-    return finalChunks.filter(chunk => chunk.trim().length > 100)
+
+    return finalChunks.filter((chunk) => chunk.trim().length > 100)
   }
 }
