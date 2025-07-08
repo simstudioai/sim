@@ -13,9 +13,9 @@ import { useParams } from 'next/navigation'
 import { io, type Socket } from 'socket.io-client'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('SocketContext')
 
@@ -583,7 +583,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowReverted = handler
   }, [])
 
-
   const requestForceSync = useCallback(async (): Promise<boolean> => {
     if (!activeWorkflowId) {
       logger.warn('Cannot force sync: no active workflow')
@@ -636,7 +635,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           status: response.status,
           statusText: response.statusText,
           errorData,
-          workflowState: JSON.stringify(workflowState, null, 2)
+          workflowState: JSON.stringify(workflowState, null, 2),
         })
         throw new Error(errorData.error || `Force sync failed: ${response.statusText}`)
       }
@@ -657,7 +656,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     if (!isConnected) {
       hasBeenDisconnected.current = true
     } else if (hasBeenDisconnected.current && isConnected && activeWorkflowId) {
-
       logger.info('Connection restored, triggering force sync to persist local changes')
 
       const syncTimeout = setTimeout(async () => {

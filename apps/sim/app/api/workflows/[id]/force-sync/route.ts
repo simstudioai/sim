@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { createLogger } from '@/lib/logs/console-logger'
+import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { workflowStateApiSchema } from '@/lib/workflows/validation'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'
-import { eq } from 'drizzle-orm'
 
 const logger = createLogger('ForceSync')
 
@@ -84,13 +84,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!validationResult.success) {
       logger.error(`[${requestId}] Invalid workflow state structure:`, {
         error: validationResult.error,
-        receivedData: JSON.stringify(workflowState, null, 2)
+        receivedData: JSON.stringify(workflowState, null, 2),
       })
       return NextResponse.json(
         {
           error: 'Invalid workflow state structure',
           details: validationResult.error.issues,
-          receivedKeys: Object.keys(workflowState || {})
+          receivedKeys: Object.keys(workflowState || {}),
         },
         { status: 400 }
       )
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     logger.info(`[${requestId}] Saving workflow state to normalized tables`)
 
     // Convert deployedAt to Date if it's a string
-    let deployedAt: Date | undefined = undefined
+    let deployedAt: Date | undefined
     if (validatedState.deployedAt) {
       if (typeof validatedState.deployedAt === 'string') {
         deployedAt = new Date(validatedState.deployedAt)
@@ -170,9 +170,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Force sync error:`, error)
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 })
   }
 }

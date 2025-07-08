@@ -48,7 +48,9 @@ export function UserAvatarStack({
 
   // Show connection status component regardless of user count
   // This will handle the offline notice when disconnected for 6 seconds
-  const connectionStatusElement = <ConnectionStatus isConnected={isConnected} isSyncing={isSyncing} />
+  const connectionStatusElement = (
+    <ConnectionStatus isConnected={isConnected} isSyncing={isSyncing} />
+  )
 
   // Only show presence when there are multiple users (>1)
   // But always show connection status
