@@ -27,7 +27,9 @@ export class DocsChunker {
       minChunkSize: options.minChunkSize ?? 100,
       overlap: options.overlap ?? 50,
     })
-    this.baseUrl = options.baseUrl ?? 'https://docs.simstudio.ai'
+    // Use localhost docs in development, production docs otherwise
+    const isDev = process.env.NODE_ENV === 'development'
+    this.baseUrl = options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.simstudio.ai')
   }
 
   /**

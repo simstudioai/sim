@@ -37,7 +37,8 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
     const config = {
       clearExisting: options.clearExisting ?? false,
       docsPath: options.docsPath ?? path.join(process.cwd(), '../../apps/docs/content/docs'),
-      baseUrl: options.baseUrl ?? 'https://docs.simstudio.ai',
+      // Use localhost docs in development, production docs otherwise
+    baseUrl: options.baseUrl ?? (process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : 'https://docs.simstudio.ai'),
       chunkSize: options.chunkSize ?? 300, // Max 300 tokens per chunk
       minChunkSize: options.minChunkSize ?? 100,
       overlap: options.overlap ?? 50,

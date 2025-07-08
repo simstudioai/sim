@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Expand, PanelRight } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useChatStore } from '@/stores/panel/chat/store'
@@ -11,12 +11,14 @@ import { Chat } from './components/chat/chat'
 import { ChatModal } from './components/chat/components/chat-modal/chat-modal'
 import { Console } from './components/console/console'
 import { Variables } from './components/variables/variables'
+import { Copilot } from './components/copilot/copilot'
 
 export function Panel() {
   const [width, setWidth] = useState(336) // 84 * 4 = 336px (default width)
   const [isDragging, setIsDragging] = useState(false)
   const [chatMessage, setChatMessage] = useState<string>('')
   const [isChatModalOpen, setIsChatModalOpen] = useState(false)
+  const copilotRef = useRef<{ clearMessages: () => void }>(null)
 
   const isOpen = usePanelStore((state) => state.isOpen)
   const togglePanel = usePanelStore((state) => state.togglePanel)
@@ -116,15 +118,29 @@ export function Panel() {
             >
               Variables
             </button>
+            <button
+              onClick={() => setActiveTab('copilot')}
+              className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                activeTab === 'copilot'
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+              }`}
+            >
+              Copilot
+            </button>
           </div>
 
-          {(activeTab === 'console' || activeTab === 'chat') && (
+          {(activeTab === 'console' || activeTab === 'chat' || activeTab === 'copilot') && (
             <button
-              onClick={() =>
-                activeTab === 'console'
-                  ? clearConsole(activeWorkflowId)
-                  : clearChat(activeWorkflowId)
-              }
+              onClick={() => {
+                if (activeTab === 'console') {
+                  clearConsole(activeWorkflowId)
+                } else if (activeTab === 'chat') {
+                  clearChat(activeWorkflowId)
+                } else if (activeTab === 'copilot') {
+                  copilotRef.current?.clearMessages()
+                }
+              }}
               className='rounded-md px-3 py-1 text-muted-foreground text-sm transition-colors hover:bg-accent/50 hover:text-foreground'
             >
               Clear
@@ -138,6 +154,8 @@ export function Panel() {
             <Chat panelWidth={width} chatMessage={chatMessage} setChatMessage={setChatMessage} />
           ) : activeTab === 'console' ? (
             <Console panelWidth={width} />
+          ) : activeTab === 'copilot' ? (
+            <Copilot ref={copilotRef} panelWidth={width} />
           ) : (
             <Variables panelWidth={width} />
           )}
