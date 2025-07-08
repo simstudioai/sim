@@ -259,19 +259,19 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
         // Handle unordered lists
         .replace(/^\* (.*$)/gm, '<li class="ml-4">• $1</li>')
         .replace(/^- (.*$)/gm, '<li class="ml-4">• $1</li>')
-              // Handle line breaks (reduce spacing)
-      .replace(/\n\n+/g, '</p><p class="mt-2">')
-      .replace(/\n/g, '<br>')
+        // Handle line breaks (reduce spacing)
+        .replace(/\n\n+/g, '</p><p class="mt-2">')
+        .replace(/\n/g, '<br>')
 
-          // Wrap in paragraph tags if not already wrapped
-    if (
-      !processedContent.includes('<p>') &&
-      !processedContent.includes('<h1>') &&
-      !processedContent.includes('<h2>') &&
-      !processedContent.includes('<h3>')
-    ) {
-      processedContent = `<p>${processedContent}</p>`
-    }
+      // Wrap in paragraph tags if not already wrapped
+      if (
+        !processedContent.includes('<p>') &&
+        !processedContent.includes('<h1>') &&
+        !processedContent.includes('<h2>') &&
+        !processedContent.includes('<h3>')
+      ) {
+        processedContent = `<p>${processedContent}</p>`
+      }
 
       return processedContent
     }
@@ -329,14 +329,14 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
             </div>
 
             {/* Enhanced content rendering with inline citations */}
-                      <div className='prose prose-sm dark:prose-invert max-w-none'>
-            <div
-              className='text-foreground text-sm leading-normal'
-              dangerouslySetInnerHTML={{
-                __html: renderContentWithCitations(message.content, message.sources),
-              }}
-            />
-          </div>
+            <div className='prose prose-sm dark:prose-invert max-w-none'>
+              <div
+                className='text-foreground text-sm leading-normal'
+                dangerouslySetInnerHTML={{
+                  __html: renderContentWithCitations(message.content, message.sources),
+                }}
+              />
+            </div>
 
             {/* Streaming cursor */}
             {message.isStreaming && message.content && (

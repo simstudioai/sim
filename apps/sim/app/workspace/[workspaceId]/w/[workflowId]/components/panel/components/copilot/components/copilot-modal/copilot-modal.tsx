@@ -110,7 +110,7 @@ function ModalCopilotMessage({ message }: CopilotModalMessage) {
       <div className='mx-auto max-w-3xl'>
         <div className='flex'>
           <div className='max-w-[80%]'>
-                        <div 
+            <div
               className='prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap break-words text-base leading-normal'
               dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }}
             />
