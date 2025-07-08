@@ -125,35 +125,33 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
             <div className='flex items-start gap-2'>
               <Terminal className='mt-1 h-4 w-4 text-muted-foreground' />
               <div className='overflow-wrap-anywhere relative flex-1 whitespace-normal break-normal font-mono text-sm'>
-                {typeof entry.output === 'object' &&
-                  entry.output !== null &&
-                  hasNestedStructure(entry.output) && (
-                    <div className='absolute top-0 right-0 z-10'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 px-2 text-muted-foreground hover:text-foreground'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setExpandAllJson(!expandAllJson)
-                        }}
-                      >
-                        <span className='flex items-center'>
-                          {expandAllJson ? (
-                            <>
-                              <ChevronUp className='mr-1 h-3 w-3' />
-                              <span className='text-xs'>Collapse</span>
-                            </>
-                          ) : (
-                            <>
-                              <ChevronDown className='mr-1 h-3 w-3' />
-                              <span className='text-xs'>Expand</span>
-                            </>
-                          )}
-                        </span>
-                      </Button>
-                    </div>
-                  )}
+                {entry.output != null && (
+                  <div className='absolute top-0 right-0 z-10'>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-6 px-2 text-muted-foreground hover:text-foreground'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setExpandAllJson(!expandAllJson)
+                      }}
+                    >
+                      <span className='flex items-center'>
+                        {expandAllJson ? (
+                          <>
+                            <ChevronUp className='mr-1 h-3 w-3' />
+                            <span className='text-xs'>Collapse</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className='mr-1 h-3 w-3' />
+                            <span className='text-xs'>Expand</span>
+                          </>
+                        )}
+                      </span>
+                    </Button>
+                  </div>
+                )}
                 <JSONView data={entry.output} initiallyExpanded={expandAllJson} />
               </div>
             </div>

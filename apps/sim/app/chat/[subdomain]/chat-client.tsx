@@ -33,6 +33,7 @@ interface ChatConfig {
     headerText?: string
   }
   authType?: 'public' | 'password' | 'email'
+  outputConfigs?: Array<{ blockId: string; path?: string }>
 }
 
 interface AudioStreamingOptions {
@@ -373,8 +374,16 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                   const json = JSON.parse(line.substring(6))
                   const { blockId, chunk: contentChunk, event: eventType } = json
 
-                  if (eventType === 'final') {
+                  if (eventType === 'final' && json.data) {
                     setIsLoading(false)
+
+                    // Process final execution result for field extraction
+                    const result = json.data
+                    const nonStreamingLogs =
+                      result.logs?.filter((log: any) => !messageIdMap.has(log.blockId)) || []
+
+                    // Chat field extraction will be handled by the backend using deployment outputConfigs
+
                     return
                   }
 

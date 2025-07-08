@@ -1,67 +1,22 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
-import { createLogger } from '@/lib/logs/console-logger'
+import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks'
 import { Serializer } from '@/serializer'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
-const logger = createLogger('TagDropdown')
-
-// Type definitions for component data structures
 interface BlockTagGroup {
   blockName: string
   blockId: string
   blockType: string
   tags: string[]
   distance: number
-}
-
-interface Field {
-  name: string
-  type: string
-  description?: string
-}
-
-// Helper function to extract fields from JSON Schema
-export function extractFieldsFromSchema(schema: any): Field[] {
-  if (!schema || typeof schema !== 'object') {
-    return []
-  }
-
-  // Handle legacy format with fields array
-  if (Array.isArray(schema.fields)) {
-    return schema.fields
-  }
-
-  // Handle new JSON Schema format
-  const schemaObj = schema.schema || schema
-  if (!schemaObj || !schemaObj.properties || typeof schemaObj.properties !== 'object') {
-    return []
-  }
-
-  // Extract fields from schema properties
-  return Object.entries(schemaObj.properties).map(([name, prop]: [string, any]) => {
-    // Handle array format like ['string', 'array']
-    if (Array.isArray(prop)) {
-      return {
-        name,
-        type: prop.includes('array') ? 'array' : prop[0] || 'string',
-        description: undefined,
-      }
-    }
-
-    // Handle object format like { type: 'string', description: '...' }
-    return {
-      name,
-      type: prop.type || 'string',
-      description: prop.description,
-    }
-  })
 }
 
 interface TagDropdownProps {
@@ -208,11 +163,29 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const blockName = sourceBlock.name || sourceBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
-      // Handle blocks with no outputs (like starter) - show as just <blockname>
+      // Check for custom response format first
+      const responseFormatValue = useSubBlockStore
+        .getState()
+        .getValue(activeSourceBlockId, 'responseFormat')
+      const responseFormat = parseResponseFormatSafely(responseFormatValue, activeSourceBlockId)
+
       let blockTags: string[]
-      if (Object.keys(blockConfig.outputs).length === 0) {
+
+      if (responseFormat) {
+        // Use custom schema properties if response format is specified
+        const schemaFields = extractFieldsFromSchema(responseFormat)
+        if (schemaFields.length > 0) {
+          blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
+        } else {
+          // Fallback to default if schema extraction failed
+          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        }
+      } else if (Object.keys(blockConfig.outputs).length === 0) {
+        // Handle blocks with no outputs (like starter) - show as just <blockname>
         blockTags = [normalizedBlockName]
       } else {
+        // Use default block outputs
         const outputPaths = generateOutputPaths(blockConfig.outputs)
         blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
@@ -341,7 +314,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     )
     let containingParallelBlockId: string | null = null
     if (containingParallel) {
-      const [parallelId, parallel] = containingParallel
+      const [parallelId] = containingParallel
       containingParallelBlockId = parallelId
       const contextualTags: string[] = ['index', 'currentItem', 'items']
 
@@ -413,11 +386,29 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const blockName = accessibleBlock.name || accessibleBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
-      // Handle blocks with no outputs (like starter) - show as just <blockname>
+      // Check for custom response format first
+      const responseFormatValue = useSubBlockStore
+        .getState()
+        .getValue(accessibleBlockId, 'responseFormat')
+      const responseFormat = parseResponseFormatSafely(responseFormatValue, accessibleBlockId)
+
       let blockTags: string[]
-      if (Object.keys(blockConfig.outputs).length === 0) {
+
+      if (responseFormat) {
+        // Use custom schema properties if response format is specified
+        const schemaFields = extractFieldsFromSchema(responseFormat)
+        if (schemaFields.length > 0) {
+          blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
+        } else {
+          // Fallback to default if schema extraction failed
+          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        }
+      } else if (Object.keys(blockConfig.outputs).length === 0) {
+        // Handle blocks with no outputs (like starter) - show as just <blockname>
         blockTags = [normalizedBlockName]
       } else {
+        // Use default block outputs
         const outputPaths = generateOutputPaths(blockConfig.outputs)
         blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }

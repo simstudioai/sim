@@ -269,3 +269,15 @@ export interface Tool<P = any, O = Record<string, any>> {
 export interface ToolRegistry {
   [key: string]: Tool
 }
+
+/**
+ * Interface for a stream processor that can process a stream based on a response format.
+ */
+export interface ResponseFormatStreamProcessor {
+  processStream(
+    originalStream: ReadableStream,
+    blockId: string,
+    selectedOutputIds: string[],
+    responseFormat?: any
+  ): ReadableStream
+}
