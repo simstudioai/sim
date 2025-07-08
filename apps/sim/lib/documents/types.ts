@@ -50,4 +50,4 @@ export interface HeaderInfo {
   anchor: string
   /** Position in document */
   position: number
-} 
+}

@@ -21,7 +21,7 @@ async function main() {
 
     // Path to the docs content directory
     const docsPath = path.join(process.cwd(), '../../apps/docs/content/docs')
-    
+
     logger.info(`Processing docs from: ${docsPath}`)
 
     // Process all .mdx files
@@ -29,15 +29,18 @@ async function main() {
 
     logger.info(`\n=== CHUNKING RESULTS ===`)
     logger.info(`Total chunks: ${chunks.length}`)
-    
+
     // Group chunks by document
-    const chunksByDoc = chunks.reduce((acc, chunk) => {
-      if (!acc[chunk.sourceDocument]) {
-        acc[chunk.sourceDocument] = []
-      }
-      acc[chunk.sourceDocument].push(chunk)
-      return acc
-    }, {} as Record<string, typeof chunks>)
+    const chunksByDoc = chunks.reduce(
+      (acc, chunk) => {
+        if (!acc[chunk.sourceDocument]) {
+          acc[chunk.sourceDocument] = []
+        }
+        acc[chunk.sourceDocument].push(chunk)
+        return acc
+      },
+      {} as Record<string, typeof chunks>
+    )
 
     // Display summary
     logger.info(`\n=== DOCUMENT SUMMARY ===`)
@@ -54,14 +57,19 @@ async function main() {
       logger.info(`  Link: ${chunk.headerLink}`)
       logger.info(`  Tokens: ${chunk.tokenCount}`)
       logger.info(`  Embedding: ${chunk.embedding.length} dimensions (${chunk.embeddingModel})`)
-      logger.info(`  Embedding Preview: [${chunk.embedding.slice(0, 5).map(n => n.toFixed(4)).join(', ')}...]`)
+      logger.info(
+        `  Embedding Preview: [${chunk.embedding
+          .slice(0, 5)
+          .map((n) => n.toFixed(4))
+          .join(', ')}...]`
+      )
       logger.info(`  Text Preview: ${chunk.text.slice(0, 100)}...`)
     })
 
     // Calculate total token count
     const totalTokens = chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
-    const chunksWithEmbeddings = chunks.filter(chunk => chunk.embedding.length > 0).length
-    
+    const chunksWithEmbeddings = chunks.filter((chunk) => chunk.embedding.length > 0).length
+
     logger.info(`\n=== STATISTICS ===`)
     logger.info(`Total tokens: ${totalTokens}`)
     logger.info(`Average tokens per chunk: ${Math.round(totalTokens / chunks.length)}`)
@@ -70,19 +78,21 @@ async function main() {
       logger.info(`Embedding model: ${chunks[0].embeddingModel}`)
       logger.info(`Embedding dimensions: ${chunks[0].embedding.length}`)
     }
-    
-    const headerLevels = chunks.reduce((acc, chunk) => {
-      acc[chunk.headerLevel] = (acc[chunk.headerLevel] || 0) + 1
-      return acc
-    }, {} as Record<number, number>)
-    
+
+    const headerLevels = chunks.reduce(
+      (acc, chunk) => {
+        acc[chunk.headerLevel] = (acc[chunk.headerLevel] || 0) + 1
+        return acc
+      },
+      {} as Record<number, number>
+    )
+
     logger.info(`Header level distribution:`)
     Object.entries(headerLevels)
       .sort(([a], [b]) => Number(a) - Number(b))
       .forEach(([level, count]) => {
         logger.info(`  H${level}: ${count} chunks`)
       })
-
   } catch (error) {
     logger.error('Error processing docs:', error)
     process.exit(1)
@@ -90,4 +100,4 @@ async function main() {
 }
 
 // Run the script
-main().catch(console.error) 
+main().catch(console.error)

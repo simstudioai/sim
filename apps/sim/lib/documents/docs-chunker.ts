@@ -1,8 +1,8 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { createLogger } from '@/lib/logs/console-logger'
-import { TextChunker } from './chunker'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
+import { TextChunker } from './chunker'
 import type { DocChunk, DocsChunkerOptions, HeaderInfo } from './types'
 
 interface Frontmatter {
@@ -35,7 +35,7 @@ export class DocsChunker {
    */
   async chunkAllDocs(docsPath: string): Promise<DocChunk[]> {
     const allChunks: DocChunk[] = []
-    
+
     try {
       const mdxFiles = await this.findMdxFiles(docsPath)
       logger.info(`Found ${mdxFiles.length} .mdx files to process`)
@@ -64,36 +64,36 @@ export class DocsChunker {
   async chunkMdxFile(filePath: string, basePath: string): Promise<DocChunk[]> {
     const content = await fs.readFile(filePath, 'utf-8')
     const relativePath = path.relative(basePath, filePath)
-    
+
     // Parse frontmatter and content
     const { data: frontmatter, content: markdownContent } = this.parseFrontmatter(content)
-    
+
     // Extract headers from the content
     const headers = this.extractHeaders(markdownContent)
-    
+
     // Generate document URL
     const documentUrl = this.generateDocumentUrl(relativePath)
-    
+
     // Split content into chunks
     const textChunks = await this.splitContent(markdownContent)
-    
+
     // Generate embeddings for all chunks at once (batch processing)
     logger.info(`Generating embeddings for ${textChunks.length} chunks in ${relativePath}`)
     const embeddings = textChunks.length > 0 ? await generateEmbeddings(textChunks) : []
     const embeddingModel = 'text-embedding-3-small'
-    
+
     // Convert to DocChunk objects with header context and embeddings
     const chunks: DocChunk[] = []
     let currentPosition = 0
-    
+
     for (let i = 0; i < textChunks.length; i++) {
       const chunkText = textChunks[i]
       const chunkStart = currentPosition
       const chunkEnd = currentPosition + chunkText.length
-      
+
       // Find the most relevant header for this chunk
       const relevantHeader = this.findRelevantHeader(headers, chunkStart)
-      
+
       const chunk: DocChunk = {
         text: chunkText,
         tokenCount: Math.ceil(chunkText.length / 4), // Simple token estimation
@@ -111,11 +111,11 @@ export class DocsChunker {
           documentDescription: frontmatter.description,
         },
       }
-      
+
       chunks.push(chunk)
       currentPosition = chunkEnd
     }
-    
+
     return chunks
   }
 
@@ -124,12 +124,12 @@ export class DocsChunker {
    */
   private async findMdxFiles(dirPath: string): Promise<string[]> {
     const files: string[] = []
-    
+
     const entries = await fs.readdir(dirPath, { withFileTypes: true })
-    
+
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name)
-      
+
       if (entry.isDirectory()) {
         const subFiles = await this.findMdxFiles(fullPath)
         files.push(...subFiles)
@@ -137,7 +137,7 @@ export class DocsChunker {
         files.push(fullPath)
       }
     }
-    
+
     return files
   }
 
@@ -148,12 +148,12 @@ export class DocsChunker {
     const headers: HeaderInfo[] = []
     const headerRegex = /^(#{1,6})\s+(.+)$/gm
     let match
-    
+
     while ((match = headerRegex.exec(content)) !== null) {
       const level = match[1].length
       const text = match[2].trim()
       const anchor = this.generateAnchor(text)
-      
+
       headers.push({
         text,
         level,
@@ -161,7 +161,7 @@ export class DocsChunker {
         position: match.index,
       })
     }
-    
+
     return headers
   }
 
@@ -183,10 +183,8 @@ export class DocsChunker {
   private generateDocumentUrl(relativePath: string): string {
     // Convert file path to URL path
     // e.g., "tools/knowledge.mdx" -> "/tools/knowledge"
-    const urlPath = relativePath
-      .replace(/\.mdx$/, '')
-      .replace(/\\/g, '/') // Handle Windows paths
-    
+    const urlPath = relativePath.replace(/\.mdx$/, '').replace(/\\/g, '/') // Handle Windows paths
+
     return `${this.baseUrl}/${urlPath}`
   }
 
@@ -195,10 +193,10 @@ export class DocsChunker {
    */
   private findRelevantHeader(headers: HeaderInfo[], position: number): HeaderInfo | null {
     if (headers.length === 0) return null
-    
+
     // Find the last header that comes before this position
     let relevantHeader: HeaderInfo | null = null
-    
+
     for (const header of headers) {
       if (header.position <= position) {
         relevantHeader = header
@@ -206,7 +204,7 @@ export class DocsChunker {
         break
       }
     }
-    
+
     return relevantHeader
   }
 
@@ -216,30 +214,30 @@ export class DocsChunker {
   private async splitContent(content: string): Promise<string[]> {
     // Clean the content first
     const cleanedContent = this.cleanContent(content)
-    
+
     // Use the existing TextChunker
     const chunks = await this.textChunker.chunk(cleanedContent)
-    
-    return chunks.map(chunk => chunk.text)
+
+    return chunks.map((chunk) => chunk.text)
   }
 
   /**
    * Clean content by removing MDX-specific elements and excessive whitespace
    */
   private cleanContent(content: string): string {
-    return content
-      // Remove import statements
-      .replace(/^import\s+.*$/gm, '')
-      // Remove JSX components and React-style comments
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
-      // Remove excessive whitespace
-      .replace(/\n{3,}/g, '\n\n')
-      .replace(/[ \t]{2,}/g, ' ')
-      .trim()
+    return (
+      content
+        // Remove import statements
+        .replace(/^import\s+.*$/gm, '')
+        // Remove JSX components and React-style comments
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
+        // Remove excessive whitespace
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim()
+    )
   }
-
-
 
   /**
    * Parse frontmatter from MDX content
@@ -247,26 +245,28 @@ export class DocsChunker {
   private parseFrontmatter(content: string): { data: Frontmatter; content: string } {
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/
     const match = content.match(frontmatterRegex)
-    
+
     if (!match) {
       return { data: {}, content }
     }
-    
+
     const [, frontmatterText, markdownContent] = match
     const data: Frontmatter = {}
-    
+
     // Simple YAML parsing for title and description
     const lines = frontmatterText.split('\n')
     for (const line of lines) {
       const colonIndex = line.indexOf(':')
       if (colonIndex > 0) {
         const key = line.slice(0, colonIndex).trim()
-        const value = line.slice(colonIndex + 1).trim().replace(/^['"]|['"]$/g, '')
+        const value = line
+          .slice(colonIndex + 1)
+          .trim()
+          .replace(/^['"]|['"]$/g, '')
         data[key] = value
       }
     }
-    
+
     return { data, content: markdownContent }
   }
-
-} 
+}
