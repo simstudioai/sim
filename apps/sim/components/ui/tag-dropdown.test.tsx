@@ -1,7 +1,8 @@
 import { describe, expect, test, vi } from 'vitest'
+import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks } from '@/stores/workflows/workflow/utils'
-import { checkTagTrigger, extractFieldsFromSchema } from './tag-dropdown'
+import { checkTagTrigger } from './tag-dropdown'
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(() => ({
@@ -656,7 +657,6 @@ describe('TagDropdown Response Format Support', () => {
       } as any)
 
       // Test the parseResponseFormatSafely function
-      const { parseResponseFormatSafely } = await import('./tag-dropdown')
       const parsedFormat = parseResponseFormatSafely(responseFormatValue, 'agent1')
 
       expect(parsedFormat).toEqual({
@@ -677,7 +677,6 @@ describe('TagDropdown Response Format Support', () => {
       })
 
       // Test the extractFieldsFromSchema function with the parsed format
-      const { extractFieldsFromSchema } = await import('./tag-dropdown')
       const fields = extractFieldsFromSchema(parsedFormat)
 
       expect(fields).toEqual([
@@ -693,8 +692,6 @@ describe('TagDropdown Response Format Support', () => {
   it.concurrent(
     'should fallback to default outputs when response format parsing fails',
     async () => {
-      const { parseResponseFormatSafely } = await import('./tag-dropdown')
-
       // Test with invalid JSON
       const invalidFormat = parseResponseFormatSafely('invalid json', 'agent1')
       expect(invalidFormat).toBeNull()
@@ -724,7 +721,6 @@ describe('TagDropdown Response Format Support', () => {
       },
     }
 
-    const { extractFieldsFromSchema } = await import('./tag-dropdown')
     const fields = extractFieldsFromSchema(responseFormat)
 
     expect(fields).toEqual([
@@ -742,7 +738,6 @@ describe('TagDropdown Response Format Support', () => {
       },
     }
 
-    const { extractFieldsFromSchema } = await import('./tag-dropdown')
     const fields = extractFieldsFromSchema(responseFormat)
 
     expect(fields).toEqual([
@@ -761,7 +756,6 @@ describe('TagDropdown Response Format Support', () => {
       },
     }
 
-    const { parseResponseFormatSafely } = await import('./tag-dropdown')
     const result = parseResponseFormatSafely(responseFormat, 'agent1')
 
     expect(result).toEqual(responseFormat)
@@ -782,7 +776,6 @@ describe('TagDropdown Response Format Support', () => {
       },
     }
 
-    const { extractFieldsFromSchema } = await import('./tag-dropdown')
     const schemaFields = extractFieldsFromSchema(responseFormat)
 
     // Generate block tags as they would be in the component

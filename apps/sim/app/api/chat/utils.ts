@@ -263,17 +263,26 @@ export async function executeWorkflowForChat(
   let outputBlockIds: string[] = []
 
   // Extract output configs from the new schema format
+  let selectedOutputIds: string[] = []
   if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
-    // Extract block IDs and paths from the new outputConfigs array format
+    // Extract output IDs in the format expected by the streaming processor
     logger.debug(
       `[${requestId}] Found ${deployment.outputConfigs.length} output configs in deployment`
     )
-    deployment.outputConfigs.forEach((config) => {
+
+    selectedOutputIds = deployment.outputConfigs.map((config) => {
+      const outputId = config.path
+        ? `${config.blockId}_${config.path}`
+        : `${config.blockId}.content`
+
       logger.debug(
-        `[${requestId}] Processing output config: blockId=${config.blockId}, path=${config.path || 'none'}`
+        `[${requestId}] Processing output config: blockId=${config.blockId}, path=${config.path || 'content'} -> outputId=${outputId}`
       )
+
+      return outputId
     })
 
+    // Also extract block IDs for legacy compatibility
     outputBlockIds = deployment.outputConfigs.map((config) => config.blockId)
   } else {
     // Use customizations as fallback
@@ -291,7 +300,9 @@ export async function executeWorkflowForChat(
     outputBlockIds = customizations.outputBlockIds
   }
 
-  logger.debug(`[${requestId}] Using ${outputBlockIds.length} output blocks for extraction`)
+  logger.debug(
+    `[${requestId}] Using ${outputBlockIds.length} output blocks and ${selectedOutputIds.length} selected output IDs for extraction`
+  )
 
   // Find the workflow (deployedState is NOT deprecated - needed for chat execution)
   const workflowResult = await db
@@ -457,7 +468,7 @@ export async function executeWorkflowForChat(
         workflowVariables,
         contextExtensions: {
           stream: true,
-          selectedOutputIds: outputBlockIds,
+          selectedOutputIds: selectedOutputIds.length > 0 ? selectedOutputIds : outputBlockIds,
           edges: edges.map((e: any) => ({
             source: e.source,
             target: e.target,

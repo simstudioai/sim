@@ -193,7 +193,10 @@ export const useConsoleStore = create<ConsoleStore>()(
                   updatedEntry.output = newOutput
                 }
 
-                if (update.output !== undefined) {
+                if (update.replaceOutput !== undefined) {
+                  // Complete replacement of output
+                  updatedEntry.output = update.replaceOutput
+                } else if (update.output !== undefined) {
                   const existingOutput = entry.output || {}
                   updatedEntry.output = {
                     ...existingOutput,

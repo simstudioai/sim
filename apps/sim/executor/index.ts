@@ -30,6 +30,7 @@ import type {
   NormalizedBlockOutput,
   StreamingExecution,
 } from './types'
+import { streamingResponseFormatProcessor } from './utils'
 
 const logger = createLogger('Executor')
 
@@ -242,7 +243,25 @@ export class Executor {
                   const streamingExec = output as StreamingExecution
                   const [streamForClient, streamForExecutor] = streamingExec.stream.tee()
 
-                  const clientStreamingExec = { ...streamingExec, stream: streamForClient }
+                  // Apply response format processing to the client stream if needed
+                  const blockId = (streamingExec.execution as any).blockId
+
+                  // Get response format from initial block states (passed from useWorkflowExecution)
+                  // The initialBlockStates contain the subblock values including responseFormat
+                  let responseFormat: any
+                  if (this.initialBlockStates?.[blockId]) {
+                    const blockState = this.initialBlockStates[blockId] as any
+                    responseFormat = blockState.responseFormat
+                  }
+
+                  const processedClientStream = streamingResponseFormatProcessor.processStream(
+                    streamForClient,
+                    blockId,
+                    context.selectedOutputIds || [],
+                    responseFormat
+                  )
+
+                  const clientStreamingExec = { ...streamingExec, stream: processedClientStream }
 
                   try {
                     // Handle client stream with proper error handling
@@ -267,7 +286,41 @@ export class Executor {
                     const blockId = (streamingExec.execution as any).blockId
                     const blockState = context.blockStates.get(blockId)
                     if (blockState?.output) {
-                      blockState.output.content = fullContent
+                      // Check if we have response format - if so, preserve structured response
+                      let responseFormat: any
+                      if (this.initialBlockStates?.[blockId]) {
+                        const initialBlockState = this.initialBlockStates[blockId] as any
+                        responseFormat = initialBlockState.responseFormat
+                      }
+
+                      if (responseFormat && fullContent) {
+                        // For structured responses, always try to parse the raw streaming content
+                        // The streamForExecutor contains the raw JSON response, not the processed display text
+                        try {
+                          const parsedContent = JSON.parse(fullContent)
+                          // Preserve metadata but spread parsed fields at root level (same as manual execution)
+                          const structuredOutput = {
+                            ...parsedContent,
+                            tokens: blockState.output.tokens,
+                            toolCalls: blockState.output.toolCalls,
+                            providerTiming: blockState.output.providerTiming,
+                            cost: blockState.output.cost,
+                          }
+                          blockState.output = structuredOutput
+
+                          // Also update the corresponding block log with the structured output
+                          const blockLog = context.blockLogs.find((log) => log.blockId === blockId)
+                          if (blockLog) {
+                            blockLog.output = structuredOutput
+                          }
+                        } catch (parseError) {
+                          // If parsing fails, fall back to setting content
+                          blockState.output.content = fullContent
+                        }
+                      } else {
+                        // No response format, use standard content setting
+                        blockState.output.content = fullContent
+                      }
                     }
                   } catch (readerError: any) {
                     logger.error('Error reading stream for executor:', readerError)
@@ -275,7 +328,40 @@ export class Executor {
                     const blockId = (streamingExec.execution as any).blockId
                     const blockState = context.blockStates.get(blockId)
                     if (blockState?.output && fullContent) {
-                      blockState.output.content = fullContent
+                      // Check if we have response format for error handling too
+                      let responseFormat: any
+                      if (this.initialBlockStates?.[blockId]) {
+                        const initialBlockState = this.initialBlockStates[blockId] as any
+                        responseFormat = initialBlockState.responseFormat
+                      }
+
+                      if (responseFormat) {
+                        // For structured responses, always try to parse the raw streaming content
+                        // The streamForExecutor contains the raw JSON response, not the processed display text
+                        try {
+                          const parsedContent = JSON.parse(fullContent)
+                          const structuredOutput = {
+                            ...parsedContent,
+                            tokens: blockState.output.tokens,
+                            toolCalls: blockState.output.toolCalls,
+                            providerTiming: blockState.output.providerTiming,
+                            cost: blockState.output.cost,
+                          }
+                          blockState.output = structuredOutput
+
+                          // Also update the corresponding block log with the structured output
+                          const blockLog = context.blockLogs.find((log) => log.blockId === blockId)
+                          if (blockLog) {
+                            blockLog.output = structuredOutput
+                          }
+                        } catch (parseError) {
+                          // If parsing fails, fall back to setting content
+                          blockState.output.content = fullContent
+                        }
+                      } else {
+                        // No response format, use standard content setting
+                        blockState.output.content = fullContent
+                      }
                     }
                   } finally {
                     try {
@@ -1257,6 +1343,7 @@ export class Executor {
         context.blockLogs.push(blockLog)
 
         // Skip console logging for infrastructure blocks like loops and parallels
+        // For streaming blocks, we'll add the console entry after stream processing
         if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
           addConsole({
             output: blockLog.output,

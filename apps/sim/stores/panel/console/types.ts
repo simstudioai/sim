@@ -20,6 +20,7 @@ export interface ConsoleEntry {
 export interface ConsoleUpdate {
   content?: string
   output?: Partial<NormalizedBlockOutput>
+  replaceOutput?: NormalizedBlockOutput // New field for complete replacement
   error?: string
   warning?: string
   success?: boolean

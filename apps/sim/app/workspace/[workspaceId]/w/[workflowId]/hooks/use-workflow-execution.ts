@@ -217,10 +217,13 @@ export function useWorkflowExecution() {
                   result.logs.forEach((log: BlockLog) => {
                     if (streamedContent.has(log.blockId)) {
                       const content = streamedContent.get(log.blockId) || ''
-                      if (log.output) {
-                        log.output.content = content
-                      }
-                      useConsoleStore.getState().updateConsole(log.blockId, content)
+                      // For console display, show the actual structured block output instead of formatted streaming content
+                      // This ensures console logs match the block state structure
+                      // Use replaceOutput to completely replace the output instead of merging
+                      useConsoleStore.getState().updateConsole(log.blockId, {
+                        replaceOutput: log.output,
+                        success: true,
+                      })
                     }
                   })
 

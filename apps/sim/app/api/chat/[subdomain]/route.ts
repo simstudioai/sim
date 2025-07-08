@@ -177,6 +177,26 @@ export async function GET(
       return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
     }
 
+    // Get workflow information for field selection
+    let workflowBlocks = {}
+    try {
+      const workflowResult = await db
+        .select({
+          deployedState: workflow.deployedState,
+        })
+        .from(workflow)
+        .where(eq(workflow.id, deployment.workflowId))
+        .limit(1)
+
+      if (workflowResult.length > 0 && workflowResult[0].deployedState) {
+        const deployedState = workflowResult[0].deployedState as any
+        workflowBlocks = deployedState.blocks || {}
+      }
+    } catch (error) {
+      logger.warn(`[${requestId}] Could not fetch workflow blocks:`, error)
+      // Continue without blocks - field selection will be disabled
+    }
+
     // Check for auth cookie first
     const cookieName = `chat_auth_${deployment.id}`
     const authCookie = request.cookies.get(cookieName)
@@ -194,6 +214,8 @@ export async function GET(
           description: deployment.description,
           customizations: deployment.customizations,
           authType: deployment.authType,
+          workflowBlocks,
+          outputConfigs: deployment.outputConfigs,
         }),
         request
       )
@@ -219,6 +241,8 @@ export async function GET(
         description: deployment.description,
         customizations: deployment.customizations,
         authType: deployment.authType,
+        workflowBlocks,
+        outputConfigs: deployment.outputConfigs,
       }),
       request
     )

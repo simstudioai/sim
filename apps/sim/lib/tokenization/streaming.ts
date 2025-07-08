@@ -78,7 +78,7 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
     log.output.cost = result.cost
     log.output.model = result.model
 
-    logTokenizationDetails(`✅ Streaming tokenization completed for ${log.blockType}`, {
+    logTokenizationDetails(`Streaming tokenization completed for ${log.blockType}`, {
       blockId: log.blockId,
       blockType: log.blockType,
       model: result.model,
@@ -92,7 +92,7 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
 
     return true
   } catch (error) {
-    logger.error(`❌ Streaming tokenization failed for block ${log.blockId}`, {
+    logger.error(`Streaming tokenization failed for block ${log.blockId}`, {
       blockType: log.blockType,
       error: error instanceof Error ? error.message : String(error),
       contentLength: streamedContent?.length || 0,
