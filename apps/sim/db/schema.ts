@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
   vector,
 } from 'drizzle-orm/pg-core'
 
@@ -907,5 +908,68 @@ export const embedding = pgTable(
 
     // Ensure embedding exists (simplified since we only support one model)
     embeddingNotNullCheck: check('embedding_not_null_check', sql`"embedding" IS NOT NULL`),
+  })
+)
+
+export const docsEmbeddings = pgTable(
+  'docs_embeddings',
+  {
+    chunkId: uuid('chunk_id').primaryKey().defaultRandom(),
+    chunkText: text('chunk_text').notNull(),
+    sourceDocument: text('source_document').notNull(),
+    sourceLink: text('source_link').notNull(),
+    headerText: text('header_text').notNull(),
+    headerLevel: integer('header_level').notNull(),
+    tokenCount: integer('token_count').notNull(),
+
+    // Vector embedding - optimized for text-embedding-3-small with HNSW support
+    embedding: vector('embedding', { dimensions: 1536 }).notNull(),
+    embeddingModel: text('embedding_model').notNull().default('text-embedding-3-small'),
+
+    // Metadata for flexible filtering
+    metadata: jsonb('metadata').notNull().default('{}'),
+
+    // Full-text search support - generated tsvector column
+    chunkTextTsv: tsvector('chunk_text_tsv').generatedAlwaysAs(
+      (): SQL => sql`to_tsvector('english', ${docsEmbeddings.chunkText})`
+    ),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Source document queries
+    sourceDocumentIdx: index('docs_emb_source_document_idx').on(table.sourceDocument),
+
+    // Header level filtering
+    headerLevelIdx: index('docs_emb_header_level_idx').on(table.headerLevel),
+
+    // Combined source and header queries
+    sourceHeaderIdx: index('docs_emb_source_header_idx').on(table.sourceDocument, table.headerLevel),
+
+    // Model-specific queries
+    modelIdx: index('docs_emb_model_idx').on(table.embeddingModel),
+
+    // Timestamp queries
+    createdAtIdx: index('docs_emb_created_at_idx').on(table.createdAt),
+
+    // Vector similarity search indexes (HNSW) - optimized for documentation embeddings
+    embeddingVectorHnswIdx: index('docs_embedding_vector_hnsw_idx')
+      .using('hnsw', table.embedding.op('vector_cosine_ops'))
+      .with({
+        m: 16,
+        ef_construction: 64,
+      }),
+
+    // GIN index for JSONB metadata queries
+    metadataGinIdx: index('docs_emb_metadata_gin_idx').using('gin', table.metadata),
+
+    // Full-text search index
+    chunkTextFtsIdx: index('docs_emb_chunk_text_fts_idx').using('gin', table.chunkTextTsv),
+
+    // Constraints
+    embeddingNotNullCheck: check('docs_embedding_not_null_check', sql`"embedding" IS NOT NULL`),
+    headerLevelCheck: check('docs_header_level_check', sql`"header_level" >= 1 AND "header_level" <= 6`),
   })
 )
