@@ -125,7 +125,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
             <div className='flex items-start gap-2'>
               <Terminal className='mt-1 h-4 w-4 text-muted-foreground' />
               <div className='overflow-wrap-anywhere relative flex-1 whitespace-normal break-normal font-mono text-sm'>
-                {entry.output !== undefined && entry.output !== null && (
+                {entry.output != null && (
                   <div className='absolute top-0 right-0 z-10'>
                     <Button
                       variant='ghost'

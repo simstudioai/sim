@@ -81,16 +81,13 @@ export function extractFieldValues(
   const extractedValues: Record<string, any> = {}
 
   for (const outputId of selectedOutputIds) {
-    // Extract block ID and path using the same logic as workspace
-    const blockIdForOutput = outputId.includes('_')
-      ? outputId.split('_')[0]
-      : outputId.split('.')[0]
+    const blockIdForOutput = extractBlockIdFromOutputId(outputId)
 
     if (blockIdForOutput !== blockId) {
       continue
     }
 
-    const path = outputId.substring(blockIdForOutput.length + 1)
+    const path = extractPathFromOutputId(outputId, blockIdForOutput)
 
     if (path) {
       const pathParts = path.split('.')
@@ -130,13 +127,47 @@ export function formatFieldValues(extractedValues: Record<string, any>): string 
 }
 
 /**
+ * Extract block ID from output ID
+ * Handles both formats: "blockId" and "blockId_path" or "blockId.path"
+ */
+export function extractBlockIdFromOutputId(outputId: string): string {
+  return outputId.includes('_') ? outputId.split('_')[0] : outputId.split('.')[0]
+}
+
+/**
+ * Extract path from output ID after the block ID
+ */
+export function extractPathFromOutputId(outputId: string, blockId: string): string {
+  return outputId.substring(blockId.length + 1)
+}
+
+/**
+ * Parse JSON content from output safely
+ * Handles both string and object formats with proper error handling
+ */
+export function parseOutputContentSafely(output: any): any {
+  if (!output?.content) {
+    return output
+  }
+
+  if (typeof output.content === 'string') {
+    try {
+      return JSON.parse(output.content)
+    } catch (e) {
+      // Fallback to original structure if parsing fails
+      return output
+    }
+  }
+
+  return output
+}
+
+/**
  * Check if a set of output IDs contains response format selections for a specific block
  */
 export function hasResponseFormatSelection(selectedOutputIds: string[], blockId: string): boolean {
   return selectedOutputIds.some((outputId) => {
-    const blockIdForOutput = outputId.includes('_')
-      ? outputId.split('_')[0]
-      : outputId.split('.')[0]
+    const blockIdForOutput = extractBlockIdFromOutputId(outputId)
     return blockIdForOutput === blockId && outputId.includes('_')
   })
 }
@@ -147,10 +178,8 @@ export function hasResponseFormatSelection(selectedOutputIds: string[], blockId:
 export function getSelectedFieldNames(selectedOutputIds: string[], blockId: string): string[] {
   return selectedOutputIds
     .filter((outputId) => {
-      const blockIdForOutput = outputId.includes('_')
-        ? outputId.split('_')[0]
-        : outputId.split('.')[0]
+      const blockIdForOutput = extractBlockIdFromOutputId(outputId)
       return blockIdForOutput === blockId && outputId.includes('_')
     })
-    .map((outputId) => outputId.substring(blockId.length + 1))
+    .map((outputId) => extractPathFromOutputId(outputId, blockId))
 }

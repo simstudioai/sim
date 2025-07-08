@@ -33,7 +33,6 @@ interface ChatConfig {
     headerText?: string
   }
   authType?: 'public' | 'password' | 'email'
-  workflowBlocks?: Record<string, any>
   outputConfigs?: Array<{ blockId: string; path?: string }>
 }
 
