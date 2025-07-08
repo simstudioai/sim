@@ -115,6 +115,26 @@ export class RoomManager {
     )
   }
 
+  handleWorkflowRevert(workflowId: string, timestamp: number) {
+    logger.info(`Handling workflow revert notification for ${workflowId}`)
+
+    const room = this.workflowRooms.get(workflowId)
+    if (!room) {
+      logger.debug(`No active room found for reverted workflow ${workflowId}`)
+      return
+    }
+
+    this.io.to(workflowId).emit('workflow-reverted', {
+      workflowId,
+      message: 'Workflow has been reverted to deployed state',
+      timestamp,
+    })
+
+    room.lastModified = timestamp
+
+    logger.info(`Notified ${room.users.size} users about workflow revert: ${workflowId}`)
+  }
+
   async validateWorkflowConsistency(
     workflowId: string
   ): Promise<{ valid: boolean; issues: string[] }> {
