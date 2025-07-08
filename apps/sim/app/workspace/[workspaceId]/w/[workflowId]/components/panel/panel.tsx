@@ -157,8 +157,8 @@ export function Panel() {
           ) : activeTab === 'console' ? (
             <Console panelWidth={width} />
           ) : activeTab === 'copilot' ? (
-            <Copilot 
-              ref={copilotRef} 
+            <Copilot
+              ref={copilotRef}
               panelWidth={width}
               isFullscreen={isCopilotModalOpen}
               onFullscreenToggle={setIsCopilotModalOpen}

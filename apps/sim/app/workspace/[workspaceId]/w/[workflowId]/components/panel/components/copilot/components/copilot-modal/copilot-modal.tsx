@@ -1,7 +1,7 @@
 'use client'
 
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
-import { ArrowUp, Bot, User, X } from 'lucide-react'
+import { type KeyboardEvent, useEffect, useRef } from 'react'
+import { ArrowUp, Bot, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -26,7 +26,10 @@ interface CopilotModalMessage {
 
 // Modal-specific message component
 function ModalCopilotMessage({ message }: CopilotModalMessage) {
-  const renderCitations = (text: string, citations?: Array<{ id: number; title: string; url: string }>) => {
+  const renderCitations = (
+    text: string,
+    citations?: Array<{ id: number; title: string; url: string }>
+  ) => {
     if (!citations || citations.length === 0) return text
 
     let processedText = text
@@ -52,12 +55,24 @@ function ModalCopilotMessage({ message }: CopilotModalMessage) {
     )
 
     // Handle inline code
-    processedText = processedText.replace(/`([^`]+)`/g, '<code class="bg-muted px-1 rounded text-sm">$1</code>')
+    processedText = processedText.replace(
+      /`([^`]+)`/g,
+      '<code class="bg-muted px-1 rounded text-sm">$1</code>'
+    )
 
     // Handle headers
-    processedText = processedText.replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>')
-    processedText = processedText.replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold mt-4 mb-2">$1</h2>')
-    processedText = processedText.replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-4 mb-2">$1</h1>')
+    processedText = processedText.replace(
+      /^### (.*$)/gm,
+      '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>'
+    )
+    processedText = processedText.replace(
+      /^## (.*$)/gm,
+      '<h2 class="text-xl font-semibold mt-4 mb-2">$1</h2>'
+    )
+    processedText = processedText.replace(
+      /^# (.*$)/gm,
+      '<h1 class="text-2xl font-bold mt-4 mb-2">$1</h1>'
+    )
 
     // Handle bold
     processedText = processedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -94,8 +109,8 @@ function ModalCopilotMessage({ message }: CopilotModalMessage) {
       <div className='mx-auto max-w-3xl'>
         <div className='flex'>
           <div className='max-w-[80%]'>
-            <div 
-              className='whitespace-pre-wrap break-words text-base leading-relaxed prose prose-sm max-w-none dark:prose-invert'
+            <div
+              className='prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap break-words text-base leading-relaxed'
               dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }}
             />
           </div>
@@ -115,14 +130,14 @@ interface CopilotModalProps {
   isLoading: boolean
 }
 
-export function CopilotModal({ 
-  open, 
-  onOpenChange, 
-  copilotMessage, 
+export function CopilotModal({
+  open,
+  onOpenChange,
+  copilotMessage,
   setCopilotMessage,
   messages,
   onSendMessage,
-  isLoading
+  isLoading,
 }: CopilotModalProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -149,7 +164,7 @@ export function CopilotModal({
     try {
       await onSendMessage(copilotMessage.trim())
       setCopilotMessage('')
-      
+
       // Ensure input stays focused
       if (inputRef.current) {
         inputRef.current.focus()
@@ -210,10 +225,11 @@ export function CopilotModal({
                 <div className='space-y-2'>
                   <h3 className='font-medium text-lg'>Welcome to Documentation Copilot</h3>
                   <p className='text-muted-foreground text-sm'>
-                    Ask me anything about Sim Studio features, workflows, tools, or how to get started.
+                    Ask me anything about Sim Studio features, workflows, tools, or how to get
+                    started.
                   </p>
                 </div>
-                <div className='space-y-2 text-left max-w-xs mx-auto'>
+                <div className='mx-auto max-w-xs space-y-2 text-left'>
                   <div className='text-muted-foreground text-xs'>Try asking:</div>
                   <div className='space-y-1'>
                     <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
@@ -230,9 +246,7 @@ export function CopilotModal({
               </div>
             </div>
           ) : (
-            messages.map((message) => (
-              <ModalCopilotMessage key={message.id} message={message} />
-            ))
+            messages.map((message) => <ModalCopilotMessage key={message.id} message={message} />)
           )}
 
           {/* Loading indicator (shows only when loading) */}
@@ -284,4 +298,4 @@ export function CopilotModal({
       </div>
     </div>
   )
-} 
+}
