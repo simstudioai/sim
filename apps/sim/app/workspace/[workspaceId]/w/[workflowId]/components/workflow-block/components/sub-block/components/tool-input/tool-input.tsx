@@ -696,12 +696,14 @@ export function ToolInput({
     const newTools = [...selectedTools]
     const draggedTool = newTools[draggedIndex]
 
-    // Remove the dragged tool from its original position
     newTools.splice(draggedIndex, 1)
 
-    // Insert the dragged tool at the new position
-    const adjustedDropIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex
-    newTools.splice(adjustedDropIndex, 0, draggedTool)
+    if (dropIndex === selectedTools.length) {
+      newTools.push(draggedTool)
+    } else {
+      const adjustedDropIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex
+      newTools.splice(adjustedDropIndex, 0, draggedTool)
+    }
 
     setStoreValue(newTools)
     setDraggedIndex(null)
@@ -868,10 +870,15 @@ export function ToolInput({
               <div
                 key={`${tool.type}-${toolIndex}`}
                 className={cn(
-                  'group flex flex-col transition-opacity',
+                  'group relative flex flex-col transition-all duration-200 ease-in-out',
                   isWide ? 'w-[calc(50%-0.25rem)]' : 'w-full',
-                  draggedIndex === toolIndex ? 'opacity-50' : '',
-                  dragOverIndex === toolIndex && draggedIndex !== toolIndex ? 'scale-105' : ''
+                  draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
+                  dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
+                    ? 'translate-y-1 transform'
+                    : '',
+                  selectedTools.length > 1 && !isPreview && !disabled
+                    ? 'cursor-grab active:cursor-grabbing'
+                    : ''
                 )}
                 draggable={!isPreview && !disabled}
                 onDragStart={(e) => handleDragStart(e, toolIndex)}
@@ -879,7 +886,17 @@ export function ToolInput({
                 onDragEnd={handleDragEnd}
                 onDrop={(e) => handleDrop(e, toolIndex)}
               >
-                <div className='flex flex-col overflow-visible rounded-md border bg-card'>
+                {/* Subtle drop indicator - use border highlight instead of separate line */}
+                <div
+                  className={cn(
+                    'flex flex-col overflow-visible rounded-md border bg-card',
+                    dragOverIndex === toolIndex &&
+                      draggedIndex !== toolIndex &&
+                      draggedIndex !== null
+                      ? 'border-t-2 border-t-muted-foreground/40'
+                      : ''
+                  )}
+                >
                   <div
                     className={cn(
                       'flex items-center justify-between bg-accent/50 p-2',
@@ -1140,6 +1157,20 @@ export function ToolInput({
               </div>
             )
           })}
+
+          {/* Drop zone for the end of the list */}
+          {selectedTools.length > 0 && draggedIndex !== null && (
+            <div
+              className={cn(
+                'h-2 w-full rounded transition-all duration-200 ease-in-out',
+                dragOverIndex === selectedTools.length
+                  ? 'border-b-2 border-b-muted-foreground/40'
+                  : ''
+              )}
+              onDragOver={(e) => handleDragOver(e, selectedTools.length)}
+              onDrop={(e) => handleDrop(e, selectedTools.length)}
+            />
+          )}
 
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
