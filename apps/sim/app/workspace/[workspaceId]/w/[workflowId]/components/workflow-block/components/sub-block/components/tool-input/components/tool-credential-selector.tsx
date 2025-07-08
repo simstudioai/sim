@@ -85,7 +85,7 @@ export function ToolCredentialSelector({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials || [])
-        
+
         // If we have a selected value but it's not in the credentials list, clear it
         if (value && !data.credentials?.some((cred: Credential) => cred.id === value)) {
           onChange('')

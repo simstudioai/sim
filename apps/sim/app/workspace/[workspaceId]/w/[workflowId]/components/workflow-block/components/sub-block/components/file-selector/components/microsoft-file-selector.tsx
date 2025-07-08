@@ -271,10 +271,23 @@ export function MicrosoftFileSelector({
   // Fetch the selected file metadata once credentials are loaded or changed
   useEffect(() => {
     // Only fetch if we have both a file ID and credentials, credentials are loaded, but no file info yet
-    if (value && selectedCredentialId && credentialsLoaded && !selectedFile && !isLoadingSelectedFile) {
+    if (
+      value &&
+      selectedCredentialId &&
+      credentialsLoaded &&
+      !selectedFile &&
+      !isLoadingSelectedFile
+    ) {
       fetchFileById(value)
     }
-  }, [value, selectedCredentialId, credentialsLoaded, selectedFile, isLoadingSelectedFile, fetchFileById])
+  }, [
+    value,
+    selectedCredentialId,
+    credentialsLoaded,
+    selectedFile,
+    isLoadingSelectedFile,
+    fetchFileById,
+  ])
 
   // Handle selecting a file from the available files
   const handleFileSelect = (file: MicrosoftFileInfo) => {
