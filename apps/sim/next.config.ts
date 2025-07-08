@@ -24,6 +24,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizeCss: true,
+    turbopackSourceMaps: false,
   },
   ...(env.NODE_ENV === 'development' && {
     allowedDevOrigins: [
@@ -41,36 +42,6 @@ const nextConfig: NextConfig = {
     ],
     outputFileTracingRoot: path.join(__dirname, '../../'),
   }),
-  webpack: (config, { isServer, dev }) => {
-    // Skip webpack configuration in development when using Turbopack
-    if (dev && env.NEXT_RUNTIME === 'turbopack') {
-      return config
-    }
-
-    // Configure webpack to use filesystem cache for faster incremental builds
-    if (config.cache) {
-      config.cache = {
-        type: 'filesystem',
-        buildDependencies: {
-          config: [__filename],
-        },
-        cacheDirectory: path.resolve(process.cwd(), '.next/cache/webpack'),
-      }
-    }
-
-    // Avoid aliasing React on the server/edge runtime builds because it bypasses
-    // the "react-server" export condition, which Next.js relies on when
-    // bundling React Server Components and API route handlers.
-    if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        react: path.join(__dirname, '../../node_modules/react'),
-        'react-dom': path.join(__dirname, '../../node_modules/react-dom'),
-      }
-    }
-
-    return config
-  },
   transpilePackages: ['prettier', '@react-email/components', '@react-email/render'],
   async headers() {
     return [
@@ -141,6 +112,16 @@ const nextConfig: NextConfig = {
           {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin',
+          },
+        ],
+      },
+      // Block access to sourcemap files (defense in depth)
+      {
+        source: '/(.*)\\.map$',
+        headers: [
+          {
+            key: 'x-robots-tag',
+            value: 'noindex',
           },
         ],
       },
