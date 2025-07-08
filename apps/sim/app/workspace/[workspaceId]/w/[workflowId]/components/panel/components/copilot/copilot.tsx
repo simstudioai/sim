@@ -205,21 +205,21 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
-    // Function to render content with inline hyperlinked citations and basic markdown
+  // Function to render content with inline hyperlinked citations and basic markdown
   const renderContentWithCitations = (content: string, sources: Message['sources'] = []) => {
     if (!content) return content
-    
+
     let processedContent = content
-    
+
     // Replace {cite:1}, {cite:2}, etc. with clickable citation icons
     processedContent = processedContent.replace(/\{cite:(\d+)\}/g, (match, num) => {
       const sourceIndex = Number.parseInt(num) - 1
       const source = sources[sourceIndex]
-      
+
       if (source) {
         return `<a href="${source.link}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center ml-1 text-primary hover:text-primary/80 transition-colors text-sm" title="${source.title}">↗</a>`
       }
-      
+
       return match
     })
 
