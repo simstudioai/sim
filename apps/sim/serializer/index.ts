@@ -168,7 +168,7 @@ export class Serializer {
         // This allows the workflow to continue without structured response format
         logger.warn('Failed to parse response format as JSON in serializer, using undefined:', {
           value: trimmedValue,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         })
         return undefined
       }

@@ -78,7 +78,7 @@ export class AgentBlockHandler implements BlockHandler {
       // Check for variable references like <start.input>
       if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
         logger.info('Response format contains variable reference:', {
-          value: trimmedValue
+          value: trimmedValue,
         })
         // Variable references should have been resolved by the resolver before reaching here
         // If we still have a variable reference, it means it couldn't be resolved
@@ -101,7 +101,7 @@ export class AgentBlockHandler implements BlockHandler {
       } catch (error: any) {
         logger.warn('Failed to parse response format as JSON, using default behavior:', {
           error: error.message,
-          value: trimmedValue
+          value: trimmedValue,
         })
         // Return undefined instead of throwing - this allows execution to continue
         // without structured response format
@@ -112,7 +112,7 @@ export class AgentBlockHandler implements BlockHandler {
     // For any other type, return undefined
     logger.warn('Unexpected response format type, using default behavior:', {
       type: typeof responseFormat,
-      value: responseFormat
+      value: responseFormat,
     })
     return undefined
   }

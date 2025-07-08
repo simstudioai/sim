@@ -30,7 +30,6 @@ export interface ConnectedBlock {
 }
 
 function parseResponseFormatSafely(responseFormatValue: any, blockId: string): any {
-
   if (!responseFormatValue) {
     return undefined
   }

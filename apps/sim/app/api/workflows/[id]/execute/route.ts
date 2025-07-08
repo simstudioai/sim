@@ -201,7 +201,9 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
 
           // Check for variable references like <start.input>
           if (responseFormatValue.startsWith('<') && responseFormatValue.includes('>')) {
-            logger.debug(`[${requestId}] Response format contains variable reference for block ${blockId}`)
+            logger.debug(
+              `[${requestId}] Response format contains variable reference for block ${blockId}`
+            )
             // Keep variable references as-is - they will be resolved during execution
             acc[blockId] = blockState
           } else if (responseFormatValue === '') {
@@ -221,7 +223,10 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
                 responseFormat: parsedResponseFormat,
               }
             } catch (error) {
-              logger.warn(`[${requestId}] Failed to parse responseFormat for block ${blockId}, using undefined`, error)
+              logger.warn(
+                `[${requestId}] Failed to parse responseFormat for block ${blockId}, using undefined`,
+                error
+              )
               // Set to undefined instead of keeping malformed JSON - this allows execution to continue
               acc[blockId] = {
                 ...blockState,
