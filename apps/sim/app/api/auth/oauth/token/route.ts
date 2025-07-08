@@ -21,10 +21,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { credentialId, workflowId } = body
 
-    logger.info(
-      `[${requestId}] Token request for credential: ${credentialId}, workflow: ${workflowId}`
-    )
-
     if (!credentialId) {
       logger.warn(`[${requestId}] Credential ID is required`)
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
