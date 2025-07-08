@@ -22,10 +22,10 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getTool } from '@/tools/utils'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ChannelSelectorInput } from '../channel-selector/channel-selector-input'
-import { CredentialSelector } from '../credential-selector/credential-selector'
 import { ShortInput } from '../short-input'
 import { type CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
 import { ToolCommand } from './components/tool-command/tool-command'
+import { ToolCredentialSelector } from './components/tool-credential-selector'
 
 interface ToolInputProps {
   blockId: string
@@ -1060,13 +1060,14 @@ export function ToolInput({
                                 <div className='font-medium text-muted-foreground text-xs'>
                                   Account
                                 </div>
-                                <CredentialSelector
+                                <ToolCredentialSelector
                                   value={tool.params.credential || ''}
                                   onChange={(value) => handleCredentialChange(toolIndex, value)}
                                   provider={oauthConfig.provider as OAuthProvider}
                                   requiredScopes={oauthConfig.additionalScopes || []}
                                   label={`Select ${oauthConfig.provider} account`}
                                   serviceId={oauthConfig.provider}
+                                  disabled={disabled}
                                 />
                               </div>
                             )

@@ -48,6 +48,9 @@ export async function executeTool(
 
     // If we have a credential parameter, fetch the access token
     if (contextParams.credential) {
+      logger.info(
+        `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`
+      )
       try {
         const baseUrl = env.NEXT_PUBLIC_APP_URL
         if (!baseUrl) {
@@ -69,6 +72,8 @@ export async function executeTool(
           }
         }
 
+        logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
+
         const tokenUrl = new URL('/api/auth/oauth/token', baseUrl).toString()
         const response = await fetch(tokenUrl, {
           method: 'POST',
@@ -87,6 +92,10 @@ export async function executeTool(
 
         const data = await response.json()
         contextParams.accessToken = data.accessToken
+
+        logger.info(
+          `[${requestId}] Successfully got access token for ${toolId}, length: ${data.accessToken?.length || 0}`
+        )
 
         // Clean up params we don't need to pass to the actual tool
         contextParams.credential = undefined

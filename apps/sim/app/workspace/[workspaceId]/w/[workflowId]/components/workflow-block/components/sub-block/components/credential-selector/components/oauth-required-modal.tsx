@@ -19,7 +19,6 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
 
 const logger = createLogger('OAuthRequiredModal')
 
@@ -157,41 +156,10 @@ export function OAuthRequiredModal({
     (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
   )
 
-  const handleRedirectToSettings = () => {
-    try {
-      // Determine the appropriate serviceId and providerId
-      const providerId = getProviderIdFromServiceId(effectiveServiceId)
-
-      // Store information about the required connection
-      saveToStorage<string>('pending_service_id', effectiveServiceId)
-      saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-      saveToStorage<string>('pending_oauth_return_url', window.location.href)
-      saveToStorage<string>('pending_oauth_provider_id', providerId)
-      saveToStorage<boolean>('from_oauth_modal', true)
-
-      // Close the modal
-      onClose()
-
-      // Open the settings modal with the credentials tab
-      const event = new CustomEvent('open-settings', {
-        detail: { tab: 'credentials' },
-      })
-      window.dispatchEvent(event)
-    } catch (error) {
-      logger.error('Error redirecting to settings:', { error })
-    }
-  }
-
   const handleConnectDirectly = async () => {
     try {
       // Determine the appropriate serviceId and providerId
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
-
-      // Store information about the required connection
-      saveToStorage<string>('pending_service_id', effectiveServiceId)
-      saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-      saveToStorage<string>('pending_oauth_return_url', window.location.href)
-      saveToStorage<string>('pending_oauth_provider_id', providerId)
 
       // Close the modal
       onClose()
@@ -257,14 +225,6 @@ export function OAuthRequiredModal({
           </Button>
           <Button type='button' onClick={handleConnectDirectly} className='sm:order-3'>
             Connect Now
-          </Button>
-          <Button
-            type='button'
-            variant='secondary'
-            onClick={handleRedirectToSettings}
-            className='sm:order-2'
-          >
-            Go to Settings
           </Button>
         </DialogFooter>
       </DialogContent>
