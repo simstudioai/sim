@@ -104,10 +104,8 @@ export function useBlockConnections(blockId: string) {
       // Get the response format from the subblock store
       const responseFormatValue = useSubBlockStore.getState().getValue(sourceId, 'responseFormat')
 
-      let responseFormat
-
       // Safely parse response format with proper error handling
-      responseFormat = parseResponseFormatSafely(responseFormatValue, sourceId)
+      const responseFormat = parseResponseFormatSafely(responseFormatValue, sourceId)
 
       // Get the default output type from the block's outputs
       const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({
@@ -140,10 +138,8 @@ export function useBlockConnections(blockId: string) {
         .getState()
         .getValue(edge.source, 'responseFormat')
 
-      let responseFormat
-
       // Safely parse response format with proper error handling
-      responseFormat = parseResponseFormatSafely(responseFormatValue, edge.source)
+      const responseFormat = parseResponseFormatSafely(responseFormatValue, edge.source)
 
       // Get the default output type from the block's outputs
       const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({

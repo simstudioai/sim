@@ -169,7 +169,39 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       const blockConfig = getBlock(sourceBlock.type)
+
+      // Handle special blocks that aren't in the registry (loop and parallel)
       if (!blockConfig) {
+        if (sourceBlock.type === 'loop' || sourceBlock.type === 'parallel') {
+          // Create a mock config with results output for loop/parallel blocks
+          const mockConfig = {
+            outputs: {
+              results: 'array', // These blocks have a results array output
+            },
+          }
+          const blockName = sourceBlock.name || sourceBlock.type
+          const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
+
+          // Generate output paths for the mock config
+          const outputPaths = generateOutputPaths(mockConfig.outputs)
+          const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+
+          const blockTagGroups: BlockTagGroup[] = [
+            {
+              blockName,
+              blockId: activeSourceBlockId,
+              blockType: sourceBlock.type,
+              tags: blockTags,
+              distance: 0,
+            },
+          ]
+
+          return {
+            tags: blockTags,
+            variableInfoMap: {},
+            blockTagGroups,
+          }
+        }
         return { tags: [], variableInfoMap: {}, blockTagGroups: [] }
       }
 
@@ -270,28 +302,65 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       {} as Record<string, { type: string; id: string }>
     )
 
-    // Generate loop tags if current block is in a loop
-    const loopTags: string[] = []
+    // Generate loop contextual block group if current block is in a loop
+    let loopBlockGroup: BlockTagGroup | null = null
     const containingLoop = Object.entries(loops).find(([_, loop]) => loop.nodes.includes(blockId))
+    let containingLoopBlockId: string | null = null
     if (containingLoop) {
-      const [_loopId, loop] = containingLoop
+      const [loopId, loop] = containingLoop
+      containingLoopBlockId = loopId
       const loopType = loop.loopType || 'for'
-      loopTags.push('loop.index')
+      const contextualTags: string[] = ['index']
       if (loopType === 'forEach') {
-        loopTags.push('loop.currentItem')
-        loopTags.push('loop.items')
+        contextualTags.push('currentItem')
+        contextualTags.push('items')
+      }
+
+      // Add the containing loop block's results to the contextual tags
+      const containingLoopBlock = blocks[loopId]
+      if (containingLoopBlock) {
+        const loopBlockName = containingLoopBlock.name || containingLoopBlock.type
+        const normalizedLoopBlockName = loopBlockName.replace(/\s+/g, '').toLowerCase()
+        contextualTags.push(`${normalizedLoopBlockName}.results`)
+
+        // Create a block group for the loop contextual tags
+        loopBlockGroup = {
+          blockName: loopBlockName,
+          blockId: loopId,
+          blockType: 'loop',
+          tags: contextualTags,
+          distance: 0, // Contextual tags have highest priority
+        }
       }
     }
 
-    // Generate parallel tags if current block is in parallel
-    const parallelTags: string[] = []
+    // Generate parallel contextual block group if current block is in parallel
+    let parallelBlockGroup: BlockTagGroup | null = null
     const containingParallel = Object.entries(parallels || {}).find(([_, parallel]) =>
       parallel.nodes.includes(blockId)
     )
+    let containingParallelBlockId: string | null = null
     if (containingParallel) {
-      parallelTags.push('parallel.index')
-      parallelTags.push('parallel.currentItem')
-      parallelTags.push('parallel.items')
+      const [parallelId, parallel] = containingParallel
+      containingParallelBlockId = parallelId
+      const contextualTags: string[] = ['index', 'currentItem', 'items']
+
+      // Add the containing parallel block's results to the contextual tags
+      const containingParallelBlock = blocks[parallelId]
+      if (containingParallelBlock) {
+        const parallelBlockName = containingParallelBlock.name || containingParallelBlock.type
+        const normalizedParallelBlockName = parallelBlockName.replace(/\s+/g, '').toLowerCase()
+        contextualTags.push(`${normalizedParallelBlockName}.results`)
+
+        // Create a block group for the parallel contextual tags
+        parallelBlockGroup = {
+          blockName: parallelBlockName,
+          blockId: parallelId,
+          blockType: 'parallel',
+          tags: contextualTags,
+          distance: 0, // Contextual tags have highest priority
+        }
+      }
     }
 
     // Create block tag groups from accessible blocks
@@ -303,7 +372,43 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (!accessibleBlock) continue
 
       const blockConfig = getBlock(accessibleBlock.type)
-      if (!blockConfig) continue
+
+      // Handle special blocks that aren't in the registry (loop and parallel)
+      if (!blockConfig) {
+        // For loop and parallel blocks, create a mock config with results output
+        if (accessibleBlock.type === 'loop' || accessibleBlock.type === 'parallel') {
+          // Skip this block if it's the containing loop/parallel block - we'll handle it with contextual tags
+          if (
+            accessibleBlockId === containingLoopBlockId ||
+            accessibleBlockId === containingParallelBlockId
+          ) {
+            continue
+          }
+
+          const mockConfig = {
+            outputs: {
+              results: 'array', // These blocks have a results array output
+            },
+          }
+          const blockName = accessibleBlock.name || accessibleBlock.type
+          const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
+
+          // Generate output paths for the mock config
+          const outputPaths = generateOutputPaths(mockConfig.outputs)
+          const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+
+          blockTagGroups.push({
+            blockName,
+            blockId: accessibleBlockId,
+            blockType: accessibleBlock.type,
+            tags: blockTags,
+            distance: blockDistances[accessibleBlockId] || 0,
+          })
+
+          allBlockTags.push(...blockTags)
+        }
+        continue
+      }
 
       const blockName = accessibleBlock.name || accessibleBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
@@ -328,13 +433,32 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       allBlockTags.push(...blockTags)
     }
 
-    // Sort block groups by distance (closest first)
+    // Add contextual block groups at the beginning (they have highest priority)
+    const finalBlockTagGroups: BlockTagGroup[] = []
+    if (loopBlockGroup) {
+      finalBlockTagGroups.push(loopBlockGroup)
+    }
+    if (parallelBlockGroup) {
+      finalBlockTagGroups.push(parallelBlockGroup)
+    }
+
+    // Sort regular block groups by distance (closest first) and add them
     blockTagGroups.sort((a, b) => a.distance - b.distance)
+    finalBlockTagGroups.push(...blockTagGroups)
+
+    // Collect all tags for the main tags array
+    const contextualTags: string[] = []
+    if (loopBlockGroup) {
+      contextualTags.push(...loopBlockGroup.tags)
+    }
+    if (parallelBlockGroup) {
+      contextualTags.push(...parallelBlockGroup.tags)
+    }
 
     return {
-      tags: [...variableTags, ...loopTags, ...parallelTags, ...allBlockTags],
+      tags: [...variableTags, ...contextualTags, ...allBlockTags],
       variableInfoMap,
-      blockTagGroups,
+      blockTagGroups: finalBlockTagGroups,
     }
   }, [blocks, edges, loops, parallels, blockId, activeSourceBlockId, workflowVariables])
 
@@ -345,18 +469,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   }, [tags, searchTerm])
 
   // Group filtered tags by category
-  const { variableTags, loopTags, parallelTags, filteredBlockTagGroups } = useMemo(() => {
+  const { variableTags, filteredBlockTagGroups } = useMemo(() => {
     const varTags: string[] = []
-    const loopTags: string[] = []
-    const parTags: string[] = []
 
     filteredTags.forEach((tag) => {
       if (tag.startsWith('variable.')) {
         varTags.push(tag)
-      } else if (tag.startsWith('loop.')) {
-        loopTags.push(tag)
-      } else if (tag.startsWith('parallel.')) {
-        parTags.push(tag)
       }
     })
 
@@ -370,8 +488,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
     return {
       variableTags: varTags,
-      loopTags: loopTags,
-      parallelTags: parTags,
       filteredBlockTagGroups,
     }
   }, [filteredTags, blockTagGroups, searchTerm])
@@ -379,8 +495,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   // Create ordered tags for keyboard navigation
   const orderedTags = useMemo(() => {
     const allBlockTags = filteredBlockTagGroups.flatMap((group) => group.tags)
-    return [...variableTags, ...loopTags, ...parallelTags, ...allBlockTags]
-  }, [variableTags, loopTags, parallelTags, filteredBlockTagGroups])
+    return [...variableTags, ...allBlockTags]
+  }, [variableTags, filteredBlockTagGroups])
 
   // Create efficient tag index lookup map
   const tagIndexMap = useMemo(() => {
@@ -393,7 +509,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   // Handle tag selection and text replacement
   const handleTagSelect = useCallback(
-    (tag: string) => {
+    (tag: string, blockGroup?: BlockTagGroup) => {
       const textBeforeCursor = inputValue.slice(0, cursorPosition)
       const textAfterCursor = inputValue.slice(cursorPosition)
 
@@ -401,8 +517,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
       if (lastOpenBracket === -1) return
 
-      // Process variable tags to maintain compatibility
+      // Process different types of tags
       let processedTag = tag
+
+      // Handle variable tags
       if (tag.startsWith('variable.')) {
         const variableName = tag.substring('variable.'.length)
         const variableObj = Object.values(variables).find(
@@ -410,6 +528,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         )
 
         if (variableObj) {
+          processedTag = tag
+        }
+      }
+      // Handle contextual loop/parallel tags
+      else if (
+        blockGroup &&
+        (blockGroup.blockType === 'loop' || blockGroup.blockType === 'parallel')
+      ) {
+        // Check if this is a contextual tag (without dots) that needs a prefix
+        if (!tag.includes('.') && ['index', 'currentItem', 'items'].includes(tag)) {
+          processedTag = `${blockGroup.blockType}.${tag}`
+        } else {
+          // It's already a properly formatted tag (like blockname.results)
           processedTag = tag
         }
       }
@@ -465,7 +596,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             e.preventDefault()
             e.stopPropagation()
             if (selectedIndex >= 0 && selectedIndex < orderedTags.length) {
-              handleTagSelect(orderedTags[selectedIndex])
+              const selectedTag = orderedTags[selectedIndex]
+              // Find which block group this tag belongs to
+              const belongsToGroup = filteredBlockTagGroups.find((group) =>
+                group.tags.includes(selectedTag)
+              )
+              handleTagSelect(selectedTag, belongsToGroup)
             }
             break
           case 'Escape':
@@ -479,7 +615,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       window.addEventListener('keydown', handleKeyboardEvent, true)
       return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
-  }, [visible, selectedIndex, orderedTags, handleTagSelect, onClose])
+  }, [visible, selectedIndex, orderedTags, filteredBlockTagGroups, handleTagSelect, onClose])
 
   // Early return if dropdown should not be visible
   if (!visible || tags.length === 0 || orderedTags.length === 0) return null
@@ -552,152 +688,21 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               </>
             )}
 
-            {/* Loop section */}
-            {loopTags.length > 0 && (
-              <>
-                {variableTags.length > 0 && <div className='my-0' />}
-                <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                  Loop
-                </div>
-                <div className='-mx-1 -px-1'>
-                  {loopTags.map((tag: string) => {
-                    const tagIndex = tagIndexMap.get(tag) ?? -1
-                    const loopProperty = tag.split('.')[1]
-
-                    // Choose appropriate icon and description based on loop property
-                    let tagIcon = 'L'
-                    let tagDescription = ''
-                    const bgColor = '#8857E6'
-
-                    if (loopProperty === 'currentItem') {
-                      tagIcon = 'i'
-                      tagDescription = 'Current item'
-                    } else if (loopProperty === 'items') {
-                      tagIcon = 'I'
-                      tagDescription = 'All items'
-                    } else if (loopProperty === 'index') {
-                      tagIcon = '#'
-                      tagDescription = 'Index'
-                    }
-
-                    return (
-                      <button
-                        key={tag}
-                        className={cn(
-                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
-                          'hover:bg-accent hover:text-accent-foreground',
-                          'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                          tagIndex === selectedIndex &&
-                            tagIndex >= 0 &&
-                            'bg-accent text-accent-foreground'
-                        )}
-                        onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleTagSelect(tag)
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleTagSelect(tag)
-                        }}
-                      >
-                        <div
-                          className='flex h-5 w-5 items-center justify-center rounded'
-                          style={{ backgroundColor: bgColor }}
-                        >
-                          <span className='h-3 w-3 font-bold text-white text-xs'>{tagIcon}</span>
-                        </div>
-                        <span className='flex-1 truncate'>{tag}</span>
-                        <span className='ml-auto text-muted-foreground text-xs'>
-                          {tagDescription}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-
-            {/* Parallel section */}
-            {parallelTags.length > 0 && (
-              <>
-                {loopTags.length > 0 && <div className='my-0' />}
-                <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                  Parallel
-                </div>
-                <div className='-mx-1 -px-1'>
-                  {parallelTags.map((tag: string) => {
-                    const tagIndex = tagIndexMap.get(tag) ?? -1
-                    const parallelProperty = tag.split('.')[1]
-
-                    // Choose appropriate icon and description based on parallel property
-                    let tagIcon = 'P'
-                    let tagDescription = ''
-                    const bgColor = '#FF5757'
-
-                    if (parallelProperty === 'currentItem') {
-                      tagIcon = 'i'
-                      tagDescription = 'Current item'
-                    } else if (parallelProperty === 'items') {
-                      tagIcon = 'I'
-                      tagDescription = 'All items'
-                    } else if (parallelProperty === 'index') {
-                      tagIcon = '#'
-                      tagDescription = 'Index'
-                    }
-
-                    return (
-                      <button
-                        key={tag}
-                        className={cn(
-                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
-                          'hover:bg-accent hover:text-accent-foreground',
-                          'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                          tagIndex === selectedIndex &&
-                            tagIndex >= 0 &&
-                            'bg-accent text-accent-foreground'
-                        )}
-                        onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleTagSelect(tag)
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleTagSelect(tag)
-                        }}
-                      >
-                        <div
-                          className='flex h-5 w-5 items-center justify-center rounded'
-                          style={{ backgroundColor: bgColor }}
-                        >
-                          <span className='h-3 w-3 font-bold text-white text-xs'>{tagIcon}</span>
-                        </div>
-                        <span className='flex-1 truncate'>{tag}</span>
-                        <span className='ml-auto text-muted-foreground text-xs'>
-                          {tagDescription}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-
             {/* Block sections */}
             {filteredBlockTagGroups.length > 0 && (
               <>
-                {(variableTags.length > 0 || loopTags.length > 0 || parallelTags.length > 0) && (
-                  <div className='my-0' />
-                )}
+                {variableTags.length > 0 && <div className='my-0' />}
                 {filteredBlockTagGroups.map((group) => {
                   // Get block color from configuration
                   const blockConfig = getBlock(group.blockType)
-                  const blockColor = blockConfig?.bgColor || '#2F55FF'
+                  let blockColor = blockConfig?.bgColor || '#2F55FF'
+
+                  // Handle special colors for loop and parallel blocks
+                  if (group.blockType === 'loop') {
+                    blockColor = '#8857E6' // Purple color for loop blocks
+                  } else if (group.blockType === 'parallel') {
+                    blockColor = '#FF5757' // Red color for parallel blocks
+                  }
 
                   return (
                     <div key={group.blockId}>
@@ -707,11 +712,37 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                       <div>
                         {group.tags.map((tag: string) => {
                           const tagIndex = tagIndexMap.get(tag) ?? -1
-                          // Extract path after block name (e.g., "field" from "blockname.field")
-                          // For root reference blocks, show the block name instead of empty path
-                          const tagParts = tag.split('.')
-                          const path = tagParts.slice(1).join('.')
-                          const displayText = path || group.blockName
+
+                          // Handle display text based on tag type
+                          let displayText: string
+                          let tagDescription = ''
+                          let tagIcon = group.blockName.charAt(0).toUpperCase()
+
+                          if (
+                            (group.blockType === 'loop' || group.blockType === 'parallel') &&
+                            !tag.includes('.')
+                          ) {
+                            // Contextual tags like 'index', 'currentItem', 'items'
+                            displayText = tag
+                            if (tag === 'index') {
+                              tagIcon = '#'
+                              tagDescription = 'Index'
+                            } else if (tag === 'currentItem') {
+                              tagIcon = 'i'
+                              tagDescription = 'Current item'
+                            } else if (tag === 'items') {
+                              tagIcon = 'I'
+                              tagDescription = 'All items'
+                            }
+                          } else {
+                            // Regular block output tags like 'blockname.field' or 'blockname.results'
+                            const tagParts = tag.split('.')
+                            const path = tagParts.slice(1).join('.')
+                            displayText = path || group.blockName
+                            if (path === 'results') {
+                              tagDescription = 'Results array'
+                            }
+                          }
 
                           return (
                             <button
@@ -728,12 +759,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                               onMouseDown={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                handleTagSelect(tag)
+                                handleTagSelect(tag, group)
                               }}
                               onClick={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                handleTagSelect(tag)
+                                handleTagSelect(tag, group)
                               }}
                             >
                               <div
@@ -741,12 +772,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                 style={{ backgroundColor: blockColor }}
                               >
                                 <span className='h-3 w-3 font-bold text-white text-xs'>
-                                  {group.blockName.charAt(0).toUpperCase()}
+                                  {tagIcon}
                                 </span>
                               </div>
-                              <span className='max-w-[calc(100%-32px)] truncate'>
-                                {displayText}
-                              </span>
+                              <span className='flex-1 truncate'>{displayText}</span>
+                              {tagDescription && (
+                                <span className='ml-auto text-muted-foreground text-xs'>
+                                  {tagDescription}
+                                </span>
+                              )}
                             </button>
                           )
                         })}

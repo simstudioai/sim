@@ -1,3 +1,4 @@
+import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import {
@@ -77,8 +78,20 @@ export function ConnectionBlocks({
     // Get block configuration for icon and color
     const blockConfig = getBlock(connection.type)
     const displayName = connection.name // Use the actual block name instead of transforming it
-    const Icon = blockConfig?.icon
-    const bgColor = blockConfig?.bgColor || '#6B7280' // Fallback to gray
+
+    // Handle special blocks that aren't in the registry (loop and parallel)
+    let Icon = blockConfig?.icon
+    let bgColor = blockConfig?.bgColor || '#6B7280' // Fallback to gray
+
+    if (!blockConfig) {
+      if (connection.type === 'loop') {
+        Icon = RepeatIcon as typeof Icon
+        bgColor = '#2FB3FF' // Blue color for loop blocks
+      } else if (connection.type === 'parallel') {
+        Icon = SplitIcon as typeof Icon
+        bgColor = '#FEE12B' // Yellow color for parallel blocks
+      }
+    }
 
     return (
       <Card
