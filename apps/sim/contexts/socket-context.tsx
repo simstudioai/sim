@@ -13,6 +13,9 @@ import { useParams } from 'next/navigation'
 import { io, type Socket } from 'socket.io-client'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('SocketContext')
 
@@ -34,6 +37,7 @@ interface SocketContextType {
   socket: Socket | null
   isConnected: boolean
   isConnecting: boolean
+  isSyncing: boolean
   currentWorkflowId: string | null
   presenceUsers: PresenceUser[]
   joinWorkflow: (workflowId: string) => void
@@ -42,6 +46,7 @@ interface SocketContextType {
   emitSubblockUpdate: (blockId: string, subblockId: string, value: any) => void
   emitCursorUpdate: (cursor: { x: number; y: number }) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
+  requestForceSync: () => Promise<boolean>
   // Event handlers for receiving real-time updates
   onWorkflowOperation: (handler: (data: any) => void) => void
   onSubblockUpdate: (handler: (data: any) => void) => void
@@ -57,6 +62,7 @@ const SocketContext = createContext<SocketContextType>({
   socket: null,
   isConnected: false,
   isConnecting: false,
+  isSyncing: false,
   currentWorkflowId: null,
   presenceUsers: [],
   joinWorkflow: () => {},
@@ -65,6 +71,7 @@ const SocketContext = createContext<SocketContextType>({
   emitSubblockUpdate: () => {},
   emitCursorUpdate: () => {},
   emitSelectionUpdate: () => {},
+  requestForceSync: async () => false,
   onWorkflowOperation: () => {},
   onSubblockUpdate: () => {},
   onCursorUpdate: () => {},
@@ -86,12 +93,18 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
 
   // Get current workflow ID from URL params
   const params = useParams()
   const urlWorkflowId = params?.workflowId as string | undefined
+
+  // Access stores for force sync
+  const workflowStore = useWorkflowStore()
+  const subBlockStore = useSubBlockStore()
+  const { activeWorkflowId } = useWorkflowRegistry()
 
   // Use refs to store event handlers to avoid stale closures
   const eventHandlers = useRef<{
@@ -150,9 +163,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         const socketInstance = io(socketUrl, {
           transports: ['websocket', 'polling'], // Keep polling fallback for reliability
           withCredentials: true,
-          reconnectionAttempts: 5, // Socket.IO handles base reconnection
+          reconnectionAttempts: Number.POSITIVE_INFINITY, // Socket.IO handles base reconnection
           reconnectionDelay: 1000, // Start with 1 second delay
-          reconnectionDelayMax: 5000, // Max 5 second delay
+          reconnectionDelayMax: 30000, // Max 30 second delay
           timeout: 10000, // Back to original timeout
           auth: (cb) => {
             // Generate a fresh token for each connection attempt (including reconnections)
@@ -570,12 +583,102 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowReverted = handler
   }, [])
 
+  const requestForceSync = useCallback(async (): Promise<boolean> => {
+    if (!activeWorkflowId) {
+      logger.warn('Cannot force sync: no active workflow')
+      return false
+    }
+
+    setIsSyncing(true)
+
+    try {
+      logger.info(`Starting force sync for workflow ${activeWorkflowId}`)
+
+      const currentState = workflowStore
+      const subblockValues = subBlockStore.workflowValues[activeWorkflowId] || {}
+
+      const blocksWithSubblocks = { ...currentState.blocks }
+      Object.entries(subblockValues).forEach(([blockId, blockSubblocks]) => {
+        if (blocksWithSubblocks[blockId]) {
+          Object.entries(blockSubblocks as Record<string, any>).forEach(([subblockId, value]) => {
+            if (blocksWithSubblocks[blockId].subBlocks[subblockId]) {
+              blocksWithSubblocks[blockId].subBlocks[subblockId].value = value
+            }
+          })
+        }
+      })
+
+      const workflowState = {
+        blocks: blocksWithSubblocks,
+        edges: currentState.edges,
+        loops: currentState.loops,
+        parallels: currentState.parallels,
+        lastSaved: Date.now(),
+        isDeployed: currentState.isDeployed,
+        deployedAt: currentState.deployedAt,
+        deploymentStatuses: currentState.deploymentStatuses,
+        hasActiveSchedule: currentState.hasActiveSchedule,
+        hasActiveWebhook: currentState.hasActiveWebhook,
+      }
+
+      const response = await fetch(`/api/workflows/${activeWorkflowId}/force-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ workflowState }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        logger.error('Force sync API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          workflowState: JSON.stringify(workflowState, null, 2),
+        })
+        throw new Error(errorData.error || `Force sync failed: ${response.statusText}`)
+      }
+
+      logger.info(`Force sync completed successfully for workflow ${activeWorkflowId}`)
+      return true
+    } catch (error) {
+      logger.error('Force sync failed:', error)
+      return false
+    } finally {
+      setIsSyncing(false)
+    }
+  }, [activeWorkflowId, workflowStore, subBlockStore, setIsSyncing])
+
+  const hasBeenDisconnected = useRef(false)
+
+  useEffect(() => {
+    if (!isConnected) {
+      hasBeenDisconnected.current = true
+    } else if (hasBeenDisconnected.current && isConnected && activeWorkflowId) {
+      logger.info('Connection restored, triggering force sync to persist local changes')
+
+      const syncTimeout = setTimeout(async () => {
+        const syncSuccess = await requestForceSync()
+        if (syncSuccess) {
+          logger.info('Force sync completed successfully after reconnection')
+        } else {
+          logger.error('Force sync failed after reconnection')
+        }
+        hasBeenDisconnected.current = false
+      }, 1000)
+
+      return () => clearTimeout(syncTimeout)
+    }
+  }, [isConnected, activeWorkflowId, requestForceSync])
+
   return (
     <SocketContext.Provider
       value={{
         socket,
         isConnected,
         isConnecting,
+        isSyncing,
         currentWorkflowId,
         presenceUsers,
         joinWorkflow,
@@ -584,6 +687,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         emitSubblockUpdate,
         emitCursorUpdate,
         emitSelectionUpdate,
+        requestForceSync,
         onWorkflowOperation,
         onSubblockUpdate,
         onCursorUpdate,

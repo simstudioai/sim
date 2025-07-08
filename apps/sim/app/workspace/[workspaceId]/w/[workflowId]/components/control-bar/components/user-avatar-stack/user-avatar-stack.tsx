@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useSocket } from '@/contexts/socket-context'
 import { usePresence } from '../../../../hooks/use-presence'
 import { ConnectionStatus } from './components/connection-status/connection-status'
 import { UserAvatar } from './components/user-avatar/user-avatar'
@@ -27,6 +28,7 @@ export function UserAvatarStack({
 }: UserAvatarStackProps) {
   // Use presence data if no users are provided via props
   const { users: presenceUsers, isConnected } = usePresence()
+  const { isSyncing } = useSocket()
   const users = propUsers || presenceUsers
 
   // Memoize the processed users to avoid unnecessary re-renders
@@ -45,8 +47,10 @@ export function UserAvatarStack({
   }, [users, maxVisible])
 
   // Show connection status component regardless of user count
-  // This will handle the offline notice when disconnected for 15 seconds
-  const connectionStatusElement = <ConnectionStatus isConnected={isConnected} />
+  // This will handle the offline notice when disconnected for 6 seconds
+  const connectionStatusElement = (
+    <ConnectionStatus isConnected={isConnected} isSyncing={isSyncing} />
+  )
 
   // Only show presence when there are multiple users (>1)
   // But always show connection status
