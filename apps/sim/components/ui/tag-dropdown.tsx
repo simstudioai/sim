@@ -8,6 +8,7 @@ import { Serializer } from '@/serializer'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('TagDropdown')
@@ -62,6 +63,23 @@ export function extractFieldsFromSchema(schema: any): Field[] {
       description: prop.description,
     }
   })
+}
+
+// Helper function to safely parse response format
+export function parseResponseFormatSafely(responseFormatValue: any, blockId: string): any {
+  if (!responseFormatValue) {
+    return null
+  }
+
+  try {
+    if (typeof responseFormatValue === 'string') {
+      return JSON.parse(responseFormatValue)
+    }
+    return responseFormatValue
+  } catch (error) {
+    logger.warn(`Failed to parse response format for block ${blockId}:`, error)
+    return null
+  }
 }
 
 interface TagDropdownProps {
@@ -208,11 +226,29 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const blockName = sourceBlock.name || sourceBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
-      // Handle blocks with no outputs (like starter) - show as just <blockname>
+      // Check for custom response format first
+      const responseFormatValue = useSubBlockStore
+        .getState()
+        .getValue(activeSourceBlockId, 'responseFormat')
+      const responseFormat = parseResponseFormatSafely(responseFormatValue, activeSourceBlockId)
+
       let blockTags: string[]
-      if (Object.keys(blockConfig.outputs).length === 0) {
+
+      if (responseFormat) {
+        // Use custom schema properties if response format is specified
+        const schemaFields = extractFieldsFromSchema(responseFormat)
+        if (schemaFields.length > 0) {
+          blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
+        } else {
+          // Fallback to default if schema extraction failed
+          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        }
+      } else if (Object.keys(blockConfig.outputs).length === 0) {
+        // Handle blocks with no outputs (like starter) - show as just <blockname>
         blockTags = [normalizedBlockName]
       } else {
+        // Use default block outputs
         const outputPaths = generateOutputPaths(blockConfig.outputs)
         blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
@@ -413,11 +449,29 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const blockName = accessibleBlock.name || accessibleBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
-      // Handle blocks with no outputs (like starter) - show as just <blockname>
+      // Check for custom response format first
+      const responseFormatValue = useSubBlockStore
+        .getState()
+        .getValue(accessibleBlockId, 'responseFormat')
+      const responseFormat = parseResponseFormatSafely(responseFormatValue, accessibleBlockId)
+
       let blockTags: string[]
-      if (Object.keys(blockConfig.outputs).length === 0) {
+
+      if (responseFormat) {
+        // Use custom schema properties if response format is specified
+        const schemaFields = extractFieldsFromSchema(responseFormat)
+        if (schemaFields.length > 0) {
+          blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
+        } else {
+          // Fallback to default if schema extraction failed
+          const outputPaths = generateOutputPaths(blockConfig.outputs)
+          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        }
+      } else if (Object.keys(blockConfig.outputs).length === 0) {
+        // Handle blocks with no outputs (like starter) - show as just <blockname>
         blockTags = [normalizedBlockName]
       } else {
+        // Use default block outputs
         const outputPaths = generateOutputPaths(blockConfig.outputs)
         blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
