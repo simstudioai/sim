@@ -831,7 +831,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         // Preserving the workflow-specific deployment status if it exists
-        const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(activeWorkflowId)
+        const deploymentStatus = useWorkflowRegistry
+          .getState()
+          .getWorkflowDeploymentStatus(activeWorkflowId)
 
         const newState = {
           blocks: deployedState.blocks,

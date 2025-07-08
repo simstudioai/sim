@@ -2,12 +2,12 @@ import crypto from 'crypto'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('RevertToDeployedAPI')
 
@@ -116,9 +116,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       error: error.message,
       stack: error.stack,
     })
-    return createErrorResponse(
-      error.message || 'Failed to revert workflow to deployed state',
-      500
-    )
+    return createErrorResponse(error.message || 'Failed to revert workflow to deployed state', 500)
   }
 }

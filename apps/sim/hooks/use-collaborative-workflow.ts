@@ -278,7 +278,7 @@ export function useCollaborativeWorkflow() {
             const responseData = await response.json()
             const workflowData = responseData.data
 
-            if (workflowData && workflowData.state) {
+            if (workflowData?.state) {
               // Update the workflow store with the reverted state
               isApplyingRemoteChange.current = true
               try {
