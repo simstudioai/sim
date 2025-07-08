@@ -17,9 +17,6 @@ export function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
       timeoutId = setTimeout(() => {
         setShowOfflineNotice(true)
       }, 6000) // 6 seconds
-    } else {
-      // Hide notice immediately when reconnected
-      setShowOfflineNotice(false)
     }
 
     return () => {
