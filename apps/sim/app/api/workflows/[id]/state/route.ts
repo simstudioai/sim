@@ -86,18 +86,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Save to normalized tables
-    logger.info(`[${requestId}] Saving workflow ${workflowId} state to normalized tables`)
-
-    // Debug: Log sample block data being received
-    const sampleBlockId = Object.keys(state.blocks)[0]
-    if (sampleBlockId) {
-      logger.debug(`[${requestId}] Sample block data received:`, {
-        blockId: sampleBlockId,
-        block: state.blocks[sampleBlockId],
-        subBlocks: state.blocks[sampleBlockId]?.subBlocks,
-      })
-    }
-
     // Ensure all required fields are present for WorkflowState type
     const workflowState = {
       blocks: state.blocks,

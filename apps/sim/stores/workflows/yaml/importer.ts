@@ -351,7 +351,7 @@ export async function importWorkflowFromYaml(
   },
   targetWorkflowId?: string
 ): Promise<{ success: boolean; errors: string[]; warnings: string[]; summary?: string }> {
-  logger.info('Starting YAML workflow import (complete state creation)')
+
 
   try {
     // Parse YAML
@@ -368,13 +368,7 @@ export async function importWorkflowFromYaml(
       return { success: false, errors, warnings }
     }
 
-    logger.info(
-      `Creating complete workflow state with ${blocks.length} blocks and ${edges.length} edges`
-    )
-    logger.debug(
-      'Blocks to import:',
-      blocks.map((b) => `${b.id} (${b.type}): ${b.name}`)
-    )
+
 
     // Get the existing workflow state (to preserve starter blocks if they exist)
     let existingBlocks: Record<string, any> = {}
@@ -386,23 +380,19 @@ export async function importWorkflowFromYaml(
         if (response.ok) {
           const workflowData = await response.json()
           existingBlocks = workflowData.data?.state?.blocks || {}
-          logger.debug(
-            `Fetched existing blocks for target workflow ${targetWorkflowId}:`,
-            Object.keys(existingBlocks)
-          )
+          
         }
-      } catch (error) {
-        logger.warn(`Failed to fetch existing blocks for workflow ${targetWorkflowId}:`, error)
+              } catch (error) {
+          logger.warn(`Failed to fetch existing blocks for workflow ${targetWorkflowId}:`, error)
+        }
+      } else {
+        // For active workflow, use from store
+        existingBlocks = workflowActions.getExistingBlocks()
       }
-    } else {
-      // For active workflow, use from store
-      existingBlocks = workflowActions.getExistingBlocks()
-    }
-
-    const existingStarterBlocks = Object.values(existingBlocks).filter(
-      (block: any) => block.type === 'starter'
-    )
-    logger.debug(`Found ${existingStarterBlocks.length} existing starter blocks`)
+      
+      const existingStarterBlocks = Object.values(existingBlocks).filter(
+        (block: any) => block.type === 'starter'
+      )
 
     // Get stores and current workflow info
     const { useWorkflowStore } = require('@/stores/workflows/workflow/store')
@@ -417,9 +407,7 @@ export async function importWorkflowFromYaml(
       return { success: false, errors: ['No active workflow'], warnings: [] }
     }
 
-    logger.info(
-      `Importing YAML into workflow: ${activeWorkflowId} ${targetWorkflowId ? '(specified target)' : '(active workflow)'}`
-    )
+
 
     // Build complete blocks object
     const completeBlocks: Record<string, any> = {}
@@ -456,7 +444,7 @@ export async function importWorkflowFromYaml(
           ...starterBlock.inputs, // Override with YAML values
         }
 
-        logger.debug(`Using existing starter block: ${existingStarter.id}`)
+
       } else {
         // Create new starter block
         starterBlockId = crypto.randomUUID()
@@ -491,7 +479,7 @@ export async function importWorkflowFromYaml(
           // Set starter block values
           completeSubBlockValues[starterBlockId] = { ...starterBlock.inputs }
 
-          logger.debug(`Created new starter block: ${starterBlockId}`)
+
         }
       }
     }
@@ -500,7 +488,7 @@ export async function importWorkflowFromYaml(
     let blocksProcessed = 0
     for (const block of blocks) {
       if (block.type === 'starter') {
-        logger.debug(`Skipping starter block: ${block.id} (already handled)`)
+
         continue // Already handled above
       }
 
@@ -528,7 +516,6 @@ export async function importWorkflowFromYaml(
 
         completeSubBlockValues[blockId] = { ...block.inputs }
         blocksProcessed++
-        logger.debug(`Prepared ${block.type} block: ${blockId} -> ${block.name}`)
       } else if (blockConfig) {
         // Handle regular blocks
         const subBlocks: Record<string, any> = {}
@@ -557,15 +544,12 @@ export async function importWorkflowFromYaml(
         // Set block input values
         completeSubBlockValues[blockId] = { ...block.inputs }
         blocksProcessed++
-        logger.debug(`Prepared ${block.type} block: ${blockId} -> ${block.name}`)
       } else {
         logger.warn(`No block config found for type: ${block.type} (block: ${block.id})`)
       }
     }
 
-    logger.info(
-      `Processed ${blocksProcessed} non-starter blocks, total blocks in state: ${Object.keys(completeBlocks).length}`
-    )
+
 
     // Create complete edges using the ID mapping
     const completeEdges: any[] = []
@@ -579,14 +563,13 @@ export async function importWorkflowFromYaml(
           source: sourceId,
           target: targetId,
         })
-        logger.debug(`Prepared edge: ${sourceId} -> ${targetId}`)
+
       } else {
         logger.warn(`Skipping edge - missing blocks: ${edge.source} -> ${edge.target}`)
       }
     }
 
     // Create complete workflow state with values already set in subBlocks
-    logger.info('Creating complete workflow state with embedded values...')
 
     // Merge subblock values directly into block subBlocks
     for (const [blockId, blockData] of Object.entries(completeBlocks)) {
@@ -596,9 +579,6 @@ export async function importWorkflowFromYaml(
       for (const [subBlockId, subBlockData] of Object.entries(blockData.subBlocks || {})) {
         if (blockValues[subBlockId] !== undefined && blockValues[subBlockId] !== null) {
           ;(subBlockData as any).value = blockValues[subBlockId]
-          logger.debug(
-            `Embedded value in block: ${blockId}.${subBlockId} = ${blockValues[subBlockId]}`
-          )
         }
       }
     }
@@ -617,14 +597,7 @@ export async function importWorkflowFromYaml(
       hasActiveWebhook: false,
     }
 
-    // Save directly to database via API
-    logger.info('Saving complete workflow state directly to database...')
-    logger.debug('Sample block being saved:', {
-      firstBlockId: Object.keys(completeBlocks)[0],
-      firstBlock: Object.values(completeBlocks)[0],
-      firstBlockSubBlocks: Object.values(completeBlocks)[0]?.subBlocks,
-    })
-
+        // Save directly to database via API
     const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
       method: 'PUT',
       headers: {
@@ -644,42 +617,30 @@ export async function importWorkflowFromYaml(
     }
 
     const saveResponse = await response.json()
-    logger.info('Successfully saved to database:', saveResponse)
 
     // Update local state for immediate UI display (only if importing into active workflow)
     if (!targetWorkflowId) {
-      logger.info('Updating local state for immediate display (active workflow)...')
       useWorkflowStore.setState(completeWorkflowState)
 
-      // Set subblock values in local store
-      logger.debug('Setting SubBlockStore with values:', completeSubBlockValues)
+            // Set subblock values in local store
       useSubBlockStore.setState((state: any) => ({
         workflowValues: {
           ...state.workflowValues,
           [activeWorkflowId]: completeSubBlockValues,
         },
       }))
-
-      // Verify SubBlockStore was updated
-      const subBlockStoreValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
-      logger.debug('SubBlockStore after update:', subBlockStoreValues)
-    } else {
-      logger.info('Skipping local state update (importing into non-active workflow)')
-    }
+          }
 
     // Brief delay for UI to update
     await new Promise((resolve) => setTimeout(resolve, 100))
 
     // Apply auto layout
-    logger.info('Applying auto layout...')
     workflowActions.applyAutoLayout()
 
     const totalBlocksCreated =
       Object.keys(completeBlocks).length - (existingStarterBlocks.length > 0 ? 1 : 0)
 
-    logger.info(
-      `Successfully imported workflow: ${totalBlocksCreated} blocks created, ${completeEdges.length} edges, values set for ${Object.keys(completeSubBlockValues).length} blocks`
-    )
+
 
     return {
       success: true,

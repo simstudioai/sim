@@ -474,23 +474,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             })
           })
 
-          // Debug: Log what values are being extracted from the database
-          logger.debug(
-            `Extracted subblock values from database for workflow ${id}:`,
-            subblockValues
-          )
-
-          // Update subblock store for this workflow
+                    // Update subblock store for this workflow
           useSubBlockStore.setState((state) => ({
             workflowValues: {
               ...state.workflowValues,
               [id]: subblockValues,
             },
           }))
-
-          // Debug: Verify SubBlockStore was updated
-          const updatedValues = useSubBlockStore.getState().workflowValues[id]
-          logger.debug(`SubBlockStore updated for workflow ${id}:`, updatedValues)
         } else {
           // If no state in DB, use empty state - server should have created start block
           workflowState = {

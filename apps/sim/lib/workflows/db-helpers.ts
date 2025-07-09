@@ -70,13 +70,7 @@ export async function loadWorkflowFromNormalizedTables(
         extent,
       }
 
-      // Debug: Log sample block subBlocks from database
-      if (block.type === 'agent') {
-        logger.debug(`Loaded ${block.type} block from database:`, {
-          blockId: block.id,
-          subBlocks: block.subBlocks,
-        })
-      }
+
     })
 
     // Convert edges to the expected format
@@ -101,23 +95,19 @@ export async function loadWorkflowFromNormalizedTables(
           id: subflow.id,
           ...config,
         }
-        logger.debug(
-          `[DB-HELPERS] Loaded loop ${subflow.id} with iterations: ${loopConfig.iterations || 'unknown'}`
-        )
+
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
         parallels[subflow.id] = {
           id: subflow.id,
           ...config,
         }
-        logger.debug(`[DB-HELPERS] Loaded parallel ${subflow.id}`)
+
       } else {
         logger.warn(`Unknown subflow type: ${subflow.type} for subflow ${subflow.id}`)
       }
     })
 
-    logger.info(
-      `Loaded workflow ${workflowId} from normalized tables: ${blocks.length} blocks, ${edges.length} edges, ${subflows.length} subflows`
-    )
+
 
     return {
       blocks: blocksMap,
@@ -170,14 +160,7 @@ export async function saveWorkflowToNormalizedTables(
           extent: block.data?.extent || null,
         }))
 
-        // Debug: Log sample block insert data
-        if (blockInserts.length > 0) {
-          logger.debug(`Saving ${blockInserts.length} blocks. Sample block:`, {
-            blockId: blockInserts[0].id,
-            type: blockInserts[0].type,
-            subBlocks: blockInserts[0].subBlocks,
-          })
-        }
+
 
         await tx.insert(workflowBlocks).values(blockInserts)
       }
@@ -240,7 +223,7 @@ export async function saveWorkflowToNormalizedTables(
       hasActiveWebhook: state.hasActiveWebhook,
     }
 
-    logger.info(`Successfully saved workflow ${workflowId} to normalized tables`)
+
 
     return {
       success: true,
@@ -298,7 +281,7 @@ export async function migrateWorkflowToNormalizedTables(
     const result = await saveWorkflowToNormalizedTables(workflowId, workflowState)
 
     if (result.success) {
-      logger.info(`Successfully migrated workflow ${workflowId} to normalized tables`)
+
       return { success: true }
     }
     return { success: false, error: result.error }
