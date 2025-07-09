@@ -66,6 +66,7 @@ export interface CopilotActions {
   // Message handling
   sendMessage: (message: string, options?: { stream?: boolean }) => Promise<void>
   sendDocsMessage: (query: string, options?: { stream?: boolean; topK?: number }) => Promise<void>
+  saveChatMessages: (chatId: string) => Promise<void>
 
   // Utility actions
   clearMessages: () => void

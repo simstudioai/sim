@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { createChat, deleteChat, getChat, listChats, sendMessage } from '@/lib/copilot/service'
+import { createChat, deleteChat, generateChatTitle, getChat, listChats, sendMessage, updateChat } from '@/lib/copilot/service'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('CopilotAPI')
@@ -32,6 +32,24 @@ const CreateChatSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   title: z.string().optional(),
   initialMessage: z.string().optional(),
+})
+
+// Schema for updating chats
+const UpdateChatSchema = z.object({
+  chatId: z.string().min(1, 'Chat ID is required'),
+  messages: z.array(z.object({
+    id: z.string(),
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string(),
+    timestamp: z.string(),
+    citations: z.array(z.object({
+      id: z.number(),
+      title: z.string(),
+      url: z.string(),
+      similarity: z.number().optional(),
+    })).optional(),
+  })).optional(),
+  title: z.string().optional(),
 })
 
 // Schema for listing chats
@@ -102,6 +120,37 @@ export async function POST(req: NextRequest) {
       // Handle StreamingExecution (from providers with tool calls)
       logger.info(`[${requestId}] StreamingExecution detected`)
       streamToRead = (result.response as any).stream
+      
+      // Extract citations from StreamingExecution at API level
+      const execution = (result.response as any).execution
+      logger.info(`[${requestId}] Extracting citations from StreamingExecution`, {
+        hasExecution: !!execution,
+        hasToolResults: !!execution?.toolResults,
+        toolResultsLength: execution?.toolResults?.length || 0,
+      })
+      
+      if (execution?.toolResults) {
+        for (const toolResult of execution.toolResults) {
+          logger.info(`[${requestId}] Processing tool result for citations`, {
+            hasResult: !!toolResult,
+            resultKeys: toolResult && typeof toolResult === 'object' ? Object.keys(toolResult) : [],
+            hasResultsArray: !!(toolResult && typeof toolResult === 'object' && toolResult.results),
+          })
+          
+          if (toolResult && typeof toolResult === 'object' && toolResult.results) {
+            // Convert documentation search results to citations
+            const extractedCitations = toolResult.results.map((res: any, index: number) => ({
+              id: index + 1,
+              title: res.title || 'Documentation',
+              url: res.url || '#',
+              similarity: res.similarity,
+            }))
+            result.citations = extractedCitations
+            logger.info(`[${requestId}] Extracted ${extractedCitations.length} citations from tool results:`, extractedCitations)
+            break // Use first set of results found
+          }
+        }
+      }
     }
 
     if (streamToRead) {
@@ -283,6 +332,68 @@ export async function PUT(req: NextRequest) {
     }
 
     logger.error('Failed to create chat:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * PATCH /api/copilot
+ * Update a chat with new messages
+ */
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+    const { chatId, messages, title } = UpdateChatSchema.parse(body)
+
+    logger.info(`Updating chat ${chatId} for user ${session.user.id}`)
+
+    // Get the current chat to check if it has a title
+    const existingChat = await getChat(chatId, session.user.id)
+    
+    let titleToUse = title
+    
+    // Generate title if chat doesn't have one and we have messages
+    if (!titleToUse && existingChat && !existingChat.title && messages && messages.length > 0) {
+      const firstUserMessage = messages.find(msg => msg.role === 'user')
+      if (firstUserMessage) {
+        logger.info('Generating LLM-based title for chat without title')
+        try {
+          titleToUse = await generateChatTitle(firstUserMessage.content)
+          logger.info(`Generated title: ${titleToUse}`)
+        } catch (error) {
+          logger.error('Failed to generate chat title:', error)
+          titleToUse = 'New Chat'
+        }
+      }
+    }
+
+    const chat = await updateChat(chatId, session.user.id, {
+      messages,
+      title: titleToUse,
+    })
+
+    if (!chat) {
+      return NextResponse.json({ error: 'Chat not found or access denied' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      chat,
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    logger.error('Failed to update chat:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -171,6 +171,46 @@ export async function getChat(chatId: string): Promise<{
 }
 
 /**
+ * Update a chat with new messages
+ */
+export async function updateChatMessages(
+  chatId: string,
+  messages: CopilotMessage[]
+): Promise<{
+  success: boolean
+  chat?: CopilotChat
+  error?: string
+}> {
+  try {
+    const response = await fetch(`/api/copilot`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chatId,
+        messages,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to update chat')
+    }
+
+    return {
+      success: true,
+      chat: data.chat,
+    }
+  } catch (error) {
+    logger.error('Failed to update chat messages:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
  * Delete a chat
  */
 export async function deleteChat(chatId: string): Promise<{

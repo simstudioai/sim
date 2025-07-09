@@ -9,6 +9,7 @@ import {
   listChats,
   sendStreamingDocsMessage,
   sendStreamingMessage,
+  updateChatMessages,
 } from '@/lib/copilot-api'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { CopilotStore } from './types'
@@ -434,6 +435,13 @@ export const useCopilotStore = create<CopilotStore>()(
                       isSendingMessage: false,
                     }))
 
+                    // Save chat to database after streaming completes
+                    const chatIdToSave = newChatId || get().currentChat?.id
+                    if (chatIdToSave) {
+                      console.log('[CopilotStore] Saving chat to database:', chatIdToSave)
+                      await get().saveChatMessages(chatIdToSave)
+                    }
+
                     // Handle new chat creation
                     if (newChatId && !get().currentChat) {
                       console.log('[CopilotStore] Reloading chats for new chat:', newChatId)
@@ -479,6 +487,32 @@ export const useCopilotStore = create<CopilotStore>()(
           messages: [],
           error: null,
         })
+      },
+
+      // Save chat messages to database
+      saveChatMessages: async (chatId: string) => {
+        try {
+          const { messages, currentChat } = get()
+          
+          logger.info(`Saving ${messages.length} messages for chat ${chatId}`)
+          
+          // Let the API handle title generation if needed
+          const result = await updateChatMessages(chatId, messages)
+          
+          if (result.success && result.chat) {
+            // Update local state with the saved chat
+            set({
+              currentChat: result.chat,
+              messages: result.chat.messages,
+            })
+            
+            logger.info(`Successfully saved chat ${chatId} with ${result.chat.messages.length} messages`)
+          } else {
+            logger.error(`Failed to save chat ${chatId}:`, result.error)
+          }
+        } catch (error) {
+          logger.error(`Error saving chat ${chatId}:`, error)
+        }
       },
 
       // Clear error state

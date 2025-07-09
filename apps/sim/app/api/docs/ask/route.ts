@@ -1,12 +1,11 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
 import { getCopilotConfig, getCopilotModel } from '@/lib/copilot/config'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
-import { copilotChats, docsEmbeddings } from '@/db/schema'
+import { docsEmbeddings } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey } from '@/providers/utils'
 
@@ -18,56 +17,9 @@ const DocsQuerySchema = z.object({
   provider: z.string().optional(), // Allow override of provider per request
   model: z.string().optional(), // Allow override of model per request
   stream: z.boolean().optional().default(false), // Enable streaming responses
-  // Chat-related fields
-  chatId: z.string().optional(), // Existing chat ID for conversation
-  workflowId: z.string().optional(), // Required for new chats
-  createNewChat: z.boolean().optional().default(false), // Whether to create a new chat
 })
 
-/**
- * Generate a chat title using LLM based on the first user message
- */
-async function generateChatTitle(userMessage: string): Promise<string> {
-  try {
-    const { provider, model } = getCopilotModel('title')
-    let apiKey: string
-    try {
-      // Use rotating key directly for hosted providers
-      if (provider === 'openai' || provider === 'anthropic') {
-        const { getRotatingApiKey } = require('@/lib/utils')
-        apiKey = getRotatingApiKey(provider)
-      } else {
-        apiKey = getApiKey(provider, model)
-      }
-    } catch (error) {
-      logger.error(`Failed to get API key for title generation (${provider} ${model}):`, error)
-      return 'New Chat' // Fallback if API key is not available
-    }
 
-    const response = await executeProviderRequest(provider, {
-      model,
-      systemPrompt:
-        'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
-      context: `Generate a concise title for a conversation that starts with this user message: "${userMessage}"
-
-Return only the title text, nothing else.`,
-      temperature: 0.3,
-      maxTokens: 50,
-      apiKey,
-      stream: false,
-    })
-
-    // Handle different response types
-    if (typeof response === 'object' && 'content' in response) {
-      return response.content?.trim() || 'New Chat'
-    }
-
-    return 'New Chat'
-  } catch (error) {
-    logger.error('Failed to generate chat title:', error)
-    return 'New Chat' // Fallback title
-  }
-}
 
 /**
  * Generate embedding for search query
@@ -258,65 +210,23 @@ ${context}`
 
 /**
  * POST /api/docs/ask
- * Ask questions about Sim Studio documentation using RAG
+ * Ask questions about Sim Studio documentation using RAG (no chat functionality)
  */
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID()
 
   try {
     const body = await req.json()
-    const { query, topK, provider, model, stream, chatId, workflowId, createNewChat } =
-      DocsQuerySchema.parse(body)
+    const { query, topK, provider, model, stream } = DocsQuerySchema.parse(body)
 
     const config = getCopilotConfig()
     const ragConfig = getCopilotModel('rag')
-
-    // Get session for chat functionality
-    const session = await getSession()
 
     logger.info(`[${requestId}] Docs RAG query: "${query}"`, {
       provider: provider || ragConfig.provider,
       model: model || ragConfig.model,
       topK,
-      chatId,
-      workflowId,
-      createNewChat,
     })
-
-    // Handle chat context
-    let currentChat: any = null
-    let conversationHistory: any[] = []
-
-    if (chatId && session?.user?.id) {
-      // Load existing chat
-      const [existingChat] = await db
-        .select()
-        .from(copilotChats)
-        .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
-        .limit(1)
-
-      if (existingChat) {
-        currentChat = existingChat
-        conversationHistory = Array.isArray(existingChat.messages) ? existingChat.messages : []
-      }
-    } else if (createNewChat && workflowId && session?.user?.id) {
-      // Create new chat
-      const [newChat] = await db
-        .insert(copilotChats)
-        .values({
-          userId: session.user.id,
-          workflowId,
-          title: null, // Will be generated after first response
-          model: model || ragConfig.model,
-          messages: [],
-        })
-        .returning()
-
-      if (newChat) {
-        currentChat = newChat
-        conversationHistory = []
-      }
-    }
 
     // Step 1: Generate embedding for the query
     logger.info(`[${requestId}] Generating query embedding...`)
@@ -348,14 +258,7 @@ export async function POST(req: NextRequest) {
 
     // Step 3: Generate response using LLM
     logger.info(`[${requestId}] Generating LLM response with ${chunks.length} chunks...`)
-    const response = await generateResponse(
-      query,
-      chunks,
-      provider,
-      model,
-      stream,
-      conversationHistory
-    )
+    const response = await generateResponse(query, chunks, provider, model, stream, [])
 
     // Step 4: Format sources for response
     const sources = chunks.map((chunk) => ({
@@ -369,7 +272,6 @@ export async function POST(req: NextRequest) {
     if (response instanceof ReadableStream) {
       logger.info(`[${requestId}] Returning streaming response`)
 
-      // Create a new stream that includes metadata
       const encoder = new TextEncoder()
       const decoder = new TextDecoder()
 
@@ -382,7 +284,6 @@ export async function POST(req: NextRequest) {
             const metadata = {
               type: 'metadata',
               sources,
-              chatId: currentChat?.id, // Include chat ID in metadata
               metadata: {
                 requestId,
                 chunksFound: chunks.length,
@@ -394,20 +295,13 @@ export async function POST(req: NextRequest) {
             }
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`))
 
-            let accumulatedResponse = ''
-
             try {
               while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
 
-                // Forward the chunk with content type
                 const chunkText = decoder.decode(value)
-                // Clean up any object serialization artifacts in streaming content
                 const cleanedChunk = chunkText.replace(/\[object Object\],?/g, '')
-
-                // Accumulate the response content for database saving
-                accumulatedResponse += cleanedChunk
 
                 const contentChunk = {
                   type: 'content',
@@ -416,49 +310,6 @@ export async function POST(req: NextRequest) {
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`))
               }
 
-              // Save conversation to database after streaming completes
-              if (currentChat && session?.user?.id) {
-                const userMessage = {
-                  id: crypto.randomUUID(),
-                  role: 'user',
-                  content: query,
-                  timestamp: new Date().toISOString(),
-                }
-
-                const assistantMessage = {
-                  id: crypto.randomUUID(),
-                  role: 'assistant',
-                  content: accumulatedResponse,
-                  timestamp: new Date().toISOString(),
-                  citations: sources.map((source, index) => ({
-                    id: index + 1,
-                    title: source.title,
-                    url: source.link,
-                  })),
-                }
-
-                const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
-
-                // Generate title if this is the first message
-                let updatedTitle = currentChat.title
-                if (!updatedTitle && conversationHistory.length === 0) {
-                  updatedTitle = await generateChatTitle(query)
-                }
-
-                // Update the chat in database
-                await db
-                  .update(copilotChats)
-                  .set({
-                    title: updatedTitle,
-                    messages: updatedMessages,
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(copilotChats.id, currentChat.id))
-
-                logger.info(`[${requestId}] Updated chat ${currentChat.id} with new messages`)
-              }
-
-              // Send end marker
               controller.enqueue(encoder.encode(`data: {"type":"done"}\n\n`))
             } catch (error) {
               logger.error(`[${requestId}] Streaming error:`, error)
@@ -484,53 +335,10 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${requestId}] RAG response generated successfully`)
 
-    // Save conversation to database if we have a chat
-    if (currentChat && session?.user?.id) {
-      const userMessage = {
-        id: crypto.randomUUID(),
-        role: 'user',
-        content: query,
-        timestamp: new Date().toISOString(),
-      }
-
-      const assistantMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: typeof response === 'string' ? response : '[Streaming Response]',
-        timestamp: new Date().toISOString(),
-        citations: sources.map((source, index) => ({
-          id: index + 1,
-          title: source.title,
-          url: source.link,
-        })),
-      }
-
-      const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
-
-      // Generate title if this is the first message
-      let updatedTitle = currentChat.title
-      if (!updatedTitle && conversationHistory.length === 0) {
-        updatedTitle = await generateChatTitle(query)
-      }
-
-      // Update the chat in database
-      await db
-        .update(copilotChats)
-        .set({
-          title: updatedTitle,
-          messages: updatedMessages,
-          updatedAt: new Date(),
-        })
-        .where(eq(copilotChats.id, currentChat.id))
-
-      logger.info(`[${requestId}] Updated chat ${currentChat.id} with new messages`)
-    }
-
     return NextResponse.json({
       success: true,
       response,
       sources,
-      chatId: currentChat?.id, // Include chat ID in response
       metadata: {
         requestId,
         chunksFound: chunks.length,

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
@@ -598,7 +598,7 @@ export async function listChats(
       .select()
       .from(copilotChats)
       .where(and(eq(copilotChats.userId, userId), eq(copilotChats.workflowId, workflowId)))
-      .orderBy(copilotChats.updatedAt)
+      .orderBy(desc(copilotChats.updatedAt))
       .limit(limit)
       .offset(offset)
 
@@ -753,8 +753,9 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
       }
     }
 
-    // If we have a chat, update it with the new messages
-    if (currentChat) {
+    // For non-streaming responses, save immediately
+    // For streaming responses, save will be handled by the API layer after stream completes
+    if (currentChat && typeof response === 'string') {
       const userMessage: CopilotMessage = {
         id: crypto.randomUUID(),
         role: 'user',
@@ -765,7 +766,7 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
       const assistantMessage: CopilotMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: typeof response === 'string' ? response : '[Streaming Response]',
+        content: response,
         timestamp: new Date().toISOString(),
         citations: citations.length > 0 ? citations : undefined,
       }
