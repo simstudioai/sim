@@ -112,6 +112,7 @@
         "drizzle-orm": "^0.41.0",
         "framer-motion": "^12.5.0",
         "freestyle-sandboxes": "^0.0.38",
+        "fuse.js": "7.1.0",
         "groq-sdk": "^0.15.0",
         "input-otp": "^1.4.2",
         "ioredis": "^5.6.0",
@@ -1949,6 +1950,8 @@
     "fumadocs-ui": ["fumadocs-ui@15.5.3", "", { "dependencies": { "@radix-ui/react-accordion": "^1.2.11", "@radix-ui/react-collapsible": "^1.1.11", "@radix-ui/react-dialog": "^1.1.14", "@radix-ui/react-direction": "^1.1.1", "@radix-ui/react-navigation-menu": "^1.2.13", "@radix-ui/react-popover": "^1.1.14", "@radix-ui/react-presence": "^1.1.4", "@radix-ui/react-scroll-area": "^1.2.9", "@radix-ui/react-slot": "^1.2.3", "@radix-ui/react-tabs": "^1.1.12", "class-variance-authority": "^0.7.1", "fumadocs-core": "15.5.3", "lodash.merge": "^4.6.2", "next-themes": "^0.4.6", "postcss-selector-parser": "^7.1.0", "react-medium-image-zoom": "^5.2.14", "react-remove-scroll": "^2.7.1", "tailwind-merge": "^3.3.1" }, "peerDependencies": { "@types/react": "*", "next": "14.x.x || 15.x.x", "react": "18.x.x || 19.x.x", "react-dom": "18.x.x || 19.x.x", "tailwindcss": "^3.4.14 || ^4.0.0" }, "optionalPeers": ["@types/react", "next", "tailwindcss"] }, "sha512-5SmN1j7HBQ9XuboAicfFqoNLPpN37Iwz0+cCLt6cOOequurTjfPfYCjvlKzP5q0GxDjrpU2vEQX/9JMa25bC6w=="],
 
     "function-bind": ["function-bind@1.1.2", "", {}, "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA=="],
+
+    "fuse.js": ["fuse.js@7.1.0", "", {}, "sha512-trLf4SzuuUxfusZADLINj+dE8clK1frKdmqiJNb1Es75fmI5oY6X2mxLVUciLLjxqw/xr72Dhy+lER6dGd02FQ=="],
 
     "gaxios": ["gaxios@6.7.1", "", { "dependencies": { "extend": "^3.0.2", "https-proxy-agent": "^7.0.1", "is-stream": "^2.0.0", "node-fetch": "^2.6.9", "uuid": "^9.0.1" } }, "sha512-LDODD4TMYx7XXdpwxAVRAIAuB0bzv0s+ywFonY46k126qzQHT9ygyoa9tncmOiQmmDrik65UYsEkv3lbfqQ3yQ=="],
 

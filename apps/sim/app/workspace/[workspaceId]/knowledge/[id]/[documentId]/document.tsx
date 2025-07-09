@@ -1,24 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import {
-  ChevronLeft,
-  ChevronRight,
-  Circle,
-  CircleOff,
-  FileText,
-  Plus,
-  Search,
-  Trash2,
-  X,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus, Trash2 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
-import { useDebounce } from '@/hooks/use-debounce'
+import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -64,32 +55,27 @@ export function Document({
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
-  const searchQueryFromURL = searchParams.get('search') || ''
 
-  const [searchQuery, setSearchQuery] = useState(searchQueryFromURL)
-
-  const debouncedSearchQuery = useDebounce(searchQuery, 800)
-
-  const updateURL = useCallback(
-    (newSearch: string, newPage = 1) => {
-      const params = new URLSearchParams(searchParams)
-
-      if (newSearch) {
-        params.set('search', newSearch)
-      } else {
-        params.delete('search')
-      }
-
-      if (newPage > 1) {
-        params.set('page', newPage.toString())
-      } else {
-        params.delete('page')
-      }
-
-      router.replace(`?${params.toString()}`, { scroll: false })
-    },
-    [router, searchParams]
-  )
+  const {
+    chunks: paginatedChunks,
+    allChunks,
+    filteredChunks,
+    searchQuery,
+    setSearchQuery,
+    currentPage,
+    totalPages,
+    hasNextPage,
+    hasPrevPage,
+    goToPage,
+    nextPage,
+    prevPage,
+    isLoading: isLoadingAllChunks,
+    error: chunksError,
+    refreshChunks,
+    updateChunk,
+  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', {
+    enableClientSearch: true,
+  })
 
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
@@ -98,83 +84,31 @@ export function Document({
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
-  const [pageBeforeSearch, setPageBeforeSearch] = useState(1)
 
   const [document, setDocument] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const {
-    chunks,
-    isLoading: isLoadingChunks,
-    error: chunksError,
-    currentPage,
-    totalPages,
-    hasNextPage,
-    hasPrevPage,
-    goToPage,
-    nextPage,
-    prevPage,
-    refreshChunks,
-    updateChunk,
-    searchChunks,
-  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, searchQueryFromURL)
-
   const combinedError = error || chunksError
 
-  useEffect(() => {
-    if (!knowledgeBaseId || !documentId) return
-
-    if (debouncedSearchQuery !== searchQueryFromURL) {
-      if (debouncedSearchQuery.trim().length >= 2) {
-        // Starting a search - go to page 1
-        updateURL(debouncedSearchQuery, 1)
-      } else if (debouncedSearchQuery.trim() === '') {
-        // Clearing search - return to page before search
-        updateURL(debouncedSearchQuery, pageBeforeSearch)
+  // URL synchronization for pagination
+  const updatePageInURL = useCallback(
+    (newPage: number) => {
+      const params = new URLSearchParams(searchParams)
+      if (newPage > 1) {
+        params.set('page', newPage.toString())
+      } else {
+        params.delete('page')
       }
-    }
-  }, [
-    debouncedSearchQuery,
-    searchQueryFromURL,
-    updateURL,
-    knowledgeBaseId,
-    documentId,
-    pageBeforeSearch,
-  ])
-
-  useEffect(() => {
-    setSearchQuery(searchQueryFromURL)
-  }, [searchQueryFromURL])
-
-  // Track when search starts to save current page
-  useEffect(() => {
-    const isStartingSearch = !searchQueryFromURL && searchQuery.trim()
-
-    if (isStartingSearch) {
-      // User just started typing, save current page
-      setPageBeforeSearch(currentPageFromURL)
-    }
-  }, [searchQuery, searchQueryFromURL, currentPageFromURL])
-
-  const handlePrevPage = useCallback(() => {
-    if (hasPrevPage) {
-      updateURL(searchQuery, currentPageFromURL - 1)
-    }
-  }, [hasPrevPage, updateURL, searchQuery, currentPageFromURL])
-
-  const handleNextPage = useCallback(() => {
-    if (hasNextPage) {
-      updateURL(searchQuery, currentPageFromURL + 1)
-    }
-  }, [hasNextPage, updateURL, searchQuery, currentPageFromURL])
-
-  const handleGoToPage = useCallback(
-    (page: number) => {
-      updateURL(searchQuery, page)
+      router.replace(`?${params.toString()}`, { scroll: false })
     },
-    [updateURL, searchQuery]
+    [router, searchParams]
   )
+
+  // Sync URL when page changes
+  useEffect(() => {
+    updatePageInURL(currentPage)
+  }, [currentPage, updatePageInURL])
 
   useEffect(() => {
     const fetchDocument = async () => {
@@ -244,7 +178,7 @@ export function Document({
   }
 
   const handleToggleEnabled = async (chunkId: string) => {
-    const chunk = chunks.find((c) => c.id === chunkId)
+    const chunk = allChunks.find((c) => c.id === chunkId)
     if (!chunk) return
 
     try {
@@ -276,7 +210,7 @@ export function Document({
   }
 
   const handleDeleteChunk = (chunkId: string) => {
-    const chunk = chunks.find((c) => c.id === chunkId)
+    const chunk = allChunks.find((c) => c.id === chunkId)
     if (chunk) {
       setChunkToDelete(chunk)
       setIsDeleteModalOpen(true)
@@ -313,7 +247,7 @@ export function Document({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedChunks(new Set(chunks.map((chunk) => chunk.id)))
+      setSelectedChunks(new Set(paginatedChunks.map((chunk) => chunk.id)))
     } else {
       setSelectedChunks(new Set())
     }
@@ -382,28 +316,32 @@ export function Document({
   }
 
   const handleBulkEnable = async () => {
-    const chunksToEnable = chunks.filter((chunk) => selectedChunks.has(chunk.id) && !chunk.enabled)
+    const chunksToEnable = allChunks.filter(
+      (chunk) => selectedChunks.has(chunk.id) && !chunk.enabled
+    )
     await performBulkChunkOperation('enable', chunksToEnable)
   }
 
   const handleBulkDisable = async () => {
-    const chunksToDisable = chunks.filter((chunk) => selectedChunks.has(chunk.id) && chunk.enabled)
+    const chunksToDisable = allChunks.filter(
+      (chunk) => selectedChunks.has(chunk.id) && chunk.enabled
+    )
     await performBulkChunkOperation('disable', chunksToDisable)
   }
 
   const handleBulkDelete = async () => {
-    const chunksToDelete = chunks.filter((chunk) => selectedChunks.has(chunk.id))
+    const chunksToDelete = allChunks.filter((chunk) => selectedChunks.has(chunk.id))
     await performBulkChunkOperation('delete', chunksToDelete)
   }
 
   // Calculate bulk operation counts
-  const selectedChunksList = chunks.filter((chunk) => selectedChunks.has(chunk.id))
+  const selectedChunksList = allChunks.filter((chunk) => selectedChunks.has(chunk.id))
   const enabledCount = selectedChunksList.filter((chunk) => chunk.enabled).length
   const disabledCount = selectedChunksList.filter((chunk) => !chunk.enabled).length
 
-  const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
+  const isAllSelected = paginatedChunks.length > 0 && selectedChunks.size === paginatedChunks.length
 
-  if (isLoadingDocument || isLoadingChunks) {
+  if (isLoadingDocument || isLoadingAllChunks) {
     return (
       <DocumentLoading
         knowledgeBaseId={knowledgeBaseId}
@@ -413,7 +351,7 @@ export function Document({
     )
   }
 
-  if (combinedError && !isLoadingChunks) {
+  if (combinedError && !isLoadingAllChunks) {
     const errorBreadcrumbs = [
       { label: 'Knowledge', href: `/workspace/${workspaceId}/knowledge` },
       {
@@ -457,31 +395,16 @@ export function Document({
             <div className='px-6 pb-6'>
               {/* Search Section */}
               <div className='mb-4 flex items-center justify-between pt-1'>
-                <div className='relative max-w-md'>
-                  <div className='relative flex items-center'>
-                    <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
-                    <input
-                      type='text'
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder={
-                        document?.processingStatus === 'completed'
-                          ? 'Search chunks...'
-                          : 'Document processing...'
-                      }
-                      disabled={document?.processingStatus !== 'completed'}
-                      className='h-10 w-full rounded-md border bg-background px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-                    />
-                    {searchQuery && document?.processingStatus === 'completed' && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className='-translate-y-1/2 absolute top-1/2 right-3 transform text-muted-foreground hover:text-foreground'
-                      >
-                        <X className='h-[18px] w-[18px]' />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder={
+                    document?.processingStatus === 'completed'
+                      ? 'Search chunks...'
+                      : 'Document processing...'
+                  }
+                  disabled={document?.processingStatus !== 'completed'}
+                />
 
                 <Button
                   onClick={() => setIsCreateChunkModalOpen(true)}
@@ -495,7 +418,7 @@ export function Document({
               </div>
 
               {/* Error State for chunks */}
-              {combinedError && !isLoadingChunks && (
+              {combinedError && !isLoadingAllChunks && (
                 <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-4'>
                   <p className='text-red-800 text-sm'>Error loading chunks: {combinedError}</p>
                 </div>
@@ -593,7 +516,7 @@ export function Document({
                             <div className='text-muted-foreground text-xs'>—</div>
                           </td>
                         </tr>
-                      ) : chunks.length === 0 && !isLoadingChunks ? (
+                      ) : paginatedChunks.length === 0 && !isLoadingAllChunks ? (
                         <tr className='border-b transition-colors hover:bg-accent/30'>
                           <td className='px-4 py-3'>
                             <div className='h-3.5 w-3.5' />
@@ -606,7 +529,9 @@ export function Document({
                               <FileText className='h-5 w-5 text-muted-foreground' />
                               <span className='text-muted-foreground text-sm italic'>
                                 {document?.processingStatus === 'completed'
-                                  ? 'No chunks found'
+                                  ? searchQuery.trim()
+                                    ? 'No chunks match your search'
+                                    : 'No chunks found'
                                   : 'Document is still processing...'}
                               </span>
                             </div>
@@ -621,7 +546,7 @@ export function Document({
                             <div className='text-muted-foreground text-xs'>—</div>
                           </td>
                         </tr>
-                      ) : isLoadingChunks ? (
+                      ) : isLoadingAllChunks ? (
                         // Show loading skeleton rows when chunks are loading
                         Array.from({ length: 5 }).map((_, index) => (
                           <tr key={`loading-${index}`} className='border-b transition-colors'>
@@ -646,7 +571,7 @@ export function Document({
                           </tr>
                         ))
                       ) : (
-                        chunks.map((chunk) => (
+                        paginatedChunks.map((chunk) => (
                           <tr
                             key={chunk.id}
                             className='cursor-pointer border-b transition-colors hover:bg-accent/30'
@@ -673,7 +598,10 @@ export function Document({
                             {/* Content column */}
                             <td className='px-4 py-3'>
                               <div className='text-sm' title={chunk.content}>
-                                {truncateContent(chunk.content)}
+                                <SearchHighlight
+                                  text={truncateContent(chunk.content)}
+                                  searchQuery={searchQuery}
+                                />
                               </div>
                             </td>
 
@@ -753,8 +681,8 @@ export function Document({
                       <Button
                         variant='ghost'
                         size='sm'
-                        onClick={handlePrevPage}
-                        disabled={!hasPrevPage || isLoadingChunks}
+                        onClick={prevPage}
+                        disabled={!hasPrevPage || isLoadingAllChunks}
                         className='h-8 w-8 p-0'
                       >
                         <ChevronLeft className='h-4 w-4' />
@@ -779,8 +707,8 @@ export function Document({
                           return (
                             <button
                               key={page}
-                              onClick={() => handleGoToPage(page)}
-                              disabled={isLoadingChunks}
+                              onClick={() => goToPage(page)}
+                              disabled={isLoadingAllChunks}
                               className={`font-medium text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 ${
                                 page === currentPage ? 'text-foreground' : 'text-muted-foreground'
                               }`}
@@ -794,8 +722,8 @@ export function Document({
                       <Button
                         variant='ghost'
                         size='sm'
-                        onClick={handleNextPage}
-                        disabled={!hasNextPage || isLoadingChunks}
+                        onClick={nextPage}
+                        disabled={!hasNextPage || isLoadingAllChunks}
                         className='h-8 w-8 p-0'
                       >
                         <ChevronRight className='h-4 w-4' />
@@ -820,7 +748,7 @@ export function Document({
           updateChunk(updatedChunk.id, updatedChunk)
           setSelectedChunk(updatedChunk)
         }}
-        allChunks={chunks}
+        allChunks={allChunks}
         currentPage={currentPage}
         totalPages={totalPages}
         onNavigateToChunk={(chunk: ChunkData) => {
@@ -830,11 +758,11 @@ export function Document({
           await goToPage(page)
 
           const checkAndSelectChunk = () => {
-            if (!isLoadingChunks && chunks.length > 0) {
+            if (!isLoadingAllChunks && paginatedChunks.length > 0) {
               if (selectChunk === 'first') {
-                setSelectedChunk(chunks[0])
+                setSelectedChunk(paginatedChunks[0])
               } else {
-                setSelectedChunk(chunks[chunks.length - 1])
+                setSelectedChunk(paginatedChunks[paginatedChunks.length - 1])
               }
             } else {
               // Retry after a short delay if chunks aren't loaded yet
