@@ -69,8 +69,6 @@ export async function loadWorkflowFromNormalizedTables(
         parentId,
         extent,
       }
-
-
     })
 
     // Convert edges to the expected format
@@ -95,19 +93,15 @@ export async function loadWorkflowFromNormalizedTables(
           id: subflow.id,
           ...config,
         }
-
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
         parallels[subflow.id] = {
           id: subflow.id,
           ...config,
         }
-
       } else {
         logger.warn(`Unknown subflow type: ${subflow.type} for subflow ${subflow.id}`)
       }
     })
-
-
 
     return {
       blocks: blocksMap,
@@ -159,8 +153,6 @@ export async function saveWorkflowToNormalizedTables(
           parentId: block.data?.parentId || null,
           extent: block.data?.extent || null,
         }))
-
-
 
         await tx.insert(workflowBlocks).values(blockInserts)
       }
@@ -223,8 +215,6 @@ export async function saveWorkflowToNormalizedTables(
       hasActiveWebhook: state.hasActiveWebhook,
     }
 
-
-
     return {
       success: true,
       jsonBlob,
@@ -281,7 +271,6 @@ export async function migrateWorkflowToNormalizedTables(
     const result = await saveWorkflowToNormalizedTables(workflowId, workflowState)
 
     if (result.success) {
-
       return { success: true }
     }
     return { success: false, error: result.error }

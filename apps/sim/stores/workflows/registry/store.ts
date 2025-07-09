@@ -474,7 +474,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             })
           })
 
-                    // Update subblock store for this workflow
+          // Update subblock store for this workflow
           useSubBlockStore.setState((state) => ({
             workflowValues: {
               ...state.workflowValues,

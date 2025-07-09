@@ -107,7 +107,7 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
       }
 
       // Create a new workflow
-      
+
       const newWorkflowId = await createWorkflow({
         name: `Imported Workflow - ${new Date().toLocaleString()}`,
         description: 'Workflow imported from YAML',
@@ -115,10 +115,10 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
       })
 
       // Import the YAML into the new workflow BEFORE navigation (creates complete state and saves directly to DB)
-              // This avoids timing issues with workflow reload during navigation
-        const result = await importWorkflowFromYaml(
-          yamlContent,
-          {
+      // This avoids timing issues with workflow reload during navigation
+      const result = await importWorkflowFromYaml(
+        yamlContent,
+        {
           addBlock: collaborativeAddBlock,
           addEdge: collaborativeAddEdge,
           applyAutoLayout: () => {

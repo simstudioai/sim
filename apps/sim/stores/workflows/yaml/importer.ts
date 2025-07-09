@@ -351,8 +351,6 @@ export async function importWorkflowFromYaml(
   },
   targetWorkflowId?: string
 ): Promise<{ success: boolean; errors: string[]; warnings: string[]; summary?: string }> {
-
-
   try {
     // Parse YAML
     const { data: yamlWorkflow, errors: parseErrors } = parseWorkflowYaml(yamlContent)
@@ -368,8 +366,6 @@ export async function importWorkflowFromYaml(
       return { success: false, errors, warnings }
     }
 
-
-
     // Get the existing workflow state (to preserve starter blocks if they exist)
     let existingBlocks: Record<string, any> = {}
 
@@ -380,19 +376,18 @@ export async function importWorkflowFromYaml(
         if (response.ok) {
           const workflowData = await response.json()
           existingBlocks = workflowData.data?.state?.blocks || {}
-          
         }
-              } catch (error) {
-          logger.warn(`Failed to fetch existing blocks for workflow ${targetWorkflowId}:`, error)
-        }
-      } else {
-        // For active workflow, use from store
-        existingBlocks = workflowActions.getExistingBlocks()
+      } catch (error) {
+        logger.warn(`Failed to fetch existing blocks for workflow ${targetWorkflowId}:`, error)
       }
-      
-      const existingStarterBlocks = Object.values(existingBlocks).filter(
-        (block: any) => block.type === 'starter'
-      )
+    } else {
+      // For active workflow, use from store
+      existingBlocks = workflowActions.getExistingBlocks()
+    }
+
+    const existingStarterBlocks = Object.values(existingBlocks).filter(
+      (block: any) => block.type === 'starter'
+    )
 
     // Get stores and current workflow info
     const { useWorkflowStore } = require('@/stores/workflows/workflow/store')
@@ -406,8 +401,6 @@ export async function importWorkflowFromYaml(
     if (!activeWorkflowId) {
       return { success: false, errors: ['No active workflow'], warnings: [] }
     }
-
-
 
     // Build complete blocks object
     const completeBlocks: Record<string, any> = {}
@@ -443,8 +436,6 @@ export async function importWorkflowFromYaml(
             : {}),
           ...starterBlock.inputs, // Override with YAML values
         }
-
-
       } else {
         // Create new starter block
         starterBlockId = crypto.randomUUID()
@@ -478,8 +469,6 @@ export async function importWorkflowFromYaml(
 
           // Set starter block values
           completeSubBlockValues[starterBlockId] = { ...starterBlock.inputs }
-
-
         }
       }
     }
@@ -488,7 +477,6 @@ export async function importWorkflowFromYaml(
     let blocksProcessed = 0
     for (const block of blocks) {
       if (block.type === 'starter') {
-
         continue // Already handled above
       }
 
@@ -549,8 +537,6 @@ export async function importWorkflowFromYaml(
       }
     }
 
-
-
     // Create complete edges using the ID mapping
     const completeEdges: any[] = []
     for (const edge of edges) {
@@ -563,7 +549,6 @@ export async function importWorkflowFromYaml(
           source: sourceId,
           target: targetId,
         })
-
       } else {
         logger.warn(`Skipping edge - missing blocks: ${edge.source} -> ${edge.target}`)
       }
@@ -597,7 +582,7 @@ export async function importWorkflowFromYaml(
       hasActiveWebhook: false,
     }
 
-        // Save directly to database via API
+    // Save directly to database via API
     const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
       method: 'PUT',
       headers: {
@@ -622,14 +607,14 @@ export async function importWorkflowFromYaml(
     if (!targetWorkflowId) {
       useWorkflowStore.setState(completeWorkflowState)
 
-            // Set subblock values in local store
+      // Set subblock values in local store
       useSubBlockStore.setState((state: any) => ({
         workflowValues: {
           ...state.workflowValues,
           [activeWorkflowId]: completeSubBlockValues,
         },
       }))
-          }
+    }
 
     // Brief delay for UI to update
     await new Promise((resolve) => setTimeout(resolve, 100))
@@ -639,8 +624,6 @@ export async function importWorkflowFromYaml(
 
     const totalBlocksCreated =
       Object.keys(completeBlocks).length - (existingStarterBlocks.length > 0 ? 1 : 0)
-
-
 
     return {
       success: true,
