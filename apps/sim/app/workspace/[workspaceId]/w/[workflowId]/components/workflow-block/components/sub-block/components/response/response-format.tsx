@@ -50,7 +50,11 @@ export function ResponseFormat({
   isPreview = false,
   previewValue,
 }: ResponseFormatProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue<JSONProperty[]>(blockId, subBlockId)
+  // useSubBlockValue now includes debouncing by default
+  const [storeValue, setStoreValue] = useSubBlockValue<JSONProperty[]>(blockId, subBlockId, false, {
+    debounceMs: 200, // Slightly longer debounce for complex structures
+  })
+
   const [showPreview, setShowPreview] = useState(false)
 
   const value = isPreview ? previewValue : storeValue

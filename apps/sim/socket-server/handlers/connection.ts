@@ -28,7 +28,5 @@ export function setupConnectionHandlers(
       roomManager.cleanupUserFromRoom(socket.id, workflowId)
       roomManager.broadcastPresenceUpdate(workflowId)
     }
-
-    roomManager.clearPendingOperations(socket.id)
   })
 }
