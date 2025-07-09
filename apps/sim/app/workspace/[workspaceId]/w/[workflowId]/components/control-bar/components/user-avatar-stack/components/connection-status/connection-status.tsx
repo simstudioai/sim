@@ -56,9 +56,3 @@ export function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
   )
 }
 
-// Hook to check if we're in offline mode (for use by other components)
-// This now uses the workspace permissions context for consistent state
-export function useConnectionStatus() {
-  const userPermissions = useUserPermissionsContext()
-  return { isOfflineMode: userPermissions.isOfflineMode }
-}
