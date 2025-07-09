@@ -20,8 +20,8 @@ import {
   RedditIcon,
   SlackIcon,
   SupabaseIcon,
-  xIcon,
   WealthboxIcon,
+  xIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 import { env } from '../env'

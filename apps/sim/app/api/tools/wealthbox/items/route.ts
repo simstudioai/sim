@@ -2,9 +2,9 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account } from '@/db/schema'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
     // Validate item type - only handle contacts now
     if (type !== 'contact') {
       logger.warn(`[${requestId}] Invalid item type: ${type}`)
-      return NextResponse.json({ error: 'Invalid item type. Only contact is supported.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Invalid item type. Only contact is supported.' },
+        { status: 400 }
+      )
     }
 
     // Get the credential from the database
@@ -72,14 +75,14 @@ export async function GET(request: NextRequest) {
 
     // Determine the endpoint based on item type - only contacts for now
     const endpoints = {
-      contact: 'contacts'
+      contact: 'contacts',
     }
     const endpoint = endpoints[type as keyof typeof endpoints]
 
     // Build URL - remove search parameters since they're not supported by Wealthbox API
     const url = new URL(`https://api.crmworkspace.com/v1/${endpoint}`)
 
-    logger.info(`[${requestId}] Fetching ${type}s from Wealthbox`, { 
+    logger.info(`[${requestId}] Fetching ${type}s from Wealthbox`, {
       endpoint,
       url: url.toString(),
       hasQuery: !!query.trim(),
@@ -95,11 +98,14 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error(`[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`, {
-        error: errorText,
-        endpoint,
-        url: url.toString(),
-      })
+      logger.error(
+        `[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`,
+        {
+          error: errorText,
+          endpoint,
+          url: url.toString(),
+        }
+      )
       return NextResponse.json(
         { error: `Failed to fetch ${type}s from Wealthbox` },
         { status: response.status }
@@ -107,7 +113,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
-    
+
     // Log the raw response for debugging
     logger.info(`[${requestId}] Wealthbox API raw response`, {
       type,
@@ -124,10 +130,13 @@ export async function GET(request: NextRequest) {
       // According to Wealthbox API docs, contacts are returned in a 'contacts' array
       const contacts = data.contacts || []
       if (!Array.isArray(contacts)) {
-        logger.warn(`[${requestId}] Contacts is not an array`, { contacts, dataType: typeof contacts })
+        logger.warn(`[${requestId}] Contacts is not an array`, {
+          contacts,
+          dataType: typeof contacts,
+        })
         return NextResponse.json({ items: [] }, { status: 200 })
       }
-      
+
       items = contacts.map((item: any) => ({
         id: item.id?.toString() || '',
         name: `${item.first_name || ''} ${item.last_name || ''}`.trim() || `Contact ${item.id}`,
@@ -141,9 +150,10 @@ export async function GET(request: NextRequest) {
     // Apply client-side filtering if query is provided
     if (query.trim()) {
       const searchTerm = query.trim().toLowerCase()
-      items = items.filter(item => 
-        item.name.toLowerCase().includes(searchTerm) ||
-        item.content.toLowerCase().includes(searchTerm)
+      items = items.filter(
+        (item) =>
+          item.name.toLowerCase().includes(searchTerm) ||
+          item.content.toLowerCase().includes(searchTerm)
       )
     }
 
@@ -153,7 +163,6 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({ items }, { status: 200 })
-
   } catch (error) {
     logger.error(`[${requestId}] Error fetching Wealthbox items`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

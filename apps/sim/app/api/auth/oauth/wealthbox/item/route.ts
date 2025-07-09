@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
     // Validate item type - only handle contacts now
     if (type !== 'contact') {
       logger.warn(`[${requestId}] Invalid item type: ${type}`)
-      return NextResponse.json({ error: 'Invalid item type. Only contact is supported.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Invalid item type. Only contact is supported.' },
+        { status: 400 }
+      )
     }
 
     // Get the credential from the database
@@ -72,7 +75,7 @@ export async function GET(request: NextRequest) {
 
     // Determine the endpoint based on item type - only contacts
     const endpoints = {
-      contact: 'contacts'
+      contact: 'contacts',
     }
     const endpoint = endpoints[type as keyof typeof endpoints]
 
@@ -88,16 +91,19 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error(`[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`, {
-        error: errorText,
-        endpoint,
-        itemId,
-      })
-      
+      logger.error(
+        `[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`,
+        {
+          error: errorText,
+          endpoint,
+          itemId,
+        }
+      )
+
       if (response.status === 404) {
         return NextResponse.json({ error: 'Item not found' }, { status: 404 })
       }
-      
+
       return NextResponse.json(
         { error: `Failed to fetch ${type} from Wealthbox` },
         { status: response.status }
@@ -118,7 +124,7 @@ export async function GET(request: NextRequest) {
 
     if (type === 'contact') {
       // Handle single contact response - API returns contact data directly when fetching by ID
-      if (data && data.id) {
+      if (data?.id) {
         // Single contact response
         const item = {
           id: data.id?.toString() || '',
@@ -135,12 +141,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    logger.info(`[${requestId}] Successfully fetched ${items.length} ${type}s from Wealthbox (total: ${data.meta?.total_count || 'unknown'})`)
+    logger.info(
+      `[${requestId}] Successfully fetched ${items.length} ${type}s from Wealthbox (total: ${data.meta?.total_count || 'unknown'})`
+    )
 
     return NextResponse.json({ item: items[0] }, { status: 200 })
-
   } catch (error) {
     logger.error(`[${requestId}] Error fetching Wealthbox item`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

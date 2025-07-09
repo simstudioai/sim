@@ -8,7 +8,6 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
@@ -123,7 +122,7 @@ export function WealthboxFileSelector({
 
   // Debounced search function
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
-  
+
   // Fetch available items for the selected credential
   const fetchAvailableItems = useCallback(async () => {
     if (!selectedCredentialId) return
@@ -240,23 +239,26 @@ export function WealthboxFileSelector({
   ])
 
   // Handle search input changes with debouncing
-  const handleSearchChange = useCallback((newQuery: string) => {
-    setSearchQuery(newQuery)
-    
-    // Clear existing timeout
-    if (searchTimeout) {
-      clearTimeout(searchTimeout)
-    }
-    
-    // Set new timeout for search
-    const timeout = setTimeout(() => {
-      if (selectedCredentialId) {
-        fetchAvailableItems()
+  const handleSearchChange = useCallback(
+    (newQuery: string) => {
+      setSearchQuery(newQuery)
+
+      // Clear existing timeout
+      if (searchTimeout) {
+        clearTimeout(searchTimeout)
       }
-    }, 300) // 300ms debounce
-    
-    setSearchTimeout(timeout)
-  }, [selectedCredentialId, fetchAvailableItems, searchTimeout])
+
+      // Set new timeout for search
+      const timeout = setTimeout(() => {
+        if (selectedCredentialId) {
+          fetchAvailableItems()
+        }
+      }, 300) // 300ms debounce
+
+      setSearchTimeout(timeout)
+    },
+    [selectedCredentialId, fetchAvailableItems, searchTimeout]
+  )
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -346,12 +348,12 @@ export function WealthboxFileSelector({
           </PopoverTrigger>
           <PopoverContent className='w-[300px] p-0' align='start'>
             <Command shouldFilter={false}>
-              <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
+              <div className='flex items-center border-b px-3' cmdk-input-wrapper=''>
                 <input
                   placeholder={`Search ${itemType}s...`}
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  className='flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50'
                 />
               </div>
               <CommandList>
@@ -448,9 +450,7 @@ export function WealthboxFileSelector({
                     </span>
                   )}
                 </div>
-                <div className='text-muted-foreground text-xs capitalize'>
-                  {selectedItem.type}
-                </div>
+                <div className='text-muted-foreground text-xs capitalize'>{selectedItem.type}</div>
               </div>
             </div>
           </div>
@@ -469,4 +469,4 @@ export function WealthboxFileSelector({
       )}
     </>
   )
-} 
+}

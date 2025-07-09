@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
-import type { WealthboxWriteResponse, WealthboxWriteParams } from './types'
+import type { WealthboxWriteParams, WealthboxWriteResponse } from './types'
 
 const logger = createLogger('WealthboxWriteContact')
 
@@ -66,11 +66,13 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
 
       // Add optional fields
       if (params.emailAddress?.trim()) {
-        body.email_addresses = [{
-          address: params.emailAddress.trim(),
-          kind: 'email',
-          principal: true,
-        }]
+        body.email_addresses = [
+          {
+            address: params.emailAddress.trim(),
+            kind: 'email',
+            principal: true,
+          },
+        ]
       }
 
       if (params.backgroundInformation?.trim()) {
@@ -101,11 +103,13 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
 
     // Add optional fields
     if (params.emailAddress?.trim()) {
-      body.email_addresses = [{
-        address: params.emailAddress.trim(),
-        kind: 'email',
-        principal: true,
-      }]
+      body.email_addresses = [
+        {
+          address: params.emailAddress.trim(),
+          kind: 'email',
+          principal: true,
+        },
+      ]
     }
 
     if (params.backgroundInformation?.trim()) {
@@ -150,18 +154,18 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
     // Format contact information into readable content
     const contact = data
     let content = `Contact created: ${contact.first_name || ''} ${contact.last_name || ''}`.trim()
-    
+
     if (contact.background_information) {
       content += `\nBackground: ${contact.background_information}`
     }
-    
+
     if (contact.email_addresses && contact.email_addresses.length > 0) {
       content += '\nEmail Addresses:'
       contact.email_addresses.forEach((email: any) => {
         content += `\n  - ${email.address}${email.principal ? ' (Primary)' : ''} (${email.kind})`
       })
     }
-    
+
     if (contact.phone_numbers && contact.phone_numbers.length > 0) {
       content += '\nPhone Numbers:'
       contact.phone_numbers.forEach((phone: any) => {
@@ -213,18 +217,18 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
     // Format contact information into readable content
     const contact = data
     let content = `Contact created: ${contact.first_name || ''} ${contact.last_name || ''}`.trim()
-    
+
     if (contact.background_information) {
       content += `\nBackground: ${contact.background_information}`
     }
-    
+
     if (contact.email_addresses && contact.email_addresses.length > 0) {
       content += '\nEmail Addresses:'
       contact.email_addresses.forEach((email: any) => {
         content += `\n  - ${email.address}${email.principal ? ' (Primary)' : ''} (${email.kind})`
       })
     }
-    
+
     if (contact.phone_numbers && contact.phone_numbers.length > 0) {
       content += '\nPhone Numbers:'
       contact.phone_numbers.forEach((phone: any) => {

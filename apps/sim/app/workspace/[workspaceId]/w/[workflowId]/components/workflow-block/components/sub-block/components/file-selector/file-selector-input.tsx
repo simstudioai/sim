@@ -390,7 +390,7 @@ export function FileSelectorInput({
   if (isWealthbox) {
     // Get credential using the same pattern as other tools
     const credential = (getValue(blockId, 'credential') as string) || ''
-    
+
     // Only handle contacts now - both notes and tasks use short-input
     if (subBlock.id === 'contactId') {
       const itemType = 'contact'
@@ -422,10 +422,9 @@ export function FileSelectorInput({
           </Tooltip>
         </TooltipProvider>
       )
-    } else {
-      // If it's noteId or taskId, we should not render the file selector since they now use short-input
-      return null
     }
+    // If it's noteId or taskId, we should not render the file selector since they now use short-input
+    return null
   }
 
   // Default to Google Drive picker

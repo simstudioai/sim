@@ -55,7 +55,13 @@ export interface WealthboxTask {
 
 // Unified metadata structure
 export interface WealthboxMetadata {
-  operation: 'read_note' | 'write_note' | 'read_contact' | 'write_contact' | 'read_task' | 'write_task'
+  operation:
+    | 'read_note'
+    | 'write_note'
+    | 'read_contact'
+    | 'write_contact'
+    | 'read_task'
+    | 'write_task'
   itemId?: string
   contactId?: string
   itemType: 'note' | 'contact' | 'task'
@@ -68,12 +74,12 @@ interface WealthboxUniformOutput {
   note?: WealthboxNote
   contact?: WealthboxContact
   task?: WealthboxTask
-  
+
   // Arrays (for bulk read operations)
   notes?: WealthboxNote[]
   contacts?: WealthboxContact[]
   tasks?: WealthboxTask[]
-  
+
   // Operation result indicators
   success?: boolean
   metadata: WealthboxMetadata
@@ -100,12 +106,12 @@ export interface WealthboxReadParams {
 export interface WealthboxWriteParams {
   accessToken: string
   operation: 'write_note' | 'write_contact' | 'write_task'
-  
+
   // IDs (optional for creating new items)
   noteId?: string
   contactId?: string
   taskId?: string
-  
+
   // Note fields
   content?: string
   linkedTo?: Array<{
@@ -118,13 +124,13 @@ export interface WealthboxWriteParams {
     id: number
     name: string
   }>
-  
+
   // Contact fields
   firstName?: string
   lastName?: string
   backgroundInformation?: string
   emailAddress?: string
-  
+
   // Task fields
   title?: string
   description?: string
@@ -133,5 +139,3 @@ export interface WealthboxWriteParams {
   category?: number
   priority?: 'Low' | 'Medium' | 'High'
 }
-
-
