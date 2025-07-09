@@ -1001,7 +1001,7 @@ export const copilotChats = pgTable(
     userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
     userWorkflowIdx: index('copilot_chats_user_workflow_idx').on(table.userId, table.workflowId),
-    
+
     // Ordering indexes
     createdAtIdx: index('copilot_chats_created_at_idx').on(table.createdAt),
     updatedAtIdx: index('copilot_chats_updated_at_idx').on(table.updatedAt),

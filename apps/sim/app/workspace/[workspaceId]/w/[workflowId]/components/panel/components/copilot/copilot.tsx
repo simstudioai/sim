@@ -1,28 +1,36 @@
 'use client'
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { Bot, ChevronDown, Loader2, MessageSquarePlus, MoreHorizontal, Send, Trash2, User } from 'lucide-react'
+import {
+  Bot,
+  ChevronDown,
+  Loader2,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Send,
+  Trash2,
+  User,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu'
+import {
+  type CopilotChat,
+  type CopilotMessage,
+  deleteChat,
+  getChat,
+  listChats,
+  sendStreamingMessage,
+} from '@/lib/copilot-api'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { CopilotModal } from './components/copilot-modal/copilot-modal'
-import { 
-  listChats, 
-  getChat, 
-  deleteChat, 
-  sendStreamingMessage,
-  type CopilotChat,
-  type CopilotMessage
-} from '@/lib/copilot-api'
 
 const logger = createLogger('Copilot')
 
@@ -58,7 +66,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     const [loadingChats, setLoadingChats] = useState(false)
     const scrollAreaRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
-    
+
     const { activeWorkflowId } = useWorkflowRegistry()
 
     // Load chats when workflow changes
@@ -127,22 +135,25 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     }, [])
 
     // Delete a chat
-    const handleDeleteChat = useCallback(async (chatId: string) => {
-      try {
-        const result = await deleteChat(chatId)
-        if (result.success) {
-          setChats(prev => prev.filter(chat => chat.id !== chatId))
-          if (currentChat?.id === chatId) {
-            startNewChat()
+    const handleDeleteChat = useCallback(
+      async (chatId: string) => {
+        try {
+          const result = await deleteChat(chatId)
+          if (result.success) {
+            setChats((prev) => prev.filter((chat) => chat.id !== chatId))
+            if (currentChat?.id === chatId) {
+              startNewChat()
+            }
+            logger.info('Chat deleted successfully')
+          } else {
+            logger.error('Failed to delete chat:', result.error)
           }
-          logger.info('Chat deleted successfully')
-        } else {
-          logger.error('Failed to delete chat:', result.error)
+        } catch (error) {
+          logger.error('Error deleting chat:', error)
         }
-      } catch (error) {
-        logger.error('Error deleting chat:', error)
-      }
-    }, [currentChat, startNewChat])
+      },
+      [currentChat, startNewChat]
+    )
 
     // Expose functions to parent
     useImperativeHandle(
@@ -225,14 +236,14 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                       setMessages((prev) =>
                         prev.map((msg) =>
                           msg.id === streamingMessage.id
-                            ? { 
-                                ...msg, 
+                            ? {
+                                ...msg,
                                 content: accumulatedContent,
                                 citations: sources.map((source: any, index: number) => ({
                                   id: index + 1,
                                   title: source.title,
                                   url: source.link,
-                                }))
+                                })),
                               }
                             : msg
                         )
@@ -242,13 +253,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                       setMessages((prev) =>
                         prev.map((msg) =>
                           msg.id === streamingMessage.id
-                            ? { 
+                            ? {
                                 ...msg,
                                 citations: sources.map((source: any, index: number) => ({
                                   id: index + 1,
                                   title: source.title,
                                   url: source.link,
-                                }))
+                                })),
                               }
                             : msg
                         )
@@ -291,7 +302,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
           const errorMessage: CopilotMessage = {
             id: streamingMessage.id,
             role: 'assistant',
-            content: 'Sorry, I encountered an error while searching the documentation. Please try again.',
+            content:
+              'Sorry, I encountered an error while searching the documentation. Please try again.',
             timestamp: new Date().toISOString(),
           }
 
@@ -309,7 +321,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     }
 
     // Function to render content with inline hyperlinked citations and basic markdown
-    const renderContentWithCitations = (content: string, citations: CopilotMessage['citations'] = []) => {
+    const renderContentWithCitations = (
+      content: string,
+      citations: CopilotMessage['citations'] = []
+    ) => {
       if (!content) return content
 
       let processedContent = content
@@ -423,12 +438,15 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     }))
 
     // Handle modal message sending
-    const handleModalSendMessage = useCallback(async (message: string) => {
-      // Create form event and call the main handler
-      const mockEvent = { preventDefault: () => {} } as React.FormEvent
-      setInput(message)
-      await handleSubmit(mockEvent)
-    }, [handleSubmit])
+    const handleModalSendMessage = useCallback(
+      async (message: string) => {
+        // Create form event and call the main handler
+        const mockEvent = { preventDefault: () => {} } as React.FormEvent
+        setInput(message)
+        await handleSubmit(mockEvent)
+      },
+      [handleSubmit]
+    )
 
     return (
       <>
@@ -443,25 +461,20 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                   <p className='text-muted-foreground text-xs'>Ask questions about Sim Studio</p>
                 </div>
               </div>
-              
+
               {/* Chat Management */}
               <div className='flex items-center gap-2'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={startNewChat}
-                  className='h-8'
-                >
-                  <MessageSquarePlus className='h-4 w-4 mr-2' />
+                <Button variant='outline' size='sm' onClick={startNewChat} className='h-8'>
+                  <MessageSquarePlus className='mr-2 h-4 w-4' />
                   New Chat
                 </Button>
-                
+
                 {chats.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant='outline' size='sm' className='h-8'>
                         {currentChat?.title || 'Select Chat'}
-                        <ChevronDown className='h-4 w-4 ml-2' />
+                        <ChevronDown className='ml-2 h-4 w-4' />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align='end' className='w-64'>
@@ -471,31 +484,28 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                             onClick={() => selectChat(chat)}
                             className='flex-1 cursor-pointer'
                           >
-                            <div className='flex-1 min-w-0'>
-                              <div className='font-medium text-sm truncate'>
+                            <div className='min-w-0 flex-1'>
+                              <div className='truncate font-medium text-sm'>
                                 {chat.title || 'Untitled Chat'}
                               </div>
                               <div className='text-muted-foreground text-xs'>
-                                {chat.messageCount} messages • {new Date(chat.updatedAt).toLocaleDateString()}
+                                {chat.messageCount} messages •{' '}
+                                {new Date(chat.updatedAt).toLocaleDateString()}
                               </div>
                             </div>
                           </DropdownMenuItem>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                className='h-8 w-8 p-0 shrink-0'
-                              >
+                              <Button variant='ghost' size='sm' className='h-8 w-8 shrink-0 p-0'>
                                 <MoreHorizontal className='h-4 w-4' />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align='end'>
                               <DropdownMenuItem
                                 onClick={() => handleDeleteChat(chat.id)}
-                                className='text-destructive cursor-pointer'
+                                className='cursor-pointer text-destructive'
                               >
-                                <Trash2 className='h-4 w-4 mr-2' />
+                                <Trash2 className='mr-2 h-4 w-4' />
                                 Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>

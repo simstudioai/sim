@@ -1,4 +1,4 @@
-import { desc, eq, and } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -34,11 +34,14 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const workflowId = searchParams.get('workflowId')
-    const limit = parseInt(searchParams.get('limit') || '50')
-    const offset = parseInt(searchParams.get('offset') || '0')
+    const limit = Number.parseInt(searchParams.get('limit') || '50')
+    const offset = Number.parseInt(searchParams.get('offset') || '0')
 
-    const { workflowId: validatedWorkflowId, limit: validatedLimit, offset: validatedOffset } = 
-      ListChatsSchema.parse({ workflowId, limit, offset })
+    const {
+      workflowId: validatedWorkflowId,
+      limit: validatedLimit,
+      offset: validatedOffset,
+    } = ListChatsSchema.parse({ workflowId, limit, offset })
 
     logger.info(`Listing chats for user ${session.user.id}, workflow ${validatedWorkflowId}`)
 
@@ -63,7 +66,7 @@ export async function GET(req: NextRequest) {
       .offset(validatedOffset)
 
     // Process the results to add message counts and clean up data
-    const processedChats = chats.map(chat => ({
+    const processedChats = chats.map((chat) => ({
       id: chat.id,
       title: chat.title,
       model: chat.model,
@@ -170,4 +173,4 @@ export async function POST(req: NextRequest) {
     logger.error('Failed to create copilot chat:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

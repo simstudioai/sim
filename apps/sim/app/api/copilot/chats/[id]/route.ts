@@ -1,12 +1,12 @@
-import { eq, and } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getRotatingApiKey } from '@/lib/utils'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
-import { getRotatingApiKey } from '@/lib/utils'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -43,12 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const [chat] = await db
       .select()
       .from(copilotChats)
-      .where(
-        and(
-          eq(copilotChats.id, chatId),
-          eq(copilotChats.userId, session.user.id)
-        )
-      )
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
       .limit(1)
 
     if (!chat) {
@@ -94,12 +89,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const [existingChat] = await db
       .select()
       .from(copilotChats)
-      .where(
-        and(
-          eq(copilotChats.id, chatId),
-          eq(copilotChats.userId, session.user.id)
-        )
-      )
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
       .limit(1)
 
     if (!existingChat) {
@@ -172,12 +162,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const [existingChat] = await db
       .select({ id: copilotChats.id })
       .from(copilotChats)
-      .where(
-        and(
-          eq(copilotChats.id, chatId),
-          eq(copilotChats.userId, session.user.id)
-        )
-      )
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
       .limit(1)
 
     if (!existingChat) {
@@ -185,9 +170,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     }
 
     // Delete the chat
-    await db
-      .delete(copilotChats)
-      .where(eq(copilotChats.id, chatId))
+    await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
 
     logger.info(`Deleted chat ${chatId} for user ${session.user.id}`)
 
@@ -207,10 +190,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 export async function generateChatTitle(userMessage: string): Promise<string> {
   try {
     const apiKey = getRotatingApiKey('anthropic')
-    
+
     const response = await executeProviderRequest('anthropic', {
       model: 'claude-3-haiku-20240307', // Use faster, cheaper model for title generation
-      systemPrompt: 'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
+      systemPrompt:
+        'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
       context: `Generate a concise title for a conversation that starts with this user message: "${userMessage}"
 
 Return only the title text, nothing else.`,
@@ -230,4 +214,4 @@ Return only the title text, nothing else.`,
     logger.error('Failed to generate chat title:', error)
     return 'New Chat' // Fallback title
   }
-} 
+}

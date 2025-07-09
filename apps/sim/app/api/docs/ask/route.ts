@@ -1,13 +1,13 @@
-import { sql, eq, and } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getRotatingApiKey } from '@/lib/utils'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
-import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { docsEmbeddings, copilotChats } from '@/db/schema'
+import { copilotChats, docsEmbeddings } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import { getProviderDefaultModel } from '@/providers/models'
 
@@ -43,10 +43,11 @@ const DocsQuerySchema = z.object({
 async function generateChatTitle(userMessage: string): Promise<string> {
   try {
     const apiKey = getRotatingApiKey('anthropic')
-    
+
     const response = await executeProviderRequest('anthropic', {
       model: 'claude-3-haiku-20240307', // Use faster, cheaper model for title generation
-      systemPrompt: 'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
+      systemPrompt:
+        'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
       context: `Generate a concise title for a conversation that starts with this user message: "${userMessage}"
 
 Return only the title text, nothing else.`,
@@ -171,7 +172,8 @@ Content: ${chunkText}`
   let conversationContext = ''
   if (conversationHistory.length > 0) {
     conversationContext = '\n\nConversation History:\n'
-    conversationHistory.slice(-6).forEach((msg: any) => { // Include last 6 messages for context
+    conversationHistory.slice(-6).forEach((msg: any) => {
+      // Include last 6 messages for context
       const role = msg.role === 'user' ? 'Human' : 'Assistant'
       conversationContext += `${role}: ${msg.content}\n`
     })
@@ -270,11 +272,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { query, topK, provider, model, stream, chatId, workflowId, createNewChat } = DocsQuerySchema.parse(body)
+    const { query, topK, provider, model, stream, chatId, workflowId, createNewChat } =
+      DocsQuerySchema.parse(body)
 
     // Get session for chat functionality
     const session = await getSession()
-    
+
     logger.info(`[${requestId}] Docs RAG query: "${query}"`, {
       provider: provider || DOCS_RAG_CONFIG.defaultProvider,
       model:
@@ -296,12 +299,7 @@ export async function POST(req: NextRequest) {
       const [existingChat] = await db
         .select()
         .from(copilotChats)
-        .where(
-          and(
-            eq(copilotChats.id, chatId),
-            eq(copilotChats.userId, session.user.id)
-          )
-        )
+        .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
         .limit(1)
 
       if (existingChat) {
@@ -360,7 +358,14 @@ export async function POST(req: NextRequest) {
 
     // Step 3: Generate response using LLM
     logger.info(`[${requestId}] Generating LLM response with ${chunks.length} chunks...`)
-    const response = await generateResponse(query, chunks, provider, model, stream, conversationHistory)
+    const response = await generateResponse(
+      query,
+      chunks,
+      provider,
+      model,
+      stream,
+      conversationHistory
+    )
 
     // Step 4: Format sources for response
     const sources = chunks.map((chunk) => ({
@@ -403,7 +408,7 @@ export async function POST(req: NextRequest) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`))
 
             let accumulatedResponse = ''
-            
+
             try {
               while (true) {
                 const { done, value } = await reader.read()
@@ -413,10 +418,10 @@ export async function POST(req: NextRequest) {
                 const chunkText = decoder.decode(value)
                 // Clean up any object serialization artifacts in streaming content
                 const cleanedChunk = chunkText.replace(/\[object Object\],?/g, '')
-                
+
                 // Accumulate the response content for database saving
                 accumulatedResponse += cleanedChunk
-                
+
                 const contentChunk = {
                   type: 'content',
                   content: cleanedChunk,

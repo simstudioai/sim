@@ -51,10 +51,14 @@ export interface DocsQueryRequest {
 /**
  * List chats for a specific workflow
  */
-export async function listChats(workflowId: string, limit = 50, offset = 0): Promise<{ 
-  success: boolean 
+export async function listChats(
+  workflowId: string,
+  limit = 50,
+  offset = 0
+): Promise<{
+  success: boolean
   chats: CopilotChat[]
-  error?: string 
+  error?: string
 }> {
   try {
     const params = new URLSearchParams({
@@ -87,10 +91,10 @@ export async function listChats(workflowId: string, limit = 50, offset = 0): Pro
 /**
  * Create a new chat
  */
-export async function createChat(request: CreateChatRequest): Promise<{ 
-  success: boolean 
+export async function createChat(request: CreateChatRequest): Promise<{
+  success: boolean
   chat?: CopilotChat
-  error?: string 
+  error?: string
 }> {
   try {
     const response = await fetch('/api/copilot/chats', {
@@ -121,10 +125,10 @@ export async function createChat(request: CreateChatRequest): Promise<{
 /**
  * Get a specific chat with full message history
  */
-export async function getChat(chatId: string): Promise<{ 
-  success: boolean 
+export async function getChat(chatId: string): Promise<{
+  success: boolean
   chat?: CopilotChat
-  error?: string 
+  error?: string
 }> {
   try {
     const response = await fetch(`/api/copilot/chats/${chatId}`)
@@ -150,10 +154,13 @@ export async function getChat(chatId: string): Promise<{
 /**
  * Update a chat
  */
-export async function updateChat(chatId: string, request: UpdateChatRequest): Promise<{ 
-  success: boolean 
+export async function updateChat(
+  chatId: string,
+  request: UpdateChatRequest
+): Promise<{
+  success: boolean
   chat?: CopilotChat
-  error?: string 
+  error?: string
 }> {
   try {
     const response = await fetch(`/api/copilot/chats/${chatId}`, {
@@ -184,9 +191,9 @@ export async function updateChat(chatId: string, request: UpdateChatRequest): Pr
 /**
  * Delete a chat
  */
-export async function deleteChat(chatId: string): Promise<{ 
-  success: boolean 
-  error?: string 
+export async function deleteChat(chatId: string): Promise<{
+  success: boolean
+  error?: string
 }> {
   try {
     const response = await fetch(`/api/copilot/chats/${chatId}`, {
@@ -290,4 +297,4 @@ export async function sendStreamingMessage(request: DocsQueryRequest): Promise<{
       error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
-} 
+}
