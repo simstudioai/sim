@@ -6,23 +6,21 @@ export interface DocsSearchParams {
 }
 
 export interface DocsSearchResponse {
-  success: boolean
-  output: {
-    response: string
-    sources: Array<{
-      title: string
-      document: string
-      link: string
-      similarity: number
-    }>
-  }
-  error?: string
+  results: Array<{
+    id: number
+    title: string
+    url: string
+    content: string
+    similarity: number
+  }>
+  query: string
+  totalResults: number
 }
 
 export const docsSearchTool: ToolConfig<DocsSearchParams, DocsSearchResponse> = {
   id: 'docs_search_internal',
   name: 'Search Documentation',
-  description: 'Search Sim Studio documentation using vector similarity search',
+  description: 'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
   version: '1.0.0',
 
   params: {
@@ -35,6 +33,7 @@ export const docsSearchTool: ToolConfig<DocsSearchParams, DocsSearchResponse> = 
       type: 'number',
       required: false,
       description: 'Number of results to return (default: 5, max: 10)',
+      default: 5,
     },
   },
 
@@ -51,25 +50,24 @@ export const docsSearchTool: ToolConfig<DocsSearchParams, DocsSearchResponse> = 
     isInternalRoute: true,
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response): Promise<any> => {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to search documentation')
+      return {
+        success: false,
+        output: {},
+        error: data.error || 'Failed to search documentation',
+      }
     }
 
     return {
       success: true,
       output: {
-        response: data.response,
-        sources: data.sources || [],
+        results: data.results || [],
+        query: data.query || '',
+        totalResults: data.totalResults || 0,
       },
     }
-  },
-
-  transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while searching documentation'
   },
 }

@@ -75,7 +75,7 @@ export async function generateChatTitle(userMessage: string): Promise<string> {
     try {
       // Use rotating key directly for hosted providers
       if (provider === 'openai' || provider === 'anthropic') {
-        const { getRotatingApiKey } = require('@/lib/utils')
+        const { getRotatingApiKey } = await import('@/lib/utils')
         apiKey = getRotatingApiKey(provider)
       } else {
         apiKey = getApiKey(provider, model)
@@ -125,9 +125,9 @@ export async function searchDocumentation(
     similarity: number
   }>
 > {
-  const { generateEmbeddings } = require('@/app/api/knowledge/utils')
-  const { docsEmbeddings } = require('@/db/schema')
-  const { sql } = require('drizzle-orm')
+  const { generateEmbeddings } = await import('@/app/api/knowledge/utils')
+  const { docsEmbeddings } = await import('@/db/schema')
+  const { sql } = await import('drizzle-orm')
 
   const config = getCopilotConfig()
   const { topK = config.rag.maxSources, threshold = config.rag.similarityThreshold } = options
@@ -221,7 +221,7 @@ export async function generateDocsResponse(
     try {
       // Use rotating key directly for hosted providers
       if (selectedProvider === 'openai' || selectedProvider === 'anthropic') {
-        const { getRotatingApiKey } = require('@/lib/utils')
+        const { getRotatingApiKey } = await import('@/lib/utils')
         apiKey = getRotatingApiKey(selectedProvider)
       } else {
         apiKey = getApiKey(selectedProvider, selectedModel)
@@ -375,7 +375,7 @@ export async function generateChatResponse(
     try {
       // Use rotating key directly for hosted providers
       if (provider === 'openai' || provider === 'anthropic') {
-        const { getRotatingApiKey } = require('@/lib/utils')
+        const { getRotatingApiKey } = await import('@/lib/utils')
         apiKey = getRotatingApiKey(provider)
       } else {
         apiKey = getApiKey(provider, model)
@@ -444,12 +444,31 @@ export async function generateChatResponse(
       stream,
     })
 
-    // Handle tool calls if needed (documentation search)
-    if (typeof response === 'object' && 'content' in response) {
-      return response.content || 'Sorry, I could not generate a response.'
+    // Handle StreamingExecution (from providers with tool calls)
+    if (typeof response === 'object' && response && 'stream' in response && 'execution' in response) {
+      logger.info('Detected StreamingExecution from provider')
+      return (response as any).stream
     }
 
-    // Handle streaming response
+    // Handle ProviderResponse (non-streaming with tool calls)
+    if (typeof response === 'object' && 'content' in response) {
+      const content = response.content || 'Sorry, I could not generate a response.'
+      
+      // If streaming was requested, wrap the content in a ReadableStream
+      if (stream) {
+        return new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder()
+            controller.enqueue(encoder.encode(content))
+            controller.close()
+          }
+        })
+      }
+      
+      return content
+    }
+
+    // Handle direct ReadableStream response
     if (response instanceof ReadableStream) {
       return response
     }

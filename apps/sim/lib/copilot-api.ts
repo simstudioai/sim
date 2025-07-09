@@ -251,26 +251,44 @@ export async function sendStreamingMessage(request: SendMessageRequest): Promise
   error?: string
 }> {
   try {
+    console.log('[CopilotAPI] Sending streaming message request:', { 
+      message: request.message, 
+      stream: true,
+      hasWorkflowId: !!request.workflowId
+    })
+
     const response = await fetch('/api/copilot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...request, stream: true }),
     })
 
+    console.log('[CopilotAPI] Fetch response received:', {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      hasBody: !!response.body,
+      contentType: response.headers.get('content-type')
+    })
+
     if (!response.ok) {
       const errorData = await response.json()
+      console.error('[CopilotAPI] Error response:', errorData)
       throw new Error(errorData.error || 'Failed to send streaming message')
     }
 
     if (!response.body) {
+      console.error('[CopilotAPI] No response body received')
       throw new Error('No response body received')
     }
 
+    console.log('[CopilotAPI] Successfully received stream')
     return {
       success: true,
       stream: response.body,
     }
   } catch (error) {
+    console.error('[CopilotAPI] Failed to send streaming message:', error)
     logger.error('Failed to send streaming message:', error)
     return {
       success: false,
@@ -332,26 +350,40 @@ export async function sendStreamingDocsMessage(request: DocsQueryRequest): Promi
   error?: string
 }> {
   try {
+    console.log('[CopilotAPI] sendStreamingDocsMessage called with:', request)
+    
     const response = await fetch('/api/copilot/docs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...request, stream: true }),
     })
 
+    console.log('[CopilotAPI] Fetch response received:', { 
+      status: response.status, 
+      statusText: response.statusText, 
+      headers: Object.fromEntries(response.headers.entries()),
+      ok: response.ok,
+      hasBody: !!response.body
+    })
+
     if (!response.ok) {
       const errorData = await response.json()
+      console.error('[CopilotAPI] API error response:', errorData)
       throw new Error(errorData.error || 'Failed to send streaming docs message')
     }
 
     if (!response.body) {
+      console.error('[CopilotAPI] No response body received')
       throw new Error('No response body received')
     }
 
+    console.log('[CopilotAPI] Returning successful result with stream')
     return {
       success: true,
       stream: response.body,
     }
   } catch (error) {
+    console.error('[CopilotAPI] Error in sendStreamingDocsMessage:', error)
     logger.error('Failed to send streaming docs message:', error)
     return {
       success: false,

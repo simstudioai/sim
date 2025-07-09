@@ -75,8 +75,28 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
     })
 
-    // Handle streaming response
+    // Handle streaming response (ReadableStream or StreamingExecution)
+    let streamToRead: ReadableStream | null = null
+    
+    // Debug logging to see what we actually got
+    logger.info(`[${requestId}] Response type analysis:`, {
+      responseType: typeof result.response,
+      isReadableStream: result.response instanceof ReadableStream,
+      hasStreamProperty: typeof result.response === 'object' && result.response && 'stream' in result.response,
+      hasExecutionProperty: typeof result.response === 'object' && result.response && 'execution' in result.response,
+      responseKeys: typeof result.response === 'object' && result.response ? Object.keys(result.response) : [],
+    })
+    
     if (result.response instanceof ReadableStream) {
+      logger.info(`[${requestId}] Direct ReadableStream detected`)
+      streamToRead = result.response
+    } else if (typeof result.response === 'object' && result.response && 'stream' in result.response && 'execution' in result.response) {
+      // Handle StreamingExecution (from providers with tool calls)
+      logger.info(`[${requestId}] StreamingExecution detected`)
+      streamToRead = (result.response as any).stream
+    }
+
+    if (streamToRead) {
       logger.info(`[${requestId}] Returning streaming response`)
 
       const encoder = new TextEncoder()
@@ -84,7 +104,7 @@ export async function POST(req: NextRequest) {
       return new Response(
         new ReadableStream({
           async start(controller) {
-            const reader = (result.response as ReadableStream).getReader()
+            const reader = streamToRead!.getReader()
             let accumulatedResponse = ''
 
             // Send initial metadata

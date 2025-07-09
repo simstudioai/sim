@@ -196,7 +196,15 @@ export const useCopilotStore = create<CopilotStore>()(
         const { workflowId, currentChat } = get()
         const { stream = true } = options
 
+        console.log('[CopilotStore] sendMessage called:', { 
+          message, 
+          workflowId, 
+          hasCurrentChat: !!currentChat, 
+          stream 
+        })
+
         if (!workflowId) {
+          console.warn('[CopilotStore] No workflow ID set')
           logger.warn('Cannot send message: no workflow ID set')
           return
         }
@@ -219,11 +227,17 @@ export const useCopilotStore = create<CopilotStore>()(
           timestamp: new Date().toISOString(),
         }
 
+        console.log('[CopilotStore] Adding messages to state:', { 
+          userMessageId: userMessage.id, 
+          streamingMessageId: streamingMessage.id 
+        })
+
         set((state) => ({
           messages: [...state.messages, userMessage, streamingMessage],
         }))
 
         try {
+          console.log('[CopilotStore] Requesting streaming response')
           const result = await sendStreamingMessage({
             message,
             chatId: currentChat?.id,
@@ -232,9 +246,18 @@ export const useCopilotStore = create<CopilotStore>()(
             stream,
           })
 
+          console.log('[CopilotStore] Streaming result:', { 
+            success: result.success, 
+            hasStream: !!result.stream, 
+            error: result.error 
+          })
+
           if (result.success && result.stream) {
+            console.log('[CopilotStore] Starting stream processing')
             await get().handleStreamingResponse(result.stream, streamingMessage.id)
+            console.log('[CopilotStore] Stream processing completed')
           } else {
+            console.error('[CopilotStore] Stream request failed:', result.error)
             throw new Error(result.error || 'Failed to send message')
           }
         } catch (error) {
@@ -330,6 +353,8 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Handle streaming response (shared by both message types)
       handleStreamingResponse: async (stream: ReadableStream, messageId: string) => {
+        console.log('[CopilotStore] handleStreamingResponse started:', { messageId, hasStream: !!stream })
+
         const reader = stream.getReader()
         const decoder = new TextDecoder()
         let accumulatedContent = ''
@@ -340,6 +365,7 @@ export const useCopilotStore = create<CopilotStore>()(
         try {
           while (true) {
             const { done, value } = await reader.read()
+            
             if (done || streamComplete) break
 
             const chunk = decoder.decode(value, { stream: true })
@@ -367,7 +393,9 @@ export const useCopilotStore = create<CopilotStore>()(
                       }))
                     }
                   } else if (data.type === 'content') {
+                    console.log('[CopilotStore] Received content chunk:', data.content)
                     accumulatedContent += data.content
+                    console.log('[CopilotStore] Accumulated content length:', accumulatedContent.length)
 
                     // Update the streaming message
                     set((state) => ({
@@ -382,7 +410,9 @@ export const useCopilotStore = create<CopilotStore>()(
                           : msg
                       ),
                     }))
+                    console.log('[CopilotStore] Updated message state with content')
                   } else if (data.type === 'done' || data.type === 'complete') {
+                    console.log('[CopilotStore] Received completion marker:', data.type)
                     // Final update
                     set((state) => ({
                       messages: state.messages.map((msg) =>
@@ -400,24 +430,32 @@ export const useCopilotStore = create<CopilotStore>()(
 
                     // Handle new chat creation
                     if (newChatId && !get().currentChat) {
+                      console.log('[CopilotStore] Reloading chats for new chat:', newChatId)
                       // Reload chats to get the updated list
                       await get().loadChats()
                     }
 
                     streamComplete = true
+                    console.log('[CopilotStore] Stream marked as complete')
                     break
                   } else if (data.type === 'error') {
+                    console.error('[CopilotStore] Received error from stream:', data.error)
                     throw new Error(data.error || 'Streaming error')
                   }
                 } catch (parseError) {
+                  console.warn('[CopilotStore] Failed to parse SSE data:', parseError, 'Line:', line)
                   logger.warn('Failed to parse SSE data:', parseError)
                 }
+              } else if (line.trim()) {
+                console.log('[CopilotStore] Non-SSE line (ignored):', line)
               }
             }
           }
 
+          console.log('[CopilotStore] Stream processing completed successfully')
           logger.info(`Completed streaming response, content length: ${accumulatedContent.length}`)
         } catch (error) {
+          console.error('[CopilotStore] Error handling streaming response:', error)
           logger.error('Error handling streaming response:', error)
           throw error
         }

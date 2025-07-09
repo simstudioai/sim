@@ -71,7 +71,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       selectChat,
       createNewChat,
       deleteChat,
-      sendDocsMessage,
+      sendMessage,
       clearMessages,
       clearError,
     } = useCopilotStore()
@@ -138,13 +138,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
         }
 
         try {
-          await sendDocsMessage(query, { stream: true })
-          logger.info('Sent docs query:', query)
+          await sendMessage(query, { stream: true })
+          logger.info('Sent message:', query)
         } catch (error) {
-          logger.error('Failed to send docs message:', error)
+          logger.error('Failed to send message:', error)
         }
       },
-      [isSendingMessage, activeWorkflowId, sendDocsMessage]
+      [isSendingMessage, activeWorkflowId, sendMessage]
     )
 
     // Format timestamp for display

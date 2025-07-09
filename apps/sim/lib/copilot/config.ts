@@ -81,7 +81,7 @@ IMPORTANT: Always provide complete, helpful responses. If you add citations, con
     maxTokens: 2000,
     embeddingModel: 'text-embedding-3-small',
     maxSources: 5,
-    similarityThreshold: 0.7,
+    similarityThreshold: 0.5,
   },
   general: {
     streamingEnabled: true,
