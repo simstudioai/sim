@@ -144,27 +144,32 @@ async function executeParallelQueries(
           sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
           // Apply tag filters if provided (case-insensitive)
           ...(filters
-            ? Object.entries(filters).map(([key, value]) => {
-                switch (key) {
-                  case 'tag1':
-                    return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
-                  case 'tag2':
-                    return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
-                  case 'tag3':
-                    return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
-                  case 'tag4':
-                    return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
-                  case 'tag5':
-                    return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
-                  case 'tag6':
-                    return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
-                  case 'tag7':
-                    return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
-                  default:
-                    return sql`1=1` // No-op for unknown keys
-                }
-              })
+            ? getTagFilters(filters, embedding)
             : [])
+
+// Create a helper function above that returns:
+function getTagFilters(filters: Record<string, string>, embedding: any) {
+  return Object.entries(filters).map(([key, value]) => {
+    switch (key) {
+      case 'tag1':
+        return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
+      case 'tag2':
+        return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
+      case 'tag3':
+        return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
+      case 'tag4':
+        return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
+      case 'tag5':
+        return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
+      case 'tag6':
+        return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
+      case 'tag7':
+        return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
+      default:
+        return sql`1=1` // No-op for unknown keys
+    }
+  })
+}
         )
       )
       .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
