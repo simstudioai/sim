@@ -9,8 +9,18 @@ interface YamlBlock {
   type: string
   name: string
   inputs?: Record<string, any>
-  preceding?: string[]
-  following?: string[]
+  connections?: {
+    incoming?: Array<{
+      source: string
+      sourceHandle?: string
+      targetHandle?: string
+    }>
+    outgoing?: Array<{
+      target: string
+      sourceHandle?: string
+      targetHandle?: string
+    }>
+  }
   parentId?: string // Add parentId for nested blocks
 }
 
@@ -120,22 +130,27 @@ function validateBlockReferences(yamlWorkflow: YamlWorkflow): string[] {
   const blockIds = new Set(Object.keys(yamlWorkflow.blocks))
 
   Object.entries(yamlWorkflow.blocks).forEach(([blockId, block]) => {
-    // Check preceding references
-    if (block.preceding) {
-      block.preceding.forEach((precedingId) => {
-        if (!blockIds.has(precedingId)) {
-          errors.push(`Block '${blockId}' references non-existent preceding block '${precedingId}'`)
+    // Check incoming connection references
+    if (block.connections?.incoming) {
+      block.connections.incoming.forEach((connection) => {
+        if (!blockIds.has(connection.source)) {
+          errors.push(`Block '${blockId}' references non-existent source block '${connection.source}'`)
         }
       })
     }
 
-    // Check following references
-    if (block.following) {
-      block.following.forEach((followingId) => {
-        if (!blockIds.has(followingId)) {
-          errors.push(`Block '${blockId}' references non-existent following block '${followingId}'`)
+    // Check outgoing connection references
+    if (block.connections?.outgoing) {
+      block.connections.outgoing.forEach((connection) => {
+        if (!blockIds.has(connection.target)) {
+          errors.push(`Block '${blockId}' references non-existent target block '${connection.target}'`)
         }
       })
+    }
+
+    // Check parent references
+    if (block.parentId && !blockIds.has(block.parentId)) {
+      errors.push(`Block '${blockId}' references non-existent parent block '${block.parentId}'`)
     }
   })
 
@@ -190,10 +205,10 @@ function calculateBlockPositions(
   const positions: Record<string, { x: number; y: number }> = {}
   const blockIds = Object.keys(yamlWorkflow.blocks)
 
-  // Find starter blocks (no preceding connections)
+  // Find starter blocks (no incoming connections)
   const starterBlocks = blockIds.filter((id) => {
     const block = yamlWorkflow.blocks[id]
-    return !block.preceding || block.preceding.length === 0
+    return !block.connections?.incoming || block.connections.incoming.length === 0
   })
 
   // If no starter blocks found, use first block as starter
@@ -220,10 +235,10 @@ function calculateBlockPositions(
 
       // Add following blocks to queue
       const block = yamlWorkflow.blocks[blockId]
-      if (block.following) {
-        block.following.forEach((followingId) => {
-          if (!visited.has(followingId)) {
-            queue.push(followingId)
+      if (block.connections?.outgoing) {
+        block.connections.outgoing.forEach((connection) => {
+          if (!visited.has(connection.target)) {
+            queue.push(connection.target)
           }
         })
       }
@@ -375,16 +390,16 @@ export function convertYamlToWorkflow(yamlWorkflow: YamlWorkflow): ImportResult 
 
   // Convert edges from connections
   Object.entries(yamlWorkflow.blocks).forEach(([blockId, yamlBlock]) => {
-    if (yamlBlock.following) {
-      yamlBlock.following.forEach((targetId) => {
-        const edgeId = `${blockId}-${targetId}-${Date.now()}`
+    if (yamlBlock.connections?.outgoing) {
+      yamlBlock.connections.outgoing.forEach((connection) => {
+        const edgeId = `${blockId}-${connection.target}-${Date.now()}`
 
         const edge: ImportedEdge = {
           id: edgeId,
           source: blockId,
-          target: targetId,
-          sourceHandle: 'source',
-          targetHandle: 'target',
+          target: connection.target,
+          sourceHandle: connection.sourceHandle || 'source',
+          targetHandle: connection.targetHandle || 'target',
           type: 'workflowEdge',
         }
 

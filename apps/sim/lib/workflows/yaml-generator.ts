@@ -10,8 +10,18 @@ interface YamlBlock {
   type: string
   name: string
   inputs?: Record<string, any>
-  preceding?: string[]
-  following?: string[]
+  connections?: {
+    incoming?: Array<{
+      source: string
+      sourceHandle?: string
+      targetHandle?: string
+    }>
+    outgoing?: Array<{
+      target: string
+      sourceHandle?: string
+      targetHandle?: string
+    }>
+  }
   parentId?: string // Add parentId for nested blocks
 }
 
@@ -153,23 +163,37 @@ function extractBlockInputs(
 }
 
 /**
- * Find preceding blocks for a given block ID
+ * Find incoming connections for a given block ID
  */
-function findPrecedingBlocks(blockId: string, edges: any[]): string[] {
+function findIncomingConnections(blockId: string, edges: any[]): Array<{
+  source: string
+  sourceHandle?: string
+  targetHandle?: string
+}> {
   return edges
     .filter((edge) => edge.target === blockId)
-    .map((edge) => edge.source)
-    .filter((source, index, arr) => arr.indexOf(source) === index) // Remove duplicates
+    .map((edge) => ({
+      source: edge.source,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
+    }))
 }
 
 /**
- * Find following blocks for a given block ID
+ * Find outgoing connections for a given block ID
  */
-function findFollowingBlocks(blockId: string, edges: any[]): string[] {
+function findOutgoingConnections(blockId: string, edges: any[]): Array<{
+  target: string
+  sourceHandle?: string
+  targetHandle?: string
+}> {
   return edges
     .filter((edge) => edge.source === blockId)
-    .map((edge) => edge.target)
-    .filter((target, index, arr) => arr.indexOf(target) === index) // Remove duplicates
+    .map((edge) => ({
+      target: edge.target,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
+    }))
 }
 
 /**
@@ -189,8 +213,8 @@ export function generateWorkflowYaml(
     // Process each block
     Object.entries(workflowState.blocks).forEach(([blockId, blockState]) => {
       const inputs = extractBlockInputs(blockState, blockId, subBlockValues)
-      const preceding = findPrecedingBlocks(blockId, workflowState.edges)
-      const following = findFollowingBlocks(blockId, workflowState.edges)
+      const incoming = findIncomingConnections(blockId, workflowState.edges)
+      const outgoing = findOutgoingConnections(blockId, workflowState.edges)
 
       const yamlBlock: YamlBlock = {
         type: blockState.type,
@@ -203,12 +227,16 @@ export function generateWorkflowYaml(
       }
 
       // Only include connections if they exist
-      if (preceding.length > 0) {
-        yamlBlock.preceding = preceding
-      }
-
-      if (following.length > 0) {
-        yamlBlock.following = following
+      if (incoming.length > 0 || outgoing.length > 0) {
+        yamlBlock.connections = {}
+        
+        if (incoming.length > 0) {
+          yamlBlock.connections.incoming = incoming
+        }
+        
+        if (outgoing.length > 0) {
+          yamlBlock.connections.outgoing = outgoing
+        }
       }
 
       // Include parent-child relationship for nested blocks
