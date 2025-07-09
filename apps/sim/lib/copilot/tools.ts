@@ -27,7 +27,8 @@ export interface CopilotTool {
 const docsSearchTool: CopilotTool = {
   id: 'docs_search_internal',
   name: 'Search Documentation',
-  description: 'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
+  description:
+    'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
   parameters: {
     type: 'object',
     properties: {
@@ -46,13 +47,13 @@ const docsSearchTool: CopilotTool = {
   execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
     try {
       const { query, topK = 5 } = args
-      
+
       logger.info('Executing documentation search', { query, topK })
-      
+
       const results = await searchDocumentation(query, { topK })
-      
+
       logger.info(`Found ${results.length} documentation results`, { query })
-      
+
       return {
         success: true,
         data: {
@@ -87,7 +88,7 @@ export async function executeCopilotTool(
   args: Record<string, any>
 ): Promise<CopilotToolResult> {
   const tool = getCopilotTool(toolId)
-  
+
   if (!tool) {
     logger.error(`Copilot tool not found: ${toolId}`)
     return {
@@ -113,4 +114,4 @@ export async function executeCopilotTool(
 // Get all available copilot tools (for tool definitions in LLM requests)
 export function getAllCopilotTools(): CopilotTool[] {
   return Object.values(copilotTools)
-} 
+}

@@ -77,20 +77,28 @@ export async function POST(req: NextRequest) {
 
     // Handle streaming response (ReadableStream or StreamingExecution)
     let streamToRead: ReadableStream | null = null
-    
+
     // Debug logging to see what we actually got
     logger.info(`[${requestId}] Response type analysis:`, {
       responseType: typeof result.response,
       isReadableStream: result.response instanceof ReadableStream,
-      hasStreamProperty: typeof result.response === 'object' && result.response && 'stream' in result.response,
-      hasExecutionProperty: typeof result.response === 'object' && result.response && 'execution' in result.response,
-      responseKeys: typeof result.response === 'object' && result.response ? Object.keys(result.response) : [],
+      hasStreamProperty:
+        typeof result.response === 'object' && result.response && 'stream' in result.response,
+      hasExecutionProperty:
+        typeof result.response === 'object' && result.response && 'execution' in result.response,
+      responseKeys:
+        typeof result.response === 'object' && result.response ? Object.keys(result.response) : [],
     })
-    
+
     if (result.response instanceof ReadableStream) {
       logger.info(`[${requestId}] Direct ReadableStream detected`)
       streamToRead = result.response
-    } else if (typeof result.response === 'object' && result.response && 'stream' in result.response && 'execution' in result.response) {
+    } else if (
+      typeof result.response === 'object' &&
+      result.response &&
+      'stream' in result.response &&
+      'execution' in result.response
+    ) {
       // Handle StreamingExecution (from providers with tool calls)
       logger.info(`[${requestId}] StreamingExecution detected`)
       streamToRead = (result.response as any).stream

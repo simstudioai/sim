@@ -445,7 +445,12 @@ export async function generateChatResponse(
     })
 
     // Handle StreamingExecution (from providers with tool calls)
-    if (typeof response === 'object' && response && 'stream' in response && 'execution' in response) {
+    if (
+      typeof response === 'object' &&
+      response &&
+      'stream' in response &&
+      'execution' in response
+    ) {
       logger.info('Detected StreamingExecution from provider')
       return (response as any).stream
     }
@@ -453,7 +458,7 @@ export async function generateChatResponse(
     // Handle ProviderResponse (non-streaming with tool calls)
     if (typeof response === 'object' && 'content' in response) {
       const content = response.content || 'Sorry, I could not generate a response.'
-      
+
       // If streaming was requested, wrap the content in a ReadableStream
       if (stream) {
         return new ReadableStream({
@@ -461,10 +466,10 @@ export async function generateChatResponse(
             const encoder = new TextEncoder()
             controller.enqueue(encoder.encode(content))
             controller.close()
-          }
+          },
         })
       }
-      
+
       return content
     }
 

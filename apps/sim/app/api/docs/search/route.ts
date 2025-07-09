@@ -48,10 +48,10 @@ export async function POST(req: NextRequest) {
 
     logger.error(`[${requestId}] Documentation search error:`, error)
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to search documentation',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }, 
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
       { status: 500 }
     )
   }

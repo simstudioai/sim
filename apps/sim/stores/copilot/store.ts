@@ -196,11 +196,11 @@ export const useCopilotStore = create<CopilotStore>()(
         const { workflowId, currentChat } = get()
         const { stream = true } = options
 
-        console.log('[CopilotStore] sendMessage called:', { 
-          message, 
-          workflowId, 
-          hasCurrentChat: !!currentChat, 
-          stream 
+        console.log('[CopilotStore] sendMessage called:', {
+          message,
+          workflowId,
+          hasCurrentChat: !!currentChat,
+          stream,
         })
 
         if (!workflowId) {
@@ -227,9 +227,9 @@ export const useCopilotStore = create<CopilotStore>()(
           timestamp: new Date().toISOString(),
         }
 
-        console.log('[CopilotStore] Adding messages to state:', { 
-          userMessageId: userMessage.id, 
-          streamingMessageId: streamingMessage.id 
+        console.log('[CopilotStore] Adding messages to state:', {
+          userMessageId: userMessage.id,
+          streamingMessageId: streamingMessage.id,
         })
 
         set((state) => ({
@@ -246,10 +246,10 @@ export const useCopilotStore = create<CopilotStore>()(
             stream,
           })
 
-          console.log('[CopilotStore] Streaming result:', { 
-            success: result.success, 
-            hasStream: !!result.stream, 
-            error: result.error 
+          console.log('[CopilotStore] Streaming result:', {
+            success: result.success,
+            hasStream: !!result.stream,
+            error: result.error,
           })
 
           if (result.success && result.stream) {
@@ -353,7 +353,10 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Handle streaming response (shared by both message types)
       handleStreamingResponse: async (stream: ReadableStream, messageId: string) => {
-        console.log('[CopilotStore] handleStreamingResponse started:', { messageId, hasStream: !!stream })
+        console.log('[CopilotStore] handleStreamingResponse started:', {
+          messageId,
+          hasStream: !!stream,
+        })
 
         const reader = stream.getReader()
         const decoder = new TextDecoder()
@@ -365,7 +368,7 @@ export const useCopilotStore = create<CopilotStore>()(
         try {
           while (true) {
             const { done, value } = await reader.read()
-            
+
             if (done || streamComplete) break
 
             const chunk = decoder.decode(value, { stream: true })
@@ -395,7 +398,10 @@ export const useCopilotStore = create<CopilotStore>()(
                   } else if (data.type === 'content') {
                     console.log('[CopilotStore] Received content chunk:', data.content)
                     accumulatedContent += data.content
-                    console.log('[CopilotStore] Accumulated content length:', accumulatedContent.length)
+                    console.log(
+                      '[CopilotStore] Accumulated content length:',
+                      accumulatedContent.length
+                    )
 
                     // Update the streaming message
                     set((state) => ({
@@ -443,7 +449,12 @@ export const useCopilotStore = create<CopilotStore>()(
                     throw new Error(data.error || 'Streaming error')
                   }
                 } catch (parseError) {
-                  console.warn('[CopilotStore] Failed to parse SSE data:', parseError, 'Line:', line)
+                  console.warn(
+                    '[CopilotStore] Failed to parse SSE data:',
+                    parseError,
+                    'Line:',
+                    line
+                  )
                   logger.warn('Failed to parse SSE data:', parseError)
                 }
               } else if (line.trim()) {

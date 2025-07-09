@@ -251,10 +251,10 @@ export async function sendStreamingMessage(request: SendMessageRequest): Promise
   error?: string
 }> {
   try {
-    console.log('[CopilotAPI] Sending streaming message request:', { 
-      message: request.message, 
+    console.log('[CopilotAPI] Sending streaming message request:', {
+      message: request.message,
       stream: true,
-      hasWorkflowId: !!request.workflowId
+      hasWorkflowId: !!request.workflowId,
     })
 
     const response = await fetch('/api/copilot', {
@@ -268,7 +268,7 @@ export async function sendStreamingMessage(request: SendMessageRequest): Promise
       status: response.status,
       statusText: response.statusText,
       hasBody: !!response.body,
-      contentType: response.headers.get('content-type')
+      contentType: response.headers.get('content-type'),
     })
 
     if (!response.ok) {
@@ -351,19 +351,19 @@ export async function sendStreamingDocsMessage(request: DocsQueryRequest): Promi
 }> {
   try {
     console.log('[CopilotAPI] sendStreamingDocsMessage called with:', request)
-    
+
     const response = await fetch('/api/copilot/docs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...request, stream: true }),
     })
 
-    console.log('[CopilotAPI] Fetch response received:', { 
-      status: response.status, 
-      statusText: response.statusText, 
+    console.log('[CopilotAPI] Fetch response received:', {
+      status: response.status,
+      statusText: response.statusText,
       headers: Object.fromEntries(response.headers.entries()),
       ok: response.ok,
-      hasBody: !!response.body
+      hasBody: !!response.body,
     })
 
     if (!response.ok) {
