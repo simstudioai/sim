@@ -73,21 +73,6 @@ export function Code({
     }
   }, [generationType])
 
-  const [storeValue, setStoreValue, { isStreaming }] = useSubBlockValue(
-    blockId,
-    subBlockId,
-    false,
-    {
-      debounceMs: 150,
-      onStreamingStart: () => {
-        logger.debug('Streaming started for code editing', { blockId, subBlockId })
-      },
-      onStreamingEnd: () => {
-        logger.debug('Streaming ended for code editing', { blockId, subBlockId })
-      },
-    }
-  )
-
   const [code, setCode] = useState<string>('')
   const [_lineCount, setLineCount] = useState(1)
   const [showTags, setShowTags] = useState(false)
@@ -111,34 +96,13 @@ export function Code({
   const toggleCollapsed = () => {
     setCollapsedValue(blockId, collapsedStateKey, !isCollapsed)
   }
-  // Use preview value when in preview mode, otherwise use store value or prop value
-  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+
+  // Create refs to hold the handlers
+  const handleStreamStartRef = useRef<() => void>(() => {})
+  const handleGeneratedContentRef = useRef<(generatedCode: string) => void>(() => {})
+  const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
 
   // AI Code Generation Hook
-  const handleStreamStart = () => {
-    setCode('')
-    // No need to manually manage streaming - it's automatic now
-  }
-
-  const handleGeneratedContent = (generatedCode: string) => {
-    setCode(generatedCode)
-    if (!isPreview && !disabled) {
-      setStoreValue(generatedCode)
-    }
-  }
-
-  // Handle streaming chunks directly into the editor
-  const handleStreamChunk = (chunk: string) => {
-    setCode((currentCode) => {
-      const newCode = currentCode + chunk
-      if (!isPreview && !disabled) {
-        // Just update the value - streaming detection is automatic
-        setStoreValue(newCode)
-      }
-      return newCode
-    })
-  }
-
   const {
     isLoading: isAiLoading,
     isStreaming: isAiStreaming,
@@ -153,10 +117,47 @@ export function Code({
   } = useCodeGeneration({
     generationType: generationType,
     initialContext: code,
-    onGeneratedContent: handleGeneratedContent,
-    onStreamChunk: handleStreamChunk,
-    onStreamStart: handleStreamStart,
+    onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
+    onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
+    onStreamStart: () => handleStreamStartRef.current?.(),
   })
+
+  // State management - useSubBlockValue with explicit streaming control
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
+    debounceMs: 150,
+    isStreaming: isAiStreaming, // Use AI streaming state directly
+    onStreamingEnd: () => {
+      logger.debug('AI streaming ended, value persisted', { blockId, subBlockId })
+    },
+  })
+
+  // Use preview value when in preview mode, otherwise use store value or prop value
+  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+
+  // Define the handlers now that we have access to setStoreValue
+  handleStreamStartRef.current = () => {
+    setCode('')
+    // Streaming state is now controlled by isAiStreaming
+  }
+
+  handleGeneratedContentRef.current = (generatedCode: string) => {
+    setCode(generatedCode)
+    if (!isPreview && !disabled) {
+      setStoreValue(generatedCode)
+      // Final value will be persisted when isAiStreaming becomes false
+    }
+  }
+
+  handleStreamChunkRef.current = (chunk: string) => {
+    setCode((currentCode) => {
+      const newCode = currentCode + chunk
+      if (!isPreview && !disabled) {
+        // Update the value - it won't be persisted until streaming ends
+        setStoreValue(newCode)
+      }
+      return newCode
+    })
+  }
 
   // Effects
   useEffect(() => {

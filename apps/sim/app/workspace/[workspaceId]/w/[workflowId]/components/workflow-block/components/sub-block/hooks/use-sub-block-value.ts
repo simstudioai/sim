@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { isEqual } from 'lodash'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -160,49 +160,28 @@ function storeApiKeyValue(
 
 interface UseSubBlockValueOptions {
   debounceMs?: number
-  streamingThresholdMs?: number
-  onStreamingStart?: () => void
+  isStreaming?: boolean // Explicit streaming state
   onStreamingEnd?: () => void
 }
 
 /**
  * Custom hook to get and set values for a sub-block in a workflow.
  * Handles complex object values properly by using deep equality comparison.
- * Includes automatic debouncing and streaming detection for large text operations.
+ * Includes automatic debouncing and explicit streaming mode for AI generation.
  *
  * @param blockId The ID of the block containing the sub-block
  * @param subBlockId The ID of the sub-block
  * @param triggerWorkflowUpdate Whether to trigger a workflow update when the value changes
  * @param options Configuration for debouncing and streaming behavior
- * @returns A tuple containing the current value, setter function, and optionally streaming state
+ * @returns A tuple containing the current value and setter function
  */
-export function useSubBlockValue<T = any>(
-  blockId: string,
-  subBlockId: string,
-  triggerWorkflowUpdate?: boolean
-): readonly [T | null, (value: T) => void]
-
-export function useSubBlockValue<T = any>(
-  blockId: string,
-  subBlockId: string,
-  triggerWorkflowUpdate: boolean,
-  options: UseSubBlockValueOptions
-): readonly [T | null, (value: T) => void, { isStreaming: boolean }]
-
 export function useSubBlockValue<T = any>(
   blockId: string,
   subBlockId: string,
   triggerWorkflowUpdate = false,
   options?: UseSubBlockValueOptions
-):
-  | readonly [T | null, (value: T) => void]
-  | readonly [T | null, (value: T) => void, { isStreaming: boolean }] {
-  const {
-    debounceMs = 100,
-    streamingThresholdMs = 50,
-    onStreamingStart,
-    onStreamingEnd,
-  } = options || {}
+): readonly [T | null, (value: T) => void] {
+  const { debounceMs = 150, isStreaming = false, onStreamingEnd } = options || {}
 
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
@@ -223,13 +202,11 @@ export function useSubBlockValue<T = any>(
   // Previous model reference for detecting model changes
   const prevModelRef = useRef<string | null>(null)
 
-  // Debouncing and streaming detection refs
+  // Debouncing refs
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const lastUpdateTimeRef = useRef<number>(0)
-  const updateCountRef = useRef<number>(0)
-  const streamingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastEmittedValueRef = useRef<T | null>(null)
-  const [isStreaming, setIsStreaming] = useState(false)
+  const streamingValueRef = useRef<T | null>(null)
+  const wasStreamingRef = useRef<boolean>(false)
 
   // Get value from subblock store - always call this hook unconditionally
   const storeValue = useSubBlockStore(
@@ -255,14 +232,11 @@ export function useSubBlockValue<T = any>(
   // Compute the modelValue based on block type
   const modelValue = isProviderBasedBlock ? (modelSubBlockValue as string) : null
 
-  // Cleanup timers on unmount
+  // Cleanup timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
-      }
-      if (streamingTimeoutRef.current) {
-        clearTimeout(streamingTimeoutRef.current)
       }
     }
   }, [])
@@ -276,59 +250,17 @@ export function useSubBlockValue<T = any>(
     [blockId, subBlockId, collaborativeSetSubblockValue]
   )
 
-  // Detect and handle streaming
-  const detectStreaming = useCallback(() => {
-    const now = Date.now()
-    const timeSinceLastUpdate = now - lastUpdateTimeRef.current
-
-    // If updates are coming in rapidly, we're likely streaming
-    if (timeSinceLastUpdate < streamingThresholdMs) {
-      updateCountRef.current++
-
-      // Start streaming mode after 3 rapid updates
-      if (updateCountRef.current >= 3 && !isStreaming) {
-        logger.debug('Streaming detected', {
-          blockId,
-          subBlockId,
-          updateCount: updateCountRef.current,
-        })
-        setIsStreaming(true)
-        onStreamingStart?.()
-      }
-    } else {
-      // Reset counter if updates slow down
-      updateCountRef.current = 1
+  // Handle streaming mode changes
+  useEffect(() => {
+    // If we just exited streaming mode, emit the final value
+    if (wasStreamingRef.current && !isStreaming && streamingValueRef.current !== null) {
+      logger.debug('Streaming ended, persisting final value', { blockId, subBlockId })
+      emitValue(streamingValueRef.current)
+      streamingValueRef.current = null
+      onStreamingEnd?.()
     }
-
-    lastUpdateTimeRef.current = now
-
-    // Set up timeout to end streaming
-    if (streamingTimeoutRef.current) {
-      clearTimeout(streamingTimeoutRef.current)
-    }
-
-    if (isStreaming) {
-      streamingTimeoutRef.current = setTimeout(() => {
-        logger.debug('Ending streaming mode', { blockId, subBlockId })
-        setIsStreaming(false)
-        updateCountRef.current = 0
-        onStreamingEnd?.()
-
-        // Emit the final value when streaming ends
-        if (valueRef.current !== null && valueRef.current !== lastEmittedValueRef.current) {
-          emitValue(valueRef.current)
-        }
-      }, 300) // End streaming 300ms after last update
-    }
-  }, [
-    blockId,
-    subBlockId,
-    isStreaming,
-    streamingThresholdMs,
-    onStreamingStart,
-    onStreamingEnd,
-    emitValue,
-  ])
+    wasStreamingRef.current = isStreaming
+  }, [isStreaming, blockId, subBlockId, emitValue, onStreamingEnd])
 
   // Hook to set a value in the subblock store
   const setValue = useCallback(
@@ -366,17 +298,17 @@ export function useSubBlockValue<T = any>(
           storeApiKeyValue(blockId, blockType, modelValue, newValue, storeValue)
         }
 
-        // Detect if we're in a streaming scenario
-        detectStreaming()
-
         // Clear any existing debounce timer
         if (debounceTimerRef.current) {
           clearTimeout(debounceTimerRef.current)
+          debounceTimerRef.current = null
         }
 
-        // If streaming, don't emit immediately - wait for streaming to end
-        if (!isStreaming) {
-          // Detect large changes for automatic bulk operation mode
+        // If streaming, just store the value without emitting
+        if (isStreaming) {
+          streamingValueRef.current = valueCopy
+        } else {
+          // Detect large changes for extended debounce
           const isLargeChange = detectLargeChange(lastEmittedValueRef.current, valueCopy)
           const effectiveDebounceMs = isLargeChange ? debounceMs * 2 : debounceMs
 
@@ -403,7 +335,6 @@ export function useSubBlockValue<T = any>(
       modelValue,
       isStreaming,
       debounceMs,
-      detectStreaming,
       emitValue,
     ]
   )
@@ -478,13 +409,6 @@ export function useSubBlockValue<T = any>(
   }, [storeValue, initialValue])
 
   // Return appropriate tuple based on whether options were provided
-  if (options) {
-    return [
-      storeValue !== undefined ? storeValue : initialValue,
-      setValue,
-      { isStreaming },
-    ] as const
-  }
   return [storeValue !== undefined ? storeValue : initialValue, setValue] as const
 }
 
