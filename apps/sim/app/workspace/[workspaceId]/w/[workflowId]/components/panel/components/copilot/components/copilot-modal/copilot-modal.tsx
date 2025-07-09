@@ -1,10 +1,17 @@
 'use client'
 
 import { type KeyboardEvent, useEffect, useRef } from 'react'
-import { ArrowUp, Bot, X } from 'lucide-react'
+import { ArrowUp, Bot, ChevronDown, MessageSquarePlus, MoreHorizontal, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { createLogger } from '@/lib/logs/console-logger'
+import { type CopilotChat } from '@/lib/copilot-api'
 
 const logger = createLogger('CopilotModal')
 
@@ -129,6 +136,12 @@ interface CopilotModalProps {
   messages: Message[]
   onSendMessage: (message: string) => Promise<void>
   isLoading: boolean
+  // Chat management props
+  chats: CopilotChat[]
+  currentChat: CopilotChat | null
+  onSelectChat: (chat: CopilotChat) => void
+  onStartNewChat: () => void
+  onDeleteChat: (chatId: string) => void
 }
 
 export function CopilotModal({
@@ -139,6 +152,11 @@ export function CopilotModal({
   messages,
   onSendMessage,
   isLoading,
+  chats,
+  currentChat,
+  onSelectChat,
+  onStartNewChat,
+  onDeleteChat,
 }: CopilotModalProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -202,9 +220,72 @@ export function CopilotModal({
         }
       `}</style>
 
-      {/* Header with title and close button */}
-      <div className='flex items-center justify-between px-4 py-3'>
-        <h2 className='font-medium text-lg'>Documentation Copilot</h2>
+      {/* Header with chat title, management, and close button */}
+      <div className='flex items-center justify-between px-4 py-3 border-b'>
+        <div className='flex items-center gap-2 flex-1'>
+          {/* Chat Title Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant='ghost' 
+                className='h-8 px-3 justify-start flex-1 max-w-[300px]'
+              >
+                <span className='truncate'>
+                  {currentChat?.title || 'New Chat'}
+                </span>
+                <ChevronDown className='h-4 w-4 ml-2 shrink-0' />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='start' className='w-64 z-[110]' sideOffset={8}>
+              {chats.map((chat) => (
+                <div key={chat.id} className='flex items-center'>
+                  <DropdownMenuItem
+                    onClick={() => onSelectChat(chat)}
+                    className='flex-1 cursor-pointer'
+                  >
+                    <div className='min-w-0 flex-1'>
+                      <div className='truncate font-medium text-sm'>
+                        {chat.title || 'Untitled Chat'}
+                      </div>
+                      <div className='text-muted-foreground text-xs'>
+                        {chat.messageCount} messages •{' '}
+                        {new Date(chat.updatedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant='ghost' size='sm' className='h-8 w-8 shrink-0 p-0'>
+                        <MoreHorizontal className='h-4 w-4' />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end' className='z-[120]'>
+                      <DropdownMenuItem
+                        onClick={() => onDeleteChat(chat.id)}
+                        className='cursor-pointer text-destructive'
+                      >
+                        <Trash2 className='mr-2 h-4 w-4' />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          {/* New Chat Button */}
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={onStartNewChat}
+            className='h-8 w-8 p-0'
+            title='New Chat'
+          >
+            <MessageSquarePlus className='h-4 w-4' />
+          </Button>
+        </div>
+        
         <Button
           variant='ghost'
           size='icon'

@@ -451,71 +451,70 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     return (
       <>
         <div className='flex h-full flex-col'>
-          {/* Header with Chat Dropdown */}
+          {/* Header with Chat Title and Management */}
           <div className='border-b p-4'>
             <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <Bot className='h-5 w-5 text-primary' />
-                <div>
-                  <h3 className='font-medium text-sm'>Documentation Copilot</h3>
-                  <p className='text-muted-foreground text-xs'>Ask questions about Sim Studio</p>
-                </div>
-              </div>
-
-              {/* Chat Management */}
-              <div className='flex items-center gap-2'>
-                <Button variant='outline' size='sm' onClick={startNewChat} className='h-8'>
-                  <MessageSquarePlus className='mr-2 h-4 w-4' />
-                  New Chat
-                </Button>
-
-                {chats.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant='outline' size='sm' className='h-8'>
-                        {currentChat?.title || 'Select Chat'}
-                        <ChevronDown className='ml-2 h-4 w-4' />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align='end' className='w-64'>
-                      {chats.map((chat) => (
-                        <div key={chat.id} className='flex items-center'>
-                          <DropdownMenuItem
-                            onClick={() => selectChat(chat)}
-                            className='flex-1 cursor-pointer'
-                          >
-                            <div className='min-w-0 flex-1'>
-                              <div className='truncate font-medium text-sm'>
-                                {chat.title || 'Untitled Chat'}
-                              </div>
-                              <div className='text-muted-foreground text-xs'>
-                                {chat.messageCount} messages •{' '}
-                                {new Date(chat.updatedAt).toLocaleDateString()}
-                              </div>
-                            </div>
-                          </DropdownMenuItem>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant='ghost' size='sm' className='h-8 w-8 shrink-0 p-0'>
-                                <MoreHorizontal className='h-4 w-4' />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end'>
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteChat(chat.id)}
-                                className='cursor-pointer text-destructive'
-                              >
-                                <Trash2 className='mr-2 h-4 w-4' />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+              {/* Chat Title Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant='ghost' 
+                    className='h-8 px-3 flex-1 justify-start min-w-0'
+                  >
+                    <span className='truncate'>
+                      {currentChat?.title || 'New Chat'}
+                    </span>
+                    <ChevronDown className='h-4 w-4 ml-2 shrink-0' />
+                  </Button>
+                </DropdownMenuTrigger>
+                                  <DropdownMenuContent align='start' className='w-64 z-[110]' sideOffset={8}>
+                  {chats.map((chat) => (
+                    <div key={chat.id} className='flex items-center'>
+                      <DropdownMenuItem
+                        onClick={() => selectChat(chat)}
+                        className='flex-1 cursor-pointer'
+                      >
+                        <div className='min-w-0 flex-1'>
+                          <div className='truncate font-medium text-sm'>
+                            {chat.title || 'Untitled Chat'}
+                          </div>
+                          <div className='text-muted-foreground text-xs'>
+                            {chat.messageCount} messages •{' '}
+                            {new Date(chat.updatedAt).toLocaleDateString()}
+                          </div>
                         </div>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
+                      </DropdownMenuItem>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant='ghost' size='sm' className='h-8 w-8 shrink-0 p-0'>
+                            <MoreHorizontal className='h-4 w-4' />
+                          </Button>
+                        </DropdownMenuTrigger>
+                                                  <DropdownMenuContent align='end' className='z-[120]'>
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteChat(chat.id)}
+                            className='cursor-pointer text-destructive'
+                          >
+                            <Trash2 className='mr-2 h-4 w-4' />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              {/* New Chat Button */}
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={startNewChat}
+                className='h-8 w-8 p-0 ml-2'
+                title='New Chat'
+              >
+                <MessageSquarePlus className='h-4 w-4' />
+              </Button>
             </div>
           </div>
 
@@ -586,6 +585,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
           messages={modalMessages}
           onSendMessage={handleModalSendMessage}
           isLoading={isLoading}
+          chats={chats}
+          currentChat={currentChat}
+          onSelectChat={selectChat}
+          onStartNewChat={startNewChat}
+          onDeleteChat={handleDeleteChat}
         />
       </>
     )
