@@ -72,9 +72,77 @@ const docsSearchTool: CopilotTool = {
   },
 }
 
+// Get user workflow as YAML tool for copilot
+const getUserWorkflowTool: CopilotTool = {
+  id: 'get_user_workflow',
+  name: 'Get User Workflow',
+  description:
+    'Get the current user workflow as YAML format. This shows all blocks, their configurations, inputs, and connections in the workflow.',
+  parameters: {
+    type: 'object',
+    properties: {
+      includeMetadata: {
+        type: 'boolean',
+        description: 'Whether to include additional metadata about the workflow (default: false)',
+        default: false,
+      },
+    },
+    required: [],
+  },
+  execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
+    try {
+      const { includeMetadata = false } = args
+
+      logger.info('Executing get user workflow', { includeMetadata })
+
+      // Import the workflow YAML store dynamically to avoid import issues
+      const { useWorkflowYamlStore } = await import('@/stores/workflows/yaml/store')
+      const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+      
+      // Get the current workflow YAML
+      const yamlContent = useWorkflowYamlStore.getState().getYaml()
+      
+      // Get additional metadata if requested
+      let metadata = {}
+      if (includeMetadata) {
+        const registry = useWorkflowRegistry.getState()
+        const activeWorkflowId = registry.activeWorkflowId
+        const activeWorkflow = activeWorkflowId ? registry.workflows[activeWorkflowId] : null
+        
+        if (activeWorkflow) {
+          metadata = {
+            workflowId: activeWorkflowId,
+            name: activeWorkflow.name,
+            description: activeWorkflow.description,
+            lastModified: activeWorkflow.lastModified,
+            workspaceId: activeWorkflow.workspaceId,
+          }
+        }
+      }
+
+      logger.info('Successfully retrieved user workflow YAML')
+
+      return {
+        success: true,
+        data: {
+          yaml: yamlContent,
+          metadata: includeMetadata ? metadata : undefined,
+        },
+      }
+    } catch (error) {
+      logger.error('Get user workflow failed', error)
+      return {
+        success: false,
+        error: `Failed to get user workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }
+    }
+  },
+}
+
 // Copilot tools registry
 const copilotTools: Record<string, CopilotTool> = {
   docs_search_internal: docsSearchTool,
+  get_user_workflow: getUserWorkflowTool,
 }
 
 // Get a copilot tool by ID

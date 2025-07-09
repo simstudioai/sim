@@ -4,9 +4,16 @@ import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { docsSearchTool } from './docs/search'
 import { tools } from './registry'
+import { getUserWorkflowTool } from './workflow/get-yaml'
 import type { TableRow, ToolConfig, ToolResponse } from './types'
 
 const logger = createLogger('ToolsUtils')
+
+// Internal-only tools (not exposed to users in workflows)
+const internalTools: Record<string, ToolConfig> = {
+  docs_search_internal: docsSearchTool,
+  get_user_workflow: getUserWorkflowTool,
+}
 
 /**
  * Transforms a table from the store format to a key-value object
@@ -266,11 +273,6 @@ export function createCustomToolRequestBody(
       isCustomTool: true, // Flag to indicate this is a custom tool execution
     }
   }
-}
-
-// Internal-only tools (not exposed to users in workflows)
-const internalTools: Record<string, ToolConfig> = {
-  docs_search_internal: docsSearchTool,
 }
 
 // Get a tool by its ID

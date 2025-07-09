@@ -1,58 +1,37 @@
-import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { searchDocumentation } from '@/lib/copilot/service'
+import { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
+import { searchDocumentation } from '@/lib/copilot/service'
 
 const logger = createLogger('DocsSearchAPI')
 
-const SearchSchema = z.object({
-  query: z.string().min(1, 'Query is required'),
-  topK: z.number().min(1).max(20).default(5),
-})
-
-/**
- * POST /api/docs/search
- * Search documentation for copilot tools
- */
-export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID()
-
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json()
-    const { query, topK } = SearchSchema.parse(body)
+    const { query, topK = 5 } = await request.json()
 
-    logger.info(`[${requestId}] Documentation search request: "${query}"`, { topK })
+    if (!query) {
+      return NextResponse.json({ error: 'Query is required' }, { status: 400 })
+    }
+
+    logger.info('Executing documentation search', { query, topK })
 
     const results = await searchDocumentation(query, { topK })
 
-    logger.info(`[${requestId}] Found ${results.length} documentation results`, { query })
+    logger.info(`Found ${results.length} documentation results`, { query })
 
     return NextResponse.json({
       success: true,
       results,
       query,
       totalResults: results.length,
-      metadata: {
-        requestId,
-        query,
-        topK,
-      },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    logger.error(`[${requestId}] Documentation search error:`, error)
+    logger.error('Documentation search API failed', error)
     return NextResponse.json(
       {
-        error: 'Failed to search documentation',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        success: false,
+        error: `Documentation search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       },
       { status: 500 }
     )
   }
-}
+} 

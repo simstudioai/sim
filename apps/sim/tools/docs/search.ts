@@ -1,23 +1,6 @@
 import type { ToolConfig } from '../types'
 
-export interface DocsSearchParams {
-  query: string
-  topK?: number
-}
-
-export interface DocsSearchResponse {
-  results: Array<{
-    id: number
-    title: string
-    url: string
-    content: string
-    similarity: number
-  }>
-  query: string
-  totalResults: number
-}
-
-export const docsSearchTool: ToolConfig<DocsSearchParams, DocsSearchResponse> = {
+export const docsSearchTool: ToolConfig = {
   id: 'docs_search_internal',
   name: 'Search Documentation',
   description:
@@ -34,7 +17,6 @@ export const docsSearchTool: ToolConfig<DocsSearchParams, DocsSearchResponse> = 
       type: 'number',
       required: false,
       description: 'Number of results to return (default: 5, max: 10)',
-      default: 5,
     },
   },
 
@@ -50,25 +32,4 @@ export const docsSearchTool: ToolConfig<DocsSearchParams, DocsSearchResponse> = 
     }),
     isInternalRoute: true,
   },
-
-  transformResponse: async (response: Response): Promise<any> => {
-    const data = await response.json()
-
-    if (!response.ok) {
-      return {
-        success: false,
-        output: {},
-        error: data.error || 'Failed to search documentation',
-      }
-    }
-
-    return {
-      success: true,
-      output: {
-        results: data.results || [],
-        query: data.query || '',
-        totalResults: data.totalResults || 0,
-      },
-    }
-  },
-}
+} 

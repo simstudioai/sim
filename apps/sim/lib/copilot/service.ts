@@ -406,7 +406,7 @@ export async function generateChatResponse(
       content: message,
     })
 
-    // Define the documentation search tool for the LLM
+    // Define the tools available to the LLM
     const tools: ProviderToolConfig[] = [
       {
         id: 'docs_search_internal',
@@ -428,6 +428,24 @@ export async function generateChatResponse(
             },
           },
           required: ['query'],
+        },
+      },
+      {
+        id: 'get_user_workflow',
+        name: 'Get User Workflow',
+        description:
+          'Get the current user workflow as YAML format. This shows all blocks, their configurations, inputs, and connections in the workflow.',
+        params: {},
+        parameters: {
+          type: 'object',
+          properties: {
+            includeMetadata: {
+              type: 'boolean',
+              description: 'Whether to include additional metadata about the workflow (default: false)',
+              default: false,
+            },
+          },
+          required: [],
         },
       },
     ]
