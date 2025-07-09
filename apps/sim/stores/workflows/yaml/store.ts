@@ -26,7 +26,7 @@ type WorkflowYamlStore = WorkflowYamlState & WorkflowYamlActions
 function getSubBlockValues() {
   const workflowState = useWorkflowStore.getState()
   const subBlockStore = useSubBlockStore.getState()
-  
+
   const subBlockValues: Record<string, Record<string, any>> = {}
   Object.entries(workflowState.blocks).forEach(([blockId]) => {
     subBlockValues[blockId] = {}
@@ -38,7 +38,7 @@ function getSubBlockValues() {
       }
     })
   })
-  
+
   return subBlockValues
 }
 
@@ -98,7 +98,7 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
       generateYaml: () => {
         // Initialize subscriptions on first use
         initializeSubscriptions()
-        
+
         const workflowState = useWorkflowStore.getState()
         const subBlockValues = getSubBlockValues()
         const yaml = generateWorkflowYaml(workflowState, subBlockValues)
@@ -112,7 +112,7 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
       getYaml: () => {
         // Initialize subscriptions on first use
         initializeSubscriptions()
-        
+
         const currentTime = Date.now()
         const { yaml, lastGenerated } = get()
 

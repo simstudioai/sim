@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
-import { eq } from 'drizzle-orm'
-import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 
 const logger = createLogger('GetUserWorkflowAPI')
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Try to load from normalized tables first, fallback to JSON blob
     let workflowState: any = null
-    let subBlockValues: Record<string, Record<string, any>> = {}
+    const subBlockValues: Record<string, Record<string, any>> = {}
 
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
     if (normalizedData) {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         loops: normalizedData.loops,
         parallels: normalizedData.parallels,
       }
-      
+
       // Extract subblock values from normalized data
       Object.entries(normalizedData.blocks).forEach(([blockId, block]) => {
         subBlockValues[blockId] = {}
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       // For JSON blob, subblock values are embedded in the block state
       Object.entries((workflowState.blocks as any) || {}).forEach(([blockId, block]) => {
         subBlockValues[blockId] = {}
-        Object.entries(((block as any).subBlocks || {})).forEach(([subBlockId, subBlock]) => {
+        Object.entries((block as any).subBlocks || {}).forEach(([subBlockId, subBlock]) => {
           if ((subBlock as any).value !== undefined) {
             subBlockValues[blockId][subBlockId] = (subBlock as any).value
           }
@@ -129,4 +129,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

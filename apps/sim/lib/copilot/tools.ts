@@ -99,7 +99,7 @@ const getUserWorkflowTool: CopilotTool = {
       const activeWorkflowId = registry.activeWorkflowId
       const activeWorkflow = activeWorkflowId ? registry.workflows[activeWorkflowId] : null
 
-      let metadata = undefined
+      let metadata
       if (activeWorkflow) {
         metadata = {
           workflowId: activeWorkflowId,

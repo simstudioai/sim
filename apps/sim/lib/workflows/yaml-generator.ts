@@ -24,7 +24,7 @@ interface YamlWorkflow {
  * This version works without client-side stores by using the provided subblock values
  */
 function extractBlockInputs(
-  blockState: BlockState, 
+  blockState: BlockState,
   blockId: string,
   subBlockValues?: Record<string, Record<string, any>>
 ): Record<string, any> {
@@ -189,4 +189,4 @@ export function generateWorkflowYaml(
     logger.error('Failed to generate workflow YAML:', error)
     return `# Error generating YAML: ${error instanceof Error ? error.message : 'Unknown error'}`
   }
-} 
+}
