@@ -48,6 +48,10 @@ export interface CopilotState {
   // Error state
   error: string | null
 
+  // Save operation error (separate from general errors)
+  saveError: string | null
+  isSaving: boolean
+
   // Current workflow ID (for chat context)
   workflowId: string | null
 }
@@ -71,6 +75,8 @@ export interface CopilotActions {
   // Utility actions
   clearMessages: () => void
   clearError: () => void
+  clearSaveError: () => void
+  retrySave: (chatId: string) => Promise<void>
   reset: () => void
 
   // Internal helper (not exposed publicly)

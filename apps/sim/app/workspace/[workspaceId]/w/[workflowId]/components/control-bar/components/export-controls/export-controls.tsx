@@ -43,7 +43,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
     }
   }
 
-  const handleExportYaml = async () => {
+  const handleExportYaml = () => {
     if (!currentWorkflow || !activeWorkflowId) {
       logger.warn('No active workflow to export')
       return

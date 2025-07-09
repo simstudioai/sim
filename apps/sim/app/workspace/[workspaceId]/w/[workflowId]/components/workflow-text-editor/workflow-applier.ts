@@ -41,9 +41,7 @@ export async function applyWorkflowDiff(
         addEdge: () => {}, // Not used in this path
         applyAutoLayout: () => {
           // Trigger auto layout after import
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
-          }, 100)
+          window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
         },
         setSubBlockValue: () => {}, // Not used in this path
         getExistingBlocks: () => useWorkflowStore.getState().blocks,
@@ -95,17 +93,37 @@ export async function applyWorkflowDiff(
       hasActiveWebhook: parsedData.state.hasActiveWebhook || false,
     }
 
-    // Update local workflow state
-    useWorkflowStore.setState(newWorkflowState)
+    // Atomically update local state with rollback on failure
+    const previousWorkflowState = useWorkflowStore.getState()
+    const previousSubBlockState = useSubBlockStore.getState()
 
-    // Update subblock values if provided
-    if (parsedData.subBlockValues) {
-      useSubBlockStore.setState((state: any) => ({
-        workflowValues: {
-          ...state.workflowValues,
-          [activeWorkflowId]: parsedData.subBlockValues,
-        },
-      }))
+    try {
+      // Update workflow state first
+      useWorkflowStore.setState(newWorkflowState)
+
+      // Update subblock values if provided
+      if (parsedData.subBlockValues) {
+        useSubBlockStore.setState((state: any) => ({
+          workflowValues: {
+            ...state.workflowValues,
+            [activeWorkflowId]: parsedData.subBlockValues,
+          },
+        }))
+      }
+    } catch (error) {
+      // Rollback state changes on any failure
+      logger.error('State update failed, rolling back:', error)
+      useWorkflowStore.setState(previousWorkflowState)
+      useSubBlockStore.setState(previousSubBlockState)
+
+      return {
+        success: false,
+        errors: [
+          `State update failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ],
+        warnings: [],
+        appliedOperations: 0,
+      }
     }
 
     // Update workflow metadata if provided
@@ -153,9 +171,7 @@ export async function applyWorkflowDiff(
     }
 
     // Trigger auto layout
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
-    }, 100)
+    window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
 
     return {
       success: true,

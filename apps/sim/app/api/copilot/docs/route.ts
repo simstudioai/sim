@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import {
+  type CopilotChat,
+  type CopilotMessage,
   createChat,
   generateChatTitle,
   generateDocsResponse,
@@ -52,8 +54,8 @@ export async function POST(req: NextRequest) {
     })
 
     // Handle chat context
-    let currentChat: any = null
-    let conversationHistory: any[] = []
+    let currentChat: CopilotChat | null = null
+    let conversationHistory: CopilotMessage[] = []
 
     if (chatId) {
       // Load existing chat
@@ -126,53 +128,75 @@ export async function POST(req: NextRequest) {
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`))
               }
 
-              // Save conversation to database after streaming completes
-              if (currentChat) {
-                const userMessage = {
-                  id: crypto.randomUUID(),
-                  role: 'user',
-                  content: query,
-                  timestamp: new Date().toISOString(),
-                }
-
-                const assistantMessage = {
-                  id: crypto.randomUUID(),
-                  role: 'assistant',
-                  content: accumulatedResponse,
-                  timestamp: new Date().toISOString(),
-                  citations: result.sources.map((source, index) => ({
-                    id: index + 1,
-                    title: source.title,
-                    url: source.url,
-                  })),
-                }
-
-                const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
-
-                // Generate title if this is the first message
-                let updatedTitle = currentChat.title
-                if (!updatedTitle && conversationHistory.length === 0) {
-                  updatedTitle = await generateChatTitle(query)
-                }
-
-                // Update the chat in database
-                await updateChat(currentChat.id, session.user.id, {
-                  title: updatedTitle,
-                  messages: updatedMessages,
-                })
-
-                logger.info(`[${requestId}] Updated chat ${currentChat.id} with new docs messages`)
-              }
-
-              // Send completion marker
+              // Send completion marker first to unblock the user
               controller.enqueue(encoder.encode(`data: {"type":"done"}\n\n`))
+
+              // Save conversation to database asynchronously (non-blocking)
+              if (currentChat) {
+                // Fire-and-forget database save to avoid blocking stream completion
+                Promise.resolve()
+                  .then(async () => {
+                    try {
+                      const userMessage: CopilotMessage = {
+                        id: crypto.randomUUID(),
+                        role: 'user',
+                        content: query,
+                        timestamp: new Date().toISOString(),
+                      }
+
+                      const assistantMessage: CopilotMessage = {
+                        id: crypto.randomUUID(),
+                        role: 'assistant',
+                        content: accumulatedResponse,
+                        timestamp: new Date().toISOString(),
+                        citations: result.sources.map((source, index) => ({
+                          id: index + 1,
+                          title: source.title,
+                          url: source.url,
+                        })),
+                      }
+
+                      const updatedMessages = [
+                        ...conversationHistory,
+                        userMessage,
+                        assistantMessage,
+                      ]
+
+                      // Generate title if this is the first message
+                      let updatedTitle = currentChat.title ?? undefined
+                      if (!updatedTitle && conversationHistory.length === 0) {
+                        updatedTitle = await generateChatTitle(query)
+                      }
+
+                      // Update the chat in database
+                      await updateChat(currentChat.id, session.user.id, {
+                        title: updatedTitle,
+                        messages: updatedMessages,
+                      })
+
+                      logger.info(
+                        `[${requestId}] Updated chat ${currentChat.id} with new docs messages`
+                      )
+                    } catch (dbError) {
+                      logger.error(`[${requestId}] Failed to save chat to database:`, dbError)
+                      // Database errors don't affect the user's streaming experience
+                    }
+                  })
+                  .catch((error) => {
+                    logger.error(`[${requestId}] Unexpected error in async database save:`, error)
+                  })
+              }
             } catch (error) {
               logger.error(`[${requestId}] Docs streaming error:`, error)
-              const errorChunk = {
-                type: 'error',
-                error: 'Streaming failed',
+              try {
+                const errorChunk = {
+                  type: 'error',
+                  error: 'Streaming failed',
+                }
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`))
+              } catch (enqueueError) {
+                logger.error(`[${requestId}] Failed to enqueue error response:`, enqueueError)
               }
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`))
             } finally {
               controller.close()
             }
@@ -193,14 +217,14 @@ export async function POST(req: NextRequest) {
 
     // Save conversation to database if we have a chat
     if (currentChat) {
-      const userMessage = {
+      const userMessage: CopilotMessage = {
         id: crypto.randomUUID(),
         role: 'user',
         content: query,
         timestamp: new Date().toISOString(),
       }
 
-      const assistantMessage = {
+      const assistantMessage: CopilotMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
         content: typeof result.response === 'string' ? result.response : '[Streaming Response]',
@@ -215,7 +239,7 @@ export async function POST(req: NextRequest) {
       const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
 
       // Generate title if this is the first message
-      let updatedTitle = currentChat.title
+      let updatedTitle = currentChat.title ?? undefined
       if (!updatedTitle && conversationHistory.length === 0) {
         updatedTitle = await generateChatTitle(query)
       }

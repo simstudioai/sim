@@ -17,7 +17,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { importWorkflowFromYaml, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 
 const logger = createLogger('ImportControls')
@@ -52,7 +51,6 @@ export const ImportControls = forwardRef<ImportControlsRef, ImportControlsProps>
     const { createWorkflow } = useWorkflowRegistry()
     const { collaborativeAddBlock, collaborativeAddEdge, collaborativeSetSubblockValue } =
       useCollaborativeWorkflow()
-    const subBlockStore = useSubBlockStore()
 
     // Expose methods to parent component
     useImperativeHandle(ref, () => ({
@@ -131,7 +129,7 @@ export const ImportControls = forwardRef<ImportControlsRef, ImportControlsProps>
               // Trigger auto layout
               window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
             },
-            setSubBlockValue: (blockId: string, subBlockId: string, value: any) => {
+            setSubBlockValue: (blockId: string, subBlockId: string, value: unknown) => {
               // Use the collaborative function - the same one called when users type into fields
               collaborativeSetSubblockValue(blockId, subBlockId, value)
             },

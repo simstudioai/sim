@@ -15,7 +15,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { applyWorkflowDiff } from './workflow-applier'
 import { exportWorkflow } from './workflow-exporter'
 import { type EditorFormat, WorkflowTextEditor } from './workflow-text-editor'
@@ -37,7 +36,6 @@ export function WorkflowTextEditorModal({
   const [isLoading, setIsLoading] = useState(false)
 
   const { activeWorkflowId } = useWorkflowRegistry()
-  const workflowState = useWorkflowStore()
 
   // Load initial content when modal opens
   useEffect(() => {
@@ -79,14 +77,12 @@ export function WorkflowTextEditorModal({
           })
 
           // Update initial content to reflect current state
-          setTimeout(() => {
-            try {
-              const updatedContent = exportWorkflow(contentFormat)
-              setInitialContent(updatedContent)
-            } catch (error) {
-              logger.error('Failed to refresh content after save:', error)
-            }
-          }, 500) // Give more time for the workflow state to update
+          try {
+            const updatedContent = exportWorkflow(contentFormat)
+            setInitialContent(updatedContent)
+          } catch (error) {
+            logger.error('Failed to refresh content after save:', error)
+          }
         }
 
         return {

@@ -126,8 +126,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
 
     // Handle message submission
     const handleSubmit = useCallback(
-      async (e: React.FormEvent, message?: string) => {
-        e.preventDefault()
+      async (e?: React.FormEvent, message?: string) => {
+        e?.preventDefault()
 
         const query = message || inputRef.current?.value?.trim() || ''
         if (!query || isSendingMessage || !activeWorkflowId) return
@@ -256,8 +256,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     // Handle modal message sending
     const handleModalSendMessage = useCallback(
       async (message: string) => {
-        const mockEvent = { preventDefault: () => {} } as React.FormEvent
-        await handleSubmit(mockEvent, message)
+        await handleSubmit(undefined, message)
       },
       [handleSubmit]
     )

@@ -7,18 +7,103 @@ import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowStateAPI')
 
+// Zod schemas for workflow state validation
+const PositionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+})
+
+const BlockDataSchema = z.object({
+  parentId: z.string().optional(),
+  extent: z.literal('parent').optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  collection: z.unknown().optional(),
+  count: z.number().optional(),
+  loopType: z.enum(['for', 'forEach']).optional(),
+  parallelType: z.enum(['collection', 'count']).optional(),
+  type: z.string().optional(),
+})
+
+const SubBlockStateSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  value: z.union([z.string(), z.number(), z.array(z.array(z.string())), z.null()]),
+})
+
+const BlockOutputSchema = z.any()
+
+const BlockStateSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  name: z.string(),
+  position: PositionSchema,
+  subBlocks: z.record(SubBlockStateSchema),
+  outputs: z.record(BlockOutputSchema),
+  enabled: z.boolean(),
+  horizontalHandles: z.boolean().optional(),
+  isWide: z.boolean().optional(),
+  height: z.number().optional(),
+  advancedMode: z.boolean().optional(),
+  data: BlockDataSchema.optional(),
+})
+
+const EdgeSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  sourceHandle: z.string().optional(),
+  targetHandle: z.string().optional(),
+  type: z.string().optional(),
+  animated: z.boolean().optional(),
+  style: z.record(z.any()).optional(),
+  data: z.record(z.any()).optional(),
+  label: z.string().optional(),
+  labelStyle: z.record(z.any()).optional(),
+  labelShowBg: z.boolean().optional(),
+  labelBgStyle: z.record(z.any()).optional(),
+  labelBgPadding: z.array(z.number()).optional(),
+  labelBgBorderRadius: z.number().optional(),
+  markerStart: z.string().optional(),
+  markerEnd: z.string().optional(),
+})
+
+const LoopSchema = z.object({
+  id: z.string(),
+  nodes: z.array(z.string()),
+  iterations: z.number(),
+  loopType: z.enum(['for', 'forEach']),
+  forEachItems: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
+})
+
+const ParallelSchema = z.object({
+  id: z.string(),
+  nodes: z.array(z.string()),
+  distribution: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
+  count: z.number().optional(),
+  parallelType: z.enum(['count', 'collection']).optional(),
+})
+
+const DeploymentStatusSchema = z.object({
+  id: z.string(),
+  status: z.enum(['deploying', 'deployed', 'failed', 'stopping', 'stopped']),
+  deployedAt: z.date().optional(),
+  error: z.string().optional(),
+})
+
 const WorkflowStateSchema = z.object({
-  blocks: z.record(z.any()),
-  edges: z.array(z.any()),
-  loops: z.record(z.any()).optional(),
-  parallels: z.record(z.any()).optional(),
+  blocks: z.record(BlockStateSchema),
+  edges: z.array(EdgeSchema),
+  loops: z.record(LoopSchema).optional(),
+  parallels: z.record(ParallelSchema).optional(),
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
   deployedAt: z.date().optional(),
-  deploymentStatuses: z.record(z.any()).optional(),
+  deploymentStatuses: z.record(DeploymentStatusSchema).optional(),
   hasActiveSchedule: z.boolean().optional(),
   hasActiveWebhook: z.boolean().optional(),
 })
@@ -100,7 +185,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       hasActiveWebhook: state.hasActiveWebhook || false,
     }
 
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
+    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState as any)
 
     if (!saveResult.success) {
       logger.error(`[${requestId}] Failed to save workflow ${workflowId} state:`, saveResult.error)
@@ -131,7 +216,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       },
       { status: 200 }
     )
-  } catch (error: any) {
+  } catch (error: unknown) {
     const elapsed = Date.now() - startTime
     if (error instanceof z.ZodError) {
       logger.warn(`[${requestId}] Invalid workflow state data for ${workflowId}`, {

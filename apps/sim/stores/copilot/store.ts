@@ -26,7 +26,9 @@ const initialState = {
   isLoading: false,
   isLoadingChats: false,
   isSendingMessage: false,
+  isSaving: false,
   error: null,
+  saveError: null,
   workflowId: null,
 }
 
@@ -48,6 +50,8 @@ export const useCopilotStore = create<CopilotStore>()(
             chats: [],
             messages: [],
             error: null,
+            saveError: null,
+            isSaving: false,
           })
 
           // Load chats for the new workflow
@@ -425,7 +429,13 @@ export const useCopilotStore = create<CopilotStore>()(
                     const chatIdToSave = newChatId || get().currentChat?.id
                     if (chatIdToSave) {
                       console.log('[CopilotStore] Saving chat to database:', chatIdToSave)
-                      await get().saveChatMessages(chatIdToSave)
+                      try {
+                        await get().saveChatMessages(chatIdToSave)
+                      } catch (saveError) {
+                        // Save error is already handled in saveChatMessages and reflected in store state
+                        // Don't break the streaming flow - user gets the message but knows save failed
+                        logger.warn(`Chat save failed after streaming completed: ${saveError}`)
+                      }
                     }
 
                     // Handle new chat creation
@@ -477,9 +487,11 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Save chat messages to database
       saveChatMessages: async (chatId: string) => {
-        try {
-          const { messages, currentChat } = get()
+        const { messages } = get()
 
+        set({ isSaving: true, saveError: null })
+
+        try {
           logger.info(`Saving ${messages.length} messages for chat ${chatId}`)
 
           // Let the API handle title generation if needed
@@ -490,22 +502,46 @@ export const useCopilotStore = create<CopilotStore>()(
             set({
               currentChat: result.chat,
               messages: result.chat.messages,
+              isSaving: false,
+              saveError: null,
             })
 
             logger.info(
               `Successfully saved chat ${chatId} with ${result.chat.messages.length} messages`
             )
           } else {
-            logger.error(`Failed to save chat ${chatId}:`, result.error)
+            const errorMessage = result.error || 'Failed to save chat'
+            logger.error(`Failed to save chat ${chatId}:`, errorMessage)
+            set({
+              isSaving: false,
+              saveError: errorMessage,
+            })
+            throw new Error(errorMessage)
           }
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error saving chat'
           logger.error(`Error saving chat ${chatId}:`, error)
+          set({
+            isSaving: false,
+            saveError: errorMessage,
+          })
+          throw error
         }
       },
 
       // Clear error state
       clearError: () => {
         set({ error: null })
+      },
+
+      // Clear save error state
+      clearSaveError: () => {
+        set({ saveError: null })
+      },
+
+      // Retry saving chat messages
+      retrySave: async (chatId: string) => {
+        await get().saveChatMessages(chatId)
       },
 
       // Reset entire store

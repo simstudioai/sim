@@ -45,6 +45,10 @@ function getSubBlockValues() {
 // Track if subscriptions have been initialized
 let subscriptionsInitialized = false
 
+// Track timeout IDs for cleanup
+let workflowRefreshTimeoutId: NodeJS.Timeout | null = null
+let subBlockRefreshTimeoutId: NodeJS.Timeout | null = null
+
 // Initialize subscriptions lazily
 function initializeSubscriptions() {
   if (subscriptionsInitialized) return
@@ -67,9 +71,17 @@ function initializeSubscriptions() {
     ) {
       lastWorkflowState = currentState
 
+      // Clear existing timeout to properly debounce
+      if (workflowRefreshTimeoutId) {
+        clearTimeout(workflowRefreshTimeoutId)
+      }
+
       // Debounce the refresh to avoid excessive updates
       const refreshYaml = useWorkflowYamlStore.getState().refreshYaml
-      setTimeout(refreshYaml, 100)
+      workflowRefreshTimeoutId = setTimeout(() => {
+        refreshYaml()
+        workflowRefreshTimeoutId = null
+      }, 100)
     }
   })
 
@@ -83,8 +95,16 @@ function initializeSubscriptions() {
     if (currentTime - lastSubBlockChangeTime > 100) {
       lastSubBlockChangeTime = currentTime
 
+      // Clear existing timeout to properly debounce
+      if (subBlockRefreshTimeoutId) {
+        clearTimeout(subBlockRefreshTimeoutId)
+      }
+
       const refreshYaml = useWorkflowYamlStore.getState().refreshYaml
-      setTimeout(refreshYaml, 100)
+      subBlockRefreshTimeoutId = setTimeout(() => {
+        refreshYaml()
+        subBlockRefreshTimeoutId = null
+      }, 100)
     }
   })
 }

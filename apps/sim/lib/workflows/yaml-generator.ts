@@ -1,4 +1,5 @@
 import { dump as yamlDump } from 'js-yaml'
+import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -167,7 +168,7 @@ function extractBlockInputs(
  */
 function findIncomingConnections(
   blockId: string,
-  edges: any[]
+  edges: Edge[]
 ): Array<{
   source: string
   sourceHandle?: string
@@ -177,8 +178,8 @@ function findIncomingConnections(
     .filter((edge) => edge.target === blockId)
     .map((edge) => ({
       source: edge.source,
-      sourceHandle: edge.sourceHandle,
-      targetHandle: edge.targetHandle,
+      sourceHandle: edge.sourceHandle ?? undefined,
+      targetHandle: edge.targetHandle ?? undefined,
     }))
 }
 
@@ -187,7 +188,7 @@ function findIncomingConnections(
  */
 function findOutgoingConnections(
   blockId: string,
-  edges: any[]
+  edges: Edge[]
 ): Array<{
   target: string
   sourceHandle?: string
@@ -197,8 +198,8 @@ function findOutgoingConnections(
     .filter((edge) => edge.source === blockId)
     .map((edge) => ({
       target: edge.target,
-      sourceHandle: edge.sourceHandle,
-      targetHandle: edge.targetHandle,
+      sourceHandle: edge.sourceHandle ?? undefined,
+      targetHandle: edge.targetHandle ?? undefined,
     }))
 }
 

@@ -5,6 +5,55 @@ import type { ProviderId } from '@/providers/types'
 const logger = createLogger('CopilotConfig')
 
 /**
+ * Valid provider IDs for validation
+ */
+const VALID_PROVIDER_IDS: ProviderId[] = [
+  'openai',
+  'azure-openai',
+  'anthropic',
+  'google',
+  'deepseek',
+  'xai',
+  'cerebras',
+  'groq',
+  'ollama',
+]
+
+/**
+ * Validate and return a ProviderId if valid, otherwise return null
+ */
+function validateProviderId(value: string | undefined): ProviderId | null {
+  if (!value) return null
+  return VALID_PROVIDER_IDS.includes(value as ProviderId) ? (value as ProviderId) : null
+}
+
+/**
+ * Safely parse a float from environment variable with validation
+ */
+function parseFloatEnv(value: string | undefined, name: string): number | null {
+  if (!value) return null
+  const parsed = Number.parseFloat(value)
+  if (Number.isNaN(parsed)) {
+    logger.warn(`Invalid ${name}: ${value}. Expected a valid number.`)
+    return null
+  }
+  return parsed
+}
+
+/**
+ * Safely parse an integer from environment variable with validation
+ */
+function parseIntEnv(value: string | undefined, name: string): number | null {
+  if (!value) return null
+  const parsed = Number.parseInt(value, 10)
+  if (Number.isNaN(parsed)) {
+    logger.warn(`Invalid ${name}: ${value}. Expected a valid integer.`)
+    return null
+  }
+  return parsed
+}
+
+/**
  * Copilot configuration interface
  */
 export interface CopilotConfig {
@@ -134,49 +183,80 @@ export function getCopilotConfig(): CopilotConfig {
   // Allow environment variable overrides
   try {
     // Chat configuration overrides
-    if (process.env.COPILOT_CHAT_PROVIDER) {
-      config.chat.defaultProvider = process.env.COPILOT_CHAT_PROVIDER as ProviderId
+    const chatProvider = validateProviderId(process.env.COPILOT_CHAT_PROVIDER)
+    if (chatProvider) {
+      config.chat.defaultProvider = chatProvider
+    } else if (process.env.COPILOT_CHAT_PROVIDER) {
+      logger.warn(
+        `Invalid COPILOT_CHAT_PROVIDER: ${process.env.COPILOT_CHAT_PROVIDER}. Valid providers: ${VALID_PROVIDER_IDS.join(', ')}`
+      )
     }
     if (process.env.COPILOT_CHAT_MODEL) {
       config.chat.defaultModel = process.env.COPILOT_CHAT_MODEL
     }
-    if (process.env.COPILOT_CHAT_TEMPERATURE) {
-      config.chat.temperature = Number.parseFloat(process.env.COPILOT_CHAT_TEMPERATURE)
+    const chatTemperature = parseFloatEnv(
+      process.env.COPILOT_CHAT_TEMPERATURE,
+      'COPILOT_CHAT_TEMPERATURE'
+    )
+    if (chatTemperature !== null) {
+      config.chat.temperature = chatTemperature
     }
-    if (process.env.COPILOT_CHAT_MAX_TOKENS) {
-      config.chat.maxTokens = Number.parseInt(process.env.COPILOT_CHAT_MAX_TOKENS)
+    const chatMaxTokens = parseIntEnv(
+      process.env.COPILOT_CHAT_MAX_TOKENS,
+      'COPILOT_CHAT_MAX_TOKENS'
+    )
+    if (chatMaxTokens !== null) {
+      config.chat.maxTokens = chatMaxTokens
     }
 
     // RAG configuration overrides
-    if (process.env.COPILOT_RAG_PROVIDER) {
-      config.rag.defaultProvider = process.env.COPILOT_RAG_PROVIDER as ProviderId
+    const ragProvider = validateProviderId(process.env.COPILOT_RAG_PROVIDER)
+    if (ragProvider) {
+      config.rag.defaultProvider = ragProvider
+    } else if (process.env.COPILOT_RAG_PROVIDER) {
+      logger.warn(
+        `Invalid COPILOT_RAG_PROVIDER: ${process.env.COPILOT_RAG_PROVIDER}. Valid providers: ${VALID_PROVIDER_IDS.join(', ')}`
+      )
     }
     if (process.env.COPILOT_RAG_MODEL) {
       config.rag.defaultModel = process.env.COPILOT_RAG_MODEL
     }
-    if (process.env.COPILOT_RAG_TEMPERATURE) {
-      config.rag.temperature = Number.parseFloat(process.env.COPILOT_RAG_TEMPERATURE)
+    const ragTemperature = parseFloatEnv(
+      process.env.COPILOT_RAG_TEMPERATURE,
+      'COPILOT_RAG_TEMPERATURE'
+    )
+    if (ragTemperature !== null) {
+      config.rag.temperature = ragTemperature
     }
-    if (process.env.COPILOT_RAG_MAX_TOKENS) {
-      config.rag.maxTokens = Number.parseInt(process.env.COPILOT_RAG_MAX_TOKENS)
+    const ragMaxTokens = parseIntEnv(process.env.COPILOT_RAG_MAX_TOKENS, 'COPILOT_RAG_MAX_TOKENS')
+    if (ragMaxTokens !== null) {
+      config.rag.maxTokens = ragMaxTokens
     }
-    if (process.env.COPILOT_RAG_MAX_SOURCES) {
-      config.rag.maxSources = Number.parseInt(process.env.COPILOT_RAG_MAX_SOURCES)
+    const ragMaxSources = parseIntEnv(
+      process.env.COPILOT_RAG_MAX_SOURCES,
+      'COPILOT_RAG_MAX_SOURCES'
+    )
+    if (ragMaxSources !== null) {
+      config.rag.maxSources = ragMaxSources
     }
-    if (process.env.COPILOT_RAG_SIMILARITY_THRESHOLD) {
-      config.rag.similarityThreshold = Number.parseFloat(
-        process.env.COPILOT_RAG_SIMILARITY_THRESHOLD
-      )
+    const ragSimilarityThreshold = parseFloatEnv(
+      process.env.COPILOT_RAG_SIMILARITY_THRESHOLD,
+      'COPILOT_RAG_SIMILARITY_THRESHOLD'
+    )
+    if (ragSimilarityThreshold !== null) {
+      config.rag.similarityThreshold = ragSimilarityThreshold
     }
 
     // General configuration overrides
     if (process.env.COPILOT_STREAMING_ENABLED) {
       config.general.streamingEnabled = process.env.COPILOT_STREAMING_ENABLED === 'true'
     }
-    if (process.env.COPILOT_MAX_CONVERSATION_HISTORY) {
-      config.general.maxConversationHistory = Number.parseInt(
-        process.env.COPILOT_MAX_CONVERSATION_HISTORY
-      )
+    const maxConversationHistory = parseIntEnv(
+      process.env.COPILOT_MAX_CONVERSATION_HISTORY,
+      'COPILOT_MAX_CONVERSATION_HISTORY'
+    )
+    if (maxConversationHistory !== null) {
+      config.general.maxConversationHistory = maxConversationHistory
     }
 
     logger.info('Copilot configuration loaded', {

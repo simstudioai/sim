@@ -1,6 +1,24 @@
-import type { ToolConfig } from '../types'
+import type { ToolConfig, ToolResponse } from '../types'
 
-export const getUserWorkflowTool: ToolConfig = {
+interface GetWorkflowParams {
+  includeMetadata?: boolean
+  _context?: {
+    workflowId: string
+  }
+}
+
+interface GetWorkflowResponse extends ToolResponse {
+  output: {
+    yaml: string
+    metadata?: {
+      blockCount: number
+      connectionCount: number
+      lastModified: string
+    }
+  }
+}
+
+export const getUserWorkflowTool: ToolConfig<GetWorkflowParams, GetWorkflowResponse> = {
   id: 'get_user_workflow',
   name: 'Get User Workflow',
   description:

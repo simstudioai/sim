@@ -23,4 +23,15 @@ CREATE INDEX "docs_emb_model_idx" ON "docs_embeddings" USING btree ("embedding_m
 CREATE INDEX "docs_emb_created_at_idx" ON "docs_embeddings" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "docs_embedding_vector_hnsw_idx" ON "docs_embeddings" USING hnsw ("embedding" vector_cosine_ops) WITH (m=16,ef_construction=64);--> statement-breakpoint
 CREATE INDEX "docs_emb_metadata_gin_idx" ON "docs_embeddings" USING gin ("metadata");--> statement-breakpoint
-CREATE INDEX "docs_emb_chunk_text_fts_idx" ON "docs_embeddings" USING gin ("chunk_text_tsv");
+CREATE INDEX "docs_emb_chunk_text_fts_idx" ON "docs_embeddings" USING gin ("chunk_text_tsv");--> statement-breakpoint
+CREATE OR REPLACE FUNCTION trigger_set_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;--> statement-breakpoint
+CREATE TRIGGER set_updated_at
+	BEFORE UPDATE ON docs_embeddings
+	FOR EACH ROW
+	EXECUTE FUNCTION trigger_set_timestamp();

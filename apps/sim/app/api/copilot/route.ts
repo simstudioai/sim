@@ -14,6 +14,12 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('CopilotAPI')
 
+// Interface for StreamingExecution response
+interface StreamingExecution {
+  stream: ReadableStream
+  execution: Promise<any>
+}
+
 // Schema for sending messages
 const SendMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
@@ -135,7 +141,8 @@ export async function POST(req: NextRequest) {
     ) {
       // Handle StreamingExecution (from providers with tool calls)
       logger.info(`[${requestId}] StreamingExecution detected`)
-      streamToRead = (result.response as any).stream
+      const streamingExecution = result.response as StreamingExecution
+      streamToRead = streamingExecution.stream
 
       // No need to extract citations - LLM generates direct markdown links
     }

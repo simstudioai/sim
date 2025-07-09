@@ -1,7 +1,11 @@
 import { load as yamlParse } from 'js-yaml'
+import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('WorkflowYamlImporter')
 
@@ -66,7 +70,7 @@ export function parseWorkflowYaml(yamlContent: string): {
   const errors: string[] = []
 
   try {
-    const data = yamlParse(yamlContent) as any
+    const data = yamlParse(yamlContent) as unknown
 
     // Validate top-level structure
     if (!data || typeof data !== 'object') {
@@ -74,39 +78,45 @@ export function parseWorkflowYaml(yamlContent: string): {
       return { data: null, errors }
     }
 
-    if (!data.version) {
+    // Type guard to check if data has the expected structure
+    const parsedData = data as Record<string, unknown>
+
+    if (!parsedData.version) {
       errors.push('Missing required field: version')
     }
 
-    if (!data.blocks || typeof data.blocks !== 'object') {
+    if (!parsedData.blocks || typeof parsedData.blocks !== 'object') {
       errors.push('Missing or invalid field: blocks')
       return { data: null, errors }
     }
 
     // Validate blocks structure
-    Object.entries(data.blocks).forEach(([blockId, block]: [string, any]) => {
+    const blocks = parsedData.blocks as Record<string, unknown>
+    Object.entries(blocks).forEach(([blockId, block]: [string, unknown]) => {
       if (!block || typeof block !== 'object') {
         errors.push(`Invalid block definition for '${blockId}': must be an object`)
         return
       }
 
-      if (!block.type || typeof block.type !== 'string') {
+      const blockData = block as Record<string, unknown>
+
+      if (!blockData.type || typeof blockData.type !== 'string') {
         errors.push(`Invalid block '${blockId}': missing or invalid 'type' field`)
       }
 
-      if (!block.name || typeof block.name !== 'string') {
+      if (!blockData.name || typeof blockData.name !== 'string') {
         errors.push(`Invalid block '${blockId}': missing or invalid 'name' field`)
       }
 
-      if (block.inputs && typeof block.inputs !== 'object') {
+      if (blockData.inputs && typeof blockData.inputs !== 'object') {
         errors.push(`Invalid block '${blockId}': 'inputs' must be an object`)
       }
 
-      if (block.preceding && !Array.isArray(block.preceding)) {
+      if (blockData.preceding && !Array.isArray(blockData.preceding)) {
         errors.push(`Invalid block '${blockId}': 'preceding' must be an array`)
       }
 
-      if (block.following && !Array.isArray(block.following)) {
+      if (blockData.following && !Array.isArray(blockData.following)) {
         errors.push(`Invalid block '${blockId}': 'following' must be an array`)
       }
     })
@@ -115,7 +125,7 @@ export function parseWorkflowYaml(yamlContent: string): {
       return { data: null, errors }
     }
 
-    return { data: data as YamlWorkflow, errors: [] }
+    return { data: parsedData as unknown as YamlWorkflow, errors: [] }
   } catch (error) {
     errors.push(`YAML parsing error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     return { data: null, errors }
@@ -433,7 +443,7 @@ export async function importWorkflowFromYaml(
       parentId?: string,
       extent?: 'parent'
     ) => void
-    addEdge: (edge: any) => void
+    addEdge: (edge: Edge) => void
     applyAutoLayout: () => void
     setSubBlockValue: (blockId: string, subBlockId: string, value: any) => void
     getExistingBlocks: () => Record<string, any>
@@ -479,9 +489,6 @@ export async function importWorkflowFromYaml(
     )
 
     // Get stores and current workflow info
-    const { useWorkflowStore } = require('@/stores/workflows/workflow/store')
-    const { useSubBlockStore } = require('@/stores/workflows/subblock/store')
-    const { useWorkflowRegistry } = require('@/stores/workflows/registry/store')
 
     // Get current workflow state
     const currentWorkflowState = useWorkflowStore.getState()
@@ -726,9 +733,6 @@ export async function importWorkflowFromYaml(
         },
       }))
     }
-
-    // Brief delay for UI to update
-    await new Promise((resolve) => setTimeout(resolve, 100))
 
     // Apply auto layout
     workflowActions.applyAutoLayout()

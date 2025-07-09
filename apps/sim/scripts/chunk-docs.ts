@@ -2,6 +2,7 @@
 
 import path from 'path'
 import { DocsChunker } from '@/lib/documents/docs-chunker'
+import type { DocChunk } from '@/lib/documents/types'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('ChunkDocsScript')
@@ -31,16 +32,13 @@ async function main() {
     logger.info(`Total chunks: ${chunks.length}`)
 
     // Group chunks by document
-    const chunksByDoc = chunks.reduce(
-      (acc, chunk) => {
-        if (!acc[chunk.sourceDocument]) {
-          acc[chunk.sourceDocument] = []
-        }
-        acc[chunk.sourceDocument].push(chunk)
-        return acc
-      },
-      {} as Record<string, typeof chunks>
-    )
+    const chunksByDoc = chunks.reduce<Record<string, DocChunk[]>>((acc, chunk) => {
+      if (!acc[chunk.sourceDocument]) {
+        acc[chunk.sourceDocument] = []
+      }
+      acc[chunk.sourceDocument].push(chunk)
+      return acc
+    }, {})
 
     // Display summary
     logger.info(`\n=== DOCUMENT SUMMARY ===`)
@@ -79,13 +77,10 @@ async function main() {
       logger.info(`Embedding dimensions: ${chunks[0].embedding.length}`)
     }
 
-    const headerLevels = chunks.reduce(
-      (acc, chunk) => {
-        acc[chunk.headerLevel] = (acc[chunk.headerLevel] || 0) + 1
-        return acc
-      },
-      {} as Record<number, number>
-    )
+    const headerLevels = chunks.reduce<Record<number, number>>((acc, chunk) => {
+      acc[chunk.headerLevel] = (acc[chunk.headerLevel] || 0) + 1
+      return acc
+    }, {})
 
     logger.info(`Header level distribution:`)
     Object.entries(headerLevels)

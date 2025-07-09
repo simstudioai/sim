@@ -59,8 +59,13 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
     // Clear existing embeddings if requested
     if (config.clearExisting) {
       logger.info('🗑️ Clearing existing docs embeddings...')
-      const deleteResult = await db.delete(docsEmbeddings)
-      logger.info(`Deleted existing embeddings`)
+      try {
+        const deleteResult = await db.delete(docsEmbeddings)
+        logger.info(`✅ Successfully deleted existing embeddings`)
+      } catch (error) {
+        logger.error('❌ Failed to delete existing embeddings:', error)
+        throw new Error('Failed to clear existing embeddings')
+      }
     }
 
     // Initialize the docs chunker
@@ -213,8 +218,8 @@ Examples:
   }
 }
 
-// Run the script
-if (process.argv[1]?.includes('process-docs-embeddings')) {
+// Run the script if executed directly
+if (import.meta.url.includes('process-docs-embeddings.ts')) {
   main().catch((error) => {
     console.error('Script failed:', error)
     process.exit(1)

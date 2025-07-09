@@ -1,4 +1,4 @@
-import { dump as yamlDump } from 'js-yaml'
+import { dump as yamlDump, load as yamlLoad } from 'js-yaml'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -91,8 +91,7 @@ export function exportWorkflow(format: EditorFormat): string {
  */
 export function parseWorkflowContent(content: string, format: EditorFormat): any {
   if (format === 'yaml') {
-    const { load: yamlParse } = require('js-yaml')
-    return yamlParse(content)
+    return yamlLoad(content)
   }
   return JSON.parse(content)
 }
