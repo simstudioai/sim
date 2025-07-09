@@ -50,7 +50,16 @@ export function ResponseFormat({
   isPreview = false,
   previewValue,
 }: ResponseFormatProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue<JSONProperty[]>(blockId, subBlockId)
+  const [storeValue, setStoreValue] = useSubBlockValue<JSONProperty[]>(blockId, subBlockId, false, {
+    debounceMs: 200, // Slightly longer debounce for complex structures
+    onStreamingStart: () => {
+      console.debug('Starting bulk property operation', { blockId, subBlockId })
+    },
+    onStreamingEnd: () => {
+      console.debug('Ending bulk property operation', { blockId, subBlockId })
+    },
+  })
+
   const [showPreview, setShowPreview] = useState(false)
 
   const value = isPreview ? previewValue : storeValue

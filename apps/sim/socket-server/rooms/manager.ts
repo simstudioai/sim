@@ -75,11 +75,6 @@ export class RoomManager {
     this.userSessions.delete(socketId)
   }
 
-  // This would be used if we implement operation queuing
-  clearPendingOperations(socketId: string) {
-    logger.debug(`Cleared pending operations for socket ${socketId}`)
-  }
-
   handleWorkflowDeletion(workflowId: string) {
     logger.info(`Handling workflow deletion notification for ${workflowId}`)
 

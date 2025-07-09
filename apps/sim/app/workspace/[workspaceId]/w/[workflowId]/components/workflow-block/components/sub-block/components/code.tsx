@@ -73,8 +73,21 @@ export function Code({
     }
   }, [generationType])
 
-  // State management
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  const [storeValue, setStoreValue, { isStreaming }] = useSubBlockValue(
+    blockId,
+    subBlockId,
+    false,
+    {
+      debounceMs: 150,
+      onStreamingStart: () => {
+        logger.debug('Streaming started for code editing', { blockId, subBlockId })
+      },
+      onStreamingEnd: () => {
+        logger.debug('Streaming ended for code editing', { blockId, subBlockId })
+      },
+    }
+  )
+
   const [code, setCode] = useState<string>('')
   const [_lineCount, setLineCount] = useState(1)
   const [showTags, setShowTags] = useState(false)
@@ -104,8 +117,7 @@ export function Code({
   // AI Code Generation Hook
   const handleStreamStart = () => {
     setCode('')
-    // Optionally clear the store value too, though handleStreamChunk will update it
-    // setStoreValue('')
+    // No need to manually manage streaming - it's automatic now
   }
 
   const handleGeneratedContent = (generatedCode: string) => {
@@ -120,6 +132,7 @@ export function Code({
     setCode((currentCode) => {
       const newCode = currentCode + chunk
       if (!isPreview && !disabled) {
+        // Just update the value - streaming detection is automatic
         setStoreValue(newCode)
       }
       return newCode
