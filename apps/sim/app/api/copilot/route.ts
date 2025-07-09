@@ -1,7 +1,15 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { createChat, deleteChat, generateChatTitle, getChat, listChats, sendMessage, updateChat } from '@/lib/copilot/service'
+import {
+  createChat,
+  deleteChat,
+  generateChatTitle,
+  getChat,
+  listChats,
+  sendMessage,
+  updateChat,
+} from '@/lib/copilot/service'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('CopilotAPI')
@@ -37,18 +45,26 @@ const CreateChatSchema = z.object({
 // Schema for updating chats
 const UpdateChatSchema = z.object({
   chatId: z.string().min(1, 'Chat ID is required'),
-  messages: z.array(z.object({
-    id: z.string(),
-    role: z.enum(['user', 'assistant', 'system']),
-    content: z.string(),
-    timestamp: z.string(),
-    citations: z.array(z.object({
-      id: z.number(),
-      title: z.string(),
-      url: z.string(),
-      similarity: z.number().optional(),
-    })).optional(),
-  })).optional(),
+  messages: z
+    .array(
+      z.object({
+        id: z.string(),
+        role: z.enum(['user', 'assistant', 'system']),
+        content: z.string(),
+        timestamp: z.string(),
+        citations: z
+          .array(
+            z.object({
+              id: z.number(),
+              title: z.string(),
+              url: z.string(),
+              similarity: z.number().optional(),
+            })
+          )
+          .optional(),
+      })
+    )
+    .optional(),
   title: z.string().optional(),
 })
 
@@ -120,7 +136,7 @@ export async function POST(req: NextRequest) {
       // Handle StreamingExecution (from providers with tool calls)
       logger.info(`[${requestId}] StreamingExecution detected`)
       streamToRead = (result.response as any).stream
-      
+
       // Extract citations from StreamingExecution at API level
       const execution = (result.response as any).execution
       logger.info(`[${requestId}] Extracting citations from StreamingExecution`, {
@@ -128,7 +144,7 @@ export async function POST(req: NextRequest) {
         hasToolResults: !!execution?.toolResults,
         toolResultsLength: execution?.toolResults?.length || 0,
       })
-      
+
       if (execution?.toolResults) {
         for (const toolResult of execution.toolResults) {
           logger.info(`[${requestId}] Processing tool result for citations`, {
@@ -136,7 +152,7 @@ export async function POST(req: NextRequest) {
             resultKeys: toolResult && typeof toolResult === 'object' ? Object.keys(toolResult) : [],
             hasResultsArray: !!(toolResult && typeof toolResult === 'object' && toolResult.results),
           })
-          
+
           if (toolResult && typeof toolResult === 'object' && toolResult.results) {
             // Convert documentation search results to citations
             const extractedCitations = toolResult.results.map((res: any, index: number) => ({
@@ -146,7 +162,10 @@ export async function POST(req: NextRequest) {
               similarity: res.similarity,
             }))
             result.citations = extractedCitations
-            logger.info(`[${requestId}] Extracted ${extractedCitations.length} citations from tool results:`, extractedCitations)
+            logger.info(
+              `[${requestId}] Extracted ${extractedCitations.length} citations from tool results:`,
+              extractedCitations
+            )
             break // Use first set of results found
           }
         }
@@ -354,12 +373,12 @@ export async function PATCH(req: NextRequest) {
 
     // Get the current chat to check if it has a title
     const existingChat = await getChat(chatId, session.user.id)
-    
+
     let titleToUse = title
-    
+
     // Generate title if chat doesn't have one and we have messages
     if (!titleToUse && existingChat && !existingChat.title && messages && messages.length > 0) {
-      const firstUserMessage = messages.find(msg => msg.role === 'user')
+      const firstUserMessage = messages.find((msg) => msg.role === 'user')
       if (firstUserMessage) {
         logger.info('Generating LLM-based title for chat without title')
         try {

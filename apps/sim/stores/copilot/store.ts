@@ -493,20 +493,22 @@ export const useCopilotStore = create<CopilotStore>()(
       saveChatMessages: async (chatId: string) => {
         try {
           const { messages, currentChat } = get()
-          
+
           logger.info(`Saving ${messages.length} messages for chat ${chatId}`)
-          
+
           // Let the API handle title generation if needed
           const result = await updateChatMessages(chatId, messages)
-          
+
           if (result.success && result.chat) {
             // Update local state with the saved chat
             set({
               currentChat: result.chat,
               messages: result.chat.messages,
             })
-            
-            logger.info(`Successfully saved chat ${chatId} with ${result.chat.messages.length} messages`)
+
+            logger.info(
+              `Successfully saved chat ${chatId} with ${result.chat.messages.length} messages`
+            )
           } else {
             logger.error(`Failed to save chat ${chatId}:`, result.error)
           }

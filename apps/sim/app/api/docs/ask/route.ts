@@ -19,8 +19,6 @@ const DocsQuerySchema = z.object({
   stream: z.boolean().optional().default(false), // Enable streaming responses
 })
 
-
-
 /**
  * Generate embedding for search query
  */
