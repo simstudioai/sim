@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useRef, useState } from 'react'
 import { logger } from '@sentry/nextjs'
 import { ChevronRight, File, Folder, Plus, Upload } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -11,9 +11,9 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { useFolderStore } from '@/stores/folders/store'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
-import { ImportControls, ImportControlsRef } from './import-controls'
+import { useFolderStore } from '@/stores/folders/store'
+import { ImportControls, type ImportControlsRef } from './import-controls'
 
 interface CreateMenuProps {
   onCreateWorkflow: (folderId?: string) => void
@@ -134,7 +134,7 @@ export function CreateMenu({
             <File className='h-4 w-4' />
             {isCreatingWorkflow ? 'Creating...' : 'New Workflow'}
           </button>
-          
+
           <button
             className='flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground'
             onClick={handleCreateFolder}
@@ -146,7 +146,7 @@ export function CreateMenu({
           {userPermissions.canEdit && (
             <>
               <Separator className='my-1' />
-              
+
               <Popover open={isImportSubmenuOpen} onOpenChange={setIsImportSubmenuOpen}>
                 <PopoverTrigger asChild>
                   <button
@@ -177,9 +177,7 @@ export function CreateMenu({
                     <Upload className='h-4 w-4' />
                     <div className='flex flex-col items-start'>
                       <span>YAML</span>
-                      <span className='text-muted-foreground text-xs'>
-                        .yaml or .yml
-                      </span>
+                      <span className='text-muted-foreground text-xs'>.yaml or .yml</span>
                     </div>
                   </button>
                 </PopoverContent>
@@ -190,7 +188,7 @@ export function CreateMenu({
       </Popover>
 
       {/* Import Controls Component - handles all import functionality */}
-      <ImportControls 
+      <ImportControls
         ref={importControlsRef}
         disabled={!userPermissions.canEdit}
         onClose={() => {

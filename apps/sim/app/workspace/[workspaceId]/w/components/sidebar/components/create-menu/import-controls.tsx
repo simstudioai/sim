@@ -1,7 +1,7 @@
 'use client'
 
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
-import { AlertCircle, CheckCircle, FileText, Upload } from 'lucide-react'
+import { AlertCircle, CheckCircle } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -187,8 +187,8 @@ export const ImportControls = forwardRef<ImportControlsRef, ImportControlsProps>
             <DialogHeader>
               <DialogTitle>Import Workflow from YAML</DialogTitle>
               <DialogDescription>
-                Review the YAML content below and click "Import Workflow" to create a new workflow with the
-                blocks and connections defined in the YAML.
+                Review the YAML content below and click "Import Workflow" to create a new workflow
+                with the blocks and connections defined in the YAML.
               </DialogDescription>
             </DialogHeader>
 
@@ -282,4 +282,4 @@ blocks:
   }
 )
 
-ImportControls.displayName = 'ImportControls' 
+ImportControls.displayName = 'ImportControls'
