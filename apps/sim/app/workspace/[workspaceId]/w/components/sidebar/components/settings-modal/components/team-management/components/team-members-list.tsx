@@ -4,7 +4,7 @@ import type { Member, Organization } from '@/stores/organization'
 
 interface TeamMembersListProps {
   organization: Organization
-  currentUserEmail: string | undefined
+  currentUserEmail: string
   isAdminOrOwner: boolean
   onRemoveMember: (member: Member) => void
 }

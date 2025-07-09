@@ -163,6 +163,7 @@ export function EditMemberLimitDialog({
                 onChange={(e) => setLimitValue(e.target.value)}
                 className='pl-9'
                 min={planMinimum}
+                max={10000}
                 step='1'
                 placeholder={planMinimum.toString()}
               />

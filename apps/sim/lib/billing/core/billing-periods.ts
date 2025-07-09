@@ -252,12 +252,23 @@ export async function resetOrganizationBillingPeriod(organizationId: string): Pr
       return
     }
 
-    // Reset billing period for each member
+    // Reset billing period for each member in parallel
     const memberUserIds = members.map((m) => m.userId)
 
-    for (const userId of memberUserIds) {
-      await resetUserBillingPeriod(userId)
-    }
+    await Promise.all(
+      memberUserIds.map(async (userId) => {
+        try {
+          await resetUserBillingPeriod(userId)
+        } catch (error) {
+          logger.error('Failed to reset billing period for organization member', {
+            organizationId,
+            userId,
+            error,
+          })
+          // Don't throw - continue processing other members
+        }
+      })
+    )
 
     logger.info('Reset billing period for organization', {
       organizationId,

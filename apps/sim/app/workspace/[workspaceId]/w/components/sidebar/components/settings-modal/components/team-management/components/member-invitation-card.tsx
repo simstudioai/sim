@@ -220,7 +220,11 @@ export function MemberInvitationCard({
                       {isSelected && (
                         <div className='flex items-center gap-2'>
                           <PermissionSelector
-                            value={(selectedWorkspace?.permission || 'read') as PermissionType}
+                            value={
+                              (['read', 'write', 'admin'].includes(selectedWorkspace?.permission)
+                                ? selectedWorkspace.permission
+                                : 'read') as PermissionType
+                            }
                             onChange={(permission) => onWorkspaceToggle(workspace.id, permission)}
                             disabled={isInviting}
                             className='h-8'

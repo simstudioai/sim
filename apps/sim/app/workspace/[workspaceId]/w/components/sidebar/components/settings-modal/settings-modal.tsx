@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { client, useSubscription } from '@/lib/auth-client'
+import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useOrganizationStore } from '@/stores/organization'
@@ -40,7 +40,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
   const [isLoading, setIsLoading] = useState(true)
   const loadSettings = useGeneralStore((state) => state.loadSettings)
-  const subscription = useMemo(() => useSubscription(), [])
   const { activeOrganization } = useOrganizationStore()
   const hasLoadedInitialData = useRef(false)
 

@@ -25,7 +25,7 @@ interface SettingsNavigationProps {
       | 'team'
       | 'privacy'
   ) => void
-  hasOrganization?: boolean
+  hasOrganization: boolean
 }
 
 type NavigationItem = {
@@ -42,7 +42,6 @@ type NavigationItem = {
   icon: React.ComponentType<{ className?: string }>
   hideInDev?: boolean
   requiresTeam?: boolean
-  requiresOrganization?: boolean
 }
 
 const allNavigationItems: NavigationItem[] = [
@@ -94,7 +93,7 @@ const allNavigationItems: NavigationItem[] = [
 export function SettingsNavigation({
   activeSection,
   onSectionChange,
-  hasOrganization = false,
+  hasOrganization,
 }: SettingsNavigationProps) {
   const { getSubscriptionStatus } = useSubscriptionStore()
   const subscription = getSubscriptionStatus()
@@ -106,11 +105,6 @@ export function SettingsNavigation({
 
     // Hide team tab if user doesn't have team or enterprise subscription
     if (item.requiresTeam && !subscription.isTeam && !subscription.isEnterprise) {
-      return false
-    }
-
-    // Hide organization tab if user is not part of an organization
-    if (item.requiresOrganization && !hasOrganization) {
       return false
     }
 

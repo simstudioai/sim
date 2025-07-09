@@ -65,12 +65,12 @@ export function OrganizationSettingsTab({
               value={orgFormData.name}
               onChange={(e) => onOrgInputChange('name', e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && isAdminOrOwner) {
+                if (e.key === 'Enter' && isAdminOrOwner && !isSavingOrgSettings) {
                   onSaveOrgSettings()
                 }
               }}
               placeholder='Enter team name'
-              disabled={!isAdminOrOwner}
+              disabled={!isAdminOrOwner || isSavingOrgSettings}
             />
           </div>
 
@@ -81,12 +81,12 @@ export function OrganizationSettingsTab({
               value={orgFormData.slug}
               onChange={(e) => onOrgInputChange('slug', e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && isAdminOrOwner) {
+                if (e.key === 'Enter' && isAdminOrOwner && !isSavingOrgSettings) {
                   onSaveOrgSettings()
                 }
               }}
               placeholder='team-slug'
-              disabled={!isAdminOrOwner}
+              disabled={!isAdminOrOwner || isSavingOrgSettings}
             />
             <p className='text-muted-foreground text-sm'>
               Used in URLs and API references. Can only contain lowercase letters, numbers, hyphens,
@@ -101,12 +101,12 @@ export function OrganizationSettingsTab({
               value={orgFormData.logo}
               onChange={(e) => onOrgInputChange('logo', e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && isAdminOrOwner) {
+                if (e.key === 'Enter' && isAdminOrOwner && !isSavingOrgSettings) {
                   onSaveOrgSettings()
                 }
               }}
               placeholder='https://example.com/logo.png'
-              disabled={!isAdminOrOwner}
+              disabled={!isAdminOrOwner || isSavingOrgSettings}
             />
           </div>
         </CardContent>

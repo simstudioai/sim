@@ -158,21 +158,8 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             throw new Error(errorData.error || 'Failed to update usage limit')
           }
 
-          // Simple state update - just update the usage limit data
-          const currentState = get()
-          if (currentState.usageLimitData) {
-            set({
-              usageLimitData: {
-                ...currentState.usageLimitData,
-                currentLimit: newLimit,
-              },
-            })
-          }
-
-          // Trigger a background refresh without waiting
-          setTimeout(() => {
-            get().refresh()
-          }, 100)
+          // Refresh the store state to ensure consistency
+          await get().refresh()
 
           logger.debug('Usage limit updated successfully', { newLimit })
           return { success: true }

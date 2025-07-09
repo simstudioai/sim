@@ -280,32 +280,74 @@ export async function isWorkspaceCollaborationEnabled(userId: string): Promise<b
  */
 export async function getUserSubscriptionState(userId: string): Promise<UserSubscriptionState> {
   try {
-    const subscription = await getHighestPrioritySubscription(userId)
-
-    const [
-      isPro,
-      isTeam,
-      isEnterprise,
-      sharingEnabled,
-      multiplayerEnabled,
-      workspaceCollaborationEnabled,
-      hasExceededLimit,
-    ] = await Promise.all([
-      isProPlan(userId),
-      isTeamPlan(userId),
-      isEnterprisePlan(userId),
-      isSharingEnabled(userId),
-      isMultiplayerEnabled(userId),
-      isWorkspaceCollaborationEnabled(userId),
-      hasExceededCostLimit(userId),
+    // Get subscription and user stats in parallel to minimize DB calls
+    const [subscription, statsRecords] = await Promise.all([
+      getHighestPrioritySubscription(userId),
+      db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
     ])
 
+    // Determine plan types based on subscription (avoid redundant DB calls)
+    const isPro =
+      !isProd ||
+      (subscription &&
+        (checkProPlan(subscription) ||
+          checkTeamPlan(subscription) ||
+          checkEnterprisePlan(subscription)))
+    const isTeam =
+      !isProd ||
+      (subscription && (checkTeamPlan(subscription) || checkEnterprisePlan(subscription)))
+    const isEnterprise = !isProd || (subscription && checkEnterprisePlan(subscription))
     const isFree = !isPro && !isTeam && !isEnterprise
 
+    // Determine plan name
     let planName = 'free'
     if (isEnterprise) planName = 'enterprise'
     else if (isTeam) planName = 'team'
     else if (isPro) planName = 'pro'
+
+    // Check features based on subscription (avoid redundant better-auth calls)
+    let sharingEnabled = false
+    let multiplayerEnabled = false
+    let workspaceCollaborationEnabled = false
+
+    if (!isProd || subscription) {
+      if (!isProd) {
+        // Development mode - enable all features
+        sharingEnabled = true
+        multiplayerEnabled = true
+        workspaceCollaborationEnabled = true
+      } else {
+        // Production mode - check subscription features
+        try {
+          const { data: subscriptions } = await client.subscription.list({
+            query: { referenceId: subscription.referenceId },
+          })
+          const activeSubscription = subscriptions?.find((sub) => sub.status === 'active')
+
+          sharingEnabled = !!activeSubscription?.limits?.sharingEnabled
+          multiplayerEnabled = !!activeSubscription?.limits?.multiplayerEnabled
+          workspaceCollaborationEnabled =
+            !!activeSubscription?.limits?.workspaceCollaborationEnabled
+        } catch (error) {
+          logger.error('Error checking subscription features', { error, userId })
+          // Default to false on error
+        }
+      }
+    }
+
+    // Check cost limit using already-fetched user stats
+    let hasExceededLimit = false
+    if (isProd && statsRecords.length > 0) {
+      let limit = 5 // Default free tier limit
+      if (subscription) {
+        limit = calculateDefaultUsageLimit(subscription)
+      }
+
+      const currentCost = Number.parseFloat(
+        statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
+      )
+      hasExceededLimit = currentCost >= limit
+    }
 
     return {
       isPro,

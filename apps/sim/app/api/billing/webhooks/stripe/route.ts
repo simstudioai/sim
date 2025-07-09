@@ -57,8 +57,14 @@ export async function POST(request: NextRequest) {
       eventType: event.type,
     })
 
-    // Handle invoice events
-    if (event.type.startsWith('invoice.')) {
+    // Handle specific invoice events
+    const supportedEvents = [
+      'invoice.payment_succeeded',
+      'invoice.payment_failed',
+      'invoice.finalized',
+    ]
+
+    if (supportedEvents.includes(event.type)) {
       try {
         await handleInvoiceWebhook(event)
 
@@ -79,10 +85,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to process webhook' }, { status: 500 })
       }
     } else {
-      // Not an invoice event, ignore
-      logger.info('Ignoring non-invoice webhook event', {
+      // Not a supported invoice event, ignore
+      logger.info('Ignoring unsupported webhook event', {
         eventId: event.id,
         eventType: event.type,
+        supportedEvents,
       })
 
       return NextResponse.json({ received: true })

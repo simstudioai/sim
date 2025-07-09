@@ -49,34 +49,56 @@ describe('Billing Core Functions', () => {
   })
 
   describe('calculateBillingPeriod', () => {
-    it.concurrent('calculates billing period from subscription start date', () => {
+    it.concurrent('calculates billing period from subscription dates correctly', () => {
+      vi.setSystemTime(new Date('2024-07-06T10:00:00Z'))
       const subscriptionStart = new Date('2024-01-15T00:00:00Z')
-      const result = calculateBillingPeriod(subscriptionStart)
+      const subscriptionEnd = new Date('2024-08-15T00:00:00Z')
+      const result = calculateBillingPeriod(subscriptionStart, subscriptionEnd)
 
-      expect(result.start).toBeInstanceOf(Date)
-      expect(result.end).toBeInstanceOf(Date)
-      expect(result.end.getTime()).toBeGreaterThan(result.start.getTime())
+      // Should return the current subscription period since we're within it
+      expect(result.start).toEqual(subscriptionStart)
+      expect(result.end).toEqual(subscriptionEnd)
+      expect(result.start.getUTCDate()).toBe(15) // Should preserve day from subscription
+      expect(result.end.getUTCDate()).toBe(15)
+    })
+
+    it.concurrent('calculates next period when current subscription period has ended', () => {
+      vi.setSystemTime(new Date('2024-08-20T10:00:00Z')) // After subscription end
+      const subscriptionStart = new Date('2024-01-15T00:00:00Z')
+      const subscriptionEnd = new Date('2024-08-15T00:00:00Z') // Already ended
+      const result = calculateBillingPeriod(subscriptionStart, subscriptionEnd)
+
+      // Should calculate next period starting from subscription end
+      expect(result.start).toEqual(subscriptionEnd)
+      expect(result.end.getUTCFullYear()).toBe(2024)
+      expect(result.end.getUTCMonth()).toBe(8) // September (0-indexed)
+      expect(result.end.getUTCDate()).toBe(15) // Should preserve day
     })
 
     it.concurrent('returns current month when no subscription date provided', () => {
+      vi.setSystemTime(new Date('2024-07-15T10:00:00Z'))
       const result = calculateBillingPeriod()
 
-      expect(result.start).toBeInstanceOf(Date)
-      expect(result.end).toBeInstanceOf(Date)
-      expect(result.start.getDate()).toBe(1) // Should start on 1st of month
+      // Should return current calendar month
+      expect(result.start.getUTCFullYear()).toBe(2024)
+      expect(result.start.getUTCMonth()).toBe(6) // July (0-indexed)
+      expect(result.start.getUTCDate()).toBe(1) // Should start on 1st of month
+      expect(result.end.getUTCFullYear()).toBe(2024)
+      expect(result.end.getUTCMonth()).toBe(7) // August (0-indexed)
+      expect(result.end.getUTCDate()).toBe(1) // Should end on 1st of next month
     })
 
-    it.concurrent('handles mid-month subscription correctly', () => {
+    it.concurrent('handles subscription anniversary date correctly', () => {
       vi.setSystemTime(new Date('2024-07-06T10:00:00Z'))
       const subscriptionStart = new Date('2024-01-15T00:00:00Z')
-      const result = calculateBillingPeriod(subscriptionStart)
+      const subscriptionEnd = new Date('2024-07-15T00:00:00Z')
+      const result = calculateBillingPeriod(subscriptionStart, subscriptionEnd)
 
-      // Should create a billing period that includes current date
-      expect(result.start).toBeInstanceOf(Date)
-      expect(result.end).toBeInstanceOf(Date)
-      expect(result.end.getTime()).toBeGreaterThan(result.start.getTime())
+      // Should maintain the 15th as billing day
+      expect(result.start.getUTCDate()).toBe(15)
+      expect(result.end.getUTCDate()).toBe(15)
 
-      // Current period should contain the current date
+      // Current period should contain the current date (July 6)
       const currentDate = new Date('2024-07-06T10:00:00Z')
       expect(currentDate.getTime()).toBeGreaterThanOrEqual(result.start.getTime())
       expect(currentDate.getTime()).toBeLessThan(result.end.getTime())
@@ -127,6 +149,42 @@ describe('Billing Core Functions', () => {
       expect(result).toEqual({ basePrice: 150, minimum: 150 })
     })
 
+    it.concurrent('handles invalid perSeatAllowance values - negative number', () => {
+      const subscription = {
+        metadata: { perSeatAllowance: -50 },
+      }
+      const result = getPlanPricing('enterprise', subscription)
+      // Should fall back to default enterprise pricing
+      expect(result).toEqual({ basePrice: 100, minimum: 100 })
+    })
+
+    it.concurrent('handles invalid perSeatAllowance values - zero', () => {
+      const subscription = {
+        metadata: { perSeatAllowance: 0 },
+      }
+      const result = getPlanPricing('enterprise', subscription)
+      // Should fall back to default enterprise pricing
+      expect(result).toEqual({ basePrice: 100, minimum: 100 })
+    })
+
+    it.concurrent('handles invalid perSeatAllowance values - non-numeric string', () => {
+      const subscription = {
+        metadata: { perSeatAllowance: 'invalid' },
+      }
+      const result = getPlanPricing('enterprise', subscription)
+      // Should fall back to default enterprise pricing
+      expect(result).toEqual({ basePrice: 100, minimum: 100 })
+    })
+
+    it.concurrent('handles invalid perSeatAllowance values - null', () => {
+      const subscription = {
+        metadata: { perSeatAllowance: null },
+      }
+      const result = getPlanPricing('enterprise', subscription)
+      // Should fall back to default enterprise pricing
+      expect(result).toEqual({ basePrice: 100, minimum: 100 })
+    })
+
     it.concurrent('returns default enterprise pricing when metadata missing', () => {
       const result = getPlanPricing('enterprise')
       expect(result).toEqual({ basePrice: 100, minimum: 100 })
@@ -174,13 +232,15 @@ describe('Billing Core Functions', () => {
     })
 
     it.concurrent('handles leap year correctly', () => {
-      const febEnd = new Date('2024-02-29T00:00:00Z') // 2024 is leap year
+      const febEnd = new Date('2024-02-29T00:00:00Z')
       const result = calculateNextBillingPeriod(febEnd)
 
-      // The date might be adjusted due to JavaScript's month overflow handling
-      expect(result.start.getDate()).toBeGreaterThanOrEqual(28)
-      expect(result.start.getMonth()).toBe(1) // February
-      expect(result.end.getMonth()).toBe(2) // March
+      expect(result.start.getUTCFullYear()).toBe(2024)
+      expect(result.start.getUTCMonth()).toBe(1)
+      expect(result.start.getUTCDate()).toBe(29)
+      expect(result.end.getUTCFullYear()).toBe(2024)
+      expect(result.end.getUTCMonth()).toBe(2)
+      expect(result.end.getUTCDate()).toBe(29)
     })
 
     it.concurrent('handles year boundary correctly', () => {

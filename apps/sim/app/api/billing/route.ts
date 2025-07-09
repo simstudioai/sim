@@ -46,8 +46,22 @@ export async function GET(request: NextRequest) {
       // Get user billing (may include organization if they're part of one)
       billingData = await getSimplifiedBillingSummary(session.user.id, contextId || undefined)
     } else {
+      // Get user role in organization for permission checks first
+      const memberRecord = await db
+        .select({ role: member.role })
+        .from(member)
+        .where(and(eq(member.organizationId, contextId), eq(member.userId, session.user.id)))
+        .limit(1)
+
+      if (memberRecord.length === 0) {
+        return NextResponse.json(
+          { error: 'Access denied - not a member of this organization' },
+          { status: 403 }
+        )
+      }
+
       // Get organization-specific billing
-      const rawBillingData = await getOrganizationBillingData(contextId!)
+      const rawBillingData = await getOrganizationBillingData(contextId)
 
       if (!rawBillingData) {
         return NextResponse.json(
@@ -76,14 +90,7 @@ export async function GET(request: NextRequest) {
         })),
       }
 
-      // Get user role in organization for permission checks
-      const memberRecord = await db
-        .select({ role: member.role })
-        .from(member)
-        .where(and(eq(member.organizationId, contextId!), eq(member.userId, session.user.id)))
-        .limit(1)
-
-      const userRole = memberRecord.length > 0 ? memberRecord[0].role : 'member'
+      const userRole = memberRecord[0].role
 
       return NextResponse.json({
         success: true,

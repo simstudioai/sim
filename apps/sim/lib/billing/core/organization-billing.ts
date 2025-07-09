@@ -109,7 +109,21 @@ export async function getOrganizationBillingData(
 
     // Get per-seat pricing for the plan
     const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan, subscription)
-    const seatsCount = subscription.seats || members.length
+    const licensedSeats = subscription.seats || members.length
+
+    // Validate seat capacity - warn if members exceed licensed seats
+    if (subscription.seats && members.length > subscription.seats) {
+      logger.warn('Organization has more members than licensed seats', {
+        organizationId,
+        licensedSeats: subscription.seats,
+        actualMembers: members.length,
+        plan: subscription.plan,
+      })
+    }
+
+    // Billing is based on licensed seats, not actual member count
+    // This ensures organizations pay for their seat capacity regardless of utilization
+    const seatsCount = licensedSeats
     const minimumBillingAmount = seatsCount * pricePerSeat
 
     // Total usage limit represents the minimum amount the team will be billed
@@ -193,12 +207,16 @@ export async function updateMemberUsageLimit(
 
     // For enterprise, check metadata for custom limits
     if (subscription.plan === 'enterprise' && subscription.metadata) {
-      const metadata =
-        typeof subscription.metadata === 'string'
-          ? JSON.parse(subscription.metadata)
-          : subscription.metadata
-      if (metadata.perSeatAllowance) {
-        minimumLimit = metadata.perSeatAllowance
+      try {
+        const metadata =
+          typeof subscription.metadata === 'string'
+            ? JSON.parse(subscription.metadata)
+            : subscription.metadata
+        if (metadata.perSeatAllowance) {
+          minimumLimit = metadata.perSeatAllowance
+        }
+      } catch (e) {
+        logger.warn('Failed to parse subscription metadata', { error: e })
       }
     }
 

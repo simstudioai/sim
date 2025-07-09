@@ -56,14 +56,14 @@ export async function verifyInternalToken(token: string): Promise<boolean> {
  */
 export function verifyCronAuth(request: NextRequest, context?: string): NextResponse | null {
   const authHeader = request.headers.get('authorization')
-  const expectedAuth = `Bearer ${env.CRON_SECRET || 'your-cron-secret'}`
+  const expectedAuth = `Bearer ${env.CRON_SECRET}`
 
   if (authHeader !== expectedAuth) {
     const contextInfo = context ? ` for ${context}` : ''
     logger.warn(`Unauthorized CRON access attempt${contextInfo}`, {
       providedAuth: authHeader,
-      ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-      userAgent: request.headers.get('user-agent') || 'unknown',
+      ip: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? 'unknown',
+      userAgent: request.headers.get('user-agent') ?? 'unknown',
       context,
     })
 

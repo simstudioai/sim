@@ -41,7 +41,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
 
     const stats = userStatsData[0]
     const currentUsage = Number.parseFloat(
-      stats.currentPeriodCost?.toString() || stats.totalCost.toString()
+      stats.currentPeriodCost?.toString() ?? stats.totalCost.toString()
     )
     const limit = Number.parseFloat(stats.currentUsageLimit)
     const percentUsed = limit > 0 ? Math.round((currentUsage / limit) * 100) : 0

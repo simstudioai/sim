@@ -17,11 +17,11 @@ import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
 interface PaymentFailureEmailProps {
-  customerEmail?: string
-  failedAmount?: number
+  customerEmail: string
+  failedAmount: number
   planName?: string
   billingPeriod?: string
-  invoiceId?: string
+  invoiceId: string
   invoiceUrl?: string
   attemptCount?: number
 }
@@ -29,11 +29,11 @@ interface PaymentFailureEmailProps {
 const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
 
 export const PaymentFailureEmail = ({
-  customerEmail = 'customer@example.com',
-  failedAmount = 0,
+  customerEmail,
+  failedAmount,
   planName = 'Pro',
   billingPeriod = 'this month',
-  invoiceId = 'inv_example',
+  invoiceId,
   invoiceUrl = '',
   attemptCount = 1,
 }: PaymentFailureEmailProps) => {

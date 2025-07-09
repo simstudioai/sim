@@ -46,9 +46,12 @@ export interface SubscriptionStore {
   isLoading: boolean
   error: string | null
   lastFetched: number | null
-  loadSubscriptionData: () => Promise<void>
-  loadUsageLimitData: () => Promise<void>
-  loadData: () => Promise<void>
+  loadSubscriptionData: () => Promise<SubscriptionData | null>
+  loadUsageLimitData: () => Promise<UsageLimitData | null>
+  loadData: () => Promise<{
+    subscriptionData: SubscriptionData | null
+    usageLimitData: UsageLimitData | null
+  }>
   updateUsageLimit: (newLimit: number) => Promise<{ success: boolean; error?: string }>
   refresh: () => Promise<void>
   clearError: () => void

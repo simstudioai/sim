@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
 import { updateMemberUsageLimit } from '@/lib/billing/core/organization-billing'
 import { createLogger } from '@/lib/logs/console-logger'
+import { isOrganizationOwnerOrAdmin } from '@/lib/permissions/utils'
 
 const logger = createLogger('UnifiedUsageLimitsAPI')
 
@@ -10,9 +11,6 @@ const logger = createLogger('UnifiedUsageLimitsAPI')
  * Unified Usage Limits Endpoint
  * GET/PUT /api/usage-limits?context=user|member&userId=<id>&organizationId=<id>
  *
- * Replaces:
- * - /api/users/me/usage-limit
- * - /api/organizations/[id]/members/[memberId]/usage-limit
  */
 export async function GET(request: NextRequest) {
   const session = await getSession()
@@ -35,15 +33,42 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // For member context, require organizationId
-    if (context === 'member' && !organizationId) {
+    // For member context, require organizationId and check permissions
+    if (context === 'member') {
+      if (!organizationId) {
+        return NextResponse.json(
+          { error: 'Organization ID is required when context=member' },
+          { status: 400 }
+        )
+      }
+
+      // Check if the current user has permission to view member usage info
+      const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId)
+      if (!hasPermission) {
+        logger.warn('Unauthorized attempt to view member usage info', {
+          requesterId: session.user.id,
+          targetUserId: userId,
+          organizationId,
+        })
+        return NextResponse.json(
+          {
+            error:
+              'Permission denied. Only organization owners and admins can view member usage information',
+          },
+          { status: 403 }
+        )
+      }
+    }
+
+    // For user context, ensure they can only view their own info
+    if (context === 'user' && userId !== session.user.id) {
       return NextResponse.json(
-        { error: 'Organization ID is required when context=member' },
-        { status: 400 }
+        { error: "Cannot view other users' usage information" },
+        { status: 403 }
       )
     }
 
-    // Get usage limit info (same for both contexts)
+    // Get usage limit info
     const usageLimitInfo = await getUserUsageLimitInfo(userId)
 
     return NextResponse.json({
@@ -101,6 +126,30 @@ export async function PUT(request: NextRequest) {
         )
       }
 
+      // Check if the current user has permission to update member limits
+      const hasPermission = await isOrganizationOwnerOrAdmin(session.user.id, organizationId)
+      if (!hasPermission) {
+        logger.warn('Unauthorized attempt to update member usage limit', {
+          adminUserId: session.user.id,
+          targetUserId: userId,
+          organizationId,
+        })
+        return NextResponse.json(
+          {
+            error:
+              'Permission denied. Only organization owners and admins can update member usage limits',
+          },
+          { status: 403 }
+        )
+      }
+
+      logger.info('Authorized member usage limit update', {
+        adminUserId: session.user.id,
+        targetUserId: userId,
+        organizationId,
+        newLimit: limit,
+      })
+
       await updateMemberUsageLimit(organizationId, userId, limit, session.user.id)
     } else {
       return NextResponse.json(
@@ -125,9 +174,6 @@ export async function PUT(request: NextRequest) {
       error,
     })
 
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

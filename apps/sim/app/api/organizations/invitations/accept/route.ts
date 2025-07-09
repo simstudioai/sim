@@ -131,7 +131,10 @@ export async function GET(req: NextRequest) {
 
       for (const wsInvitation of workspaceInvitations) {
         // Check if invitation hasn't expired
-        if (wsInvitation.expiresAt && new Date() <= wsInvitation.expiresAt) {
+        if (
+          wsInvitation.expiresAt &&
+          new Date().toISOString() <= wsInvitation.expiresAt.toISOString()
+        ) {
           // Check if user isn't already a member of the workspace
           const existingWorkspaceMember = await tx
             .select()
@@ -304,7 +307,10 @@ export async function POST(req: NextRequest) {
         )
 
       for (const wsInvitation of workspaceInvitations) {
-        if (wsInvitation.expiresAt && new Date() <= wsInvitation.expiresAt) {
+        if (
+          wsInvitation.expiresAt &&
+          new Date().toISOString() <= wsInvitation.expiresAt.toISOString()
+        ) {
           const existingWorkspaceMember = await tx
             .select()
             .from(workspaceMember)

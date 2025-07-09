@@ -50,7 +50,12 @@ export function NoOrganizationView({
                 <label htmlFor='orgName' className='font-medium text-sm'>
                   Team Name
                 </label>
-                <Input value={orgName} onChange={onOrgNameChange} placeholder='My Team' />
+                <Input
+                  id='orgName'
+                  value={orgName}
+                  onChange={onOrgNameChange}
+                  placeholder='My Team'
+                />
               </div>
 
               <div className='space-y-2'>
@@ -62,6 +67,7 @@ export function NoOrganizationView({
                     simstudio.ai/team/
                   </div>
                   <Input
+                    id='orgSlug'
                     value={orgSlug}
                     onChange={(e) => setOrgSlug(e.target.value)}
                     className='rounded-l-none'

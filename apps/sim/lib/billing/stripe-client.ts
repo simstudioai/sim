@@ -4,9 +4,6 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('StripeClient')
 
-// Lazily create a single Stripe client instance
-let _stripeClient: Stripe | null = null
-
 /**
  * Check if Stripe credentials are valid
  */
@@ -19,28 +16,62 @@ export function hasValidStripeCredentials(): boolean {
 }
 
 /**
+ * Secure Stripe client singleton with initialization guard
+ */
+const createStripeClientSingleton = () => {
+  let stripeClient: Stripe | null = null
+  let isInitializing = false
+
+  return {
+    getInstance(): Stripe | null {
+      // If already initialized, return immediately
+      if (stripeClient) return stripeClient
+
+      // Prevent concurrent initialization attempts
+      if (isInitializing) {
+        logger.debug('Stripe client initialization already in progress')
+        return null
+      }
+
+      if (!hasValidStripeCredentials()) {
+        logger.warn('Stripe credentials not available - Stripe operations will be disabled')
+        return null
+      }
+
+      try {
+        isInitializing = true
+
+        stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
+          apiVersion: '2025-02-24.acacia',
+        })
+
+        logger.info('Stripe client initialized successfully')
+        return stripeClient
+      } catch (error) {
+        logger.error('Failed to initialize Stripe client', { error })
+        stripeClient = null // Ensure cleanup on failure
+        return null
+      } finally {
+        isInitializing = false
+      }
+    },
+
+    // For testing purposes only - allows resetting the singleton
+    reset(): void {
+      stripeClient = null
+      isInitializing = false
+    },
+  }
+}
+
+const stripeClientSingleton = createStripeClientSingleton()
+
+/**
  * Get the Stripe client instance
  * @returns Stripe client or null if credentials are not available
  */
 export function getStripeClient(): Stripe | null {
-  if (_stripeClient) return _stripeClient
-
-  if (!hasValidStripeCredentials()) {
-    logger.warn('Stripe credentials not available - Stripe operations will be disabled')
-    return null
-  }
-
-  try {
-    _stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
-      apiVersion: '2025-02-24.acacia',
-    })
-
-    logger.info('Stripe client initialized successfully')
-    return _stripeClient
-  } catch (error) {
-    logger.error('Failed to initialize Stripe client', { error })
-    return null
-  }
+  return stripeClientSingleton.getInstance()
 }
 
 /**

@@ -247,13 +247,15 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
 
     const { getSubscriptionStatus } = useSubscriptionStore()
     const subscription = getSubscriptionStatus()
-    const plan = subscription.isPro
-      ? 'Pro Plan'
-      : subscription.isTeam
-        ? 'Team Plan'
-        : subscription.isEnterprise
-          ? 'Enterprise Plan'
-          : 'Free Plan'
+
+    const getPlanName = (subscription: ReturnType<typeof getSubscriptionStatus>) => {
+      if (subscription.isEnterprise) return 'Enterprise Plan'
+      if (subscription.isTeam) return 'Team Plan'
+      if (subscription.isPro) return 'Pro Plan'
+      return 'Free Plan'
+    }
+
+    const plan = getPlanName(subscription)
 
     // Use client-side loading instead of isPending to avoid hydration mismatch
     const [isClientLoading, setIsClientLoading] = useState(true)

@@ -140,7 +140,7 @@ describe('Billing Period Calculations', () => {
       vi.setSystemTime(today)
 
       const endingToday = new Date(today)
-      const shouldBill = endingToday.getTime() === today.getTime()
+      const shouldBill = endingToday.toDateString() === today.toDateString()
 
       expect(shouldBill).toBe(true)
     })
@@ -152,7 +152,7 @@ describe('Billing Period Calculations', () => {
       const endingTomorrow = new Date(today)
       endingTomorrow.setDate(endingTomorrow.getDate() + 1)
 
-      const shouldBill = endingTomorrow.getTime() === today.getTime()
+      const shouldBill = endingTomorrow.toDateString() === today.toDateString()
 
       expect(shouldBill).toBe(false)
     })
@@ -164,7 +164,7 @@ describe('Billing Period Calculations', () => {
       const endedYesterday = new Date(today)
       endedYesterday.setDate(endedYesterday.getDate() - 1)
 
-      const shouldBill = endedYesterday.getTime() === today.getTime()
+      const shouldBill = endedYesterday.toDateString() === today.toDateString()
 
       expect(shouldBill).toBe(false)
     })

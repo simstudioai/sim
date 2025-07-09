@@ -49,7 +49,11 @@ export function getPlanPricing(
             ? JSON.parse(subscription.metadata)
             : subscription.metadata
 
-        const perSeatPrice = metadata.perSeatAllowance || 100
+        // Validate perSeatAllowance is a positive number
+        const perSeatAllowance = metadata.perSeatAllowance
+        const perSeatPrice =
+          typeof perSeatAllowance === 'number' && perSeatAllowance > 0 ? perSeatAllowance : 100 // Fall back to default for invalid values
+
         return { basePrice: perSeatPrice, minimum: perSeatPrice }
       }
       return { basePrice: 100, minimum: 100 } // Default enterprise pricing
