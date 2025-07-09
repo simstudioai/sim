@@ -979,3 +979,31 @@ export const docsEmbeddings = pgTable(
     ),
   })
 )
+
+export const copilotChats = pgTable(
+  'copilot_chats',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    title: text('title'),
+    messages: jsonb('messages').notNull().default('[]'),
+    model: text('model').notNull().default('claude-3-7-sonnet-latest'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access patterns
+    userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
+    workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
+    userWorkflowIdx: index('copilot_chats_user_workflow_idx').on(table.userId, table.workflowId),
+    
+    // Ordering indexes
+    createdAtIdx: index('copilot_chats_created_at_idx').on(table.createdAt),
+    updatedAtIdx: index('copilot_chats_updated_at_idx').on(table.updatedAt),
+  })
+)

@@ -1,12 +1,28 @@
 'use client'
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { Bot, Loader2, Send, User } from 'lucide-react'
+import { Bot, ChevronDown, Loader2, MessageSquarePlus, MoreHorizontal, Send, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { CopilotModal } from './components/copilot-modal/copilot-modal'
+import { 
+  listChats, 
+  getChat, 
+  deleteChat, 
+  sendStreamingMessage,
+  type CopilotChat,
+  type CopilotMessage
+} from '@/lib/copilot-api'
 
 const logger = createLogger('Copilot')
 
@@ -20,21 +36,7 @@ interface CopilotProps {
 
 interface CopilotRef {
   clearMessages: () => void
-}
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: Date
-  sources?: {
-    title: string
-    document: string
-    link: string
-    similarity: number
-  }[]
-  isLoading?: boolean
-  isStreaming?: boolean
+  startNewChat: () => void
 }
 
 export const Copilot = forwardRef<CopilotRef, CopilotProps>(
@@ -48,23 +50,23 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     },
     ref
   ) => {
-    const [messages, setMessages] = useState<Message[]>([])
+    const [messages, setMessages] = useState<CopilotMessage[]>([])
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
+    const [currentChat, setCurrentChat] = useState<CopilotChat | null>(null)
+    const [chats, setChats] = useState<CopilotChat[]>([])
+    const [loadingChats, setLoadingChats] = useState(false)
     const scrollAreaRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
+    
+    const { activeWorkflowId } = useWorkflowRegistry()
 
-    // Expose clear function to parent
-    useImperativeHandle(
-      ref,
-      () => ({
-        clearMessages: () => {
-          setMessages([])
-          logger.info('Copilot messages cleared')
-        },
-      }),
-      []
-    )
+    // Load chats when workflow changes
+    useEffect(() => {
+      if (activeWorkflowId) {
+        loadChats()
+      }
+    }, [activeWorkflowId])
 
     // Auto-scroll to bottom when new messages are added
     useEffect(() => {
@@ -78,58 +80,125 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       }
     }, [messages])
 
+    // Load chats for current workflow
+    const loadChats = useCallback(async () => {
+      if (!activeWorkflowId) return
+
+      setLoadingChats(true)
+      try {
+        const result = await listChats(activeWorkflowId)
+        if (result.success) {
+          setChats(result.chats)
+          // If no current chat and we have chats, select the most recent one
+          if (!currentChat && result.chats.length > 0) {
+            await selectChat(result.chats[0])
+          }
+        } else {
+          logger.error('Failed to load chats:', result.error)
+        }
+      } catch (error) {
+        logger.error('Error loading chats:', error)
+      } finally {
+        setLoadingChats(false)
+      }
+    }, [activeWorkflowId, currentChat])
+
+    // Select a specific chat and load its messages
+    const selectChat = useCallback(async (chat: CopilotChat) => {
+      try {
+        const result = await getChat(chat.id)
+        if (result.success && result.chat) {
+          setCurrentChat(result.chat)
+          setMessages(result.chat.messages || [])
+          logger.info(`Loaded chat: ${chat.title || 'Untitled'}`)
+        } else {
+          logger.error('Failed to load chat:', result.error)
+        }
+      } catch (error) {
+        logger.error('Error loading chat:', error)
+      }
+    }, [])
+
+    // Start a new chat
+    const startNewChat = useCallback(() => {
+      setCurrentChat(null)
+      setMessages([])
+      logger.info('Started new chat')
+    }, [])
+
+    // Delete a chat
+    const handleDeleteChat = useCallback(async (chatId: string) => {
+      try {
+        const result = await deleteChat(chatId)
+        if (result.success) {
+          setChats(prev => prev.filter(chat => chat.id !== chatId))
+          if (currentChat?.id === chatId) {
+            startNewChat()
+          }
+          logger.info('Chat deleted successfully')
+        } else {
+          logger.error('Failed to delete chat:', result.error)
+        }
+      } catch (error) {
+        logger.error('Error deleting chat:', error)
+      }
+    }, [currentChat, startNewChat])
+
+    // Expose functions to parent
+    useImperativeHandle(
+      ref,
+      () => ({
+        clearMessages: startNewChat,
+        startNewChat,
+      }),
+      [startNewChat]
+    )
+
+    // Handle message submission
     const handleSubmit = useCallback(
       async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!input.trim() || isLoading) return
+        if (!input.trim() || isLoading || !activeWorkflowId) return
 
-        const userMessage: Message = {
-          id: crypto.randomUUID(),
-          role: 'user',
-          content: input.trim(),
-          timestamp: new Date(),
-        }
-
-        const streamingMessage: Message = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: '',
-          timestamp: new Date(),
-          isStreaming: true,
-        }
-
-        setMessages((prev) => [...prev, userMessage, streamingMessage])
         const query = input.trim()
         setInput('')
         setIsLoading(true)
 
-        try {
-          logger.info('Sending docs RAG query:', { query })
+        // Add user message immediately
+        const userMessage: CopilotMessage = {
+          id: crypto.randomUUID(),
+          role: 'user',
+          content: query,
+          timestamp: new Date().toISOString(),
+        }
 
-          const response = await fetch('/api/docs/ask', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query,
-              topK: 5,
-              stream: true,
-            }),
+        // Add streaming placeholder
+        const streamingMessage: CopilotMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+        }
+
+        setMessages((prev) => [...prev, userMessage, streamingMessage])
+
+        try {
+          logger.info('Sending docs RAG query:', { query, chatId: currentChat?.id })
+
+          const result = await sendStreamingMessage({
+            query,
+            topK: 5,
+            chatId: currentChat?.id,
+            workflowId: activeWorkflowId,
+            createNewChat: !currentChat,
           })
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${await response.text()}`)
-          }
-
-          // Handle streaming response
-          if (response.headers.get('content-type')?.includes('text/event-stream')) {
-            const reader = response.body?.getReader()
+          if (result.success && result.stream) {
+            const reader = result.stream.getReader()
             const decoder = new TextDecoder()
             let accumulatedContent = ''
             let sources: any[] = []
-
-            if (!reader) {
-              throw new Error('Failed to get response reader')
-            }
+            let newChatId: string | undefined
 
             while (true) {
               const { done, value } = await reader.read()
@@ -145,6 +214,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
 
                     if (data.type === 'metadata') {
                       sources = data.sources || []
+                      // Get chatId from metadata (for both new and existing chats)
+                      if (data.chatId) {
+                        newChatId = data.chatId
+                      }
                     } else if (data.type === 'content') {
                       accumulatedContent += data.content
 
@@ -152,19 +225,49 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                       setMessages((prev) =>
                         prev.map((msg) =>
                           msg.id === streamingMessage.id
-                            ? { ...msg, content: accumulatedContent, sources }
+                            ? { 
+                                ...msg, 
+                                content: accumulatedContent,
+                                citations: sources.map((source: any, index: number) => ({
+                                  id: index + 1,
+                                  title: source.title,
+                                  url: source.link,
+                                }))
+                              }
                             : msg
                         )
                       )
                     } else if (data.type === 'done') {
-                      // Finish streaming
+                      // Finish streaming and reload chat if new chat was created
                       setMessages((prev) =>
                         prev.map((msg) =>
                           msg.id === streamingMessage.id
-                            ? { ...msg, isStreaming: false, sources }
+                            ? { 
+                                ...msg,
+                                citations: sources.map((source: any, index: number) => ({
+                                  id: index + 1,
+                                  title: source.title,
+                                  url: source.link,
+                                }))
+                              }
                             : msg
                         )
                       )
+
+                      // Update current chat state with the chatId from response
+                      if (newChatId && !currentChat) {
+                        // For new chats, create a temporary chat object and reload the full chat list
+                        setCurrentChat({
+                          id: newChatId,
+                          title: null,
+                          model: 'claude-3-7-sonnet-latest',
+                          createdAt: new Date().toISOString(),
+                          updatedAt: new Date().toISOString(),
+                          messageCount: 2, // User + assistant message
+                        })
+                        // Reload chats in background to get the updated list
+                        loadChats()
+                      }
                     } else if (data.type === 'error') {
                       throw new Error(data.error || 'Streaming error')
                     }
@@ -180,30 +283,16 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
               sourcesCount: sources.length,
             })
           } else {
-            // Fallback to non-streaming response
-            const data = await response.json()
-
-            const assistantMessage: Message = {
-              id: streamingMessage.id,
-              role: 'assistant',
-              content: data.response || 'Sorry, I could not generate a response.',
-              timestamp: new Date(),
-              sources: data.sources || [],
-              isStreaming: false,
-            }
-
-            setMessages((prev) => prev.slice(0, -1).concat(assistantMessage))
+            throw new Error(result.error || 'Failed to send message')
           }
         } catch (error) {
           logger.error('Docs RAG error:', error)
 
-          const errorMessage: Message = {
+          const errorMessage: CopilotMessage = {
             id: streamingMessage.id,
             role: 'assistant',
-            content:
-              'Sorry, I encountered an error while searching the documentation. Please try again.',
-            timestamp: new Date(),
-            isStreaming: false,
+            content: 'Sorry, I encountered an error while searching the documentation. Please try again.',
+            timestamp: new Date().toISOString(),
           }
 
           setMessages((prev) => prev.slice(0, -1).concat(errorMessage))
@@ -211,26 +300,27 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
           setIsLoading(false)
         }
       },
-      [input, isLoading]
+      [input, isLoading, activeWorkflowId, currentChat, loadChats]
     )
 
-    const formatTimestamp = (date: Date) => {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    // Format timestamp for display
+    const formatTimestamp = (timestamp: string) => {
+      return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
 
     // Function to render content with inline hyperlinked citations and basic markdown
-    const renderContentWithCitations = (content: string, sources: Message['sources'] = []) => {
+    const renderContentWithCitations = (content: string, citations: CopilotMessage['citations'] = []) => {
       if (!content) return content
 
       let processedContent = content
 
       // Replace {cite:1}, {cite:2}, etc. with clickable citation icons
       processedContent = processedContent.replace(/\{cite:(\d+)\}/g, (match, num) => {
-        const sourceIndex = Number.parseInt(num) - 1
-        const source = sources[sourceIndex]
+        const citationIndex = Number.parseInt(num) - 1
+        const citation = citations?.[citationIndex]
 
-        if (source) {
-          return `<a href="${source.link}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center ml-1 text-primary hover:text-primary/80 transition-colors text-sm" title="${source.title}">↗</a>`
+        if (citation) {
+          return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center ml-1 text-primary hover:text-primary/80 transition-colors text-sm" title="${citation.title}">↗</a>`
         }
 
         return match
@@ -276,29 +366,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       return processedContent
     }
 
-    const renderMessage = (message: Message) => {
-      if (message.isStreaming && !message.content) {
-        return (
-          <div key={message.id} className='flex gap-3 p-4'>
-            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary'>
-              <Bot className='h-4 w-4 text-primary-foreground' />
-            </div>
-            <div className='flex-1'>
-              <div className='mb-2 flex items-center gap-2'>
-                <span className='font-medium text-sm'>Copilot</span>
-                <span className='text-muted-foreground text-xs'>
-                  {formatTimestamp(message.timestamp)}
-                </span>
-              </div>
-              <div className='flex items-center gap-2 text-muted-foreground'>
-                <Loader2 className='h-4 w-4 animate-spin' />
-                <span className='text-sm'>Searching documentation...</span>
-              </div>
-            </div>
-          </div>
-        )
-      }
-
+    // Render individual message
+    const renderMessage = (message: CopilotMessage) => {
       return (
         <div key={message.id} className='group flex gap-3 p-4 hover:bg-muted/30'>
           <div
@@ -320,12 +389,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
               <span className='text-muted-foreground text-xs'>
                 {formatTimestamp(message.timestamp)}
               </span>
-              {message.isStreaming && (
-                <div className='flex items-center gap-1'>
-                  <Loader2 className='h-3 w-3 animate-spin text-primary' />
-                  <span className='text-primary text-xs'>Responding...</span>
-                </div>
-              )}
             </div>
 
             {/* Enhanced content rendering with inline citations */}
@@ -333,14 +396,17 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
               <div
                 className='text-foreground text-sm leading-normal'
                 dangerouslySetInnerHTML={{
-                  __html: renderContentWithCitations(message.content, message.sources),
+                  __html: renderContentWithCitations(message.content, message.citations),
                 }}
               />
             </div>
 
             {/* Streaming cursor */}
-            {message.isStreaming && message.content && (
-              <span className='ml-1 inline-block h-4 w-2 animate-pulse bg-primary' />
+            {!message.content && (
+              <div className='flex items-center gap-2 text-muted-foreground'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                <span className='text-sm'>Searching documentation...</span>
+              </div>
             )}
           </div>
         </div>
@@ -352,154 +418,93 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       id: msg.id,
       content: msg.content,
       type: msg.role as 'user' | 'assistant',
-      timestamp: msg.timestamp,
-      citations: msg.sources?.map((source, index) => ({
-        id: index + 1,
-        title: source.title,
-        url: source.link,
-      })),
+      timestamp: new Date(msg.timestamp),
+      citations: msg.citations,
     }))
 
     // Handle modal message sending
     const handleModalSendMessage = useCallback(async (message: string) => {
-      // Use the same handleSubmit logic but with the message parameter
-      const userMessage: Message = {
-        id: crypto.randomUUID(),
-        role: 'user',
-        content: message,
-        timestamp: new Date(),
-      }
-
-      const streamingMessage: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        isStreaming: true,
-      }
-
-      setMessages((prev) => [...prev, userMessage, streamingMessage])
-      setIsLoading(true)
-
-      try {
-        logger.info('Sending docs RAG query:', { query: message })
-
-        const response = await fetch('/api/docs/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: message,
-            topK: 5,
-            stream: true,
-          }),
-        })
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${await response.text()}`)
-        }
-
-        // Handle streaming response
-        if (response.headers.get('content-type')?.includes('text/event-stream')) {
-          const reader = response.body?.getReader()
-          const decoder = new TextDecoder()
-          let accumulatedContent = ''
-          let sources: any[] = []
-
-          if (!reader) {
-            throw new Error('Failed to get response reader')
-          }
-
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            const chunk = decoder.decode(value, { stream: true })
-            const lines = chunk.split('\n')
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6))
-
-                  if (data.type === 'metadata') {
-                    sources = data.sources || []
-                  } else if (data.type === 'content') {
-                    accumulatedContent += data.content
-
-                    // Update the streaming message with accumulated content
-                    setMessages((prev) =>
-                      prev.map((msg) =>
-                        msg.id === streamingMessage.id
-                          ? { ...msg, content: accumulatedContent, sources }
-                          : msg
-                      )
-                    )
-                  } else if (data.type === 'done') {
-                    // Finish streaming
-                    setMessages((prev) =>
-                      prev.map((msg) =>
-                        msg.id === streamingMessage.id
-                          ? { ...msg, isStreaming: false, sources }
-                          : msg
-                      )
-                    )
-                  } else if (data.type === 'error') {
-                    throw new Error(data.error || 'Streaming error')
-                  }
-                } catch (parseError) {
-                  logger.warn('Failed to parse SSE data:', parseError)
-                }
-              }
-            }
-          }
-
-          logger.info('Received docs RAG response:', {
-            contentLength: accumulatedContent.length,
-            sourcesCount: sources.length,
-          })
-        } else {
-          // Fallback to non-streaming response
-          const data = await response.json()
-
-          const assistantMessage: Message = {
-            id: streamingMessage.id,
-            role: 'assistant',
-            content: data.response || 'Sorry, I could not generate a response.',
-            timestamp: new Date(),
-            sources: data.sources || [],
-            isStreaming: false,
-          }
-
-          setMessages((prev) => prev.slice(0, -1).concat(assistantMessage))
-        }
-      } catch (error) {
-        logger.error('Docs RAG error:', error)
-
-        const errorMessage: Message = {
-          id: streamingMessage.id,
-          role: 'assistant',
-          content:
-            'Sorry, I encountered an error while searching the documentation. Please try again.',
-          timestamp: new Date(),
-          isStreaming: false,
-        }
-
-        setMessages((prev) => prev.slice(0, -1).concat(errorMessage))
-      } finally {
-        setIsLoading(false)
-      }
-    }, [])
+      // Create form event and call the main handler
+      const mockEvent = { preventDefault: () => {} } as React.FormEvent
+      setInput(message)
+      await handleSubmit(mockEvent)
+    }, [handleSubmit])
 
     return (
       <>
         <div className='flex h-full flex-col'>
-          {/* Header */}
+          {/* Header with Chat Dropdown */}
           <div className='border-b p-4'>
-            <div className='flex items-center gap-2'>
-              <Bot className='h-5 w-5 text-primary' />
-              <div>
-                <h3 className='font-medium text-sm'>Documentation Copilot</h3>
-                <p className='text-muted-foreground text-xs'>Ask questions about Sim Studio</p>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <Bot className='h-5 w-5 text-primary' />
+                <div>
+                  <h3 className='font-medium text-sm'>Documentation Copilot</h3>
+                  <p className='text-muted-foreground text-xs'>Ask questions about Sim Studio</p>
+                </div>
+              </div>
+              
+              {/* Chat Management */}
+              <div className='flex items-center gap-2'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={startNewChat}
+                  className='h-8'
+                >
+                  <MessageSquarePlus className='h-4 w-4 mr-2' />
+                  New Chat
+                </Button>
+                
+                {chats.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant='outline' size='sm' className='h-8'>
+                        {currentChat?.title || 'Select Chat'}
+                        <ChevronDown className='h-4 w-4 ml-2' />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end' className='w-64'>
+                      {chats.map((chat) => (
+                        <div key={chat.id} className='flex items-center'>
+                          <DropdownMenuItem
+                            onClick={() => selectChat(chat)}
+                            className='flex-1 cursor-pointer'
+                          >
+                            <div className='flex-1 min-w-0'>
+                              <div className='font-medium text-sm truncate'>
+                                {chat.title || 'Untitled Chat'}
+                              </div>
+                              <div className='text-muted-foreground text-xs'>
+                                {chat.messageCount} messages • {new Date(chat.updatedAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-8 w-8 p-0 shrink-0'
+                              >
+                                <MoreHorizontal className='h-4 w-4' />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteChat(chat.id)}
+                                className='text-destructive cursor-pointer'
+                              >
+                                <Trash2 className='h-4 w-4 mr-2' />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </div>
           </div>
