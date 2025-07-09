@@ -51,7 +51,11 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
 
   // Stores and hooks
   const { createWorkflow } = useWorkflowRegistry()
-  const { collaborativeAddBlock, collaborativeAddEdge } = useCollaborativeWorkflow()
+  const { 
+    collaborativeAddBlock, 
+    collaborativeAddEdge, 
+    collaborativeSetSubblockValue
+  } = useCollaborativeWorkflow()
   const subBlockStore = useSubBlockStore()
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,10 +120,10 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
       // Navigate to the new workflow
       router.push(`/workspace/${workspaceId}/w/${newWorkflowId}`)
 
-      // Small delay to ensure navigation and workflow initialization
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Brief delay to ensure navigation completes
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
-      // Import the YAML into the new workflow
+      // Import the YAML into the new workflow (creates complete state and saves directly to DB)
       const result = await importWorkflowFromYaml(yamlContent, {
         addBlock: collaborativeAddBlock,
         addEdge: collaborativeAddEdge,
@@ -128,7 +132,8 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
           window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
         },
         setSubBlockValue: (blockId: string, subBlockId: string, value: any) => {
-          subBlockStore.setValue(blockId, subBlockId, value)
+          // Use the collaborative function - the same one called when users type into fields
+          collaborativeSetSubblockValue(blockId, subBlockId, value)
         },
         getExistingBlocks: () => {
           // This will be called after navigation, so we need to get blocks from the store
@@ -140,12 +145,9 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
       setImportResult(result)
 
       if (result.success) {
-        // Close dialog on success
-        setTimeout(() => {
-          setShowYamlDialog(false)
-          setYamlContent('')
-          setImportResult(null)
-        }, 2000)
+        setYamlContent('')
+        setShowYamlDialog(false)
+        logger.info('YAML import completed successfully')
       }
     } catch (error) {
       logger.error('Failed to import YAML workflow:', error)
