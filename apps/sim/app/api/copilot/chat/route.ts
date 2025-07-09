@@ -242,6 +242,7 @@ IMPORTANT: Always provide complete, helpful responses. If you add citations, con
       })
 
       // Store citations for later use in the main streaming handler
+
       ;(streamResponse as any)._citations = responseCitations
 
       return streamResponse
@@ -435,7 +436,12 @@ export async function POST(req: NextRequest) {
       const assistantMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: typeof response === 'string' ? response : (typeof response === 'object' && 'content' in response ? response.content : '[Error generating response]') || '[Error generating response]',
+        content:
+          typeof response === 'string'
+            ? response
+            : (typeof response === 'object' && 'content' in response
+                ? response.content
+                : '[Error generating response]') || '[Error generating response]',
         timestamp: new Date().toISOString(),
         citations: citations.length > 0 ? citations : undefined,
       }
@@ -464,7 +470,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      response: typeof response === 'string' ? response : (typeof response === 'object' && 'content' in response ? response.content : '[Error generating response]') || '[Error generating response]',
+      response:
+        typeof response === 'string'
+          ? response
+          : (typeof response === 'object' && 'content' in response
+              ? response.content
+              : '[Error generating response]') || '[Error generating response]',
       chatId: currentChat?.id,
       citations: extractCitationsFromResponse(response),
       metadata: {

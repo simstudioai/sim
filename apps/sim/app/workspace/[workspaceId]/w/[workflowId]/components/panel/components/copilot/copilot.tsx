@@ -277,7 +277,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                         // Reload chats in background to get the updated list
                         loadChats()
                       }
-                      
+
                       // Mark stream as complete to exit outer loop
                       streamComplete = true
                       break

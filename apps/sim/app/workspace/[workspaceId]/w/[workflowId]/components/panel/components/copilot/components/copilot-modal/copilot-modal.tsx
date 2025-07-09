@@ -48,7 +48,7 @@ function ModalCopilotMessage({ message }: CopilotModalMessage) {
     if (!citations || citations.length === 0) return text
 
     let processedText = text
-    
+
     // Replace [1], [2], [3] etc. with clickable citation icons
     processedText = processedText.replace(/\[(\d+)\]/g, (match, num) => {
       const citationIndex = Number.parseInt(num) - 1
