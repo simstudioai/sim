@@ -17,17 +17,17 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
     },
     noteId: {
       type: 'string',
-      required: true,
-      description: 'The ID of the note to read',
+      required: false,
+      description: 'The ID of the note to read (optional)',
     },
   },
   request: {
     url: (params) => {
       const noteId = params.noteId?.trim()
       if (!noteId) {
-        throw new Error('Note ID is required')
+        throw new Error('Note ID is required. Please provide a note ID to read a specific note.')
       }
-      const url = `https://api.wealthbox.com/v1/notes/${noteId}`
+      const url = `https://api.crmworkspace.com/v1/notes/${noteId}`
       return url
     },
     method: 'GET',
@@ -49,9 +49,17 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
         `Wealthbox note API error: ${response.status} ${response.statusText}`,
         errorText
       )
-      throw new Error(
-        `Failed to read Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
-      )
+      
+      // Provide more specific error messages
+      if (response.status === 404) {
+        throw new Error(`Note with ID ${params?.noteId} not found. Please check the note ID and try again.`)
+      } else if (response.status === 403) {
+        throw new Error(`Access denied to note with ID ${params?.noteId}. Please check your permissions.`)
+      } else {
+        throw new Error(
+          `Failed to read Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
+        )
+      }
     }
 
     const data = await response.json()

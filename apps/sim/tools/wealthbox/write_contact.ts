@@ -37,7 +37,7 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
     },
   },
   request: {
-    url: 'https://api.wealthbox.com/v1/contacts',
+    url: 'https://api.crmworkspace.com/v1/contacts',
     method: 'POST',
     headers: (params) => {
       // Validate access token

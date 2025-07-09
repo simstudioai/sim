@@ -128,8 +128,7 @@ export interface WealthboxWriteParams {
   // Task fields
   title?: string
   description?: string
-  dueDay?: string
-  dueTime?: string
+  dueDate?: string
   complete?: boolean
   category?: number
   priority?: 'Low' | 'Medium' | 'High'
