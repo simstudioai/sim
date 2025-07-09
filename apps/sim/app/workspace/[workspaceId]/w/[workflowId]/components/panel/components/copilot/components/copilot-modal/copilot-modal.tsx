@@ -61,6 +61,19 @@ function ModalCopilotMessage({ message }: CopilotModalMessage) {
       return match
     })
 
+    // Also replace standalone ↗ symbols with clickable citation links
+    if (citations && citations.length > 0) {
+      let citationIndex = 0
+      processedText = processedText.replace(/↗/g, () => {
+        if (citationIndex < citations.length) {
+          const citation = citations[citationIndex]
+          citationIndex++
+          return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-primary hover:text-primary/80 text-sm" title="${citation.title}">↗</a>`
+        }
+        return '↗'
+      })
+    }
+
     return processedText
   }
 

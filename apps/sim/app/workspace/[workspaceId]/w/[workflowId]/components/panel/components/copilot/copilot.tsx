@@ -342,6 +342,20 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
         return match
       })
 
+      // Also replace standalone ↗ symbols with clickable citation links
+      // This handles cases where the LLM outputs ↗ directly
+      if (citations && citations.length > 0) {
+        let citationIndex = 0
+        processedContent = processedContent.replace(/↗/g, () => {
+          if (citationIndex < citations.length) {
+            const citation = citations[citationIndex]
+            citationIndex++
+            return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-primary hover:text-primary/80 transition-colors text-sm" title="${citation.title}">↗</a>`
+          }
+          return '↗'
+        })
+      }
+
       // Basic markdown processing for better formatting
       processedContent = processedContent
         // Handle code blocks
