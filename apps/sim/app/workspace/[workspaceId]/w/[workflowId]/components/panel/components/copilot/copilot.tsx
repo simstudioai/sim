@@ -160,7 +160,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
 
       // Process markdown links: [text](url)
       processedContent = processedContent.replace(
-        /\[([^\]]+)\]\(([^\)]+)\)/g,
+        /\[([^\]]+)\]\(([^)]+)\)/g,
         '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-semibold underline transition-colors">$1</a>'
       )
 
