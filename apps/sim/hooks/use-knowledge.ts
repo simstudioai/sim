@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Fuse from 'fuse.js'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 export function useKnowledgeBase(id: string) {
@@ -213,13 +214,23 @@ export function useKnowledgeBasesList() {
 }
 
 /**
- * Hook to manage chunks for a specific document
+ * Hook to manage chunks for a specific document with optional client-side search
  */
-export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
+export function useDocumentChunks(
+  knowledgeBaseId: string,
+  documentId: string,
+  urlPage = 1,
+  urlSearch = '',
+  options: { enableClientSearch?: boolean } = {}
+) {
   const { getChunks, refreshChunks, updateChunk, getCachedChunks, clearChunks, isChunksLoading } =
     useKnowledgeStore()
 
+  const { enableClientSearch = false } = options
+
+  // State for both modes
   const [chunks, setChunks] = useState<ChunkData[]>([])
+  const [allChunks, setAllChunks] = useState<ChunkData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pagination, setPagination] = useState({
@@ -228,17 +239,211 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     offset: 0,
     hasMore: false,
   })
-  const [currentPage, setCurrentPage] = useState(1)
-  const [searchQuery, setSearchQuery] = useState<string>('')
   const [initialLoadDone, setInitialLoadDone] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Client-side search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(urlPage)
+
+  // Handle mounting state
+  useEffect(() => {
+    setIsMounted(true)
+    return () => setIsMounted(false)
+  }, [])
+
+  // Sync with URL page changes
+  useEffect(() => {
+    setCurrentPage(urlPage)
+  }, [urlPage])
 
   const isStoreLoading = isChunksLoading(documentId)
   const combinedIsLoading = isLoading || isStoreLoading
 
+  if (enableClientSearch) {
+    const loadAllChunks = useCallback(async () => {
+      if (!knowledgeBaseId || !documentId || !isMounted) return
+
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const allChunksData: ChunkData[] = []
+        let hasMore = true
+        let offset = 0
+        const limit = 50
+
+        while (hasMore && isMounted) {
+          const response = await fetch(
+            `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks?limit=${limit}&offset=${offset}`
+          )
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch chunks')
+          }
+
+          const result = await response.json()
+
+          if (result.success) {
+            allChunksData.push(...result.data)
+            hasMore = result.pagination.hasMore
+            offset += limit
+          } else {
+            throw new Error(result.error || 'Failed to fetch chunks')
+          }
+        }
+
+        if (isMounted) {
+          setAllChunks(allChunksData)
+          setChunks(allChunksData) // For compatibility
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load chunks')
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }, [knowledgeBaseId, documentId, isMounted])
+
+    // Load chunks on mount
+    useEffect(() => {
+      if (isMounted) {
+        loadAllChunks()
+      }
+    }, [isMounted, loadAllChunks])
+
+    // Client-side filtering with fuzzy search
+    const filteredChunks = useMemo(() => {
+      if (!isMounted || !searchQuery.trim()) return allChunks
+
+      const fuse = new Fuse(allChunks, {
+        keys: ['content'],
+        threshold: 0.3, // Lower = more strict matching
+        includeScore: true,
+        includeMatches: true,
+        minMatchCharLength: 2,
+        ignoreLocation: true,
+      })
+
+      const results = fuse.search(searchQuery)
+      return results.map((result) => result.item)
+    }, [allChunks, searchQuery, isMounted])
+
+    // Client-side pagination
+    const CHUNKS_PER_PAGE = 50
+    const totalPages = Math.max(1, Math.ceil(filteredChunks.length / CHUNKS_PER_PAGE))
+    const hasNextPage = currentPage < totalPages
+    const hasPrevPage = currentPage > 1
+
+    const paginatedChunks = useMemo(() => {
+      const startIndex = (currentPage - 1) * CHUNKS_PER_PAGE
+      const endIndex = startIndex + CHUNKS_PER_PAGE
+      return filteredChunks.slice(startIndex, endIndex)
+    }, [filteredChunks, currentPage])
+
+    // Reset to page 1 when search changes
+    useEffect(() => {
+      if (currentPage > 1) {
+        setCurrentPage(1)
+      }
+    }, [searchQuery])
+
+    // Reset to valid page if current page exceeds total
+    useEffect(() => {
+      if (currentPage > totalPages && totalPages > 0) {
+        setCurrentPage(totalPages)
+      }
+    }, [currentPage, totalPages])
+
+    // Navigation functions
+    const goToPage = useCallback(
+      (page: number) => {
+        if (page >= 1 && page <= totalPages) {
+          setCurrentPage(page)
+        }
+      },
+      [totalPages]
+    )
+
+    const nextPage = useCallback(() => {
+      if (hasNextPage) {
+        setCurrentPage((prev) => prev + 1)
+      }
+    }, [hasNextPage])
+
+    const prevPage = useCallback(() => {
+      if (hasPrevPage) {
+        setCurrentPage((prev) => prev - 1)
+      }
+    }, [hasPrevPage])
+
+    // Operations
+    const refreshChunksData = useCallback(async () => {
+      await loadAllChunks()
+    }, [loadAllChunks])
+
+    const updateChunkLocal = useCallback((chunkId: string, updates: Partial<ChunkData>) => {
+      setAllChunks((prev) =>
+        prev.map((chunk) => (chunk.id === chunkId ? { ...chunk, ...updates } : chunk))
+      )
+      setChunks((prev) =>
+        prev.map((chunk) => (chunk.id === chunkId ? { ...chunk, ...updates } : chunk))
+      )
+    }, [])
+
+    return {
+      // Data - return paginatedChunks as chunks for display
+      chunks: paginatedChunks,
+      allChunks,
+      filteredChunks,
+      paginatedChunks,
+
+      // Search
+      searchQuery,
+      setSearchQuery,
+
+      // Pagination
+      currentPage,
+      totalPages,
+      hasNextPage,
+      hasPrevPage,
+      goToPage,
+      nextPage,
+      prevPage,
+
+      // State
+      isLoading: combinedIsLoading,
+      error,
+      pagination: {
+        total: filteredChunks.length,
+        limit: CHUNKS_PER_PAGE,
+        offset: (currentPage - 1) * CHUNKS_PER_PAGE,
+        hasMore: hasNextPage,
+      },
+
+      // Operations
+      refreshChunks: refreshChunksData,
+      updateChunk: updateChunkLocal,
+      clearChunks: () => clearChunks(documentId),
+
+      // Legacy compatibility
+      searchChunks: async (newSearchQuery: string) => {
+        setSearchQuery(newSearchQuery)
+        return paginatedChunks
+      },
+    }
+  }
+
+  const serverCurrentPage = urlPage
+  const serverSearchQuery = urlSearch
+
   // Computed pagination properties
-  const totalPages = Math.ceil(pagination.total / pagination.limit)
-  const hasNextPage = currentPage < totalPages
-  const hasPrevPage = currentPage > 1
+  const serverTotalPages = Math.ceil(pagination.total / pagination.limit)
+  const serverHasNextPage = serverCurrentPage < serverTotalPages
+  const serverHasPrevPage = serverCurrentPage > 1
 
   // Single effect to handle all data loading and syncing
   useEffect(() => {
@@ -250,10 +455,12 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
       try {
         // Check cache first
         const cached = getCachedChunks(documentId)
+        const expectedOffset = (serverCurrentPage - 1) * 50 // Use hardcoded limit
+
         if (
           cached &&
-          cached.searchQuery === searchQuery &&
-          cached.pagination.offset === (currentPage - 1) * pagination.limit
+          cached.searchQuery === serverSearchQuery &&
+          cached.pagination.offset === expectedOffset
         ) {
           if (isMounted) {
             setChunks(cached.chunks)
@@ -264,30 +471,29 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
           return
         }
 
-        // If not cached and we haven't done initial load, fetch from API
-        if (!initialLoadDone && !isStoreLoading) {
-          setIsLoading(true)
-          setError(null)
+        // Fetch from API
+        setIsLoading(true)
+        setError(null)
 
-          const offset = (currentPage - 1) * pagination.limit
+        const limit = 50
+        const offset = (serverCurrentPage - 1) * limit
 
-          const fetchedChunks = await getChunks(knowledgeBaseId, documentId, {
-            limit: pagination.limit,
-            offset,
-            search: searchQuery || undefined,
-          })
+        const fetchedChunks = await getChunks(knowledgeBaseId, documentId, {
+          limit,
+          offset,
+          search: serverSearchQuery || undefined,
+        })
 
-          if (isMounted) {
-            setChunks(fetchedChunks)
+        if (isMounted) {
+          setChunks(fetchedChunks)
 
-            // Update pagination from cache after fetch
-            const updatedCache = getCachedChunks(documentId)
-            if (updatedCache) {
-              setPagination(updatedCache.pagination)
-            }
-
-            setInitialLoadDone(true)
+          // Update pagination from cache after fetch
+          const updatedCache = getCachedChunks(documentId)
+          if (updatedCache) {
+            setPagination(updatedCache.pagination)
           }
+
+          setInitialLoadDone(true)
         }
       } catch (err) {
         if (isMounted) {
@@ -308,11 +514,10 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
   }, [
     knowledgeBaseId,
     documentId,
-    currentPage,
-    searchQuery,
+    serverCurrentPage,
+    serverSearchQuery,
     isStoreLoading,
     initialLoadDone,
-    pagination.limit,
   ])
 
   // Separate effect to sync with store state changes (no API calls)
@@ -320,10 +525,12 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     if (!documentId || !initialLoadDone) return
 
     const cached = getCachedChunks(documentId)
+    const expectedOffset = (serverCurrentPage - 1) * 50
+
     if (
       cached &&
-      cached.searchQuery === searchQuery &&
-      cached.pagination.offset === (currentPage - 1) * pagination.limit
+      cached.searchQuery === serverSearchQuery &&
+      cached.pagination.offset === expectedOffset
     ) {
       setChunks(cached.chunks)
       setPagination(cached.pagination)
@@ -333,30 +540,22 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     if (!isStoreLoading && isLoading) {
       setIsLoading(false)
     }
-  }, [
-    documentId,
-    isStoreLoading,
-    isLoading,
-    initialLoadDone,
-    searchQuery,
-    currentPage,
-    pagination.limit,
-  ])
+  }, [documentId, isStoreLoading, isLoading, initialLoadDone, serverSearchQuery, serverCurrentPage])
 
   const goToPage = async (page: number) => {
-    if (page < 1 || page > totalPages || page === currentPage) return
+    if (page < 1 || page > serverTotalPages || page === serverCurrentPage) return
 
     try {
       setIsLoading(true)
       setError(null)
-      setCurrentPage(page)
 
-      const offset = (page - 1) * pagination.limit
+      const limit = 50
+      const offset = (page - 1) * limit
 
       const fetchedChunks = await getChunks(knowledgeBaseId, documentId, {
-        limit: pagination.limit,
+        limit,
         offset,
-        search: searchQuery || undefined,
+        search: serverSearchQuery || undefined,
       })
 
       // Update local state from cache
@@ -376,14 +575,14 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
   }
 
   const nextPage = () => {
-    if (hasNextPage) {
-      return goToPage(currentPage + 1)
+    if (serverHasNextPage) {
+      return goToPage(serverCurrentPage + 1)
     }
   }
 
   const prevPage = () => {
-    if (hasPrevPage) {
-      return goToPage(currentPage - 1)
+    if (serverHasPrevPage) {
+      return goToPage(serverCurrentPage - 1)
     }
   }
 
@@ -391,21 +590,18 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     search?: string
     limit?: number
     offset?: number
+    preservePage?: boolean
   }) => {
     try {
       setIsLoading(true)
       setError(null)
 
-      // Update search query if provided and reset to page 1
-      if (options?.search !== undefined) {
-        setSearchQuery(options.search)
-        setCurrentPage(1)
-      }
-
-      const offset = options?.offset ?? (currentPage - 1) * pagination.limit
+      const limit = 50
+      const offset = options?.offset ?? (serverCurrentPage - 1) * limit
 
       const fetchedChunks = await refreshChunks(knowledgeBaseId, documentId, {
-        ...options,
+        search: options?.search,
+        limit,
         offset,
       })
 
@@ -429,13 +625,12 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     try {
       setIsLoading(true)
       setError(null)
-      setSearchQuery(newSearchQuery)
-      setCurrentPage(1) // Reset to first page for new search
 
+      const limit = 50
       const searchResults = await getChunks(knowledgeBaseId, documentId, {
         search: newSearchQuery,
-        limit: pagination.limit,
-        offset: 0, // Reset to first page for new search
+        limit,
+        offset: 0, // Always start from first page for search
       })
 
       // Update local state from cache
@@ -456,13 +651,21 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
 
   return {
     chunks,
+    allChunks: chunks, // In server mode, allChunks is the same as chunks
+    filteredChunks: chunks, // In server mode, filteredChunks is the same as chunks
+    paginatedChunks: chunks, // In server mode, paginatedChunks is the same as chunks
+
+    // Search (not used in server mode but needed for consistency)
+    searchQuery: urlSearch,
+    setSearchQuery: () => {}, // No-op in server mode
+
     isLoading: combinedIsLoading,
     error,
     pagination,
-    currentPage,
-    totalPages,
-    hasNextPage,
-    hasPrevPage,
+    currentPage: serverCurrentPage,
+    totalPages: serverTotalPages,
+    hasNextPage: serverHasNextPage,
+    hasPrevPage: serverHasPrevPage,
     goToPage,
     nextPage,
     prevPage,
