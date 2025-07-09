@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowYamlStore } from '@/stores/workflows/yaml/store'
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let metadata = undefined
+    let metadata
     if (includeMetadata) {
       // Get additional workflow metadata if requested
       const workflowStore = yamlStore as any // Access internal state
@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    logger.info('Successfully generated workflow YAML', { 
-      includeMetadata, 
-      yamlLength: yamlContent.length 
+    logger.info('Successfully generated workflow YAML', {
+      includeMetadata,
+      yamlLength: yamlContent.length,
     })
 
     return NextResponse.json({
@@ -53,4 +53,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

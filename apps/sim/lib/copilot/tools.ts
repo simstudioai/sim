@@ -98,17 +98,17 @@ const getUserWorkflowTool: CopilotTool = {
       // Import the workflow YAML store dynamically to avoid import issues
       const { useWorkflowYamlStore } = await import('@/stores/workflows/yaml/store')
       const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-      
+
       // Get the current workflow YAML
       const yamlContent = useWorkflowYamlStore.getState().getYaml()
-      
+
       // Get additional metadata if requested
       let metadata = {}
       if (includeMetadata) {
         const registry = useWorkflowRegistry.getState()
         const activeWorkflowId = registry.activeWorkflowId
         const activeWorkflow = activeWorkflowId ? registry.workflows[activeWorkflowId] : null
-        
+
         if (activeWorkflow) {
           metadata = {
             workflowId: activeWorkflowId,

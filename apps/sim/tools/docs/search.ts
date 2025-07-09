@@ -32,4 +32,4 @@ export const docsSearchTool: ToolConfig = {
     }),
     isInternalRoute: true,
   },
-} 
+}

@@ -441,7 +441,8 @@ export async function generateChatResponse(
           properties: {
             includeMetadata: {
               type: 'boolean',
-              description: 'Whether to include additional metadata about the workflow (default: false)',
+              description:
+                'Whether to include additional metadata about the workflow (default: false)',
               default: false,
             },
           },

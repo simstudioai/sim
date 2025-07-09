@@ -4,8 +4,8 @@ import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { docsSearchTool } from './docs/search'
 import { tools } from './registry'
-import { getUserWorkflowTool } from './workflow/get-yaml'
 import type { TableRow, ToolConfig, ToolResponse } from './types'
+import { getUserWorkflowTool } from './workflow/get-yaml'
 
 const logger = createLogger('ToolsUtils')
 

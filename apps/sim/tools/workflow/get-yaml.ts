@@ -26,4 +26,4 @@ export const getUserWorkflowTool: ToolConfig = {
     }),
     isInternalRoute: true,
   },
-} 
+}

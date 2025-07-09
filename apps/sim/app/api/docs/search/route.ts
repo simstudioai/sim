@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
+import { type NextRequest, NextResponse } from 'next/server'
 import { searchDocumentation } from '@/lib/copilot/service'
+import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('DocsSearchAPI')
 
@@ -34,4 +34,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}
