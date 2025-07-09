@@ -48,12 +48,17 @@ function ModalCopilotMessage({ message }: CopilotModalMessage) {
     if (!citations || citations.length === 0) return text
 
     let processedText = text
-    citations.forEach((citation) => {
-      const citationRegex = new RegExp(`\\{cite:${citation.id}\\}`, 'g')
-      processedText = processedText.replace(
-        citationRegex,
-        `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-primary hover:text-primary/80 text-sm" title="${citation.title}">↗</a>`
-      )
+    
+    // Replace [1], [2], [3] etc. with clickable citation icons
+    processedText = processedText.replace(/\[(\d+)\]/g, (match, num) => {
+      const citationIndex = Number.parseInt(num) - 1
+      const citation = citations?.[citationIndex]
+
+      if (citation) {
+        return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-primary hover:text-primary/80 text-sm" title="${citation.title}">↗</a>`
+      }
+
+      return match
     })
 
     return processedText

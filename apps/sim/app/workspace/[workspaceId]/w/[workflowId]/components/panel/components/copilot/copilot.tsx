@@ -209,10 +209,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
             let accumulatedContent = ''
             let newChatId: string | undefined
             let responseCitations: Array<{ id: number; title: string; url: string }> = []
+            let streamComplete = false
 
             while (true) {
               const { done, value } = await reader.read()
-              if (done) break
+              if (done || streamComplete) break
 
               const chunk = decoder.decode(value, { stream: true })
               const lines = chunk.split('\n')
@@ -276,6 +277,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                         // Reload chats in background to get the updated list
                         loadChats()
                       }
+                      
+                      // Mark stream as complete to exit outer loop
+                      streamComplete = true
+                      break
                     } else if (data.type === 'error') {
                       throw new Error(data.error || 'Streaming error')
                     }
@@ -325,8 +330,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
 
       let processedContent = content
 
-      // Replace {cite:1}, {cite:2}, etc. with clickable citation icons
-      processedContent = processedContent.replace(/\{cite:(\d+)\}/g, (match, num) => {
+      // Replace [1], [2], [3] etc. with clickable citation icons
+      processedContent = processedContent.replace(/\[(\d+)\]/g, (match, num) => {
         const citationIndex = Number.parseInt(num) - 1
         const citation = citations?.[citationIndex]
 

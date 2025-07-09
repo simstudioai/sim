@@ -78,6 +78,22 @@ function extractCitationsFromResponse(response: any): Array<{
   title: string
   url: string
 }> {
+  // Handle ReadableStream responses
+  if (response instanceof ReadableStream) {
+    return []
+  }
+
+  // Handle string responses
+  if (typeof response === 'string') {
+    return []
+  }
+
+  // Handle object responses
+  if (typeof response !== 'object' || !response) {
+    return []
+  }
+
+  // Check for tool results
   if (!response.toolResults || !Array.isArray(response.toolResults)) {
     return []
   }
@@ -131,39 +147,28 @@ async function generateChatResponse(
 - Troubleshooting issues
 - Best practices
 
-You have access to the Sim Studio documentation through a search tool, but use it SELECTIVELY.
+You have access to the Sim Studio documentation through a search tool. Use it when users ask about Sim Studio features, tools, or functionality.
 
 WHEN TO SEARCH DOCUMENTATION:
-- User asks "How do I create a workflow?"
-- User asks about specific tools or blocks
-- User needs help with Sim Studio features
+- User asks about specific Sim Studio features or tools
+- User needs help with workflows or blocks
 - User has technical questions about the platform
+- User asks "How do I..." questions about Sim Studio
 
-WHEN NOT TO SEARCH DOCUMENTATION:
-- Simple greetings like "hi", "hello", "hey"
-- General conversation like "how are you?"
-- Thank you messages
+WHEN NOT TO SEARCH:
+- Simple greetings or casual conversation
 - General programming questions unrelated to Sim Studio
-- Small talk or casual conversation
+- Thank you messages or small talk
 
-Guidelines:
-- Be conversational and helpful
-- For greetings and casual conversation, respond directly without searching
-- Only use docs_search_internal when the user specifically needs information about Sim Studio features
-- When you do search, synthesize the information and provide clear, actionable answers
-- Be friendly and natural in your responses
+CITATION FORMAT:
+When you reference information from documentation sources, use this format:
+- Use [1], [2], [3] etc. to cite sources
+- Place citations at the end of sentences that reference specific information
+- Each source should only be cited once in your response
+- Continue your full response after adding citations - don't stop mid-answer
 
-CITATION INSTRUCTIONS:
-When you search documentation and reference information from the sources, use inline citations strategically and sparingly:
-- Use citation markers like {cite:1}, {cite:2}, etc. to reference specific sources
-- Cite each source only ONCE at the specific header or topic that relates to that source
-- Place citations directly after the header or concept that the source specifically addresses
-- If multiple sources support the same topic, cite them together like {cite:1}{cite:2}{cite:3}
-- Do NOT repeatedly cite the same source throughout your response
-- Only cite sources that you actually reference in your answer
+IMPORTANT: Always provide complete, helpful responses. If you add citations, continue writing your full answer. Do not stop your response after adding a citation.`
 
-MAKE SURE YOU FULLY ANSWER THE USER'S QUESTION.
-`
   // Define the documentation search tool for the LLM
   const tools = [
     {
@@ -237,7 +242,6 @@ MAKE SURE YOU FULLY ANSWER THE USER'S QUESTION.
       })
 
       // Store citations for later use in the main streaming handler
-
       ;(streamResponse as any)._citations = responseCitations
 
       return streamResponse
@@ -426,22 +430,12 @@ export async function POST(req: NextRequest) {
       }
 
       // Extract citations from response if available
-      const citations =
-        typeof response === 'object' && 'citations' in response
-          ? response.citations
-          : typeof response === 'object' && 'toolResults' in response
-            ? extractCitationsFromResponse(response)
-            : []
+      const citations = extractCitationsFromResponse(response)
 
       const assistantMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content:
-          typeof response === 'string'
-            ? response
-            : 'content' in response
-              ? response.content
-              : '[Error generating response]',
+        content: typeof response === 'string' ? response : (typeof response === 'object' && 'content' in response ? response.content : '[Error generating response]') || '[Error generating response]',
         timestamp: new Date().toISOString(),
         citations: citations.length > 0 ? citations : undefined,
       }
@@ -470,13 +464,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      response:
-        typeof response === 'string'
-          ? response
-          : 'content' in response
-            ? response.content
-            : '[Error generating response]',
+      response: typeof response === 'string' ? response : (typeof response === 'object' && 'content' in response ? response.content : '[Error generating response]') || '[Error generating response]',
       chatId: currentChat?.id,
+      citations: extractCitationsFromResponse(response),
       metadata: {
         requestId,
         message,
