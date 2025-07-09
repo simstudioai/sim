@@ -690,7 +690,7 @@ export async function deleteChat(chatId: string, userId: string): Promise<boolea
  * Send a message and get a response
  */
 export async function sendMessage(request: SendMessageRequest): Promise<{
-  response: string | ReadableStream
+  response: string | ReadableStream | any
   chatId?: string
   citations?: Array<{ id: number; title: string; url: string; similarity?: number }>
 }> {
@@ -718,6 +718,41 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
       workflowId,
     })
 
+    // Extract citations from StreamingExecution if available
+    let citations: Array<{ id: number; title: string; url: string; similarity?: number }> = []
+    
+    if (typeof response === 'object' && response && 'execution' in response) {
+      // This is a StreamingExecution - extract citations from tool calls
+      const execution = (response as any).execution
+      logger.info('Extracting citations from StreamingExecution', {
+        hasExecution: !!execution,
+        hasToolResults: !!execution?.toolResults,
+        toolResultsLength: execution?.toolResults?.length || 0,
+      })
+      
+      if (execution?.toolResults) {
+        for (const toolResult of execution.toolResults) {
+          logger.info('Processing tool result for citations', {
+            hasResult: !!toolResult,
+            resultKeys: toolResult && typeof toolResult === 'object' ? Object.keys(toolResult) : [],
+            hasResultsArray: !!(toolResult && typeof toolResult === 'object' && toolResult.results),
+          })
+          
+          if (toolResult && typeof toolResult === 'object' && toolResult.results) {
+            // Convert documentation search results to citations
+            citations = toolResult.results.map((result: any, index: number) => ({
+              id: index + 1,
+              title: result.title || 'Documentation',
+              url: result.url || '#',
+              similarity: result.similarity,
+            }))
+            logger.info(`Extracted ${citations.length} citations from tool results`)
+            break // Use first set of results found
+          }
+        }
+      }
+    }
+
     // If we have a chat, update it with the new messages
     if (currentChat) {
       const userMessage: CopilotMessage = {
@@ -732,6 +767,7 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
         role: 'assistant',
         content: typeof response === 'string' ? response : '[Streaming Response]',
         timestamp: new Date().toISOString(),
+        citations: citations.length > 0 ? citations : undefined,
       }
 
       const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
@@ -751,7 +787,7 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
     return {
       response,
       chatId: currentChat?.id,
-      citations: [], // Will be populated when RAG is implemented
+      citations,
     }
   } catch (error) {
     logger.error('Failed to send message:', error)

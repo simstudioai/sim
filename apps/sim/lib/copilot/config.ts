@@ -80,8 +80,8 @@ IMPORTANT: Always provide complete, helpful responses. If you add citations, con
     temperature: 0.1,
     maxTokens: 2000,
     embeddingModel: 'text-embedding-3-small',
-    maxSources: 5,
-    similarityThreshold: 0.5,
+    maxSources: 10,
+    similarityThreshold: 0.3,
   },
   general: {
     streamingEnabled: true,
