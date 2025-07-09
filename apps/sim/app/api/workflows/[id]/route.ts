@@ -110,14 +110,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         parallelsCount: Object.keys(normalizedData.parallels).length,
         loops: normalizedData.loops,
       })
-      
+
       // Debug: Log sample block data from normalized tables
       const sampleBlockId = Object.keys(normalizedData.blocks)[0]
       if (sampleBlockId) {
         logger.debug(`[${requestId}] Sample block from normalized tables:`, {
           blockId: sampleBlockId,
           block: normalizedData.blocks[sampleBlockId],
-          subBlocks: normalizedData.blocks[sampleBlockId]?.subBlocks
+          subBlocks: normalizedData.blocks[sampleBlockId]?.subBlocks,
         })
       }
       // Use normalized table data - reconstruct complete state object

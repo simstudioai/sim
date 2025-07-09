@@ -117,22 +117,26 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
       // Import the YAML into the new workflow BEFORE navigation (creates complete state and saves directly to DB)
       // This avoids timing issues with workflow reload during navigation
       logger.info('Importing YAML into new workflow before navigation')
-      const result = await importWorkflowFromYaml(yamlContent, {
-        addBlock: collaborativeAddBlock,
-        addEdge: collaborativeAddEdge,
-        applyAutoLayout: () => {
-          // Trigger auto layout
-          window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
+      const result = await importWorkflowFromYaml(
+        yamlContent,
+        {
+          addBlock: collaborativeAddBlock,
+          addEdge: collaborativeAddEdge,
+          applyAutoLayout: () => {
+            // Trigger auto layout
+            window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
+          },
+          setSubBlockValue: (blockId: string, subBlockId: string, value: any) => {
+            // Use the collaborative function - the same one called when users type into fields
+            collaborativeSetSubblockValue(blockId, subBlockId, value)
+          },
+          getExistingBlocks: () => {
+            // For a new workflow, we'll get the starter block from the server
+            return {}
+          },
         },
-        setSubBlockValue: (blockId: string, subBlockId: string, value: any) => {
-          // Use the collaborative function - the same one called when users type into fields
-          collaborativeSetSubblockValue(blockId, subBlockId, value)
-        },
-        getExistingBlocks: () => {
-          // For a new workflow, we'll get the starter block from the server
-          return {}
-        },
-      }, newWorkflowId) // Pass the new workflow ID to import into
+        newWorkflowId
+      ) // Pass the new workflow ID to import into
 
       // Navigate to the new workflow AFTER import is complete
       if (result.success) {

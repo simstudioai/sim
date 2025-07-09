@@ -378,7 +378,7 @@ export async function importWorkflowFromYaml(
 
     // Get the existing workflow state (to preserve starter blocks if they exist)
     let existingBlocks: Record<string, any> = {}
-    
+
     if (targetWorkflowId) {
       // For target workflow, fetch from API
       try {
@@ -386,7 +386,10 @@ export async function importWorkflowFromYaml(
         if (response.ok) {
           const workflowData = await response.json()
           existingBlocks = workflowData.data?.state?.blocks || {}
-          logger.debug(`Fetched existing blocks for target workflow ${targetWorkflowId}:`, Object.keys(existingBlocks))
+          logger.debug(
+            `Fetched existing blocks for target workflow ${targetWorkflowId}:`,
+            Object.keys(existingBlocks)
+          )
         }
       } catch (error) {
         logger.warn(`Failed to fetch existing blocks for workflow ${targetWorkflowId}:`, error)
@@ -395,7 +398,7 @@ export async function importWorkflowFromYaml(
       // For active workflow, use from store
       existingBlocks = workflowActions.getExistingBlocks()
     }
-    
+
     const existingStarterBlocks = Object.values(existingBlocks).filter(
       (block: any) => block.type === 'starter'
     )
@@ -413,8 +416,10 @@ export async function importWorkflowFromYaml(
     if (!activeWorkflowId) {
       return { success: false, errors: ['No active workflow'], warnings: [] }
     }
-    
-    logger.info(`Importing YAML into workflow: ${activeWorkflowId} ${targetWorkflowId ? '(specified target)' : '(active workflow)'}`)
+
+    logger.info(
+      `Importing YAML into workflow: ${activeWorkflowId} ${targetWorkflowId ? '(specified target)' : '(active workflow)'}`
+    )
 
     // Build complete blocks object
     const completeBlocks: Record<string, any> = {}
@@ -615,11 +620,11 @@ export async function importWorkflowFromYaml(
     // Save directly to database via API
     logger.info('Saving complete workflow state directly to database...')
     logger.debug('Sample block being saved:', {
-      firstBlockId: Object.keys(completeBlocks)[0], 
+      firstBlockId: Object.keys(completeBlocks)[0],
       firstBlock: Object.values(completeBlocks)[0],
-      firstBlockSubBlocks: Object.values(completeBlocks)[0]?.subBlocks
+      firstBlockSubBlocks: Object.values(completeBlocks)[0]?.subBlocks,
     })
-    
+
     const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
       method: 'PUT',
       headers: {
@@ -654,7 +659,7 @@ export async function importWorkflowFromYaml(
           [activeWorkflowId]: completeSubBlockValues,
         },
       }))
-      
+
       // Verify SubBlockStore was updated
       const subBlockStoreValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
       logger.debug('SubBlockStore after update:', subBlockStoreValues)

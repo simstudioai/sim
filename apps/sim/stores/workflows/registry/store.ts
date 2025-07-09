@@ -475,7 +475,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           })
 
           // Debug: Log what values are being extracted from the database
-          logger.debug(`Extracted subblock values from database for workflow ${id}:`, subblockValues)
+          logger.debug(
+            `Extracted subblock values from database for workflow ${id}:`,
+            subblockValues
+          )
 
           // Update subblock store for this workflow
           useSubBlockStore.setState((state) => ({
@@ -484,7 +487,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               [id]: subblockValues,
             },
           }))
-          
+
           // Debug: Verify SubBlockStore was updated
           const updatedValues = useSubBlockStore.getState().workflowValues[id]
           logger.debug(`SubBlockStore updated for workflow ${id}:`, updatedValues)

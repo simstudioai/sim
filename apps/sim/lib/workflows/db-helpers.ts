@@ -69,12 +69,12 @@ export async function loadWorkflowFromNormalizedTables(
         parentId,
         extent,
       }
-      
+
       // Debug: Log sample block subBlocks from database
       if (block.type === 'agent') {
         logger.debug(`Loaded ${block.type} block from database:`, {
           blockId: block.id,
-          subBlocks: block.subBlocks
+          subBlocks: block.subBlocks,
         })
       }
     })
@@ -175,7 +175,7 @@ export async function saveWorkflowToNormalizedTables(
           logger.debug(`Saving ${blockInserts.length} blocks. Sample block:`, {
             blockId: blockInserts[0].id,
             type: blockInserts[0].type,
-            subBlocks: blockInserts[0].subBlocks
+            subBlocks: blockInserts[0].subBlocks,
           })
         }
 
