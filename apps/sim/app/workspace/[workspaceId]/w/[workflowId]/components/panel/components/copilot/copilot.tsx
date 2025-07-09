@@ -208,7 +208,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
             const decoder = new TextDecoder()
             let accumulatedContent = ''
             let newChatId: string | undefined
-            let responseCitations: Array<{id: number, title: string, url: string}> = []
+            let responseCitations: Array<{ id: number; title: string; url: string }> = []
 
             while (true) {
               const { done, value } = await reader.read()
@@ -241,7 +241,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                             ? {
                                 ...msg,
                                 content: accumulatedContent,
-                                citations: responseCitations.length > 0 ? responseCitations : undefined,
+                                citations:
+                                  responseCitations.length > 0 ? responseCitations : undefined,
                               }
                             : msg
                         )
@@ -254,12 +255,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                             ? {
                                 ...msg,
                                 content: accumulatedContent,
-                                citations: responseCitations.length > 0 ? responseCitations : undefined,
+                                citations:
+                                  responseCitations.length > 0 ? responseCitations : undefined,
                               }
                             : msg
                         )
                       )
-                      
+
                       // Update current chat state with the chatId from response
                       if (newChatId && !currentChat) {
                         // For new chats, create a temporary chat object and reload the full chat list

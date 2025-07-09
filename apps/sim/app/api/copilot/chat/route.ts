@@ -1,14 +1,13 @@
-import { eq, and } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getRotatingApiKey } from '@/lib/utils'
-import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import type { Message } from '@/providers/types'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('CopilotChat')
 
@@ -34,10 +33,11 @@ const CopilotChatSchema = z.object({
 async function generateChatTitle(userMessage: string): Promise<string> {
   try {
     const apiKey = getRotatingApiKey('anthropic')
-    
+
     const response = await executeProviderRequest('anthropic', {
       model: 'claude-3-haiku-20240307',
-      systemPrompt: 'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
+      systemPrompt:
+        'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
       context: `Generate a concise title for a conversation that starts with this user message: "${userMessage}"
 
 Return only the title text, nothing else.`,
@@ -57,8 +57,6 @@ Return only the title text, nothing else.`,
     return 'New Chat'
   }
 }
-
-
 
 /**
  * Generate chat response with tool calling support
@@ -84,8 +82,8 @@ function extractCitationsFromResponse(response: any): Array<{
     return []
   }
 
-  const docsSearchResult = response.toolResults.find((result: any) => 
-    result.sources && Array.isArray(result.sources)
+  const docsSearchResult = response.toolResults.find(
+    (result: any) => result.sources && Array.isArray(result.sources)
   )
 
   if (!docsSearchResult || !docsSearchResult.sources) {
@@ -109,15 +107,16 @@ async function generateChatResponse(
 
   // Build conversation context
   const messages: Message[] = []
-  
+
   // Add conversation history
-  for (const msg of conversationHistory.slice(-10)) { // Keep last 10 messages
+  for (const msg of conversationHistory.slice(-10)) {
+    // Keep last 10 messages
     messages.push({
       role: msg.role as 'user' | 'assistant' | 'system',
       content: msg.content,
     })
   }
-  
+
   // Add current user message
   messages.push({
     role: 'user',
@@ -170,7 +169,8 @@ MAKE SURE YOU FULLY ANSWER THE USER'S QUESTION.
     {
       id: 'docs_search_internal',
       name: 'Search Documentation',
-      description: 'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
+      description:
+        'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
       params: {},
       parameters: {
         type: 'object',
@@ -204,43 +204,42 @@ MAKE SURE YOU FULLY ANSWER THE USER'S QUESTION.
       stream: false, // Always start with non-streaming to handle tool calls
     })
 
-
-
-    // If this is a streaming request and we got a regular response, 
+    // If this is a streaming request and we got a regular response,
     // we need to create a streaming response from the content
     if (stream && typeof response === 'object' && 'content' in response) {
       const content = response.content || 'Sorry, I could not generate a response.'
-      
+
       // Extract citations from the provider response for later use
       const responseCitations = extractCitationsFromResponse(response)
-      
+
       // Create a ReadableStream that emits the content in character chunks
       const streamResponse = new ReadableStream({
         start(controller) {
           // Use character-based streaming for more reliable transmission
           const chunkSize = 8 // Stream 8 characters at a time for smooth experience
           let index = 0
-          
+
           const pushNext = () => {
             if (index < content.length) {
               const chunk = content.slice(index, index + chunkSize)
               controller.enqueue(new TextEncoder().encode(chunk))
               index += chunkSize
-              
+
               // Add a small delay to simulate streaming
               setTimeout(pushNext, 25)
             } else {
               controller.close()
             }
           }
-          
+
           pushNext()
-        }
+        },
       })
-      
+
       // Store citations for later use in the main streaming handler
+
       ;(streamResponse as any)._citations = responseCitations
-      
+
       return streamResponse
     }
 
@@ -252,7 +251,9 @@ MAKE SURE YOU FULLY ANSWER THE USER'S QUESTION.
     return 'Sorry, I could not generate a response.'
   } catch (error) {
     logger.error('Failed to generate chat response:', error)
-    throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `Failed to generate response: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 }
 
@@ -268,7 +269,7 @@ export async function POST(req: NextRequest) {
     const { message, chatId, workflowId, createNewChat, stream } = CopilotChatSchema.parse(body)
 
     const session = await getSession()
-    
+
     logger.info(`[${requestId}] Copilot chat message: "${message}"`, {
       chatId,
       workflowId,
@@ -285,12 +286,7 @@ export async function POST(req: NextRequest) {
       const [existingChat] = await db
         .select()
         .from(copilotChats)
-        .where(
-          and(
-            eq(copilotChats.id, chatId),
-            eq(copilotChats.userId, session.user.id)
-          )
-        )
+        .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
         .limit(1)
 
       if (existingChat) {
@@ -326,11 +322,11 @@ export async function POST(req: NextRequest) {
       const encoder = new TextEncoder()
       // Extract citations from the stream object if available
       const citations = (response as any)._citations || []
-      
-              return new Response(
-          new ReadableStream({
-            async start(controller) {
-              const reader = response.getReader()
+
+      return new Response(
+        new ReadableStream({
+          async start(controller) {
+            const reader = response.getReader()
             let accumulatedResponse = ''
 
             // Send initial metadata
@@ -352,7 +348,7 @@ export async function POST(req: NextRequest) {
 
                 const chunkText = new TextDecoder().decode(value)
                 accumulatedResponse += chunkText
-                
+
                 const contentChunk = {
                   type: 'content',
                   content: chunkText,
@@ -430,14 +426,22 @@ export async function POST(req: NextRequest) {
       }
 
       // Extract citations from response if available
-      const citations = typeof response === 'object' && 'citations' in response ? response.citations : 
-                       typeof response === 'object' && 'toolResults' in response ? extractCitationsFromResponse(response) : []
+      const citations =
+        typeof response === 'object' && 'citations' in response
+          ? response.citations
+          : typeof response === 'object' && 'toolResults' in response
+            ? extractCitationsFromResponse(response)
+            : []
 
       const assistantMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: typeof response === 'string' ? response : 
-                'content' in response ? response.content : '[Error generating response]',
+        content:
+          typeof response === 'string'
+            ? response
+            : 'content' in response
+              ? response.content
+              : '[Error generating response]',
         timestamp: new Date().toISOString(),
         citations: citations.length > 0 ? citations : undefined,
       }
@@ -466,8 +470,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-              response: typeof response === 'string' ? response : 
-                 'content' in response ? response.content : '[Error generating response]',
+      response:
+        typeof response === 'string'
+          ? response
+          : 'content' in response
+            ? response.content
+            : '[Error generating response]',
       chatId: currentChat?.id,
       metadata: {
         requestId,
@@ -485,4 +493,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Copilot chat error:`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

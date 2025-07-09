@@ -68,6 +68,8 @@ export const docsSearchTool: ToolConfig<DocsSearchParams, DocsSearchResponse> = 
   },
 
   transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while searching documentation'
+    return error instanceof Error
+      ? error.message
+      : 'An error occurred while searching documentation'
   },
-} 
+}

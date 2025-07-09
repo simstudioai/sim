@@ -93,10 +93,18 @@ export async function POST(req: NextRequest) {
     // Step 3: Format the response with context and sources
     const context = chunks
       .map((chunk, index) => {
-        const headerText = typeof chunk.headerText === 'string' ? chunk.headerText : String(chunk.headerText || 'Untitled Section')
-        const sourceDocument = typeof chunk.sourceDocument === 'string' ? chunk.sourceDocument : String(chunk.sourceDocument || 'Unknown Document')
-        const sourceLink = typeof chunk.sourceLink === 'string' ? chunk.sourceLink : String(chunk.sourceLink || '#')
-        const chunkText = typeof chunk.chunkText === 'string' ? chunk.chunkText : String(chunk.chunkText || '')
+        const headerText =
+          typeof chunk.headerText === 'string'
+            ? chunk.headerText
+            : String(chunk.headerText || 'Untitled Section')
+        const sourceDocument =
+          typeof chunk.sourceDocument === 'string'
+            ? chunk.sourceDocument
+            : String(chunk.sourceDocument || 'Unknown Document')
+        const sourceLink =
+          typeof chunk.sourceLink === 'string' ? chunk.sourceLink : String(chunk.sourceLink || '#')
+        const chunkText =
+          typeof chunk.chunkText === 'string' ? chunk.chunkText : String(chunk.chunkText || '')
 
         return `[${index + 1}] ${headerText}
 Document: ${sourceDocument}
@@ -138,4 +146,4 @@ Content: ${chunkText}`
     logger.error(`[${requestId}] Docs search error:`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}
