@@ -41,8 +41,13 @@ function extractBlockInputs(
     if (blockState.data) {
       Object.entries(blockState.data).forEach(([key, value]) => {
         // Include relevant configuration properties
-        if (key === 'count' || key === 'loopType' || key === 'collection' || 
-            key === 'parallelType' || key === 'distribution') {
+        if (
+          key === 'count' ||
+          key === 'loopType' ||
+          key === 'collection' ||
+          key === 'parallelType' ||
+          key === 'distribution'
+        ) {
           if (value !== undefined && value !== null && value !== '') {
             inputs[key] = value
           }
@@ -54,14 +59,14 @@ function extractBlockInputs(
         }
       })
     }
-    
+
     // Include any additional values from subBlockValues that might not be in data
     Object.entries(blockSubBlockValues).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '' && !inputs.hasOwnProperty(key)) {
+      if (value !== undefined && value !== null && value !== '' && !Object.hasOwn(inputs, key)) {
         inputs[key] = value
       }
     })
-    
+
     return inputs
   }
 

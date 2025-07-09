@@ -266,17 +266,17 @@ function sortBlocksByParentChildOrder(blocks: ImportedBlock[]): ImportedBlock[] 
   const sorted: ImportedBlock[] = []
   const processed = new Set<string>()
   const visiting = new Set<string>() // Track blocks currently being processed to detect cycles
-  
+
   // Create a map for quick lookup
   const blockMap = new Map<string, ImportedBlock>()
-  blocks.forEach(block => blockMap.set(block.id, block))
-  
+  blocks.forEach((block) => blockMap.set(block.id, block))
+
   // Process blocks recursively, ensuring parents are added first
   function processBlock(block: ImportedBlock) {
     if (processed.has(block.id)) {
       return // Already processed
     }
-    
+
     if (visiting.has(block.id)) {
       // Circular dependency detected - break the cycle by processing this block without its parent
       logger.warn(`Circular parent-child dependency detected for block ${block.id}, breaking cycle`)
@@ -284,9 +284,9 @@ function sortBlocksByParentChildOrder(blocks: ImportedBlock[]): ImportedBlock[] 
       processed.add(block.id)
       return
     }
-    
+
     visiting.add(block.id)
-    
+
     // If this block has a parent, ensure the parent is processed first
     if (block.parentId) {
       const parentBlock = blockMap.get(block.parentId)
@@ -294,16 +294,16 @@ function sortBlocksByParentChildOrder(blocks: ImportedBlock[]): ImportedBlock[] 
         processBlock(parentBlock)
       }
     }
-    
+
     // Now process this block
     visiting.delete(block.id)
     sorted.push(block)
     processed.add(block.id)
   }
-  
+
   // Process all blocks
-  blocks.forEach(block => processBlock(block))
-  
+  blocks.forEach((block) => processBlock(block))
+
   return sorted
 }
 
@@ -623,8 +623,8 @@ export async function importWorkflowFromYaml(
         } else {
           logger.warn(`Parent block not found for mapping: ${blockData.data.parentId}`)
           // Remove invalid parent reference
-          delete blockData.data.parentId
-          delete blockData.data.extent
+          blockData.data.parentId = undefined
+          blockData.data.extent = undefined
         }
       }
     }
