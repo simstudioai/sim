@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       const memberRecord = await db
         .select({ role: member.role })
         .from(member)
-        .where(and(eq(member.organizationId, contextId), eq(member.userId, session.user.id)))
+        .where(and(eq(member.organizationId, contextId!), eq(member.userId, session.user.id)))
         .limit(1)
 
       if (memberRecord.length === 0) {
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Get organization-specific billing
-      const rawBillingData = await getOrganizationBillingData(contextId)
+      const rawBillingData = await getOrganizationBillingData(contextId!)
 
       if (!rawBillingData) {
         return NextResponse.json(
