@@ -365,6 +365,13 @@
       "when": 1752019053066,
       "tag": "0052_fluffy_shinobi_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1752093722331,
+      "tag": "0053_gigantic_gabe_jones",
+      "breakpoints": true
     }
   ]
 }
