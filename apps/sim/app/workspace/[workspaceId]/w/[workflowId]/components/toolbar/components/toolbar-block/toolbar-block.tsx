@@ -71,7 +71,7 @@ export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
         <TooltipTrigger asChild>{blockContent}</TooltipTrigger>
         <TooltipContent>
           {userPermissions.isOfflineMode
-            ? 'Connection lost - Please Refresh'
+            ? 'Connection lost - please refresh'
             : 'Edit permissions required to add blocks'}
         </TooltipContent>
       </Tooltip>

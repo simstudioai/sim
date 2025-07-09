@@ -655,7 +655,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 <TooltipContent side='top'>
                   {!userPermissions.canEdit
                     ? userPermissions.isOfflineMode
-                      ? 'Connection lost - Please Refresh'
+                      ? 'Connection lost - please refresh'
                       : 'Read-only mode'
                     : blockAdvancedMode
                       ? 'Switch to Basic Mode'
@@ -753,7 +753,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <TooltipContent side='top'>
                 {!userPermissions.canEdit
                   ? userPermissions.isOfflineMode
-                    ? 'Connection lost - Please Refresh'
+                    ? 'Connection lost - please refresh'
                     : 'Read-only mode'
                   : isWide
                     ? 'Narrow Block'

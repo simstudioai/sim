@@ -32,7 +32,7 @@ export function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
         </div>
         <div className='flex flex-col'>
           <span className='font-medium text-xs leading-tight'>
-            {isConnected ? 'Reconnected' : 'Connection lost - Please Refresh'}
+            {isConnected ? 'Reconnected' : 'Connection lost - please refresh'}
           </span>
           <span className='text-red-600 text-xs leading-tight'>
             {isConnected ? 'Refresh to continue editing' : 'Read-only mode active'}

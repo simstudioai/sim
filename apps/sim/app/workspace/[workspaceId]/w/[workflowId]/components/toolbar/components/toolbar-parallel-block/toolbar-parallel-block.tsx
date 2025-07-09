@@ -79,7 +79,7 @@ export default function ParallelToolbarItem({ disabled = false }: ParallelToolba
         <TooltipTrigger asChild>{blockContent}</TooltipTrigger>
         <TooltipContent>
           {userPermissions.isOfflineMode
-            ? 'Connection lost - Please Refresh'
+            ? 'Connection lost - please refresh'
             : 'Edit permissions required to add blocks'}
         </TooltipContent>
       </Tooltip>

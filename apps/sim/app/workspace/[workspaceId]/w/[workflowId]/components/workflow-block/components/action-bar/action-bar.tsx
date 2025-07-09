@@ -29,7 +29,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
 
   const getTooltipMessage = (defaultMessage: string) => {
     if (disabled) {
-      return userPermissions.isOfflineMode ? 'Connection lost - Please Refresh' : 'Read-only mode'
+      return userPermissions.isOfflineMode ? 'Connection lost - please refresh' : 'Read-only mode'
     }
     return defaultMessage
   }
