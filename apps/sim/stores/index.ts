@@ -228,7 +228,7 @@ export const resetAllStores = () => {
   })
   useExecutionStore.getState().reset()
   useConsoleStore.setState({ entries: [], isOpen: false })
-  useCopilotStore.setState({ messages: [], isProcessing: false, error: null })
+  useCopilotStore.setState({ messages: [], isSendingMessage: false, error: null })
   useCustomToolsStore.setState({ tools: {} })
   useVariablesStore.getState().resetLoaded() // Reset variables store tracking
 }

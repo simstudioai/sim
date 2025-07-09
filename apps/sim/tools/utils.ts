@@ -2,10 +2,18 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { docsSearchTool } from './docs/search'
 import { tools } from './registry'
 import type { TableRow, ToolConfig, ToolResponse } from './types'
+import { getUserWorkflowTool } from './workflow/get-yaml'
 
 const logger = createLogger('ToolsUtils')
+
+// Internal-only tools (not exposed to users in workflows)
+const internalTools: Record<string, ToolConfig> = {
+  docs_search_internal: docsSearchTool,
+  get_user_workflow: getUserWorkflowTool,
+}
 
 /**
  * Transforms a table from the store format to a key-value object
@@ -269,6 +277,10 @@ export function createCustomToolRequestBody(
 
 // Get a tool by its ID
 export function getTool(toolId: string): ToolConfig | undefined {
+  // Check for internal tools first
+  const internalTool = internalTools[toolId]
+  if (internalTool) return internalTool
+
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
@@ -302,6 +314,10 @@ export async function getToolAsync(
   toolId: string,
   workflowId?: string
 ): Promise<ToolConfig | undefined> {
+  // Check for internal tools first
+  const internalTool = internalTools[toolId]
+  if (internalTool) return internalTool
+
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
