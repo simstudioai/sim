@@ -153,6 +153,14 @@ const CreateDocumentSchema = z.object({
   fileUrl: z.string().url('File URL must be valid'),
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
+  // Document tags for filtering
+  tag1: z.string().optional(),
+  tag2: z.string().optional(),
+  tag3: z.string().optional(),
+  tag4: z.string().optional(),
+  tag5: z.string().optional(),
+  tag6: z.string().optional(),
+  tag7: z.string().optional(),
 })
 
 const BulkCreateDocumentsSchema = z.object({
@@ -229,6 +237,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         processingError: document.processingError,
         enabled: document.enabled,
         uploadedAt: document.uploadedAt,
+        // Include tags in response
+        tag1: document.tag1,
+        tag2: document.tag2,
+        tag3: document.tag3,
+        tag4: document.tag4,
+        tag5: document.tag5,
+        tag6: document.tag6,
+        tag7: document.tag7,
       })
       .from(document)
       .where(and(...whereConditions))
@@ -298,6 +314,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               processingStatus: 'pending' as const,
               enabled: true,
               uploadedAt: now,
+              // Include tags from upload
+              tag1: docData.tag1 || null,
+              tag2: docData.tag2 || null,
+              tag3: docData.tag3 || null,
+              tag4: docData.tag4 || null,
+              tag5: docData.tag5 || null,
+              tag6: docData.tag6 || null,
+              tag7: docData.tag7 || null,
             }
 
             await tx.insert(document).values(newDocument)
@@ -372,6 +396,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           characterCount: 0,
           enabled: true,
           uploadedAt: now,
+          // Include tags from upload
+          tag1: validatedData.tag1 || null,
+          tag2: validatedData.tag2 || null,
+          tag3: validatedData.tag3 || null,
+          tag4: validatedData.tag4 || null,
+          tag5: validatedData.tag5 || null,
+          tag6: validatedData.tag6 || null,
+          tag7: validatedData.tag7 || null,
         }
 
         await db.insert(document).values(newDocument)
