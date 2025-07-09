@@ -51,11 +51,8 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
 
   // Stores and hooks
   const { createWorkflow } = useWorkflowRegistry()
-  const { 
-    collaborativeAddBlock, 
-    collaborativeAddEdge, 
-    collaborativeSetSubblockValue
-  } = useCollaborativeWorkflow()
+  const { collaborativeAddBlock, collaborativeAddEdge, collaborativeSetSubblockValue } =
+    useCollaborativeWorkflow()
   const subBlockStore = useSubBlockStore()
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

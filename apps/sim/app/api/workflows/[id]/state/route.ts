@@ -87,7 +87,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Save to normalized tables
     logger.info(`[${requestId}] Saving workflow ${workflowId} state to normalized tables`)
-    
+
     // Ensure all required fields are present for WorkflowState type
     const workflowState = {
       blocks: state.blocks,
@@ -101,7 +101,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       hasActiveSchedule: state.hasActiveSchedule || false,
       hasActiveWebhook: state.hasActiveWebhook || false,
     }
-    
+
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
 
     if (!saveResult.success) {
@@ -115,22 +115,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Update workflow's lastSynced timestamp
     await db
       .update(workflow)
-      .set({ 
+      .set({
         lastSynced: new Date(),
         updatedAt: new Date(),
-        state: saveResult.jsonBlob // Also update JSON blob for backward compatibility
+        state: saveResult.jsonBlob, // Also update JSON blob for backward compatibility
       })
       .where(eq(workflow.id, workflowId))
 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
 
-    return NextResponse.json({ 
-      success: true, 
-      blocksCount: Object.keys(state.blocks).length,
-      edgesCount: state.edges.length 
-    }, { status: 200 })
-
+    return NextResponse.json(
+      {
+        success: true,
+        blocksCount: Object.keys(state.blocks).length,
+        edgesCount: state.edges.length,
+      },
+      { status: 200 }
+    )
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     if (error instanceof z.ZodError) {
@@ -143,7 +145,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    logger.error(`[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`, error)
+    logger.error(
+      `[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`,
+      error
+    )
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

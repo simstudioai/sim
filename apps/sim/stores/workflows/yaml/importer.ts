@@ -367,8 +367,13 @@ export async function importWorkflowFromYaml(
       return { success: false, errors, warnings }
     }
 
-    logger.info(`Creating complete workflow state with ${blocks.length} blocks and ${edges.length} edges`)
-    logger.debug('Blocks to import:', blocks.map(b => `${b.id} (${b.type}): ${b.name}`))
+    logger.info(
+      `Creating complete workflow state with ${blocks.length} blocks and ${edges.length} edges`
+    )
+    logger.debug(
+      'Blocks to import:',
+      blocks.map((b) => `${b.id} (${b.type}): ${b.name}`)
+    )
 
     // Get the existing workflow state (to preserve starter blocks if they exist)
     const existingBlocks = workflowActions.getExistingBlocks()
@@ -397,39 +402,40 @@ export async function importWorkflowFromYaml(
 
     // Handle starter block
     let starterBlockId: string | null = null
-    const starterBlock = blocks.find(block => block.type === 'starter')
-    
+    const starterBlock = blocks.find((block) => block.type === 'starter')
+
     if (starterBlock) {
       if (existingStarterBlocks.length > 0) {
         // Use existing starter block
         const existingStarter = existingStarterBlocks[0] as any
         starterBlockId = existingStarter.id
         yamlIdToActualId.set(starterBlock.id, existingStarter.id)
-        
+
         // Keep existing starter but update its inputs
         completeBlocks[existingStarter.id] = {
           ...existingStarter,
           // Update name if provided in YAML
           name: starterBlock.name !== 'Start' ? starterBlock.name : existingStarter.name,
         }
-        
+
         // Set starter block values
         completeSubBlockValues[existingStarter.id] = {
-          ...currentWorkflowState.blocks[existingStarter.id]?.subBlocks ? 
-            Object.fromEntries(
-              Object.entries(currentWorkflowState.blocks[existingStarter.id].subBlocks).map(
-                ([key, subBlock]: [string, any]) => [key, subBlock.value]
+          ...(currentWorkflowState.blocks[existingStarter.id]?.subBlocks
+            ? Object.fromEntries(
+                Object.entries(currentWorkflowState.blocks[existingStarter.id].subBlocks).map(
+                  ([key, subBlock]: [string, any]) => [key, subBlock.value]
+                )
               )
-            ) : {},
-          ...starterBlock.inputs // Override with YAML values
+            : {}),
+          ...starterBlock.inputs, // Override with YAML values
         }
-        
+
         logger.debug(`Using existing starter block: ${existingStarter.id}`)
       } else {
         // Create new starter block
         starterBlockId = crypto.randomUUID()
         yamlIdToActualId.set(starterBlock.id, starterBlockId)
-        
+
         // Create complete starter block from block config
         const blockConfig = getBlock('starter')
         if (blockConfig) {
@@ -441,7 +447,7 @@ export async function importWorkflowFromYaml(
               value: null,
             }
           })
-          
+
           completeBlocks[starterBlockId] = {
             id: starterBlockId,
             type: 'starter',
@@ -455,10 +461,10 @@ export async function importWorkflowFromYaml(
             height: 0,
             data: starterBlock.data || {},
           }
-          
+
           // Set starter block values
           completeSubBlockValues[starterBlockId] = { ...starterBlock.inputs }
-          
+
           logger.debug(`Created new starter block: ${starterBlockId}`)
         }
       }
@@ -477,7 +483,7 @@ export async function importWorkflowFromYaml(
 
       // Create complete block from block config
       const blockConfig = getBlock(block.type)
-      
+
       if (!blockConfig && (block.type === 'loop' || block.type === 'parallel')) {
         // Handle loop/parallel blocks
         completeBlocks[blockId] = {
@@ -493,7 +499,7 @@ export async function importWorkflowFromYaml(
           height: 0,
           data: block.data || {},
         }
-        
+
         completeSubBlockValues[blockId] = { ...block.inputs }
         blocksProcessed++
         logger.debug(`Prepared ${block.type} block: ${blockId} -> ${block.name}`)
@@ -521,7 +527,7 @@ export async function importWorkflowFromYaml(
           height: 0,
           data: block.data || {},
         }
-        
+
         // Set block input values
         completeSubBlockValues[blockId] = { ...block.inputs }
         blocksProcessed++
@@ -530,15 +536,17 @@ export async function importWorkflowFromYaml(
         logger.warn(`No block config found for type: ${block.type} (block: ${block.id})`)
       }
     }
-    
-    logger.info(`Processed ${blocksProcessed} non-starter blocks, total blocks in state: ${Object.keys(completeBlocks).length}`)
+
+    logger.info(
+      `Processed ${blocksProcessed} non-starter blocks, total blocks in state: ${Object.keys(completeBlocks).length}`
+    )
 
     // Create complete edges using the ID mapping
     const completeEdges: any[] = []
     for (const edge of edges) {
       const sourceId = yamlIdToActualId.get(edge.source)
       const targetId = yamlIdToActualId.get(edge.target)
-      
+
       if (sourceId && targetId) {
         completeEdges.push({
           ...edge,
@@ -553,16 +561,18 @@ export async function importWorkflowFromYaml(
 
     // Create complete workflow state with values already set in subBlocks
     logger.info('Creating complete workflow state with embedded values...')
-    
+
     // Merge subblock values directly into block subBlocks
     for (const [blockId, blockData] of Object.entries(completeBlocks)) {
       const blockValues = completeSubBlockValues[blockId] || {}
-      
+
       // Update subBlock values in place
       for (const [subBlockId, subBlockData] of Object.entries(blockData.subBlocks || {})) {
         if (blockValues[subBlockId] !== undefined && blockValues[subBlockId] !== null) {
-          (subBlockData as any).value = blockValues[subBlockId]
-          logger.debug(`Embedded value in block: ${blockId}.${subBlockId} = ${blockValues[subBlockId]}`)
+          ;(subBlockData as any).value = blockValues[subBlockId]
+          logger.debug(
+            `Embedded value in block: ${blockId}.${subBlockId} = ${blockValues[subBlockId]}`
+          )
         }
       }
     }
@@ -623,16 +633,21 @@ export async function importWorkflowFromYaml(
     logger.info('Applying auto layout...')
     workflowActions.applyAutoLayout()
 
-    const totalBlocksCreated = Object.keys(completeBlocks).length - (existingStarterBlocks.length > 0 ? 1 : 0)
-    
-    logger.info(`Successfully imported workflow: ${totalBlocksCreated} blocks created, ${completeEdges.length} edges, values set for ${Object.keys(completeSubBlockValues).length} blocks`)
+    const totalBlocksCreated =
+      Object.keys(completeBlocks).length - (existingStarterBlocks.length > 0 ? 1 : 0)
+
+    logger.info(
+      `Successfully imported workflow: ${totalBlocksCreated} blocks created, ${completeEdges.length} edges, values set for ${Object.keys(completeSubBlockValues).length} blocks`
+    )
 
     return {
       success: true,
       errors: [],
       warnings,
       summary: `Imported ${totalBlocksCreated} new blocks and ${completeEdges.length} connections. ${
-        existingStarterBlocks.length > 0 ? 'Updated existing starter block.' : 'Created new starter block.'
+        existingStarterBlocks.length > 0
+          ? 'Updated existing starter block.'
+          : 'Created new starter block.'
       }`,
     }
   } catch (error) {
