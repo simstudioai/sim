@@ -41,45 +41,14 @@ interface CopilotModalMessage {
 
 // Modal-specific message component
 function ModalCopilotMessage({ message }: CopilotModalMessage) {
-  const renderCitations = (
-    text: string,
-    citations?: Array<{ id: number; title: string; url: string }>
-  ) => {
-    if (!citations || citations.length === 0) return text
-
+  const renderMarkdown = (text: string) => {
     let processedText = text
 
-    // Replace [1], [2], [3] etc. with clickable citation icons
-    processedText = processedText.replace(/\[(\d+)\]/g, (match, num) => {
-      const citationIndex = Number.parseInt(num) - 1
-      const citation = citations?.[citationIndex]
-
-      if (citation) {
-        return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-primary hover:text-primary/80 text-sm" title="${citation.title}">↗</a>`
-      }
-
-      return match
-    })
-
-    // Also replace standalone ↗ symbols with clickable citation links
-    if (citations && citations.length > 0) {
-      let citationIndex = 0
-      processedText = processedText.replace(/↗/g, () => {
-        if (citationIndex < citations.length) {
-          const citation = citations[citationIndex]
-          citationIndex++
-          return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-primary hover:text-primary/80 text-sm" title="${citation.title}">↗</a>`
-        }
-        return '↗'
-      })
-    }
-
-    return processedText
-  }
-
-  const renderMarkdown = (text: string) => {
-    // Handle citations first
-    let processedText = renderCitations(text, message.citations)
+    // Process markdown links: [text](url)
+    processedText = processedText.replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-semibold underline transition-colors">$1</a>'
+    )
 
     // Handle code blocks
     processedText = processedText.replace(
