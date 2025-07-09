@@ -457,17 +457,12 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
               {/* Chat Title Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant='ghost' 
-                    className='h-8 px-3 flex-1 justify-start min-w-0'
-                  >
-                    <span className='truncate'>
-                      {currentChat?.title || 'New Chat'}
-                    </span>
-                    <ChevronDown className='h-4 w-4 ml-2 shrink-0' />
+                  <Button variant='ghost' className='h-8 min-w-0 flex-1 justify-start px-3'>
+                    <span className='truncate'>{currentChat?.title || 'New Chat'}</span>
+                    <ChevronDown className='ml-2 h-4 w-4 shrink-0' />
                   </Button>
                 </DropdownMenuTrigger>
-                                  <DropdownMenuContent align='start' className='w-64 z-[110]' sideOffset={8}>
+                <DropdownMenuContent align='start' className='z-[110] w-64' sideOffset={8}>
                   {chats.map((chat) => (
                     <div key={chat.id} className='flex items-center'>
                       <DropdownMenuItem
@@ -490,7 +485,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                             <MoreHorizontal className='h-4 w-4' />
                           </Button>
                         </DropdownMenuTrigger>
-                                                  <DropdownMenuContent align='end' className='z-[120]'>
+                        <DropdownMenuContent align='end' className='z-[120]'>
                           <DropdownMenuItem
                             onClick={() => handleDeleteChat(chat.id)}
                             className='cursor-pointer text-destructive'
@@ -504,13 +499,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-              
+
               {/* New Chat Button */}
               <Button
                 variant='ghost'
                 size='sm'
                 onClick={startNewChat}
-                className='h-8 w-8 p-0 ml-2'
+                className='ml-2 h-8 w-8 p-0'
                 title='New Chat'
               >
                 <MessageSquarePlus className='h-4 w-4' />

@@ -1,17 +1,25 @@
 'use client'
 
 import { type KeyboardEvent, useEffect, useRef } from 'react'
-import { ArrowUp, Bot, ChevronDown, MessageSquarePlus, MoreHorizontal, Trash2, X } from 'lucide-react'
+import {
+  ArrowUp,
+  Bot,
+  ChevronDown,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import type { CopilotChat } from '@/lib/copilot-api'
 import { createLogger } from '@/lib/logs/console-logger'
-import { type CopilotChat } from '@/lib/copilot-api'
 
 const logger = createLogger('CopilotModal')
 
@@ -221,22 +229,17 @@ export function CopilotModal({
       `}</style>
 
       {/* Header with chat title, management, and close button */}
-      <div className='flex items-center justify-between px-4 py-3 border-b'>
-        <div className='flex items-center gap-2 flex-1'>
+      <div className='flex items-center justify-between border-b px-4 py-3'>
+        <div className='flex flex-1 items-center gap-2'>
           {/* Chat Title Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant='ghost' 
-                className='h-8 px-3 justify-start flex-1 max-w-[300px]'
-              >
-                <span className='truncate'>
-                  {currentChat?.title || 'New Chat'}
-                </span>
-                <ChevronDown className='h-4 w-4 ml-2 shrink-0' />
+              <Button variant='ghost' className='h-8 max-w-[300px] flex-1 justify-start px-3'>
+                <span className='truncate'>{currentChat?.title || 'New Chat'}</span>
+                <ChevronDown className='ml-2 h-4 w-4 shrink-0' />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align='start' className='w-64 z-[110]' sideOffset={8}>
+            <DropdownMenuContent align='start' className='z-[110] w-64' sideOffset={8}>
               {chats.map((chat) => (
                 <div key={chat.id} className='flex items-center'>
                   <DropdownMenuItem
@@ -273,7 +276,7 @@ export function CopilotModal({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          
+
           {/* New Chat Button */}
           <Button
             variant='ghost'
@@ -285,7 +288,7 @@ export function CopilotModal({
             <MessageSquarePlus className='h-4 w-4' />
           </Button>
         </div>
-        
+
         <Button
           variant='ghost'
           size='icon'
