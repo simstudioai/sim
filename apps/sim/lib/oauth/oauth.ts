@@ -760,7 +760,8 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         tokenEndpoint: 'https://app.crmworkspace.com/oauth/token',
         clientId,
         clientSecret,
-        useBasicAuth: false, // Wealthbox uses client credentials in body
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     default:
@@ -842,6 +843,7 @@ export async function refreshOAuthToken(
         error: errorText,
         parsedError: errorData,
         provider,
+        providerId,
       })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }
