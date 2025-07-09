@@ -1519,9 +1519,9 @@ const WorkflowContent = React.memo(() => {
             <Panel />
             <NotificationList />
           </div>
-          <div className='workflow-container h-full'>
-            <Background />
-          </div>
+                  <div className='workflow-container h-full'>
+          <Background color='hsl(var(--workflow-dots))' size={4} gap={40} style={{ backgroundColor: 'hsl(var(--workflow-background))' }} />
+        </div>
         </div>
       </div>
     )
@@ -1529,9 +1529,6 @@ const WorkflowContent = React.memo(() => {
 
   return (
     <div className='flex h-screen w-full flex-col overflow-hidden'>
-      <div className={`${isSidebarCollapsed ? 'ml-14' : 'ml-60'} transition-all duration-200`}>
-        <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
-      </div>
       <Toolbar />
       <div
         className={`${isSidebarCollapsed ? 'pl-14' : 'pl-60'} relative h-full w-full flex-1 transition-all duration-200`}
@@ -1540,6 +1537,9 @@ const WorkflowContent = React.memo(() => {
           <Panel />
           <NotificationList />
         </div>
+
+        {/* Floating Control Bar */}
+        <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
 
         <ReactFlow
           nodes={nodes}
@@ -1587,7 +1587,7 @@ const WorkflowContent = React.memo(() => {
           autoPanOnConnect={userPermissions.canEdit}
           autoPanOnNodeDrag={userPermissions.canEdit}
         >
-          <Background />
+          <Background color='hsl(var(--workflow-dots))' size={4} gap={40} style={{ backgroundColor: 'hsl(var(--workflow-background))' }} />
         </ReactFlow>
       </div>
     </div>

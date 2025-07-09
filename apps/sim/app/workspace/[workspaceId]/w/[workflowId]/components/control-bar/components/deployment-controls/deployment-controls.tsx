@@ -86,14 +86,15 @@ export function DeploymentControls({
         <TooltipTrigger asChild>
           <div className='relative'>
             <Button
-              variant='ghost'
-              size='icon'
+              variant='outline'
               onClick={handleDeployClick}
               disabled={isDisabled}
               className={cn(
-                'hover:text-[#802FFF]',
+                'h-12 w-12 rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] shadow-xs',
+                'hover:bg-[#701FFC] hover:border-[#701FFC] hover:text-white',
+                'transition-all duration-200',
                 isDeployed && 'text-[#802FFF]',
-                isDisabled && 'cursor-not-allowed opacity-50'
+                isDisabled && 'cursor-not-allowed opacity-50 hover:bg-[hsl(var(--card-background))] hover:border-[hsl(var(--card-border))] hover:text-[hsl(var(--card-text))] hover:shadow-xs'
               )}
             >
               {isDeploying ? (
@@ -105,10 +106,10 @@ export function DeploymentControls({
             </Button>
 
             {isDeployed && workflowNeedsRedeployment && (
-              <div className='absolute top-0.5 right-0.5 flex items-center justify-center'>
+              <div className='absolute bottom-2 right-2 flex items-center justify-center pointer-events-none'>
                 <div className='relative'>
-                  <div className='absolute inset-0 h-2 w-2 animate-ping rounded-full bg-amber-500/50' />
-                  <div className='zoom-in fade-in relative h-2 w-2 animate-in rounded-full bg-amber-500 ring-1 ring-background duration-300' />
+                  <div className='absolute inset-0 h-[6px] w-[6px] animate-ping rounded-full bg-amber-500/50' />
+                  <div className='zoom-in fade-in relative h-[6px] w-[6px] animate-in rounded-full bg-amber-500/80 duration-300' />
                 </div>
                 <span className='sr-only'>Needs Redeployment</span>
               </div>

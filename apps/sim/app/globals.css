@@ -61,6 +61,14 @@
     --scrollbar-thumb: 0 0% 65%;
     --scrollbar-thumb-hover: 0 0% 55%;
     --scrollbar-size: 8px;
+
+    /* Workflow Custom Properties - Light Mode */
+    --workflow-background: 0 0% 100%;
+    --workflow-dots: 0 0% 94.5%;
+    --card-background: 0 0% 99.2%;
+    --card-border: 0 0% 89.8%;
+    --card-text: 0 0% 20%;
+    --card-hover: 0 0% 96.1%;
   }
 
   .dark {
@@ -96,6 +104,14 @@
     --scrollbar-track: 217.2 32.6% 17.5%;
     --scrollbar-thumb: 217.2 32.6% 30%;
     --scrollbar-thumb-hover: 217.2 32.6% 40%;
+
+    /* Workflow Custom Properties - Dark Mode */
+    --workflow-background: 0 0% 3.9%;
+    --workflow-dots: 0 0% 7.5%;
+    --card-background: 0 0% 9.0%;
+    --card-border: 0 0% 22.7%;
+    --card-text: 0 0% 98%;
+    --card-hover: 0 0% 12.0%;
   }
 }
 
@@ -145,6 +161,7 @@
 
 /* Custom Animations */
 @layer utilities {
+
   /* Animation containment to avoid layout shifts */
   .animation-container {
     contain: paint layout style;
@@ -210,13 +227,11 @@
 
   @keyframes orbit {
     0% {
-      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px))
-        rotate(calc(var(--angle) * -1deg));
+      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg));
     }
 
     100% {
-      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px))
-        rotate(calc((var(--angle) * -1deg) - 360deg));
+      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg));
     }
   }
 
@@ -247,23 +262,19 @@
   .streaming-effect::after {
     content: "";
     @apply pointer-events-none absolute left-0 top-0 h-full w-full;
-    background: linear-gradient(
-      90deg,
-      rgba(128, 128, 128, 0) 0%,
-      rgba(128, 128, 128, 0.1) 50%,
-      rgba(128, 128, 128, 0) 100%
-    );
+    background: linear-gradient(90deg,
+        rgba(128, 128, 128, 0) 0%,
+        rgba(128, 128, 128, 0.1) 50%,
+        rgba(128, 128, 128, 0) 100%);
     animation: code-shimmer 1.5s infinite;
     z-index: 10;
   }
 
   .dark .streaming-effect::after {
-    background: linear-gradient(
-      90deg,
-      rgba(180, 180, 180, 0) 0%,
-      rgba(180, 180, 180, 0.1) 50%,
-      rgba(180, 180, 180, 0) 100%
-    );
+    background: linear-gradient(90deg,
+        rgba(180, 180, 180, 0) 0%,
+        rgba(180, 180, 180, 0.1) 50%,
+        rgba(180, 180, 180, 0) 100%);
   }
 
   @keyframes fadeIn {
@@ -308,6 +319,7 @@ input[type="search"]::-ms-clear {
 
 /* Code Prompt Bar Placeholder Animation */
 @keyframes placeholder-pulse {
+
   0%,
   100% {
     opacity: 0.5;
