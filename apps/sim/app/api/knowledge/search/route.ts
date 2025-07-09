@@ -28,15 +28,17 @@ const VectorSearchSchema = z.object({
   query: z.string().min(1, 'Search query is required'),
   topK: z.number().min(1).max(100).default(10),
   // Tag filters for pre-filtering
-  filters: z.object({
-    tag1: z.string().optional(),
-    tag2: z.string().optional(),
-    tag3: z.string().optional(),
-    tag4: z.string().optional(),
-    tag5: z.string().optional(),
-    tag6: z.string().optional(),
-    tag7: z.string().optional(),
-  }).optional(),
+  filters: z
+    .object({
+      tag1: z.string().optional(),
+      tag2: z.string().optional(),
+      tag3: z.string().optional(),
+      tag4: z.string().optional(),
+      tag5: z.string().optional(),
+      tag6: z.string().optional(),
+      tag7: z.string().optional(),
+    })
+    .optional(),
 })
 
 async function generateSearchEmbedding(query: string): Promise<number[]> {
@@ -141,18 +143,28 @@ async function executeParallelQueries(
           eq(embedding.enabled, true),
           sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
           // Apply tag filters if provided (case-insensitive)
-          ...(filters ? Object.entries(filters).map(([key, value]) => {
-            switch (key) {
-              case 'tag1': return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
-              case 'tag2': return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
-              case 'tag3': return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
-              case 'tag4': return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
-              case 'tag5': return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
-              case 'tag6': return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
-              case 'tag7': return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
-              default: return sql`1=1` // No-op for unknown keys
-            }
-          }) : [])
+          ...(filters
+            ? Object.entries(filters).map(([key, value]) => {
+                switch (key) {
+                  case 'tag1':
+                    return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
+                  case 'tag2':
+                    return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
+                  case 'tag3':
+                    return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
+                  case 'tag4':
+                    return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
+                  case 'tag5':
+                    return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
+                  case 'tag6':
+                    return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
+                  case 'tag7':
+                    return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
+                  default:
+                    return sql`1=1` // No-op for unknown keys
+                }
+              })
+            : [])
         )
       )
       .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
@@ -194,18 +206,28 @@ async function executeSingleQuery(
         eq(embedding.enabled, true),
         sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
         // Apply tag filters if provided (case-insensitive)
-        ...(filters ? Object.entries(filters).map(([key, value]) => {
-          switch (key) {
-            case 'tag1': return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
-            case 'tag2': return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
-            case 'tag3': return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
-            case 'tag4': return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
-            case 'tag5': return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
-            case 'tag6': return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
-            case 'tag7': return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
-            default: return sql`1=1` // No-op for unknown keys
-          }
-        }) : [])
+        ...(filters
+          ? Object.entries(filters).map(([key, value]) => {
+              switch (key) {
+                case 'tag1':
+                  return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
+                case 'tag2':
+                  return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
+                case 'tag3':
+                  return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
+                case 'tag4':
+                  return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
+                case 'tag5':
+                  return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
+                case 'tag6':
+                  return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
+                case 'tag7':
+                  return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
+                default:
+                  return sql`1=1` // No-op for unknown keys
+              }
+            })
+          : [])
       )
     )
     .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)

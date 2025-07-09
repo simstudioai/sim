@@ -15,7 +15,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 import { useKnowledgeUpload } from '../../hooks/use-knowledge-upload'
-import { TagInput, type TagData } from '../tag-input/tag-input'
+import { type TagData, TagInput } from '../tag-input/tag-input'
 
 const logger = createLogger('CreateModal')
 
@@ -276,7 +276,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
 
       if (files.length > 0) {
         // Add tags to files before upload
-        const filesWithTags = files.map(file => {
+        const filesWithTags = files.map((file) => {
           const fileWithTags = file as File & TagData
           Object.assign(fileWithTags, tags)
           return fileWithTags
@@ -475,11 +475,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
 
                 {/* Tag Input Section */}
                 <div className='mt-6'>
-                  <TagInput
-                    tags={tags}
-                    onTagsChange={setTags}
-                    disabled={isSubmitting}
-                  />
+                  <TagInput tags={tags} onTagsChange={setTags} disabled={isSubmitting} />
                 </div>
 
                 {/* File Upload Section - Expands to fill remaining space */}

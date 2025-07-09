@@ -213,7 +213,9 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
               ? presignedData.fileInfo.path
               : `${window.location.origin}${presignedData.fileInfo.path}`
 
-            uploadedFiles.push(createUploadedFile(file.name, fullFileUrl, file.size, file.type, file))
+            uploadedFiles.push(
+              createUploadedFile(file.name, fullFileUrl, file.size, file.type, file)
+            )
           } else {
             // Fallback to traditional upload through API route
             const formData = new FormData()
@@ -270,7 +272,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       // Start async document processing
       const processPayload = {
-        documents: uploadedFiles.map(file => ({
+        documents: uploadedFiles.map((file) => ({
           ...file,
           // Extract tags from file if they exist (added by upload modal)
           tag1: (file as any).tag1,

@@ -11,7 +11,6 @@ import {
   Plus,
   RotateCcw,
   Trash2,
-
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -142,7 +141,6 @@ export function KnowledgeBase({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
 
-
   const router = useRouter()
 
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
@@ -221,8 +219,6 @@ export function KnowledgeBase({
 
     await Promise.allSettled(markFailedPromises)
   }
-
-
 
   // Filter documents based on search query
   const filteredDocuments = documents.filter((doc) =>
@@ -421,8 +417,6 @@ export function KnowledgeBase({
   const handleAddDocuments = () => {
     setShowUploadModal(true)
   }
-
-
 
   const handleBulkEnable = async () => {
     const documentsToEnable = documents.filter(
@@ -627,8 +621,6 @@ export function KnowledgeBase({
           {/* Main Content */}
           <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
-
-
               {/* Search and Create Section */}
               <div className='mb-4 flex items-center justify-between pt-1'>
                 <SearchInput
@@ -1035,8 +1027,6 @@ export function KnowledgeBase({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-
 
       {/* Upload Modal */}
       <UploadModal

@@ -418,7 +418,7 @@ export function Document({
               </div>
 
               {/* Document Tags Display */}
-              {document && (
+              {document &&
                 (() => {
                   const tags = [
                     { label: 'Tag 1', value: document.tag1 },
@@ -428,16 +428,16 @@ export function Document({
                     { label: 'Tag 5', value: document.tag5 },
                     { label: 'Tag 6', value: document.tag6 },
                     { label: 'Tag 7', value: document.tag7 },
-                  ].filter(tag => tag.value?.trim())
+                  ].filter((tag) => tag.value?.trim())
 
                   return tags.length > 0 ? (
                     <div className='mb-4 rounded-md bg-muted/50 p-3'>
-                      <p className='text-xs text-muted-foreground mb-2'>Document Tags:</p>
+                      <p className='mb-2 text-muted-foreground text-xs'>Document Tags:</p>
                       <div className='flex flex-wrap gap-2'>
                         {tags.map((tag, index) => (
                           <span
                             key={index}
-                            className='inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary'
+                            className='inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-primary text-xs'
                           >
                             <span className='font-medium'>{tag.label}:</span>
                             <span>{tag.value}</span>
@@ -446,8 +446,7 @@ export function Document({
                       </div>
                     </div>
                   ) : null
-                })()
-              )}
+                })()}
 
               {/* Error State for chunks */}
               {combinedError && !isLoadingAllChunks && (
