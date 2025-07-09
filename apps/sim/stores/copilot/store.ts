@@ -363,7 +363,7 @@ export const useCopilotStore = create<CopilotStore>()(
         const decoder = new TextDecoder()
         let accumulatedContent = ''
         let newChatId: string | undefined
-        let responseCitations: Array<{ id: number; title: string; url: string }> = []
+        // Citations no longer needed - LLM generates direct markdown links
         let streamComplete = false
 
         try {
@@ -381,21 +381,11 @@ export const useCopilotStore = create<CopilotStore>()(
                   const data = JSON.parse(line.slice(6))
 
                   if (data.type === 'metadata') {
-                    // Get chatId and citations from metadata
+                    // Get chatId from metadata
                     if (data.chatId) {
                       newChatId = data.chatId
                     }
-                    if (data.citations) {
-                      responseCitations = data.citations
-                    }
-                    if (data.sources) {
-                      // Convert sources to citations format
-                      responseCitations = data.sources.map((source: any, index: number) => ({
-                        id: index + 1,
-                        title: source.title,
-                        url: source.link,
-                      }))
-                    }
+                    // Citations no longer needed - LLM generates direct markdown links
                   } else if (data.type === 'content') {
                     console.log('[CopilotStore] Received content chunk:', data.content)
                     accumulatedContent += data.content
@@ -411,8 +401,6 @@ export const useCopilotStore = create<CopilotStore>()(
                           ? {
                               ...msg,
                               content: accumulatedContent,
-                              citations:
-                                responseCitations.length > 0 ? responseCitations : undefined,
                             }
                           : msg
                       ),
@@ -427,8 +415,6 @@ export const useCopilotStore = create<CopilotStore>()(
                           ? {
                               ...msg,
                               content: accumulatedContent,
-                              citations:
-                                responseCitations.length > 0 ? responseCitations : undefined,
                             }
                           : msg
                       ),

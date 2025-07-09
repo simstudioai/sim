@@ -67,12 +67,12 @@ WHEN NOT TO SEARCH:
 
 CITATION FORMAT:
 When you reference information from documentation sources, use this format:
-- Use [1], [2], [3] etc. to cite sources
-- Place citations at the end of sentences that reference specific information
-- Each source should only be cited once in your response
-- Continue your full response after adding citations - don't stop mid-answer
+- Include direct links using markdown format: [link text](URL)
+- Use descriptive link text (e.g., "workflow documentation" not "here")
+- Place links naturally in context, not clustered at the end
+- Only link when it adds value - don't over-link basic concepts
 
-IMPORTANT: Always provide complete, helpful responses. If you add citations, continue writing your full answer. Do not stop your response after adding a citation.`,
+IMPORTANT: Always provide complete, helpful responses. Include relevant links to help users find more detailed information.`,
   },
   rag: {
     defaultProvider: 'anthropic',

@@ -152,39 +152,17 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
 
-    // Function to render content with inline hyperlinked citations and basic markdown
-    const renderContentWithCitations = (
-      content: string,
-      citations: CopilotMessage['citations'] = []
-    ) => {
+    // Function to render content with basic markdown (including direct links from LLM)
+    const renderMarkdownContent = (content: string) => {
       if (!content) return content
 
       let processedContent = content
 
-      // Replace [1], [2], [3] etc. with clickable citation icons
-      processedContent = processedContent.replace(/\[(\d+)\]/g, (match, num) => {
-        const citationIndex = Number.parseInt(num) - 1
-        const citation = citations?.[citationIndex]
-
-        if (citation) {
-          return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center ml-1 text-primary hover:text-primary/80 transition-colors text-sm" title="${citation.title}">↗</a>`
-        }
-
-        return match
-      })
-
-      // Also replace standalone ↗ symbols with clickable citation links
-      if (citations && citations.length > 0) {
-        let citationIndex = 0
-        processedContent = processedContent.replace(/↗/g, () => {
-          if (citationIndex < citations.length) {
-            const citation = citations[citationIndex]
-            citationIndex++
-            return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center text-primary hover:text-primary/80 transition-colors text-sm" title="${citation.title}">↗</a>`
-          }
-          return '↗'
-        })
-      }
+      // Process markdown links: [text](url)
+      processedContent = processedContent.replace(
+        /\[([^\]]+)\]\(([^\)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-semibold underline transition-colors">$1</a>'
+      )
 
       // Basic markdown processing
       processedContent = processedContent
@@ -244,12 +222,12 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
               </span>
             </div>
 
-            {/* Enhanced content rendering with inline citations */}
+            {/* Enhanced content rendering with markdown links */}
             <div className='prose prose-sm dark:prose-invert max-w-none'>
               <div
                 className='text-foreground text-sm leading-normal'
                 dangerouslySetInnerHTML={{
-                  __html: renderContentWithCitations(message.content, message.citations),
+                  __html: renderMarkdownContent(message.content),
                 }}
               />
             </div>

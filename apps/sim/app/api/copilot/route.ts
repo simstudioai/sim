@@ -137,39 +137,7 @@ export async function POST(req: NextRequest) {
       logger.info(`[${requestId}] StreamingExecution detected`)
       streamToRead = (result.response as any).stream
 
-      // Extract citations from StreamingExecution at API level
-      const execution = (result.response as any).execution
-      logger.info(`[${requestId}] Extracting citations from StreamingExecution`, {
-        hasExecution: !!execution,
-        hasToolResults: !!execution?.toolResults,
-        toolResultsLength: execution?.toolResults?.length || 0,
-      })
-
-      if (execution?.toolResults) {
-        for (const toolResult of execution.toolResults) {
-          logger.info(`[${requestId}] Processing tool result for citations`, {
-            hasResult: !!toolResult,
-            resultKeys: toolResult && typeof toolResult === 'object' ? Object.keys(toolResult) : [],
-            hasResultsArray: !!(toolResult && typeof toolResult === 'object' && toolResult.results),
-          })
-
-          if (toolResult && typeof toolResult === 'object' && toolResult.results) {
-            // Convert documentation search results to citations
-            const extractedCitations = toolResult.results.map((res: any, index: number) => ({
-              id: index + 1,
-              title: res.title || 'Documentation',
-              url: res.url || '#',
-              similarity: res.similarity,
-            }))
-            result.citations = extractedCitations
-            logger.info(
-              `[${requestId}] Extracted ${extractedCitations.length} citations from tool results:`,
-              extractedCitations
-            )
-            break // Use first set of results found
-          }
-        }
-      }
+      // No need to extract citations - LLM generates direct markdown links
     }
 
     if (streamToRead) {
@@ -187,7 +155,6 @@ export async function POST(req: NextRequest) {
             const metadata = {
               type: 'metadata',
               chatId: result.chatId,
-              citations: result.citations || [],
               metadata: {
                 requestId,
                 message,
@@ -245,7 +212,6 @@ export async function POST(req: NextRequest) {
       success: true,
       response: result.response,
       chatId: result.chatId,
-      citations: result.citations || [],
       metadata: {
         requestId,
         message,

@@ -271,15 +271,14 @@ Content: ${result.content}`
 
     const systemPrompt = `You are a helpful assistant that answers questions about Sim Studio documentation. You are having a conversation with the user, so refer to the conversation history when relevant.
 
-IMPORTANT: Use inline citations strategically and sparingly. When referencing information from the sources, include the citation number in curly braces like {cite:1}, {cite:2}, etc.
+IMPORTANT: When referencing information from sources, include direct links using markdown format: [link text](URL)
 
 Citation Guidelines:
-- Cite each source only ONCE at the specific header or topic that relates to that source
-- Do NOT repeatedly cite the same source throughout your response
-- Place citations directly after the header or concept that the source specifically addresses
-- If multiple sources support the same specific topic, cite them together like {cite:1}{cite:2}{cite:3}
-- Each citation should be placed at the relevant header/topic it supports, not grouped at the beginning
-- Avoid cluttering the text with excessive citations
+- When mentioning specific features or concepts, link directly to the relevant documentation
+- Use the exact URLs provided in the source context
+- Make link text descriptive (e.g., "workflow documentation" not "here")
+- Place links naturally in context, not clustered at the end
+- Only link when it adds value - don't over-link basic concepts
 
 Content Guidelines:
 - Answer the user's question accurately using the provided documentation
@@ -291,7 +290,7 @@ Content Guidelines:
 - NEVER include object representations like "[object Object]" - always use proper text
 - When mentioning tool names, use their actual names from the documentation
 
-The sources are numbered [1] through [${searchResults.length}] in the context below.`
+Each source in the context below includes a URL that you can reference directly.`
 
     const userPrompt = `${conversationContext}Current Question: ${query}
 
@@ -692,7 +691,6 @@ export async function deleteChat(chatId: string, userId: string): Promise<boolea
 export async function sendMessage(request: SendMessageRequest): Promise<{
   response: string | ReadableStream | any
   chatId?: string
-  citations?: Array<{ id: number; title: string; url: string; similarity?: number }>
 }> {
   const { message, chatId, workflowId, createNewChat, stream, userId } = request
 
@@ -718,40 +716,7 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
       workflowId,
     })
 
-    // Extract citations from StreamingExecution if available
-    let citations: Array<{ id: number; title: string; url: string; similarity?: number }> = []
-
-    if (typeof response === 'object' && response && 'execution' in response) {
-      // This is a StreamingExecution - extract citations from tool calls
-      const execution = (response as any).execution
-      logger.info('Extracting citations from StreamingExecution', {
-        hasExecution: !!execution,
-        hasToolResults: !!execution?.toolResults,
-        toolResultsLength: execution?.toolResults?.length || 0,
-      })
-
-      if (execution?.toolResults) {
-        for (const toolResult of execution.toolResults) {
-          logger.info('Processing tool result for citations', {
-            hasResult: !!toolResult,
-            resultKeys: toolResult && typeof toolResult === 'object' ? Object.keys(toolResult) : [],
-            hasResultsArray: !!(toolResult && typeof toolResult === 'object' && toolResult.results),
-          })
-
-          if (toolResult && typeof toolResult === 'object' && toolResult.results) {
-            // Convert documentation search results to citations
-            citations = toolResult.results.map((result: any, index: number) => ({
-              id: index + 1,
-              title: result.title || 'Documentation',
-              url: result.url || '#',
-              similarity: result.similarity,
-            }))
-            logger.info(`Extracted ${citations.length} citations from tool results`)
-            break // Use first set of results found
-          }
-        }
-      }
-    }
+    // No need to extract citations - LLM generates direct markdown links
 
     // For non-streaming responses, save immediately
     // For streaming responses, save will be handled by the API layer after stream completes
@@ -768,7 +733,6 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
         role: 'assistant',
         content: response,
         timestamp: new Date().toISOString(),
-        citations: citations.length > 0 ? citations : undefined,
       }
 
       const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
@@ -788,7 +752,6 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
     return {
       response,
       chatId: currentChat?.id,
-      citations,
     }
   } catch (error) {
     logger.error('Failed to send message:', error)
