@@ -2,6 +2,7 @@ import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Trash2 } from 'lu
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -22,8 +23,16 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
   const horizontalHandles = useWorkflowStore(
     (state) => state.blocks[blockId]?.horizontalHandles ?? false
   )
+  const userPermissions = useUserPermissionsContext()
 
   const isStarterBlock = blockType === 'starter'
+
+  const getTooltipMessage = (defaultMessage: string) => {
+    if (disabled) {
+      return userPermissions.isOfflineMode ? 'Connection lost - please refresh' : 'Read-only mode'
+    }
+    return defaultMessage
+  }
 
   return (
     <div
@@ -68,7 +77,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
           </Button>
         </TooltipTrigger>
         <TooltipContent side='right'>
-          {disabled ? 'Read-only mode' : isEnabled ? 'Disable Block' : 'Enable Block'}
+          {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
         </TooltipContent>
       </Tooltip>
 
@@ -89,9 +98,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
               <Copy className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side='right'>
-            {disabled ? 'Read-only mode' : 'Duplicate Block'}
-          </TooltipContent>
+          <TooltipContent side='right'>{getTooltipMessage('Duplicate Block')}</TooltipContent>
         </Tooltip>
       )}
 
@@ -116,7 +123,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
           </Button>
         </TooltipTrigger>
         <TooltipContent side='right'>
-          {disabled ? 'Read-only mode' : horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports'}
+          {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
         </TooltipContent>
       </Tooltip>
 
@@ -140,9 +147,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
               <Trash2 className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side='right'>
-            {disabled ? 'Read-only mode' : 'Delete Block'}
-          </TooltipContent>
+          <TooltipContent side='right'>{getTooltipMessage('Delete Block')}</TooltipContent>
         </Tooltip>
       )}
     </div>

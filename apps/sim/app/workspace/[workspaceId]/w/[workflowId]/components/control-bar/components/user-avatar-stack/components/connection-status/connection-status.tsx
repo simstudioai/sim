@@ -1,53 +1,57 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 
 interface ConnectionStatusProps {
   isConnected: boolean
 }
 
 export function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
-  const [showOfflineNotice, setShowOfflineNotice] = useState(false)
+  const userPermissions = useUserPermissionsContext()
 
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout
+  const handleRefresh = () => {
+    window.location.reload()
+  }
 
-    if (!isConnected) {
-      // Show offline notice after 6 seconds of being disconnected
-      timeoutId = setTimeout(() => {
-        setShowOfflineNotice(true)
-      }, 6000) // 6 seconds
-    } else {
-      // Hide notice immediately when reconnected
-      setShowOfflineNotice(false)
-    }
-
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-      }
-    }
-  }, [isConnected])
-
-  // Don't render anything if connected or if we haven't been disconnected long enough
-  if (!showOfflineNotice) {
+  // Don't render anything if not in offline mode
+  if (!userPermissions.isOfflineMode) {
     return null
   }
 
   return (
-    <div className='flex items-center gap-1.5'>
-      <div className='flex items-center gap-1.5 text-red-600'>
+    <div className='flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2'>
+      <div className='flex items-center gap-2 text-red-700'>
         <div className='relative flex items-center justify-center'>
-          <div className='absolute h-3 w-3 animate-ping rounded-full bg-red-500/20' />
-          <div className='relative h-2 w-2 rounded-full bg-red-500' />
+          {!isConnected && (
+            <div className='absolute h-4 w-4 animate-ping rounded-full bg-red-500/20' />
+          )}
+          <AlertTriangle className='relative h-4 w-4' />
         </div>
         <div className='flex flex-col'>
-          <span className='font-medium text-xs leading-tight'>Connection lost</span>
-          <span className='text-xs leading-tight opacity-90'>
-            Changes not saved - please refresh
+          <span className='font-medium text-xs leading-tight'>
+            {isConnected ? 'Reconnected' : 'Connection lost - please refresh'}
+          </span>
+          <span className='text-red-600 text-xs leading-tight'>
+            {isConnected ? 'Refresh to continue editing' : 'Read-only mode active'}
           </span>
         </div>
       </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            onClick={handleRefresh}
+            variant='ghost'
+            size='sm'
+            className='h-7 w-7 p-0 text-red-700 hover:bg-red-100 hover:text-red-800'
+          >
+            <RefreshCw className='h-4 w-4' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className='z-[9999]'>Refresh page to continue editing</TooltipContent>
+      </Tooltip>
     </div>
   )
 }

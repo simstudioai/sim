@@ -1,6 +1,7 @@
 'use client'
 
-import React, { createContext, useContext, useMemo } from 'react'
+import type React from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useUserPermissions, type WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
@@ -8,6 +9,7 @@ import {
   useWorkspacePermissions,
   type WorkspacePermissions,
 } from '@/hooks/use-workspace-permissions'
+import { usePresence } from '../../[workflowId]/hooks/use-presence'
 
 const logger = createLogger('WorkspacePermissionsProvider')
 
@@ -18,88 +20,140 @@ interface WorkspacePermissionsContextType {
   permissionsError: string | null
   updatePermissions: (newPermissions: WorkspacePermissions) => void
 
-  // Computed user permissions
-  userPermissions: WorkspaceUserPermissions
+  // Computed user permissions (connection-aware)
+  userPermissions: WorkspaceUserPermissions & { isOfflineMode?: boolean }
+
+  // Connection state management
+  setOfflineMode: (isOffline: boolean) => void
 }
 
-const WorkspacePermissionsContext = createContext<WorkspacePermissionsContextType | null>(null)
+const WorkspacePermissionsContext = createContext<WorkspacePermissionsContextType>({
+  workspacePermissions: null,
+  permissionsLoading: false,
+  permissionsError: null,
+  updatePermissions: () => {},
+  userPermissions: {
+    canRead: false,
+    canEdit: false,
+    canAdmin: false,
+    userPermissions: 'read',
+    isLoading: false,
+    error: null,
+  },
+  setOfflineMode: () => {},
+})
 
 interface WorkspacePermissionsProviderProps {
   children: React.ReactNode
 }
 
-const WorkspacePermissionsProvider = React.memo<WorkspacePermissionsProviderProps>(
-  ({ children }) => {
-    const params = useParams()
-    const workspaceId = params.workspaceId as string
+/**
+ * Provider that manages workspace permissions and user access
+ * Also provides connection-aware permissions that enforce read-only mode when offline
+ */
+export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsProviderProps) {
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string
 
-    if (!workspaceId) {
-      logger.warn('Workspace ID is undefined from params:', params)
+  // Manage offline mode state locally
+  const [isOfflineMode, setIsOfflineMode] = useState(false)
+  const [hasBeenConnected, setHasBeenConnected] = useState(false)
+
+  // Fetch workspace permissions and loading state
+  const {
+    permissions: workspacePermissions,
+    loading: permissionsLoading,
+    error: permissionsError,
+    updatePermissions,
+  } = useWorkspacePermissions(workspaceId)
+
+  // Get base user permissions from workspace permissions
+  const baseUserPermissions = useUserPermissions(
+    workspacePermissions,
+    permissionsLoading,
+    permissionsError
+  )
+
+  // Get connection status and update offline mode accordingly
+  const { isConnected } = usePresence()
+
+  useEffect(() => {
+    if (isConnected) {
+      // Mark that we've been connected at least once
+      setHasBeenConnected(true)
+      // On initial connection, allow going online
+      if (!hasBeenConnected) {
+        setIsOfflineMode(false)
+      }
+      // If we were previously connected and this is a reconnection, stay offline (user must refresh)
+    } else if (hasBeenConnected) {
+      // Only enter offline mode if we were previously connected and now disconnected
+      setIsOfflineMode(true)
+    }
+    // If not connected and never been connected, stay in initial state (not offline mode)
+  }, [isConnected, hasBeenConnected])
+
+  // Create connection-aware permissions that override user permissions when offline
+  const userPermissions = useMemo((): WorkspaceUserPermissions & { isOfflineMode?: boolean } => {
+    if (isOfflineMode) {
+      // In offline mode, force read-only permissions regardless of actual user permissions
+      return {
+        ...baseUserPermissions,
+        canEdit: false,
+        canAdmin: false,
+        // Keep canRead true so users can still view content
+        canRead: baseUserPermissions.canRead,
+        isOfflineMode: true,
+      }
     }
 
-    const {
-      permissions: workspacePermissions,
-      loading: permissionsLoading,
-      error: permissionsError,
-      updatePermissions,
-    } = useWorkspacePermissions(workspaceId)
+    // When online, use normal permissions
+    return {
+      ...baseUserPermissions,
+      isOfflineMode: false,
+    }
+  }, [baseUserPermissions, isOfflineMode])
 
-    const userPermissions = useUserPermissions(
+  const contextValue = useMemo(
+    () => ({
       workspacePermissions,
       permissionsLoading,
-      permissionsError
-    )
+      permissionsError,
+      updatePermissions,
+      userPermissions,
+      setOfflineMode: setIsOfflineMode,
+    }),
+    [workspacePermissions, permissionsLoading, permissionsError, updatePermissions, userPermissions]
+  )
 
-    const contextValue = useMemo(
-      () => ({
-        workspacePermissions,
-        permissionsLoading,
-        permissionsError,
-        updatePermissions,
-        userPermissions,
-      }),
-      [
-        workspacePermissions,
-        permissionsLoading,
-        permissionsError,
-        updatePermissions,
-        userPermissions,
-      ]
-    )
-
-    return (
-      <WorkspacePermissionsContext.Provider value={contextValue}>
-        {children}
-      </WorkspacePermissionsContext.Provider>
-    )
-  }
-)
-
-WorkspacePermissionsProvider.displayName = 'WorkspacePermissionsProvider'
-
-export { WorkspacePermissionsProvider }
+  return (
+    <WorkspacePermissionsContext.Provider value={contextValue}>
+      {children}
+    </WorkspacePermissionsContext.Provider>
+  )
+}
 
 /**
- * Hook to access workspace permissions context
- * This replaces individual useWorkspacePermissions calls to avoid duplicate API requests
+ * Hook to access workspace permissions and data from context
+ * This provides both raw workspace permissions and computed user permissions
  */
 export function useWorkspacePermissionsContext(): WorkspacePermissionsContextType {
   const context = useContext(WorkspacePermissionsContext)
-
   if (!context) {
     throw new Error(
       'useWorkspacePermissionsContext must be used within a WorkspacePermissionsProvider'
     )
   }
-
   return context
 }
 
 /**
  * Hook to access user permissions from context
- * This replaces individual useUserPermissions calls
+ * This replaces individual useUserPermissions calls and includes connection-aware permissions
  */
-export function useUserPermissionsContext(): WorkspaceUserPermissions {
+export function useUserPermissionsContext(): WorkspaceUserPermissions & {
+  isOfflineMode?: boolean
+} {
   const { userPermissions } = useWorkspacePermissionsContext()
   return userPermissions
 }

@@ -44,16 +44,6 @@ export function UserAvatarStack({
     }
   }, [users, maxVisible])
 
-  // Show connection status component regardless of user count
-  // This will handle the offline notice when disconnected for 15 seconds
-  const connectionStatusElement = <ConnectionStatus isConnected={isConnected} />
-
-  // Only show presence when there are multiple users (>1)
-  // But always show connection status
-  if (users.length <= 1) {
-    return connectionStatusElement
-  }
-
   // Determine spacing based on size
   const spacingClass = {
     sm: '-space-x-1',
@@ -62,46 +52,55 @@ export function UserAvatarStack({
   }[size]
 
   return (
-    <div className={`flex items-center ${spacingClass} ${className}`}>
-      {/* Connection status - always present */}
-      {connectionStatusElement}
+    <div className={`flex items-center gap-3 ${className}`}>
+      {/* Connection status - always check, shows when offline */}
+      <ConnectionStatus isConnected={isConnected} />
 
-      {/* Render visible user avatars */}
-      {visibleUsers.map((user, index) => (
-        <UserAvatar
-          key={user.connectionId}
-          connectionId={user.connectionId}
-          name={user.name}
-          color={user.color}
-          size={size}
-          index={index}
-          tooltipContent={
-            user.name ? (
-              <div className='text-center'>
-                <div className='font-medium'>{user.name}</div>
-                {user.info && <div className='mt-1 text-muted-foreground text-xs'>{user.info}</div>}
-              </div>
-            ) : null
-          }
-        />
-      ))}
+      {/* Only show avatar stack when there are multiple users (>1) */}
+      {users.length > 1 && (
+        <div className={`flex items-center ${spacingClass}`}>
+          {/* Render visible user avatars */}
+          {visibleUsers.map((user, index) => (
+            <UserAvatar
+              key={user.connectionId}
+              connectionId={user.connectionId}
+              name={user.name}
+              color={user.color}
+              size={size}
+              index={index}
+              tooltipContent={
+                user.name ? (
+                  <div className='text-center'>
+                    <div className='font-medium'>{user.name}</div>
+                    {user.info && (
+                      <div className='mt-1 text-muted-foreground text-xs'>{user.info}</div>
+                    )}
+                  </div>
+                ) : null
+              }
+            />
+          ))}
 
-      {/* Render overflow indicator if there are more users */}
-      {overflowCount > 0 && (
-        <UserAvatar
-          connectionId='overflow-indicator' // Use a unique string identifier
-          name={`+${overflowCount}`}
-          size={size}
-          index={visibleUsers.length}
-          tooltipContent={
-            <div className='text-center'>
-              <div className='font-medium'>
-                {overflowCount} more user{overflowCount > 1 ? 's' : ''}
-              </div>
-              <div className='mt-1 text-muted-foreground text-xs'>{users.length} total online</div>
-            </div>
-          }
-        />
+          {/* Render overflow indicator if there are more users */}
+          {overflowCount > 0 && (
+            <UserAvatar
+              connectionId='overflow-indicator' // Use a unique string identifier
+              name={`+${overflowCount}`}
+              size={size}
+              index={visibleUsers.length}
+              tooltipContent={
+                <div className='text-center'>
+                  <div className='font-medium'>
+                    {overflowCount} more user{overflowCount > 1 ? 's' : ''}
+                  </div>
+                  <div className='mt-1 text-muted-foreground text-xs'>
+                    {users.length} total online
+                  </div>
+                </div>
+              }
+            />
+          )}
+        </div>
       )}
     </div>
   )
