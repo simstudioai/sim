@@ -167,9 +167,7 @@ async function executeParallelQueries(
           eq(embedding.enabled, true),
           sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
           // Apply tag filters if provided (case-insensitive)
-          ...(filters
-            ? getTagFilters(filters, embedding)
-            : [])
+          ...(filters ? getTagFilters(filters, embedding) : [])
         )
       )
       .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
