@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Expand, PanelRight } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useChatStore } from '@/stores/panel/chat/store'
@@ -16,7 +16,10 @@ export function Panel() {
   const [width, setWidth] = useState(336) // 84 * 4 = 336px (default width)
   const [isDragging, setIsDragging] = useState(false)
   const [chatMessage, setChatMessage] = useState<string>('')
+  const [copilotMessage, setCopilotMessage] = useState<string>('')
   const [isChatModalOpen, setIsChatModalOpen] = useState(false)
+  const [isCopilotModalOpen, setIsCopilotModalOpen] = useState(false)
+  const copilotRef = useRef<{ clearMessages: () => void }>(null)
 
   const isOpen = usePanelStore((state) => state.isOpen)
   const togglePanel = usePanelStore((state) => state.togglePanel)
@@ -116,15 +119,30 @@ export function Panel() {
             >
               Variables
             </button>
+            {/* <button
+              onClick={() => setActiveTab('copilot')}
+              className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                activeTab === 'copilot'
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+              }`}
+            >
+              Copilot
+            </button> */}
           </div>
 
-          {(activeTab === 'console' || activeTab === 'chat') && (
+          {(activeTab === 'console' || activeTab === 'chat') /* || activeTab === 'copilot' */ && (
             <button
-              onClick={() =>
-                activeTab === 'console'
-                  ? clearConsole(activeWorkflowId)
-                  : clearChat(activeWorkflowId)
-              }
+              onClick={() => {
+                if (activeTab === 'console') {
+                  clearConsole(activeWorkflowId)
+                } else if (activeTab === 'chat') {
+                  clearChat(activeWorkflowId)
+                }
+                // else if (activeTab === 'copilot') {
+                //   copilotRef.current?.clearMessages()
+                // }
+              }}
               className='rounded-md px-3 py-1 text-muted-foreground text-sm transition-colors hover:bg-accent/50 hover:text-foreground'
             >
               Clear
@@ -139,7 +157,16 @@ export function Panel() {
           ) : activeTab === 'console' ? (
             <Console panelWidth={width} />
           ) : (
-            <Variables panelWidth={width} />
+            /* activeTab === 'copilot' ? (
+            <Copilot
+              ref={copilotRef}
+              panelWidth={width}
+              isFullscreen={isCopilotModalOpen}
+              onFullscreenToggle={setIsCopilotModalOpen}
+              fullscreenInput={copilotMessage}
+              onFullscreenInputChange={setCopilotMessage}
+            />
+          ) : */ <Variables panelWidth={width} />
           )}
         </div>
 
@@ -172,6 +199,21 @@ export function Panel() {
               <TooltipContent side='left'>Expand Chat</TooltipContent>
             </Tooltip>
           )}
+
+          {/* activeTab === 'copilot' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setIsCopilotModalOpen(true)}
+                  className='flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
+                >
+                  <Expand className='h-5 w-5' />
+                  <span className='sr-only'>Expand Copilot</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side='left'>Expand Copilot</TooltipContent>
+            </Tooltip>
+          ) */}
         </div>
       </div>
 
