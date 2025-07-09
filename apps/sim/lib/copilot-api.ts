@@ -262,16 +262,21 @@ export async function sendMessage(request: DocsQueryRequest): Promise<{
 }
 
 /**
- * Send a streaming message using the docs RAG API
+ * Send a streaming message using the new copilot chat API
  */
-export async function sendStreamingMessage(request: DocsQueryRequest): Promise<{
+export async function sendStreamingMessage(request: {
+  message: string
+  chatId?: string
+  workflowId?: string
+  createNewChat?: boolean
+}): Promise<{
   success: boolean
   stream?: ReadableStream
   chatId?: string
   error?: string
 }> {
   try {
-    const response = await fetch('/api/docs/ask', {
+    const response = await fetch('/api/copilot/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...request, stream: true }),

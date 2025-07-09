@@ -197,8 +197,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
           logger.info('Sending docs RAG query:', { query, chatId: currentChat?.id })
 
           const result = await sendStreamingMessage({
-            query,
-            topK: 5,
+            message: query,
             chatId: currentChat?.id,
             workflowId: activeWorkflowId,
             createNewChat: !currentChat,
@@ -208,8 +207,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
             const reader = result.stream.getReader()
             const decoder = new TextDecoder()
             let accumulatedContent = ''
-            let sources: any[] = []
             let newChatId: string | undefined
+            let responseCitations: Array<{id: number, title: string, url: string}> = []
 
             while (true) {
               const { done, value } = await reader.read()
@@ -224,47 +223,43 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                     const data = JSON.parse(line.slice(6))
 
                     if (data.type === 'metadata') {
-                      sources = data.sources || []
                       // Get chatId from metadata (for both new and existing chats)
                       if (data.chatId) {
                         newChatId = data.chatId
                       }
+                      // Get citations from metadata
+                      if (data.citations) {
+                        responseCitations = data.citations
+                      }
                     } else if (data.type === 'content') {
                       accumulatedContent += data.content
 
-                      // Update the streaming message with accumulated content
+                      // Update the streaming message with accumulated content and citations
                       setMessages((prev) =>
                         prev.map((msg) =>
                           msg.id === streamingMessage.id
                             ? {
                                 ...msg,
                                 content: accumulatedContent,
-                                citations: sources.map((source: any, index: number) => ({
-                                  id: index + 1,
-                                  title: source.title,
-                                  url: source.link,
-                                })),
+                                citations: responseCitations.length > 0 ? responseCitations : undefined,
                               }
                             : msg
                         )
                       )
                     } else if (data.type === 'done') {
-                      // Finish streaming and reload chat if new chat was created
+                      // Final update to ensure citations are applied
                       setMessages((prev) =>
                         prev.map((msg) =>
                           msg.id === streamingMessage.id
                             ? {
                                 ...msg,
-                                citations: sources.map((source: any, index: number) => ({
-                                  id: index + 1,
-                                  title: source.title,
-                                  url: source.link,
-                                })),
+                                content: accumulatedContent,
+                                citations: responseCitations.length > 0 ? responseCitations : undefined,
                               }
                             : msg
                         )
                       )
-
+                      
                       // Update current chat state with the chatId from response
                       if (newChatId && !currentChat) {
                         // For new chats, create a temporary chat object and reload the full chat list
@@ -289,9 +284,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
               }
             }
 
-            logger.info('Received docs RAG response:', {
+            logger.info('Received copilot chat response:', {
               contentLength: accumulatedContent.length,
-              sourcesCount: sources.length,
             })
           } else {
             throw new Error(result.error || 'Failed to send message')
@@ -420,7 +414,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
             {!message.content && (
               <div className='flex items-center gap-2 text-muted-foreground'>
                 <Loader2 className='h-4 w-4 animate-spin' />
-                <span className='text-sm'>Searching documentation...</span>
+                <span className='text-sm'>Thinking...</span>
               </div>
             )}
           </div>
