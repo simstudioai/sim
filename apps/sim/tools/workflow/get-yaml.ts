@@ -15,13 +15,15 @@ export const getUserWorkflowTool: ToolConfig = {
     },
   },
 
+  // Use API endpoint to avoid Node.js module import issues in browser
   request: {
-    url: '/api/workflows/current/yaml',
+    url: '/api/tools/get-user-workflow',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
+      workflowId: params._context?.workflowId,
       includeMetadata: params.includeMetadata || false,
     }),
     isInternalRoute: true,

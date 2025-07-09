@@ -80,43 +80,32 @@ const getUserWorkflowTool: CopilotTool = {
     'Get the current user workflow as YAML format. This shows all blocks, their configurations, inputs, and connections in the workflow.',
   parameters: {
     type: 'object',
-    properties: {
-      includeMetadata: {
-        type: 'boolean',
-        description: 'Whether to include additional metadata about the workflow (default: false)',
-        default: false,
-      },
-    },
+    properties: {},
     required: [],
   },
   execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
     try {
-      const { includeMetadata = false } = args
-
-      logger.info('Executing get user workflow', { includeMetadata })
+      logger.info('Executing get user workflow')
 
       // Import the workflow YAML store dynamically to avoid import issues
       const { useWorkflowYamlStore } = await import('@/stores/workflows/yaml/store')
       const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
 
-      // Get the current workflow YAML
+      // Get the current workflow YAML using the same logic as export
       const yamlContent = useWorkflowYamlStore.getState().getYaml()
 
-      // Get additional metadata if requested
-      let metadata = {}
-      if (includeMetadata) {
-        const registry = useWorkflowRegistry.getState()
-        const activeWorkflowId = registry.activeWorkflowId
-        const activeWorkflow = activeWorkflowId ? registry.workflows[activeWorkflowId] : null
+      // Get workflow metadata
+      const registry = useWorkflowRegistry.getState()
+      const activeWorkflowId = registry.activeWorkflowId
+      const activeWorkflow = activeWorkflowId ? registry.workflows[activeWorkflowId] : null
 
-        if (activeWorkflow) {
-          metadata = {
-            workflowId: activeWorkflowId,
-            name: activeWorkflow.name,
-            description: activeWorkflow.description,
-            lastModified: activeWorkflow.lastModified,
-            workspaceId: activeWorkflow.workspaceId,
-          }
+      let metadata = undefined
+      if (activeWorkflow) {
+        metadata = {
+          workflowId: activeWorkflowId,
+          name: activeWorkflow.name,
+          description: activeWorkflow.description,
+          workspaceId: activeWorkflow.workspaceId,
         }
       }
 
@@ -126,7 +115,7 @@ const getUserWorkflowTool: CopilotTool = {
         success: true,
         data: {
           yaml: yamlContent,
-          metadata: includeMetadata ? metadata : undefined,
+          metadata: metadata,
         },
       }
     } catch (error) {

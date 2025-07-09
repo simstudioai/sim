@@ -460,6 +460,7 @@ export async function generateChatResponse(
       maxTokens: config.chat.maxTokens,
       apiKey,
       stream,
+      workflowId: options.workflowId,
     })
 
     // Handle StreamingExecution (from providers with tool calls)
