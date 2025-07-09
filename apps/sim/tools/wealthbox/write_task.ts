@@ -4,31 +4,6 @@ import type { WealthboxWriteResponse, WealthboxWriteParams } from './types'
 
 const logger = createLogger('WealthboxWriteTask')
 
-// Helper function to format date and time for Wealthbox API
-const formatWealthboxDateTime = (dueDay: string, dueTime: string): string => {
-    //TODO: We might need to fix the formatting for how time and date are passed in.
-  // Validate date format
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDay)) {
-    throw new Error('Due day must be in YYYY-MM-DD format')
-  }
-  
-  // Validate time format (HH:MM AM/PM)
-  if (!/^\d{1,2}:\d{2}\s?(AM|PM)$/i.test(dueTime)) {
-    throw new Error('Due time must be in HH:MM AM/PM format')
-  }
-  
-  // Get local timezone offset
-  const now = new Date()
-  const timezoneOffset = now.getTimezoneOffset()
-  const offsetHours = Math.floor(Math.abs(timezoneOffset) / 60)
-  const offsetMinutes = Math.abs(timezoneOffset) % 60
-  const offsetSign = timezoneOffset <= 0 ? '+' : '-'
-  const formattedOffset = `${offsetSign}${offsetHours.toString().padStart(2, '0')}${offsetMinutes.toString().padStart(2, '0')}`
-  
-  // Format: "2015-05-24 11:00 AM -0400"
-  return `${dueDay} ${dueTime.toUpperCase()} ${formattedOffset}`
-}
-
 export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxWriteResponse> = {
   id: 'wealthbox_write_task',
   name: 'Write Wealthbox Task',
@@ -45,15 +20,10 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       required: true,
       description: 'The name/title of the task',
     },
-    dueDay: {
+    dueDate: {
       type: 'string',
       required: true,
-      description: 'The due date of the task (YYYY-MM-DD format)',
-    },
-    dueTime: {
-      type: 'string',
-      required: true,
-      description: 'The due time of the task (HH:MM AM/PM format)',
+      description: 'The due date and time of the task (format: "YYYY-MM-DD HH:MM AM/PM -HHMM", e.g., "2015-05-24 11:00 AM -0400")',
     },
     complete: {
       type: 'boolean',
@@ -81,10 +51,10 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       const taskId = params.taskId?.trim()
       if (taskId) {
         // Update existing task
-        return `https://api.wealthbox.com/v1/tasks${taskId}`
+        return `https://api.crmworkspace.com/v1/tasks/${taskId}`
       } else {
         // Create new task
-        return 'https://api.wealthbox.com/v1/tasks'
+        return 'https://api.crmworkspace.com/v1/tasks'
       }
     },
     method: 'POST', // Default to POST, will be handled by directExecution for updates
@@ -104,18 +74,13 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       if (!params.title?.trim()) {
         throw new Error('Task title is required')
       }
-      if (!params.dueDay?.trim()) {
-        throw new Error('Due day is required')
+      if (!params.dueDate?.trim()) {
+        throw new Error('Due date is required')
       }
-      if (!params.dueTime?.trim()) {
-        throw new Error('Due time is required')
-      }
-
-      const formattedDueDate = formatWealthboxDateTime(params.dueDay.trim(), params.dueTime.trim())
 
       const body: Record<string, any> = {
         name: params.title.trim(),
-        due_date: formattedDueDate,
+        due_date: params.dueDate.trim(),
       }
 
       // Add optional fields
@@ -141,6 +106,16 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     },
   },
   directExecution: async (params: WealthboxWriteParams) => {
+    // Debug logging to see what parameters we're receiving
+    logger.info('WealthboxWriteTask received parameters:', {
+      hasAccessToken: !!params.accessToken,
+      hasTitle: !!params.title,
+      hasDueDate: !!params.dueDate,
+      title: params.title,
+      dueDate: params.dueDate,
+      allParams: Object.keys(params),
+    })
+
     // Validate access token
     if (!params.accessToken) {
       throw new Error('Access token is required')
@@ -150,25 +125,20 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     if (!params.title?.trim()) {
       throw new Error('Task title is required')
     }
-    if (!params.dueDay?.trim()) {
-      throw new Error('Due day is required')
+    if (!params.dueDate?.trim()) {
+      throw new Error('Due date is required')
     }
-    if (!params.dueTime?.trim()) {
-      throw new Error('Due time is required')
-    }
-
-    const formattedDueDate = formatWealthboxDateTime(params.dueDay.trim(), params.dueTime.trim())
 
     const taskId = params.taskId?.trim()
     const url = taskId 
-      ? `https://api.wealthbox.com/v1/tasks/${taskId}`
-      : 'https://api.wealthbox.com/v1/tasks'
+      ? `https://api.crmworkspace.com/v1/tasks/${taskId}`
+      : 'https://api.crmworkspace.com/v1/tasks'
     
     const method = taskId ? 'PUT' : 'POST'
 
     const body: Record<string, any> = {
       name: params.title.trim(),
-      due_date: formattedDueDate,
+      due_date: params.dueDate.trim(),
     }
 
     // Add optional fields

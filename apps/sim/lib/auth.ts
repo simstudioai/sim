@@ -468,6 +468,41 @@ export const auth = betterAuth({
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/outlook`,
         },
 
+        {
+          providerId: 'wealthbox',
+          clientId: env.WEALTHBOX_CLIENT_ID as string,
+          clientSecret: env.WEALTHBOX_CLIENT_SECRET as string,
+          authorizationUrl: 'https://app.crmworkspace.com/oauth/authorize',
+          tokenUrl: 'https://app.crmworkspace.com/oauth/token',
+          userInfoUrl: 'https://dummy-not-used.wealthbox.com', // Dummy URL since no user info endpoint exists
+          scopes: ['login', 'data'],
+          responseType: 'code',
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/wealthbox`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Creating Wealthbox user profile from token data')
+
+              // Generate a unique identifier since we can't fetch user info
+              const uniqueId = `wealthbox-${Date.now()}`
+              const now = new Date()
+
+              // Create a synthetic user profile
+              return {
+                id: uniqueId,
+                name: 'Wealthbox User',
+                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@wealthbox.user`,
+                image: null,
+                emailVerified: false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error creating Wealthbox user profile:', { error })
+              return null
+            }
+          },
+        },
+
         // Supabase provider
         {
           providerId: 'supabase',

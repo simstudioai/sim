@@ -27,7 +27,7 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
       if (!contactId) {
         throw new Error('Contact ID is required')
       }
-      const url = `https://api.wealthbox.com/v1/contacts${contactId}`
+      const url = `https://api.crmworkspace.com/v1/contacts/${contactId}`
       return url
     },
     method: 'GET',

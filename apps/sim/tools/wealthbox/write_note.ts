@@ -27,7 +27,7 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
     },
   },
   request: {
-    url: 'https://api.wealthbox.com/v1/notes',
+    url: 'https://api.crmworkspace.com/v1/notes',
     method: 'POST',
     headers: (params) => {
       // Validate access token
