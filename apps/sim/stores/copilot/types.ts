@@ -33,21 +33,21 @@ export interface CopilotChat {
 export interface CopilotState {
   // Current active chat
   currentChat: CopilotChat | null
-  
+
   // List of available chats for current workflow
   chats: CopilotChat[]
-  
+
   // Current messages (from active chat)
   messages: CopilotMessage[]
-  
+
   // Loading states
   isLoading: boolean
   isLoadingChats: boolean
   isSendingMessage: boolean
-  
+
   // Error state
   error: string | null
-  
+
   // Current workflow ID (for chat context)
   workflowId: string | null
 }
@@ -62,16 +62,16 @@ export interface CopilotActions {
   selectChat: (chat: CopilotChat) => Promise<void>
   createNewChat: (options?: { title?: string; initialMessage?: string }) => Promise<void>
   deleteChat: (chatId: string) => Promise<void>
-  
+
   // Message handling
   sendMessage: (message: string, options?: { stream?: boolean }) => Promise<void>
   sendDocsMessage: (query: string, options?: { stream?: boolean; topK?: number }) => Promise<void>
-  
+
   // Utility actions
   clearMessages: () => void
   clearError: () => void
   reset: () => void
-  
+
   // Internal helper (not exposed publicly)
   handleStreamingResponse: (stream: ReadableStream, messageId: string) => Promise<void>
 }

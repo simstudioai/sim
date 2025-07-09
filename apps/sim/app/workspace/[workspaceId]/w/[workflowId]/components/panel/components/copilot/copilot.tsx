@@ -21,9 +21,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage } from '@/stores/copilot/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { CopilotModal } from './components/copilot-modal/copilot-modal'
 
 const logger = createLogger('Copilot')
@@ -56,7 +56,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     const scrollAreaRef = useRef<HTMLDivElement>(null)
 
     const { activeWorkflowId } = useWorkflowRegistry()
-    
+
     // Use the new copilot store
     const {
       currentChat,
@@ -128,8 +128,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     const handleSubmit = useCallback(
       async (e: React.FormEvent, message?: string) => {
         e.preventDefault()
-        
-        const query = message || (inputRef.current?.value?.trim() || '')
+
+        const query = message || inputRef.current?.value?.trim() || ''
         if (!query || isSendingMessage || !activeWorkflowId) return
 
         // Clear input if using the form input
@@ -408,12 +408,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                 className='flex-1'
                 autoComplete='off'
               />
-              <Button
-                type='submit'
-                size='icon'
-                disabled={isSendingMessage}
-                className='h-10 w-10'
-              >
+              <Button type='submit' size='icon' disabled={isSendingMessage} className='h-10 w-10'>
                 {isSendingMessage ? (
                   <Loader2 className='h-4 w-4 animate-spin' />
                 ) : (

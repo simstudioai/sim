@@ -72,7 +72,7 @@ When you reference information from documentation sources, use this format:
 - Each source should only be cited once in your response
 - Continue your full response after adding citations - don't stop mid-answer
 
-IMPORTANT: Always provide complete, helpful responses. If you add citations, continue writing your full answer. Do not stop your response after adding a citation.`
+IMPORTANT: Always provide complete, helpful responses. If you add citations, continue writing your full answer. Do not stop your response after adding a citation.`,
   },
   rag: {
     defaultProvider: 'anthropic',
@@ -81,13 +81,13 @@ IMPORTANT: Always provide complete, helpful responses. If you add citations, con
     maxTokens: 2000,
     embeddingModel: 'text-embedding-3-small',
     maxSources: 5,
-    similarityThreshold: 0.7
+    similarityThreshold: 0.7,
   },
   general: {
     streamingEnabled: true,
     maxConversationHistory: 10,
-    titleGenerationModel: 'claude-3-haiku-20240307' // Faster model for titles
-  }
+    titleGenerationModel: 'claude-3-haiku-20240307', // Faster model for titles
+  },
 }
 
 /**
@@ -129,7 +129,9 @@ export function getCopilotConfig(): CopilotConfig {
       config.rag.maxSources = Number.parseInt(process.env.COPILOT_RAG_MAX_SOURCES)
     }
     if (process.env.COPILOT_RAG_SIMILARITY_THRESHOLD) {
-      config.rag.similarityThreshold = Number.parseFloat(process.env.COPILOT_RAG_SIMILARITY_THRESHOLD)
+      config.rag.similarityThreshold = Number.parseFloat(
+        process.env.COPILOT_RAG_SIMILARITY_THRESHOLD
+      )
     }
 
     // General configuration overrides
@@ -137,7 +139,9 @@ export function getCopilotConfig(): CopilotConfig {
       config.general.streamingEnabled = process.env.COPILOT_STREAMING_ENABLED === 'true'
     }
     if (process.env.COPILOT_MAX_CONVERSATION_HISTORY) {
-      config.general.maxConversationHistory = Number.parseInt(process.env.COPILOT_MAX_CONVERSATION_HISTORY)
+      config.general.maxConversationHistory = Number.parseInt(
+        process.env.COPILOT_MAX_CONVERSATION_HISTORY
+      )
     }
 
     logger.info('Copilot configuration loaded', {
@@ -145,7 +149,7 @@ export function getCopilotConfig(): CopilotConfig {
       chatModel: config.chat.defaultModel,
       ragProvider: config.rag.defaultProvider,
       ragModel: config.rag.defaultModel,
-      streamingEnabled: config.general.streamingEnabled
+      streamingEnabled: config.general.streamingEnabled,
     })
   } catch (error) {
     logger.warn('Error applying environment variable overrides, using defaults', { error })
@@ -157,24 +161,27 @@ export function getCopilotConfig(): CopilotConfig {
 /**
  * Get the model to use for a specific copilot function
  */
-export function getCopilotModel(type: 'chat' | 'rag' | 'title'): { provider: ProviderId; model: string } {
+export function getCopilotModel(type: 'chat' | 'rag' | 'title'): {
+  provider: ProviderId
+  model: string
+} {
   const config = getCopilotConfig()
-  
+
   switch (type) {
     case 'chat':
       return {
         provider: config.chat.defaultProvider,
-        model: config.chat.defaultModel
+        model: config.chat.defaultModel,
       }
     case 'rag':
       return {
         provider: config.rag.defaultProvider,
-        model: config.rag.defaultModel
+        model: config.rag.defaultModel,
       }
     case 'title':
       return {
         provider: config.chat.defaultProvider, // Use same provider as chat
-        model: config.general.titleGenerationModel
+        model: config.general.titleGenerationModel,
       }
     default:
       throw new Error(`Unknown copilot model type: ${type}`)
@@ -184,7 +191,10 @@ export function getCopilotModel(type: 'chat' | 'rag' | 'title'): { provider: Pro
 /**
  * Validate that a provider/model combination is available
  */
-export function validateCopilotConfig(config: CopilotConfig): { isValid: boolean; errors: string[] } {
+export function validateCopilotConfig(config: CopilotConfig): {
+  isValid: boolean
+  errors: string[]
+} {
   const errors: string[] = []
 
   // Validate chat provider/model
@@ -232,6 +242,6 @@ export function validateCopilotConfig(config: CopilotConfig): { isValid: boolean
 
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
   }
-} 
+}

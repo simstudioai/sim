@@ -1,16 +1,16 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
 import {
+  type CopilotChat,
+  type CopilotMessage,
   createChat,
   deleteChat as deleteApiChat,
   getChat,
   listChats,
-  sendStreamingMessage,
   sendStreamingDocsMessage,
-  type CopilotChat,
-  type CopilotMessage,
+  sendStreamingMessage,
 } from '@/lib/copilot-api'
+import { createLogger } from '@/lib/logs/console-logger'
 import type { CopilotStore } from './types'
 
 const logger = createLogger('CopilotStore')
@@ -48,7 +48,7 @@ export const useCopilotStore = create<CopilotStore>()(
             messages: [],
             error: null,
           })
-          
+
           // Load chats for the new workflow
           if (workflowId) {
             get().loadChats()
@@ -68,27 +68,27 @@ export const useCopilotStore = create<CopilotStore>()(
 
         try {
           const result = await listChats(workflowId)
-          
+
           if (result.success) {
-            set({ 
+            set({
               chats: result.chats,
               isLoadingChats: false,
             })
-            
+
             // If no current chat and we have chats, optionally select the most recent one
             const { currentChat } = get()
             if (!currentChat && result.chats.length > 0) {
               // Auto-select most recent chat
               await get().selectChat(result.chats[0])
             }
-            
+
             logger.info(`Loaded ${result.chats.length} chats for workflow ${workflowId}`)
           } else {
             throw new Error(result.error || 'Failed to load chats')
           }
         } catch (error) {
           logger.error('Failed to load chats:', error)
-          set({ 
+          set({
             error: error instanceof Error ? error.message : 'Failed to load chats',
             isLoadingChats: false,
           })
@@ -101,21 +101,21 @@ export const useCopilotStore = create<CopilotStore>()(
 
         try {
           const result = await getChat(chat.id)
-          
+
           if (result.success && result.chat) {
             set({
               currentChat: result.chat,
               messages: result.chat.messages,
               isLoading: false,
             })
-            
+
             logger.info(`Selected chat: ${result.chat.title || 'Untitled'}`)
           } else {
             throw new Error(result.error || 'Failed to load chat')
           }
         } catch (error) {
           logger.error('Failed to select chat:', error)
-          set({ 
+          set({
             error: error instanceof Error ? error.message : 'Failed to load chat',
             isLoading: false,
           })
@@ -134,24 +134,24 @@ export const useCopilotStore = create<CopilotStore>()(
 
         try {
           const result = await createChat(workflowId, options)
-          
+
           if (result.success && result.chat) {
             set({
               currentChat: result.chat,
               messages: result.chat.messages,
               isLoading: false,
             })
-            
+
             // Reload chats to include the new one
             await get().loadChats()
-            
+
             logger.info(`Created new chat: ${result.chat.id}`)
           } else {
             throw new Error(result.error || 'Failed to create chat')
           }
         } catch (error) {
           logger.error('Failed to create new chat:', error)
-          set({ 
+          set({
             error: error instanceof Error ? error.message : 'Failed to create chat',
             isLoading: false,
           })
@@ -162,15 +162,15 @@ export const useCopilotStore = create<CopilotStore>()(
       deleteChat: async (chatId: string) => {
         try {
           const result = await deleteApiChat(chatId)
-          
+
           if (result.success) {
             const { currentChat } = get()
-            
+
             // Remove from chats list
             set((state) => ({
               chats: state.chats.filter((chat) => chat.id !== chatId),
             }))
-            
+
             // If this was the current chat, clear it
             if (currentChat?.id === chatId) {
               set({
@@ -178,14 +178,14 @@ export const useCopilotStore = create<CopilotStore>()(
                 messages: [],
               })
             }
-            
+
             logger.info(`Deleted chat: ${chatId}`)
           } else {
             throw new Error(result.error || 'Failed to delete chat')
           }
         } catch (error) {
           logger.error('Failed to delete chat:', error)
-          set({ 
+          set({
             error: error instanceof Error ? error.message : 'Failed to delete chat',
           })
         }
@@ -239,12 +239,13 @@ export const useCopilotStore = create<CopilotStore>()(
           }
         } catch (error) {
           logger.error('Failed to send message:', error)
-          
+
           // Replace streaming message with error
           const errorMessage: CopilotMessage = {
             id: streamingMessage.id,
             role: 'assistant',
-            content: 'Sorry, I encountered an error while processing your message. Please try again.',
+            content:
+              'Sorry, I encountered an error while processing your message. Please try again.',
             timestamp: new Date().toISOString(),
           }
 
@@ -307,12 +308,13 @@ export const useCopilotStore = create<CopilotStore>()(
           }
         } catch (error) {
           logger.error('Failed to send docs message:', error)
-          
+
           // Replace streaming message with error
           const errorMessage: CopilotMessage = {
             id: streamingMessage.id,
             role: 'assistant',
-            content: 'Sorry, I encountered an error while searching the documentation. Please try again.',
+            content:
+              'Sorry, I encountered an error while searching the documentation. Please try again.',
             timestamp: new Date().toISOString(),
           }
 
@@ -374,7 +376,8 @@ export const useCopilotStore = create<CopilotStore>()(
                           ? {
                               ...msg,
                               content: accumulatedContent,
-                              citations: responseCitations.length > 0 ? responseCitations : undefined,
+                              citations:
+                                responseCitations.length > 0 ? responseCitations : undefined,
                             }
                           : msg
                       ),
@@ -387,7 +390,8 @@ export const useCopilotStore = create<CopilotStore>()(
                           ? {
                               ...msg,
                               content: accumulatedContent,
-                              citations: responseCitations.length > 0 ? responseCitations : undefined,
+                              citations:
+                                responseCitations.length > 0 ? responseCitations : undefined,
                             }
                           : msg
                       ),

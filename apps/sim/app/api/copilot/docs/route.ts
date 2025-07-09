@@ -1,14 +1,14 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
 import {
+  createChat,
+  generateChatTitle,
   generateDocsResponse,
   getChat,
-  createChat,
   updateChat,
-  generateChatTitle,
 } from '@/lib/copilot/service'
+import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('CopilotDocsAPI')
 
@@ -254,4 +254,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Copilot docs error:`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

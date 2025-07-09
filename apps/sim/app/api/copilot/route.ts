@@ -1,16 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { createChat, deleteChat, getChat, listChats, sendMessage } from '@/lib/copilot/service'
 import { createLogger } from '@/lib/logs/console-logger'
-import {
-  sendMessage,
-  createChat,
-  getChat,
-  listChats,
-  deleteChat,
-  generateDocsResponse,
-  type CopilotMessage,
-} from '@/lib/copilot/service'
 
 const logger = createLogger('CopilotAPI')
 

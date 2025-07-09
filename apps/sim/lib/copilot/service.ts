@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getApiKey } from '@/providers/utils'
-import { executeProviderRequest } from '@/providers'
 import { db } from '@/db'
-import { copilotChats, embedding, knowledgeBase, document } from '@/db/schema'
-import type { ProviderId, ProviderToolConfig } from '@/providers/types'
+import { copilotChats } from '@/db/schema'
+import { executeProviderRequest } from '@/providers'
+import type { ProviderToolConfig } from '@/providers/types'
+import { getApiKey } from '@/providers/utils'
 import { getCopilotConfig, getCopilotModel } from './config'
 
 const logger = createLogger('CopilotService')
@@ -74,7 +74,7 @@ export async function generateChatTitle(userMessage: string): Promise<string> {
     let apiKey: string
     try {
       // Use rotating key directly for hosted providers
-      if ((provider === 'openai' || provider === 'anthropic')) {
+      if (provider === 'openai' || provider === 'anthropic') {
         const { getRotatingApiKey } = require('@/lib/utils')
         apiKey = getRotatingApiKey(provider)
       } else {
@@ -87,7 +87,8 @@ export async function generateChatTitle(userMessage: string): Promise<string> {
 
     const response = await executeProviderRequest(provider, {
       model,
-      systemPrompt: 'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
+      systemPrompt:
+        'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
       context: `Generate a concise title for a conversation that starts with this user message: "${userMessage}"\n\nReturn only the title text, nothing else.`,
       temperature: 0.3,
       maxTokens: 50,
@@ -115,27 +116,29 @@ export async function searchDocumentation(
     topK?: number
     threshold?: number
   } = {}
-): Promise<Array<{
-  id: number
-  title: string
-  url: string
-  content: string
-  similarity: number
-}>> {
+): Promise<
+  Array<{
+    id: number
+    title: string
+    url: string
+    content: string
+    similarity: number
+  }>
+> {
   const { generateEmbeddings } = require('@/app/api/knowledge/utils')
   const { docsEmbeddings } = require('@/db/schema')
   const { sql } = require('drizzle-orm')
-  
+
   const config = getCopilotConfig()
   const { topK = config.rag.maxSources, threshold = config.rag.similarityThreshold } = options
 
   try {
     logger.info('Documentation search requested', { query, topK, threshold })
-    
+
     // Generate embedding for the query
     const embeddings = await generateEmbeddings([query])
     const queryEmbedding = embeddings[0]
-    
+
     if (!queryEmbedding || queryEmbedding.length === 0) {
       logger.warn('Failed to generate query embedding')
       return []
@@ -157,12 +160,12 @@ export async function searchDocumentation(
       .limit(topK)
 
     // Filter by similarity threshold
-    const filteredResults = results.filter(result => result.similarity >= threshold)
+    const filteredResults = results.filter((result) => result.similarity >= threshold)
 
     logger.info(`Found ${filteredResults.length} relevant documentation chunks`, {
       totalResults: results.length,
       afterFiltering: filteredResults.length,
-      threshold
+      threshold,
     })
 
     return filteredResults.map((result, index) => ({
@@ -170,7 +173,7 @@ export async function searchDocumentation(
       title: String(result.headerText || 'Untitled Section'),
       url: String(result.sourceLink || '#'),
       content: String(result.chunkText || ''),
-      similarity: result.similarity
+      similarity: result.similarity,
     }))
   } catch (error) {
     logger.error('Failed to search documentation:', error)
@@ -203,11 +206,11 @@ export async function generateDocsResponse(
 }> {
   const config = getCopilotConfig()
   const { provider, model } = getCopilotModel('rag')
-  const { 
+  const {
     stream = config.general.streamingEnabled,
     topK = config.rag.maxSources,
     provider: overrideProvider,
-    model: overrideModel
+    model: overrideModel,
   } = options
 
   const selectedProvider = overrideProvider || provider
@@ -217,25 +220,31 @@ export async function generateDocsResponse(
     let apiKey: string
     try {
       // Use rotating key directly for hosted providers
-      if ((selectedProvider === 'openai' || selectedProvider === 'anthropic')) {
+      if (selectedProvider === 'openai' || selectedProvider === 'anthropic') {
         const { getRotatingApiKey } = require('@/lib/utils')
         apiKey = getRotatingApiKey(selectedProvider)
       } else {
         apiKey = getApiKey(selectedProvider, selectedModel)
       }
     } catch (error) {
-      logger.error(`Failed to get API key for docs response (${selectedProvider} ${selectedModel}):`, error)
-      throw new Error(`API key not configured for ${selectedProvider}. Please set up API keys for this provider or use a different one.`)
+      logger.error(
+        `Failed to get API key for docs response (${selectedProvider} ${selectedModel}):`,
+        error
+      )
+      throw new Error(
+        `API key not configured for ${selectedProvider}. Please set up API keys for this provider or use a different one.`
+      )
     }
 
     // Search documentation
     const searchResults = await searchDocumentation(query, { topK })
-    
+
     if (searchResults.length === 0) {
-      const fallbackResponse = "I couldn't find any relevant documentation for your question. Please try rephrasing your query or check if you're asking about a feature that exists in Sim Studio."
+      const fallbackResponse =
+        "I couldn't find any relevant documentation for your question. Please try rephrasing your query or check if you're asking about a feature that exists in Sim Studio."
       return {
         response: fallbackResponse,
-        sources: []
+        sources: [],
       }
     }
 
@@ -289,7 +298,9 @@ The sources are numbered [1] through [${searchResults.length}] in the context be
 Documentation Context:
 ${context}`
 
-    logger.info(`Generating docs response using provider: ${selectedProvider}, model: ${selectedModel}`)
+    logger.info(
+      `Generating docs response using provider: ${selectedProvider}, model: ${selectedModel}`
+    )
 
     const response = await executeProviderRequest(selectedProvider, {
       model: selectedModel,
@@ -333,11 +344,13 @@ ${context}`
 
     return {
       response: cleanedContent,
-      sources
+      sources,
     }
   } catch (error) {
     logger.error('Failed to generate docs response:', error)
-    throw new Error(`Failed to generate docs response: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `Failed to generate docs response: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 }
 
@@ -361,7 +374,7 @@ export async function generateChatResponse(
     let apiKey: string
     try {
       // Use rotating key directly for hosted providers
-      if ((provider === 'openai' || provider === 'anthropic')) {
+      if (provider === 'openai' || provider === 'anthropic') {
         const { getRotatingApiKey } = require('@/lib/utils')
         apiKey = getRotatingApiKey(provider)
       } else {
@@ -369,7 +382,9 @@ export async function generateChatResponse(
       }
     } catch (error) {
       logger.error(`Failed to get API key for chat (${provider} ${model}):`, error)
-      throw new Error(`API key not configured for ${provider}. Please set up API keys for this provider or use a different one.`)
+      throw new Error(
+        `API key not configured for ${provider}. Please set up API keys for this provider or use a different one.`
+      )
     }
 
     // Build conversation context
@@ -378,7 +393,7 @@ export async function generateChatResponse(
     // Add conversation history (limited by config)
     const historyLimit = config.general.maxConversationHistory
     const recentHistory = conversationHistory.slice(-historyLimit)
-    
+
     for (const msg of recentHistory) {
       messages.push({
         role: msg.role as 'user' | 'assistant' | 'system',
@@ -397,7 +412,8 @@ export async function generateChatResponse(
       {
         id: 'docs_search_internal',
         name: 'Search Documentation',
-        description: 'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
+        description:
+          'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
         params: {},
         parameters: {
           type: 'object',
@@ -441,7 +457,9 @@ export async function generateChatResponse(
     return 'Sorry, I could not generate a response.'
   } catch (error) {
     logger.error('Failed to generate chat response:', error)
-    throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `Failed to generate response: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 }
 
@@ -502,7 +520,9 @@ export async function createChat(
     }
   } catch (error) {
     logger.error('Failed to create chat:', error)
-    throw new Error(`Failed to create chat: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `Failed to create chat: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 }
 
@@ -558,7 +578,7 @@ export async function listChats(
       .limit(limit)
       .offset(offset)
 
-    return chats.map(chat => ({
+    return chats.map((chat) => ({
       id: chat.id,
       title: chat.title,
       model: chat.model,
@@ -713,4 +733,4 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
     logger.error('Failed to send message:', error)
     throw error
   }
-} 
+}

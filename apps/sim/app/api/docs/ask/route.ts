@@ -2,13 +2,13 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { getCopilotConfig, getCopilotModel } from '@/lib/copilot/config'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
 import { copilotChats, docsEmbeddings } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey } from '@/providers/utils'
-import { getCopilotConfig, getCopilotModel } from '@/lib/copilot/config'
 
 const logger = createLogger('DocsRAG')
 
@@ -33,7 +33,7 @@ async function generateChatTitle(userMessage: string): Promise<string> {
     let apiKey: string
     try {
       // Use rotating key directly for hosted providers
-      if ((provider === 'openai' || provider === 'anthropic')) {
+      if (provider === 'openai' || provider === 'anthropic') {
         const { getRotatingApiKey } = require('@/lib/utils')
         apiKey = getRotatingApiKey(provider)
       } else {
@@ -120,7 +120,7 @@ async function generateResponse(
   conversationHistory: any[] = []
 ): Promise<string | ReadableStream> {
   const config = getCopilotConfig()
-  
+
   // Determine which provider and model to use - allow overrides
   const selectedProvider = provider || config.rag.defaultProvider
   const selectedModel = model || config.rag.defaultModel
@@ -129,7 +129,7 @@ async function generateResponse(
   let apiKey: string
   try {
     // Use rotating key directly for hosted providers
-    if ((selectedProvider === 'openai' || selectedProvider === 'anthropic')) {
+    if (selectedProvider === 'openai' || selectedProvider === 'anthropic') {
       const { getRotatingApiKey } = require('@/lib/utils')
       apiKey = getRotatingApiKey(selectedProvider)
     } else {
@@ -137,7 +137,9 @@ async function generateResponse(
     }
   } catch (error) {
     logger.error(`Failed to get API key for ${selectedProvider} ${selectedModel}:`, error)
-    throw new Error(`API key not configured for ${selectedProvider}. Please set up API keys for this provider or use a different one.`)
+    throw new Error(
+      `API key not configured for ${selectedProvider}. Please set up API keys for this provider or use a different one.`
+    )
   }
 
   // Format chunks as context with numbered sources
