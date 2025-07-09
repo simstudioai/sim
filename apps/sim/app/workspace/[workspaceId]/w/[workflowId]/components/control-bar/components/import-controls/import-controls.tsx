@@ -1,14 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Upload, FileText, Plus, AlertCircle, CheckCircle } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { AlertCircle, CheckCircle, FileText, Plus, Upload } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -17,16 +13,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { importWorkflowFromYaml, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
-import { useRouter } from 'next/navigation'
-import { useParams } from 'next/navigation'
 
 const logger = createLogger('ImportControls')
 
@@ -44,12 +43,12 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
     warnings: string[]
     summary?: string
   } | null>(null)
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  
+
   // Stores and hooks
   const { createWorkflow } = useWorkflowRegistry()
   const { collaborativeAddBlock, collaborativeAddEdge } = useCollaborativeWorkflow()
@@ -67,8 +66,10 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
       logger.error('Failed to read file:', error)
       setImportResult({
         success: false,
-        errors: [`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`],
-        warnings: []
+        errors: [
+          `Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ],
+        warnings: [],
       })
     }
 
@@ -83,7 +84,7 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
       setImportResult({
         success: false,
         errors: ['YAML content is required'],
-        warnings: []
+        warnings: [],
       })
       return
     }
@@ -94,12 +95,12 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
     try {
       // First validate the YAML without importing
       const { data: yamlWorkflow, errors: parseErrors } = parseWorkflowYaml(yamlContent)
-      
+
       if (!yamlWorkflow || parseErrors.length > 0) {
         setImportResult({
           success: false,
           errors: parseErrors,
-          warnings: []
+          warnings: [],
         })
         return
       }
@@ -116,9 +117,9 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
       router.push(`/workspace/${workspaceId}/w/${newWorkflowId}`)
 
       // Small delay to ensure navigation and workflow initialization
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
-            // Import the YAML into the new workflow
+      // Import the YAML into the new workflow
       const result = await importWorkflowFromYaml(yamlContent, {
         addBlock: collaborativeAddBlock,
         addEdge: collaborativeAddEdge,
@@ -133,7 +134,7 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
           // This will be called after navigation, so we need to get blocks from the store
           const { useWorkflowStore } = require('@/stores/workflows/workflow/store')
           return useWorkflowStore.getState().blocks
-        }
+        },
       })
 
       setImportResult(result)
@@ -146,13 +147,12 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
           setImportResult(null)
         }, 2000)
       }
-
     } catch (error) {
       logger.error('Failed to import YAML workflow:', error)
       setImportResult({
         success: false,
         errors: [`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
-        warnings: []
+        warnings: [],
       })
     } finally {
       setIsImporting(false)
@@ -198,10 +198,12 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
                 <Upload className='h-4 w-4' />
                 <div className='flex flex-col'>
                   <span>Upload YAML File</span>
-                  <span className='text-muted-foreground text-xs'>Import from .yaml or .yml file</span>
+                  <span className='text-muted-foreground text-xs'>
+                    Import from .yaml or .yml file
+                  </span>
                 </div>
               </DropdownMenuItem>
-              
+
               <DropdownMenuItem
                 onClick={handleOpenYamlDialog}
                 disabled={isDisabled}
@@ -236,11 +238,12 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
 
       {/* YAML Import Dialog */}
       <Dialog open={showYamlDialog} onOpenChange={setShowYamlDialog}>
-        <DialogContent className='max-w-4xl max-h-[80vh] flex flex-col'>
+        <DialogContent className='flex max-h-[80vh] max-w-4xl flex-col'>
           <DialogHeader>
             <DialogTitle>Import Workflow from YAML</DialogTitle>
             <DialogDescription>
-              Paste your workflow YAML content below. This will create a new workflow with the blocks and connections defined in the YAML.
+              Paste your workflow YAML content below. This will create a new workflow with the
+              blocks and connections defined in the YAML.
             </DialogDescription>
           </DialogHeader>
 
@@ -284,10 +287,12 @@ blocks:
                       )}
                       {importResult.warnings.length > 0 && (
                         <div className='mt-2'>
-                          <div className='text-sm font-medium'>Warnings:</div>
+                          <div className='font-medium text-sm'>Warnings:</div>
                           <ul className='mt-1 space-y-1 text-sm'>
                             {importResult.warnings.map((warning, index) => (
-                              <li key={index} className='text-yellow-700'>• {warning}</li>
+                              <li key={index} className='text-yellow-700'>
+                                • {warning}
+                              </li>
                             ))}
                           </ul>
                         </div>
@@ -321,10 +326,7 @@ blocks:
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleYamlImport}
-              disabled={isImporting || !yamlContent.trim()}
-            >
+            <Button onClick={handleYamlImport} disabled={isImporting || !yamlContent.trim()}>
               {isImporting ? 'Importing...' : 'Import Workflow'}
             </Button>
           </DialogFooter>
@@ -332,4 +334,4 @@ blocks:
       </Dialog>
     </>
   )
-} 
+}
