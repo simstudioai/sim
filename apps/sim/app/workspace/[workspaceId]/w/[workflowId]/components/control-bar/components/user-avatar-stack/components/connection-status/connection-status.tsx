@@ -55,4 +55,3 @@ export function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
     </div>
   )
 }
-
