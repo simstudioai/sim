@@ -288,7 +288,7 @@ async function sendInvoiceNotificationEmail(invoice: Stripe.Invoice, invoiceAmou
   const billingPeriod = invoice.metadata?.billingPeriod || 'this month'
   const plan = invoice.metadata?.plan || 'your plan'
   const dueDate = invoice.due_date
-    ? new Date(invoice.due_date * 1000).toLocaleDateString()
+    ? new Date(invoice.due_date * 1000).toISOString().split('T')[0]
     : 'immediately'
   const invoiceUrl = invoice.hosted_invoice_url || undefined
 

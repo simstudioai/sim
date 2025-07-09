@@ -76,12 +76,12 @@ describe('Billing Period Calculations', () => {
 
       const period = calculateBillingPeriod()
 
-      expect(period.start.getFullYear()).toBe(2024)
-      expect(period.start.getMonth()).toBe(6) // July (0-indexed)
-      expect(period.start.getDate()).toBe(1)
-      expect(period.end.getFullYear()).toBe(2024)
-      expect(period.end.getMonth()).toBe(6) // July (0-indexed)
-      expect(period.end.getDate()).toBe(31)
+      expect(period.start.getUTCFullYear()).toBe(2024)
+      expect(period.start.getUTCMonth()).toBe(6) // July (0-indexed)
+      expect(period.start.getUTCDate()).toBe(1)
+      expect(period.end.getUTCFullYear()).toBe(2024)
+      expect(period.end.getUTCMonth()).toBe(6) // July (0-indexed)
+      expect(period.end.getUTCDate()).toBe(31)
     })
   })
 
@@ -103,8 +103,8 @@ describe('Billing Period Calculations', () => {
       const nextPeriod = calculateNextBillingPeriod(periodEnd)
 
       expect(nextPeriod.start).toEqual(periodEnd)
-      // JavaScript's setMonth handles overflow: Jan 31 + 1 month = Mar 2 (Feb 29 + 2 days in 2024)
-      expect(nextPeriod.end.getMonth()).toBe(2) // March (0-indexed) due to overflow
+      // JavaScript's setUTCMonth handles overflow: Jan 31 + 1 month = Mar 2 (Feb 29 + 2 days in 2024)
+      expect(nextPeriod.end.getUTCMonth()).toBe(2) // March (0-indexed) due to overflow
     })
   })
 
@@ -150,7 +150,7 @@ describe('Billing Period Calculations', () => {
       vi.setSystemTime(today)
 
       const endingTomorrow = new Date(today)
-      endingTomorrow.setDate(endingTomorrow.getDate() + 1)
+      endingTomorrow.setUTCDate(endingTomorrow.getUTCDate() + 1)
 
       const shouldBill = endingTomorrow.toDateString() === today.toDateString()
 
@@ -162,7 +162,7 @@ describe('Billing Period Calculations', () => {
       vi.setSystemTime(today)
 
       const endedYesterday = new Date(today)
-      endedYesterday.setDate(endedYesterday.getDate() - 1)
+      endedYesterday.setUTCDate(endedYesterday.getUTCDate() - 1)
 
       const shouldBill = endedYesterday.toDateString() === today.toDateString()
 

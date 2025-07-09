@@ -74,8 +74,8 @@ export function calculateBillingPeriod(
 
   // Fallback: Default monthly billing period (1st to last day of month)
   // This should only be used for users without proper subscription data
-  const start = new Date(now.getFullYear(), now.getMonth(), 1)
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999))
 
   logger.warn('Using fallback calendar month billing period', {
     start,
