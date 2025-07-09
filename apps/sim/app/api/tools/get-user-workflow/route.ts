@@ -3,9 +3,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
+import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
-import { getBlock } from '@/blocks'
 
 const logger = createLogger('GetUserWorkflowAPI')
 
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     Object.entries(workflowState.blocks).forEach(([blockId, blockState]) => {
       const block = blockState as any
       const blockConfig = getBlock(block.type)
-      
+
       if (blockConfig) {
         blockSchemas[blockId] = {
           type: block.type,
@@ -142,17 +142,23 @@ export async function POST(request: NextRequest) {
     })
 
     // Generate workflow summary
-    const blockTypes = Object.values(workflowState.blocks).reduce((acc: Record<string, number>, block: any) => {
-      acc[block.type] = (acc[block.type] || 0) + 1
-      return acc
-    }, {})
+    const blockTypes = Object.values(workflowState.blocks).reduce(
+      (acc: Record<string, number>, block: any) => {
+        acc[block.type] = (acc[block.type] || 0) + 1
+        return acc
+      },
+      {}
+    )
 
-    const categories = Object.values(blockSchemas).reduce((acc: Record<string, number>, schema: any) => {
-      if (schema.category) {
-        acc[schema.category] = (acc[schema.category] || 0) + 1
-      }
-      return acc
-    }, {})
+    const categories = Object.values(blockSchemas).reduce(
+      (acc: Record<string, number>, schema: any) => {
+        if (schema.category) {
+          acc[schema.category] = (acc[schema.category] || 0) + 1
+        }
+        return acc
+      },
+      {}
+    )
 
     // Prepare response with clear context markers
     const response: any = {
