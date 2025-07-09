@@ -831,7 +831,7 @@ export const auth = betterAuth({
           providerId: 'reddit',
           clientId: env.REDDIT_CLIENT_ID as string,
           clientSecret: env.REDDIT_CLIENT_SECRET as string,
-          authorizationUrl: 'https://www.reddit.com/api/v1/authorize',
+          authorizationUrl: 'https://www.reddit.com/api/v1/authorize?duration=permanent',
           tokenUrl: 'https://www.reddit.com/api/v1/access_token',
           userInfoUrl: 'https://oauth.reddit.com/api/v1/me',
           scopes: ['identity', 'read'],
