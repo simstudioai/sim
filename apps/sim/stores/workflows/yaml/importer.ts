@@ -348,7 +348,8 @@ export async function importWorkflowFromYaml(
     applyAutoLayout: () => void
     setSubBlockValue: (blockId: string, subBlockId: string, value: any) => void
     getExistingBlocks: () => Record<string, any>
-  }
+  },
+  targetWorkflowId?: string
 ): Promise<{ success: boolean; errors: string[]; warnings: string[]; summary?: string }> {
   logger.info('Starting YAML workflow import (complete state creation)')
 
@@ -376,7 +377,25 @@ export async function importWorkflowFromYaml(
     )
 
     // Get the existing workflow state (to preserve starter blocks if they exist)
-    const existingBlocks = workflowActions.getExistingBlocks()
+    let existingBlocks: Record<string, any> = {}
+    
+    if (targetWorkflowId) {
+      // For target workflow, fetch from API
+      try {
+        const response = await fetch(`/api/workflows/${targetWorkflowId}`)
+        if (response.ok) {
+          const workflowData = await response.json()
+          existingBlocks = workflowData.data?.state?.blocks || {}
+          logger.debug(`Fetched existing blocks for target workflow ${targetWorkflowId}:`, Object.keys(existingBlocks))
+        }
+      } catch (error) {
+        logger.warn(`Failed to fetch existing blocks for workflow ${targetWorkflowId}:`, error)
+      }
+    } else {
+      // For active workflow, use from store
+      existingBlocks = workflowActions.getExistingBlocks()
+    }
+    
     const existingStarterBlocks = Object.values(existingBlocks).filter(
       (block: any) => block.type === 'starter'
     )
@@ -389,11 +408,13 @@ export async function importWorkflowFromYaml(
 
     // Get current workflow state
     const currentWorkflowState = useWorkflowStore.getState()
-    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+    const activeWorkflowId = targetWorkflowId || useWorkflowRegistry.getState().activeWorkflowId
 
     if (!activeWorkflowId) {
       return { success: false, errors: ['No active workflow'], warnings: [] }
     }
+    
+    logger.info(`Importing YAML into workflow: ${activeWorkflowId} ${targetWorkflowId ? '(specified target)' : '(active workflow)'}`)
 
     // Build complete blocks object
     const completeBlocks: Record<string, any> = {}
@@ -593,6 +614,12 @@ export async function importWorkflowFromYaml(
 
     // Save directly to database via API
     logger.info('Saving complete workflow state directly to database...')
+    logger.debug('Sample block being saved:', {
+      firstBlockId: Object.keys(completeBlocks)[0], 
+      firstBlock: Object.values(completeBlocks)[0],
+      firstBlockSubBlocks: Object.values(completeBlocks)[0]?.subBlocks
+    })
+    
     const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
       method: 'PUT',
       headers: {
@@ -614,17 +641,26 @@ export async function importWorkflowFromYaml(
     const saveResponse = await response.json()
     logger.info('Successfully saved to database:', saveResponse)
 
-    // Update local state for immediate UI display
-    logger.info('Updating local state for immediate display...')
-    useWorkflowStore.setState(completeWorkflowState)
+    // Update local state for immediate UI display (only if importing into active workflow)
+    if (!targetWorkflowId) {
+      logger.info('Updating local state for immediate display (active workflow)...')
+      useWorkflowStore.setState(completeWorkflowState)
 
-    // Set subblock values in local store
-    useSubBlockStore.setState((state: any) => ({
-      workflowValues: {
-        ...state.workflowValues,
-        [activeWorkflowId]: completeSubBlockValues,
-      },
-    }))
+      // Set subblock values in local store
+      logger.debug('Setting SubBlockStore with values:', completeSubBlockValues)
+      useSubBlockStore.setState((state: any) => ({
+        workflowValues: {
+          ...state.workflowValues,
+          [activeWorkflowId]: completeSubBlockValues,
+        },
+      }))
+      
+      // Verify SubBlockStore was updated
+      const subBlockStoreValues = useSubBlockStore.getState().workflowValues[activeWorkflowId]
+      logger.debug('SubBlockStore after update:', subBlockStoreValues)
+    } else {
+      logger.info('Skipping local state update (importing into non-active workflow)')
+    }
 
     // Brief delay for UI to update
     await new Promise((resolve) => setTimeout(resolve, 100))

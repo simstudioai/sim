@@ -114,13 +114,9 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
         workspaceId,
       })
 
-      // Navigate to the new workflow
-      router.push(`/workspace/${workspaceId}/w/${newWorkflowId}`)
-
-      // Brief delay to ensure navigation completes
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // Import the YAML into the new workflow (creates complete state and saves directly to DB)
+      // Import the YAML into the new workflow BEFORE navigation (creates complete state and saves directly to DB)
+      // This avoids timing issues with workflow reload during navigation
+      logger.info('Importing YAML into new workflow before navigation')
       const result = await importWorkflowFromYaml(yamlContent, {
         addBlock: collaborativeAddBlock,
         addEdge: collaborativeAddEdge,
@@ -133,11 +129,16 @@ export function ImportControls({ disabled = false }: ImportControlsProps) {
           collaborativeSetSubblockValue(blockId, subBlockId, value)
         },
         getExistingBlocks: () => {
-          // This will be called after navigation, so we need to get blocks from the store
-          const { useWorkflowStore } = require('@/stores/workflows/workflow/store')
-          return useWorkflowStore.getState().blocks
+          // For a new workflow, we'll get the starter block from the server
+          return {}
         },
-      })
+      }, newWorkflowId) // Pass the new workflow ID to import into
+
+      // Navigate to the new workflow AFTER import is complete
+      if (result.success) {
+        logger.info('Navigating to imported workflow')
+        router.push(`/workspace/${workspaceId}/w/${newWorkflowId}`)
+      }
 
       setImportResult(result)
 

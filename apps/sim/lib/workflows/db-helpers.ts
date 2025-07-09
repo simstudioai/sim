@@ -69,6 +69,14 @@ export async function loadWorkflowFromNormalizedTables(
         parentId,
         extent,
       }
+      
+      // Debug: Log sample block subBlocks from database
+      if (block.type === 'agent') {
+        logger.debug(`Loaded ${block.type} block from database:`, {
+          blockId: block.id,
+          subBlocks: block.subBlocks
+        })
+      }
     })
 
     // Convert edges to the expected format
@@ -161,6 +169,15 @@ export async function saveWorkflowToNormalizedTables(
           parentId: block.data?.parentId || null,
           extent: block.data?.extent || null,
         }))
+
+        // Debug: Log sample block insert data
+        if (blockInserts.length > 0) {
+          logger.debug(`Saving ${blockInserts.length} blocks. Sample block:`, {
+            blockId: blockInserts[0].id,
+            type: blockInserts[0].type,
+            subBlocks: blockInserts[0].subBlocks
+          })
+        }
 
         await tx.insert(workflowBlocks).values(blockInserts)
       }
