@@ -432,9 +432,9 @@ export async function generateChatResponse(
       },
       {
         id: 'get_user_workflow',
-        name: 'Get User Workflow',
+        name: 'Get User\'s Specific Workflow',
         description:
-          'Get the current user workflow as YAML format. This shows all blocks, their configurations, inputs, and connections in the workflow.',
+          'Get the user\'s current workflow - this shows ONLY the blocks they have actually built and configured in their specific workflow, not general Sim Studio capabilities. Use this when the user asks about "my workflow", "this workflow", wants to know what blocks they currently have, OR when they ask "How do I..." questions about their workflow so you can give specific, actionable advice based on their actual setup.',
         params: {},
         parameters: {
           type: 'object',

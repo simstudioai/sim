@@ -5,6 +5,7 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
+import { getBlock } from '@/blocks'
 
 const logger = createLogger('GetUserWorkflowAPI')
 
@@ -89,12 +90,86 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Prepare response
+    // Generate detailed block information with schemas
+    const blockSchemas: Record<string, any> = {}
+    Object.entries(workflowState.blocks).forEach(([blockId, blockState]) => {
+      const block = blockState as any
+      const blockConfig = getBlock(block.type)
+      
+      if (blockConfig) {
+        blockSchemas[blockId] = {
+          type: block.type,
+          name: block.name,
+          description: blockConfig.description,
+          longDescription: blockConfig.longDescription,
+          category: blockConfig.category,
+          docsLink: blockConfig.docsLink,
+          inputs: {},
+          inputRequirements: blockConfig.inputs || {},
+          outputs: blockConfig.outputs || {},
+          tools: blockConfig.tools,
+        }
+
+        // Add input schema from subBlocks configuration
+        if (blockConfig.subBlocks) {
+          blockConfig.subBlocks.forEach((subBlock) => {
+            blockSchemas[blockId].inputs[subBlock.id] = {
+              type: subBlock.type,
+              title: subBlock.title,
+              description: subBlock.description || '',
+              layout: subBlock.layout,
+              ...(subBlock.options && { options: subBlock.options }),
+              ...(subBlock.placeholder && { placeholder: subBlock.placeholder }),
+              ...(subBlock.min !== undefined && { min: subBlock.min }),
+              ...(subBlock.max !== undefined && { max: subBlock.max }),
+              ...(subBlock.columns && { columns: subBlock.columns }),
+              ...(subBlock.hidden !== undefined && { hidden: subBlock.hidden }),
+              ...(subBlock.condition && { condition: subBlock.condition }),
+            }
+          })
+        }
+      } else {
+        // Handle special block types like loops and parallels
+        blockSchemas[blockId] = {
+          type: block.type,
+          name: block.name,
+          description: `${block.type.charAt(0).toUpperCase() + block.type.slice(1)} container block`,
+          category: 'Control Flow',
+          inputs: {},
+          outputs: {},
+        }
+      }
+    })
+
+    // Generate workflow summary
+    const blockTypes = Object.values(workflowState.blocks).reduce((acc: Record<string, number>, block: any) => {
+      acc[block.type] = (acc[block.type] || 0) + 1
+      return acc
+    }, {})
+
+    const categories = Object.values(blockSchemas).reduce((acc: Record<string, number>, schema: any) => {
+      if (schema.category) {
+        acc[schema.category] = (acc[schema.category] || 0) + 1
+      }
+      return acc
+    }, {})
+
+    // Prepare response with clear context markers
     const response: any = {
+      workflowContext: 'USER_SPECIFIC_WORKFLOW', // Clear marker for the LLM
+      note: 'This data represents only the blocks and configurations that the user has actually built in their current workflow, not all available Sim Studio capabilities.',
       yaml,
       format: 'yaml',
-      blockCount: Object.keys(workflowState.blocks).length,
-      edgeCount: (workflowState.edges || []).length,
+      summary: {
+        workflowName: workflowRecord.name,
+        blockCount: Object.keys(workflowState.blocks).length,
+        edgeCount: (workflowState.edges || []).length,
+        blockTypes,
+        categories,
+        hasLoops: Object.keys(workflowState.loops || {}).length > 0,
+        hasParallels: Object.keys(workflowState.parallels || {}).length > 0,
+      },
+      userBuiltBlocks: blockSchemas, // Renamed to be clearer
     }
 
     // Add metadata if requested
