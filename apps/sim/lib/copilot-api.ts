@@ -2,41 +2,49 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('CopilotAPI')
 
-export interface CopilotChat {
-  id: string
-  title: string | null
-  model: string
-  createdAt: string
-  updatedAt: string
-  messageCount: number
-  messages?: CopilotMessage[]
-}
-
+/**
+ * Message interface for copilot conversations
+ */
 export interface CopilotMessage {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: string
   citations?: Array<{
     id: number
     title: string
     url: string
+    similarity?: number
   }>
 }
 
-export interface CreateChatRequest {
-  workflowId: string
-  title?: string
-  model?: string
-  initialMessage?: string
+/**
+ * Chat interface for copilot conversations
+ */
+export interface CopilotChat {
+  id: string
+  title: string | null
+  model: string
+  messages: CopilotMessage[]
+  messageCount: number
+  createdAt: Date
+  updatedAt: Date
 }
 
-export interface UpdateChatRequest {
-  title?: string
-  messages?: CopilotMessage[]
-  model?: string
+/**
+ * Request interface for sending messages
+ */
+export interface SendMessageRequest {
+  message: string
+  chatId?: string
+  workflowId?: string
+  createNewChat?: boolean
+  stream?: boolean
 }
 
+/**
+ * Request interface for docs queries
+ */
 export interface DocsQueryRequest {
   query: string
   topK?: number
@@ -49,58 +57,27 @@ export interface DocsQueryRequest {
 }
 
 /**
- * List chats for a specific workflow
+ * Create a new copilot chat
  */
-export async function listChats(
+export async function createChat(
   workflowId: string,
-  limit = 50,
-  offset = 0
+  options: {
+    title?: string
+    initialMessage?: string
+  } = {}
 ): Promise<{
-  success: boolean
-  chats: CopilotChat[]
-  error?: string
-}> {
-  try {
-    const params = new URLSearchParams({
-      workflowId,
-      limit: limit.toString(),
-      offset: offset.toString(),
-    })
-
-    const response = await fetch(`/api/copilot/chats?${params}`)
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to list chats')
-    }
-
-    return {
-      success: true,
-      chats: data.chats || [],
-    }
-  } catch (error) {
-    logger.error('Failed to list chats:', error)
-    return {
-      success: false,
-      chats: [],
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
-  }
-}
-
-/**
- * Create a new chat
- */
-export async function createChat(request: CreateChatRequest): Promise<{
   success: boolean
   chat?: CopilotChat
   error?: string
 }> {
   try {
-    const response = await fetch('/api/copilot/chats', {
-      method: 'POST',
+    const response = await fetch('/api/copilot', {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        workflowId,
+        ...options,
+      }),
     })
 
     const data = await response.json()
@@ -123,6 +100,48 @@ export async function createChat(request: CreateChatRequest): Promise<{
 }
 
 /**
+ * List chats for a specific workflow
+ */
+export async function listChats(
+  workflowId: string,
+  options: {
+    limit?: number
+    offset?: number
+  } = {}
+): Promise<{
+  success: boolean
+  chats: CopilotChat[]
+  error?: string
+}> {
+  try {
+    const params = new URLSearchParams({
+      workflowId,
+      limit: (options.limit || 50).toString(),
+      offset: (options.offset || 0).toString(),
+    })
+
+    const response = await fetch(`/api/copilot?${params}`)
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to list chats')
+    }
+
+    return {
+      success: true,
+      chats: data.chats || [],
+    }
+  } catch (error) {
+    logger.error('Failed to list chats:', error)
+    return {
+      success: false,
+      chats: [],
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
  * Get a specific chat with full message history
  */
 export async function getChat(chatId: string): Promise<{
@@ -131,7 +150,7 @@ export async function getChat(chatId: string): Promise<{
   error?: string
 }> {
   try {
-    const response = await fetch(`/api/copilot/chats/${chatId}`)
+    const response = await fetch(`/api/copilot?chatId=${chatId}`)
     const data = await response.json()
 
     if (!response.ok) {
@@ -152,43 +171,6 @@ export async function getChat(chatId: string): Promise<{
 }
 
 /**
- * Update a chat
- */
-export async function updateChat(
-  chatId: string,
-  request: UpdateChatRequest
-): Promise<{
-  success: boolean
-  chat?: CopilotChat
-  error?: string
-}> {
-  try {
-    const response = await fetch(`/api/copilot/chats/${chatId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update chat')
-    }
-
-    return {
-      success: true,
-      chat: data.chat,
-    }
-  } catch (error) {
-    logger.error('Failed to update chat:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
-  }
-}
-
-/**
  * Delete a chat
  */
 export async function deleteChat(chatId: string): Promise<{
@@ -196,7 +178,7 @@ export async function deleteChat(chatId: string): Promise<{
   error?: string
 }> {
   try {
-    const response = await fetch(`/api/copilot/chats/${chatId}`, {
+    const response = await fetch(`/api/copilot?chatId=${chatId}`, {
       method: 'DELETE',
     })
 
@@ -206,9 +188,7 @@ export async function deleteChat(chatId: string): Promise<{
       throw new Error(data.error || 'Failed to delete chat')
     }
 
-    return {
-      success: true,
-    }
+    return { success: true }
   } catch (error) {
     logger.error('Failed to delete chat:', error)
     return {
@@ -219,22 +199,22 @@ export async function deleteChat(chatId: string): Promise<{
 }
 
 /**
- * Send a message using the docs RAG API with chat context
+ * Send a message using the unified copilot API
  */
-export async function sendMessage(request: DocsQueryRequest): Promise<{
+export async function sendMessage(request: SendMessageRequest): Promise<{
   success: boolean
   response?: string
   chatId?: string
-  sources?: Array<{
+  citations?: Array<{
+    id: number
     title: string
-    document: string
-    link: string
-    similarity: number
+    url: string
+    similarity?: number
   }>
   error?: string
 }> {
   try {
-    const response = await fetch('/api/docs/ask', {
+    const response = await fetch('/api/copilot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -250,7 +230,7 @@ export async function sendMessage(request: DocsQueryRequest): Promise<{
       success: true,
       response: data.response,
       chatId: data.chatId,
-      sources: data.sources,
+      citations: data.citations,
     }
   } catch (error) {
     logger.error('Failed to send message:', error)
@@ -262,21 +242,16 @@ export async function sendMessage(request: DocsQueryRequest): Promise<{
 }
 
 /**
- * Send a streaming message using the new copilot chat API
+ * Send a streaming message using the unified copilot API
  */
-export async function sendStreamingMessage(request: {
-  message: string
-  chatId?: string
-  workflowId?: string
-  createNewChat?: boolean
-}): Promise<{
+export async function sendStreamingMessage(request: SendMessageRequest): Promise<{
   success: boolean
   stream?: ReadableStream
   chatId?: string
   error?: string
 }> {
   try {
-    const response = await fetch('/api/copilot/chat', {
+    const response = await fetch('/api/copilot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...request, stream: true }),
@@ -297,6 +272,87 @@ export async function sendStreamingMessage(request: {
     }
   } catch (error) {
     logger.error('Failed to send streaming message:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Send a message using the docs RAG API with chat context
+ */
+export async function sendDocsMessage(request: DocsQueryRequest): Promise<{
+  success: boolean
+  response?: string
+  chatId?: string
+  sources?: Array<{
+    title: string
+    document: string
+    link: string
+    similarity: number
+  }>
+  error?: string
+}> {
+  try {
+    const response = await fetch('/api/copilot/docs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to send message')
+    }
+
+    return {
+      success: true,
+      response: data.response,
+      chatId: data.chatId,
+      sources: data.sources,
+    }
+  } catch (error) {
+    logger.error('Failed to send docs message:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Send a streaming docs message
+ */
+export async function sendStreamingDocsMessage(request: DocsQueryRequest): Promise<{
+  success: boolean
+  stream?: ReadableStream
+  chatId?: string
+  error?: string
+}> {
+  try {
+    const response = await fetch('/api/copilot/docs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...request, stream: true }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to send streaming docs message')
+    }
+
+    if (!response.body) {
+      throw new Error('No response body received')
+    }
+
+    return {
+      success: true,
+      stream: response.body,
+    }
+  } catch (error) {
+    logger.error('Failed to send streaming docs message:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

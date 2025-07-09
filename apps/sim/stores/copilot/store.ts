@@ -1,152 +1,442 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useEnvironmentStore } from '../settings/environment/store'
-import { useWorkflowStore } from '../workflows/workflow/store'
-import type { CopilotMessage, CopilotStore } from './types'
-import { calculateBlockPosition, getNextBlockNumber } from './utils'
+import {
+  createChat,
+  deleteChat as deleteApiChat,
+  getChat,
+  listChats,
+  sendStreamingMessage,
+  sendStreamingDocsMessage,
+  type CopilotChat,
+  type CopilotMessage,
+} from '@/lib/copilot-api'
+import type { CopilotStore } from './types'
 
 const logger = createLogger('CopilotStore')
 
+/**
+ * Initial state for the copilot store
+ */
+const initialState = {
+  currentChat: null,
+  chats: [],
+  messages: [],
+  isLoading: false,
+  isLoadingChats: false,
+  isSendingMessage: false,
+  error: null,
+  workflowId: null,
+}
+
+/**
+ * Copilot store using the new unified API
+ */
 export const useCopilotStore = create<CopilotStore>()(
   devtools(
     (set, get) => ({
-      messages: [],
-      isProcessing: false,
-      error: null,
+      ...initialState,
 
-      sendMessage: async (content: string) => {
-        try {
-          set({ isProcessing: true, error: null })
-
-          const workflowStore = useWorkflowStore.getState()
-          const apiKey = useEnvironmentStore.getState().getVariable('OPENAI_API_KEY')
-
-          if (!apiKey) {
-            throw new Error(
-              'OpenAI API key not found. Please add it to your environment variables.'
-            )
-          }
-
-          // User message
-          const newMessage: CopilotMessage = {
-            id: crypto.randomUUID(),
-            role: 'user',
-            content: content.trim(),
-            timestamp: Date.now(),
-          }
-
-          // Format messages for OpenAI API
-          const formattedMessages = [
-            ...get().messages.map((msg) => ({
-              role: msg.role,
-              content: msg.content,
-            })),
-            {
-              role: newMessage.role,
-              content: newMessage.content,
-            },
-          ]
-
-          // Add message to local state first
-          set((state) => ({
-            messages: [...state.messages, newMessage],
-          }))
-
-          const response = await fetch('/api/copilot', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-OpenAI-Key': apiKey,
-            },
-            body: JSON.stringify({
-              messages: formattedMessages,
-              workflowState: {
-                blocks: workflowStore.blocks,
-                edges: workflowStore.edges,
-              },
-            }),
-          })
-
-          if (!response.ok) {
-            throw new Error('Failed to send message')
-          }
-
-          const data = await response.json()
-
-          // Handle any actions returned from the API
-          if (data.actions) {
-            // Process all block additions first to properly calculate positions
-            const blockActions = data.actions.filter((action: any) => action.name === 'addBlock')
-
-            blockActions.forEach((action: any, index: number) => {
-              const { type, name } = action.parameters
-              const id = crypto.randomUUID()
-
-              // Calculate position based on current blocks and action index
-              const position = calculateBlockPosition(workflowStore.blocks, index)
-
-              // Generate name if not provided
-              const blockName = name || `${type} ${getNextBlockNumber(workflowStore.blocks, type)}`
-
-              workflowStore.addBlock(id, type, blockName, position)
-            })
-
-            // Handle other actions (edges, removals, etc.)
-            const otherActions = data.actions.filter((action: any) => action.name !== 'addBlock')
-
-            otherActions.forEach((action: any) => {
-              switch (action.name) {
-                case 'addEdge': {
-                  const { sourceId, targetId, sourceHandle, targetHandle } = action.parameters
-                  workflowStore.addEdge({
-                    id: crypto.randomUUID(),
-                    source: sourceId,
-                    target: targetId,
-                    sourceHandle,
-                    targetHandle,
-                    type: 'custom',
-                  })
-                  break
-                }
-                case 'removeBlock': {
-                  workflowStore.removeBlock(action.parameters.id)
-                  break
-                }
-                case 'removeEdge': {
-                  workflowStore.removeEdge(action.parameters.id)
-                  break
-                }
-              }
-            })
-          }
-
-          // Add assistant's response to chat
-          if (data.message) {
-            set((state) => ({
-              messages: [
-                ...state.messages,
-                {
-                  id: crypto.randomUUID(),
-                  role: 'assistant',
-                  content: data.message,
-                  timestamp: Date.now(),
-                },
-              ],
-            }))
-          }
-        } catch (error) {
-          logger.error('Copilot error:', { error })
+      // Set current workflow ID
+      setWorkflowId: (workflowId: string | null) => {
+        const currentWorkflowId = get().workflowId
+        if (currentWorkflowId !== workflowId) {
           set({
-            error: error instanceof Error ? error.message : 'Unknown error',
+            workflowId,
+            currentChat: null,
+            chats: [],
+            messages: [],
+            error: null,
           })
-        } finally {
-          set({ isProcessing: false })
+          
+          // Load chats for the new workflow
+          if (workflowId) {
+            get().loadChats()
+          }
         }
       },
 
-      clearCopilot: () => set({ messages: [], error: null }),
-      setError: (error) => set({ error }),
+      // Load chats for current workflow
+      loadChats: async () => {
+        const { workflowId } = get()
+        if (!workflowId) {
+          logger.warn('Cannot load chats: no workflow ID set')
+          return
+        }
+
+        set({ isLoadingChats: true, error: null })
+
+        try {
+          const result = await listChats(workflowId)
+          
+          if (result.success) {
+            set({ 
+              chats: result.chats,
+              isLoadingChats: false,
+            })
+            
+            // If no current chat and we have chats, optionally select the most recent one
+            const { currentChat } = get()
+            if (!currentChat && result.chats.length > 0) {
+              // Auto-select most recent chat
+              await get().selectChat(result.chats[0])
+            }
+            
+            logger.info(`Loaded ${result.chats.length} chats for workflow ${workflowId}`)
+          } else {
+            throw new Error(result.error || 'Failed to load chats')
+          }
+        } catch (error) {
+          logger.error('Failed to load chats:', error)
+          set({ 
+            error: error instanceof Error ? error.message : 'Failed to load chats',
+            isLoadingChats: false,
+          })
+        }
+      },
+
+      // Select a specific chat
+      selectChat: async (chat: CopilotChat) => {
+        set({ isLoading: true, error: null })
+
+        try {
+          const result = await getChat(chat.id)
+          
+          if (result.success && result.chat) {
+            set({
+              currentChat: result.chat,
+              messages: result.chat.messages,
+              isLoading: false,
+            })
+            
+            logger.info(`Selected chat: ${result.chat.title || 'Untitled'}`)
+          } else {
+            throw new Error(result.error || 'Failed to load chat')
+          }
+        } catch (error) {
+          logger.error('Failed to select chat:', error)
+          set({ 
+            error: error instanceof Error ? error.message : 'Failed to load chat',
+            isLoading: false,
+          })
+        }
+      },
+
+      // Create a new chat
+      createNewChat: async (options = {}) => {
+        const { workflowId } = get()
+        if (!workflowId) {
+          logger.warn('Cannot create chat: no workflow ID set')
+          return
+        }
+
+        set({ isLoading: true, error: null })
+
+        try {
+          const result = await createChat(workflowId, options)
+          
+          if (result.success && result.chat) {
+            set({
+              currentChat: result.chat,
+              messages: result.chat.messages,
+              isLoading: false,
+            })
+            
+            // Reload chats to include the new one
+            await get().loadChats()
+            
+            logger.info(`Created new chat: ${result.chat.id}`)
+          } else {
+            throw new Error(result.error || 'Failed to create chat')
+          }
+        } catch (error) {
+          logger.error('Failed to create new chat:', error)
+          set({ 
+            error: error instanceof Error ? error.message : 'Failed to create chat',
+            isLoading: false,
+          })
+        }
+      },
+
+      // Delete a chat
+      deleteChat: async (chatId: string) => {
+        try {
+          const result = await deleteApiChat(chatId)
+          
+          if (result.success) {
+            const { currentChat } = get()
+            
+            // Remove from chats list
+            set((state) => ({
+              chats: state.chats.filter((chat) => chat.id !== chatId),
+            }))
+            
+            // If this was the current chat, clear it
+            if (currentChat?.id === chatId) {
+              set({
+                currentChat: null,
+                messages: [],
+              })
+            }
+            
+            logger.info(`Deleted chat: ${chatId}`)
+          } else {
+            throw new Error(result.error || 'Failed to delete chat')
+          }
+        } catch (error) {
+          logger.error('Failed to delete chat:', error)
+          set({ 
+            error: error instanceof Error ? error.message : 'Failed to delete chat',
+          })
+        }
+      },
+
+      // Send a regular message
+      sendMessage: async (message: string, options = {}) => {
+        const { workflowId, currentChat } = get()
+        const { stream = true } = options
+
+        if (!workflowId) {
+          logger.warn('Cannot send message: no workflow ID set')
+          return
+        }
+
+        set({ isSendingMessage: true, error: null })
+
+        // Add user message immediately
+        const userMessage: CopilotMessage = {
+          id: crypto.randomUUID(),
+          role: 'user',
+          content: message,
+          timestamp: new Date().toISOString(),
+        }
+
+        // Add placeholder for streaming response
+        const streamingMessage: CopilotMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+        }
+
+        set((state) => ({
+          messages: [...state.messages, userMessage, streamingMessage],
+        }))
+
+        try {
+          const result = await sendStreamingMessage({
+            message,
+            chatId: currentChat?.id,
+            workflowId,
+            createNewChat: !currentChat,
+            stream,
+          })
+
+          if (result.success && result.stream) {
+            await get().handleStreamingResponse(result.stream, streamingMessage.id)
+          } else {
+            throw new Error(result.error || 'Failed to send message')
+          }
+        } catch (error) {
+          logger.error('Failed to send message:', error)
+          
+          // Replace streaming message with error
+          const errorMessage: CopilotMessage = {
+            id: streamingMessage.id,
+            role: 'assistant',
+            content: 'Sorry, I encountered an error while processing your message. Please try again.',
+            timestamp: new Date().toISOString(),
+          }
+
+          set((state) => ({
+            messages: state.messages.map((msg) =>
+              msg.id === streamingMessage.id ? errorMessage : msg
+            ),
+            error: error instanceof Error ? error.message : 'Failed to send message',
+            isSendingMessage: false,
+          }))
+        }
+      },
+
+      // Send a docs RAG message
+      sendDocsMessage: async (query: string, options = {}) => {
+        const { workflowId, currentChat } = get()
+        const { stream = true, topK = 5 } = options
+
+        if (!workflowId) {
+          logger.warn('Cannot send docs message: no workflow ID set')
+          return
+        }
+
+        set({ isSendingMessage: true, error: null })
+
+        // Add user message immediately
+        const userMessage: CopilotMessage = {
+          id: crypto.randomUUID(),
+          role: 'user',
+          content: query,
+          timestamp: new Date().toISOString(),
+        }
+
+        // Add placeholder for streaming response
+        const streamingMessage: CopilotMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+        }
+
+        set((state) => ({
+          messages: [...state.messages, userMessage, streamingMessage],
+        }))
+
+        try {
+          const result = await sendStreamingDocsMessage({
+            query,
+            topK,
+            chatId: currentChat?.id,
+            workflowId,
+            createNewChat: !currentChat,
+            stream,
+          })
+
+          if (result.success && result.stream) {
+            await get().handleStreamingResponse(result.stream, streamingMessage.id)
+          } else {
+            throw new Error(result.error || 'Failed to send docs message')
+          }
+        } catch (error) {
+          logger.error('Failed to send docs message:', error)
+          
+          // Replace streaming message with error
+          const errorMessage: CopilotMessage = {
+            id: streamingMessage.id,
+            role: 'assistant',
+            content: 'Sorry, I encountered an error while searching the documentation. Please try again.',
+            timestamp: new Date().toISOString(),
+          }
+
+          set((state) => ({
+            messages: state.messages.map((msg) =>
+              msg.id === streamingMessage.id ? errorMessage : msg
+            ),
+            error: error instanceof Error ? error.message : 'Failed to send docs message',
+            isSendingMessage: false,
+          }))
+        }
+      },
+
+      // Handle streaming response (shared by both message types)
+      handleStreamingResponse: async (stream: ReadableStream, messageId: string) => {
+        const reader = stream.getReader()
+        const decoder = new TextDecoder()
+        let accumulatedContent = ''
+        let newChatId: string | undefined
+        let responseCitations: Array<{ id: number; title: string; url: string }> = []
+        let streamComplete = false
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done || streamComplete) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            const lines = chunk.split('\n')
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6))
+
+                  if (data.type === 'metadata') {
+                    // Get chatId and citations from metadata
+                    if (data.chatId) {
+                      newChatId = data.chatId
+                    }
+                    if (data.citations) {
+                      responseCitations = data.citations
+                    }
+                    if (data.sources) {
+                      // Convert sources to citations format
+                      responseCitations = data.sources.map((source: any, index: number) => ({
+                        id: index + 1,
+                        title: source.title,
+                        url: source.link,
+                      }))
+                    }
+                  } else if (data.type === 'content') {
+                    accumulatedContent += data.content
+
+                    // Update the streaming message
+                    set((state) => ({
+                      messages: state.messages.map((msg) =>
+                        msg.id === messageId
+                          ? {
+                              ...msg,
+                              content: accumulatedContent,
+                              citations: responseCitations.length > 0 ? responseCitations : undefined,
+                            }
+                          : msg
+                      ),
+                    }))
+                  } else if (data.type === 'done' || data.type === 'complete') {
+                    // Final update
+                    set((state) => ({
+                      messages: state.messages.map((msg) =>
+                        msg.id === messageId
+                          ? {
+                              ...msg,
+                              content: accumulatedContent,
+                              citations: responseCitations.length > 0 ? responseCitations : undefined,
+                            }
+                          : msg
+                      ),
+                      isSendingMessage: false,
+                    }))
+
+                    // Handle new chat creation
+                    if (newChatId && !get().currentChat) {
+                      // Reload chats to get the updated list
+                      await get().loadChats()
+                    }
+
+                    streamComplete = true
+                    break
+                  } else if (data.type === 'error') {
+                    throw new Error(data.error || 'Streaming error')
+                  }
+                } catch (parseError) {
+                  logger.warn('Failed to parse SSE data:', parseError)
+                }
+              }
+            }
+          }
+
+          logger.info(`Completed streaming response, content length: ${accumulatedContent.length}`)
+        } catch (error) {
+          logger.error('Error handling streaming response:', error)
+          throw error
+        }
+      },
+
+      // Clear current messages
+      clearMessages: () => {
+        set({
+          currentChat: null,
+          messages: [],
+          error: null,
+        })
+      },
+
+      // Clear error state
+      clearError: () => {
+        set({ error: null })
+      },
+
+      // Reset entire store
+      reset: () => {
+        set(initialState)
+      },
     }),
     { name: 'copilot-store' }
   )

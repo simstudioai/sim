@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 import {
   Bot,
   ChevronDown,
@@ -20,16 +20,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  type CopilotChat,
-  type CopilotMessage,
-  deleteChat,
-  getChat,
-  listChats,
-  sendStreamingMessage,
-} from '@/lib/copilot-api'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useCopilotStore } from '@/stores/copilot/store'
+import type { CopilotMessage } from '@/stores/copilot/types'
 import { CopilotModal } from './components/copilot-modal/copilot-modal'
 
 const logger = createLogger('Copilot')
@@ -58,23 +52,36 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     },
     ref
   ) => {
-    const [messages, setMessages] = useState<CopilotMessage[]>([])
-    const [input, setInput] = useState('')
-    const [isLoading, setIsLoading] = useState(false)
-    const [currentChat, setCurrentChat] = useState<CopilotChat | null>(null)
-    const [chats, setChats] = useState<CopilotChat[]>([])
-    const [loadingChats, setLoadingChats] = useState(false)
-    const scrollAreaRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
+    const scrollAreaRef = useRef<HTMLDivElement>(null)
 
     const { activeWorkflowId } = useWorkflowRegistry()
+    
+    // Use the new copilot store
+    const {
+      currentChat,
+      chats,
+      messages,
+      isLoading,
+      isLoadingChats,
+      isSendingMessage,
+      error,
+      workflowId,
+      setWorkflowId,
+      selectChat,
+      createNewChat,
+      deleteChat,
+      sendDocsMessage,
+      clearMessages,
+      clearError,
+    } = useCopilotStore()
 
-    // Load chats when workflow changes
+    // Sync workflow ID with store
     useEffect(() => {
-      if (activeWorkflowId) {
-        loadChats()
+      if (activeWorkflowId !== workflowId) {
+        setWorkflowId(activeWorkflowId)
       }
-    }, [activeWorkflowId])
+    }, [activeWorkflowId, workflowId, setWorkflowId])
 
     // Auto-scroll to bottom when new messages are added
     useEffect(() => {
@@ -88,232 +95,56 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       }
     }, [messages])
 
-    // Load chats for current workflow
-    const loadChats = useCallback(async () => {
-      if (!activeWorkflowId) return
-
-      setLoadingChats(true)
-      try {
-        const result = await listChats(activeWorkflowId)
-        if (result.success) {
-          setChats(result.chats)
-          // If no current chat and we have chats, select the most recent one
-          if (!currentChat && result.chats.length > 0) {
-            await selectChat(result.chats[0])
-          }
-        } else {
-          logger.error('Failed to load chats:', result.error)
-        }
-      } catch (error) {
-        logger.error('Error loading chats:', error)
-      } finally {
-        setLoadingChats(false)
-      }
-    }, [activeWorkflowId, currentChat])
-
-    // Select a specific chat and load its messages
-    const selectChat = useCallback(async (chat: CopilotChat) => {
-      try {
-        const result = await getChat(chat.id)
-        if (result.success && result.chat) {
-          setCurrentChat(result.chat)
-          setMessages(result.chat.messages || [])
-          logger.info(`Loaded chat: ${chat.title || 'Untitled'}`)
-        } else {
-          logger.error('Failed to load chat:', result.error)
-        }
-      } catch (error) {
-        logger.error('Error loading chat:', error)
-      }
-    }, [])
-
-    // Start a new chat
-    const startNewChat = useCallback(() => {
-      setCurrentChat(null)
-      setMessages([])
-      logger.info('Started new chat')
-    }, [])
-
-    // Delete a chat
+    // Handle chat deletion
     const handleDeleteChat = useCallback(
       async (chatId: string) => {
         try {
-          const result = await deleteChat(chatId)
-          if (result.success) {
-            setChats((prev) => prev.filter((chat) => chat.id !== chatId))
-            if (currentChat?.id === chatId) {
-              startNewChat()
-            }
-            logger.info('Chat deleted successfully')
-          } else {
-            logger.error('Failed to delete chat:', result.error)
-          }
+          await deleteChat(chatId)
+          logger.info('Chat deleted successfully')
         } catch (error) {
           logger.error('Error deleting chat:', error)
         }
       },
-      [currentChat, startNewChat]
+      [deleteChat]
     )
+
+    // Handle new chat creation
+    const handleStartNewChat = useCallback(() => {
+      clearMessages()
+      logger.info('Started new chat')
+    }, [clearMessages])
 
     // Expose functions to parent
     useImperativeHandle(
       ref,
       () => ({
-        clearMessages: startNewChat,
-        startNewChat,
+        clearMessages: handleStartNewChat,
+        startNewChat: handleStartNewChat,
       }),
-      [startNewChat]
+      [handleStartNewChat]
     )
 
     // Handle message submission
     const handleSubmit = useCallback(
-      async (e: React.FormEvent) => {
+      async (e: React.FormEvent, message?: string) => {
         e.preventDefault()
-        if (!input.trim() || isLoading || !activeWorkflowId) return
+        
+        const query = message || (inputRef.current?.value?.trim() || '')
+        if (!query || isSendingMessage || !activeWorkflowId) return
 
-        const query = input.trim()
-        setInput('')
-        setIsLoading(true)
-
-        // Add user message immediately
-        const userMessage: CopilotMessage = {
-          id: crypto.randomUUID(),
-          role: 'user',
-          content: query,
-          timestamp: new Date().toISOString(),
+        // Clear input if using the form input
+        if (!message && inputRef.current) {
+          inputRef.current.value = ''
         }
-
-        // Add streaming placeholder
-        const streamingMessage: CopilotMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: '',
-          timestamp: new Date().toISOString(),
-        }
-
-        setMessages((prev) => [...prev, userMessage, streamingMessage])
 
         try {
-          logger.info('Sending docs RAG query:', { query, chatId: currentChat?.id })
-
-          const result = await sendStreamingMessage({
-            message: query,
-            chatId: currentChat?.id,
-            workflowId: activeWorkflowId,
-            createNewChat: !currentChat,
-          })
-
-          if (result.success && result.stream) {
-            const reader = result.stream.getReader()
-            const decoder = new TextDecoder()
-            let accumulatedContent = ''
-            let newChatId: string | undefined
-            let responseCitations: Array<{ id: number; title: string; url: string }> = []
-            let streamComplete = false
-
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done || streamComplete) break
-
-              const chunk = decoder.decode(value, { stream: true })
-              const lines = chunk.split('\n')
-
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  try {
-                    const data = JSON.parse(line.slice(6))
-
-                    if (data.type === 'metadata') {
-                      // Get chatId from metadata (for both new and existing chats)
-                      if (data.chatId) {
-                        newChatId = data.chatId
-                      }
-                      // Get citations from metadata
-                      if (data.citations) {
-                        responseCitations = data.citations
-                      }
-                    } else if (data.type === 'content') {
-                      accumulatedContent += data.content
-
-                      // Update the streaming message with accumulated content and citations
-                      setMessages((prev) =>
-                        prev.map((msg) =>
-                          msg.id === streamingMessage.id
-                            ? {
-                                ...msg,
-                                content: accumulatedContent,
-                                citations:
-                                  responseCitations.length > 0 ? responseCitations : undefined,
-                              }
-                            : msg
-                        )
-                      )
-                    } else if (data.type === 'done') {
-                      // Final update to ensure citations are applied
-                      setMessages((prev) =>
-                        prev.map((msg) =>
-                          msg.id === streamingMessage.id
-                            ? {
-                                ...msg,
-                                content: accumulatedContent,
-                                citations:
-                                  responseCitations.length > 0 ? responseCitations : undefined,
-                              }
-                            : msg
-                        )
-                      )
-
-                      // Update current chat state with the chatId from response
-                      if (newChatId && !currentChat) {
-                        // For new chats, create a temporary chat object and reload the full chat list
-                        setCurrentChat({
-                          id: newChatId,
-                          title: null,
-                          model: 'claude-3-7-sonnet-latest',
-                          createdAt: new Date().toISOString(),
-                          updatedAt: new Date().toISOString(),
-                          messageCount: 2, // User + assistant message
-                        })
-                        // Reload chats in background to get the updated list
-                        loadChats()
-                      }
-
-                      // Mark stream as complete to exit outer loop
-                      streamComplete = true
-                      break
-                    } else if (data.type === 'error') {
-                      throw new Error(data.error || 'Streaming error')
-                    }
-                  } catch (parseError) {
-                    logger.warn('Failed to parse SSE data:', parseError)
-                  }
-                }
-              }
-            }
-
-            logger.info('Received copilot chat response:', {
-              contentLength: accumulatedContent.length,
-            })
-          } else {
-            throw new Error(result.error || 'Failed to send message')
-          }
+          await sendDocsMessage(query, { stream: true })
+          logger.info('Sent docs query:', query)
         } catch (error) {
-          logger.error('Docs RAG error:', error)
-
-          const errorMessage: CopilotMessage = {
-            id: streamingMessage.id,
-            role: 'assistant',
-            content:
-              'Sorry, I encountered an error while searching the documentation. Please try again.',
-            timestamp: new Date().toISOString(),
-          }
-
-          setMessages((prev) => prev.slice(0, -1).concat(errorMessage))
-        } finally {
-          setIsLoading(false)
+          logger.error('Failed to send docs message:', error)
         }
       },
-      [input, isLoading, activeWorkflowId, currentChat, loadChats]
+      [isSendingMessage, activeWorkflowId, sendDocsMessage]
     )
 
     // Format timestamp for display
@@ -343,7 +174,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       })
 
       // Also replace standalone ↗ symbols with clickable citation links
-      // This handles cases where the LLM outputs ↗ directly
       if (citations && citations.length > 0) {
         let citationIndex = 0
         processedContent = processedContent.replace(/↗/g, () => {
@@ -356,34 +186,27 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
         })
       }
 
-      // Basic markdown processing for better formatting
+      // Basic markdown processing
       processedContent = processedContent
-        // Handle code blocks
         .replace(
           /```(\w+)?\n([\s\S]*?)```/g,
           '<pre class="bg-muted p-3 rounded-lg overflow-x-auto my-3 text-sm"><code>$2</code></pre>'
         )
-        // Handle inline code
         .replace(
           /`([^`]+)`/g,
           '<code class="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">$1</code>'
         )
-        // Handle bold text
         .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-        // Handle italic text
         .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-        // Handle headers
         .replace(/^### (.*$)/gm, '<h3 class="font-semibold text-base mt-4 mb-2">$1</h3>')
         .replace(/^## (.*$)/gm, '<h2 class="font-semibold text-lg mt-4 mb-2">$1</h2>')
         .replace(/^# (.*$)/gm, '<h1 class="font-bold text-xl mt-4 mb-3">$1</h1>')
-        // Handle unordered lists
         .replace(/^\* (.*$)/gm, '<li class="ml-4">• $1</li>')
         .replace(/^- (.*$)/gm, '<li class="ml-4">• $1</li>')
-        // Handle line breaks (reduce spacing)
         .replace(/\n\n+/g, '</p><p class="mt-2">')
         .replace(/\n/g, '<br>')
 
-      // Wrap in paragraph tags if not already wrapped
+      // Wrap in paragraph tags if needed
       if (
         !processedContent.includes('<p>') &&
         !processedContent.includes('<h1>') &&
@@ -455,10 +278,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     // Handle modal message sending
     const handleModalSendMessage = useCallback(
       async (message: string) => {
-        // Create form event and call the main handler
         const mockEvent = { preventDefault: () => {} } as React.FormEvent
-        setInput(message)
-        await handleSubmit(mockEvent)
+        await handleSubmit(mockEvent, message)
       },
       [handleSubmit]
     )
@@ -519,64 +340,81 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
               <Button
                 variant='ghost'
                 size='sm'
-                onClick={startNewChat}
-                className='ml-2 h-8 w-8 p-0'
+                onClick={handleStartNewChat}
+                className='h-8 w-8 p-0'
                 title='New Chat'
               >
                 <MessageSquarePlus className='h-4 w-4' />
               </Button>
             </div>
+
+            {/* Error display */}
+            {error && (
+              <div className='mt-2 rounded-md bg-destructive/10 p-2 text-destructive text-sm'>
+                {error}
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={clearError}
+                  className='ml-2 h-auto p-1 text-destructive'
+                >
+                  Dismiss
+                </Button>
+              </div>
+            )}
           </div>
 
-          {/* Messages */}
-          <ScrollArea className='flex-1' ref={scrollAreaRef}>
+          {/* Messages area */}
+          <ScrollArea ref={scrollAreaRef} className='flex-1'>
             {messages.length === 0 ? (
-              <div className='flex h-full flex-col items-center justify-center p-8 text-center'>
-                <Bot className='mb-4 h-12 w-12 text-muted-foreground' />
-                <h3 className='mb-2 font-medium text-sm'>Welcome to Documentation Copilot</h3>
-                <p className='mb-4 max-w-xs text-muted-foreground text-xs'>
-                  Ask me anything about Sim Studio features, workflows, tools, or how to get
-                  started.
-                </p>
-                <div className='space-y-2 text-left'>
-                  <div className='text-muted-foreground text-xs'>Try asking:</div>
-                  <div className='space-y-1'>
-                    <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
-                      "How do I create a workflow?"
-                    </div>
-                    <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
-                      "What tools are available?"
-                    </div>
-                    <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
-                      "How do I deploy my workflow?"
+              <div className='flex h-full flex-col items-center justify-center px-4 py-10'>
+                <div className='space-y-4 text-center'>
+                  <Bot className='mx-auto h-12 w-12 text-muted-foreground' />
+                  <div className='space-y-2'>
+                    <h3 className='font-medium text-lg'>Welcome to Documentation Copilot</h3>
+                    <p className='text-muted-foreground text-sm'>
+                      Ask me anything about Sim Studio features, workflows, tools, or how to get
+                      started.
+                    </p>
+                  </div>
+                  <div className='mx-auto max-w-xs space-y-2 text-left'>
+                    <div className='text-muted-foreground text-xs'>Try asking:</div>
+                    <div className='space-y-1'>
+                      <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
+                        "How do I create a workflow?"
+                      </div>
+                      <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
+                        "What tools are available?"
+                      </div>
+                      <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
+                        "How do I deploy my workflow?"
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className='space-y-1'>{messages.map(renderMessage)}</div>
+              messages.map(renderMessage)
             )}
           </ScrollArea>
 
-          {/* Input */}
+          {/* Input area */}
           <div className='border-t p-4'>
             <form onSubmit={handleSubmit} className='flex gap-2'>
               <Input
                 ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
                 placeholder='Ask about Sim Studio documentation...'
-                disabled={isLoading}
+                disabled={isSendingMessage}
                 className='flex-1'
                 autoComplete='off'
               />
               <Button
                 type='submit'
                 size='icon'
-                disabled={!input.trim() || isLoading}
+                disabled={isSendingMessage}
                 className='h-10 w-10'
               >
-                {isLoading ? (
+                {isSendingMessage ? (
                   <Loader2 className='h-4 w-4 animate-spin' />
                 ) : (
                   <Send className='h-4 w-4' />
@@ -594,11 +432,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
           setCopilotMessage={(message) => onFullscreenInputChange?.(message)}
           messages={modalMessages}
           onSendMessage={handleModalSendMessage}
-          isLoading={isLoading}
+          isLoading={isSendingMessage}
           chats={chats}
           currentChat={currentChat}
           onSelectChat={selectChat}
-          onStartNewChat={startNewChat}
+          onStartNewChat={handleStartNewChat}
           onDeleteChat={handleDeleteChat}
         />
       </>

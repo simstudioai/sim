@@ -2,28 +2,15 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getRotatingApiKey } from '@/lib/utils'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
 import { copilotChats, docsEmbeddings } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
-import { getProviderDefaultModel } from '@/providers/models'
+import { getApiKey } from '@/providers/utils'
+import { getCopilotConfig, getCopilotModel } from '@/lib/copilot/config'
 
 const logger = createLogger('DocsRAG')
-
-// Configuration for docs RAG
-const DOCS_RAG_CONFIG = {
-  // Default provider for docs RAG - change this constant to switch providers
-  defaultProvider: 'anthropic', // Options: 'openai', 'anthropic', 'deepseek', 'google', 'xai', etc.
-  // Default model for docs RAG - will use provider's default if not specified
-  defaultModel: 'claude-3-7-sonnet-latest', // e.g., 'gpt-4o-mini', 'claude-3-5-sonnet-latest', 'deepseek-chat'
-  // Temperature for response generation
-  temperature: 0.1,
-  // Max tokens for response
-  maxTokens: 1000,
-} as const
 
 const DocsQuerySchema = z.object({
   query: z.string().min(1, 'Query is required'),
@@ -42,10 +29,23 @@ const DocsQuerySchema = z.object({
  */
 async function generateChatTitle(userMessage: string): Promise<string> {
   try {
-    const apiKey = getRotatingApiKey('anthropic')
+    const { provider, model } = getCopilotModel('title')
+    let apiKey: string
+    try {
+      // Use rotating key directly for hosted providers
+      if ((provider === 'openai' || provider === 'anthropic')) {
+        const { getRotatingApiKey } = require('@/lib/utils')
+        apiKey = getRotatingApiKey(provider)
+      } else {
+        apiKey = getApiKey(provider, model)
+      }
+    } catch (error) {
+      logger.error(`Failed to get API key for title generation (${provider} ${model}):`, error)
+      return 'New Chat' // Fallback if API key is not available
+    }
 
-    const response = await executeProviderRequest('anthropic', {
-      model: 'claude-3-haiku-20240307', // Use faster, cheaper model for title generation
+    const response = await executeProviderRequest(provider, {
+      model,
       systemPrompt:
         'You are a helpful assistant that generates concise, descriptive titles for chat conversations. Create a title that captures the main topic or question being discussed. Keep it under 50 characters and make it specific and clear.',
       context: `Generate a concise title for a conversation that starts with this user message: "${userMessage}"
@@ -119,29 +119,25 @@ async function generateResponse(
   stream = false,
   conversationHistory: any[] = []
 ): Promise<string | ReadableStream> {
-  // Determine which provider and model to use
-  const selectedProvider = provider || DOCS_RAG_CONFIG.defaultProvider
-  const selectedModel =
-    model || DOCS_RAG_CONFIG.defaultModel || getProviderDefaultModel(selectedProvider)
+  const config = getCopilotConfig()
+  
+  // Determine which provider and model to use - allow overrides
+  const selectedProvider = provider || config.rag.defaultProvider
+  const selectedModel = model || config.rag.defaultModel
 
-  // Get API key for the selected provider
+  // Get API key using the provider utils
   let apiKey: string
   try {
-    if (selectedProvider === 'openai' || selectedProvider === 'azure-openai') {
-      apiKey = getRotatingApiKey('openai')
-    } else if (selectedProvider === 'anthropic') {
-      apiKey = getRotatingApiKey('anthropic')
+    // Use rotating key directly for hosted providers
+    if ((selectedProvider === 'openai' || selectedProvider === 'anthropic')) {
+      const { getRotatingApiKey } = require('@/lib/utils')
+      apiKey = getRotatingApiKey(selectedProvider)
     } else {
-      // For other providers, try to get from environment
-      const envKey = `${selectedProvider.toUpperCase().replace('-', '_')}_API_KEY`
-      apiKey = process.env[envKey] || ''
-      if (!apiKey) {
-        throw new Error(`API key not configured for provider: ${selectedProvider}`)
-      }
+      apiKey = getApiKey(selectedProvider, selectedModel)
     }
   } catch (error) {
-    logger.error(`Failed to get API key for provider ${selectedProvider}:`, error)
-    throw new Error(`API key not configured for provider: ${selectedProvider}`)
+    logger.error(`Failed to get API key for ${selectedProvider} ${selectedModel}:`, error)
+    throw new Error(`API key not configured for ${selectedProvider}. Please set up API keys for this provider or use a different one.`)
   }
 
   // Format chunks as context with numbered sources
@@ -172,8 +168,8 @@ Content: ${chunkText}`
   let conversationContext = ''
   if (conversationHistory.length > 0) {
     conversationContext = '\n\nConversation History:\n'
-    conversationHistory.slice(-6).forEach((msg: any) => {
-      // Include last 6 messages for context
+    conversationHistory.slice(-config.general.maxConversationHistory).forEach((msg: any) => {
+      // Use config for conversation history limit
       const role = msg.role === 'user' ? 'Human' : 'Assistant'
       conversationContext += `${role}: ${msg.content}\n`
     })
@@ -216,15 +212,10 @@ ${context}`
       model: selectedModel,
       systemPrompt,
       context: userPrompt,
-      temperature: DOCS_RAG_CONFIG.temperature,
-      maxTokens: DOCS_RAG_CONFIG.maxTokens,
+      temperature: config.rag.temperature,
+      maxTokens: config.rag.maxTokens,
       apiKey,
       stream,
-      // Azure OpenAI specific parameters if needed
-      ...(selectedProvider === 'azure-openai' && {
-        azureEndpoint: env.AZURE_OPENAI_ENDPOINT,
-        azureApiVersion: env.AZURE_OPENAI_API_VERSION,
-      }),
     }
 
     const response = await executeProviderRequest(selectedProvider, providerRequest)
@@ -275,15 +266,15 @@ export async function POST(req: NextRequest) {
     const { query, topK, provider, model, stream, chatId, workflowId, createNewChat } =
       DocsQuerySchema.parse(body)
 
+    const config = getCopilotConfig()
+    const ragConfig = getCopilotModel('rag')
+
     // Get session for chat functionality
     const session = await getSession()
 
     logger.info(`[${requestId}] Docs RAG query: "${query}"`, {
-      provider: provider || DOCS_RAG_CONFIG.defaultProvider,
-      model:
-        model ||
-        DOCS_RAG_CONFIG.defaultModel ||
-        getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
+      provider: provider || ragConfig.provider,
+      model: model || ragConfig.model,
       topK,
       chatId,
       workflowId,
@@ -314,7 +305,7 @@ export async function POST(req: NextRequest) {
           userId: session.user.id,
           workflowId,
           title: null, // Will be generated after first response
-          model: model || DOCS_RAG_CONFIG.defaultModel,
+          model: model || ragConfig.model,
           messages: [],
         })
         .returning()
@@ -347,11 +338,8 @@ export async function POST(req: NextRequest) {
           requestId,
           chunksFound: 0,
           query,
-          provider: provider || DOCS_RAG_CONFIG.defaultProvider,
-          model:
-            model ||
-            DOCS_RAG_CONFIG.defaultModel ||
-            getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
+          provider: provider || ragConfig.provider,
+          model: model || ragConfig.model,
         },
       })
     }
@@ -398,11 +386,8 @@ export async function POST(req: NextRequest) {
                 chunksFound: chunks.length,
                 query,
                 topSimilarity: sources[0]?.similarity,
-                provider: provider || DOCS_RAG_CONFIG.defaultProvider,
-                model:
-                  model ||
-                  DOCS_RAG_CONFIG.defaultModel ||
-                  getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
+                provider: provider || ragConfig.provider,
+                model: model || ragConfig.model,
               },
             }
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`))
@@ -549,11 +534,8 @@ export async function POST(req: NextRequest) {
         chunksFound: chunks.length,
         query,
         topSimilarity: sources[0]?.similarity,
-        provider: provider || DOCS_RAG_CONFIG.defaultProvider,
-        model:
-          model ||
-          DOCS_RAG_CONFIG.defaultModel ||
-          getProviderDefaultModel(provider || DOCS_RAG_CONFIG.defaultProvider),
+        provider: provider || ragConfig.provider,
+        model: model || ragConfig.model,
       },
     })
   } catch (error) {
