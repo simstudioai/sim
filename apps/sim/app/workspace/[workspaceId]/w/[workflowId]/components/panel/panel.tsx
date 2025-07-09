@@ -10,7 +10,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { Chat } from './components/chat/chat'
 import { ChatModal } from './components/chat/components/chat-modal/chat-modal'
 import { Console } from './components/console/console'
-import { Copilot } from './components/copilot/copilot'
 import { Variables } from './components/variables/variables'
 
 export function Panel() {
@@ -120,7 +119,7 @@ export function Panel() {
             >
               Variables
             </button>
-            <button
+            {/* <button
               onClick={() => setActiveTab('copilot')}
               className={`rounded-md px-3 py-1 text-sm transition-colors ${
                 activeTab === 'copilot'
@@ -129,19 +128,20 @@ export function Panel() {
               }`}
             >
               Copilot
-            </button>
+            </button> */}
           </div>
 
-          {(activeTab === 'console' || activeTab === 'chat' || activeTab === 'copilot') && (
+          {(activeTab === 'console' || activeTab === 'chat' /* || activeTab === 'copilot' */) && (
             <button
               onClick={() => {
                 if (activeTab === 'console') {
                   clearConsole(activeWorkflowId)
                 } else if (activeTab === 'chat') {
                   clearChat(activeWorkflowId)
-                } else if (activeTab === 'copilot') {
-                  copilotRef.current?.clearMessages()
                 }
+                // else if (activeTab === 'copilot') {
+                //   copilotRef.current?.clearMessages()
+                // }
               }}
               className='rounded-md px-3 py-1 text-muted-foreground text-sm transition-colors hover:bg-accent/50 hover:text-foreground'
             >
@@ -156,7 +156,8 @@ export function Panel() {
             <Chat panelWidth={width} chatMessage={chatMessage} setChatMessage={setChatMessage} />
           ) : activeTab === 'console' ? (
             <Console panelWidth={width} />
-          ) : activeTab === 'copilot' ? (
+          ) : (
+            /* activeTab === 'copilot' ? (
             <Copilot
               ref={copilotRef}
               panelWidth={width}
@@ -165,8 +166,7 @@ export function Panel() {
               fullscreenInput={copilotMessage}
               onFullscreenInputChange={setCopilotMessage}
             />
-          ) : (
-            <Variables panelWidth={width} />
+          ) : */ <Variables panelWidth={width} />
           )}
         </div>
 
@@ -200,7 +200,7 @@ export function Panel() {
             </Tooltip>
           )}
 
-          {activeTab === 'copilot' && (
+          {/* activeTab === 'copilot' && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -213,7 +213,7 @@ export function Panel() {
               </TooltipTrigger>
               <TooltipContent side='left'>Expand Copilot</TooltipContent>
             </Tooltip>
-          )}
+          ) */}
         </div>
       </div>
 

@@ -1291,6 +1291,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         {renderDebugModeToggle()}
         <ImportControls disabled={!userPermissions.canEdit} />
         <ExportControls disabled={!userPermissions.canRead} />
+        {/* <WorkflowTextEditorModal disabled={!userPermissions.canEdit} /> */}
         {/* {renderPublishButton()} */}
         {renderDeployButton()}
         {renderRunButton()}
