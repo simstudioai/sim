@@ -41,11 +41,6 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       required: false,
       description: 'ID of contact to link to this task',
     },
-    taskId: {
-      type: 'string',
-      required: false,
-      description: 'ID of existing task to update (leave empty to create new task)',
-    },
   },
   request: {
     url: (params) => {
@@ -129,12 +124,7 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       throw new Error('Due date is required')
     }
 
-    const taskId = params.taskId?.trim()
-    const url = taskId
-      ? `https://api.crmworkspace.com/v1/tasks/${taskId}`
-      : 'https://api.crmworkspace.com/v1/tasks'
-
-    const method = taskId ? 'PUT' : 'POST'
+    const url = `https://api.crmworkspace.com/v1/tasks`
 
     const body: Record<string, any> = {
       name: params.title.trim(),
@@ -161,7 +151,7 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     }
 
     const response = await fetch(url, {
-      method,
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
