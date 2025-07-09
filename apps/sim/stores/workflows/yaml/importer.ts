@@ -134,7 +134,9 @@ function validateBlockReferences(yamlWorkflow: YamlWorkflow): string[] {
     if (block.connections?.incoming) {
       block.connections.incoming.forEach((connection) => {
         if (!blockIds.has(connection.source)) {
-          errors.push(`Block '${blockId}' references non-existent source block '${connection.source}'`)
+          errors.push(
+            `Block '${blockId}' references non-existent source block '${connection.source}'`
+          )
         }
       })
     }
@@ -143,7 +145,9 @@ function validateBlockReferences(yamlWorkflow: YamlWorkflow): string[] {
     if (block.connections?.outgoing) {
       block.connections.outgoing.forEach((connection) => {
         if (!blockIds.has(connection.target)) {
-          errors.push(`Block '${blockId}' references non-existent target block '${connection.target}'`)
+          errors.push(
+            `Block '${blockId}' references non-existent target block '${connection.target}'`
+          )
         }
       })
     }

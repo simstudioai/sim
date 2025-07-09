@@ -165,7 +165,10 @@ function extractBlockInputs(
 /**
  * Find incoming connections for a given block ID
  */
-function findIncomingConnections(blockId: string, edges: any[]): Array<{
+function findIncomingConnections(
+  blockId: string,
+  edges: any[]
+): Array<{
   source: string
   sourceHandle?: string
   targetHandle?: string
@@ -182,7 +185,10 @@ function findIncomingConnections(blockId: string, edges: any[]): Array<{
 /**
  * Find outgoing connections for a given block ID
  */
-function findOutgoingConnections(blockId: string, edges: any[]): Array<{
+function findOutgoingConnections(
+  blockId: string,
+  edges: any[]
+): Array<{
   target: string
   sourceHandle?: string
   targetHandle?: string
@@ -229,11 +235,11 @@ export function generateWorkflowYaml(
       // Only include connections if they exist
       if (incoming.length > 0 || outgoing.length > 0) {
         yamlBlock.connections = {}
-        
+
         if (incoming.length > 0) {
           yamlBlock.connections.incoming = incoming
         }
-        
+
         if (outgoing.length > 0) {
           yamlBlock.connections.outgoing = outgoing
         }
