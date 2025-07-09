@@ -114,19 +114,6 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     }
   }, [baseUserPermissions, isOfflineMode])
 
-  // Log permissions when they change
-  useMemo(() => {
-    if (workspacePermissions && !permissionsLoading) {
-      logger.info('Workspace permissions updated', {
-        workspaceId,
-        userCount: workspacePermissions.total,
-        isOfflineMode,
-        userCanEdit: userPermissions.canEdit,
-        userCanAdmin: userPermissions.canAdmin,
-      })
-    }
-  }, [workspacePermissions, permissionsLoading, workspaceId, isOfflineMode, userPermissions])
-
   const contextValue = useMemo(
     () => ({
       workspacePermissions,
