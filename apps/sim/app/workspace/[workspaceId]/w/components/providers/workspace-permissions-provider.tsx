@@ -87,8 +87,10 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
       }
       // If we were previously connected and this is a reconnection, stay offline (user must refresh)
     } else if (hasBeenConnected) {
-      // Only enter offline mode if we were previously connected and now disconnected
-      setIsOfflineMode(true)
+      const timeoutId = setTimeout(() => {
+        setIsOfflineMode(true)
+      }, 6000)
+      return () => clearTimeout(timeoutId)
     }
     // If not connected and never been connected, stay in initial state (not offline mode)
   }, [isConnected, hasBeenConnected])
