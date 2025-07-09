@@ -1,12 +1,12 @@
+import { dump as yamlDump } from 'js-yaml'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { dump as yamlDump } from 'js-yaml'
-import { getBlock } from '@/blocks'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWorkflowStore } from '../workflow/store'
-import { useSubBlockStore } from '../subblock/store'
-import type { BlockState, WorkflowState } from '../workflow/types'
+import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useSubBlockStore } from '../subblock/store'
+import { useWorkflowStore } from '../workflow/store'
+import type { BlockState, WorkflowState } from '../workflow/types'
 
 const logger = createLogger('WorkflowYamlStore')
 
@@ -58,13 +58,13 @@ function extractBlockInputs(blockState: BlockState, blockId: string): Record<str
   // Process each subBlock configuration
   blockConfig.subBlocks.forEach((subBlockConfig: SubBlockConfig) => {
     const subBlockId = subBlockConfig.id
-    
+
     // Skip hidden or conditional fields that aren't active
     if (subBlockConfig.hidden) return
-    
+
     // Get value from subblock store or fallback to block state
-    const value = subBlockStore.getValue(blockId, subBlockId) ?? 
-                  blockState.subBlocks[subBlockId]?.value
+    const value =
+      subBlockStore.getValue(blockId, subBlockId) ?? blockState.subBlocks[subBlockId]?.value
 
     // Include value if it exists and isn't empty
     if (value !== undefined && value !== null && value !== '') {
@@ -76,14 +76,14 @@ function extractBlockInputs(blockState: BlockState, blockId: string): Record<str
             inputs[subBlockId] = value
           }
           break
-        
+
         case 'checkbox-list':
           // Checkbox lists return arrays
           if (Array.isArray(value) && value.length > 0) {
             inputs[subBlockId] = value
           }
           break
-        
+
         case 'code':
           // Code blocks should preserve formatting
           if (typeof value === 'string' && value.trim()) {
@@ -92,24 +92,31 @@ function extractBlockInputs(blockState: BlockState, blockId: string): Record<str
             inputs[subBlockId] = value
           }
           break
-        
+
         case 'switch':
           // Boolean values
           inputs[subBlockId] = Boolean(value)
           break
-        
+
         case 'slider':
           // Numeric values
-          if (typeof value === 'number' || (typeof value === 'string' && !isNaN(Number(value)))) {
+          if (
+            typeof value === 'number' ||
+            (typeof value === 'string' && !Number.isNaN(Number(value)))
+          ) {
             inputs[subBlockId] = Number(value)
           }
           break
-        
+
         default:
           // Text inputs, dropdowns, etc.
           if (typeof value === 'string' && value.trim()) {
             inputs[subBlockId] = value.trim()
-          } else if (typeof value === 'object' || typeof value === 'number' || typeof value === 'boolean') {
+          } else if (
+            typeof value === 'object' ||
+            typeof value === 'number' ||
+            typeof value === 'boolean'
+          ) {
             inputs[subBlockId] = value
           }
           break
@@ -125,8 +132,8 @@ function extractBlockInputs(blockState: BlockState, blockId: string): Record<str
  */
 function findPrecedingBlocks(blockId: string, edges: any[]): string[] {
   return edges
-    .filter(edge => edge.target === blockId)
-    .map(edge => edge.source)
+    .filter((edge) => edge.target === blockId)
+    .map((edge) => edge.source)
     .filter((source, index, arr) => arr.indexOf(source) === index) // Remove duplicates
 }
 
@@ -135,8 +142,8 @@ function findPrecedingBlocks(blockId: string, edges: any[]): string[] {
  */
 function findFollowingBlocks(blockId: string, edges: any[]): string[] {
   return edges
-    .filter(edge => edge.source === blockId)
-    .map(edge => edge.target)
+    .filter((edge) => edge.source === blockId)
+    .map((edge) => edge.target)
     .filter((target, index, arr) => arr.indexOf(target) === index) // Remove duplicates
 }
 
@@ -147,7 +154,7 @@ function generateWorkflowYaml(workflowState: WorkflowState): string {
   try {
     const yamlWorkflow: YamlWorkflow = {
       version: '1.0',
-      blocks: {}
+      blocks: {},
     }
 
     // Process each block
@@ -158,7 +165,7 @@ function generateWorkflowYaml(workflowState: WorkflowState): string {
 
       const yamlBlock: YamlBlock = {
         type: blockState.type,
-        name: blockState.name
+        name: blockState.name,
       }
 
       // Only include inputs if they exist
@@ -170,7 +177,7 @@ function generateWorkflowYaml(workflowState: WorkflowState): string {
       if (preceding.length > 0) {
         yamlBlock.preceding = preceding
       }
-      
+
       if (following.length > 0) {
         yamlBlock.following = following
       }
@@ -183,7 +190,7 @@ function generateWorkflowYaml(workflowState: WorkflowState): string {
       indent: 2,
       lineWidth: -1, // Disable line wrapping
       noRefs: true,
-      sortKeys: false
+      sortKeys: false,
     })
   } catch (error) {
     logger.error('Failed to generate workflow YAML:', error)
@@ -200,32 +207,32 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
       generateYaml: () => {
         const workflowState = useWorkflowStore.getState()
         const yaml = generateWorkflowYaml(workflowState)
-        
+
         set({
           yaml,
-          lastGenerated: Date.now()
+          lastGenerated: Date.now(),
         })
       },
 
       getYaml: () => {
         const currentTime = Date.now()
         const { yaml, lastGenerated } = get()
-        
+
         // Auto-refresh if data is stale (older than 1 second) or never generated
         if (!lastGenerated || currentTime - lastGenerated > 1000) {
           get().generateYaml()
           return get().yaml
         }
-        
+
         return yaml
       },
 
       refreshYaml: () => {
         get().generateYaml()
-      }
+      },
     }),
     {
-      name: 'workflow-yaml-store'
+      name: 'workflow-yaml-store',
     }
   )
 )
@@ -236,16 +243,17 @@ let lastWorkflowState: { blockCount: number; edgeCount: number } | null = null
 useWorkflowStore.subscribe((state) => {
   const currentState = {
     blockCount: Object.keys(state.blocks).length,
-    edgeCount: state.edges.length
+    edgeCount: state.edges.length,
   }
-  
+
   // Only refresh if the structure has changed
-  if (!lastWorkflowState || 
-      lastWorkflowState.blockCount !== currentState.blockCount ||
-      lastWorkflowState.edgeCount !== currentState.edgeCount) {
-    
+  if (
+    !lastWorkflowState ||
+    lastWorkflowState.blockCount !== currentState.blockCount ||
+    lastWorkflowState.edgeCount !== currentState.edgeCount
+  ) {
     lastWorkflowState = currentState
-    
+
     // Debounce the refresh to avoid excessive updates
     const refreshYaml = useWorkflowYamlStore.getState().refreshYaml
     setTimeout(refreshYaml, 100)
@@ -257,12 +265,12 @@ let lastSubBlockChangeTime = 0
 
 useSubBlockStore.subscribe((state) => {
   const currentTime = Date.now()
-  
+
   // Debounce rapid changes
   if (currentTime - lastSubBlockChangeTime > 100) {
     lastSubBlockChangeTime = currentTime
-    
+
     const refreshYaml = useWorkflowYamlStore.getState().refreshYaml
     setTimeout(refreshYaml, 100)
   }
-}) 
+})
