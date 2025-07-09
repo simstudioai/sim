@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
-import type { WealthboxReadResponse, WealthboxReadParams } from './types'
+import type { WealthboxReadParams, WealthboxReadResponse } from './types'
 
 const logger = createLogger('WealthboxReadTask')
 
@@ -45,21 +45,22 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
   transformResponse: async (response: Response, params?: WealthboxReadParams) => {
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error(
-        `Wealthbox task API error: ${response.status} ${response.statusText}`,
-        errorText
-      )
-      
+      logger.error(`Wealthbox task API error: ${response.status} ${response.statusText}`, errorText)
+
       // Provide more specific error messages
       if (response.status === 404) {
-        throw new Error(`Task with ID ${params?.taskId} not found. Please check the task ID and try again.`)
-      } else if (response.status === 403) {
-        throw new Error(`Access denied to task with ID ${params?.taskId}. Please check your permissions.`)
-      } else {
         throw new Error(
-          `Failed to read Wealthbox task: ${response.status} ${response.statusText} - ${errorText}`
+          `Task with ID ${params?.taskId} not found. Please check the task ID and try again.`
         )
       }
+      if (response.status === 403) {
+        throw new Error(
+          `Access denied to task with ID ${params?.taskId}. Please check your permissions.`
+        )
+      }
+      throw new Error(
+        `Failed to read Wealthbox task: ${response.status} ${response.statusText} - ${errorText}`
+      )
     }
 
     const data = await response.json()
@@ -81,27 +82,27 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
     // Format task information into readable content
     const task = data
     let content = `Task: ${task.name || 'Unnamed task'}`
-    
+
     if (task.due_date) {
       content += `\nDue Date: ${new Date(task.due_date).toLocaleDateString()}`
     }
-    
+
     if (task.complete !== undefined) {
       content += `\nStatus: ${task.complete ? 'Complete' : 'Incomplete'}`
     }
-    
+
     if (task.priority) {
       content += `\nPriority: ${task.priority}`
     }
-    
+
     if (task.category) {
       content += `\nCategory: ${task.category}`
     }
-    
+
     if (task.visible_to) {
       content += `\nVisible to: ${task.visible_to}`
     }
-    
+
     if (task.linked_to && task.linked_to.length > 0) {
       content += '\nLinked to:'
       task.linked_to.forEach((link: any) => {

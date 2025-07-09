@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
-import type { WealthboxReadResponse, WealthboxReadParams } from './types'
+import type { WealthboxReadParams, WealthboxReadResponse } from './types'
 
 const logger = createLogger('WealthboxReadNote')
 
@@ -45,21 +45,22 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
   transformResponse: async (response: Response, params?: WealthboxReadParams) => {
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error(
-        `Wealthbox note API error: ${response.status} ${response.statusText}`,
-        errorText
-      )
-      
+      logger.error(`Wealthbox note API error: ${response.status} ${response.statusText}`, errorText)
+
       // Provide more specific error messages
       if (response.status === 404) {
-        throw new Error(`Note with ID ${params?.noteId} not found. Please check the note ID and try again.`)
-      } else if (response.status === 403) {
-        throw new Error(`Access denied to note with ID ${params?.noteId}. Please check your permissions.`)
-      } else {
         throw new Error(
-          `Failed to read Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
+          `Note with ID ${params?.noteId} not found. Please check the note ID and try again.`
         )
       }
+      if (response.status === 403) {
+        throw new Error(
+          `Access denied to note with ID ${params?.noteId}. Please check your permissions.`
+        )
+      }
+      throw new Error(
+        `Failed to read Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
+      )
     }
 
     const data = await response.json()
@@ -81,26 +82,26 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
     // Format note information into readable content
     const note = data
     let content = `Note Content: ${note.content || 'No content available'}`
-    
+
     if (note.created_at) {
       content += `\nCreated: ${new Date(note.created_at).toLocaleString()}`
     }
-    
+
     if (note.updated_at) {
       content += `\nUpdated: ${new Date(note.updated_at).toLocaleString()}`
     }
-    
+
     if (note.visible_to) {
       content += `\nVisible to: ${note.visible_to}`
     }
-    
+
     if (note.linked_to && note.linked_to.length > 0) {
       content += '\nLinked to:'
       note.linked_to.forEach((link: any) => {
         content += `\n  - ${link.name} (${link.type})`
       })
     }
-    
+
     if (note.tags && note.tags.length > 0) {
       content += '\nTags:'
       note.tags.forEach((tag: any) => {

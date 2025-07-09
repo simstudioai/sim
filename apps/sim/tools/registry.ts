@@ -101,11 +101,12 @@ import type { ToolConfig } from './types'
 import { visionTool } from './vision'
 import {
   wealthboxReadContactTool,
-  wealthboxWriteContactTool,
-  wealthboxReadTaskTool,
-  wealthboxWriteTaskTool,
   wealthboxReadNoteTool,
-  wealthboxWriteNoteTool } from './wealthbox'
+  wealthboxReadTaskTool,
+  wealthboxWriteContactTool,
+  wealthboxWriteNoteTool,
+  wealthboxWriteTaskTool,
+} from './wealthbox'
 import { whatsappSendMessageTool } from './whatsapp'
 import { workflowExecutorTool } from './workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'

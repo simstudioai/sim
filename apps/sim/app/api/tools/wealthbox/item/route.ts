@@ -2,9 +2,9 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account } from '@/db/schema'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     const endpoints = {
       note: 'notes',
       contact: 'contacts',
-      task: 'tasks'
+      task: 'tasks',
     }
     const endpoint = endpoints[type as keyof typeof endpoints]
 
@@ -90,16 +90,19 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error(`[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`, {
-        error: errorText,
-        endpoint,
-        itemId,
-      })
-      
+      logger.error(
+        `[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`,
+        {
+          error: errorText,
+          endpoint,
+          itemId,
+        }
+      )
+
       if (response.status === 404) {
         return NextResponse.json({ error: 'Item not found' }, { status: 404 })
       }
-      
+
       return NextResponse.json(
         { error: `Failed to fetch ${type} from Wealthbox` },
         { status: response.status }
@@ -107,11 +110,12 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
-    
+
     // Transform the response to match our expected format
     const item = {
       id: data.id?.toString() || itemId,
-      name: data.content || data.name || data.first_name + ' ' + data.last_name || `${type} ${data.id}`,
+      name:
+        data.content || data.name || `${data.first_name} ${data.last_name}` || `${type} ${data.id}`,
       type,
       content: data.content || '',
       createdAt: data.created_at,
@@ -121,7 +125,6 @@ export async function GET(request: NextRequest) {
     logger.info(`[${requestId}] Successfully fetched ${type} ${itemId} from Wealthbox`)
 
     return NextResponse.json({ item }, { status: 200 })
-
   } catch (error) {
     logger.error(`[${requestId}] Error fetching Wealthbox item`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

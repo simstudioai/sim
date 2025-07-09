@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
-import type { WealthboxWriteResponse, WealthboxWriteParams } from './types'
+import type { WealthboxWriteParams, WealthboxWriteResponse } from './types'
 
 const logger = createLogger('WealthboxWriteTask')
 
@@ -23,7 +23,8 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     dueDate: {
       type: 'string',
       required: true,
-      description: 'The due date and time of the task (format: "YYYY-MM-DD HH:MM AM/PM -HHMM", e.g., "2015-05-24 11:00 AM -0400")',
+      description:
+        'The due date and time of the task (format: "YYYY-MM-DD HH:MM AM/PM -HHMM", e.g., "2015-05-24 11:00 AM -0400")',
     },
     complete: {
       type: 'boolean',
@@ -52,10 +53,9 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       if (taskId) {
         // Update existing task
         return `https://api.crmworkspace.com/v1/tasks/${taskId}`
-      } else {
-        // Create new task
-        return 'https://api.crmworkspace.com/v1/tasks'
       }
+      // Create new task
+      return 'https://api.crmworkspace.com/v1/tasks'
     },
     method: 'POST', // Default to POST, will be handled by directExecution for updates
     headers: (params) => {
@@ -96,9 +96,9 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       if (params.contactId?.trim()) {
         body.linked_to = [
           {
-            id: parseInt(params.contactId.trim()),
+            id: Number.parseInt(params.contactId.trim()),
             type: 'Contact',
-          }
+          },
         ]
       }
 
@@ -130,10 +130,10 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     }
 
     const taskId = params.taskId?.trim()
-    const url = taskId 
+    const url = taskId
       ? `https://api.crmworkspace.com/v1/tasks/${taskId}`
       : 'https://api.crmworkspace.com/v1/tasks'
-    
+
     const method = taskId ? 'PUT' : 'POST'
 
     const body: Record<string, any> = {
@@ -154,9 +154,9 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     if (params.contactId?.trim()) {
       body.linked_to = [
         {
-          id: parseInt(params.contactId.trim()),
+          id: Number.parseInt(params.contactId.trim()),
           type: 'Contact',
-        }
+        },
       ]
     }
 
@@ -200,23 +200,23 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     const task = data
     const isUpdate = !!params.taskId
     let content = `Task ${isUpdate ? 'updated' : 'created'}: ${task.name || 'Unnamed task'}`
-    
+
     if (task.due_date) {
       content += `\nDue Date: ${new Date(task.due_date).toLocaleDateString()}`
     }
-    
+
     if (task.complete !== undefined) {
       content += `\nStatus: ${task.complete ? 'Complete' : 'Incomplete'}`
     }
-    
+
     if (task.priority) {
       content += `\nPriority: ${task.priority}`
     }
-    
+
     if (task.category) {
       content += `\nCategory: ${task.category}`
     }
-    
+
     if (task.linked_to && task.linked_to.length > 0) {
       content += '\nLinked to:'
       task.linked_to.forEach((link: any) => {
@@ -270,23 +270,23 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     const task = data
     const isUpdate = !!params?.taskId
     let content = `Task ${isUpdate ? 'updated' : 'created'}: ${task.name || 'Unnamed task'}`
-    
+
     if (task.due_date) {
       content += `\nDue Date: ${new Date(task.due_date).toLocaleDateString()}`
     }
-    
+
     if (task.complete !== undefined) {
       content += `\nStatus: ${task.complete ? 'Complete' : 'Incomplete'}`
     }
-    
+
     if (task.priority) {
       content += `\nPriority: ${task.priority}`
     }
-    
+
     if (task.category) {
       content += `\nCategory: ${task.category}`
     }
-    
+
     if (task.linked_to && task.linked_to.length > 0) {
       content += '\nLinked to:'
       task.linked_to.forEach((link: any) => {

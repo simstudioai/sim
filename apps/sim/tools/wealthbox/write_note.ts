@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
-import type { WealthboxWriteResponse, WealthboxWriteParams } from './types'
+import type { WealthboxWriteParams, WealthboxWriteResponse } from './types'
 
 const logger = createLogger('WealthboxWriteNote')
 
@@ -54,9 +54,9 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
       if (params.contactId?.trim()) {
         body.linked_to = [
           {
-            id: parseInt(params.contactId.trim()),
+            id: Number.parseInt(params.contactId.trim()),
             type: 'Contact',
-          }
+          },
         ]
       }
 
@@ -82,9 +82,9 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
     if (params.contactId?.trim()) {
       body.linked_to = [
         {
-          id: parseInt(params.contactId.trim()),
+          id: Number.parseInt(params.contactId.trim()),
           type: 'Contact',
-        }
+        },
       ]
     }
 
@@ -126,22 +126,22 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
     // Format note information into readable content
     const note = data
     let content = `Note created: ${note.content ? note.content.substring(0, 100) + (note.content.length > 100 ? '...' : '') : 'No content'}`
-    
+
     if (note.created_at) {
       content += `\nCreated: ${new Date(note.created_at).toLocaleString()}`
     }
-    
+
     if (note.visible_to) {
       content += `\nVisible to: ${note.visible_to}`
     }
-    
+
     if (note.linked_to && note.linked_to.length > 0) {
       content += '\nLinked to:'
       note.linked_to.forEach((link: any) => {
         content += `\n  - ${link.name} (${link.type})`
       })
     }
-    
+
     if (note.tags && note.tags.length > 0) {
       content += '\nTags:'
       note.tags.forEach((tag: any) => {
@@ -193,22 +193,22 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
     // Format note information into readable content
     const note = data
     let content = `Note created: ${note.content ? note.content.substring(0, 100) + (note.content.length > 100 ? '...' : '') : 'No content'}`
-    
+
     if (note.created_at) {
       content += `\nCreated: ${new Date(note.created_at).toLocaleString()}`
     }
-    
+
     if (note.visible_to) {
       content += `\nVisible to: ${note.visible_to}`
     }
-    
+
     if (note.linked_to && note.linked_to.length > 0) {
       content += '\nLinked to:'
       note.linked_to.forEach((link: any) => {
         content += `\n  - ${link.name} (${link.type})`
       })
     }
-    
+
     if (note.tags && note.tags.length > 0) {
       content += '\nTags:'
       note.tags.forEach((tag: any) => {

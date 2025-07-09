@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
-import type { WealthboxReadResponse , WealthboxReadParams } from './types'
+import type { WealthboxReadParams, WealthboxReadResponse } from './types'
 
 const logger = createLogger('WealthboxReadContact')
 
@@ -32,14 +32,14 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
     },
     method: 'GET',
     headers: (params) => {
-        // Validate access token
-        if (!params.accessToken) {
-          throw new Error('Access token is required')
-        }
-  
-        return {
-            Authorization: `Bearer ${params.accessToken}`,
-        }
+      // Validate access token
+      if (!params.accessToken) {
+        throw new Error('Access token is required')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+      }
     },
   },
   transformResponse: async (response: Response, params?: WealthboxReadParams) => {
@@ -73,22 +73,22 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
     // Format contact information into readable content
     const contact = data
     let content = `Contact: ${contact.first_name || ''} ${contact.last_name || ''}`.trim()
-    
+
     if (contact.company_name) {
       content += `\nCompany: ${contact.company_name}`
     }
-    
+
     if (contact.background_information) {
       content += `\nBackground: ${contact.background_information}`
     }
-    
+
     if (contact.email_addresses && contact.email_addresses.length > 0) {
       content += '\nEmail Addresses:'
       contact.email_addresses.forEach((email: any) => {
         content += `\n  - ${email.address}${email.principal ? ' (Primary)' : ''} (${email.kind})`
       })
     }
-    
+
     if (contact.phone_numbers && contact.phone_numbers.length > 0) {
       content += '\nPhone Numbers:'
       contact.phone_numbers.forEach((phone: any) => {
