@@ -131,7 +131,7 @@ export function Panel() {
             </button> */}
           </div>
 
-          {(activeTab === 'console' || activeTab === 'chat' /* || activeTab === 'copilot' */) && (
+          {(activeTab === 'console' || activeTab === 'chat') /* || activeTab === 'copilot' */ && (
             <button
               onClick={() => {
                 if (activeTab === 'console') {
