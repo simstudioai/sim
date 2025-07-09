@@ -7,6 +7,12 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
   description: 'Fetch comments from a specific Reddit post',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'reddit',
+    additionalScopes: ['read'],
+  },
+
   params: {
     postId: {
       type: 'string',
@@ -38,15 +44,21 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       const sort = params.sort || 'confidence'
       const limit = Math.min(Math.max(1, params.limit || 50), 100)
 
-      // Build URL
-      return `https://www.reddit.com/r/${subreddit}/comments/${params.postId}.json?sort=${sort}&limit=${limit}&raw_json=1`
+      // Build URL using OAuth endpoint
+      return `https://oauth.reddit.com/r/${subreddit}/comments/${params.postId}?sort=${sort}&limit=${limit}&raw_json=1`
     },
     method: 'GET',
-    headers: () => ({
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-      Accept: 'application/json',
-    }),
+    headers: (params: RedditCommentsParams) => {
+      if (!params.accessToken?.trim()) {
+        throw new Error('Access token is required for Reddit API')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        Accept: 'application/json',
+      }
+    },
   },
 
   transformResponse: async (response: Response, requestParams?: RedditCommentsParams) => {

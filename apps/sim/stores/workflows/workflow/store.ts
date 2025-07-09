@@ -822,13 +822,18 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
       },
 
-      revertToDeployedState: (deployedState: WorkflowState) => {
+      revertToDeployedState: async (deployedState: WorkflowState) => {
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
+        if (!activeWorkflowId) {
+          console.error('Cannot revert: no active workflow ID')
+          return
+        }
+
         // Preserving the workflow-specific deployment status if it exists
-        const deploymentStatus = activeWorkflowId
-          ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(activeWorkflowId)
-          : null
+        const deploymentStatus = useWorkflowRegistry
+          .getState()
+          .getWorkflowDeploymentStatus(activeWorkflowId)
 
         const newState = {
           blocks: deployedState.blocks,
@@ -841,7 +846,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           // Keep existing deployment statuses and update for the active workflow if needed
           deploymentStatuses: {
             ...get().deploymentStatuses,
-            ...(activeWorkflowId && deploymentStatus
+            ...(deploymentStatus
               ? {
                   [activeWorkflowId]: deploymentStatus,
                 }
@@ -851,9 +856,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         // Update the main workflow state
         set(newState)
-
-        // Get the active workflow ID
-        if (!activeWorkflowId) return
 
         // Initialize subblock store with values from deployed state
         const subBlockStore = useSubBlockStore.getState()
@@ -885,7 +887,27 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         pushHistory(set, get, newState, 'Reverted to deployed state')
         get().updateLastSaved()
-        // Note: Socket.IO handles real-time sync automatically
+
+        // Call API to persist the revert to normalized tables
+        try {
+          const response = await fetch(`/api/workflows/${activeWorkflowId}/revert-to-deployed`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error('Failed to persist revert to deployed state:', errorData.error)
+            // Don't throw error to avoid breaking the UI, but log it
+          } else {
+            console.log('Successfully persisted revert to deployed state')
+          }
+        } catch (error) {
+          console.error('Error calling revert to deployed API:', error)
+          // Don't throw error to avoid breaking the UI
+        }
       },
 
       toggleBlockAdvancedMode: (id: string) => {

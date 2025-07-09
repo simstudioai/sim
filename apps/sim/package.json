@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "type": "module",
   "engines": {
     "bun": ">=1.2.13",
     "node": ">=20.0.0"
@@ -13,7 +12,7 @@
     "dev:classic": "next dev",
     "dev:sockets": "bun run socket-server/index.ts",
     "dev:full": "concurrently -n \"NextJS,Realtime\" -c \"cyan,magenta\" \"bun run dev\" \"bun run dev:sockets\"",
-    "build": "next build",
+    "build": "next build --turbopack",
     "start": "next start",
     "prepare": "cd ../.. && bun husky",
     "db:push": "bunx drizzle-kit push",

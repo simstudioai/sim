@@ -58,22 +58,63 @@ export class AgentBlockHandler implements BlockHandler {
   private parseResponseFormat(responseFormat?: string | object): any {
     if (!responseFormat || responseFormat === '') return undefined
 
-    try {
-      const parsed =
-        typeof responseFormat === 'string' ? JSON.parse(responseFormat) : responseFormat
-
-      if (parsed && typeof parsed === 'object' && !parsed.schema && !parsed.name) {
+    // If already an object, process it directly
+    if (typeof responseFormat === 'object' && responseFormat !== null) {
+      const formatObj = responseFormat as any
+      if (!formatObj.schema && !formatObj.name) {
         return {
           name: 'response_schema',
-          schema: parsed,
+          schema: responseFormat,
           strict: true,
         }
       }
-      return parsed
-    } catch (error: any) {
-      logger.error('Failed to parse response format:', { error })
-      throw new Error(`Invalid response format: ${error.message}`)
+      return responseFormat
     }
+
+    // Handle string values
+    if (typeof responseFormat === 'string') {
+      const trimmedValue = responseFormat.trim()
+
+      // Check for variable references like <start.input>
+      if (trimmedValue.startsWith('<') && trimmedValue.includes('>')) {
+        logger.info('Response format contains variable reference:', {
+          value: trimmedValue,
+        })
+        // Variable references should have been resolved by the resolver before reaching here
+        // If we still have a variable reference, it means it couldn't be resolved
+        // Return undefined to use default behavior (no structured response)
+        return undefined
+      }
+
+      // Try to parse as JSON
+      try {
+        const parsed = JSON.parse(trimmedValue)
+
+        if (parsed && typeof parsed === 'object' && !parsed.schema && !parsed.name) {
+          return {
+            name: 'response_schema',
+            schema: parsed,
+            strict: true,
+          }
+        }
+        return parsed
+      } catch (error: any) {
+        logger.warn('Failed to parse response format as JSON, using default behavior:', {
+          error: error.message,
+          value: trimmedValue,
+        })
+        // Return undefined instead of throwing - this allows execution to continue
+        // without structured response format
+        return undefined
+      }
+    }
+
+    // For any other type, return undefined
+    logger.warn('Unexpected response format type, using default behavior:', {
+      type: typeof responseFormat,
+      value: responseFormat,
+    })
+    return undefined
   }
 
   private async formatTools(inputTools: ToolInput[], context: ExecutionContext): Promise<any[]> {

@@ -22,10 +22,10 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getTool } from '@/tools/utils'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ChannelSelectorInput } from '../channel-selector/channel-selector-input'
-import { CredentialSelector } from '../credential-selector/credential-selector'
 import { ShortInput } from '../short-input'
 import { type CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
 import { ToolCommand } from './components/tool-command/tool-command'
+import { ToolCredentialSelector } from './components/tool-credential-selector'
 
 interface ToolInputProps {
   blockId: string
@@ -347,6 +347,8 @@ export function ToolInput({
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
   const subBlockStore = useSubBlockStore()
@@ -668,6 +670,46 @@ export function ToolInput({
     )
   }
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (isPreview || disabled) return
+    setDraggedIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/html', '')
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    if (isPreview || disabled || draggedIndex === null) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverIndex(index)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+  }
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    if (isPreview || disabled || draggedIndex === null || draggedIndex === dropIndex) return
+    e.preventDefault()
+
+    const newTools = [...selectedTools]
+    const draggedTool = newTools[draggedIndex]
+
+    newTools.splice(draggedIndex, 1)
+
+    if (dropIndex === selectedTools.length) {
+      newTools.push(draggedTool)
+    } else {
+      const adjustedDropIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex
+      newTools.splice(adjustedDropIndex, 0, draggedTool)
+    }
+
+    setStoreValue(newTools)
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+  }
+
   const IconComponent = ({ icon: Icon, className }: { icon: any; className?: string }) => {
     if (!Icon) return null
     return <Icon className={className} />
@@ -827,9 +869,34 @@ export function ToolInput({
             return (
               <div
                 key={`${tool.type}-${toolIndex}`}
-                className={cn('group flex flex-col', isWide ? 'w-[calc(50%-0.25rem)]' : 'w-full')}
+                className={cn(
+                  'group relative flex flex-col transition-all duration-200 ease-in-out',
+                  isWide ? 'w-[calc(50%-0.25rem)]' : 'w-full',
+                  draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
+                  dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
+                    ? 'translate-y-1 transform'
+                    : '',
+                  selectedTools.length > 1 && !isPreview && !disabled
+                    ? 'cursor-grab active:cursor-grabbing'
+                    : ''
+                )}
+                draggable={!isPreview && !disabled}
+                onDragStart={(e) => handleDragStart(e, toolIndex)}
+                onDragOver={(e) => handleDragOver(e, toolIndex)}
+                onDragEnd={handleDragEnd}
+                onDrop={(e) => handleDrop(e, toolIndex)}
               >
-                <div className='flex flex-col overflow-visible rounded-md border bg-card'>
+                {/* Subtle drop indicator - use border highlight instead of separate line */}
+                <div
+                  className={cn(
+                    'flex flex-col overflow-visible rounded-md border bg-card',
+                    dragOverIndex === toolIndex &&
+                      draggedIndex !== toolIndex &&
+                      draggedIndex !== null
+                      ? 'border-t-2 border-t-muted-foreground/40'
+                      : ''
+                  )}
+                >
                   <div
                     className={cn(
                       'flex items-center justify-between bg-accent/50 p-2',
@@ -993,13 +1060,14 @@ export function ToolInput({
                                 <div className='font-medium text-muted-foreground text-xs'>
                                   Account
                                 </div>
-                                <CredentialSelector
+                                <ToolCredentialSelector
                                   value={tool.params.credential || ''}
                                   onChange={(value) => handleCredentialChange(toolIndex, value)}
                                   provider={oauthConfig.provider as OAuthProvider}
                                   requiredScopes={oauthConfig.additionalScopes || []}
                                   label={`Select ${oauthConfig.provider} account`}
                                   serviceId={oauthConfig.provider}
+                                  disabled={disabled}
                                 />
                               </div>
                             )
@@ -1090,6 +1158,20 @@ export function ToolInput({
               </div>
             )
           })}
+
+          {/* Drop zone for the end of the list */}
+          {selectedTools.length > 0 && draggedIndex !== null && (
+            <div
+              className={cn(
+                'h-2 w-full rounded transition-all duration-200 ease-in-out',
+                dragOverIndex === selectedTools.length
+                  ? 'border-b-2 border-b-muted-foreground/40'
+                  : ''
+              )}
+              onDragOver={(e) => handleDragOver(e, selectedTools.length)}
+              onDrop={(e) => handleDrop(e, selectedTools.length)}
+            />
+          )}
 
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>

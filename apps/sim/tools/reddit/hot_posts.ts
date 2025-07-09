@@ -4,6 +4,7 @@ import type { RedditHotPostsResponse, RedditPost } from './types'
 interface HotPostsParams {
   subreddit: string
   limit?: number
+  accessToken: string
 }
 
 export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = {
@@ -11,6 +12,12 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
   name: 'Reddit Hot Posts',
   description: 'Fetch the most popular (hot) posts from a specified subreddit.',
   version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'reddit',
+    additionalScopes: ['read'],
+  },
 
   params: {
     subreddit: {
@@ -31,14 +38,20 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
       const subreddit = params.subreddit.trim().replace(/^r\//, '')
       const limit = Math.min(Math.max(1, params.limit || 10), 100)
 
-      return `https://www.reddit.com/r/${subreddit}/hot.json?limit=${limit}&raw_json=1`
+      return `https://oauth.reddit.com/r/${subreddit}/hot?limit=${limit}&raw_json=1`
     },
     method: 'GET',
-    headers: () => ({
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-      Accept: 'application/json',
-    }),
+    headers: (params: HotPostsParams) => {
+      if (!params.accessToken) {
+        throw new Error('Access token is required for Reddit API')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        Accept: 'application/json',
+      }
+    },
   },
 
   transformResponse: async (response: Response, requestParams?: HotPostsParams) => {

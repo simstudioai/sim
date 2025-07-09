@@ -1,7 +1,8 @@
 import { describe, expect, test, vi } from 'vitest'
+import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks } from '@/stores/workflows/workflow/utils'
-import { checkTagTrigger, extractFieldsFromSchema } from './tag-dropdown'
+import { checkTagTrigger } from './tag-dropdown'
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(() => ({
@@ -21,6 +22,15 @@ vi.mock('@/stores/panel/variables/store', () => ({
     getVariablesByWorkflowId: vi.fn(() => []),
     loadVariables: vi.fn(),
     variables: {},
+  })),
+}))
+
+vi.mock('@/stores/workflows/subblock/store', () => ({
+  useSubBlockStore: vi.fn(() => ({
+    getValue: vi.fn(() => null),
+    getState: vi.fn(() => ({
+      getValue: vi.fn(() => null),
+    })),
   })),
 }))
 
@@ -601,5 +611,182 @@ describe('TagDropdown Tag Selection Logic', () => {
       const nextCloseBracket = input.indexOf('>')
       expect(nextCloseBracket).toBe(expected)
     })
+  })
+})
+
+describe('TagDropdown Response Format Support', () => {
+  it.concurrent(
+    'should use custom schema properties when response format is specified',
+    async () => {
+      // Mock the subblock store to return a custom response format
+      const mockGetValue = vi.fn()
+      const mockUseSubBlockStore = vi.mocked(
+        await import('@/stores/workflows/subblock/store')
+      ).useSubBlockStore
+
+      // Set up the mock to return the example schema from the user
+      const responseFormatValue = JSON.stringify({
+        name: 'short_schema',
+        description: 'A minimal example schema with a single string property.',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            example_property: {
+              type: 'string',
+              description: 'A simple string property.',
+            },
+          },
+          additionalProperties: false,
+          required: ['example_property'],
+        },
+      })
+
+      mockGetValue.mockImplementation((blockId: string, subBlockId: string) => {
+        if (blockId === 'agent1' && subBlockId === 'responseFormat') {
+          return responseFormatValue
+        }
+        return null
+      })
+
+      mockUseSubBlockStore.mockReturnValue({
+        getValue: mockGetValue,
+        getState: () => ({
+          getValue: mockGetValue,
+        }),
+      } as any)
+
+      // Test the parseResponseFormatSafely function
+      const parsedFormat = parseResponseFormatSafely(responseFormatValue, 'agent1')
+
+      expect(parsedFormat).toEqual({
+        name: 'short_schema',
+        description: 'A minimal example schema with a single string property.',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            example_property: {
+              type: 'string',
+              description: 'A simple string property.',
+            },
+          },
+          additionalProperties: false,
+          required: ['example_property'],
+        },
+      })
+
+      // Test the extractFieldsFromSchema function with the parsed format
+      const fields = extractFieldsFromSchema(parsedFormat)
+
+      expect(fields).toEqual([
+        {
+          name: 'example_property',
+          type: 'string',
+          description: 'A simple string property.',
+        },
+      ])
+    }
+  )
+
+  it.concurrent(
+    'should fallback to default outputs when response format parsing fails',
+    async () => {
+      // Test with invalid JSON
+      const invalidFormat = parseResponseFormatSafely('invalid json', 'agent1')
+      expect(invalidFormat).toBeNull()
+
+      // Test with null/undefined values
+      expect(parseResponseFormatSafely(null, 'agent1')).toBeNull()
+      expect(parseResponseFormatSafely(undefined, 'agent1')).toBeNull()
+      expect(parseResponseFormatSafely('', 'agent1')).toBeNull()
+    }
+  )
+
+  it.concurrent('should handle response format with nested schema correctly', async () => {
+    const responseFormat = {
+      schema: {
+        type: 'object',
+        properties: {
+          user: {
+            type: 'object',
+            description: 'User information',
+            properties: {
+              name: { type: 'string', description: 'User name' },
+              age: { type: 'number', description: 'User age' },
+            },
+          },
+          status: { type: 'string', description: 'Response status' },
+        },
+      },
+    }
+
+    const fields = extractFieldsFromSchema(responseFormat)
+
+    expect(fields).toEqual([
+      { name: 'user', type: 'object', description: 'User information' },
+      { name: 'status', type: 'string', description: 'Response status' },
+    ])
+  })
+
+  it.concurrent('should handle response format without schema wrapper', async () => {
+    const responseFormat = {
+      type: 'object',
+      properties: {
+        result: { type: 'boolean', description: 'Operation result' },
+        message: { type: 'string', description: 'Status message' },
+      },
+    }
+
+    const fields = extractFieldsFromSchema(responseFormat)
+
+    expect(fields).toEqual([
+      { name: 'result', type: 'boolean', description: 'Operation result' },
+      { name: 'message', type: 'string', description: 'Status message' },
+    ])
+  })
+
+  it.concurrent('should return object as-is when it is already parsed', async () => {
+    const responseFormat = {
+      name: 'test_schema',
+      schema: {
+        properties: {
+          data: { type: 'string' },
+        },
+      },
+    }
+
+    const result = parseResponseFormatSafely(responseFormat, 'agent1')
+
+    expect(result).toEqual(responseFormat)
+  })
+
+  it.concurrent('should simulate block tag generation with custom response format', async () => {
+    // Simulate the tag generation logic that would happen in the component
+    const blockName = 'Agent 1'
+    const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase() // 'agent1'
+
+    // Mock response format
+    const responseFormat = {
+      schema: {
+        properties: {
+          example_property: { type: 'string', description: 'A simple string property.' },
+          another_field: { type: 'number', description: 'Another field.' },
+        },
+      },
+    }
+
+    const schemaFields = extractFieldsFromSchema(responseFormat)
+
+    // Generate block tags as they would be in the component
+    const blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
+
+    expect(blockTags).toEqual(['agent1.example_property', 'agent1.another_field'])
+
+    // Verify the fields extracted correctly
+    expect(schemaFields).toEqual([
+      { name: 'example_property', type: 'string', description: 'A simple string property.' },
+      { name: 'another_field', type: 'number', description: 'Another field.' },
+    ])
   })
 })

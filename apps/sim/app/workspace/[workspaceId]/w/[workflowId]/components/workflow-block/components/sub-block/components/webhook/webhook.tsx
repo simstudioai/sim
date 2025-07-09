@@ -16,7 +16,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
-import { CredentialSelector } from '../credential-selector/credential-selector'
+import { ToolCredentialSelector } from '../tool-input/components/tool-credential-selector'
 import { WebhookModal } from './components/webhook-modal'
 
 const logger = createLogger('WebhookConfig')
@@ -564,7 +564,7 @@ export function WebhookConfig({
         {error && <div className='mb-2 text-red-500 text-sm dark:text-red-400'>{error}</div>}
 
         <div className='mb-3'>
-          <CredentialSelector
+          <ToolCredentialSelector
             value={gmailCredentialId}
             onChange={handleCredentialChange}
             provider='google-email'

@@ -14,6 +14,8 @@ const logger = createLogger('OAuthTokenAPI')
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
+  logger.info(`[${requestId}] OAuth token API POST request received`)
+
   try {
     // Parse request body
     const body = await request.json()
@@ -38,6 +40,7 @@ export async function POST(request: NextRequest) {
     const credential = await getCredential(requestId, credentialId, userId)
 
     if (!credential) {
+      logger.error(`[${requestId}] Credential not found: ${credentialId}`)
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
@@ -45,7 +48,8 @@ export async function POST(request: NextRequest) {
       // Refresh the token if needed
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
       return NextResponse.json({ accessToken }, { status: 200 })
-    } catch (_error) {
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to refresh access token:`, error)
       return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {

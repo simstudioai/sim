@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const memories = await db
       .select()
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workflowId, workflowId), isNull(memory.deletedAt)))
+      .where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
       .orderBy(memory.createdAt)
       .limit(1)
 
@@ -112,7 +112,7 @@ export async function DELETE(
     const existingMemory = await db
       .select({ id: memory.id })
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workflowId, workflowId), isNull(memory.deletedAt)))
+      .where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
       .limit(1)
 
     if (existingMemory.length === 0) {
@@ -128,14 +128,8 @@ export async function DELETE(
       )
     }
 
-    // Soft delete by setting deletedAt timestamp
-    await db
-      .update(memory)
-      .set({
-        deletedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
+    // Hard delete the memory
+    await db.delete(memory).where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
 
     logger.info(`[${requestId}] Memory deleted successfully: ${id} for workflow: ${workflowId}`)
     return NextResponse.json(
@@ -202,7 +196,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const existingMemories = await db
       .select()
       .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workflowId, workflowId), isNull(memory.deletedAt)))
+      .where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
       .limit(1)
 
     if (existingMemories.length === 0) {
@@ -250,13 +244,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Update the memory with new data
-    await db
-      .update(memory)
-      .set({
-        data,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
+    await db.delete(memory).where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
 
     // Fetch the updated memory
     const updatedMemories = await db

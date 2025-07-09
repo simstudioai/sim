@@ -670,7 +670,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                 </h2>
               </TooltipTrigger>
               {!canEdit && (
-                <TooltipContent>Edit permissions required to rename workflows</TooltipContent>
+                <TooltipContent>
+                  {userPermissions.isOfflineMode
+                    ? 'Connection lost - please refresh'
+                    : 'Edit permissions required to rename workflows'}
+                </TooltipContent>
               )}
             </Tooltip>
           )}
@@ -934,7 +938,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           )}
         </TooltipTrigger>
         <TooltipContent>
-          {canEdit ? 'Duplicate Workflow' : 'Admin permission required to duplicate workflows'}
+          {canEdit
+            ? 'Duplicate Workflow'
+            : userPermissions.isOfflineMode
+              ? 'Connection lost - please refresh'
+              : 'Admin permission required to duplicate workflows'}
         </TooltipContent>
       </Tooltip>
     )
@@ -975,7 +983,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         </TooltipTrigger>
         <TooltipContent command='Shift+L'>
           {!userPermissions.canEdit
-            ? 'Admin permission required to use auto-layout'
+            ? userPermissions.isOfflineMode
+              ? 'Connection lost - please refresh'
+              : 'Admin permission required to use auto-layout'
             : 'Auto Layout'}
         </TooltipContent>
       </Tooltip>

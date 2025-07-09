@@ -305,15 +305,18 @@ export default function Logs() {
         <div className='flex flex-1 flex-col overflow-hidden'>
           {/* Table container */}
           <div className='flex flex-1 flex-col overflow-hidden'>
-            {/* Simple header */}
-            <div className='border-border/50 border-b px-4 py-3'>
-              <div className='flex items-center gap-4 font-medium text-muted-foreground text-xs'>
-                <div className='w-32'>Time</div>
-                <div className='w-20'>Status</div>
-                <div className='flex-1'>Workflow</div>
-                <div className='hidden w-24 lg:block'>Trigger</div>
-                <div className='hidden w-20 xl:block'>Cost</div>
-                <div className='w-20'>Duration</div>
+            {/* Table with fixed layout */}
+            <div className='w-full min-w-[800px]'>
+              {/* Header */}
+              <div className='border-border/50 border-b'>
+                <div className='grid grid-cols-[160px_100px_1fr_120px_100px_100px] gap-4 px-4 py-3 font-medium text-muted-foreground text-xs'>
+                  <div>Time</div>
+                  <div>Status</div>
+                  <div>Workflow</div>
+                  <div className='hidden lg:block'>Trigger</div>
+                  <div className='hidden xl:block'>Cost</div>
+                  <div>Duration</div>
+                </div>
               </div>
             </div>
 
@@ -357,9 +360,9 @@ export default function Logs() {
                         }`}
                         onClick={() => handleLogClick(log)}
                       >
-                        <div className='flex items-center gap-4 p-4'>
+                        <div className='grid grid-cols-[160px_100px_1fr_120px_100px_100px] gap-4 p-4'>
                           {/* Time */}
-                          <div className='w-32 flex-shrink-0'>
+                          <div>
                             <div className='font-medium text-sm'>{formattedDate.formatted}</div>
                             <div className='text-muted-foreground text-xs'>
                               {formattedDate.relative}
@@ -367,7 +370,7 @@ export default function Logs() {
                           </div>
 
                           {/* Status */}
-                          <div className='w-20 flex-shrink-0'>
+                          <div>
                             <div
                               className={`inline-flex items-center justify-center rounded-md px-2 py-1 text-xs ${
                                 log.level === 'error'
@@ -382,7 +385,7 @@ export default function Logs() {
                           </div>
 
                           {/* Workflow */}
-                          <div className='min-w-0 flex-1'>
+                          <div className='min-w-0'>
                             <div className='truncate font-medium text-sm'>
                               {log.workflow?.name || 'Unknown Workflow'}
                             </div>
@@ -392,14 +395,14 @@ export default function Logs() {
                           </div>
 
                           {/* Trigger */}
-                          <div className='hidden w-24 flex-shrink-0 lg:block'>
+                          <div className='hidden lg:block'>
                             <div className='text-muted-foreground text-xs'>
                               {log.trigger || '—'}
                             </div>
                           </div>
 
                           {/* Cost */}
-                          <div className='hidden w-20 flex-shrink-0 xl:block'>
+                          <div className='hidden xl:block'>
                             <div className='text-xs'>
                               {log.metadata?.enhanced && log.metadata?.cost?.total ? (
                                 <span className='text-muted-foreground'>
@@ -412,7 +415,7 @@ export default function Logs() {
                           </div>
 
                           {/* Duration */}
-                          <div className='w-20 flex-shrink-0'>
+                          <div>
                             <div className='text-muted-foreground text-xs'>
                               {log.duration || '—'}
                             </div>

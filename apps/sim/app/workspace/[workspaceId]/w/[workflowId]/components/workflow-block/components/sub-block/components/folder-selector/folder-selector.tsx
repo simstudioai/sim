@@ -16,7 +16,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { createLogger } from '@/lib/logs/console-logger'
 import { type Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
-import { saveToStorage } from '@/stores/workflows/persistence'
 
 const logger = createLogger('FolderSelector')
 
@@ -274,15 +273,6 @@ export function FolderSelector({
 
   // Handle adding a new credential
   const handleAddCredential = () => {
-    const effectiveServiceId = getServiceId()
-    const providerId = getProviderId()
-
-    // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
-
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)

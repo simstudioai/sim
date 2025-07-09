@@ -21,31 +21,24 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
+import type { SubBlockConfig } from '@/blocks/types'
+import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { OAuthRequiredModal } from './components/oauth-required-modal'
 
 const logger = createLogger('CredentialSelector')
 
 interface CredentialSelectorProps {
-  value: string
-  onChange: (value: string) => void
-  provider: OAuthProvider
-  requiredScopes?: string[]
-  label?: string
+  blockId: string
+  subBlock: SubBlockConfig
   disabled?: boolean
-  serviceId?: string
   isPreview?: boolean
   previewValue?: any | null
 }
 
 export function CredentialSelector({
-  value,
-  onChange,
-  provider,
-  requiredScopes = [],
-  label = 'Select credential',
+  blockId,
+  subBlock,
   disabled = false,
-  serviceId,
   isPreview = false,
   previewValue,
 }: CredentialSelectorProps) {
@@ -55,14 +48,22 @@ export function CredentialSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [selectedId, setSelectedId] = useState('')
 
+  // Use collaborative state management via useSubBlockValue hook
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+
+  // Extract values from subBlock config
+  const provider = subBlock.provider as OAuthProvider
+  const requiredScopes = subBlock.requiredScopes || []
+  const label = subBlock.placeholder || 'Select credential'
+  const serviceId = subBlock.serviceId
+
+  // Get the effective value (preview or store value)
+  const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
+
   // Initialize selectedId with the effective value
   useEffect(() => {
-    if (isPreview && previewValue !== undefined) {
-      setSelectedId(previewValue || '')
-    } else {
-      setSelectedId(value)
-    }
-  }, [value, isPreview, previewValue])
+    setSelectedId(effectiveValue || '')
+  }, [effectiveValue])
 
   // Derive service and provider IDs using useMemo
   const effectiveServiceId = useMemo(() => {
@@ -85,7 +86,9 @@ export function CredentialSelector({
         // If we have a value but it's not in the credentials, reset it
         if (selectedId && !data.credentials.some((cred: Credential) => cred.id === selectedId)) {
           setSelectedId('')
-          onChange('')
+          if (!isPreview) {
+            setStoreValue('')
+          }
         }
 
         // Auto-select logic:
@@ -99,11 +102,15 @@ export function CredentialSelector({
           const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
           if (defaultCred) {
             setSelectedId(defaultCred.id)
-            onChange(defaultCred.id)
+            if (!isPreview) {
+              setStoreValue(defaultCred.id)
+            }
           } else if (data.credentials.length === 1) {
             // If only one credential, select it
             setSelectedId(data.credentials[0].id)
-            onChange(data.credentials[0].id)
+            if (!isPreview) {
+              setStoreValue(data.credentials[0].id)
+            }
           }
         }
       }
@@ -112,7 +119,7 @@ export function CredentialSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [effectiveProviderId, onChange, selectedId])
+  }, [effectiveProviderId, selectedId, isPreview, setStoreValue])
 
   // Fetch credentials on initial mount
   useEffect(() => {
@@ -121,11 +128,7 @@ export function CredentialSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Update local state when external value changes
-  useEffect(() => {
-    const currentValue = isPreview ? previewValue : value
-    setSelectedId(currentValue || '')
-  }, [value, isPreview, previewValue])
+  // This effect is no longer needed since we're using effectiveValue directly
 
   // Listen for visibility changes to update credentials when user returns from settings
   useEffect(() => {
@@ -158,19 +161,13 @@ export function CredentialSelector({
   const handleSelect = (credentialId: string) => {
     setSelectedId(credentialId)
     if (!isPreview) {
-      onChange(credentialId)
+      setStoreValue(credentialId)
     }
     setOpen(false)
   }
 
   // Handle adding a new credential
   const handleAddCredential = () => {
-    // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', effectiveProviderId)
-
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)

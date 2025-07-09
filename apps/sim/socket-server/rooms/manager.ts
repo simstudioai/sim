@@ -75,11 +75,6 @@ export class RoomManager {
     this.userSessions.delete(socketId)
   }
 
-  // This would be used if we implement operation queuing
-  clearPendingOperations(socketId: string) {
-    logger.debug(`Cleared pending operations for socket ${socketId}`)
-  }
-
   handleWorkflowDeletion(workflowId: string) {
     logger.info(`Handling workflow deletion notification for ${workflowId}`)
 
@@ -113,6 +108,26 @@ export class RoomManager {
     logger.info(
       `Cleaned up workflow room ${workflowId} after deletion (${socketsToDisconnect.length} users disconnected)`
     )
+  }
+
+  handleWorkflowRevert(workflowId: string, timestamp: number) {
+    logger.info(`Handling workflow revert notification for ${workflowId}`)
+
+    const room = this.workflowRooms.get(workflowId)
+    if (!room) {
+      logger.debug(`No active room found for reverted workflow ${workflowId}`)
+      return
+    }
+
+    this.io.to(workflowId).emit('workflow-reverted', {
+      workflowId,
+      message: 'Workflow has been reverted to deployed state',
+      timestamp,
+    })
+
+    room.lastModified = timestamp
+
+    logger.info(`Notified ${room.users.size} users about workflow revert: ${workflowId}`)
   }
 
   async validateWorkflowConsistency(

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { ParallelTool } from '../../../parallel-node/parallel-config'
 
 type ParallelToolbarItemProps = {
@@ -9,6 +10,7 @@ type ParallelToolbarItemProps = {
 
 // Custom component for the Parallel Tool
 export default function ParallelToolbarItem({ disabled = false }: ParallelToolbarItemProps) {
+  const userPermissions = useUserPermissionsContext()
   const handleDragStart = (e: React.DragEvent) => {
     if (disabled) {
       e.preventDefault()
@@ -75,7 +77,11 @@ export default function ParallelToolbarItem({ disabled = false }: ParallelToolba
     return (
       <Tooltip>
         <TooltipTrigger asChild>{blockContent}</TooltipTrigger>
-        <TooltipContent>Edit permissions required to add blocks</TooltipContent>
+        <TooltipContent>
+          {userPermissions.isOfflineMode
+            ? 'Connection lost - please refresh'
+            : 'Edit permissions required to add blocks'}
+        </TooltipContent>
       </Tooltip>
     )
   }

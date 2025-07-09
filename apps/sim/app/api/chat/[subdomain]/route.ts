@@ -194,6 +194,7 @@ export async function GET(
           description: deployment.description,
           customizations: deployment.customizations,
           authType: deployment.authType,
+          outputConfigs: deployment.outputConfigs,
         }),
         request
       )
@@ -219,6 +220,7 @@ export async function GET(
         description: deployment.description,
         customizations: deployment.customizations,
         authType: deployment.authType,
+        outputConfigs: deployment.outputConfigs,
       }),
       request
     )

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface OutputSelectProps {
@@ -48,8 +50,31 @@ export function OutputSelect({
           ? block.name.replace(/\s+/g, '').toLowerCase()
           : `block-${block.id}`
 
+      // Check for custom response format first
+      const responseFormatValue = useSubBlockStore.getState().getValue(block.id, 'responseFormat')
+      const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
+
+      let outputsToProcess: Record<string, any> = {}
+
+      if (responseFormat) {
+        // Use custom schema properties if response format is specified
+        const schemaFields = extractFieldsFromSchema(responseFormat)
+        if (schemaFields.length > 0) {
+          // Convert schema fields to output structure
+          schemaFields.forEach((field) => {
+            outputsToProcess[field.name] = { type: field.type }
+          })
+        } else {
+          // Fallback to default outputs if schema extraction failed
+          outputsToProcess = block.outputs || {}
+        }
+      } else {
+        // Use default block outputs
+        outputsToProcess = block.outputs || {}
+      }
+
       // Add response outputs
-      if (block.outputs && typeof block.outputs === 'object') {
+      if (Object.keys(outputsToProcess).length > 0) {
         const addOutput = (path: string, outputObj: any, prefix = '') => {
           const fullPath = prefix ? `${prefix}.${path}` : path
 
@@ -100,7 +125,7 @@ export function OutputSelect({
         }
 
         // Process all output properties directly (flattened structure)
-        Object.entries(block.outputs).forEach(([key, value]) => {
+        Object.entries(outputsToProcess).forEach(([key, value]) => {
           addOutput(key, value)
         })
       }

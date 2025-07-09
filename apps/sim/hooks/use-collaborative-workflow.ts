@@ -25,6 +25,7 @@ export function useCollaborativeWorkflow() {
     onUserJoined,
     onUserLeft,
     onWorkflowDeleted,
+    onWorkflowReverted,
   } = useSocket()
 
   const { activeWorkflowId } = useWorkflowRegistry()
@@ -262,12 +263,80 @@ export function useCollaborativeWorkflow() {
       }
     }
 
+    const handleWorkflowReverted = async (data: any) => {
+      const { workflowId } = data
+      logger.info(`Workflow ${workflowId} has been reverted to deployed state`)
+
+      // If the reverted workflow is the currently active one, reload the workflow state
+      if (activeWorkflowId === workflowId) {
+        logger.info(`Currently active workflow ${workflowId} was reverted, reloading state`)
+
+        try {
+          // Fetch the updated workflow state from the server (which loads from normalized tables)
+          const response = await fetch(`/api/workflows/${workflowId}`)
+          if (response.ok) {
+            const responseData = await response.json()
+            const workflowData = responseData.data
+
+            if (workflowData?.state) {
+              // Update the workflow store with the reverted state
+              isApplyingRemoteChange.current = true
+              try {
+                // Update the main workflow state using the API response
+                useWorkflowStore.setState({
+                  blocks: workflowData.state.blocks || {},
+                  edges: workflowData.state.edges || [],
+                  loops: workflowData.state.loops || {},
+                  parallels: workflowData.state.parallels || {},
+                  isDeployed: workflowData.state.isDeployed || false,
+                  deployedAt: workflowData.state.deployedAt,
+                  lastSaved: workflowData.state.lastSaved || Date.now(),
+                  hasActiveSchedule: workflowData.state.hasActiveSchedule || false,
+                  hasActiveWebhook: workflowData.state.hasActiveWebhook || false,
+                  deploymentStatuses: workflowData.state.deploymentStatuses || {},
+                })
+
+                // Update subblock store with reverted values
+                const subblockValues: Record<string, Record<string, any>> = {}
+                Object.entries(workflowData.state.blocks || {}).forEach(([blockId, block]) => {
+                  const blockState = block as any
+                  subblockValues[blockId] = {}
+                  Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
+                    subblockValues[blockId][subblockId] = (subblock as any).value
+                  })
+                })
+
+                // Update subblock store for this workflow
+                useSubBlockStore.setState((state: any) => ({
+                  workflowValues: {
+                    ...state.workflowValues,
+                    [workflowId]: subblockValues,
+                  },
+                }))
+
+                logger.info(`Successfully loaded reverted workflow state for ${workflowId}`)
+              } finally {
+                isApplyingRemoteChange.current = false
+              }
+            } else {
+              logger.error('No state found in workflow data after revert', { workflowData })
+            }
+          } else {
+            logger.error(`Failed to fetch workflow data after revert: ${response.statusText}`)
+          }
+        } catch (error) {
+          logger.error('Error reloading workflow state after revert:', error)
+        }
+      }
+    }
+
     // Register event handlers
     onWorkflowOperation(handleWorkflowOperation)
     onSubblockUpdate(handleSubblockUpdate)
     onUserJoined(handleUserJoined)
     onUserLeft(handleUserLeft)
     onWorkflowDeleted(handleWorkflowDeleted)
+    onWorkflowReverted(handleWorkflowReverted)
 
     return () => {
       // Cleanup handled by socket context
@@ -278,6 +347,7 @@ export function useCollaborativeWorkflow() {
     onUserJoined,
     onUserLeft,
     onWorkflowDeleted,
+    onWorkflowReverted,
     workflowStore,
     subBlockStore,
     activeWorkflowId,

@@ -5,6 +5,12 @@ import { ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { createLogger } from '@/lib/logs/console-logger'
+import {
+  extractBlockIdFromOutputId,
+  extractPathFromOutputId,
+  parseOutputContentSafely,
+} from '@/lib/response-format'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
@@ -13,6 +19,8 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
 import { ChatMessage } from './components/chat-message/chat-message'
 import { OutputSelect } from './components/output-select/output-select'
+
+const logger = createLogger('ChatPanel')
 
 interface ChatProps {
   panelWidth: number
@@ -60,8 +68,8 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     const selected = selectedWorkflowOutputs[activeWorkflowId]
 
     if (!selected || selected.length === 0) {
-      const defaultSelection = outputEntries.length > 0 ? [outputEntries[0].id] : []
-      return defaultSelection
+      // Return empty array when nothing is explicitly selected
+      return []
     }
 
     // Ensure we have no duplicates in the selection
@@ -74,7 +82,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     }
 
     return selected
-  }, [selectedWorkflowOutputs, activeWorkflowId, outputEntries, setSelectedWorkflowOutput])
+  }, [selectedWorkflowOutputs, activeWorkflowId, setSelectedWorkflowOutput])
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -141,25 +149,22 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
                   if (nonStreamingLogs.length > 0) {
                     const outputsToRender = selectedOutputs.filter((outputId) => {
-                      // Extract block ID correctly - handle both formats:
-                      // - "blockId" (direct block ID)
-                      // - "blockId_response.result" (block ID with path)
-                      const blockIdForOutput = outputId.includes('_')
-                        ? outputId.split('_')[0]
-                        : outputId.split('.')[0]
+                      const blockIdForOutput = extractBlockIdFromOutputId(outputId)
                       return nonStreamingLogs.some((log) => log.blockId === blockIdForOutput)
                     })
 
                     for (const outputId of outputsToRender) {
-                      const blockIdForOutput = outputId.includes('_')
-                        ? outputId.split('_')[0]
-                        : outputId.split('.')[0]
-                      const path = outputId.substring(blockIdForOutput.length + 1)
+                      const blockIdForOutput = extractBlockIdFromOutputId(outputId)
+                      const path = extractPathFromOutputId(outputId, blockIdForOutput)
                       const log = nonStreamingLogs.find((l) => l.blockId === blockIdForOutput)
 
                       if (log) {
                         let outputValue: any = log.output
+
                         if (path) {
+                          // Parse JSON content safely
+                          outputValue = parseOutputContentSafely(outputValue)
+
                           const pathParts = path.split('.')
                           for (const part of pathParts) {
                             if (
@@ -211,42 +216,41 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                   }
                 }
               } catch (e) {
-                console.error('Error parsing stream data:', e)
+                logger.error('Error parsing stream data:', e)
               }
             }
           }
         }
       }
 
-      processStream().catch((e) => console.error('Error processing stream:', e))
+      processStream().catch((e) => logger.error('Error processing stream:', e))
     } else if (result && 'success' in result && result.success && 'logs' in result) {
       const finalOutputs: any[] = []
 
-      if (selectedOutputs && selectedOutputs.length > 0) {
+      if (selectedOutputs?.length > 0) {
         for (const outputId of selectedOutputs) {
-          // Find the log that corresponds to the start of the outputId
-          const log = result.logs?.find(
-            (l: BlockLog) => l.blockId === outputId || outputId.startsWith(`${l.blockId}_`)
-          )
+          const blockIdForOutput = extractBlockIdFromOutputId(outputId)
+          const path = extractPathFromOutputId(outputId, blockIdForOutput)
+          const log = result.logs?.find((l: BlockLog) => l.blockId === blockIdForOutput)
 
           if (log) {
             let output = log.output
-            // Check if there is a path to traverse
-            if (outputId.length > log.blockId.length) {
-              const path = outputId.substring(log.blockId.length + 1)
-              if (path) {
-                const pathParts = path.split('.')
-                let current = output
-                for (const part of pathParts) {
-                  if (current && typeof current === 'object' && part in current) {
-                    current = current[part]
-                  } else {
-                    current = undefined
-                    break
-                  }
+
+            if (path) {
+              // Parse JSON content safely
+              output = parseOutputContentSafely(output)
+
+              const pathParts = path.split('.')
+              let current = output
+              for (const part of pathParts) {
+                if (current && typeof current === 'object' && part in current) {
+                  current = current[part]
+                } else {
+                  current = undefined
+                  break
                 }
-                output = current
               }
+              output = current
             }
             if (output !== undefined) {
               finalOutputs.push(output)
@@ -255,10 +259,8 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         }
       }
 
-      // If no specific outputs could be resolved, fall back to the final workflow output
-      if (finalOutputs.length === 0 && result.output) {
-        finalOutputs.push(result.output)
-      }
+      // Only show outputs if something was explicitly selected
+      // If no outputs are selected, don't show anything
 
       // Add a new message for each resolved output
       finalOutputs.forEach((output) => {
@@ -266,19 +268,8 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         if (typeof output === 'string') {
           content = output
         } else if (output && typeof output === 'object') {
-          // Handle cases where output is { response: ... }
-          const outputObj = output as Record<string, any>
-          const response = outputObj.response
-          if (response) {
-            if (typeof response.content === 'string') {
-              content = response.content
-            } else {
-              // Pretty print for better readability
-              content = `\`\`\`json\n${JSON.stringify(response, null, 2)}\n\`\`\``
-            }
-          } else {
-            content = `\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``
-          }
+          // For structured responses, pretty print the JSON
+          content = `\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``
         }
 
         if (content) {

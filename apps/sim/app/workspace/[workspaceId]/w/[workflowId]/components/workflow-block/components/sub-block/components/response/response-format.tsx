@@ -50,7 +50,11 @@ export function ResponseFormat({
   isPreview = false,
   previewValue,
 }: ResponseFormatProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue<JSONProperty[]>(blockId, subBlockId)
+  // useSubBlockValue now includes debouncing by default
+  const [storeValue, setStoreValue] = useSubBlockValue<JSONProperty[]>(blockId, subBlockId, false, {
+    debounceMs: 200, // Slightly longer debounce for complex structures
+  })
+
   const [showPreview, setShowPreview] = useState(false)
 
   const value = isPreview ? previewValue : storeValue
@@ -290,7 +294,13 @@ export function ResponseFormat({
       {showPreview && (
         <div className='rounded border bg-muted/30 p-2'>
           <pre className='max-h-32 overflow-auto text-xs'>
-            {JSON.stringify(generateJSON(properties), null, 2)}
+            {(() => {
+              try {
+                return JSON.stringify(generateJSON(properties), null, 2)
+              } catch (error) {
+                return `Error generating preview: ${error instanceof Error ? error.message : 'Unknown error'}`
+              }
+            })()}
           </pre>
         </div>
       )}

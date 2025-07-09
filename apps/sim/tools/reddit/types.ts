@@ -39,6 +39,7 @@ export interface RedditPostsParams {
   sort?: 'hot' | 'new' | 'top' | 'rising'
   limit?: number
   time?: 'day' | 'week' | 'month' | 'year' | 'all'
+  accessToken?: string
 }
 
 // Response for the generalized get_posts tool
@@ -55,6 +56,7 @@ export interface RedditCommentsParams {
   subreddit: string
   sort?: 'confidence' | 'top' | 'new' | 'controversial' | 'old' | 'random' | 'qa'
   limit?: number
+  accessToken?: string
 }
 
 // Response for the get_comments tool

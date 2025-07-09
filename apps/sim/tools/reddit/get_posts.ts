@@ -7,6 +7,12 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
   description: 'Fetch posts from a subreddit with different sorting options',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'reddit',
+    additionalScopes: ['read'],
+  },
+
   params: {
     subreddit: {
       type: 'string',
@@ -38,8 +44,8 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       const sort = params.sort || 'hot'
       const limit = Math.min(Math.max(1, params.limit || 10), 100)
 
-      // Build URL with appropriate parameters
-      let url = `https://www.reddit.com/r/${subreddit}/${sort}.json?limit=${limit}&raw_json=1`
+      // Build URL with appropriate parameters using OAuth endpoint
+      let url = `https://oauth.reddit.com/r/${subreddit}/${sort}?limit=${limit}&raw_json=1`
 
       // Add time parameter only for 'top' sorting
       if (sort === 'top' && params.time) {
@@ -49,29 +55,54 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       return url
     },
     method: 'GET',
-    headers: () => ({
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-      Accept: 'application/json',
-    }),
+    headers: (params: RedditPostsParams) => {
+      if (!params.accessToken) {
+        throw new Error('Access token is required for Reddit API')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        Accept: 'application/json',
+      }
+    },
   },
 
   transformResponse: async (response: Response, requestParams?: RedditPostsParams) => {
     try {
       // Check if response is OK
       if (!response.ok) {
+        // Get response text for better error details
+        const errorText = await response.text()
+        console.error('Reddit API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
+          url: response.url,
+        })
+
         if (response.status === 403 || response.status === 429) {
           throw new Error('Reddit API access blocked or rate limited. Please try again later.')
         }
-        throw new Error(`Reddit API returned ${response.status}: ${response.statusText}`)
+        throw new Error(
+          `Reddit API returned ${response.status}: ${response.statusText}. Body: ${errorText}`
+        )
       }
 
       // Attempt to parse JSON
       let data
       try {
         data = await response.json()
-      } catch (_error) {
-        throw new Error('Failed to parse Reddit API response: Response was not valid JSON')
+      } catch (error) {
+        const responseText = await response.text()
+        console.error('Failed to parse Reddit API response as JSON:', {
+          error: error instanceof Error ? error.message : String(error),
+          responseText,
+          contentType: response.headers.get('content-type'),
+        })
+        throw new Error(
+          `Failed to parse Reddit API response: Response was not valid JSON. Content: ${responseText}`
+        )
       }
 
       // Check if response contains error
