@@ -720,7 +720,7 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
 
     // Extract citations from StreamingExecution if available
     let citations: Array<{ id: number; title: string; url: string; similarity?: number }> = []
-    
+
     if (typeof response === 'object' && response && 'execution' in response) {
       // This is a StreamingExecution - extract citations from tool calls
       const execution = (response as any).execution
@@ -729,7 +729,7 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
         hasToolResults: !!execution?.toolResults,
         toolResultsLength: execution?.toolResults?.length || 0,
       })
-      
+
       if (execution?.toolResults) {
         for (const toolResult of execution.toolResults) {
           logger.info('Processing tool result for citations', {
@@ -737,7 +737,7 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
             resultKeys: toolResult && typeof toolResult === 'object' ? Object.keys(toolResult) : [],
             hasResultsArray: !!(toolResult && typeof toolResult === 'object' && toolResult.results),
           })
-          
+
           if (toolResult && typeof toolResult === 'object' && toolResult.results) {
             // Convert documentation search results to citations
             citations = toolResult.results.map((result: any, index: number) => ({
