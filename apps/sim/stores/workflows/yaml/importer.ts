@@ -11,6 +11,7 @@ interface YamlBlock {
   inputs?: Record<string, any>
   preceding?: string[]
   following?: string[]
+  parentId?: string // Add parentId for nested blocks
 }
 
 interface YamlWorkflow {
@@ -258,6 +259,55 @@ function calculateBlockPositions(
 }
 
 /**
+ * Sort blocks to ensure parents are processed before children
+ * This ensures proper creation order for nested blocks
+ */
+function sortBlocksByParentChildOrder(blocks: ImportedBlock[]): ImportedBlock[] {
+  const sorted: ImportedBlock[] = []
+  const processed = new Set<string>()
+  const visiting = new Set<string>() // Track blocks currently being processed to detect cycles
+  
+  // Create a map for quick lookup
+  const blockMap = new Map<string, ImportedBlock>()
+  blocks.forEach(block => blockMap.set(block.id, block))
+  
+  // Process blocks recursively, ensuring parents are added first
+  function processBlock(block: ImportedBlock) {
+    if (processed.has(block.id)) {
+      return // Already processed
+    }
+    
+    if (visiting.has(block.id)) {
+      // Circular dependency detected - break the cycle by processing this block without its parent
+      logger.warn(`Circular parent-child dependency detected for block ${block.id}, breaking cycle`)
+      sorted.push(block)
+      processed.add(block.id)
+      return
+    }
+    
+    visiting.add(block.id)
+    
+    // If this block has a parent, ensure the parent is processed first
+    if (block.parentId) {
+      const parentBlock = blockMap.get(block.parentId)
+      if (parentBlock && !processed.has(block.parentId)) {
+        processBlock(parentBlock)
+      }
+    }
+    
+    // Now process this block
+    visiting.delete(block.id)
+    sorted.push(block)
+    processed.add(block.id)
+  }
+  
+  // Process all blocks
+  blocks.forEach(block => processBlock(block))
+  
+  return sorted
+}
+
+/**
  * Convert YAML workflow to importable format
  */
 export function convertYamlToWorkflow(yamlWorkflow: YamlWorkflow): ImportResult {
@@ -296,11 +346,28 @@ export function convertYamlToWorkflow(yamlWorkflow: YamlWorkflow): ImportResult 
 
     // Add container-specific data
     if (yamlBlock.type === 'loop' || yamlBlock.type === 'parallel') {
+      // For loop/parallel blocks, map the inputs to the data field since they don't use subBlocks
       importedBlock.data = {
         width: 500,
         height: 300,
         type: yamlBlock.type === 'loop' ? 'loopNode' : 'parallelNode',
+        // Map YAML inputs to data properties for loop/parallel blocks
+        ...(yamlBlock.inputs || {}),
       }
+      // Clear inputs since they're now in data
+      importedBlock.inputs = {}
+    }
+
+    // Handle parent-child relationships for nested blocks
+    if (yamlBlock.parentId) {
+      importedBlock.parentId = yamlBlock.parentId
+      importedBlock.extent = 'parent'
+      // Also add to data for consistency with how the system works
+      if (!importedBlock.data) {
+        importedBlock.data = {}
+      }
+      importedBlock.data.parentId = yamlBlock.parentId
+      importedBlock.data.extent = 'parent'
     }
 
     blocks.push(importedBlock)
@@ -326,7 +393,10 @@ export function convertYamlToWorkflow(yamlWorkflow: YamlWorkflow): ImportResult 
     }
   })
 
-  return { blocks, edges, errors, warnings }
+  // Sort blocks to ensure parents are created before children
+  const sortedBlocks = sortBlocksByParentChildOrder(blocks)
+
+  return { blocks: sortedBlocks, edges, errors, warnings }
 }
 
 /**
@@ -474,6 +544,8 @@ export async function importWorkflowFromYaml(
     }
 
     // Create all other blocks
+    // Note: blocks are now sorted to ensure parents come before children,
+    // but we still need the two-phase approach because we're generating new UUIDs
     let blocksProcessed = 0
     for (const block of blocks) {
       if (block.type === 'starter') {
@@ -499,10 +571,11 @@ export async function importWorkflowFromYaml(
           horizontalHandles: true,
           isWide: false,
           height: 0,
-          data: block.data || {},
+          data: block.data || {}, // Configuration is already in block.data from convertYamlToWorkflow
         }
 
-        completeSubBlockValues[blockId] = { ...block.inputs }
+        // Loop/parallel blocks don't use subBlocks, their config is in data
+        // No need to set completeSubBlockValues since they don't have subBlocks
         blocksProcessed++
       } else if (blockConfig) {
         // Handle regular blocks
@@ -526,7 +599,7 @@ export async function importWorkflowFromYaml(
           horizontalHandles: true,
           isWide: false,
           height: 0,
-          data: block.data || {},
+          data: block.data || {}, // This already includes parentId and extent from convertYamlToWorkflow
         }
 
         // Set block input values
@@ -534,6 +607,25 @@ export async function importWorkflowFromYaml(
         blocksProcessed++
       } else {
         logger.warn(`No block config found for type: ${block.type} (block: ${block.id})`)
+      }
+    }
+
+    // Update parent-child relationships with mapped IDs
+    // This two-phase approach is necessary because:
+    // 1. We generate new UUIDs for all blocks (can't reuse YAML IDs)
+    // 2. Parent references in YAML use the original IDs, need to map to new UUIDs
+    // 3. All blocks must exist before we can map their parent references
+    for (const [blockId, blockData] of Object.entries(completeBlocks)) {
+      if (blockData.data?.parentId) {
+        const mappedParentId = yamlIdToActualId.get(blockData.data.parentId)
+        if (mappedParentId) {
+          blockData.data.parentId = mappedParentId
+        } else {
+          logger.warn(`Parent block not found for mapping: ${blockData.data.parentId}`)
+          // Remove invalid parent reference
+          delete blockData.data.parentId
+          delete blockData.data.extent
+        }
       }
     }
 

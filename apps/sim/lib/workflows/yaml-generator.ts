@@ -12,6 +12,7 @@ interface YamlBlock {
   inputs?: Record<string, any>
   preceding?: string[]
   following?: string[]
+  parentId?: string // Add parentId for nested blocks
 }
 
 interface YamlWorkflow {
@@ -34,8 +35,38 @@ function extractBlockInputs(
   // Get subblock values for this block (if provided)
   const blockSubBlockValues = subBlockValues?.[blockId] || {}
 
+  // Special handling for loop and parallel blocks
+  if (blockState.type === 'loop' || blockState.type === 'parallel') {
+    // Extract configuration from blockState.data instead of subBlocks
+    if (blockState.data) {
+      Object.entries(blockState.data).forEach(([key, value]) => {
+        // Include relevant configuration properties
+        if (key === 'count' || key === 'loopType' || key === 'collection' || 
+            key === 'parallelType' || key === 'distribution') {
+          if (value !== undefined && value !== null && value !== '') {
+            inputs[key] = value
+          }
+        }
+        // Also include any override values from subBlockValues if they exist
+        const overrideValue = blockSubBlockValues[key]
+        if (overrideValue !== undefined && overrideValue !== null && overrideValue !== '') {
+          inputs[key] = overrideValue
+        }
+      })
+    }
+    
+    // Include any additional values from subBlockValues that might not be in data
+    Object.entries(blockSubBlockValues).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '' && !inputs.hasOwnProperty(key)) {
+        inputs[key] = value
+      }
+    })
+    
+    return inputs
+  }
+
   if (!blockConfig) {
-    // For custom blocks like loops/parallels, extract available subBlock values
+    // For other custom blocks without config, extract available subBlock values
     Object.entries(blockState.subBlocks || {}).forEach(([subBlockId, subBlockState]) => {
       const value = blockSubBlockValues[subBlockId] ?? subBlockState.value
       if (value !== undefined && value !== null && value !== '') {
@@ -45,7 +76,7 @@ function extractBlockInputs(
     return inputs
   }
 
-  // Process each subBlock configuration
+  // Process each subBlock configuration for regular blocks
   blockConfig.subBlocks.forEach((subBlockConfig: SubBlockConfig) => {
     const subBlockId = subBlockConfig.id
 
@@ -173,6 +204,11 @@ export function generateWorkflowYaml(
 
       if (following.length > 0) {
         yamlBlock.following = following
+      }
+
+      // Include parent-child relationship for nested blocks
+      if (blockState.data?.parentId) {
+        yamlBlock.parentId = blockState.data.parentId
       }
 
       yamlWorkflow.blocks[blockId] = yamlBlock
