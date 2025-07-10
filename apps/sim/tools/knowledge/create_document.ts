@@ -22,6 +22,41 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       required: true,
       description: 'Content of the document',
     },
+    tag1: {
+      type: 'string',
+      required: false,
+      description: 'Tag 1 value for the document',
+    },
+    tag2: {
+      type: 'string',
+      required: false,
+      description: 'Tag 2 value for the document',
+    },
+    tag3: {
+      type: 'string',
+      required: false,
+      description: 'Tag 3 value for the document',
+    },
+    tag4: {
+      type: 'string',
+      required: false,
+      description: 'Tag 4 value for the document',
+    },
+    tag5: {
+      type: 'string',
+      required: false,
+      description: 'Tag 5 value for the document',
+    },
+    tag6: {
+      type: 'string',
+      required: false,
+      description: 'Tag 6 value for the document',
+    },
+    tag7: {
+      type: 'string',
+      required: false,
+      description: 'Tag 7 value for the document',
+    },
   },
   request: {
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents`,
@@ -65,6 +100,14 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
           fileUrl: dataUri,
           fileSize: contentBytes,
           mimeType: 'text/plain',
+          // Include tags if provided
+          tag1: params.tag1 || undefined,
+          tag2: params.tag2 || undefined,
+          tag3: params.tag3 || undefined,
+          tag4: params.tag4 || undefined,
+          tag5: params.tag5 || undefined,
+          tag6: params.tag6 || undefined,
+          tag7: params.tag7 || undefined,
         },
       ]
 

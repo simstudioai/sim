@@ -73,6 +73,14 @@ export interface DocumentData {
   enabled: boolean
   deletedAt?: Date | null
   uploadedAt: Date
+  // Document tags
+  tag1?: string | null
+  tag2?: string | null
+  tag3?: string | null
+  tag4?: string | null
+  tag5?: string | null
+  tag6?: string | null
+  tag7?: string | null
 }
 
 export interface EmbeddingData {
@@ -88,7 +96,14 @@ export interface EmbeddingData {
   embeddingModel: string
   startOffset: number
   endOffset: number
-  metadata: unknown
+  // Tag fields for filtering
+  tag1?: string | null
+  tag2?: string | null
+  tag3?: string | null
+  tag4?: string | null
+  tag5?: string | null
+  tag6?: string | null
+  tag7?: string | null
   enabled: boolean
   createdAt: Date
   updatedAt: Date
@@ -445,7 +460,26 @@ export async function processDocumentAsync(
         const chunkTexts = processed.chunks.map((chunk) => chunk.text)
         const embeddings = chunkTexts.length > 0 ? await generateEmbeddings(chunkTexts) : []
 
-        logger.info(`[${documentId}] Embeddings generated, updating document record`)
+        logger.info(`[${documentId}] Embeddings generated, fetching document tags`)
+
+        // Fetch document to get tags
+        const documentRecord = await db
+          .select({
+            tag1: document.tag1,
+            tag2: document.tag2,
+            tag3: document.tag3,
+            tag4: document.tag4,
+            tag5: document.tag5,
+            tag6: document.tag6,
+            tag7: document.tag7,
+          })
+          .from(document)
+          .where(eq(document.id, documentId))
+          .limit(1)
+
+        const documentTags = documentRecord[0] || {}
+
+        logger.info(`[${documentId}] Creating embedding records with tags`)
 
         const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
           id: crypto.randomUUID(),
@@ -460,7 +494,14 @@ export async function processDocumentAsync(
           embeddingModel: 'text-embedding-3-small',
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
-          metadata: {},
+          // Copy tags from document
+          tag1: documentTags.tag1,
+          tag2: documentTags.tag2,
+          tag3: documentTags.tag3,
+          tag4: documentTags.tag4,
+          tag5: documentTags.tag5,
+          tag6: documentTags.tag6,
+          tag7: documentTags.tag7,
           createdAt: now,
           updatedAt: now,
         }))

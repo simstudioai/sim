@@ -10,6 +10,30 @@ import { embedding, knowledgeBase } from '@/db/schema'
 
 const logger = createLogger('VectorSearchAPI')
 
+// Helper function to create tag filters
+function getTagFilters(filters: Record<string, string>, embedding: any) {
+  return Object.entries(filters).map(([key, value]) => {
+    switch (key) {
+      case 'tag1':
+        return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
+      case 'tag2':
+        return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
+      case 'tag3':
+        return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
+      case 'tag4':
+        return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
+      case 'tag5':
+        return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
+      case 'tag6':
+        return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
+      case 'tag7':
+        return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
+      default:
+        return sql`1=1` // No-op for unknown keys
+    }
+  })
+}
+
 class APIError extends Error {
   public status: number
 
@@ -27,6 +51,18 @@ const VectorSearchSchema = z.object({
   ]),
   query: z.string().min(1, 'Search query is required'),
   topK: z.number().min(1).max(100).default(10),
+  // Tag filters for pre-filtering
+  filters: z
+    .object({
+      tag1: z.string().optional(),
+      tag2: z.string().optional(),
+      tag3: z.string().optional(),
+      tag4: z.string().optional(),
+      tag5: z.string().optional(),
+      tag6: z.string().optional(),
+      tag7: z.string().optional(),
+    })
+    .optional(),
 })
 
 async function generateSearchEmbedding(query: string): Promise<number[]> {
@@ -102,7 +138,8 @@ async function executeParallelQueries(
   knowledgeBaseIds: string[],
   queryVector: string,
   topK: number,
-  distanceThreshold: number
+  distanceThreshold: number,
+  filters?: Record<string, string>
 ) {
   const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
 
@@ -113,7 +150,13 @@ async function executeParallelQueries(
         content: embedding.content,
         documentId: embedding.documentId,
         chunkIndex: embedding.chunkIndex,
-        metadata: embedding.metadata,
+        tag1: embedding.tag1,
+        tag2: embedding.tag2,
+        tag3: embedding.tag3,
+        tag4: embedding.tag4,
+        tag5: embedding.tag5,
+        tag6: embedding.tag6,
+        tag7: embedding.tag7,
         distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
         knowledgeBaseId: embedding.knowledgeBaseId,
       })
@@ -122,7 +165,9 @@ async function executeParallelQueries(
         and(
           eq(embedding.knowledgeBaseId, kbId),
           eq(embedding.enabled, true),
-          sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
+          sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
+          // Apply tag filters if provided (case-insensitive)
+          ...(filters ? getTagFilters(filters, embedding) : [])
         )
       )
       .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
@@ -139,7 +184,8 @@ async function executeSingleQuery(
   knowledgeBaseIds: string[],
   queryVector: string,
   topK: number,
-  distanceThreshold: number
+  distanceThreshold: number,
+  filters?: Record<string, string>
 ) {
   return await db
     .select({
@@ -147,7 +193,13 @@ async function executeSingleQuery(
       content: embedding.content,
       documentId: embedding.documentId,
       chunkIndex: embedding.chunkIndex,
-      metadata: embedding.metadata,
+      tag1: embedding.tag1,
+      tag2: embedding.tag2,
+      tag3: embedding.tag3,
+      tag4: embedding.tag4,
+      tag5: embedding.tag5,
+      tag6: embedding.tag6,
+      tag7: embedding.tag7,
       distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
     })
     .from(embedding)
@@ -155,7 +207,30 @@ async function executeSingleQuery(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
         eq(embedding.enabled, true),
-        sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
+        sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
+        // Apply tag filters if provided (case-insensitive)
+        ...(filters
+          ? Object.entries(filters).map(([key, value]) => {
+              switch (key) {
+                case 'tag1':
+                  return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
+                case 'tag2':
+                  return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
+                case 'tag3':
+                  return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
+                case 'tag4':
+                  return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
+                case 'tag5':
+                  return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
+                case 'tag6':
+                  return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
+                case 'tag7':
+                  return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
+                default:
+                  return sql`1=1` // No-op for unknown keys
+              }
+            })
+          : [])
       )
     )
     .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
@@ -231,7 +306,8 @@ export async function POST(request: NextRequest) {
           foundKbIds,
           queryVector,
           validatedData.topK,
-          strategy.distanceThreshold
+          strategy.distanceThreshold,
+          validatedData.filters
         )
         results = mergeAndRankResults(parallelResults, validatedData.topK)
       } else {
@@ -240,7 +316,8 @@ export async function POST(request: NextRequest) {
           foundKbIds,
           queryVector,
           validatedData.topK,
-          strategy.distanceThreshold
+          strategy.distanceThreshold,
+          validatedData.filters
         )
       }
 
@@ -252,7 +329,13 @@ export async function POST(request: NextRequest) {
             content: result.content,
             documentId: result.documentId,
             chunkIndex: result.chunkIndex,
-            metadata: result.metadata,
+            tag1: result.tag1,
+            tag2: result.tag2,
+            tag3: result.tag3,
+            tag4: result.tag4,
+            tag5: result.tag5,
+            tag6: result.tag6,
+            tag7: result.tag7,
             similarity: 1 - result.distance,
           })),
           query: validatedData.query,

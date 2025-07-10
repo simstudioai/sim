@@ -44,6 +44,14 @@ export interface DocumentData {
   processingError?: string | null
   enabled: boolean
   uploadedAt: string
+  // Document tags
+  tag1?: string | null
+  tag2?: string | null
+  tag3?: string | null
+  tag4?: string | null
+  tag5?: string | null
+  tag6?: string | null
+  tag7?: string | null
 }
 
 export interface ChunkData {
@@ -55,7 +63,13 @@ export interface ChunkData {
   enabled: boolean
   startOffset: number
   endOffset: number
-  metadata: Record<string, unknown>
+  tag1?: string | null
+  tag2?: string | null
+  tag3?: string | null
+  tag4?: string | null
+  tag5?: string | null
+  tag6?: string | null
+  tag7?: string | null
   createdAt: string
   updatedAt: string
 }

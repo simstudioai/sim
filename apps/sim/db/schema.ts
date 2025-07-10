@@ -816,6 +816,15 @@ export const document = pgTable(
     enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base
     deletedAt: timestamp('deleted_at'), // Soft delete
 
+    // Document tags for filtering (inherited by all chunks)
+    tag1: text('tag1'),
+    tag2: text('tag2'),
+    tag3: text('tag3'),
+    tag4: text('tag4'),
+    tag5: text('tag5'),
+    tag6: text('tag6'),
+    tag7: text('tag7'),
+
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
@@ -831,6 +840,14 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
+    // Tag indexes for filtering
+    tag1Idx: index('doc_tag1_idx').on(table.tag1),
+    tag2Idx: index('doc_tag2_idx').on(table.tag2),
+    tag3Idx: index('doc_tag3_idx').on(table.tag3),
+    tag4Idx: index('doc_tag4_idx').on(table.tag4),
+    tag5Idx: index('doc_tag5_idx').on(table.tag5),
+    tag6Idx: index('doc_tag6_idx').on(table.tag6),
+    tag7Idx: index('doc_tag7_idx').on(table.tag7),
   })
 )
 
@@ -860,8 +877,14 @@ export const embedding = pgTable(
     startOffset: integer('start_offset').notNull(),
     endOffset: integer('end_offset').notNull(),
 
-    // Rich metadata for advanced filtering
-    metadata: jsonb('metadata').notNull().default('{}'),
+    // Tag columns inherited from document for efficient filtering
+    tag1: text('tag1'),
+    tag2: text('tag2'),
+    tag3: text('tag3'),
+    tag4: text('tag4'),
+    tag5: text('tag5'),
+    tag6: text('tag6'),
+    tag7: text('tag7'),
 
     // Chunk state - enable/disable from knowledge base
     enabled: boolean('enabled').notNull().default(true),
@@ -900,8 +923,14 @@ export const embedding = pgTable(
         ef_construction: 64,
       }),
 
-    // GIN index for JSONB metadata queries
-    metadataGinIdx: index('emb_metadata_gin_idx').using('gin', table.metadata),
+    // Tag indexes for efficient filtering
+    tag1Idx: index('emb_tag1_idx').on(table.tag1),
+    tag2Idx: index('emb_tag2_idx').on(table.tag2),
+    tag3Idx: index('emb_tag3_idx').on(table.tag3),
+    tag4Idx: index('emb_tag4_idx').on(table.tag4),
+    tag5Idx: index('emb_tag5_idx').on(table.tag5),
+    tag6Idx: index('emb_tag6_idx').on(table.tag6),
+    tag7Idx: index('emb_tag7_idx').on(table.tag7),
 
     // Full-text search index
     contentFtsIdx: index('emb_content_fts_idx').using('gin', table.contentTsv),

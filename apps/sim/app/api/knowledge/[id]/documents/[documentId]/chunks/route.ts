@@ -118,7 +118,13 @@ export async function GET(
         enabled: embedding.enabled,
         startOffset: embedding.startOffset,
         endOffset: embedding.endOffset,
-        metadata: embedding.metadata,
+        tag1: embedding.tag1,
+        tag2: embedding.tag2,
+        tag3: embedding.tag3,
+        tag4: embedding.tag4,
+        tag5: embedding.tag5,
+        tag6: embedding.tag6,
+        tag7: embedding.tag7,
         createdAt: embedding.createdAt,
         updatedAt: embedding.updatedAt,
       })
@@ -239,7 +245,14 @@ export async function POST(
           embeddingModel: 'text-embedding-3-small',
           startOffset: 0, // Manual chunks don't have document offsets
           endOffset: validatedData.content.length,
-          metadata: { manual: true }, // Mark as manually created
+          // Inherit tags from parent document
+          tag1: doc.tag1,
+          tag2: doc.tag2,
+          tag3: doc.tag3,
+          tag4: doc.tag4,
+          tag5: doc.tag5,
+          tag6: doc.tag6,
+          tag7: doc.tag7,
           enabled: validatedData.enabled,
           createdAt: now,
           updatedAt: now,

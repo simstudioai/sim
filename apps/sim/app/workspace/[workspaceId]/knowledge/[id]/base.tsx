@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { format, formatDistanceToNow } from 'date-fns'
+import { useEffect, useState } from 'react'
+import { format } from 'date-fns'
 import {
   AlertCircle,
   Circle,
@@ -11,7 +11,6 @@ import {
   Plus,
   RotateCcw,
   Trash2,
-  X,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -36,8 +35,8 @@ import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowled
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
-import { useKnowledgeUpload } from '../hooks/use-knowledge-upload'
 import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowledge-base-loading'
+import { UploadModal } from './components/upload-modal/upload-modal'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -138,36 +137,11 @@ export function KnowledgeBase({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
 
-  const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
-    onUploadComplete: async (uploadedFiles) => {
-      const pendingDocuments: DocumentData[] = uploadedFiles.map((file, index) => ({
-        id: `temp-${Date.now()}-${index}`,
-        knowledgeBaseId: id,
-        filename: file.filename,
-        fileUrl: file.fileUrl,
-        fileSize: file.fileSize,
-        mimeType: file.mimeType,
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-        processingStatus: 'pending' as const,
-        processingStartedAt: null,
-        processingCompletedAt: null,
-        processingError: null,
-        enabled: true,
-        uploadedAt: new Date().toISOString(),
-      }))
-
-      useKnowledgeStore.getState().addPendingDocuments(id, pendingDocuments)
-
-      await refreshDocuments()
-    },
-  })
   const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
   const error = knowledgeBaseError || documentsError
@@ -183,7 +157,7 @@ export function KnowledgeBase({
     const refreshInterval = setInterval(async () => {
       try {
         // Only refresh if we're not in the middle of other operations
-        if (!isUploading && !isDeleting) {
+        if (!isDeleting) {
           // Check for dead processes before refreshing
           await checkForDeadProcesses()
           await refreshDocuments()
@@ -194,7 +168,7 @@ export function KnowledgeBase({
     }, 3000) // Refresh every 3 seconds
 
     return () => clearInterval(refreshInterval)
-  }, [documents, refreshDocuments, isUploading, isDeleting])
+  }, [documents, refreshDocuments, isDeleting])
 
   // Check for documents stuck in processing due to dead processes
   const checkForDeadProcesses = async () => {
@@ -245,16 +219,6 @@ export function KnowledgeBase({
 
     await Promise.allSettled(markFailedPromises)
   }
-
-  // Auto-dismiss upload error after 8 seconds
-  useEffect(() => {
-    if (uploadError) {
-      const timer = setTimeout(() => {
-        clearError()
-      }, 8000)
-      return () => clearTimeout(timer)
-    }
-  }, [uploadError, clearError])
 
   // Filter documents based on search query
   const filteredDocuments = documents.filter((doc) =>
@@ -451,30 +415,7 @@ export function KnowledgeBase({
   }
 
   const handleAddDocuments = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
-    try {
-      const chunkingConfig = knowledgeBase?.chunkingConfig
-      await uploadFiles(Array.from(files), id, {
-        chunkSize: chunkingConfig?.maxSize || 1024,
-        minCharactersPerChunk: chunkingConfig?.minSize || 100,
-        chunkOverlap: chunkingConfig?.overlap || 200,
-        recipe: 'default',
-      })
-    } catch (error) {
-      logger.error('Error uploading files:', error)
-      // Error handling is managed by the upload hook
-    } finally {
-      // Reset the file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
+    setShowUploadModal(true)
   }
 
   const handleBulkEnable = async () => {
@@ -680,16 +621,6 @@ export function KnowledgeBase({
           {/* Main Content */}
           <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
-              {/* Hidden file input for document upload */}
-              <input
-                ref={fileInputRef}
-                type='file'
-                accept='.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx'
-                onChange={handleFileUpload}
-                className='hidden'
-                multiple
-              />
-
               {/* Search and Create Section */}
               <div className='mb-4 flex items-center justify-between pt-1'>
                 <SearchInput
@@ -700,17 +631,9 @@ export function KnowledgeBase({
 
                 <div className='flex items-center gap-3'>
                   {/* Add Documents Button */}
-                  <PrimaryButton onClick={handleAddDocuments} disabled={isUploading}>
+                  <PrimaryButton onClick={handleAddDocuments}>
                     <Plus className='h-3.5 w-3.5' />
-                    {isUploading
-                      ? uploadProgress.stage === 'uploading'
-                        ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
-                        : uploadProgress.stage === 'processing'
-                          ? 'Processing...'
-                          : uploadProgress.stage === 'completing'
-                            ? 'Completing...'
-                            : 'Uploading...'
-                      : 'Add Documents'}
+                    Add Documents
                   </PrimaryButton>
                 </div>
               </div>
@@ -1105,38 +1028,14 @@ export function KnowledgeBase({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Toast Notification */}
-      {uploadError && (
-        <div className='slide-in-from-bottom-2 fixed right-4 bottom-4 z-50 max-w-md animate-in duration-300'>
-          <div className='flex cursor-pointer items-start gap-3 rounded-lg border bg-background p-4 shadow-lg'>
-            <div className='flex-shrink-0'>
-              <AlertCircle className='h-4 w-4 text-destructive' />
-            </div>
-            <div className='flex min-w-0 flex-1 flex-col gap-1'>
-              <div className='flex items-center gap-2'>
-                <span className='font-medium text-xs'>Error</span>
-                <span className='text-muted-foreground text-xs'>
-                  {formatDistanceToNow(uploadError.timestamp, { addSuffix: true }).replace(
-                    'less than a minute ago',
-                    '<1 minute ago'
-                  )}
-                </span>
-              </div>
-              <p className='overflow-wrap-anywhere hyphens-auto whitespace-normal break-normal text-foreground text-sm'>
-                {uploadError.message.length > 100
-                  ? `${uploadError.message.slice(0, 60)}...`
-                  : uploadError.message}
-              </p>
-            </div>
-            <button
-              onClick={() => clearError()}
-              className='flex-shrink-0 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring'
-            >
-              <X className='h-4 w-4' />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Upload Modal */}
+      <UploadModal
+        open={showUploadModal}
+        onOpenChange={setShowUploadModal}
+        knowledgeBaseId={id}
+        chunkingConfig={knowledgeBase?.chunkingConfig}
+        onUploadComplete={refreshDocuments}
+      />
 
       {/* Bulk Action Bar */}
       <ActionBar
