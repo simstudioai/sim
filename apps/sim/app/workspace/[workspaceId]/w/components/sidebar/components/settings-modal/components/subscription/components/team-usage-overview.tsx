@@ -42,12 +42,9 @@ export function TeamUsageOverview({ hasAdminAccess }: TeamUsageOverviewProps) {
     setEditDialogOpen(true)
   }
 
-  const handleSaveLimit = async (
-    userId: string,
-    newLimit: number
-  ): Promise<{ success: boolean; error?: string }> => {
+  const handleSaveLimit = async (userId: string, newLimit: number): Promise<void> => {
     if (!activeOrg?.id) {
-      return { success: false, error: 'No active organization found' }
+      throw new Error('No active organization found')
     }
 
     try {
@@ -56,7 +53,7 @@ export function TeamUsageOverview({ hasAdminAccess }: TeamUsageOverviewProps) {
 
       if (!result.success) {
         logger.error('Failed to update usage limit', { error: result.error, userId, newLimit })
-        return { success: false, error: result.error || 'Failed to update usage limit' }
+        throw new Error(result.error || 'Failed to update usage limit')
       }
 
       logger.info('Successfully updated member usage limit', {
@@ -64,7 +61,6 @@ export function TeamUsageOverview({ hasAdminAccess }: TeamUsageOverviewProps) {
         newLimit,
         organizationId: activeOrg.id,
       })
-      return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update usage limit'
       logger.error('Failed to update usage limit', {
@@ -73,7 +69,7 @@ export function TeamUsageOverview({ hasAdminAccess }: TeamUsageOverviewProps) {
         newLimit,
         organizationId: activeOrg.id,
       })
-      return { success: false, error: errorMessage }
+      throw new Error(errorMessage)
     } finally {
       setIsUpdating(false)
     }
