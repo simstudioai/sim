@@ -15,6 +15,7 @@ import {
   StepForward,
   Trash2,
   X,
+  Download,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -60,6 +61,8 @@ import { HistoryDropdownItem } from './components/history-dropdown-item/history-
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
 import { UserAvatarStack } from './components/user-avatar-stack/user-avatar-stack'
+import { getWorkflowWithValues } from '@/stores/workflows'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 
 const logger = createLogger('ControlBar')
 
@@ -636,6 +639,46 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       logger.error('Error duplicating workflow:', { error })
       addNotification('error', 'Failed to duplicate workflow', activeWorkflowId)
     }
+  }
+
+  /**
+   * Helper to download JSON file based on current history state
+   */
+  const handleDownloadWorkflow = () => {
+    if (!activeWorkflowId) return
+    const metadata = workflows[activeWorkflowId]
+    if (!metadata) return
+    // Get the present history entry
+    const present = history.present
+    if (!present) return
+    // Merge subblock values into blocks for this history state
+    const mergedBlocks = mergeSubblockState(present.state.blocks, activeWorkflowId)
+    // Compose the workflow object as in getWorkflowWithValues
+    const workflowData = {
+      id: activeWorkflowId,
+      name: metadata.name,
+      description: metadata.description,
+      color: metadata.color || '#3972F6',
+      marketplaceData: metadata.marketplaceData || null,
+      workspaceId: metadata.workspaceId,
+      folderId: metadata.folderId,
+      state: {
+        ...present.state,
+        blocks: mergedBlocks,
+      },
+    }
+    const json = JSON.stringify(workflowData, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${metadata.name || 'workflow'}.json`
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => {
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }, 0)
   }
 
   /**
@@ -1279,6 +1322,37 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     )
   }
 
+  /**
+   * Render download workflow as JSON button
+   */
+  const renderDownloadButton = () => {
+    const canRead = userPermissions.canRead
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {canRead ? (
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={handleDownloadWorkflow}
+              className='hover:text-primary'
+            >
+              <Download className='h-5 w-5' />
+              <span className='sr-only'>Download Workflow as JSON</span>
+            </Button>
+          ) : (
+            <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Download className='h-5 w-5' />
+            </div>
+          )}
+        </TooltipTrigger>
+        <TooltipContent>
+          {canRead ? 'Download Workflow as JSON' : 'Read permission required to download workflow'}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
   return (
     <div className='flex h-16 w-full items-center justify-between border-b bg-background'>
       {/* Left Section - Workflow Info */}
@@ -1292,6 +1366,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {/* Right Section - Actions */}
       <div className='flex items-center gap-1 pr-4'>
         {renderDeleteButton()}
+        {renderDownloadButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
         {renderDuplicateButton()}
