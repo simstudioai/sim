@@ -7,6 +7,7 @@ import {
   Bug,
   ChevronDown,
   Copy,
+  Download,
   History,
   Layers,
   Loader2,
@@ -14,6 +15,7 @@ import {
   SkipForward,
   StepForward,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -46,8 +48,10 @@ import { useFolderStore } from '@/stores/folders/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { pushHistory } from '@/stores/workflows/middleware'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
@@ -162,6 +166,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     currentUsage: number
     limit: number
   } | null>(null)
+
+  // Import modal state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Shared condition for keyboard shortcut and button disabled state
   const isWorkflowBlocked = isExecuting || isMultiRunning || isCancelling || hasValidationErrors
@@ -639,6 +648,96 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }
 
   /**
+   * Helper to download JSON file based on current history state
+   */
+  const handleDownloadWorkflow = () => {
+    if (!activeWorkflowId) return
+    const metadata = workflows[activeWorkflowId]
+    if (!metadata) return
+    // Get the present history entry
+    const present = history.present
+    if (!present) return
+    // Merge subblock values into blocks for this history state
+    const mergedBlocks = mergeSubblockState(present.state.blocks, activeWorkflowId)
+    // Compose the workflow object as in getWorkflowWithValues
+    const workflowData = {
+      id: activeWorkflowId,
+      name: metadata.name,
+      description: metadata.description,
+      color: metadata.color || '#3972F6',
+      marketplaceData: metadata.marketplaceData || null,
+      workspaceId: metadata.workspaceId,
+      folderId: metadata.folderId,
+      state: {
+        ...present.state,
+        blocks: mergedBlocks,
+      },
+    }
+    const json = JSON.stringify(workflowData, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${metadata.name || 'workflow'}.json`
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => {
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }, 0)
+  }
+
+  /**
+   * Handle import workflow from JSON (replace current canvas only)
+   */
+  const handleImportWorkflow = async (file: File) => {
+    setImportError(null)
+    try {
+      if (!activeWorkflowId) {
+        setImportError('No active workflow to replace.')
+        return
+      }
+      const text = await file.text()
+      const data = JSON.parse(text)
+      // Basic validation: must have state.blocks and state.edges
+      if (!data || !data.state || !data.state.blocks || !data.state.edges) {
+        setImportError('Invalid workflow JSON: missing required fields.')
+        return
+      }
+      // Prepare new state for the current workflow (do NOT reset history)
+      const importedState = {
+        ...data.state,
+        isDeployed: false,
+        deployedAt: undefined,
+        deploymentStatuses: {},
+        lastSaved: Date.now(),
+        // Do not set history here; let pushHistory handle it
+      }
+      // Replace state in store (except history)
+      useWorkflowStore.setState((prev) => ({
+        ...prev,
+        ...importedState,
+        // Keep the old history for pushHistory
+      }))
+      // Initialize subblock values if present
+      if (data.state.blocks) {
+        useSubBlockStore.getState().initializeFromWorkflow(activeWorkflowId, data.state.blocks)
+      }
+      // Push to history so undo/redo works, and previous history is preserved
+      pushHistory(
+        useWorkflowStore.setState,
+        useWorkflowStore.getState,
+        importedState,
+        'Imported from JSON (replaced canvas)'
+      )
+      setIsImportModalOpen(false)
+      addNotification('info', 'Workflow canvas replaced successfully', activeWorkflowId)
+    } catch (err: any) {
+      setImportError(`Failed to import workflow: ${err?.message || 'Unknown error'}`)
+    }
+  }
+
+  /**
    * Render workflow name section (editable/non-editable)
    */
   const renderWorkflowName = () => {
@@ -750,6 +849,69 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    )
+  }
+
+  /**
+   * Render import workflow from JSON button and modal
+   */
+  const renderImportButton = () => {
+    const canEdit = userPermissions.canEdit
+    return (
+      <>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {canEdit ? (
+              <Button
+                variant='ghost'
+                size='icon'
+                onClick={() => setIsImportModalOpen(true)}
+                className='hover:text-primary'
+              >
+                <Upload className='h-5 w-5' />
+                <span className='sr-only'>Import Workflow from JSON</span>
+              </Button>
+            ) : (
+              <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+                <Upload className='h-5 w-5' />
+              </div>
+            )}
+          </TooltipTrigger>
+          <TooltipContent>
+            {canEdit ? 'Import Workflow from JSON' : 'Edit permission required to import workflow'}
+          </TooltipContent>
+        </Tooltip>
+        <AlertDialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Import Workflow from JSON</AlertDialogTitle>
+              <AlertDialogDescription>
+                Select a JSON file exported from Sim. This will replace the current workflow's
+                canvas (blocks, connections, and structure) with the imported data. Your workflow
+                name and metadata will not change, and previous history will be preserved for
+                undo/redo.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <input
+              ref={fileInputRef}
+              type='file'
+              accept='.json,application/json'
+              className='mb-2'
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  await handleImportWorkflow(file)
+                  if (fileInputRef.current) fileInputRef.current.value = ''
+                }
+              }}
+            />
+            {importError && <div className='text-destructive text-sm'>{importError}</div>}
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
     )
   }
 
@@ -1279,6 +1441,37 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     )
   }
 
+  /**
+   * Render download workflow as JSON button
+   */
+  const renderDownloadButton = () => {
+    const canRead = userPermissions.canRead
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {canRead ? (
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={handleDownloadWorkflow}
+              className='hover:text-primary'
+            >
+              <Download className='h-5 w-5' />
+              <span className='sr-only'>Download Workflow as JSON</span>
+            </Button>
+          ) : (
+            <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Download className='h-5 w-5' />
+            </div>
+          )}
+        </TooltipTrigger>
+        <TooltipContent>
+          {canRead ? 'Download Workflow as JSON' : 'Read permission required to download workflow'}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
   return (
     <div className='flex h-16 w-full items-center justify-between border-b bg-background'>
       {/* Left Section - Workflow Info */}
@@ -1292,6 +1485,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {/* Right Section - Actions */}
       <div className='flex items-center gap-1 pr-4'>
         {renderDeleteButton()}
+        {renderImportButton()}
+        {renderDownloadButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
         {renderDuplicateButton()}
