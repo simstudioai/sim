@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { marketplace } from '@/db/schema'
 
 const logger = createLogger('MarketplaceViewAPI')
 
@@ -22,10 +22,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Find the marketplace entry for this marketplace ID
     const marketplaceEntry = await db
       .select({
-        id: schema.marketplace.id,
+        id: marketplace.id,
       })
-      .from(schema.marketplace)
-      .where(eq(schema.marketplace.id, id))
+      .from(marketplace)
+      .where(eq(marketplace.id, id))
       .limit(1)
       .then((rows) => rows[0])
 
@@ -36,11 +36,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Increment the view count for this workflow
     await db
-      .update(schema.marketplace)
+      .update(marketplace)
       .set({
-        views: sql`${schema.marketplace.views} + 1`,
+        views: sql`${marketplace.views} + 1`,
       })
-      .where(eq(schema.marketplace.id, id))
+      .where(eq(marketplace.id, id))
 
     logger.info(`[${requestId}] Incremented view count for marketplace entry: ${id}`)
 

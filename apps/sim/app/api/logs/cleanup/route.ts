@@ -1,6 +1,7 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { verifyCronAuth } from '@/lib/auth/internal'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { snapshotService } from '@/lib/logs/snapshot-service'
@@ -18,17 +19,11 @@ const S3_CONFIG = {
   region: env.AWS_REGION || '',
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization')
-
-    if (!env.CRON_SECRET) {
-      return new NextResponse('Configuration error: Cron secret is not set', { status: 500 })
-    }
-
-    if (!authHeader || authHeader !== `Bearer ${env.CRON_SECRET}`) {
-      logger.warn('Unauthorized access attempt to logs cleanup endpoint')
-      return new NextResponse('Unauthorized', { status: 401 })
+    const authError = verifyCronAuth(request, 'logs cleanup')
+    if (authError) {
+      return authError
     }
 
     if (!S3_CONFIG.bucket || !S3_CONFIG.region) {

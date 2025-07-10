@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { marketplace, workflow } from '@/db/schema'
 
 const logger = createLogger('MarketplaceUnpublishAPI')
 
@@ -34,13 +34,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Get the marketplace entry using the marketplace ID
     const marketplaceEntry = await db
       .select({
-        id: schema.marketplace.id,
-        workflowId: schema.marketplace.workflowId,
-        authorId: schema.marketplace.authorId,
-        name: schema.marketplace.name,
+        id: marketplace.id,
+        workflowId: marketplace.workflowId,
+        authorId: marketplace.authorId,
+        name: marketplace.name,
       })
-      .from(schema.marketplace)
-      .where(eq(schema.marketplace.id, id))
+      .from(marketplace)
+      .where(eq(marketplace.id, id))
       .limit(1)
       .then((rows) => rows[0])
 
@@ -60,36 +60,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const workflowId = marketplaceEntry.workflowId
 
     // Verify the workflow exists and belongs to the user
-    const workflow = await db
+    const workflowEntry = await db
       .select({
-        id: schema.workflow.id,
-        userId: schema.workflow.userId,
+        id: workflow.id,
+        userId: workflow.userId,
       })
-      .from(schema.workflow)
-      .where(eq(schema.workflow.id, workflowId))
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
       .limit(1)
       .then((rows) => rows[0])
 
-    if (!workflow) {
+    if (!workflowEntry) {
       logger.warn(`[${requestId}] Associated workflow not found: ${workflowId}`)
       // We'll still delete the marketplace entry even if the workflow is missing
-    } else if (workflow.userId !== userId) {
+    } else if (workflowEntry.userId !== userId) {
       logger.warn(
-        `[${requestId}] Workflow ${workflowId} belongs to user ${workflow.userId}, not current user ${userId}`
+        `[${requestId}] Workflow ${workflowId} belongs to user ${workflowEntry.userId}, not current user ${userId}`
       )
       return createErrorResponse('You do not have permission to unpublish this workflow', 403)
     }
 
     try {
       // Delete the marketplace entry - this is the primary action
-      await db.delete(schema.marketplace).where(eq(schema.marketplace.id, id))
+      await db.delete(marketplace).where(eq(marketplace.id, id))
 
       // Update the workflow to mark it as unpublished if it exists
-      if (workflow) {
-        await db
-          .update(schema.workflow)
-          .set({ isPublished: false })
-          .where(eq(schema.workflow.id, workflowId))
+      if (workflowEntry) {
+        await db.update(workflow).set({ isPublished: false }).where(eq(workflow.id, workflowId))
       }
 
       logger.info(

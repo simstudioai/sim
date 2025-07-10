@@ -40,7 +40,7 @@ export default function UnsubscribePage() {
 
     // Validate the unsubscribe link
     fetch(
-      `/api/user/settings/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
+      `/api/users/me/settings/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
     )
       .then((res) => res.json())
       .then((data) => {
@@ -64,7 +64,7 @@ export default function UnsubscribePage() {
     setProcessing(true)
 
     try {
-      const response = await fetch('/api/user/settings/unsubscribe', {
+      const response = await fetch('/api/users/me/settings/unsubscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

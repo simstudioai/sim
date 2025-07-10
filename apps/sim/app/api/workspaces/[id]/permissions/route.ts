@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getUsersWithPermissions } from '@/lib/permissions/utils'
+import { getUsersWithPermissions, hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { permissions, type permissionTypeEnum, workspaceMember } from '@/db/schema'
 
@@ -79,21 +79,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    // Verify the current user has admin access to this workspace
-    const userPermissions = await db
-      .select()
-      .from(permissions)
-      .where(
-        and(
-          eq(permissions.userId, session.user.id),
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workspaceId),
-          eq(permissions.permissionType, 'admin')
-        )
-      )
-      .limit(1)
+    // Verify the current user has admin access to this workspace (either direct or through organization)
+    const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
 
-    if (userPermissions.length === 0) {
+    if (!hasAdminAccess) {
       return NextResponse.json(
         { error: 'Admin access required to update permissions' },
         { status: 403 }
