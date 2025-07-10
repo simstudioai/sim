@@ -66,6 +66,13 @@ Search for similar content in one or more knowledge bases using vector similarit
 | `knowledgeBaseIds` | string | Yes | ID of the knowledge base to search in, or comma-separated IDs for multiple knowledge bases |
 | `query` | string | Yes | Search query text |
 | `topK` | number | No | Number of most similar results to return \(1-100\) |
+| `tag1` | string | No | Filter by tag 1 value |
+| `tag2` | string | No | Filter by tag 2 value |
+| `tag3` | string | No | Filter by tag 3 value |
+| `tag4` | string | No | Filter by tag 4 value |
+| `tag5` | string | No | Filter by tag 5 value |
+| `tag6` | string | No | Filter by tag 6 value |
+| `tag7` | string | No | Filter by tag 7 value |
 
 #### Output
 
@@ -111,6 +118,13 @@ Create a new document in a knowledge base
 | `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
 | `name` | string | Yes | Name of the document |
 | `content` | string | Yes | Content of the document |
+| `tag1` | string | No | Tag 1 value for the document |
+| `tag2` | string | No | Tag 2 value for the document |
+| `tag3` | string | No | Tag 3 value for the document |
+| `tag4` | string | No | Tag 4 value for the document |
+| `tag5` | string | No | Tag 5 value for the document |
+| `tag6` | string | No | Tag 6 value for the document |
+| `tag7` | string | No | Tag 7 value for the document |
 
 #### Output
 
@@ -135,10 +149,9 @@ Create a new document in a knowledge base
 
 | Output | Type | Description |
 | ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `results` | json | results of the response |
-| ↳ `query` | string | query of the response |
-| ↳ `totalResults` | number | totalResults of the response |
+| `results` | json | results output from the block |
+| `query` | string | query output from the block |
+| `totalResults` | number | totalResults output from the block |
 
 
 ## Notes
