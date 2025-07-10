@@ -15,10 +15,23 @@ export default function PersonaEditPage() {
   const workspaceId = params.workspaceId as string
   const personaId = params.id as string
 
-  const [persona, setPersona] = useState<any>(null)
+  interface Persona {
+    id: string
+    name: string
+    description: string
+    photo: string
+  }
+
+  interface Workflow {
+    id: string
+    workflowId: string
+    status: string
+  }
+
+  const [persona, setPersona] = useState<Persona | null>(null)
   const [form, setForm] = useState({ name: '', description: '', photo: '' })
-  const [workflows, setWorkflows] = useState<any[]>([])
-  const [allWorkflows, setAllWorkflows] = useState<any[]>([])
+  const [workflows, setWorkflows] = useState<Workflow[]>([])
+  const [allWorkflows, setAllWorkflows] = useState<Workflow[]>([])
   const [selectedWorkflows, setSelectedWorkflows] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
