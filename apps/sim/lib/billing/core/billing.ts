@@ -452,9 +452,9 @@ export async function getUsersAndOrganizationsForOverageBilling(): Promise<{
 }> {
   try {
     const today = new Date()
-    today.setHours(0, 0, 0, 0) // Start of today
+    today.setUTCHours(0, 0, 0, 0) // Start of today
     const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1) // Start of tomorrow
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1) // Start of tomorrow
 
     logger.info('Checking for subscriptions with billing periods ending today', {
       today: today.toISOString(),
@@ -480,7 +480,7 @@ export async function getUsersAndOrganizationsForOverageBilling(): Promise<{
 
       if (sub.periodEnd) {
         const periodEnd = new Date(sub.periodEnd)
-        periodEnd.setHours(0, 0, 0, 0) // Normalize to start of day
+        periodEnd.setUTCHours(0, 0, 0, 0) // Normalize to start of day
 
         // Bill if the subscription period ends today
         if (periodEnd.getTime() === today.getTime()) {
@@ -503,7 +503,7 @@ export async function getUsersAndOrganizationsForOverageBilling(): Promise<{
 
         if (userStatsRecord.length > 0 && userStatsRecord[0].billingPeriodEnd) {
           const billingPeriodEnd = new Date(userStatsRecord[0].billingPeriodEnd)
-          billingPeriodEnd.setHours(0, 0, 0, 0) // Normalize to start of day
+          billingPeriodEnd.setUTCHours(0, 0, 0, 0) // Normalize to start of day
 
           if (billingPeriodEnd.getTime() === today.getTime()) {
             shouldBillToday = true

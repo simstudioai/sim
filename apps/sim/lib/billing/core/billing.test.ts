@@ -79,13 +79,16 @@ describe('Billing Core Functions', () => {
       vi.setSystemTime(new Date('2024-07-15T10:00:00Z'))
       const result = calculateBillingPeriod()
 
-      // Should return current calendar month
+      // Should return current calendar month (1st to last day of current month)
       expect(result.start.getUTCFullYear()).toBe(2024)
       expect(result.start.getUTCMonth()).toBe(6) // July (0-indexed)
       expect(result.start.getUTCDate()).toBe(1) // Should start on 1st of month
       expect(result.end.getUTCFullYear()).toBe(2024)
-      expect(result.end.getUTCMonth()).toBe(7) // August (0-indexed)
-      expect(result.end.getUTCDate()).toBe(1) // Should end on 1st of next month
+      expect(result.end.getUTCMonth()).toBe(6) // July (0-indexed) - ends on last day of current month
+      expect(result.end.getUTCDate()).toBe(31) // Should end on last day of July
+      expect(result.end.getUTCHours()).toBe(23) // Should end at 23:59:59.999
+      expect(result.end.getUTCMinutes()).toBe(59)
+      expect(result.end.getUTCSeconds()).toBe(59)
     })
 
     it.concurrent('handles subscription anniversary date correctly', () => {
@@ -110,18 +113,18 @@ describe('Billing Core Functions', () => {
       const currentPeriodEnd = new Date('2024-07-15T23:59:59Z')
       const result = calculateNextBillingPeriod(currentPeriodEnd)
 
-      expect(result.start.getDate()).toBe(15)
-      expect(result.start.getMonth()).toBe(6) // July (0-indexed)
-      expect(result.end.getDate()).toBe(15)
-      expect(result.end.getMonth()).toBe(7) // August (0-indexed)
+      expect(result.start.getUTCDate()).toBe(15)
+      expect(result.start.getUTCMonth()).toBe(6) // July (0-indexed)
+      expect(result.end.getUTCDate()).toBe(15)
+      expect(result.end.getUTCMonth()).toBe(7) // August (0-indexed)
     })
 
     it.concurrent('handles month boundary correctly', () => {
       const currentPeriodEnd = new Date('2024-01-31T23:59:59Z')
       const result = calculateNextBillingPeriod(currentPeriodEnd)
 
-      expect(result.start.getMonth()).toBe(0) // January
-      expect(result.end.getMonth()).toBeGreaterThanOrEqual(1) // February or later due to month overflow
+      expect(result.start.getUTCMonth()).toBe(0) // January
+      expect(result.end.getUTCMonth()).toBeGreaterThanOrEqual(1) // February or later due to month overflow
     })
   })
 
@@ -227,8 +230,8 @@ describe('Billing Core Functions', () => {
       const janEnd = new Date('2024-01-31T00:00:00Z')
       const result = calculateNextBillingPeriod(janEnd)
 
-      expect(result.start.getMonth()).toBe(0) // January
-      expect(result.end.getMonth()).toBeGreaterThanOrEqual(1) // February or later due to month overflow
+      expect(result.start.getUTCMonth()).toBe(0) // January
+      expect(result.end.getUTCMonth()).toBeGreaterThanOrEqual(1) // February or later due to month overflow
     })
 
     it.concurrent('handles leap year correctly', () => {
@@ -247,10 +250,10 @@ describe('Billing Core Functions', () => {
       const decEnd = new Date('2024-12-15T00:00:00Z')
       const result = calculateNextBillingPeriod(decEnd)
 
-      expect(result.start.getFullYear()).toBe(2024)
-      expect(result.start.getMonth()).toBe(11) // December
-      expect(result.end.getFullYear()).toBe(2025)
-      expect(result.end.getMonth()).toBe(0) // January
+      expect(result.start.getUTCFullYear()).toBe(2024)
+      expect(result.start.getUTCMonth()).toBe(11) // December
+      expect(result.end.getUTCFullYear()).toBe(2025)
+      expect(result.end.getUTCMonth()).toBe(0) // January
     })
 
     it.concurrent('basic date calculations work', () => {
