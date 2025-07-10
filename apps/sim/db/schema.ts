@@ -909,3 +909,26 @@ export const embedding = pgTable(
     embeddingNotNullCheck: check('embedding_not_null_check', sql`"embedding" IS NOT NULL`),
   })
 )
+
+export const persona = pgTable('persona', {
+  id: text('id').primaryKey().notNull(),
+  workspaceId: text('workspace_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  photo: text('photo'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const personaWorkflow = pgTable('persona_workflow', {
+  id: text('id').primaryKey().notNull(),
+  personaId: text('persona_id').notNull().references(() => persona.id),
+  workflowId: text('workflow_id').notNull(),
+  status: text('status').notNull(), // e.g. 'in progress', 'done', etc
+})
+
+export const personaConnection = pgTable('persona_connection', {
+  id: text('id').primaryKey().notNull(),
+  personaId: text('persona_id').notNull().references(() => persona.id),
+  connectedPersonaId: text('connected_persona_id').notNull().references(() => persona.id),
+})

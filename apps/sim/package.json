@@ -79,6 +79,7 @@
     "dat.gui": "0.7.9",
     "date-fns": "4.1.0",
     "drizzle-orm": "^0.41.0",
+    "formidable": "^3.5.4",
     "framer-motion": "^12.5.0",
     "freestyle-sandboxes": "^0.0.38",
     "groq-sdk": "^0.15.0",

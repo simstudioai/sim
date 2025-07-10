@@ -5,6 +5,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow, workflowBlocks } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 
 const logger = createLogger('WorkflowAPI')
 
@@ -287,4 +288,16 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error creating workflow`, error)
     return NextResponse.json({ error: 'Failed to create workflow' }, { status: 500 })
   }
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const workspaceId = searchParams.get('workspaceId')
+  let workflows
+  if (workspaceId) {
+    workflows = await db.select().from(workflow).where(eq(workflow.workspaceId, workspaceId))
+  } else {
+    workflows = await db.select().from(workflow)
+  }
+  return NextResponse.json({ workflows })
 }

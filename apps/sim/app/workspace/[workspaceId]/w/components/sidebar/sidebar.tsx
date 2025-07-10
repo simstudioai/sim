@@ -25,6 +25,7 @@ import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 import { SidebarControl } from './components/sidebar-control/sidebar-control'
 import { WorkspaceHeader } from './components/workspace-header/workspace-header'
+import { UsersIcon } from '@/components/icons'
 
 const logger = createLogger('Sidebar')
 
@@ -222,6 +223,13 @@ export function Sidebar() {
               isCollapsed={isCollapsed}
               shortcutCommand={getKeyboardShortcutText('K', true, true)}
               shortcutCommandPosition='below'
+            />
+            <NavSection.Item
+              icon={<UsersIcon className='h-[18px] w-[18px]' />}
+              href={`/workspace/${workspaceId}/persona`}
+              label='Persona'
+              active={pathname === `/workspace/${workspaceId}/persona`}
+              isCollapsed={isCollapsed}
             />
             <NavSection.Item
               icon={<Settings className='h-[18px] w-[18px]' />}
