@@ -52,13 +52,13 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           Date.now() - state.lastFetched < CACHE_DURATION
         ) {
           logger.debug('Using cached subscription data')
-          return
+          return state.subscriptionData
         }
 
         // Don't start multiple concurrent requests
         if (state.isLoading) {
           logger.debug('Subscription data already loading, skipping duplicate request')
-          return
+          return get().subscriptionData
         }
 
         set({ isLoading: true, error: null })
@@ -73,17 +73,35 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           const result = await response.json()
           const data = result.data
 
-          // Transform dates
+          // Transform dates with error handling
           const transformedData: SubscriptionData = {
             ...data,
+            periodEnd: data.periodEnd ? (() => {
+              try {
+                const date = new Date(data.periodEnd)
+                return isNaN(date.getTime()) ? null : date
+              } catch {
+                return null
+              }
+            })() : null,
             usage: {
               ...data.usage,
-              billingPeriodStart: data.usage?.billingPeriodStart
-                ? new Date(data.usage.billingPeriodStart)
-                : null,
-              billingPeriodEnd: data.usage?.billingPeriodEnd
-                ? new Date(data.usage.billingPeriodEnd)
-                : null,
+              billingPeriodStart: data.usage?.billingPeriodStart ? (() => {
+                try {
+                  const date = new Date(data.usage.billingPeriodStart)
+                  return isNaN(date.getTime()) ? null : date
+                } catch {
+                  return null
+                }
+              })() : null,
+              billingPeriodEnd: data.usage?.billingPeriodEnd ? (() => {
+                try {
+                  const date = new Date(data.usage.billingPeriodEnd)
+                  return isNaN(date.getTime()) ? null : date
+                } catch {
+                  return null
+                }
+              })() : null,
             },
           }
 
@@ -107,6 +125,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           })
 
           logger.debug('Subscription data loaded successfully')
+          return transformedData
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : 'Failed to load subscription data'
@@ -116,6 +135,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             isLoading: false,
             error: errorMessage,
           })
+          return null
         }
       },
 
@@ -137,9 +157,11 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
           set({ usageLimitData: transformedData })
           logger.debug('Usage limit data loaded successfully')
+          return transformedData
         } catch (error) {
           logger.error('Failed to load usage limit data', { error })
           // Don't set error state for usage limit failures - subscription data is more critical
+          return null
         }
       },
 
@@ -171,6 +193,52 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         }
       },
 
+      cancelSubscription: async () => {
+        const state = get()
+        if (!state.subscriptionData) {
+          logger.error('No subscription data available for cancellation')
+          return { success: false, error: 'No subscription data available' }
+        }
+
+        set({ isLoading: true, error: null })
+
+        try {
+          const response = await fetch('/api/users/me/subscription/cancel', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || 'Failed to cancel subscription')
+          }
+
+          const result = await response.json()
+
+          logger.info('Subscription cancelled successfully', {
+            periodEnd: result.data.periodEnd,
+            cancelAtPeriodEnd: result.data.cancelAtPeriodEnd,
+          })
+
+          // Refresh subscription data to reflect cancellation status
+          await get().refresh()
+
+          return {
+            success: true,
+            periodEnd: result.data.periodEnd ? new Date(result.data.periodEnd) : undefined
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to cancel subscription'
+          logger.error('Failed to cancel subscription', { error })
+          set({ error: errorMessage })
+          return { success: false, error: errorMessage }
+        } finally {
+          set({ isLoading: false })
+        }
+      },
+
       refresh: async () => {
         // Force refresh by clearing cache
         set({ lastFetched: null })
@@ -190,15 +258,25 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           logger.debug('Using cached data')
           // Still load usage limit if not present
           if (!state.usageLimitData) {
-            await get().loadUsageLimitData()
+            const usageLimitData = await get().loadUsageLimitData()
+            return {
+              subscriptionData: state.subscriptionData,
+              usageLimitData: usageLimitData
+            }
           }
-          return
+          return {
+            subscriptionData: state.subscriptionData,
+            usageLimitData: state.usageLimitData
+          }
         }
 
         // Don't start multiple concurrent requests
         if (state.isLoading) {
           logger.debug('Data already loading, skipping duplicate request')
-          return
+          return {
+            subscriptionData: get().subscriptionData,
+            usageLimitData: get().usageLimitData
+          }
         }
 
         set({ isLoading: true, error: null })
@@ -224,17 +302,35 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             logger.warn('Failed to load usage limit data, using defaults')
           }
 
-          // Transform subscription data dates
+          // Transform subscription data dates with error handling
           const transformedSubscriptionData: SubscriptionData = {
             ...subscriptionData,
+            periodEnd: subscriptionData.periodEnd ? (() => {
+              try {
+                const date = new Date(subscriptionData.periodEnd)
+                return isNaN(date.getTime()) ? null : date
+              } catch {
+                return null
+              }
+            })() : null,
             usage: {
               ...subscriptionData.usage,
-              billingPeriodStart: subscriptionData.usage?.billingPeriodStart
-                ? new Date(subscriptionData.usage.billingPeriodStart)
-                : null,
-              billingPeriodEnd: subscriptionData.usage?.billingPeriodEnd
-                ? new Date(subscriptionData.usage.billingPeriodEnd)
-                : null,
+              billingPeriodStart: subscriptionData.usage?.billingPeriodStart ? (() => {
+                try {
+                  const date = new Date(subscriptionData.usage.billingPeriodStart)
+                  return isNaN(date.getTime()) ? null : date
+                } catch {
+                  return null
+                }
+              })() : null,
+              billingPeriodEnd: subscriptionData.usage?.billingPeriodEnd ? (() => {
+                try {
+                  const date = new Date(subscriptionData.usage.billingPeriodEnd)
+                  return isNaN(date.getTime()) ? null : date
+                } catch {
+                  return null
+                }
+              })() : null,
             },
           }
 
@@ -269,6 +365,10 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           })
 
           logger.debug('Data loaded successfully in parallel')
+          return {
+            subscriptionData: transformedSubscriptionData,
+            usageLimitData: transformedUsageLimitData
+          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to load data'
           logger.error('Failed to load data', { error })
@@ -277,6 +377,10 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             isLoading: false,
             error: errorMessage,
           })
+          return {
+            subscriptionData: null,
+            usageLimitData: null
+          }
         }
       },
 

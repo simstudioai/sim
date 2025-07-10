@@ -34,6 +34,7 @@ export interface SubscriptionData {
   seats: number | null
   metadata: any | null
   stripeSubscriptionId: string | null
+  periodEnd: Date | null
   features: SubscriptionFeatures
   usage: UsageData
 }
@@ -53,6 +54,7 @@ export interface SubscriptionStore {
     usageLimitData: UsageLimitData | null
   }>
   updateUsageLimit: (newLimit: number) => Promise<{ success: boolean; error?: string }>
+  cancelSubscription: () => Promise<{ success: boolean; error?: string; periodEnd?: Date }>
   refresh: () => Promise<void>
   clearError: () => void
   reset: () => void

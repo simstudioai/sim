@@ -9,6 +9,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 import { BillingSummary } from './components/billing-summary'
+import { CancelSubscription } from './components/cancel-subscription'
 import { TeamSeatsDialog } from './components/team-seats-dialog'
 import { UsageLimitEditor } from './components/usage-limit-editor'
 
@@ -22,7 +23,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
 
-  const { isLoading, error, getSubscriptionStatus, getUsage, getBillingStatus, usageLimitData } =
+  const { isLoading, error, getSubscriptionStatus, getUsage, getBillingStatus, usageLimitData, subscriptionData } =
     useSubscriptionStore()
 
   const {
@@ -371,6 +372,18 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             </p>
           </div>
         )}
+
+        {/* Cancel Subscription */}
+        <CancelSubscription
+          subscription={{
+            plan: subscription.plan,
+            status: subscription.status,
+            isPaid: subscription.isPaid,
+          }}
+          subscriptionData={{
+            periodEnd: subscriptionData?.periodEnd || null,
+          }}
+        />
 
         {/* Team Seats Dialog */}
         <TeamSeatsDialog

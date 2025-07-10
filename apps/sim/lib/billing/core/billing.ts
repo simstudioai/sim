@@ -584,6 +584,7 @@ export async function getSimplifiedBillingSummary(
   seats: number | null
   metadata: any
   stripeSubscriptionId: string | null
+  periodEnd: Date | string | null
   // Usage details
   usage: {
     current: number
@@ -677,6 +678,7 @@ export async function getSimplifiedBillingSummary(
         seats: subscription.seats || null,
         metadata: subscription.metadata || null,
         stripeSubscriptionId: subscription.stripeSubscriptionId || null,
+        periodEnd: subscription.periodEnd || null,
         // Usage details
         usage: {
           current: usageData.currentUsage,
@@ -733,6 +735,7 @@ export async function getSimplifiedBillingSummary(
       seats: subscription?.seats || null,
       metadata: subscription?.metadata || null,
       stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
+      periodEnd: subscription?.periodEnd || null,
       // Usage details
       usage: {
         current: usageData.currentUsage,
@@ -777,6 +780,7 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
     seats: null,
     metadata: null,
     stripeSubscriptionId: null,
+    periodEnd: null,
     // Usage details
     usage: {
       current: 0,
