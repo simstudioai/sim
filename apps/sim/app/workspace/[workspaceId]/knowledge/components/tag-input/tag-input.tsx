@@ -53,7 +53,7 @@ export function TagInput({ tags, onTagsChange, disabled = false, className = '' 
   }
 
   const hasAnyTags = Object.values(tags).some((tag) => tag?.trim())
-  const visibleTags = showAllTags ? TAG_LABELS : TAG_LABELS.slice(0, 3)
+  const visibleTags = showAllTags ? TAG_LABELS : TAG_LABELS.slice(0, 2)
 
   return (
     <div className={className}>
