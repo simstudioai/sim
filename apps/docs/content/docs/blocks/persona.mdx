@@ -1,0 +1,88 @@
+---
+title: Persona
+description: Define and manage AI personas for your workflows
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { ThemeImage } from '@/components/ui/theme-image'
+
+A **Persona** in Sim Studio represents a unique AI identity with its own name, description, and optional photo. Personas allow you to define distinct roles, behaviors, and characteristics for agents within your workflows.
+
+<ThemeImage
+  lightSrc="/static/light/persona-light.png"
+  darkSrc="/static/dark/persona-dark.png"
+  alt="Persona Block"
+  width={300}
+  height={175}
+/>
+
+<Callout type="info">
+  Personas help you organize, manage, and customize the behavior of agents in your workspace. Each persona can be assigned to one or more workflows, enabling tailored AI experiences.
+</Callout>
+
+## Overview
+
+A Persona is a reusable entity that encapsulates the following attributes:
+
+<Steps>
+  <Step>
+    <strong>Name</strong>: The display name of the persona (e.g., "Support Bot", "Research Assistant")
+  </Step>
+  <Step>
+    <strong>Description</strong>: A summary of the persona's role, expertise, or intended use
+  </Step>
+  <Step>
+    <strong>Photo</strong>: An optional avatar or image representing the persona
+  </Step>
+  <Step>
+    <strong>Workspace Association</strong>: Each persona belongs to a specific workspace
+  </Step>
+  <Step>
+    <strong>Workflow Assignment</strong>: Personas can be linked to one or more workflows, defining which automations or agents they power
+  </Step>
+</Steps>
+
+## Configuration Options
+
+When creating or editing a persona, you can configure:
+
+- **Name**: Required. The persona's display name.
+- **Description**: Optional. A description of the persona's purpose or expertise.
+- **Photo**: Optional. Upload or select an image to visually represent the persona.
+- **Workspace**: Required. The workspace this persona belongs to.
+- **Workflows**: Assign one or more workflows that this persona will use or control.
+
+## Usage in Workflows
+
+Personas are used to:
+
+- Assign a unique identity to agents in your workflow
+- Separate different roles (e.g., "Sales Bot" vs. "Support Bot")
+- Enable multi-persona collaboration in complex workflows
+- Provide context and branding for end-user interactions
+
+## Example: Creating a Persona
+
+Here's how you might define a persona for a customer support agent:
+
+```yaml
+name: Support Bot
+description: "Handles customer inquiries and provides support for our products."
+photo: "/static/personas/support-bot.png"
+workspaceId: workspace-123
+workflows:
+  - workflow-abc
+  - workflow-def
+```
+
+## Best Practices
+
+- Use descriptive names and photos to make personas easily recognizable
+- Write clear descriptions to help collaborators understand each persona's role
+- Assign personas to relevant workflows for better organization and control
+
+<Callout type="success">
+  Personas are a powerful way to bring structure, clarity, and personality to your AI-powered workflows in Sim Studio.
+</Callout> 

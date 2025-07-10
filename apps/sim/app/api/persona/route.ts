@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
+import { type NextRequest, NextResponse } from 'next/server'
 import { db } from '@/db'
 import { persona } from '@/db/schema'
-import { nanoid } from 'nanoid'
-import { eq } from 'drizzle-orm'
 
 // List all personas (optionally by workspace)
 export async function GET(req: NextRequest) {
@@ -35,4 +35,4 @@ export async function POST(req: NextRequest) {
   }
   await db.insert(persona).values(newPersona)
   return NextResponse.json({ persona: newPersona })
-} 
+}

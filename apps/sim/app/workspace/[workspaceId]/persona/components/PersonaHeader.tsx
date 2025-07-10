@@ -1,6 +1,5 @@
-import { UsersIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { UsersIcon } from '@/components/icons'
 
 interface BreadcrumbItem {
   label: string
@@ -46,4 +45,4 @@ export function PersonaHeader({ breadcrumbs }: PersonaHeaderProps) {
       <div className={HEADER_STYLES.actionsContainer}>{/* Reserved for future actions */}</div>
     </div>
   )
-} 
+}

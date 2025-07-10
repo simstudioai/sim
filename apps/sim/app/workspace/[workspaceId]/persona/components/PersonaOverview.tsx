@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 interface PersonaOverviewProps {
   id: string
@@ -21,7 +21,13 @@ function getInitials(name: string) {
     .slice(0, 2)
 }
 
-export function PersonaOverview({ id, name, description, workflowCount, photo }: PersonaOverviewProps) {
+export function PersonaOverview({
+  id,
+  name,
+  description,
+  workflowCount,
+  photo,
+}: PersonaOverviewProps) {
   const [isCopied, setIsCopied] = useState(false)
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -55,7 +61,9 @@ export function PersonaOverview({ id, name, description, workflowCount, photo }:
         </div>
         <div className='flex flex-col gap-2'>
           <div className='flex items-center gap-2 text-muted-foreground text-xs'>
-            <span>{workflowCount} {workflowCount === 1 ? 'workflow' : 'workflows'}</span>
+            <span>
+              {workflowCount} {workflowCount === 1 ? 'workflow' : 'workflows'}
+            </span>
             <span>•</span>
             <div className='flex items-center gap-2'>
               <span className='truncate font-mono'>{id.slice(0, 8)}</span>
@@ -67,9 +75,11 @@ export function PersonaOverview({ id, name, description, workflowCount, photo }:
               </button>
             </div>
           </div>
-          <p className='line-clamp-2 overflow-hidden text-muted-foreground text-xs'>{description}</p>
+          <p className='line-clamp-2 overflow-hidden text-muted-foreground text-xs'>
+            {description}
+          </p>
         </div>
       </div>
     </Link>
   )
-} 
+}

@@ -1,5 +1,4 @@
-import React from 'react'
-import { Persona, PersonaCard } from './PersonaCard'
+import { type Persona, PersonaCard } from './PersonaCard'
 
 interface PersonaListProps {
   personas: Persona[]
@@ -8,7 +7,12 @@ interface PersonaListProps {
   onConnectPersona?: (persona: Persona, connectToId: string) => void
 }
 
-export function PersonaList({ personas, onUse, onAssignWorkflow, onConnectPersona }: PersonaListProps) {
+export function PersonaList({
+  personas,
+  onUse,
+  onAssignWorkflow,
+  onConnectPersona,
+}: PersonaListProps) {
   return (
     <div className='space-y-6'>
       {personas.map((persona) => (
@@ -23,4 +27,4 @@ export function PersonaList({ personas, onUse, onAssignWorkflow, onConnectPerson
       ))}
     </div>
   )
-} 
+}

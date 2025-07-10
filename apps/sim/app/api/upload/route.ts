@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import path from 'path'
-import fs from 'fs/promises'
 import { randomBytes } from 'crypto'
+import fs from 'fs/promises'
+import path from 'path'
+import { type NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       }
       const fileData = part.split('\r\n\r\n')[1]
       if (fileData) {
-        let clean = fileData.replace(/\r\n--$/, '').replace(/\r\n$/, '')
+        const clean = fileData.replace(/\r\n--$/, '').replace(/\r\n$/, '')
         fileBuffer = Buffer.from(clean, 'latin1')
       }
     }
@@ -57,4 +57,4 @@ export async function POST(req: NextRequest) {
   await fs.mkdir(PUBLIC_DIR, { recursive: true })
   await fs.writeFile(savePath, fileBuffer)
   return NextResponse.json({ url: publicUrl })
-} 
+}

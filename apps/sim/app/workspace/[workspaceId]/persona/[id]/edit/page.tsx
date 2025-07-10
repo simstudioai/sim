@@ -1,13 +1,13 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Pencil } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { PersonaHeader } from '../../components/PersonaHeader'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { AssignWorkflow } from '../../components/AssignWorkflow'
-import { Pencil } from 'lucide-react'
+import { PersonaHeader } from '../../components/PersonaHeader'
 
 export default function PersonaEditPage() {
   const params = useParams()
@@ -33,9 +33,9 @@ export default function PersonaEditPage() {
     if (!personaId) return
     setLoading(true)
     Promise.all([
-      fetch(`/api/persona/${personaId}`).then(res => res.json()),
-      fetch(`/api/persona/workflow?personaId=${personaId}`).then(res => res.json()),
-      fetch(`/api/workflows?workspaceId=${workspaceId}`).then(res => res.json()),
+      fetch(`/api/persona/${personaId}`).then((res) => res.json()),
+      fetch(`/api/persona/workflow?personaId=${personaId}`).then((res) => res.json()),
+      fetch(`/api/workflows?workspaceId=${workspaceId}`).then((res) => res.json()),
     ])
       .then(([personaRes, wfRes, allWfRes]) => {
         setPersona(personaRes.persona)
@@ -60,9 +60,8 @@ export default function PersonaEditPage() {
       const url = URL.createObjectURL(photoFile)
       setPhotoPreview(url)
       return () => URL.revokeObjectURL(url)
-    } else {
-      setPhotoPreview('')
     }
+    setPhotoPreview('')
   }, [photoFile])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -108,22 +107,22 @@ export default function PersonaEditPage() {
     setError(null)
     try {
       const toAssign = selectedWorkflows.filter(
-        id => !workflows.some((w: any) => w.workflowId === id)
+        (id) => !workflows.some((w: any) => w.workflowId === id)
       )
       const toUnassign = workflows.filter((w: any) => !selectedWorkflows.includes(w.workflowId))
       await Promise.all([
-        ...toAssign.map(id =>
+        ...toAssign.map((id) =>
           fetch('/api/persona/workflow', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ personaId, workflowId: id, status: 'in progress' }),
           })
         ),
-        ...toUnassign.map(w =>
-          fetch(`/api/persona/workflow/${w.id}`, { method: 'DELETE' })
-        ),
+        ...toUnassign.map((w) => fetch(`/api/persona/workflow/${w.id}`, { method: 'DELETE' })),
       ])
-      const wfRes = await fetch(`/api/persona/workflow?personaId=${personaId}`).then(res => res.json())
+      const wfRes = await fetch(`/api/persona/workflow?personaId=${personaId}`).then((res) =>
+        res.json()
+      )
       setWorkflows(wfRes.workflows || [])
     } catch {
       setError('Failed to assign workflows')
@@ -160,9 +159,9 @@ export default function PersonaEditPage() {
         ) : error ? (
           <div className='text-red-500'>{error}</div>
         ) : (
-          <div className='max-w-2xl mx-auto'>
-            <form onSubmit={handleSave} className='space-y-4 mb-6'>
-              <div className='flex flex-col items-center justify-center gap-2 mb-2'>
+          <div className='mx-auto max-w-2xl'>
+            <form onSubmit={handleSave} className='mb-6 space-y-4'>
+              <div className='mb-2 flex flex-col items-center justify-center gap-2'>
                 <div className='relative'>
                   <Avatar className='h-24 w-24'>
                     {photoPreview ? (
@@ -175,7 +174,7 @@ export default function PersonaEditPage() {
                   </Avatar>
                   <button
                     type='button'
-                    className='absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full bg-background border border-gray-200 shadow hover:bg-accent transition-colors'
+                    className='absolute right-1 bottom-1 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-background shadow transition-colors hover:bg-accent'
                     onClick={() => fileInputRef.current?.click()}
                     disabled={saving}
                     title='Change photo'
@@ -219,7 +218,7 @@ export default function PersonaEditPage() {
               </div>
             </form>
             <div className='mb-4'>
-              <div className='font-medium mb-2'>Assign Workflows</div>
+              <div className='mb-2 font-medium'>Assign Workflows</div>
               <div className='rounded-md border bg-background p-4'>
                 <AssignWorkflow
                   workflows={allWorkflows}
@@ -232,10 +231,13 @@ export default function PersonaEditPage() {
                 />
               </div>
               <div className='mt-4'>
-                <div className='font-medium mb-2'>Current Workflows</div>
-                <ul className='list-disc ml-6 text-sm'>
+                <div className='mb-2 font-medium'>Current Workflows</div>
+                <ul className='ml-6 list-disc text-sm'>
                   {workflows.map((w: any) => (
-                    <li key={w.id}>{allWorkflows.find((aw: any) => aw.id === w.workflowId)?.name || w.workflowId} ({w.status})</li>
+                    <li key={w.id}>
+                      {allWorkflows.find((aw: any) => aw.id === w.workflowId)?.name || w.workflowId}{' '}
+                      ({w.status})
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -255,4 +257,4 @@ function getInitials(name: string) {
     .join('')
     .toUpperCase()
     .slice(0, 2)
-} 
+}

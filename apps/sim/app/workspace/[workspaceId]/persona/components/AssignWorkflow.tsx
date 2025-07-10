@@ -1,16 +1,16 @@
-import { useState, useMemo } from 'react'
-import { Card } from '@/components/ui/card'
+import { useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+import { Card } from '@/components/ui/card'
 import {
   Command,
-  CommandInput,
-  CommandList,
-  CommandItem,
   CommandEmpty,
   CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
 } from '@/components/ui/command'
+import { Label } from '@/components/ui/label'
 
 interface AssignWorkflowProps {
   workflows: { id: string; name: string; status?: string; description?: string }[]
@@ -25,32 +25,60 @@ interface AssignWorkflowProps {
 function getStatusBadge(status?: string) {
   switch (status) {
     case 'done':
-      return <Badge className='bg-green-100 text-green-700' variant='secondary'>Done</Badge>
+      return (
+        <Badge className='bg-green-100 text-green-700' variant='secondary'>
+          Done
+        </Badge>
+      )
     case 'in progress':
-      return <Badge className='bg-yellow-100 text-yellow-700' variant='secondary'>In Progress</Badge>
+      return (
+        <Badge className='bg-yellow-100 text-yellow-700' variant='secondary'>
+          In Progress
+        </Badge>
+      )
     case 'failed':
-      return <Badge className='bg-red-100 text-red-700' variant='secondary'>Failed</Badge>
+      return (
+        <Badge className='bg-red-100 text-red-700' variant='secondary'>
+          Failed
+        </Badge>
+      )
     default:
-      return <Badge className='bg-gray-100 text-gray-700' variant='secondary'>{status || 'Unknown'}</Badge>
+      return (
+        <Badge className='bg-gray-100 text-gray-700' variant='secondary'>
+          {status || 'Unknown'}
+        </Badge>
+      )
   }
 }
 
-export function AssignWorkflow({ workflows, selected, onChange, onSave, loading, error, editable = true }: AssignWorkflowProps) {
+export function AssignWorkflow({
+  workflows,
+  selected,
+  onChange,
+  onSave,
+  loading,
+  error,
+  editable = true,
+}: AssignWorkflowProps) {
   const [search, setSearch] = useState('')
   // Only show selected workflows as cards
   const selectedWorkflows = useMemo(() => {
-    return workflows.filter(wf => selected.includes(wf.id) && wf.name.toLowerCase().includes(search.toLowerCase()))
+    return workflows.filter(
+      (wf) => selected.includes(wf.id) && wf.name.toLowerCase().includes(search.toLowerCase())
+    )
   }, [workflows, selected, search])
   // Suggestions: workflows not yet selected, filtered by search
   const suggestions = useMemo(() => {
     const q = search.toLowerCase()
-    return workflows.filter(wf => !selected.includes(wf.id) && wf.name.toLowerCase().includes(q))
+    return workflows.filter((wf) => !selected.includes(wf.id) && wf.name.toLowerCase().includes(q))
   }, [workflows, selected, search])
 
   return (
     <div className='flex flex-col gap-4'>
       <div>
-        <Label htmlFor='workflow-search' className='mb-1 block'>Add Workflow</Label>
+        <Label htmlFor='workflow-search' className='mb-1 block'>
+          Add Workflow
+        </Label>
         <Command className='rounded-md border bg-background'>
           <CommandInput
             id='workflow-search'
@@ -74,7 +102,9 @@ export function AssignWorkflow({ workflows, selected, onChange, onSave, loading,
                   className='cursor-pointer'
                 >
                   <span className='font-medium'>{wf.name}</span>
-                  {wf.description && <span className='ml-2 text-xs text-muted-foreground'>{wf.description}</span>}
+                  {wf.description && (
+                    <span className='ml-2 text-muted-foreground text-xs'>{wf.description}</span>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -97,7 +127,7 @@ export function AssignWorkflow({ workflows, selected, onChange, onSave, loading,
                       size='icon'
                       variant='ghost'
                       className='ml-auto h-7 w-7 text-muted-foreground'
-                      onClick={() => onChange(selected.filter(id => id !== wf.id))}
+                      onClick={() => onChange(selected.filter((id) => id !== wf.id))}
                       disabled={loading}
                       aria-label='Unassign workflow'
                     >
@@ -105,7 +135,9 @@ export function AssignWorkflow({ workflows, selected, onChange, onSave, loading,
                     </Button>
                   )}
                 </div>
-                {wf.description && <div className='text-xs text-muted-foreground'>{wf.description}</div>}
+                {wf.description && (
+                  <div className='text-muted-foreground text-xs'>{wf.description}</div>
+                )}
               </Card>
             ))}
           </div>
@@ -119,4 +151,4 @@ export function AssignWorkflow({ workflows, selected, onChange, onSave, loading,
       {error && <div className='text-red-500 text-sm'>{error}</div>}
     </div>
   )
-} 
+}

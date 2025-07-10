@@ -8,7 +8,13 @@ interface EmptyStateCardProps {
   icon?: React.ReactNode
 }
 
-export function EmptyStateCard({ title, description, buttonText, onClick, icon }: EmptyStateCardProps) {
+export function EmptyStateCard({
+  title,
+  description,
+  buttonText,
+  onClick,
+  icon,
+}: EmptyStateCardProps) {
   return (
     <div
       onClick={onClick}
@@ -26,4 +32,4 @@ export function EmptyStateCard({ title, description, buttonText, onClick, icon }
       </div>
     </div>
   )
-} 
+}

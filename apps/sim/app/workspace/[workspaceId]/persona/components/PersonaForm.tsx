@@ -1,4 +1,4 @@
-import React from 'react'
+import type React from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,7 +14,7 @@ export interface PersonaFormProps {
 export function PersonaForm({ formData, onChange, onSubmit, visible, onCancel }: PersonaFormProps) {
   if (!visible) return null
   return (
-    <form onSubmit={onSubmit} className='mb-8 p-4 border rounded space-y-4'>
+    <form onSubmit={onSubmit} className='mb-8 space-y-4 rounded border p-4'>
       <Input
         name='name'
         placeholder='Persona Name'
@@ -45,4 +45,4 @@ export function PersonaForm({ formData, onChange, onSubmit, visible, onCancel }:
       </div>
     </form>
   )
-} 
+}

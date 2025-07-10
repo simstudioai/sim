@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { HelpCircle, LibraryBig, ScrollText, Send, Settings } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import { UsersIcon } from '@/components/icons'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
@@ -25,7 +26,6 @@ import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 import { SidebarControl } from './components/sidebar-control/sidebar-control'
 import { WorkspaceHeader } from './components/workspace-header/workspace-header'
-import { UsersIcon } from '@/components/icons'
 
 const logger = createLogger('Sidebar')
 

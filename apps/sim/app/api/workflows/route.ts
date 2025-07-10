@@ -1,11 +1,11 @@
 import crypto from 'crypto'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow, workflowBlocks } from '@/db/schema'
-import { eq } from 'drizzle-orm'
 
 const logger = createLogger('WorkflowAPI')
 

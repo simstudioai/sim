@@ -1,18 +1,23 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Pencil } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
 import { AssignWorkflow } from './AssignWorkflow'
-import { useParams } from 'next/navigation'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Pencil } from 'lucide-react'
 
 interface CreatePersonaModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (data: { name: string; description: string; photo: string; workflows: string[] }) => Promise<void>
+  onCreate: (data: {
+    name: string
+    description: string
+    photo: string
+    workflows: string[]
+  }) => Promise<void>
 }
 
 function getInitials(name: string) {
@@ -39,8 +44,8 @@ export function CreatePersonaModal({ open, onOpenChange, onCreate }: CreatePerso
   useEffect(() => {
     if (!open || !workspaceId) return
     fetch(`/api/workflows?workspaceId=${workspaceId}`)
-      .then(res => res.json())
-      .then(data => setAllWorkflows(data.workflows || []))
+      .then((res) => res.json())
+      .then((data) => setAllWorkflows(data.workflows || []))
       .catch(() => setAllWorkflows([]))
   }, [open, workspaceId])
 
@@ -49,9 +54,8 @@ export function CreatePersonaModal({ open, onOpenChange, onCreate }: CreatePerso
       const url = URL.createObjectURL(photoFile)
       setPhotoPreview(url)
       return () => URL.revokeObjectURL(url)
-    } else {
-      setPhotoPreview('')
     }
+    setPhotoPreview('')
   }, [photoFile])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -101,7 +105,7 @@ export function CreatePersonaModal({ open, onOpenChange, onCreate }: CreatePerso
           <DialogTitle>Create Persona</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className='space-y-4'>
-          <div className='flex flex-col items-center justify-center gap-2 mb-2'>
+          <div className='mb-2 flex flex-col items-center justify-center gap-2'>
             <div className='relative'>
               <Avatar className='h-24 w-24'>
                 {photoPreview ? (
@@ -112,7 +116,7 @@ export function CreatePersonaModal({ open, onOpenChange, onCreate }: CreatePerso
               </Avatar>
               <button
                 type='button'
-                className='absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full bg-background border border-gray-200 shadow hover:bg-accent transition-colors'
+                className='absolute right-1 bottom-1 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-background shadow transition-colors hover:bg-accent'
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
                 title='Change photo'
@@ -147,7 +151,7 @@ export function CreatePersonaModal({ open, onOpenChange, onCreate }: CreatePerso
           {/* Hidden photo url field for backend compatibility */}
           <input type='hidden' name='photo' value={form.photo} />
           <div>
-            <div className='font-medium mb-2'>Assign Workflows</div>
+            <div className='mb-2 font-medium'>Assign Workflows</div>
             <div className='rounded-md border bg-background p-4'>
               <AssignWorkflow
                 workflows={allWorkflows}
@@ -165,4 +169,4 @@ export function CreatePersonaModal({ open, onOpenChange, onCreate }: CreatePerso
       </DialogContent>
     </Dialog>
   )
-} 
+}
