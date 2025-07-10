@@ -714,7 +714,9 @@ export class AgentBlockHandler implements BlockHandler {
         ...this.createResponseMetadata(result),
       }
     } catch (error) {
-      logger.info('JSON parsing failed', { error: error instanceof Error ? error.message : 'Unknown error' })
+      logger.info('JSON parsing failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
 
       // LLM did not adhere to structured response format
       logger.error('LLM did not adhere to structured response format:', {
