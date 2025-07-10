@@ -29,6 +29,7 @@ interface CodeProps {
   isPreview?: boolean
   previewValue?: string | null
   disabled?: boolean
+  onValidationChange?: (isValid: boolean) => void
 }
 
 if (typeof document !== 'undefined') {
@@ -60,6 +61,7 @@ export function Code({
   isPreview = false,
   previewValue,
   disabled = false,
+  onValidationChange,
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
   const aiPromptPlaceholder = useMemo(() => {
@@ -89,6 +91,27 @@ export function Code({
 
   const showCollapseButton =
     (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5
+
+  const isValidJson = useMemo(() => {
+    if (subBlockId !== 'responseFormat' || !code.trim()) {
+      return true
+    }
+    try {
+      JSON.parse(code)
+      return true
+    } catch {
+      return false
+    }
+  }, [subBlockId, code])
+
+  useEffect(() => {
+    if (onValidationChange && subBlockId === 'responseFormat') {
+      const timeoutId = setTimeout(() => {
+        onValidationChange(isValidJson)
+      }, 150) // Match debounce time from setStoreValue
+      return () => clearTimeout(timeoutId)
+    }
+  }, [isValidJson, onValidationChange, subBlockId])
 
   const editorRef = useRef<HTMLDivElement>(null)
 
@@ -343,9 +366,11 @@ export function Code({
 
       <div
         className={cn(
-          'group relative min-h-[100px] rounded-md border bg-background font-mono text-sm',
-          isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
+          'group relative min-h-[100px] rounded-md border bg-background font-mono text-sm transition-colors',
+          isConnecting && 'ring-2 ring-blue-500 ring-offset-2',
+          !isValidJson && 'border-2 border-destructive bg-destructive/10'
         )}
+        title={!isValidJson ? 'Invalid JSON' : undefined}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
