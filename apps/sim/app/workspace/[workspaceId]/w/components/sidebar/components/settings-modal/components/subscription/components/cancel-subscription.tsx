@@ -63,7 +63,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         activeOrgId,
       })
 
-      const result = await betterAuthSubscription.cancel?.({
+      const result = await betterAuthSubscription.cancel({
         returnUrl: window.location.href,
         referenceId,
       })
