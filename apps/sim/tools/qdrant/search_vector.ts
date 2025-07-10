@@ -74,7 +74,6 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
     return {
       success: true,
       output: {
-        matches: data.result,
         data: data.result,
         status: data.status,
       },
