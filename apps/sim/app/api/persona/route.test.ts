@@ -108,20 +108,22 @@ describe('Persona API Route', () => {
   describe('POST /api/persona', () => {
     it('should create a new persona successfully', async () => {
       mockAuthenticatedUser()
-      mockInsert.mockReturnValue({ values: mockValues })
-      mockValues.mockReturnValue(undefined)
-      const req = createMockRequest('POST', {
+      const newPersona = {
         workspaceId: 'workspace-123',
         name: 'New Persona',
         description: 'desc',
-        photo: '',
-      })
+        photo: ''
+      }
+      mockInsert.mockReturnValue({ values: mockValues })
+      mockValues.mockReturnValue({...newPersona, id: 'new-id', createdAt: new Date(), updatedAt: new Date()})
+      const req = createMockRequest('POST', newPersona)
       const { POST } = await import('./route')
       const response = await POST(req)
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data).toHaveProperty('persona')
-      expect(data.persona).toMatchObject({ name: 'New Persona', workspaceId: 'workspace-123' })
+      expect(data.persona).toMatchObject(newPersona)
+      expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining(newPersona))
     })
 
     it('should return 400 when required fields are missing', async () => {
