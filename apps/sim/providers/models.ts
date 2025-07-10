@@ -376,10 +376,23 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'xai',
     name: 'xAI',
     description: "xAI's Grok models",
-    defaultModel: 'grok-3-latest',
+    defaultModel: 'grok-4-latest',
     modelPatterns: [/^grok/],
     icon: xAIIcon,
     models: [
+      {
+        id: 'grok-4-latest',
+        pricing: {
+          input: 5.0,
+          cachedInput: 2.5,
+          output: 25.0,
+          updatedAt: '2025-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+        },
+      },
       {
         id: 'grok-3-latest',
         pricing: {
