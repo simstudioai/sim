@@ -326,7 +326,7 @@ export function TeamManagement() {
 
           <TeamMembersList
             organization={activeOrganization}
-            currentUserEmail={session?.user?.email}
+            currentUserEmail={session?.user?.email ?? ''}
             isAdminOrOwner={adminOrOwner}
             onRemoveMember={handleRemoveMember}
           />

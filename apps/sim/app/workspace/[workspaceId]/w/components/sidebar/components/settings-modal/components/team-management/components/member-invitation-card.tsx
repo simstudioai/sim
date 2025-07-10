@@ -221,8 +221,10 @@ export function MemberInvitationCard({
                         <div className='flex items-center gap-2'>
                           <PermissionSelector
                             value={
-                              (['read', 'write', 'admin'].includes(selectedWorkspace?.permission)
-                                ? selectedWorkspace.permission
+                              (['read', 'write', 'admin'].includes(
+                                selectedWorkspace?.permission ?? ''
+                              )
+                                ? selectedWorkspace?.permission
                                 : 'read') as PermissionType
                             }
                             onChange={(permission) => onWorkspaceToggle(workspace.id, permission)}
