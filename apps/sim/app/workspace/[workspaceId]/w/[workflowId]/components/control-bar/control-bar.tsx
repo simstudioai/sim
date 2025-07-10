@@ -15,8 +15,8 @@ import {
   SkipForward,
   StepForward,
   Trash2,
-  X,
   Upload,
+  X,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -48,6 +48,7 @@ import { useFolderStore } from '@/stores/folders/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { pushHistory } from '@/stores/workflows/middleware'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -63,9 +64,6 @@ import { HistoryDropdownItem } from './components/history-dropdown-item/history-
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
 import { UserAvatarStack } from './components/user-avatar-stack/user-avatar-stack'
-import { nanoid } from 'nanoid'
-import { generateUniqueName, getNextWorkflowColor } from '@/stores/workflows/registry/utils'
-import { pushHistory } from '@/stores/workflows/middleware'
 
 const logger = createLogger('ControlBar')
 
@@ -735,7 +733,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       setIsImportModalOpen(false)
       addNotification('info', 'Workflow canvas replaced successfully', activeWorkflowId)
     } catch (err: any) {
-      setImportError('Failed to import workflow: ' + (err?.message || 'Unknown error'))
+      setImportError(`Failed to import workflow: ${err?.message || 'Unknown error'}`)
     }
   }
 
@@ -888,7 +886,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             <AlertDialogHeader>
               <AlertDialogTitle>Import Workflow from JSON</AlertDialogTitle>
               <AlertDialogDescription>
-                Select a JSON file exported from Sim. This will create a new workflow in this workspace.
+                Select a JSON file exported from Sim. This will create a new workflow in this
+                workspace.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <input
