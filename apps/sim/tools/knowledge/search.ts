@@ -120,6 +120,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
           results: data.results || [],
           query: data.query,
           totalResults: data.totalResults || 0,
+          cost: data.cost,
         },
       }
     } catch (error: any) {
@@ -129,6 +130,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
           results: [],
           query: '',
           totalResults: 0,
+          cost: undefined,
         },
         error: `Vector search failed: ${error.message || 'Unknown error'}`,
       }
@@ -142,6 +144,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         results: [],
         query: '',
         totalResults: 0,
+        cost: undefined,
       },
       error: errorMessage,
     }

@@ -4,13 +4,14 @@ import { z } from 'zod'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { embedding, knowledgeBase } from '@/db/schema'
+import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('VectorSearchAPI')
 
-// Helper function to create tag filters
 function getTagFilters(filters: Record<string, string>, embedding: any) {
   return Object.entries(filters).map(([key, value]) => {
     switch (key) {
@@ -51,7 +52,6 @@ const VectorSearchSchema = z.object({
   ]),
   query: z.string().min(1, 'Search query is required'),
   topK: z.number().min(1).max(100).default(10),
-  // Tag filters for pre-filtering
   filters: z
     .object({
       tag1: z.string().optional(),
@@ -166,7 +166,6 @@ async function executeParallelQueries(
           eq(embedding.knowledgeBaseId, kbId),
           eq(embedding.enabled, true),
           sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
-          // Apply tag filters if provided (case-insensitive)
           ...(filters ? getTagFilters(filters, embedding) : [])
         )
       )
@@ -208,7 +207,6 @@ async function executeSingleQuery(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
         eq(embedding.enabled, true),
         sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
-        // Apply tag filters if provided (case-insensitive)
         ...(filters
           ? Object.entries(filters).map(([key, value]) => {
               switch (key) {
@@ -321,6 +319,19 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      // Calculate cost for the embedding (with fallback if calculation fails)
+      let cost = null
+      let tokenCount = null
+      try {
+        tokenCount = estimateTokenCount(validatedData.query, 'openai')
+        cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+        // Continue without cost information rather than failing the search
+      }
+
       return NextResponse.json({
         success: true,
         data: {
@@ -343,6 +354,22 @@ export async function POST(request: NextRequest) {
           knowledgeBaseId: foundKbIds[0],
           topK: validatedData.topK,
           totalResults: results.length,
+          ...(cost && tokenCount
+            ? {
+                cost: {
+                  input: cost.input,
+                  output: cost.output,
+                  total: cost.total,
+                  tokens: {
+                    prompt: tokenCount.count,
+                    completion: 0,
+                    total: tokenCount.count,
+                  },
+                  model: 'text-embedding-3-small',
+                  pricing: cost.pricing,
+                },
+              }
+            : {}),
         },
       })
     } catch (validationError) {

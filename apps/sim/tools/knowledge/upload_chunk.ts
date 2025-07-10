@@ -69,6 +69,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
           },
           message: `Successfully uploaded chunk to document`,
           documentId: data.documentId,
+          cost: data.cost,
         },
       }
     } catch (error: any) {
