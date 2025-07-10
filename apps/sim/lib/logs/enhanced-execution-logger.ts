@@ -219,7 +219,7 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     logger.debug(`Completing workflow execution ${executionId}`)
 
     // Determine if workflow failed by checking trace spans for errors
-    const hasErrors = traceSpans && traceSpans.some((span: any) => {
+    const hasErrors = traceSpans?.some((span: any) => {
       const checkSpanForErrors = (s: any): boolean => {
         if (s.status === 'error') return true
         if (s.children && Array.isArray(s.children)) {

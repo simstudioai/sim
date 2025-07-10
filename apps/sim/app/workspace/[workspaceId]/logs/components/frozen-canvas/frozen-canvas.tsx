@@ -152,12 +152,12 @@ function PinnedLogs({
   executionData,
   blockId,
   workflowState,
-  onClose
+  onClose,
 }: {
-  executionData: any | null;
-  blockId: string;
-  workflowState: any;
-  onClose: () => void;
+  executionData: any | null
+  blockId: string
+  workflowState: any
+  onClose: () => void
 }) {
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const [currentIterationIndex, setCurrentIterationIndex] = useState(0)
@@ -197,9 +197,7 @@ function PinnedLogs({
           </div>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
-              <Badge variant='secondary'>
-                {formatted.blockType}
-              </Badge>
+              <Badge variant='secondary'>{formatted.blockType}</Badge>
               <Badge variant='outline'>not executed</Badge>
             </div>
           </div>
@@ -435,67 +433,67 @@ export function FrozenCanvas({
 
       logger.debug('Grouped trace spans by blockId:', traceSpansByBlockId)
 
-        for (const [blockId, spans] of Object.entries(traceSpansByBlockId)) {
-          const spanArray = spans as any[]
+      for (const [blockId, spans] of Object.entries(traceSpansByBlockId)) {
+        const spanArray = spans as any[]
 
-          const iterations = spanArray.map((span: any) => {
-            // Extract error information from span output if status is error
-            let errorMessage = null
-            let errorStackTrace = null
+        const iterations = spanArray.map((span: any) => {
+          // Extract error information from span output if status is error
+          let errorMessage = null
+          let errorStackTrace = null
 
-            if (span.status === 'error' && span.output) {
-              // Error information can be in different formats in the output
-              if (typeof span.output === 'string') {
-                errorMessage = span.output
-              } else if (span.output.error) {
-                errorMessage = span.output.error
-                errorStackTrace = span.output.stackTrace || span.output.stack
-              } else if (span.output.message) {
-                errorMessage = span.output.message
-                errorStackTrace = span.output.stackTrace || span.output.stack
-              } else {
-                // Fallback: stringify the entire output for error cases
-                errorMessage = JSON.stringify(span.output)
-              }
+          if (span.status === 'error' && span.output) {
+            // Error information can be in different formats in the output
+            if (typeof span.output === 'string') {
+              errorMessage = span.output
+            } else if (span.output.error) {
+              errorMessage = span.output.error
+              errorStackTrace = span.output.stackTrace || span.output.stack
+            } else if (span.output.message) {
+              errorMessage = span.output.message
+              errorStackTrace = span.output.stackTrace || span.output.stack
+            } else {
+              // Fallback: stringify the entire output for error cases
+              errorMessage = JSON.stringify(span.output)
             }
-
-            return {
-              id: span.id,
-              blockId: span.blockId,
-              blockName: span.name,
-              blockType: span.type,
-              status: span.status,
-              startedAt: span.startTime,
-              endedAt: span.endTime,
-              durationMs: span.duration,
-              inputData: span.input,
-              outputData: span.output,
-              errorMessage,
-              errorStackTrace,
-              cost: span.cost || {
-                input: null,
-                output: null,
-                total: null,
-              },
-              tokens: span.tokens || {
-                prompt: null,
-                completion: null,
-                total: null,
-              },
-              modelUsed: span.model || null,
-              metadata: {},
-            }
-          })
-
-          blockExecutionMap[blockId] = {
-            iterations,
-            currentIteration: 0,
-            totalIterations: iterations.length,
           }
-        }
 
-        setBlockExecutions(blockExecutionMap)
+          return {
+            id: span.id,
+            blockId: span.blockId,
+            blockName: span.name,
+            blockType: span.type,
+            status: span.status,
+            startedAt: span.startTime,
+            endedAt: span.endTime,
+            durationMs: span.duration,
+            inputData: span.input,
+            outputData: span.output,
+            errorMessage,
+            errorStackTrace,
+            cost: span.cost || {
+              input: null,
+              output: null,
+              total: null,
+            },
+            tokens: span.tokens || {
+              prompt: null,
+              completion: null,
+              total: null,
+            },
+            modelUsed: span.model || null,
+            metadata: {},
+          }
+        })
+
+        blockExecutionMap[blockId] = {
+          iterations,
+          currentIteration: 0,
+          totalIterations: iterations.length,
+        }
       }
+
+      setBlockExecutions(blockExecutionMap)
+    }
   }, [traceSpans])
 
   useEffect(() => {
