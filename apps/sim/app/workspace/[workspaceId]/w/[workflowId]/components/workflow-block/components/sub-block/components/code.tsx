@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Wand2, AlertTriangle } from 'lucide-react'
+import { Wand2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -365,7 +365,7 @@ export function Code({
         className={cn(
           'group relative min-h-[100px] rounded-md border bg-background font-mono text-sm transition-colors',
           isConnecting && 'ring-2 ring-blue-500 ring-offset-2',
-          !isValidJson && 'border-destructive border-2 bg-destructive/10'
+          !isValidJson && 'border-2 border-destructive bg-destructive/10'
         )}
         title={!isValidJson ? 'Invalid JSON' : undefined}
         onDragOver={(e) => e.preventDefault()}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Info, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Info } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getBlock } from '@/blocks/index'

@@ -718,13 +718,14 @@ export class AgentBlockHandler implements BlockHandler {
     // All parsing attempts failed
     logger.error('Failed to parse response content as JSON:', {
       content: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
-      responseFormat: responseFormat
+      responseFormat: responseFormat,
     })
 
     // Return standard response but include a warning
     const standardResponse = this.processStandardResponse(result)
     return Object.assign(standardResponse, {
-      _responseFormatWarning: 'Response format was specified but content could not be parsed as JSON. Falling back to standard format.',
+      _responseFormatWarning:
+        'Response format was specified but content could not be parsed as JSON. Falling back to standard format.',
     })
   }
 
