@@ -737,14 +737,13 @@ export class AgentBlockHandler implements BlockHandler {
 
   private formatToolCall(tc: any) {
     return {
+      ...tc,
       name: this.stripCustomToolPrefix(tc.name),
       startTime: tc.startTime,
       endTime: tc.endTime,
       duration: tc.duration,
-      arguments: tc.arguments || tc.input,
-      result: tc.result || tc.output,
-      // Don't spread the original object to avoid duplication
-      // Only include the fields we actually need
+      input: tc.arguments || tc.input,
+      output: tc.result || tc.output,
     }
   }
 
