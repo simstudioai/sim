@@ -308,14 +308,16 @@ export default function Logs() {
             {/* Table with fixed layout */}
             <div className='w-full min-w-[800px]'>
               {/* Header */}
-              <div className='border-border/50 border-b'>
-                <div className='grid grid-cols-[160px_100px_1fr_120px_100px_100px] gap-4 px-4 py-3 font-medium text-muted-foreground text-xs'>
-                  <div>Time</div>
-                  <div>Status</div>
-                  <div>Workflow</div>
-                  <div className='hidden lg:block'>Trigger</div>
-                  <div className='hidden xl:block'>Cost</div>
-                  <div>Duration</div>
+              <div className='px-4 py-4'>
+                <div className='rounded-lg border border-border/30 bg-muted/30'>
+                  <div className='grid grid-cols-[160px_100px_1fr_120px_100px_100px] gap-4 px-4 py-3'>
+                    <div className='font-medium text-muted-foreground text-xs'>Time</div>
+                    <div className='font-medium text-muted-foreground text-xs'>Status</div>
+                    <div className='font-medium text-muted-foreground text-xs'>Workflow</div>
+                    <div className='hidden lg:block font-medium text-muted-foreground text-xs'>Trigger</div>
+                    <div className='hidden xl:block font-medium text-muted-foreground text-xs'>Cost</div>
+                    <div className='font-medium text-muted-foreground text-xs'>Duration</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -344,7 +346,7 @@ export default function Logs() {
                   </div>
                 </div>
               ) : (
-                <div className='space-y-1 p-4'>
+                <div className='space-y-1 px-4 pb-4'>
                   {logs.map((log) => {
                     const formattedDate = formatDate(log.createdAt)
                     const isSelected = selectedLog?.id === log.id
@@ -360,7 +362,7 @@ export default function Logs() {
                         }`}
                         onClick={() => handleLogClick(log)}
                       >
-                        <div className='grid grid-cols-[160px_100px_1fr_120px_100px_100px] gap-4 p-4'>
+                        <div className='grid grid-cols-[160px_100px_1fr_120px_100px_100px] gap-4 px-4 py-4'>
                           {/* Time */}
                           <div>
                             <div className='font-medium text-sm'>{formattedDate.formatted}</div>
@@ -403,13 +405,13 @@ export default function Logs() {
 
                           {/* Cost */}
                           <div className='hidden xl:block'>
-                            <div className='text-xs'>
+                            <div className='text-xs text-muted-foreground'>
                               {log.metadata?.enhanced && log.metadata?.cost?.total ? (
-                                <span className='text-muted-foreground'>
+                                <span>
                                   ${log.metadata.cost.total.toFixed(4)}
                                 </span>
                               ) : (
-                                <span className='text-muted-foreground'>—</span>
+                                <span className='pl-0.5'>—</span>
                               )}
                             </div>
                           </div>

@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react'
 import {
   AlertCircle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Clock,
   DollarSign,
   Hash,
   Loader2,
+  Maximize2,
   X,
   Zap,
 } from 'lucide-react'
@@ -20,6 +23,69 @@ import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/work
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('FrozenCanvas')
+
+function ExpandableDataSection({ title, data }: { title: string; data: any }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const jsonString = JSON.stringify(data, null, 2)
+  const isLargeData = jsonString.length > 500 || jsonString.split('\n').length > 10
+
+  return (
+    <>
+      <div>
+        <div className='mb-2 flex items-center justify-between'>
+          <h4 className='font-medium text-foreground text-sm'>{title}</h4>
+          <div className='flex items-center gap-1'>
+            {isLargeData && (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+                title="Expand in modal"
+              >
+                <Maximize2 className='h-3 w-3' />
+              </button>
+            )}
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+            >
+              {isExpanded ? <ChevronUp className='h-3 w-3' /> : <ChevronDown className='h-3 w-3' />}
+            </button>
+          </div>
+        </div>
+        <div
+          className={cn(
+            'overflow-y-auto rounded bg-muted p-3 font-mono text-xs transition-all duration-200',
+            isExpanded ? 'max-h-96' : 'max-h-32'
+          )}
+        >
+          <pre className='whitespace-pre-wrap break-words text-foreground'>{jsonString}</pre>
+        </div>
+      </div>
+
+      {/* Modal for large data */}
+      {isModalOpen && (
+        <div className='fixed inset-0 z-[200] flex items-center justify-center bg-black/50'>
+          <div className='mx-4 h-[80vh] w-full max-w-4xl rounded-lg border bg-background shadow-lg'>
+            <div className='flex items-center justify-between border-b p-4'>
+              <h3 className='font-medium text-foreground text-lg'>{title}</h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+              >
+                <X className='h-4 w-4' />
+              </button>
+            </div>
+            <div className='h-[calc(80vh-4rem)] overflow-auto p-4'>
+              <pre className='whitespace-pre-wrap break-words font-mono text-foreground text-sm'>{jsonString}</pre>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
 
 function formatExecutionData(executionData: any) {
   const {
@@ -160,14 +226,14 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
             <span className='text-foreground text-sm'>{formatted.duration}</span>
           </div>
 
-          {formatted.cost && (
+          {formatted.cost && formatted.cost.total > 0 && (
             <div className='flex items-center gap-2'>
               <DollarSign className='h-4 w-4 text-muted-foreground' />
               <span className='text-foreground text-sm'>${formatted.cost.total.toFixed(5)}</span>
             </div>
           )}
 
-          {formatted.tokens && (
+          {formatted.tokens && formatted.tokens.total > 0 && (
             <div className='flex items-center gap-2'>
               <Hash className='h-4 w-4 text-muted-foreground' />
               <span className='text-foreground text-sm'>{formatted.tokens.total} tokens</span>
@@ -175,21 +241,17 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
           )}
         </div>
 
-        <div>
-          <h4 className='mb-2 font-medium text-foreground text-sm'>Input</h4>
-          <div className='max-h-32 overflow-y-auto rounded bg-muted p-3 font-mono text-xs'>
-            <pre className='text-foreground'>{JSON.stringify(formatted.input, null, 2)}</pre>
-          </div>
-        </div>
+        <ExpandableDataSection
+          title="Input"
+          data={formatted.input}
+        />
 
-        <div>
-          <h4 className='mb-2 font-medium text-foreground text-sm'>Output</h4>
-          <div className='max-h-32 overflow-y-auto rounded bg-muted p-3 font-mono text-xs'>
-            <pre className='text-foreground'>{JSON.stringify(formatted.output, null, 2)}</pre>
-          </div>
-        </div>
+        <ExpandableDataSection
+          title="Output"
+          data={formatted.output}
+        />
 
-        {formatted.cost && (
+        {formatted.cost && formatted.cost.total > 0 && (
           <div>
             <h4 className='mb-2 font-medium text-foreground text-sm'>Cost Breakdown</h4>
             <div className='space-y-1 text-sm'>
@@ -209,7 +271,7 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
           </div>
         )}
 
-        {formatted.tokens && (
+        {formatted.tokens && formatted.tokens.total > 0 && (
           <div>
             <h4 className='mb-2 font-medium text-foreground text-sm'>Token Usage</h4>
             <div className='space-y-1 text-sm'>
@@ -242,12 +304,7 @@ interface FrozenCanvasData {
     startedAt: string
     endedAt?: string
     totalDurationMs?: number
-    blockStats: {
-      total: number
-      success: number
-      error: number
-      skipped: number
-    }
+
     cost: {
       total: number | null
       input: number | null

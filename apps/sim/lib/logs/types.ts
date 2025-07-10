@@ -169,12 +169,7 @@ export interface WorkflowExecutionSummary {
   startedAt: string
   endedAt: string
   durationMs: number
-  blockStats: {
-    total: number
-    success: number
-    error: number
-    skipped: number
-  }
+
   costSummary: {
     total: number
     inputCost: number
@@ -360,12 +355,7 @@ export interface ExecutionLoggerService {
     executionId: string
     endedAt: string
     totalDurationMs: number
-    blockStats: {
-      total: number
-      success: number
-      error: number
-      skipped: number
-    }
+
     costSummary: {
       totalCost: number
       totalInputCost: number

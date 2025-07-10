@@ -84,12 +84,7 @@ export interface WorkflowLog {
     cost?: CostMetadata
     blockInput?: Record<string, any>
     enhanced?: boolean
-    blockStats?: {
-      total: number
-      success: number
-      error: number
-      skipped: number
-    }
+
     blockExecutions?: Array<{
       id: string
       blockId: string

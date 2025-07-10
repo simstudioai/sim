@@ -1,11 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   ChevronDown,
-  ChevronDownSquare,
   ChevronRight,
-  ChevronUpSquare,
   Code,
   Cpu,
   ExternalLink,
@@ -203,39 +201,16 @@ export function TraceSpansDisplay({
   // Keep track of expanded spans
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set())
 
-  // Function to collect all span IDs recursively (for expand all functionality)
-  const collectAllSpanIds = (spans: TraceSpan[]): string[] => {
-    const ids: string[] = []
 
-    const collectIds = (span: TraceSpan) => {
-      const spanId = span.id || `span-${span.name}-${span.startTime}`
-      ids.push(spanId)
 
-      // Process children
-      if (span.children && span.children.length > 0) {
-        span.children.forEach(collectIds)
-      }
-    }
 
-    spans.forEach(collectIds)
-    return ids
-  }
-
-  const allSpanIds = useMemo(() => {
-    if (!traceSpans || traceSpans.length === 0) return []
-    return collectAllSpanIds(traceSpans)
-  }, [traceSpans])
 
   // Early return after all hooks
   if (!traceSpans || traceSpans.length === 0) {
     return <div className='text-muted-foreground text-sm'>No trace data available</div>
   }
 
-  // Format total duration for better readability
-  const _formatTotalDuration = (ms: number) => {
-    if (ms < 1000) return `${ms}ms`
-    return `${(ms / 1000).toFixed(2)}s (${ms}ms)`
-  }
+
 
   // Find the earliest start time among all spans to be the workflow start time
   const workflowStartTime = traceSpans.reduce((earliest, span) => {
@@ -269,48 +244,12 @@ export function TraceSpansDisplay({
     }
   }
 
-  // Handle expand all / collapse all
-  const handleExpandAll = () => {
-    const newExpandedSpans = new Set(allSpanIds)
-    setExpandedSpans(newExpandedSpans)
 
-    if (onExpansionChange) {
-      onExpansionChange(true)
-    }
-  }
-
-  const handleCollapseAll = () => {
-    setExpandedSpans(new Set())
-
-    if (onExpansionChange) {
-      onExpansionChange(false)
-    }
-  }
-
-  // Determine if all spans are currently expanded
-  const allExpanded = allSpanIds.length > 0 && allSpanIds.every((id) => expandedSpans.has(id))
 
   return (
     <div className='w-full'>
       <div className='mb-2 flex items-center justify-between'>
-        <div className='font-medium text-muted-foreground text-xs'>Trace Spans</div>
-        <button
-          onClick={allExpanded ? handleCollapseAll : handleExpandAll}
-          className='flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground'
-          title={allExpanded ? 'Collapse all spans' : 'Expand all spans'}
-        >
-          {allExpanded ? (
-            <>
-              <ChevronUpSquare className='h-3.5 w-3.5' />
-              <span>Collapse</span>
-            </>
-          ) : (
-            <>
-              <ChevronDownSquare className='h-3.5 w-3.5' />
-              <span>Expand</span>
-            </>
-          )}
-        </button>
+        <div className='font-medium text-muted-foreground text-xs'>Workflow Execution</div>
       </div>
       <div className='w-full overflow-hidden rounded-md border shadow-sm'>
         {traceSpans.map((span, index) => {
@@ -369,7 +308,8 @@ function TraceSpanItem({
   const expanded = expandedSpans.has(spanId)
   const hasChildren = span.children && span.children.length > 0
   const hasToolCalls = span.toolCalls && span.toolCalls.length > 0
-  const hasNestedItems = hasChildren || hasToolCalls
+  const hasInputOutput = Boolean(span.input || span.output)
+  const hasNestedItems = hasChildren || hasToolCalls || hasInputOutput
 
   // Calculate timing information
   const spanStartTime = new Date(span.startTime).getTime()
@@ -389,8 +329,7 @@ function TraceSpanItem({
   const safeStartPercent = Math.min(100, Math.max(0, relativeStartPercent))
   const safeWidthPercent = Math.max(2, Math.min(100 - safeStartPercent, actualDurationPercent))
 
-  // For parent-relative timing display
-  const _startOffsetPercentage = totalDuration > 0 ? (startOffset / totalDuration) * 100 : 0
+
 
   // Handle click to expand/collapse this span
   const handleSpanClick = () => {
@@ -605,17 +544,17 @@ function TraceSpanItem({
         </div>
       </div>
 
-      {/* Children and tool calls */}
+      {/* Expanded content */}
       {expanded && (
         <div>
           {/* Block Input/Output Data */}
           {(span.input || span.output) && (
-            <div className='mt-2 ml-8 space-y-3 overflow-hidden'>
+            <div className='mt-2 ml-8 mr-4 mb-4 space-y-3 overflow-hidden'>
               {/* Input Data */}
               {span.input && (
                 <div>
                   <h4 className='mb-2 font-medium text-muted-foreground text-xs'>Input</h4>
-                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3'>
+                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3 mb-2'>
                     <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
                   </div>
                 </div>
@@ -627,7 +566,7 @@ function TraceSpanItem({
                   <h4 className='mb-2 font-medium text-muted-foreground text-xs'>
                     {span.status === 'error' ? 'Error Details' : 'Output'}
                   </h4>
-                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3'>
+                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3 mb-2'>
                     <BlockDataDisplay
                       data={span.output}
                       blockType={span.type}
@@ -639,12 +578,8 @@ function TraceSpanItem({
               )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Children and tool calls */}
-      {expanded && (
-        <div>
+          {/* Children and tool calls */}
           {/* Render child spans */}
           {hasChildren && (
             <div>
