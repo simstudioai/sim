@@ -76,32 +76,38 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           // Transform dates with error handling
           const transformedData: SubscriptionData = {
             ...data,
-            periodEnd: data.periodEnd ? (() => {
-              try {
-                const date = new Date(data.periodEnd)
-                return isNaN(date.getTime()) ? null : date
-              } catch {
-                return null
-              }
-            })() : null,
+            periodEnd: data.periodEnd
+              ? (() => {
+                  try {
+                    const date = new Date(data.periodEnd)
+                    return Number.isNaN(date.getTime()) ? null : date
+                  } catch {
+                    return null
+                  }
+                })()
+              : null,
             usage: {
               ...data.usage,
-              billingPeriodStart: data.usage?.billingPeriodStart ? (() => {
-                try {
-                  const date = new Date(data.usage.billingPeriodStart)
-                  return isNaN(date.getTime()) ? null : date
-                } catch {
-                  return null
-                }
-              })() : null,
-              billingPeriodEnd: data.usage?.billingPeriodEnd ? (() => {
-                try {
-                  const date = new Date(data.usage.billingPeriodEnd)
-                  return isNaN(date.getTime()) ? null : date
-                } catch {
-                  return null
-                }
-              })() : null,
+              billingPeriodStart: data.usage?.billingPeriodStart
+                ? (() => {
+                    try {
+                      const date = new Date(data.usage.billingPeriodStart)
+                      return Number.isNaN(date.getTime()) ? null : date
+                    } catch {
+                      return null
+                    }
+                  })()
+                : null,
+              billingPeriodEnd: data.usage?.billingPeriodEnd
+                ? (() => {
+                    try {
+                      const date = new Date(data.usage.billingPeriodEnd)
+                      return Number.isNaN(date.getTime()) ? null : date
+                    } catch {
+                      return null
+                    }
+                  })()
+                : null,
             },
           }
 
@@ -227,10 +233,11 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
           return {
             success: true,
-            periodEnd: result.data.periodEnd ? new Date(result.data.periodEnd) : undefined
+            periodEnd: result.data.periodEnd ? new Date(result.data.periodEnd) : undefined,
           }
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to cancel subscription'
+          const errorMessage =
+            error instanceof Error ? error.message : 'Failed to cancel subscription'
           logger.error('Failed to cancel subscription', { error })
           set({ error: errorMessage })
           return { success: false, error: errorMessage }
@@ -261,12 +268,12 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
             const usageLimitData = await get().loadUsageLimitData()
             return {
               subscriptionData: state.subscriptionData,
-              usageLimitData: usageLimitData
+              usageLimitData: usageLimitData,
             }
           }
           return {
             subscriptionData: state.subscriptionData,
-            usageLimitData: state.usageLimitData
+            usageLimitData: state.usageLimitData,
           }
         }
 
@@ -275,7 +282,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           logger.debug('Data already loading, skipping duplicate request')
           return {
             subscriptionData: get().subscriptionData,
-            usageLimitData: get().usageLimitData
+            usageLimitData: get().usageLimitData,
           }
         }
 
@@ -305,32 +312,38 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           // Transform subscription data dates with error handling
           const transformedSubscriptionData: SubscriptionData = {
             ...subscriptionData,
-            periodEnd: subscriptionData.periodEnd ? (() => {
-              try {
-                const date = new Date(subscriptionData.periodEnd)
-                return isNaN(date.getTime()) ? null : date
-              } catch {
-                return null
-              }
-            })() : null,
+            periodEnd: subscriptionData.periodEnd
+              ? (() => {
+                  try {
+                    const date = new Date(subscriptionData.periodEnd)
+                    return Number.isNaN(date.getTime()) ? null : date
+                  } catch {
+                    return null
+                  }
+                })()
+              : null,
             usage: {
               ...subscriptionData.usage,
-              billingPeriodStart: subscriptionData.usage?.billingPeriodStart ? (() => {
-                try {
-                  const date = new Date(subscriptionData.usage.billingPeriodStart)
-                  return isNaN(date.getTime()) ? null : date
-                } catch {
-                  return null
-                }
-              })() : null,
-              billingPeriodEnd: subscriptionData.usage?.billingPeriodEnd ? (() => {
-                try {
-                  const date = new Date(subscriptionData.usage.billingPeriodEnd)
-                  return isNaN(date.getTime()) ? null : date
-                } catch {
-                  return null
-                }
-              })() : null,
+              billingPeriodStart: subscriptionData.usage?.billingPeriodStart
+                ? (() => {
+                    try {
+                      const date = new Date(subscriptionData.usage.billingPeriodStart)
+                      return Number.isNaN(date.getTime()) ? null : date
+                    } catch {
+                      return null
+                    }
+                  })()
+                : null,
+              billingPeriodEnd: subscriptionData.usage?.billingPeriodEnd
+                ? (() => {
+                    try {
+                      const date = new Date(subscriptionData.usage.billingPeriodEnd)
+                      return Number.isNaN(date.getTime()) ? null : date
+                    } catch {
+                      return null
+                    }
+                  })()
+                : null,
             },
           }
 
@@ -367,7 +380,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           logger.debug('Data loaded successfully in parallel')
           return {
             subscriptionData: transformedSubscriptionData,
-            usageLimitData: transformedUsageLimitData
+            usageLimitData: transformedUsageLimitData,
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to load data'
@@ -379,7 +392,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           })
           return {
             subscriptionData: null,
-            usageLimitData: null
+            usageLimitData: null,
           }
         }
       },

@@ -9,8 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useSubscription } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('CancelSubscription')
 
@@ -76,7 +76,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       const dateObj = date instanceof Date ? date : new Date(date)
 
       // Check if the date is valid
-      if (isNaN(dateObj.getTime())) {
+      if (Number.isNaN(dateObj.getTime())) {
         return 'end of current billing period'
       }
 
@@ -125,7 +125,8 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           <DialogHeader>
             <DialogTitle>Cancel {subscription.plan} subscription?</DialogTitle>
             <DialogDescription>
-              You'll be redirected to Stripe to manage your subscription. You'll keep access until {formatDate(periodEndDate)}, then downgrade to free plan.
+              You'll be redirected to Stripe to manage your subscription. You'll keep access until{' '}
+              {formatDate(periodEndDate)}, then downgrade to free plan.
             </DialogDescription>
           </DialogHeader>
 

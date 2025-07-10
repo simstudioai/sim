@@ -23,8 +23,15 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
 
-  const { isLoading, error, getSubscriptionStatus, getUsage, getBillingStatus, usageLimitData, subscriptionData } =
-    useSubscriptionStore()
+  const {
+    isLoading,
+    error,
+    getSubscriptionStatus,
+    getUsage,
+    getBillingStatus,
+    usageLimitData,
+    subscriptionData,
+  } = useSubscriptionStore()
 
   const {
     activeOrganization,
