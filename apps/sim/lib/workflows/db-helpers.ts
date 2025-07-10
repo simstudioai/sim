@@ -93,23 +93,15 @@ export async function loadWorkflowFromNormalizedTables(
           id: subflow.id,
           ...config,
         }
-        logger.debug(
-          `[DB-HELPERS] Loaded loop ${subflow.id} with iterations: ${loopConfig.iterations || 'unknown'}`
-        )
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
         parallels[subflow.id] = {
           id: subflow.id,
           ...config,
         }
-        logger.debug(`[DB-HELPERS] Loaded parallel ${subflow.id}`)
       } else {
         logger.warn(`Unknown subflow type: ${subflow.type} for subflow ${subflow.id}`)
       }
     })
-
-    logger.info(
-      `Loaded workflow ${workflowId} from normalized tables: ${blocks.length} blocks, ${edges.length} edges, ${subflows.length} subflows`
-    )
 
     return {
       blocks: blocksMap,
@@ -223,8 +215,6 @@ export async function saveWorkflowToNormalizedTables(
       hasActiveWebhook: state.hasActiveWebhook,
     }
 
-    logger.info(`Successfully saved workflow ${workflowId} to normalized tables`)
-
     return {
       success: true,
       jsonBlob,
@@ -281,7 +271,6 @@ export async function migrateWorkflowToNormalizedTables(
     const result = await saveWorkflowToNormalizedTables(workflowId, workflowState)
 
     if (result.success) {
-      logger.info(`Successfully migrated workflow ${workflowId} to normalized tables`)
       return { success: true }
     }
     return { success: false, error: result.error }

@@ -1,7 +1,8 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { getCostMultiplier } from '@/lib/environment'
 import { db } from '@/db'
-import { workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
+import { userStats, workflow, workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
 import { createLogger } from './console-logger'
 import { snapshotService } from './snapshot-service'
 import type {
@@ -17,6 +18,17 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from './types'
+
+export interface ToolCall {
+  name: string
+  duration: number // in milliseconds
+  startTime: string // ISO timestamp
+  endTime: string // ISO timestamp
+  status: 'success' | 'error'
+  input?: Record<string, any>
+  output?: Record<string, any>
+  error?: string
+}
 
 const logger = createLogger('EnhancedExecutionLogger')
 
@@ -119,6 +131,7 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     }
     cost?: CostBreakdown
     metadata?: BlockExecutionLog['metadata']
+    toolCalls?: ToolCall[]
   }): Promise<BlockExecutionLog> {
     const {
       executionId,
@@ -133,6 +146,7 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       error,
       cost,
       metadata,
+      toolCalls,
     } = params
 
     logger.debug(`Logging block execution ${blockId} for execution ${executionId}`)
@@ -163,7 +177,10 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         tokensCompletion: cost?.tokens?.completion || null,
         tokensTotal: cost?.tokens?.total || null,
         modelUsed: cost?.model || null,
-        metadata: metadata || {},
+        metadata: {
+          ...(metadata || {}),
+          ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        },
       })
       .returning()
 
@@ -194,12 +211,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     executionId: string
     endedAt: string
     totalDurationMs: number
-    blockStats: {
-      total: number
-      success: number
-      error: number
-      skipped: number
-    }
     costSummary: {
       totalCost: number
       totalInputCost: number
@@ -220,23 +231,24 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
   }): Promise<WorkflowExecutionLog> {
-    const {
-      executionId,
-      endedAt,
-      totalDurationMs,
-      blockStats,
-      costSummary,
-      finalOutput,
-      traceSpans,
-    } = params
+    const { executionId, endedAt, totalDurationMs, costSummary, finalOutput, traceSpans } = params
 
     logger.debug(`Completing workflow execution ${executionId}`)
 
-    const level = blockStats.error > 0 ? 'error' : 'info'
-    const message =
-      blockStats.error > 0
-        ? `Workflow execution failed: ${blockStats.error} error(s), ${blockStats.success} success(es)`
-        : `Workflow execution completed: ${blockStats.success} block(s) executed successfully`
+    // Determine if workflow failed by checking trace spans for errors
+    const hasErrors = traceSpans?.some((span: any) => {
+      const checkSpanForErrors = (s: any): boolean => {
+        if (s.status === 'error') return true
+        if (s.children && Array.isArray(s.children)) {
+          return s.children.some(checkSpanForErrors)
+        }
+        return false
+      }
+      return checkSpanForErrors(span)
+    })
+
+    const level = hasErrors ? 'error' : 'info'
+    const message = hasErrors ? 'Workflow execution failed' : 'Workflow execution completed'
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
@@ -245,10 +257,10 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         message,
         endedAt: new Date(endedAt),
         totalDurationMs,
-        blockCount: blockStats.total,
-        successCount: blockStats.success,
-        errorCount: blockStats.error,
-        skippedCount: blockStats.skipped,
+        blockCount: 0,
+        successCount: 0,
+        errorCount: 0,
+        skippedCount: 0,
         totalCost: costSummary.totalCost.toString(),
         totalInputCost: costSummary.totalInputCost.toString(),
         totalOutputCost: costSummary.totalOutputCost.toString(),
@@ -270,6 +282,13 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     if (!updatedLog) {
       throw new Error(`Workflow log not found for execution ${executionId}`)
     }
+
+    // Update user stats with cost information (same logic as original execution logger)
+    await this.updateUserStats(
+      updatedLog.workflowId,
+      costSummary,
+      updatedLog.trigger as ExecutionTrigger['type']
+    )
 
     logger.debug(`Completed workflow execution ${executionId}`)
 
@@ -373,6 +392,149 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       metadata: workflowLog.metadata as WorkflowExecutionLog['metadata'],
       createdAt: workflowLog.createdAt.toISOString(),
     }
+  }
+
+  /**
+   * Updates user stats with cost and token information
+   * Maintains same logic as original execution logger for billing consistency
+   */
+  private async updateUserStats(
+    workflowId: string,
+    costSummary: {
+      totalCost: number
+      totalInputCost: number
+      totalOutputCost: number
+      totalTokens: number
+      totalPromptTokens: number
+      totalCompletionTokens: number
+    },
+    trigger: ExecutionTrigger['type']
+  ): Promise<void> {
+    if (costSummary.totalCost <= 0) {
+      logger.debug('No cost to update in user stats')
+      return
+    }
+
+    try {
+      // Get the workflow record to get the userId
+      const [workflowRecord] = await db
+        .select()
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (!workflowRecord) {
+        logger.error(`Workflow ${workflowId} not found for user stats update`)
+        return
+      }
+
+      const userId = workflowRecord.userId
+      const costMultiplier = getCostMultiplier()
+      const costToStore = costSummary.totalCost * costMultiplier
+
+      // Check if user stats record exists
+      const userStatsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
+
+      if (userStatsRecords.length === 0) {
+        // Create new user stats record with trigger-specific counts
+        const triggerCounts = this.getTriggerCounts(trigger)
+
+        await db.insert(userStats).values({
+          id: crypto.randomUUID(),
+          userId: userId,
+          totalManualExecutions: triggerCounts.manual,
+          totalApiCalls: triggerCounts.api,
+          totalWebhookTriggers: triggerCounts.webhook,
+          totalScheduledExecutions: triggerCounts.schedule,
+          totalChatExecutions: triggerCounts.chat,
+          totalTokensUsed: costSummary.totalTokens,
+          totalCost: costToStore.toString(),
+          currentPeriodCost: costToStore.toString(), // Initialize current period usage
+          lastActive: new Date(),
+        })
+
+        logger.debug('Created new user stats record with cost data', {
+          userId,
+          trigger,
+          totalCost: costToStore,
+          totalTokens: costSummary.totalTokens,
+        })
+      } else {
+        // Update existing user stats record with trigger-specific increments
+        const updateFields: any = {
+          totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
+          totalCost: sql`total_cost + ${costToStore}`,
+          currentPeriodCost: sql`current_period_cost + ${costToStore}`, // Track current billing period usage
+          lastActive: new Date(),
+        }
+
+        // Add trigger-specific increment
+        switch (trigger) {
+          case 'manual':
+            updateFields.totalManualExecutions = sql`total_manual_executions + 1`
+            break
+          case 'api':
+            updateFields.totalApiCalls = sql`total_api_calls + 1`
+            break
+          case 'webhook':
+            updateFields.totalWebhookTriggers = sql`total_webhook_triggers + 1`
+            break
+          case 'schedule':
+            updateFields.totalScheduledExecutions = sql`total_scheduled_executions + 1`
+            break
+          case 'chat':
+            updateFields.totalChatExecutions = sql`total_chat_executions + 1`
+            break
+        }
+
+        await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
+
+        logger.debug('Updated existing user stats record with cost data', {
+          userId,
+          trigger,
+          addedCost: costToStore,
+          addedTokens: costSummary.totalTokens,
+        })
+      }
+    } catch (error) {
+      logger.error('Error updating user stats with cost information', {
+        workflowId,
+        error,
+        costSummary,
+      })
+      // Don't throw - we want execution to continue even if user stats update fails
+    }
+  }
+
+  /**
+   * Get trigger counts for new user stats records
+   */
+  private getTriggerCounts(trigger: ExecutionTrigger['type']): {
+    manual: number
+    api: number
+    webhook: number
+    schedule: number
+    chat: number
+  } {
+    const counts = { manual: 0, api: 0, webhook: 0, schedule: 0, chat: 0 }
+    switch (trigger) {
+      case 'manual':
+        counts.manual = 1
+        break
+      case 'api':
+        counts.api = 1
+        break
+      case 'webhook':
+        counts.webhook = 1
+        break
+      case 'schedule':
+        counts.schedule = 1
+        break
+      case 'chat':
+        counts.chat = 1
+        break
+    }
+    return counts
   }
 
   private getTriggerPrefix(triggerType: ExecutionTrigger['type']): string {

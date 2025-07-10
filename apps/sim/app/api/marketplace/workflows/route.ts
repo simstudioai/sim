@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { CATEGORIES } from '@/app/workspace/[workspaceId]/marketplace/constants/categories'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { marketplace } from '@/db/schema'
 
 const logger = createLogger('MarketplaceWorkflowsAPI')
 
@@ -50,39 +50,39 @@ export async function GET(request: NextRequest) {
         // Query with state included
         marketplaceEntry = await db
           .select({
-            id: schema.marketplace.id,
-            workflowId: schema.marketplace.workflowId,
-            name: schema.marketplace.name,
-            description: schema.marketplace.description,
-            authorId: schema.marketplace.authorId,
-            authorName: schema.marketplace.authorName,
-            state: schema.marketplace.state,
-            views: schema.marketplace.views,
-            category: schema.marketplace.category,
-            createdAt: schema.marketplace.createdAt,
-            updatedAt: schema.marketplace.updatedAt,
+            id: marketplace.id,
+            workflowId: marketplace.workflowId,
+            name: marketplace.name,
+            description: marketplace.description,
+            authorId: marketplace.authorId,
+            authorName: marketplace.authorName,
+            state: marketplace.state,
+            views: marketplace.views,
+            category: marketplace.category,
+            createdAt: marketplace.createdAt,
+            updatedAt: marketplace.updatedAt,
           })
-          .from(schema.marketplace)
-          .where(eq(schema.marketplace.workflowId, workflowId))
+          .from(marketplace)
+          .where(eq(marketplace.workflowId, workflowId))
           .limit(1)
           .then((rows) => rows[0])
       } else {
         // Query without state
         marketplaceEntry = await db
           .select({
-            id: schema.marketplace.id,
-            workflowId: schema.marketplace.workflowId,
-            name: schema.marketplace.name,
-            description: schema.marketplace.description,
-            authorId: schema.marketplace.authorId,
-            authorName: schema.marketplace.authorName,
-            views: schema.marketplace.views,
-            category: schema.marketplace.category,
-            createdAt: schema.marketplace.createdAt,
-            updatedAt: schema.marketplace.updatedAt,
+            id: marketplace.id,
+            workflowId: marketplace.workflowId,
+            name: marketplace.name,
+            description: marketplace.description,
+            authorId: marketplace.authorId,
+            authorName: marketplace.authorName,
+            views: marketplace.views,
+            category: marketplace.category,
+            createdAt: marketplace.createdAt,
+            updatedAt: marketplace.updatedAt,
           })
-          .from(schema.marketplace)
-          .where(eq(schema.marketplace.workflowId, workflowId))
+          .from(marketplace)
+          .where(eq(marketplace.workflowId, workflowId))
           .limit(1)
           .then((rows) => rows[0])
       }
@@ -114,39 +114,39 @@ export async function GET(request: NextRequest) {
         // Query with state included
         marketplaceEntry = await db
           .select({
-            id: schema.marketplace.id,
-            workflowId: schema.marketplace.workflowId,
-            name: schema.marketplace.name,
-            description: schema.marketplace.description,
-            authorId: schema.marketplace.authorId,
-            authorName: schema.marketplace.authorName,
-            state: schema.marketplace.state,
-            views: schema.marketplace.views,
-            category: schema.marketplace.category,
-            createdAt: schema.marketplace.createdAt,
-            updatedAt: schema.marketplace.updatedAt,
+            id: marketplace.id,
+            workflowId: marketplace.workflowId,
+            name: marketplace.name,
+            description: marketplace.description,
+            authorId: marketplace.authorId,
+            authorName: marketplace.authorName,
+            state: marketplace.state,
+            views: marketplace.views,
+            category: marketplace.category,
+            createdAt: marketplace.createdAt,
+            updatedAt: marketplace.updatedAt,
           })
-          .from(schema.marketplace)
-          .where(eq(schema.marketplace.id, marketplaceId))
+          .from(marketplace)
+          .where(eq(marketplace.id, marketplaceId))
           .limit(1)
           .then((rows) => rows[0])
       } else {
         // Query without state
         marketplaceEntry = await db
           .select({
-            id: schema.marketplace.id,
-            workflowId: schema.marketplace.workflowId,
-            name: schema.marketplace.name,
-            description: schema.marketplace.description,
-            authorId: schema.marketplace.authorId,
-            authorName: schema.marketplace.authorName,
-            views: schema.marketplace.views,
-            category: schema.marketplace.category,
-            createdAt: schema.marketplace.createdAt,
-            updatedAt: schema.marketplace.updatedAt,
+            id: marketplace.id,
+            workflowId: marketplace.workflowId,
+            name: marketplace.name,
+            description: marketplace.description,
+            authorId: marketplace.authorId,
+            authorName: marketplace.authorName,
+            views: marketplace.views,
+            category: marketplace.category,
+            createdAt: marketplace.createdAt,
+            updatedAt: marketplace.updatedAt,
           })
-          .from(schema.marketplace)
-          .where(eq(schema.marketplace.id, marketplaceId))
+          .from(marketplace)
+          .where(eq(marketplace.id, marketplaceId))
           .limit(1)
           .then((rows) => rows[0])
       }
@@ -183,21 +183,19 @@ export async function GET(request: NextRequest) {
 
     // Define common fields to select
     const baseFields = {
-      id: schema.marketplace.id,
-      workflowId: schema.marketplace.workflowId,
-      name: schema.marketplace.name,
-      description: schema.marketplace.description,
-      authorName: schema.marketplace.authorName,
-      views: schema.marketplace.views,
-      category: schema.marketplace.category,
-      createdAt: schema.marketplace.createdAt,
-      updatedAt: schema.marketplace.updatedAt,
+      id: marketplace.id,
+      workflowId: marketplace.workflowId,
+      name: marketplace.name,
+      description: marketplace.description,
+      authorName: marketplace.authorName,
+      views: marketplace.views,
+      category: marketplace.category,
+      createdAt: marketplace.createdAt,
+      updatedAt: marketplace.updatedAt,
     }
 
     // Add state if requested
-    const selectFields = includeState
-      ? { ...baseFields, state: schema.marketplace.state }
-      : baseFields
+    const selectFields = includeState ? { ...baseFields, state: marketplace.state } : baseFields
 
     // Determine which sections to fetch
     const sections = sectionParam ? sectionParam.split(',') : ['popular', 'recent', 'byCategory']
@@ -206,8 +204,8 @@ export async function GET(request: NextRequest) {
     if (sections.includes('popular')) {
       result.popular = await db
         .select(selectFields)
-        .from(schema.marketplace)
-        .orderBy(desc(schema.marketplace.views))
+        .from(marketplace)
+        .orderBy(desc(marketplace.views))
         .limit(limit)
     }
 
@@ -215,8 +213,8 @@ export async function GET(request: NextRequest) {
     if (sections.includes('recent')) {
       result.recent = await db
         .select(selectFields)
-        .from(schema.marketplace)
-        .orderBy(desc(schema.marketplace.createdAt))
+        .from(marketplace)
+        .orderBy(desc(marketplace.createdAt))
         .limit(limit)
     }
 
@@ -255,9 +253,9 @@ export async function GET(request: NextRequest) {
         categoriesToFetch.map(async (categoryValue) => {
           const categoryItems = await db
             .select(selectFields)
-            .from(schema.marketplace)
-            .where(eq(schema.marketplace.category, categoryValue))
-            .orderBy(desc(schema.marketplace.views))
+            .from(marketplace)
+            .where(eq(marketplace.category, categoryValue))
+            .orderBy(desc(marketplace.views))
             .limit(limit)
 
           // Always add the category to the result, even if empty
@@ -328,10 +326,10 @@ export async function POST(request: NextRequest) {
     // Find the marketplace entry
     const marketplaceEntry = await db
       .select({
-        id: schema.marketplace.id,
+        id: marketplace.id,
       })
-      .from(schema.marketplace)
-      .where(eq(schema.marketplace.id, id))
+      .from(marketplace)
+      .where(eq(marketplace.id, id))
       .limit(1)
       .then((rows) => rows[0])
 
@@ -342,11 +340,11 @@ export async function POST(request: NextRequest) {
 
     // Increment the view count
     await db
-      .update(schema.marketplace)
+      .update(marketplace)
       .set({
-        views: sql`${schema.marketplace.views} + 1`,
+        views: sql`${marketplace.views} + 1`,
       })
-      .where(eq(schema.marketplace.id, id))
+      .where(eq(marketplace.id, id))
 
     logger.info(`[${requestId}] Incremented view count for marketplace entry: ${id}`)
 

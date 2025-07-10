@@ -494,43 +494,6 @@ export function Sidebar({
                 </div>
               )}
 
-              {/* Enhanced Stats - only show for enhanced logs */}
-              {log.metadata?.enhanced && log.metadata?.blockStats && (
-                <div>
-                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
-                    Block Execution Stats
-                  </h3>
-                  <div className='space-y-1 text-sm'>
-                    <div className='flex justify-between'>
-                      <span>Total Blocks:</span>
-                      <span className='font-medium'>{log.metadata.blockStats.total}</span>
-                    </div>
-                    <div className='flex justify-between'>
-                      <span>Successful:</span>
-                      <span className='font-medium text-green-600'>
-                        {log.metadata.blockStats.success}
-                      </span>
-                    </div>
-                    {log.metadata.blockStats.error > 0 && (
-                      <div className='flex justify-between'>
-                        <span>Failed:</span>
-                        <span className='font-medium text-red-600'>
-                          {log.metadata.blockStats.error}
-                        </span>
-                      </div>
-                    )}
-                    {log.metadata.blockStats.skipped > 0 && (
-                      <div className='flex justify-between'>
-                        <span>Skipped:</span>
-                        <span className='font-medium text-yellow-600'>
-                          {log.metadata.blockStats.skipped}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Enhanced Cost - only show for enhanced logs with actual cost data */}
               {log.metadata?.enhanced && hasCostInfo && (
                 <div>
@@ -583,7 +546,7 @@ export function Sidebar({
                     className='w-full justify-start gap-2'
                   >
                     <Eye className='h-4 w-4' />
-                    View Frozen Canvas
+                    View Snapshot
                   </Button>
                   <p className='mt-1 text-muted-foreground text-xs'>
                     See the exact workflow state and block inputs/outputs at execution time

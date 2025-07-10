@@ -356,7 +356,30 @@ function extractOutputs(content: string): Record<string, any> {
     const outputsContent = outputsMatch[1].trim()
     const outputs: Record<string, any> = {}
 
-    // Try to extract fields from the outputs object
+    // First try to handle the new flat format: fieldName: 'type'
+    const flatFieldMatches = outputsContent.match(/(\w+)\s*:\s*['"]([^'"]+)['"]/g)
+
+    if (flatFieldMatches && flatFieldMatches.length > 0) {
+      flatFieldMatches.forEach((fieldMatch) => {
+        const fieldParts = fieldMatch.match(/(\w+)\s*:\s*['"]([^'"]+)['"]/)
+        if (fieldParts) {
+          const fieldName = fieldParts[1]
+          const fieldType = fieldParts[2]
+
+          outputs[fieldName] = {
+            type: fieldType,
+            description: `${fieldName} output from the block`,
+          }
+        }
+      })
+
+      // If we found flat fields, return them
+      if (Object.keys(outputs).length > 0) {
+        return outputs
+      }
+    }
+
+    // Fallback: Try to extract fields from the old nested format
     const fieldMatches = outputsContent.match(/(\w+)\s*:\s*{([^}]+)}/g)
 
     if (fieldMatches && fieldMatches.length > 0) {

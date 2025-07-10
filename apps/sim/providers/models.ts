@@ -376,10 +376,23 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'xai',
     name: 'xAI',
     description: "xAI's Grok models",
-    defaultModel: 'grok-3-latest',
+    defaultModel: 'grok-4-latest',
     modelPatterns: [/^grok/],
     icon: xAIIcon,
     models: [
+      {
+        id: 'grok-4-latest',
+        pricing: {
+          input: 5.0,
+          cachedInput: 2.5,
+          output: 25.0,
+          updatedAt: '2025-07-10',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          toolUsageControl: true,
+        },
+      },
       {
         id: 'grok-3-latest',
         pricing: {
@@ -646,4 +659,32 @@ export function updateOllamaModels(models: string[]): void {
     },
     capabilities: {},
   }))
+}
+
+/**
+ * Embedding model pricing - separate from chat models
+ */
+export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
+  'text-embedding-3-small': {
+    input: 0.02, // $0.02 per 1M tokens
+    output: 0.0,
+    updatedAt: '2025-07-10',
+  },
+  'text-embedding-3-large': {
+    input: 0.13, // $0.13 per 1M tokens
+    output: 0.0,
+    updatedAt: '2025-07-10',
+  },
+  'text-embedding-ada-002': {
+    input: 0.1, // $0.1 per 1M tokens
+    output: 0.0,
+    updatedAt: '2025-07-10',
+  },
+}
+
+/**
+ * Get pricing for embedding models specifically
+ */
+export function getEmbeddingModelPricing(modelId: string): ModelPricing | null {
+  return EMBEDDING_MODEL_PRICING[modelId] || null
 }

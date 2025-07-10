@@ -110,6 +110,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         parallelsCount: Object.keys(normalizedData.parallels).length,
         loops: normalizedData.loops,
       })
+
       // Use normalized table data - reconstruct complete state object
       // First get any existing state properties, then override with normalized data
       const existingState =

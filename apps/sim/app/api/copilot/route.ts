@@ -1,214 +1,425 @@
-import { NextResponse } from 'next/server'
-import { OpenAI } from 'openai'
-import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getSession } from '@/lib/auth'
+import {
+  createChat,
+  deleteChat,
+  generateChatTitle,
+  getChat,
+  listChats,
+  sendMessage,
+  updateChat,
+} from '@/lib/copilot/service'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('CopilotAPI')
 
-const MessageSchema = z.object({
-  role: z.enum(['user', 'assistant', 'system']),
-  content: z.string(),
+// Interface for StreamingExecution response
+interface StreamingExecution {
+  stream: ReadableStream
+  execution: Promise<any>
+}
+
+// Schema for sending messages
+const SendMessageSchema = z.object({
+  message: z.string().min(1, 'Message is required'),
+  chatId: z.string().optional(),
+  workflowId: z.string().optional(),
+  createNewChat: z.boolean().optional().default(false),
+  stream: z.boolean().optional().default(false),
 })
 
-const RequestSchema = z.object({
-  messages: z.array(MessageSchema),
-  workflowState: z.object({
-    blocks: z.record(z.any()),
-    edges: z.array(z.any()),
-  }),
+// Schema for docs queries
+const DocsQuerySchema = z.object({
+  query: z.string().min(1, 'Query is required'),
+  topK: z.number().min(1).max(20).default(5),
+  provider: z.string().optional(),
+  model: z.string().optional(),
+  stream: z.boolean().optional().default(false),
+  chatId: z.string().optional(),
+  workflowId: z.string().optional(),
+  createNewChat: z.boolean().optional().default(false),
 })
 
-const workflowActions = {
-  addBlock: {
-    description: 'Add one new block to the workflow',
-    parameters: {
-      type: 'object',
-      required: ['type'],
-      properties: {
-        type: {
-          type: 'string',
-          enum: ['agent', 'api', 'condition', 'function', 'router'],
-          description: 'The type of block to add',
-        },
-        name: {
-          type: 'string',
-          description:
-            'Optional custom name for the block. Do not provide a name unless the user has specified it.',
-        },
-        position: {
-          type: 'object',
-          description:
-            'Optional position for the block. Do not provide a position unless the user has specified it.',
-          properties: {
-            x: { type: 'number' },
-            y: { type: 'number' },
-          },
-        },
-      },
-    },
-  },
-  addEdge: {
-    description: 'Create a connection (edge) between two blocks',
-    parameters: {
-      type: 'object',
-      required: ['sourceId', 'targetId'],
-      properties: {
-        sourceId: {
-          type: 'string',
-          description: 'ID of the source block',
-        },
-        targetId: {
-          type: 'string',
-          description: 'ID of the target block',
-        },
-        sourceHandle: {
-          type: 'string',
-          description: 'Optional handle identifier for the source connection point',
-        },
-        targetHandle: {
-          type: 'string',
-          description: 'Optional handle identifier for the target connection point',
-        },
-      },
-    },
-  },
-  removeBlock: {
-    description: 'Remove a block from the workflow',
-    parameters: {
-      type: 'object',
-      required: ['id'],
-      properties: {
-        id: { type: 'string', description: 'ID of the block to remove' },
-      },
-    },
-  },
-  removeEdge: {
-    description: 'Remove a connection (edge) between blocks',
-    parameters: {
-      type: 'object',
-      required: ['id'],
-      properties: {
-        id: { type: 'string', description: 'ID of the edge to remove' },
-      },
-    },
-  },
-}
+// Schema for creating chats
+const CreateChatSchema = z.object({
+  workflowId: z.string().min(1, 'Workflow ID is required'),
+  title: z.string().optional(),
+  initialMessage: z.string().optional(),
+})
 
-// System prompt that references workflow state
-const getSystemPrompt = (workflowState: any) => {
-  const blockCount = Object.keys(workflowState.blocks).length
-  const edgeCount = workflowState.edges.length
+// Schema for updating chats
+const UpdateChatSchema = z.object({
+  chatId: z.string().min(1, 'Chat ID is required'),
+  messages: z
+    .array(
+      z.object({
+        id: z.string(),
+        role: z.enum(['user', 'assistant', 'system']),
+        content: z.string(),
+        timestamp: z.string(),
+        citations: z
+          .array(
+            z.object({
+              id: z.number(),
+              title: z.string(),
+              url: z.string(),
+              similarity: z.number().optional(),
+            })
+          )
+          .optional(),
+      })
+    )
+    .optional(),
+  title: z.string().optional(),
+})
 
-  // Create a summary of existing blocks
-  const blockSummary = Object.values(workflowState.blocks)
-    .map((block: any) => `- ${block.type} block named "${block.name}" with id ${block.id}`)
-    .join('\n')
+// Schema for listing chats
+const ListChatsSchema = z.object({
+  workflowId: z.string().min(1, 'Workflow ID is required'),
+  limit: z.number().min(1).max(100).optional().default(50),
+  offset: z.number().min(0).optional().default(0),
+})
 
-  // Create a summary of existing edges
-  const edgeSummary = workflowState.edges
-    .map((edge: any) => `- ${edge.source} -> ${edge.target} with id ${edge.id}`)
-    .join('\n')
-
-  return `You are a workflow assistant that helps users modify their workflow by adding/removing blocks and connections.
-
-Current Workflow State:
-${
-  blockCount === 0
-    ? 'The workflow is empty.'
-    : `${blockSummary}
-
-Connections:
-${edgeCount === 0 ? 'No connections between blocks.' : edgeSummary}`
-}
-
-When users request changes:
-- Consider existing blocks when suggesting connections
-- Provide clear feedback about what actions you've taken
-
-Use the following functions to modify the workflow:
-1. Use the addBlock function to create a new block
-2. Use the addEdge function to connect one block to another
-3. Use the removeBlock function to remove a block
-4. Use the removeEdge function to remove a connection
-
-Only use the provided functions and respond naturally to the user's requests.`
-}
-
-export async function POST(request: Request) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+/**
+ * POST /api/copilot
+ * Send a message to the copilot
+ */
+export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID()
 
   try {
-    // Validate API key
-    const apiKey = request.headers.get('X-OpenAI-Key')
-    if (!apiKey) {
-      return NextResponse.json({ error: 'OpenAI API key is required' }, { status: 401 })
+    const body = await req.json()
+    const { message, chatId, workflowId, createNewChat, stream } = SendMessageSchema.parse(body)
+
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Parse and validate request body
-    const body = await request.json()
-    const validatedData = RequestSchema.parse(body)
-    const { messages, workflowState } = validatedData
-
-    // Initialize OpenAI client
-    const openai = new OpenAI({ apiKey })
-
-    // Create message history with workflow context
-    const messageHistory = [
-      { role: 'system', content: getSystemPrompt(workflowState) },
-      ...messages,
-    ]
-
-    // Make OpenAI API call with workflow context
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: messageHistory as ChatCompletionMessageParam[],
-      tools: Object.entries(workflowActions).map(([name, config]) => ({
-        type: 'function',
-        function: {
-          name,
-          description: config.description,
-          parameters: config.parameters,
-        },
-      })),
-      tool_choice: 'auto',
+    logger.info(`[${requestId}] Copilot message: "${message}"`, {
+      chatId,
+      workflowId,
+      createNewChat,
+      stream,
+      userId: session.user.id,
     })
 
-    const message = completion.choices[0].message
+    // Send message using the service
+    const result = await sendMessage({
+      message,
+      chatId,
+      workflowId,
+      createNewChat,
+      stream,
+      userId: session.user.id,
+    })
 
-    // Process tool calls if present
-    if (message.tool_calls) {
-      logger.debug(`[${requestId}] Tool calls:`, {
-        toolCalls: message.tool_calls,
-      })
-      const actions = message.tool_calls.map((call) => ({
-        name: call.function.name,
-        parameters: JSON.parse(call.function.arguments),
-      }))
+    // Handle streaming response (ReadableStream or StreamingExecution)
+    let streamToRead: ReadableStream | null = null
 
-      return NextResponse.json({
-        message: message.content || "I've updated the workflow based on your request.",
-        actions,
-      })
+    // Debug logging to see what we actually got
+    logger.info(`[${requestId}] Response type analysis:`, {
+      responseType: typeof result.response,
+      isReadableStream: result.response instanceof ReadableStream,
+      hasStreamProperty:
+        typeof result.response === 'object' && result.response && 'stream' in result.response,
+      hasExecutionProperty:
+        typeof result.response === 'object' && result.response && 'execution' in result.response,
+      responseKeys:
+        typeof result.response === 'object' && result.response ? Object.keys(result.response) : [],
+    })
+
+    if (result.response instanceof ReadableStream) {
+      logger.info(`[${requestId}] Direct ReadableStream detected`)
+      streamToRead = result.response
+    } else if (
+      typeof result.response === 'object' &&
+      result.response &&
+      'stream' in result.response &&
+      'execution' in result.response
+    ) {
+      // Handle StreamingExecution (from providers with tool calls)
+      logger.info(`[${requestId}] StreamingExecution detected`)
+      const streamingExecution = result.response as StreamingExecution
+      streamToRead = streamingExecution.stream
+
+      // No need to extract citations - LLM generates direct markdown links
     }
 
-    // Return response with no actions
+    if (streamToRead) {
+      logger.info(`[${requestId}] Returning streaming response`)
+
+      const encoder = new TextEncoder()
+
+      return new Response(
+        new ReadableStream({
+          async start(controller) {
+            const reader = streamToRead!.getReader()
+            let accumulatedResponse = ''
+
+            // Send initial metadata
+            const metadata = {
+              type: 'metadata',
+              chatId: result.chatId,
+              metadata: {
+                requestId,
+                message,
+              },
+            }
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`))
+
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+
+                const chunkText = new TextDecoder().decode(value)
+                accumulatedResponse += chunkText
+
+                const contentChunk = {
+                  type: 'content',
+                  content: chunkText,
+                }
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`))
+              }
+
+              // Send completion signal
+              const completion = {
+                type: 'complete',
+                finalContent: accumulatedResponse,
+              }
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(completion)}\n\n`))
+              controller.close()
+            } catch (error) {
+              logger.error(`[${requestId}] Streaming error:`, error)
+              const errorChunk = {
+                type: 'error',
+                error: 'Streaming failed',
+              }
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`))
+              controller.close()
+            }
+          },
+        }),
+        {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+          },
+        }
+      )
+    }
+
+    // Handle non-streaming response
+    logger.info(`[${requestId}] Chat response generated successfully`)
+
     return NextResponse.json({
-      message:
-        message.content ||
-        "I'm not sure what changes to make to the workflow. Can you please provide more specific instructions?",
+      success: true,
+      response: result.response,
+      chatId: result.chatId,
+      metadata: {
+        requestId,
+        message,
+      },
     })
   } catch (error) {
-    logger.error(`[${requestId}] Copilot API error:`, { error })
-
-    // Handle specific error types
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid request format', details: error.errors },
+        { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       )
     }
 
-    return NextResponse.json({ error: 'Failed to process copilot message' }, { status: 500 })
+    logger.error(`[${requestId}] Copilot error:`, error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * GET /api/copilot
+ * List chats or get a specific chat
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const chatId = searchParams.get('chatId')
+
+    // If chatId is provided, get specific chat
+    if (chatId) {
+      const chat = await getChat(chatId, session.user.id)
+      if (!chat) {
+        return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
+      }
+
+      return NextResponse.json({
+        success: true,
+        chat,
+      })
+    }
+
+    // Otherwise, list chats
+    const workflowId = searchParams.get('workflowId')
+    const limit = Number.parseInt(searchParams.get('limit') || '50')
+    const offset = Number.parseInt(searchParams.get('offset') || '0')
+
+    if (!workflowId) {
+      return NextResponse.json(
+        { error: 'workflowId is required for listing chats' },
+        { status: 400 }
+      )
+    }
+
+    const chats = await listChats(session.user.id, workflowId, { limit, offset })
+
+    return NextResponse.json({
+      success: true,
+      chats,
+    })
+  } catch (error) {
+    logger.error('Failed to handle GET request:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * PUT /api/copilot
+ * Create a new chat
+ */
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+    const { workflowId, title, initialMessage } = CreateChatSchema.parse(body)
+
+    logger.info(`Creating new chat for user ${session.user.id}, workflow ${workflowId}`)
+
+    const chat = await createChat(session.user.id, workflowId, {
+      title,
+      initialMessage,
+    })
+
+    logger.info(`Created chat ${chat.id} for user ${session.user.id}`)
+
+    return NextResponse.json({
+      success: true,
+      chat,
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    logger.error('Failed to create chat:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * PATCH /api/copilot
+ * Update a chat with new messages
+ */
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+    const { chatId, messages, title } = UpdateChatSchema.parse(body)
+
+    logger.info(`Updating chat ${chatId} for user ${session.user.id}`)
+
+    // Get the current chat to check if it has a title
+    const existingChat = await getChat(chatId, session.user.id)
+
+    let titleToUse = title
+
+    // Generate title if chat doesn't have one and we have messages
+    if (!titleToUse && existingChat && !existingChat.title && messages && messages.length > 0) {
+      const firstUserMessage = messages.find((msg) => msg.role === 'user')
+      if (firstUserMessage) {
+        logger.info('Generating LLM-based title for chat without title')
+        try {
+          titleToUse = await generateChatTitle(firstUserMessage.content)
+          logger.info(`Generated title: ${titleToUse}`)
+        } catch (error) {
+          logger.error('Failed to generate chat title:', error)
+          titleToUse = 'New Chat'
+        }
+      }
+    }
+
+    const chat = await updateChat(chatId, session.user.id, {
+      messages,
+      title: titleToUse,
+    })
+
+    if (!chat) {
+      return NextResponse.json({ error: 'Chat not found or access denied' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      chat,
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    logger.error('Failed to update chat:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE /api/copilot
+ * Delete a chat
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const chatId = searchParams.get('chatId')
+
+    if (!chatId) {
+      return NextResponse.json({ error: 'chatId is required' }, { status: 400 })
+    }
+
+    const success = await deleteChat(chatId, session.user.id)
+
+    if (!success) {
+      return NextResponse.json({ error: 'Chat not found or access denied' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Chat deleted successfully',
+    })
+  } catch (error) {
+    logger.error('Failed to delete chat:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

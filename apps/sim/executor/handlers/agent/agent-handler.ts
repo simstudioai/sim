@@ -487,6 +487,7 @@ export class AgentBlockHandler implements BlockHandler {
     const contentType = response.headers.get('Content-Type')
     if (contentType?.includes('text/event-stream')) {
       // Handle streaming response
+      logger.info('Received streaming response')
       return this.handleStreamingResponse(response, block)
     }
 
@@ -703,15 +704,31 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private processStructuredResponse(result: any, responseFormat: any): BlockOutput {
+    const content = result.content
+
     try {
-      const parsedContent = JSON.parse(result.content)
+      const extractedJson = JSON.parse(content.trim())
+      logger.info('Successfully parsed structured response content')
       return {
-        ...parsedContent,
+        ...extractedJson,
         ...this.createResponseMetadata(result),
       }
     } catch (error) {
-      logger.error('Failed to parse response content:', { error })
-      return this.processStandardResponse(result)
+      logger.info('JSON parsing failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+
+      // LLM did not adhere to structured response format
+      logger.error('LLM did not adhere to structured response format:', {
+        content: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
+        responseFormat: responseFormat,
+      })
+
+      const standardResponse = this.processStandardResponse(result)
+      return Object.assign(standardResponse, {
+        _responseFormatWarning:
+          'LLM did not adhere to the specified structured response format. Expected valid JSON but received malformed content. Falling back to standard format.',
+      })
     }
   }
 

@@ -152,7 +152,7 @@ export function DeployModal({
 
     try {
       setKeysLoaded(false)
-      const response = await fetch('/api/user/api-keys')
+      const response = await fetch('/api/users/me/api-keys')
 
       if (response.ok) {
         const data = await response.json()

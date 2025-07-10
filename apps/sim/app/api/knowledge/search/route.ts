@@ -4,11 +4,36 @@ import { z } from 'zod'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { embedding, knowledgeBase } from '@/db/schema'
+import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('VectorSearchAPI')
+
+function getTagFilters(filters: Record<string, string>, embedding: any) {
+  return Object.entries(filters).map(([key, value]) => {
+    switch (key) {
+      case 'tag1':
+        return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
+      case 'tag2':
+        return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
+      case 'tag3':
+        return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
+      case 'tag4':
+        return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
+      case 'tag5':
+        return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
+      case 'tag6':
+        return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
+      case 'tag7':
+        return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
+      default:
+        return sql`1=1` // No-op for unknown keys
+    }
+  })
+}
 
 class APIError extends Error {
   public status: number
@@ -27,6 +52,17 @@ const VectorSearchSchema = z.object({
   ]),
   query: z.string().min(1, 'Search query is required'),
   topK: z.number().min(1).max(100).default(10),
+  filters: z
+    .object({
+      tag1: z.string().optional(),
+      tag2: z.string().optional(),
+      tag3: z.string().optional(),
+      tag4: z.string().optional(),
+      tag5: z.string().optional(),
+      tag6: z.string().optional(),
+      tag7: z.string().optional(),
+    })
+    .optional(),
 })
 
 async function generateSearchEmbedding(query: string): Promise<number[]> {
@@ -102,7 +138,8 @@ async function executeParallelQueries(
   knowledgeBaseIds: string[],
   queryVector: string,
   topK: number,
-  distanceThreshold: number
+  distanceThreshold: number,
+  filters?: Record<string, string>
 ) {
   const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
 
@@ -113,7 +150,13 @@ async function executeParallelQueries(
         content: embedding.content,
         documentId: embedding.documentId,
         chunkIndex: embedding.chunkIndex,
-        metadata: embedding.metadata,
+        tag1: embedding.tag1,
+        tag2: embedding.tag2,
+        tag3: embedding.tag3,
+        tag4: embedding.tag4,
+        tag5: embedding.tag5,
+        tag6: embedding.tag6,
+        tag7: embedding.tag7,
         distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
         knowledgeBaseId: embedding.knowledgeBaseId,
       })
@@ -122,7 +165,8 @@ async function executeParallelQueries(
         and(
           eq(embedding.knowledgeBaseId, kbId),
           eq(embedding.enabled, true),
-          sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
+          sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
+          ...(filters ? getTagFilters(filters, embedding) : [])
         )
       )
       .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
@@ -139,7 +183,8 @@ async function executeSingleQuery(
   knowledgeBaseIds: string[],
   queryVector: string,
   topK: number,
-  distanceThreshold: number
+  distanceThreshold: number,
+  filters?: Record<string, string>
 ) {
   return await db
     .select({
@@ -147,7 +192,13 @@ async function executeSingleQuery(
       content: embedding.content,
       documentId: embedding.documentId,
       chunkIndex: embedding.chunkIndex,
-      metadata: embedding.metadata,
+      tag1: embedding.tag1,
+      tag2: embedding.tag2,
+      tag3: embedding.tag3,
+      tag4: embedding.tag4,
+      tag5: embedding.tag5,
+      tag6: embedding.tag6,
+      tag7: embedding.tag7,
       distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
     })
     .from(embedding)
@@ -155,7 +206,29 @@ async function executeSingleQuery(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
         eq(embedding.enabled, true),
-        sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
+        sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`,
+        ...(filters
+          ? Object.entries(filters).map(([key, value]) => {
+              switch (key) {
+                case 'tag1':
+                  return sql`LOWER(${embedding.tag1}) = LOWER(${value})`
+                case 'tag2':
+                  return sql`LOWER(${embedding.tag2}) = LOWER(${value})`
+                case 'tag3':
+                  return sql`LOWER(${embedding.tag3}) = LOWER(${value})`
+                case 'tag4':
+                  return sql`LOWER(${embedding.tag4}) = LOWER(${value})`
+                case 'tag5':
+                  return sql`LOWER(${embedding.tag5}) = LOWER(${value})`
+                case 'tag6':
+                  return sql`LOWER(${embedding.tag6}) = LOWER(${value})`
+                case 'tag7':
+                  return sql`LOWER(${embedding.tag7}) = LOWER(${value})`
+                default:
+                  return sql`1=1` // No-op for unknown keys
+              }
+            })
+          : [])
       )
     )
     .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
@@ -231,7 +304,8 @@ export async function POST(request: NextRequest) {
           foundKbIds,
           queryVector,
           validatedData.topK,
-          strategy.distanceThreshold
+          strategy.distanceThreshold,
+          validatedData.filters
         )
         results = mergeAndRankResults(parallelResults, validatedData.topK)
       } else {
@@ -240,8 +314,22 @@ export async function POST(request: NextRequest) {
           foundKbIds,
           queryVector,
           validatedData.topK,
-          strategy.distanceThreshold
+          strategy.distanceThreshold,
+          validatedData.filters
         )
+      }
+
+      // Calculate cost for the embedding (with fallback if calculation fails)
+      let cost = null
+      let tokenCount = null
+      try {
+        tokenCount = estimateTokenCount(validatedData.query, 'openai')
+        cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+        // Continue without cost information rather than failing the search
       }
 
       return NextResponse.json({
@@ -252,7 +340,13 @@ export async function POST(request: NextRequest) {
             content: result.content,
             documentId: result.documentId,
             chunkIndex: result.chunkIndex,
-            metadata: result.metadata,
+            tag1: result.tag1,
+            tag2: result.tag2,
+            tag3: result.tag3,
+            tag4: result.tag4,
+            tag5: result.tag5,
+            tag6: result.tag6,
+            tag7: result.tag7,
             similarity: 1 - result.distance,
           })),
           query: validatedData.query,
@@ -260,6 +354,22 @@ export async function POST(request: NextRequest) {
           knowledgeBaseId: foundKbIds[0],
           topK: validatedData.topK,
           totalResults: results.length,
+          ...(cost && tokenCount
+            ? {
+                cost: {
+                  input: cost.input,
+                  output: cost.output,
+                  total: cost.total,
+                  tokens: {
+                    prompt: tokenCount.count,
+                    completion: 0,
+                    total: tokenCount.count,
+                  },
+                  model: 'text-embedding-3-small',
+                  pricing: cost.pricing,
+                },
+              }
+            : {}),
         },
       })
     } catch (validationError) {

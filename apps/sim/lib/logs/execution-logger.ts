@@ -632,6 +632,7 @@ export async function persistExecutionLogs(
               totalChatExecutions: 0,
               totalTokensUsed: totalTokens,
               totalCost: costToStore.toString(),
+              currentPeriodCost: costToStore.toString(), // Initialize current period usage
               lastActive: new Date(),
             })
           } else {
@@ -640,6 +641,7 @@ export async function persistExecutionLogs(
               .set({
                 totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
                 totalCost: sql`total_cost + ${costToStore}`,
+                currentPeriodCost: sql`current_period_cost + ${costToStore}`, // Track current billing period usage
                 lastActive: new Date(),
               })
               .where(eq(userStats.userId, userId))

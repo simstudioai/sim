@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
   vector,
 } from 'drizzle-orm/pg-core'
 
@@ -815,6 +816,15 @@ export const document = pgTable(
     enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base
     deletedAt: timestamp('deleted_at'), // Soft delete
 
+    // Document tags for filtering (inherited by all chunks)
+    tag1: text('tag1'),
+    tag2: text('tag2'),
+    tag3: text('tag3'),
+    tag4: text('tag4'),
+    tag5: text('tag5'),
+    tag6: text('tag6'),
+    tag7: text('tag7'),
+
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
@@ -830,6 +840,14 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
+    // Tag indexes for filtering
+    tag1Idx: index('doc_tag1_idx').on(table.tag1),
+    tag2Idx: index('doc_tag2_idx').on(table.tag2),
+    tag3Idx: index('doc_tag3_idx').on(table.tag3),
+    tag4Idx: index('doc_tag4_idx').on(table.tag4),
+    tag5Idx: index('doc_tag5_idx').on(table.tag5),
+    tag6Idx: index('doc_tag6_idx').on(table.tag6),
+    tag7Idx: index('doc_tag7_idx').on(table.tag7),
   })
 )
 
@@ -859,8 +877,14 @@ export const embedding = pgTable(
     startOffset: integer('start_offset').notNull(),
     endOffset: integer('end_offset').notNull(),
 
-    // Rich metadata for advanced filtering
-    metadata: jsonb('metadata').notNull().default('{}'),
+    // Tag columns inherited from document for efficient filtering
+    tag1: text('tag1'),
+    tag2: text('tag2'),
+    tag3: text('tag3'),
+    tag4: text('tag4'),
+    tag5: text('tag5'),
+    tag6: text('tag6'),
+    tag7: text('tag7'),
 
     // Chunk state - enable/disable from knowledge base
     enabled: boolean('enabled').notNull().default(true),
@@ -899,13 +923,116 @@ export const embedding = pgTable(
         ef_construction: 64,
       }),
 
-    // GIN index for JSONB metadata queries
-    metadataGinIdx: index('emb_metadata_gin_idx').using('gin', table.metadata),
+    // Tag indexes for efficient filtering
+    tag1Idx: index('emb_tag1_idx').on(table.tag1),
+    tag2Idx: index('emb_tag2_idx').on(table.tag2),
+    tag3Idx: index('emb_tag3_idx').on(table.tag3),
+    tag4Idx: index('emb_tag4_idx').on(table.tag4),
+    tag5Idx: index('emb_tag5_idx').on(table.tag5),
+    tag6Idx: index('emb_tag6_idx').on(table.tag6),
+    tag7Idx: index('emb_tag7_idx').on(table.tag7),
 
     // Full-text search index
     contentFtsIdx: index('emb_content_fts_idx').using('gin', table.contentTsv),
 
     // Ensure embedding exists (simplified since we only support one model)
     embeddingNotNullCheck: check('embedding_not_null_check', sql`"embedding" IS NOT NULL`),
+  })
+)
+
+export const docsEmbeddings = pgTable(
+  'docs_embeddings',
+  {
+    chunkId: uuid('chunk_id').primaryKey().defaultRandom(),
+    chunkText: text('chunk_text').notNull(),
+    sourceDocument: text('source_document').notNull(),
+    sourceLink: text('source_link').notNull(),
+    headerText: text('header_text').notNull(),
+    headerLevel: integer('header_level').notNull(),
+    tokenCount: integer('token_count').notNull(),
+
+    // Vector embedding - optimized for text-embedding-3-small with HNSW support
+    embedding: vector('embedding', { dimensions: 1536 }).notNull(),
+    embeddingModel: text('embedding_model').notNull().default('text-embedding-3-small'),
+
+    // Metadata for flexible filtering
+    metadata: jsonb('metadata').notNull().default('{}'),
+
+    // Full-text search support - generated tsvector column
+    chunkTextTsv: tsvector('chunk_text_tsv').generatedAlwaysAs(
+      (): SQL => sql`to_tsvector('english', ${docsEmbeddings.chunkText})`
+    ),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Source document queries
+    sourceDocumentIdx: index('docs_emb_source_document_idx').on(table.sourceDocument),
+
+    // Header level filtering
+    headerLevelIdx: index('docs_emb_header_level_idx').on(table.headerLevel),
+
+    // Combined source and header queries
+    sourceHeaderIdx: index('docs_emb_source_header_idx').on(
+      table.sourceDocument,
+      table.headerLevel
+    ),
+
+    // Model-specific queries
+    modelIdx: index('docs_emb_model_idx').on(table.embeddingModel),
+
+    // Timestamp queries
+    createdAtIdx: index('docs_emb_created_at_idx').on(table.createdAt),
+
+    // Vector similarity search indexes (HNSW) - optimized for documentation embeddings
+    embeddingVectorHnswIdx: index('docs_embedding_vector_hnsw_idx')
+      .using('hnsw', table.embedding.op('vector_cosine_ops'))
+      .with({
+        m: 16,
+        ef_construction: 64,
+      }),
+
+    // GIN index for JSONB metadata queries
+    metadataGinIdx: index('docs_emb_metadata_gin_idx').using('gin', table.metadata),
+
+    // Full-text search index
+    chunkTextFtsIdx: index('docs_emb_chunk_text_fts_idx').using('gin', table.chunkTextTsv),
+
+    // Constraints
+    embeddingNotNullCheck: check('docs_embedding_not_null_check', sql`"embedding" IS NOT NULL`),
+    headerLevelCheck: check(
+      'docs_header_level_check',
+      sql`"header_level" >= 1 AND "header_level" <= 6`
+    ),
+  })
+)
+
+export const copilotChats = pgTable(
+  'copilot_chats',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    title: text('title'),
+    messages: jsonb('messages').notNull().default('[]'),
+    model: text('model').notNull().default('claude-3-7-sonnet-latest'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access patterns
+    userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
+    workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
+    userWorkflowIdx: index('copilot_chats_user_workflow_idx').on(table.userId, table.workflowId),
+
+    // Ordering indexes
+    createdAtIdx: index('copilot_chats_created_at_idx').on(table.createdAt),
+    updatedAtIdx: index('copilot_chats_updated_at_idx').on(table.updatedAt),
   })
 )

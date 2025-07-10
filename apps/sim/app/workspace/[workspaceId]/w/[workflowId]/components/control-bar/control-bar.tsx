@@ -46,6 +46,7 @@ import { useFolderStore } from '@/stores/folders/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -56,6 +57,7 @@ import {
 } from '../../../hooks/use-keyboard-shortcuts'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
+import { ExportControls } from './components/export-controls/export-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
@@ -64,7 +66,11 @@ import { UserAvatarStack } from './components/user-avatar-stack/user-avatar-stac
 const logger = createLogger('ControlBar')
 
 // Cache for usage data to prevent excessive API calls
-let usageDataCache = {
+let usageDataCache: {
+  data: any | null
+  timestamp: number
+  expirationMs: number
+} = {
   data: null,
   timestamp: 0,
   // Cache expires after 1 minute
@@ -337,16 +343,13 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }, [session?.user?.id, completedRuns, isRegistryLoading])
 
   /**
-   * Check user usage data with caching to prevent excessive API calls
-   * @param userId User ID to check usage for
-   * @param forceRefresh Whether to force a fresh API call ignoring cache
-   * @returns Usage data or null if error
+   * Check user usage limits and cache results
    */
   async function checkUserUsage(userId: string, forceRefresh = false): Promise<any | null> {
     const now = Date.now()
     const cacheAge = now - usageDataCache.timestamp
 
-    // Use cache if available and not expired
+    // Return cached data if still valid and not forcing refresh
     if (!forceRefresh && usageDataCache.data && cacheAge < usageDataCache.expirationMs) {
       logger.info('Using cached usage data', {
         cacheAge: `${Math.round(cacheAge / 1000)}s`,
@@ -355,12 +358,15 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     try {
-      const response = await fetch('/api/user/usage')
-      if (!response.ok) {
-        throw new Error('Failed to fetch usage data')
+      // Use subscription store to get usage data
+      const { getUsage, refresh } = useSubscriptionStore.getState()
+
+      // Force refresh if requested
+      if (forceRefresh) {
+        await refresh()
       }
 
-      const usage = await response.json()
+      const usage = getUsage()
 
       // Update cache
       usageDataCache = {
@@ -1297,6 +1303,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         {renderDuplicateButton()}
         {renderAutoLayoutButton()}
         {renderDebugModeToggle()}
+
+        <ExportControls disabled={!userPermissions.canRead} />
+        {/* <WorkflowTextEditorModal disabled={!userPermissions.canEdit} /> */}
         {/* {renderPublishButton()} */}
         {renderDeployButton()}
         {renderRunButton()}

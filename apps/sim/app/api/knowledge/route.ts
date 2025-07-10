@@ -8,7 +8,6 @@ import { document, knowledgeBase } from '@/db/schema'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
-// Schema for knowledge base creation
 const CreateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),

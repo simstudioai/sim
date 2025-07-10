@@ -1,7 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { enhancedExecutionLogger } from './enhanced-execution-logger'
 import {
-  calculateBlockStats,
   calculateCostSummary,
   createEnvironmentObject,
   createTriggerObject,
@@ -99,14 +98,12 @@ export class EnhancedLoggingSession {
     const { endedAt, totalDurationMs, finalOutput, traceSpans } = params
 
     try {
-      const blockStats = calculateBlockStats(traceSpans || [])
       const costSummary = calculateCostSummary(traceSpans || [])
 
       await enhancedExecutionLogger.completeWorkflowExecution({
         executionId: this.executionId,
         endedAt: endedAt || new Date().toISOString(),
         totalDurationMs: totalDurationMs || 0,
-        blockStats,
         costSummary,
         finalOutput: finalOutput || {},
         traceSpans: traceSpans || [],
@@ -126,7 +123,6 @@ export class EnhancedLoggingSession {
 
   async completeWithError(error?: any): Promise<void> {
     try {
-      const blockStats = { total: 0, success: 0, error: 1, skipped: 0 }
       const costSummary = {
         totalCost: 0,
         totalInputCost: 0,
@@ -141,7 +137,6 @@ export class EnhancedLoggingSession {
         executionId: this.executionId,
         endedAt: new Date().toISOString(),
         totalDurationMs: 0,
-        blockStats,
         costSummary,
         finalOutput: null,
         traceSpans: [],
