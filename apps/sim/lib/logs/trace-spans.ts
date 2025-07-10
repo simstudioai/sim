@@ -175,8 +175,8 @@ export function buildTraceSpans(result: ExecutionResult): {
                 startTime: tc.startTime || log.startedAt,
                 endTime: tc.endTime || log.endedAt,
                 status: tc.error ? 'error' : 'success',
-                input: tc.arguments || tc.input,
-                output: tc.result || tc.output,
+                input: tc.arguments,
+                output: tc.result,
                 error: tc.error,
               }
             } catch (tcError) {
