@@ -146,7 +146,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
               Keep Subscription
             </Button>
             <Button variant='destructive' onClick={handleCancel} disabled={isLoading}>
-              {isLoading ? 'Redirecting...' : 'Continue to Stripe'}
+              {isLoading ? 'Redirecting...' : 'Continue'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { member, organization, subscription, user, userStats } from '@/db/schema'
@@ -17,7 +17,7 @@ interface BillingResult {
 }
 
 /**
- * SIMPLIFIED BILLING MODEL:
+ * BILLING MODEL:
  * 1. User purchases $20 Pro plan → Gets charged $20 immediately via Stripe subscription
  * 2. User uses $15 during the month → No additional charge (covered by $20)
  * 3. User uses $35 during the month → Gets charged $15 overage at month end
@@ -118,16 +118,65 @@ export async function createOverageBillingInvoice(
       return { success: true, chargedAmount: 0 }
     }
 
-    // Create invoice item for overage only
     const stripeClient = requireStripeClient()
+
+    // Check for existing overage invoice for this billing period
+    const billingPeriod = metadata.billingPeriod || new Date().toISOString().slice(0, 7)
+
+    // Get the start of the billing period month for filtering
+    const periodStart = new Date(`${billingPeriod}-01`)
+    const periodStartTimestamp = Math.floor(periodStart.getTime() / 1000)
+
+    // Look for invoices created in the last 35 days to cover month boundaries
+    const recentInvoices = await stripeClient.invoices.list({
+      customer: customerId,
+      created: {
+        gte: periodStartTimestamp,
+      },
+      limit: 100,
+    })
+
+    // Check if we already have an overage invoice for this period
+    const existingOverageInvoice = recentInvoices.data.find(
+      (invoice) =>
+        invoice.metadata?.type === 'overage_billing' &&
+        invoice.metadata?.billingPeriod === billingPeriod &&
+        invoice.status !== 'void' // Ignore voided invoices
+    )
+
+    if (existingOverageInvoice) {
+      logger.warn('Overage invoice already exists for this billing period', {
+        customerId,
+        billingPeriod,
+        existingInvoiceId: existingOverageInvoice.id,
+        existingInvoiceStatus: existingOverageInvoice.status,
+        existingAmount: existingOverageInvoice.amount_due / 100,
+      })
+
+      // Return success but with no charge to prevent duplicate billing
+      return {
+        success: true,
+        chargedAmount: 0,
+        invoiceId: existingOverageInvoice.id,
+      }
+    }
+
+    // Get customer to ensure they have an email set
+    const customer = await stripeClient.customers.retrieve(customerId)
+    if (!('email' in customer) || !customer.email) {
+      logger.warn('Customer does not have an email set, Stripe will not send automatic emails', {
+        customerId,
+      })
+    }
+
     const invoiceItem = await stripeClient.invoiceItems.create({
       customer: customerId,
       amount: Math.round(overageAmount * 100), // Convert to cents
       currency: 'usd',
       description,
       metadata: {
-        type: 'overage_billing',
         ...metadata,
+        type: 'overage_billing',
       },
     })
 
@@ -137,13 +186,19 @@ export async function createOverageBillingInvoice(
       invoiceItemId: invoiceItem.id,
     })
 
-    // Create and finalize invoice
+    // Create invoice that will include the invoice item
     const invoice = await stripeClient.invoices.create({
       customer: customerId,
-      auto_advance: true, // Automatically finalize and attempt payment
+      auto_advance: true, // Automatically finalize
+      collection_method: 'charge_automatically', // Charge immediately
       metadata: {
-        type: 'overage_billing',
         ...metadata,
+        type: 'overage_billing',
+      },
+      description,
+      pending_invoice_items_behavior: 'include', // Explicitly include pending items
+      payment_settings: {
+        payment_method_types: ['card'], // Accept card payments
       },
     })
 
@@ -151,22 +206,55 @@ export async function createOverageBillingInvoice(
       customerId,
       invoiceId: invoice.id,
       amount: overageAmount,
+      status: invoice.status,
     })
 
-    // Finalize the invoice to trigger payment
-    await stripeClient.invoices.finalizeInvoice(invoice.id)
+    // If invoice is still draft (shouldn't happen with auto_advance), finalize it
+    let finalInvoice = invoice
+    if (invoice.status === 'draft') {
+      logger.warn('Invoice created as draft, manually finalizing', { invoiceId: invoice.id })
+      finalInvoice = await stripeClient.invoices.finalizeInvoice(invoice.id)
+      logger.info('Manually finalized invoice', {
+        invoiceId: finalInvoice.id,
+        status: finalInvoice.status,
+      })
+    }
 
-    logger.info('Finalized overage invoice', {
+    // If invoice is open (finalized but not paid), attempt to pay it
+    if (finalInvoice.status === 'open') {
+      try {
+        logger.info('Attempting to pay open invoice', { invoiceId: finalInvoice.id })
+        const paidInvoice = await stripeClient.invoices.pay(finalInvoice.id)
+        logger.info('Successfully paid invoice', {
+          invoiceId: paidInvoice.id,
+          status: paidInvoice.status,
+          amountPaid: paidInvoice.amount_paid / 100,
+        })
+        finalInvoice = paidInvoice
+      } catch (paymentError) {
+        logger.error('Failed to automatically pay invoice', {
+          invoiceId: finalInvoice.id,
+          error: paymentError,
+        })
+        // Don't fail the whole operation if payment fails
+        // Stripe will retry and send payment failure notifications
+      }
+    }
+
+    // Log final invoice status
+    logger.info('Invoice processing complete', {
       customerId,
-      invoiceId: invoice.id,
+      invoiceId: finalInvoice.id,
       chargedAmount: overageAmount,
       description,
+      status: finalInvoice.status,
+      paymentAttempted: finalInvoice.status === 'paid' || finalInvoice.attempted,
     })
 
     return {
       success: true,
       chargedAmount: overageAmount,
-      invoiceId: invoice.id,
+      invoiceId: finalInvoice.id,
     }
   } catch (error) {
     logger.error('Failed to create overage billing invoice', {
@@ -267,6 +355,34 @@ export async function processUserOverageBilling(userId: string): Promise<Billing
       return { success: false, error: 'No Stripe customer ID found' }
     }
 
+    // Get user email to ensure Stripe customer has it set
+    const userRecord = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1)
+
+    if (userRecord[0]?.email) {
+      // Update Stripe customer with email if needed
+      const stripeClient = requireStripeClient()
+      try {
+        await stripeClient.customers.update(stripeCustomerId, {
+          email: userRecord[0].email,
+        })
+        logger.info('Updated Stripe customer with email', {
+          userId,
+          stripeCustomerId,
+          email: userRecord[0].email,
+        })
+      } catch (updateError) {
+        logger.warn('Failed to update Stripe customer email', {
+          userId,
+          stripeCustomerId,
+          error: updateError,
+        })
+      }
+    }
+
     const description = `Usage overage for ${overageInfo.plan} plan - $${overageInfo.overageAmount.toFixed(2)} above $${overageInfo.basePrice} base`
     const metadata = {
       userId,
@@ -324,6 +440,38 @@ export async function processOrganizationOverageBilling(
     if (!stripeCustomerId) {
       logger.error('No Stripe customer ID found for organization', { organizationId })
       return { success: false, error: 'No Stripe customer ID found' }
+    }
+
+    // Get organization owner's email for billing
+    const orgOwner = await db
+      .select({
+        userId: member.userId,
+        userEmail: user.email,
+      })
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+      .limit(1)
+
+    if (orgOwner[0]?.userEmail) {
+      // Update Stripe customer with organization owner's email
+      const stripeClient = requireStripeClient()
+      try {
+        await stripeClient.customers.update(stripeCustomerId, {
+          email: orgOwner[0].userEmail,
+        })
+        logger.info('Updated Stripe customer with organization owner email', {
+          organizationId,
+          stripeCustomerId,
+          email: orgOwner[0].userEmail,
+        })
+      } catch (updateError) {
+        logger.warn('Failed to update Stripe customer email for organization', {
+          organizationId,
+          stripeCustomerId,
+          error: updateError,
+        })
+      }
     }
 
     // Get all organization members

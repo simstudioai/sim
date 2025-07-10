@@ -1,10 +1,4 @@
 import type Stripe from 'stripe'
-import {
-  renderBillingConfirmationEmail,
-  renderInvoiceNotificationEmail,
-  renderPaymentFailureEmail,
-} from '@/components/emails/render-email'
-import { sendEmail } from '@/lib/email/mailer'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('StripeInvoiceWebhooks')
@@ -32,19 +26,9 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
       customerId,
       chargedAmount,
       billingPeriod,
+      customerEmail: invoice.customer_email,
+      hostedInvoiceUrl: invoice.hosted_invoice_url,
     })
-
-    // Send billing confirmation email
-    try {
-      await sendBillingConfirmationEmail(invoice, chargedAmount)
-    } catch (emailError) {
-      logger.error('Failed to send billing confirmation email', {
-        invoiceId: invoice.id,
-        customerId,
-        error: emailError,
-      })
-      // Don't fail the entire webhook if email fails
-    }
 
     // Additional payment success logic can be added here
     // For example: update internal billing status, trigger analytics events, etc.
@@ -82,19 +66,9 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
       failedAmount,
       billingPeriod,
       attemptCount,
+      customerEmail: invoice.customer_email,
+      hostedInvoiceUrl: invoice.hosted_invoice_url,
     })
-
-    // Send payment failure notification email
-    try {
-      await sendPaymentFailureEmail(invoice, failedAmount)
-    } catch (emailError) {
-      logger.error('Failed to send payment failure email', {
-        invoiceId: invoice.id,
-        customerId,
-        error: emailError,
-      })
-      // Don't fail the entire webhook if email fails
-    }
 
     // Implement dunning management logic here
     // For example: suspend service after multiple failures, notify admins, etc.
@@ -140,196 +114,18 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
       customerId,
       invoiceAmount,
       billingPeriod,
+      customerEmail: invoice.customer_email,
+      hostedInvoiceUrl: invoice.hosted_invoice_url,
     })
 
-    // Send invoice notification email
-    try {
-      await sendInvoiceNotificationEmail(invoice, invoiceAmount)
-    } catch (emailError) {
-      logger.error('Failed to send invoice notification email', {
-        invoiceId: invoice.id,
-        customerId,
-        error: emailError,
-      })
-      // Don't fail the entire webhook if email fails
-    }
+    // Additional invoice finalization logic can be added here
+    // For example: update internal records, trigger notifications, etc.
   } catch (error) {
     logger.error('Failed to handle invoice finalized', {
       eventId: event.id,
       error,
     })
     throw error // Re-throw to signal webhook failure
-  }
-}
-
-/**
- * Send billing confirmation email to user
- */
-async function sendBillingConfirmationEmail(invoice: Stripe.Invoice, chargedAmount: number) {
-  const customerEmail = invoice.customer_email
-  if (!customerEmail) {
-    logger.warn('No customer email found for billing confirmation', { invoiceId: invoice.id })
-    return
-  }
-
-  const billingPeriod = invoice.metadata?.billingPeriod || 'this month'
-  const plan = invoice.metadata?.plan || 'your plan'
-  const invoiceUrl = invoice.hosted_invoice_url || undefined
-
-  try {
-    const html = await renderBillingConfirmationEmail(
-      customerEmail,
-      chargedAmount,
-      plan,
-      billingPeriod,
-      invoice.id,
-      invoiceUrl
-    )
-
-    const result = await sendEmail({
-      to: customerEmail,
-      subject: `Payment Confirmed - $${chargedAmount.toFixed(2)} for ${billingPeriod}`,
-      html,
-      from: 'billing@simstudio.ai',
-      emailType: 'transactional',
-    })
-
-    if (result.success) {
-      logger.info('Sent billing confirmation email', {
-        invoiceId: invoice.id,
-        customerEmail,
-        chargedAmount,
-      })
-    } else {
-      logger.error('Failed to send billing confirmation email', {
-        invoiceId: invoice.id,
-        customerEmail,
-        error: result.message,
-      })
-    }
-  } catch (error) {
-    logger.error('Error rendering or sending billing confirmation email', {
-      invoiceId: invoice.id,
-      customerEmail,
-      error,
-    })
-  }
-}
-
-/**
- * Send payment failure notification email to user
- */
-async function sendPaymentFailureEmail(invoice: Stripe.Invoice, failedAmount: number) {
-  const customerEmail = invoice.customer_email
-  if (!customerEmail) {
-    logger.warn('No customer email found for payment failure notification', {
-      invoiceId: invoice.id,
-    })
-    return
-  }
-
-  const billingPeriod = invoice.metadata?.billingPeriod || 'this month'
-  const plan = invoice.metadata?.plan || 'your plan'
-  const invoiceUrl = invoice.hosted_invoice_url || undefined
-  const attemptCount = invoice.attempt_count || 1
-
-  try {
-    const html = await renderPaymentFailureEmail(
-      customerEmail,
-      failedAmount,
-      plan,
-      billingPeriod,
-      invoice.id,
-      invoiceUrl,
-      attemptCount
-    )
-
-    const result = await sendEmail({
-      to: customerEmail,
-      subject: `Payment Failed - Action Required for $${failedAmount.toFixed(2)} charge`,
-      html,
-      from: 'billing@simstudio.ai',
-      emailType: 'transactional',
-    })
-
-    if (result.success) {
-      logger.info('Sent payment failure email', {
-        invoiceId: invoice.id,
-        customerEmail,
-        failedAmount,
-        attemptCount,
-      })
-    } else {
-      logger.error('Failed to send payment failure email', {
-        invoiceId: invoice.id,
-        customerEmail,
-        error: result.message,
-      })
-    }
-  } catch (error) {
-    logger.error('Error rendering or sending payment failure email', {
-      invoiceId: invoice.id,
-      customerEmail,
-      error,
-    })
-  }
-}
-
-/**
- * Send invoice notification email to user
- */
-async function sendInvoiceNotificationEmail(invoice: Stripe.Invoice, invoiceAmount: number) {
-  const customerEmail = invoice.customer_email
-  if (!customerEmail) {
-    logger.warn('No customer email found for invoice notification', { invoiceId: invoice.id })
-    return
-  }
-
-  const billingPeriod = invoice.metadata?.billingPeriod || 'this month'
-  const plan = invoice.metadata?.plan || 'your plan'
-  const dueDate = invoice.due_date
-    ? new Date(invoice.due_date * 1000).toISOString().split('T')[0]
-    : 'immediately'
-  const invoiceUrl = invoice.hosted_invoice_url || undefined
-
-  try {
-    const html = await renderInvoiceNotificationEmail(
-      customerEmail,
-      invoiceAmount,
-      plan,
-      billingPeriod,
-      invoice.id,
-      invoiceUrl,
-      dueDate
-    )
-
-    const result = await sendEmail({
-      to: customerEmail,
-      subject: `Usage Invoice - $${invoiceAmount.toFixed(2)} for ${billingPeriod}`,
-      html,
-      from: 'billing@simstudio.ai',
-      emailType: 'transactional',
-    })
-
-    if (result.success) {
-      logger.info('Sent invoice notification email', {
-        invoiceId: invoice.id,
-        customerEmail,
-        invoiceAmount,
-      })
-    } else {
-      logger.error('Failed to send invoice notification email', {
-        invoiceId: invoice.id,
-        customerEmail,
-        error: result.message,
-      })
-    }
-  } catch (error) {
-    logger.error('Error rendering or sending invoice notification email', {
-      invoiceId: invoice.id,
-      customerEmail,
-      error,
-    })
   }
 }
 
