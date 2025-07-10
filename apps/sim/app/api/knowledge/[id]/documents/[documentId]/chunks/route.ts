@@ -4,9 +4,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { document, embedding } from '@/db/schema'
+import { calculateCost } from '@/providers/utils'
 import { checkDocumentAccess, generateEmbeddings } from '../../../../utils'
 
 const logger = createLogger('DocumentChunksAPI')
@@ -276,9 +278,27 @@ export async function POST(
 
       logger.info(`[${requestId}] Manual chunk created: ${chunkId} in document ${documentId}`)
 
+      // Calculate cost for the embedding
+      const tokenCount = estimateTokenCount(validatedData.content, 'openai')
+      const cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+
       return NextResponse.json({
         success: true,
-        data: newChunk,
+        data: {
+          ...newChunk,
+          cost: {
+            input: cost.input,
+            output: cost.output,
+            total: cost.total,
+            tokens: {
+              prompt: tokenCount.count,
+              completion: 0,
+              total: tokenCount.count,
+            },
+            model: 'text-embedding-3-small',
+            pricing: cost.pricing,
+          },
+        },
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {

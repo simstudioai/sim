@@ -13,6 +13,22 @@ export interface KnowledgeSearchResponse {
     results: KnowledgeSearchResult[]
     query: string
     totalResults: number
+    cost?: {
+      input: number
+      output: number
+      total: number
+      tokens: {
+        prompt: number
+        completion: number
+        total: number
+      }
+      model: string
+      pricing: {
+        input: number
+        output: number
+        updatedAt: string
+      }
+    }
   }
   error?: string
 }
@@ -37,7 +53,24 @@ export interface KnowledgeUploadChunkResult {
 export interface KnowledgeUploadChunkResponse {
   success: boolean
   output: {
-    data: KnowledgeUploadChunkResult
+    data: KnowledgeUploadChunkResult & {
+      cost?: {
+        input: number
+        output: number
+        total: number
+        tokens: {
+          prompt: number
+          completion: number
+          total: number
+        }
+        model: string
+        pricing: {
+          input: number
+          output: number
+          updatedAt: string
+        }
+      }
+    }
     message: string
     documentId: string
   }

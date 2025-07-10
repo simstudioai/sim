@@ -69,6 +69,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
           },
           message: `Successfully uploaded chunk to document`,
           documentId: data.documentId,
+          cost: data.cost,
         },
       }
     } catch (error: any) {
@@ -84,6 +85,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
             enabled: true,
             createdAt: '',
             updatedAt: '',
+            cost: undefined,
           },
           message: `Failed to upload chunk: ${error.message || 'Unknown error'}`,
           documentId: '',
@@ -106,6 +108,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
           enabled: true,
           createdAt: '',
           updatedAt: '',
+          cost: undefined,
         },
         message: errorMessage,
         documentId: '',

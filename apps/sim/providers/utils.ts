@@ -9,6 +9,7 @@ import { googleProvider } from './google'
 import { groqProvider } from './groq'
 import {
   getComputerUseModels,
+  getEmbeddingModelPricing,
   getHostedModels as getHostedModelsFromDefinitions,
   getMaxTemperature as getMaxTempFromDefinitions,
   getModelPricing as getModelPricingFromDefinitions,
@@ -444,7 +445,13 @@ export function calculateCost(
   completionTokens = 0,
   useCachedInput = false
 ) {
-  const pricing = getModelPricingFromDefinitions(model)
+  // First check if it's an embedding model
+  let pricing = getEmbeddingModelPricing(model)
+
+  // If not found, check chat models
+  if (!pricing) {
+    pricing = getModelPricingFromDefinitions(model)
+  }
 
   // If no pricing found, return default pricing
   if (!pricing) {
@@ -475,12 +482,30 @@ export function calculateCost(
 
   const costMultiplier = getCostMultiplier()
 
+  const finalInputCost = inputCost * costMultiplier
+  const finalOutputCost = outputCost * costMultiplier
+  const finalTotalCost = totalCost * costMultiplier
+
   return {
-    input: Number.parseFloat((inputCost * costMultiplier).toFixed(6)),
-    output: Number.parseFloat((outputCost * costMultiplier).toFixed(6)),
-    total: Number.parseFloat((totalCost * costMultiplier).toFixed(6)),
+    input: Number.parseFloat(finalInputCost.toFixed(8)), // Use 8 decimal places for small costs
+    output: Number.parseFloat(finalOutputCost.toFixed(8)),
+    total: Number.parseFloat(finalTotalCost.toFixed(8)),
     pricing,
   }
+}
+
+/**
+ * Get pricing information for a specific model (including embedding models)
+ */
+export function getModelPricing(modelId: string): any {
+  // First check if it's an embedding model
+  const embeddingPricing = getEmbeddingModelPricing(modelId)
+  if (embeddingPricing) {
+    return embeddingPricing
+  }
+
+  // Then check chat models
+  return getModelPricingFromDefinitions(modelId)
 }
 
 /**

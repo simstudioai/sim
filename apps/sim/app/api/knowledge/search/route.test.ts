@@ -34,6 +34,23 @@ vi.mock('@/lib/documents/utils', () => ({
   retryWithExponentialBackoff: vi.fn().mockImplementation((fn) => fn()),
 }))
 
+vi.mock('@/lib/tokenization/estimators', () => ({
+  estimateTokenCount: vi.fn().mockReturnValue({ count: 521 }),
+}))
+
+vi.mock('@/providers/utils', () => ({
+  calculateCost: vi.fn().mockReturnValue({
+    input: 0.00001042,
+    output: 0,
+    total: 0.00001042,
+    pricing: {
+      input: 0.02,
+      output: 0,
+      updatedAt: '2025-07-10',
+    },
+  }),
+}))
+
 mockConsoleLogger()
 
 describe('Knowledge Search API Route', () => {
@@ -206,7 +223,7 @@ describe('Knowledge Search API Route', () => {
       expect(mockGetUserId).toHaveBeenCalledWith(expect.any(String), 'workflow-123')
     })
 
-    it('should return unauthorized for unauthenticated request', async () => {
+    it.concurrent('should return unauthorized for unauthenticated request', async () => {
       mockGetUserId.mockResolvedValue(null)
 
       const req = createMockRequest('POST', validSearchData)
@@ -218,7 +235,7 @@ describe('Knowledge Search API Route', () => {
       expect(data.error).toBe('Unauthorized')
     })
 
-    it('should return not found for workflow that does not exist', async () => {
+    it.concurrent('should return not found for workflow that does not exist', async () => {
       const workflowData = {
         ...validSearchData,
         workflowId: 'nonexistent-workflow',
@@ -268,7 +285,7 @@ describe('Knowledge Search API Route', () => {
       expect(data.error).toBe('Knowledge bases not found: kb-missing')
     })
 
-    it('should validate search parameters', async () => {
+    it.concurrent('should validate search parameters', async () => {
       const invalidData = {
         knowledgeBaseIds: '', // Empty string
         query: '', // Empty query
@@ -314,7 +331,7 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.topK).toBe(10) // Default value
     })
 
-    it('should handle OpenAI API errors', async () => {
+    it.concurrent('should handle OpenAI API errors', async () => {
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
 
@@ -334,7 +351,7 @@ describe('Knowledge Search API Route', () => {
       expect(data.error).toBe('Failed to perform vector search')
     })
 
-    it('should handle missing OpenAI API key', async () => {
+    it.concurrent('should handle missing OpenAI API key', async () => {
       vi.doMock('@/lib/env', () => ({
         env: {
           OPENAI_API_KEY: undefined,
@@ -353,7 +370,7 @@ describe('Knowledge Search API Route', () => {
       expect(data.error).toBe('Failed to perform vector search')
     })
 
-    it('should handle database errors during search', async () => {
+    it.concurrent('should handle database errors during search', async () => {
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
       mockDbChain.limit.mockRejectedValueOnce(new Error('Database error'))
@@ -375,7 +392,7 @@ describe('Knowledge Search API Route', () => {
       expect(data.error).toBe('Failed to perform vector search')
     })
 
-    it('should handle invalid OpenAI response format', async () => {
+    it.concurrent('should handle invalid OpenAI response format', async () => {
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
 
@@ -394,6 +411,125 @@ describe('Knowledge Search API Route', () => {
 
       expect(response.status).toBe(500)
       expect(data.error).toBe('Failed to perform vector search')
+    })
+
+    describe('Cost tracking', () => {
+      it.concurrent('should include cost information in successful search response', async () => {
+        mockGetUserId.mockResolvedValue('user-123')
+        mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases)
+        mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
+
+        mockFetch.mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [{ embedding: mockEmbedding }],
+            }),
+        })
+
+        const req = createMockRequest('POST', validSearchData)
+        const { POST } = await import('./route')
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data.success).toBe(true)
+
+        // Verify cost information is included
+        expect(data.data.cost).toBeDefined()
+        expect(data.data.cost.input).toBe(0.00001042)
+        expect(data.data.cost.output).toBe(0)
+        expect(data.data.cost.total).toBe(0.00001042)
+        expect(data.data.cost.tokens).toEqual({
+          prompt: 521,
+          completion: 0,
+          total: 521,
+        })
+        expect(data.data.cost.model).toBe('text-embedding-3-small')
+        expect(data.data.cost.pricing).toEqual({
+          input: 0.02,
+          output: 0,
+          updatedAt: '2025-07-10',
+        })
+      })
+
+      it('should call cost calculation functions with correct parameters', async () => {
+        const { estimateTokenCount } = await import('@/lib/tokenization/estimators')
+        const { calculateCost } = await import('@/providers/utils')
+
+        mockGetUserId.mockResolvedValue('user-123')
+        mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases)
+        mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
+
+        mockFetch.mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [{ embedding: mockEmbedding }],
+            }),
+        })
+
+        const req = createMockRequest('POST', validSearchData)
+        const { POST } = await import('./route')
+        await POST(req)
+
+        // Verify token estimation was called with correct parameters
+        expect(estimateTokenCount).toHaveBeenCalledWith('test search query', 'openai')
+
+        // Verify cost calculation was called with correct parameters
+        expect(calculateCost).toHaveBeenCalledWith('text-embedding-3-small', 521, 0, false)
+      })
+
+      it('should handle cost calculation with different query lengths', async () => {
+        const { estimateTokenCount } = await import('@/lib/tokenization/estimators')
+        const { calculateCost } = await import('@/providers/utils')
+
+        // Mock different token count for longer query
+        vi.mocked(estimateTokenCount).mockReturnValue({
+          count: 1042,
+          confidence: 'high',
+          provider: 'openai',
+          method: 'precise',
+        })
+        vi.mocked(calculateCost).mockReturnValue({
+          input: 0.00002084,
+          output: 0,
+          total: 0.00002084,
+          pricing: {
+            input: 0.02,
+            output: 0,
+            updatedAt: '2025-07-10',
+          },
+        })
+
+        const longQueryData = {
+          ...validSearchData,
+          query:
+            'This is a much longer search query with many more tokens to test cost calculation accuracy',
+        }
+
+        mockGetUserId.mockResolvedValue('user-123')
+        mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases)
+        mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
+
+        mockFetch.mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [{ embedding: mockEmbedding }],
+            }),
+        })
+
+        const req = createMockRequest('POST', longQueryData)
+        const { POST } = await import('./route')
+        const response = await POST(req)
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data.data.cost.input).toBe(0.00002084)
+        expect(data.data.cost.tokens.prompt).toBe(1042)
+        expect(calculateCost).toHaveBeenCalledWith('text-embedding-3-small', 1042, 0, false)
+      })
     })
   })
 })
