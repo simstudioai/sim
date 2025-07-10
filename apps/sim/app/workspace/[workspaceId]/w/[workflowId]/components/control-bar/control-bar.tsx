@@ -886,7 +886,10 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             <AlertDialogHeader>
               <AlertDialogTitle>Import Workflow from JSON</AlertDialogTitle>
               <AlertDialogDescription>
-                Select a JSON file exported from Sim. This will replace the current workflow's canvas (blocks, connections, and structure) with the imported data. Your workflow name and metadata will not change, and previous history will be preserved for undo/redo.
+                Select a JSON file exported from Sim. This will replace the current workflow's
+                canvas (blocks, connections, and structure) with the imported data. Your workflow
+                name and metadata will not change, and previous history will be preserved for
+                undo/redo.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <input
