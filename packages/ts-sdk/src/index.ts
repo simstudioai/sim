@@ -63,21 +63,23 @@ export class SimStudioClient {
     const { input, timeout = 30000 } = options
 
     try {
-      // Create a timeout promise
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('TIMEOUT')), timeout)
-      })
+      const abortController = new AbortController()
+      const timeoutId = setTimeout(() => abortController.abort(), timeout)
 
-      const fetchPromise = fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': this.apiKey,
-        },
-        body: JSON.stringify(input || {}),
-      })
+      try {
+        const fetchPromise = fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': this.apiKey,
+          },
+          body: JSON.stringify(input || {}),
+          signal: abortController.signal, // Attach the abort signal
+        })
 
-      const response = await Promise.race([fetchPromise, timeoutPromise])
+        const response = await fetchPromise // No need for Promise.race here anymore
+
+        clearTimeout(timeoutId) // Clear the timeout if fetch completes first
 
       if (!response.ok) {
         const errorData = (await response.json().catch(() => ({}))) as unknown as any
@@ -91,13 +93,11 @@ export class SimStudioClient {
       const result = await response.json()
       return result as WorkflowExecutionResult
     } catch (error: any) {
-      if (error instanceof SimStudioError) {
-        throw error
-      }
+        clearTimeout(timeoutId) // Ensure timeout is cleared on error too
 
-      if (error.message === 'TIMEOUT') {
-        throw new SimStudioError(`Workflow execution timed out after ${timeout}ms`, 'TIMEOUT')
-      }
+        if (error.name === 'AbortError') {
+          throw new SimStudioError(`Workflow execution timed out after ${timeout}ms`, 'TIMEOUT')
+        }
 
       throw new SimStudioError(error?.message || 'Failed to execute workflow', 'EXECUTION_ERROR')
     }
