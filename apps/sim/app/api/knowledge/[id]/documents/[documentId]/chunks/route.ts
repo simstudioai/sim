@@ -219,6 +219,9 @@ export async function POST(
       logger.info(`[${requestId}] Generating embedding for manual chunk`)
       const embeddings = await generateEmbeddings([validatedData.content])
 
+      // Calculate accurate token count for both database storage and cost calculation
+      const tokenCount = estimateTokenCount(validatedData.content, 'openai')
+
       const chunkId = crypto.randomUUID()
       const now = new Date()
 
@@ -242,7 +245,7 @@ export async function POST(
           chunkHash: crypto.createHash('sha256').update(validatedData.content).digest('hex'),
           content: validatedData.content,
           contentLength: validatedData.content.length,
-          tokenCount: Math.ceil(validatedData.content.length / 4), // Rough approximation
+          tokenCount: tokenCount.count, // Use accurate token count
           embedding: embeddings[0],
           embeddingModel: 'text-embedding-3-small',
           startOffset: 0, // Manual chunks don't have document offsets
@@ -278,26 +281,37 @@ export async function POST(
 
       logger.info(`[${requestId}] Manual chunk created: ${chunkId} in document ${documentId}`)
 
-      // Calculate cost for the embedding
-      const tokenCount = estimateTokenCount(validatedData.content, 'openai')
-      const cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+      // Calculate cost for the embedding (with fallback if calculation fails)
+      let cost = null
+      try {
+        cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to calculate cost for chunk upload`, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+        // Continue without cost information rather than failing the upload
+      }
 
       return NextResponse.json({
         success: true,
         data: {
           ...newChunk,
-          cost: {
-            input: cost.input,
-            output: cost.output,
-            total: cost.total,
-            tokens: {
-              prompt: tokenCount.count,
-              completion: 0,
-              total: tokenCount.count,
-            },
-            model: 'text-embedding-3-small',
-            pricing: cost.pricing,
-          },
+          ...(cost
+            ? {
+                cost: {
+                  input: cost.input,
+                  output: cost.output,
+                  total: cost.total,
+                  tokens: {
+                    prompt: tokenCount.count,
+                    completion: 0,
+                    total: tokenCount.count,
+                  },
+                  model: 'text-embedding-3-small',
+                  pricing: cost.pricing,
+                },
+              }
+            : {}),
         },
       })
     } catch (validationError) {

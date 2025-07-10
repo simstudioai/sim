@@ -319,9 +319,18 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Calculate cost for the embedding
-      const tokenCount = estimateTokenCount(validatedData.query, 'openai')
-      const cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+      // Calculate cost for the embedding (with fallback if calculation fails)
+      let cost = null
+      let tokenCount = null
+      try {
+        tokenCount = estimateTokenCount(validatedData.query, 'openai')
+        cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+        // Continue without cost information rather than failing the search
+      }
 
       return NextResponse.json({
         success: true,
@@ -345,18 +354,22 @@ export async function POST(request: NextRequest) {
           knowledgeBaseId: foundKbIds[0],
           topK: validatedData.topK,
           totalResults: results.length,
-          cost: {
-            input: cost.input,
-            output: cost.output,
-            total: cost.total,
-            tokens: {
-              prompt: tokenCount.count,
-              completion: 0,
-              total: tokenCount.count,
-            },
-            model: 'text-embedding-3-small',
-            pricing: cost.pricing,
-          },
+          ...(cost && tokenCount
+            ? {
+                cost: {
+                  input: cost.input,
+                  output: cost.output,
+                  total: cost.total,
+                  tokens: {
+                    prompt: tokenCount.count,
+                    completion: 0,
+                    total: tokenCount.count,
+                  },
+                  model: 'text-embedding-3-small',
+                  pricing: cost.pricing,
+                },
+              }
+            : {}),
         },
       })
     } catch (validationError) {
