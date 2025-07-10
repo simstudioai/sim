@@ -53,26 +53,25 @@ export interface KnowledgeUploadChunkResult {
 export interface KnowledgeUploadChunkResponse {
   success: boolean
   output: {
-    data: KnowledgeUploadChunkResult & {
-      cost?: {
-        input: number
-        output: number
-        total: number
-        tokens: {
-          prompt: number
-          completion: number
-          total: number
-        }
-        model: string
-        pricing: {
-          input: number
-          output: number
-          updatedAt: string
-        }
-      }
-    }
+    data: KnowledgeUploadChunkResult
     message: string
     documentId: string
+    cost?: {
+      input: number
+      output: number
+      total: number
+      tokens: {
+        prompt: number
+        completion: number
+        total: number
+      }
+      model: string
+      pricing: {
+        input: number
+        output: number
+        updatedAt: string
+      }
+    }
   }
   error?: string
 }
