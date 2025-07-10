@@ -487,6 +487,7 @@ export class AgentBlockHandler implements BlockHandler {
     const contentType = response.headers.get('Content-Type')
     if (contentType?.includes('text/event-stream')) {
       // Handle streaming response
+      logger.info('Received streaming response')
       return this.handleStreamingResponse(response, block)
     }
 
@@ -705,119 +706,28 @@ export class AgentBlockHandler implements BlockHandler {
   private processStructuredResponse(result: any, responseFormat: any): BlockOutput {
     const content = result.content
 
-    const extractedJson = this.extractJsonFromContent(content)
-
-    if (extractedJson !== null) {
+    try {
+      const extractedJson = JSON.parse(content.trim())
       logger.info('Successfully parsed structured response content')
       return {
         ...extractedJson,
         ...this.createResponseMetadata(result),
       }
+    } catch (error) {
+      logger.info('JSON parsing failed', { error: error instanceof Error ? error.message : 'Unknown error' })
+
+      // LLM did not adhere to structured response format
+      logger.error('LLM did not adhere to structured response format:', {
+        content: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
+        responseFormat: responseFormat,
+      })
+
+      const standardResponse = this.processStandardResponse(result)
+      return Object.assign(standardResponse, {
+        _responseFormatWarning:
+          'LLM did not adhere to the specified structured response format. Expected valid JSON but received malformed content. Falling back to standard format.',
+      })
     }
-
-    // All parsing attempts failed
-    logger.error('Failed to parse response content as JSON:', {
-      content: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
-      responseFormat: responseFormat,
-    })
-
-    // Return standard response but include a warning
-    const standardResponse = this.processStandardResponse(result)
-    return Object.assign(standardResponse, {
-      _responseFormatWarning:
-        'Response format was specified but content could not be parsed as JSON. Falling back to standard format.',
-    })
-  }
-
-  private extractJsonFromContent(content: string): any | null {
-    // Strategy 1: Direct JSON parsing
-    try {
-      return JSON.parse(content.trim())
-    } catch {
-      // Continue to next strategy
-    }
-
-    // Strategy 2: Extract from markdown code blocks (most common case)
-    // Matches ```json ... ``` or ``` ... ```
-    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/
-    const codeBlockMatch = content.match(codeBlockRegex)
-    if (codeBlockMatch?.[1]) {
-      try {
-        return JSON.parse(codeBlockMatch[1].trim())
-      } catch {
-        // Continue to next strategy
-      }
-    }
-
-    // Strategy 3: Find first complete JSON object/array in the text
-    // Look for { ... } or [ ... ] with proper bracket matching
-    const jsonObjectMatch = this.findCompleteJsonInText(content)
-    if (jsonObjectMatch) {
-      try {
-        return JSON.parse(jsonObjectMatch)
-      } catch {
-        // Continue to next strategy
-      }
-    }
-
-    return null
-  }
-
-  private findCompleteJsonInText(text: string): string | null {
-    const trimmed = text.trim()
-
-    // Find first { or [
-    let startIndex = -1
-    let startChar = ''
-
-    for (let i = 0; i < trimmed.length; i++) {
-      if (trimmed[i] === '{' || trimmed[i] === '[') {
-        startIndex = i
-        startChar = trimmed[i]
-        break
-      }
-    }
-
-    if (startIndex === -1) {
-      return null
-    }
-
-    const endChar = startChar === '{' ? '}' : ']'
-    let depth = 0
-    let inString = false
-    let escaped = false
-
-    for (let i = startIndex; i < trimmed.length; i++) {
-      const char = trimmed[i]
-
-      if (escaped) {
-        escaped = false
-        continue
-      }
-
-      if (char === '\\') {
-        escaped = true
-        continue
-      }
-
-      if (char === '"' && !escaped) {
-        inString = !inString
-        continue
-      }
-
-      if (!inString) {
-        if (char === startChar) {
-          depth++
-        } else if (char === endChar) {
-          depth--
-          if (depth === 0) {
-            return trimmed.substring(startIndex, i + 1)
-          }
-        }
-      }
-    }
-
-    return null
   }
 
   private processStandardResponse(result: any): BlockOutput {
