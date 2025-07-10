@@ -194,12 +194,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     executionId: string
     endedAt: string
     totalDurationMs: number
-    blockStats: {
-      total: number
-      success: number
-      error: number
-      skipped: number
-    }
     costSummary: {
       totalCost: number
       totalInputCost: number
@@ -220,23 +214,24 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
   }): Promise<WorkflowExecutionLog> {
-    const {
-      executionId,
-      endedAt,
-      totalDurationMs,
-      blockStats,
-      costSummary,
-      finalOutput,
-      traceSpans,
-    } = params
+    const { executionId, endedAt, totalDurationMs, costSummary, finalOutput, traceSpans } = params
 
     logger.debug(`Completing workflow execution ${executionId}`)
 
-    const level = blockStats.error > 0 ? 'error' : 'info'
-    const message =
-      blockStats.error > 0
-        ? `Workflow execution failed: ${blockStats.error} error(s), ${blockStats.success} success(es)`
-        : `Workflow execution completed: ${blockStats.success} block(s) executed successfully`
+    // Determine if workflow failed by checking trace spans for errors
+    const hasErrors = traceSpans?.some((span: any) => {
+      const checkSpanForErrors = (s: any): boolean => {
+        if (s.status === 'error') return true
+        if (s.children && Array.isArray(s.children)) {
+          return s.children.some(checkSpanForErrors)
+        }
+        return false
+      }
+      return checkSpanForErrors(span)
+    })
+
+    const level = hasErrors ? 'error' : 'info'
+    const message = hasErrors ? 'Workflow execution failed' : 'Workflow execution completed'
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
@@ -245,10 +240,10 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         message,
         endedAt: new Date(endedAt),
         totalDurationMs,
-        blockCount: blockStats.total,
-        successCount: blockStats.success,
-        errorCount: blockStats.error,
-        skippedCount: blockStats.skipped,
+        blockCount: 0,
+        successCount: 0,
+        errorCount: 0,
+        skippedCount: 0,
         totalCost: costSummary.totalCost.toString(),
         totalInputCost: costSummary.totalInputCost.toString(),
         totalOutputCost: costSummary.totalOutputCost.toString(),
