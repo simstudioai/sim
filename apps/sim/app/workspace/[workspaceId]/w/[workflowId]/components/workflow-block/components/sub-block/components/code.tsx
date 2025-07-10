@@ -106,7 +106,10 @@ export function Code({
 
   useEffect(() => {
     if (onValidationChange && subBlockId === 'responseFormat') {
-      onValidationChange(isValidJson)
+      const timeoutId = setTimeout(() => {
+        onValidationChange(isValidJson)
+      }, 150) // Match debounce time from setStoreValue
+      return () => clearTimeout(timeoutId)
     }
   }, [isValidJson, onValidationChange, subBlockId])
 
