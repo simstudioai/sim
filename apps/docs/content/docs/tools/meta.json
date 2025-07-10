@@ -36,6 +36,7 @@
     "outlook",
     "perplexity",
     "pinecone",
+    "qdrant",
     "reddit",
     "s3",
     "serper",
