@@ -218,8 +218,20 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
 
     logger.debug(`Completing workflow execution ${executionId}`)
 
-    const level = 'info'
-    const message = `Workflow execution completed`
+    // Determine if workflow failed by checking trace spans for errors
+    const hasErrors = traceSpans && traceSpans.some((span: any) => {
+      const checkSpanForErrors = (s: any): boolean => {
+        if (s.status === 'error') return true
+        if (s.children && Array.isArray(s.children)) {
+          return s.children.some(checkSpanForErrors)
+        }
+        return false
+      }
+      return checkSpanForErrors(span)
+    })
+
+    const level = hasErrors ? 'error' : 'info'
+    const message = hasErrors ? 'Workflow execution failed' : 'Workflow execution completed'
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)

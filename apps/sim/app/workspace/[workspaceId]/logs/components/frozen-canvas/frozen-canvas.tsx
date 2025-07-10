@@ -148,16 +148,81 @@ function getCurrentIterationData(blockExecutionData: any) {
   }
 }
 
-function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: () => void }) {
+function PinnedLogs({
+  executionData,
+  blockId,
+  workflowState,
+  onClose
+}: {
+  executionData: any | null;
+  blockId: string;
+  workflowState: any;
+  onClose: () => void;
+}) {
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const [currentIterationIndex, setCurrentIterationIndex] = useState(0)
 
+  // Reset iteration index when execution data changes
+  useEffect(() => {
+    setCurrentIterationIndex(0)
+  }, [executionData])
+
+  // Handle case where block has no execution data (e.g., failed workflow)
+  if (!executionData) {
+    const blockInfo = workflowState?.blocks?.[blockId]
+    const formatted = {
+      blockName: blockInfo?.name || 'Unknown Block',
+      blockType: blockInfo?.type || 'unknown',
+      status: 'not_executed',
+      duration: 'N/A',
+      input: null,
+      output: null,
+      errorMessage: null,
+      errorStackTrace: null,
+      cost: null,
+      tokens: null,
+    }
+
+    return (
+      <Card className='fixed top-4 right-4 z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border-border bg-background shadow-lg'>
+        <CardHeader className='pb-3'>
+          <div className='flex items-center justify-between'>
+            <CardTitle className='flex items-center gap-2 text-foreground text-lg'>
+              <Zap className='h-5 w-5' />
+              {formatted.blockName}
+            </CardTitle>
+            <button onClick={onClose} className='rounded-sm p-1 text-foreground hover:bg-muted'>
+              <X className='h-4 w-4' />
+            </button>
+          </div>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <Badge variant='secondary'>
+                {formatted.blockType}
+              </Badge>
+              <Badge variant='outline'>not executed</Badge>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className='space-y-4'>
+          <div className='rounded-md bg-muted/50 p-4 text-center'>
+            <div className='text-muted-foreground text-sm'>
+              This block was not executed because the workflow failed before reaching it.
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Now we can safely use the execution data
   const iterationInfo = getCurrentIterationData({
     ...executionData,
     currentIteration: currentIterationIndex,
   })
 
   const formatted = formatExecutionData(iterationInfo.executionData)
-
   const totalIterations = executionData.iterations?.length || 1
 
   const goToPreviousIteration = () => {
@@ -171,10 +236,6 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
       setCurrentIterationIndex(currentIterationIndex + 1)
     }
   }
-
-  useEffect(() => {
-    setCurrentIterationIndex(0)
-  }, [executionData])
 
   return (
     <Card className='fixed top-4 right-4 z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border-border bg-background shadow-lg'>
@@ -337,17 +398,42 @@ export function FrozenCanvas({
     if (traceSpans && Array.isArray(traceSpans)) {
       const blockExecutionMap: Record<string, any> = {}
 
-      const workflowSpan = traceSpans[0]
-      if (workflowSpan?.children && Array.isArray(workflowSpan.children)) {
-        const traceSpansByBlockId = workflowSpan.children.reduce((acc: any, span: any) => {
+      logger.debug('Processing trace spans for frozen canvas:', { traceSpans })
+
+      // Recursively collect all spans with blockId from the trace spans tree
+      const collectBlockSpans = (spans: any[]): any[] => {
+        const blockSpans: any[] = []
+
+        for (const span of spans) {
+          // If this span has a blockId, it's a block execution
           if (span.blockId) {
-            if (!acc[span.blockId]) {
-              acc[span.blockId] = []
-            }
-            acc[span.blockId].push(span)
+            blockSpans.push(span)
           }
-          return acc
-        }, {})
+
+          // Recursively check children
+          if (span.children && Array.isArray(span.children)) {
+            blockSpans.push(...collectBlockSpans(span.children))
+          }
+        }
+
+        return blockSpans
+      }
+
+      const allBlockSpans = collectBlockSpans(traceSpans)
+      logger.debug('Collected all block spans:', allBlockSpans)
+
+      // Group spans by blockId
+      const traceSpansByBlockId = allBlockSpans.reduce((acc: any, span: any) => {
+        if (span.blockId) {
+          if (!acc[span.blockId]) {
+            acc[span.blockId] = []
+          }
+          acc[span.blockId].push(span)
+        }
+        return acc
+      }, {})
+
+      logger.debug('Grouped trace spans by blockId:', traceSpansByBlockId)
 
         for (const [blockId, spans] of Object.entries(traceSpansByBlockId)) {
           const spanArray = spans as any[]
@@ -407,10 +493,9 @@ export function FrozenCanvas({
             totalIterations: iterations.length,
           }
         }
-      }
 
-      setBlockExecutions(blockExecutionMap)
-    }
+        setBlockExecutions(blockExecutionMap)
+      }
   }, [traceSpans])
 
   useEffect(() => {
@@ -438,8 +523,6 @@ export function FrozenCanvas({
 
     fetchData()
   }, [executionId])
-
-  // No need to create a temporary workflow - just use the workflowState directly
 
   if (loading) {
     return (
@@ -502,16 +585,18 @@ export function FrozenCanvas({
           showSubBlocks={true}
           isPannable={true}
           onNodeClick={(blockId) => {
-            if (blockExecutions[blockId]) {
-              setPinnedBlockId(blockId)
-            }
+            // Always allow clicking blocks, even if they don't have execution data
+            // This is important for failed workflows where some blocks never executed
+            setPinnedBlockId(blockId)
           }}
         />
       </div>
 
-      {pinnedBlockId && blockExecutions[pinnedBlockId] && (
+      {pinnedBlockId && (
         <PinnedLogs
-          executionData={blockExecutions[pinnedBlockId]}
+          executionData={blockExecutions[pinnedBlockId] || null}
+          blockId={pinnedBlockId}
+          workflowState={data.workflowState}
           onClose={() => setPinnedBlockId(null)}
         />
       )}
