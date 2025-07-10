@@ -46,8 +46,6 @@ export async function loadWorkflowStateForExecution(workflowId: string): Promise
   }
 }
 
-
-
 export function calculateCostSummary(traceSpans: any[]): {
   totalCost: number
   totalInputCost: number

@@ -214,14 +214,7 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
   }): Promise<WorkflowExecutionLog> {
-    const {
-      executionId,
-      endedAt,
-      totalDurationMs,
-      costSummary,
-      finalOutput,
-      traceSpans,
-    } = params
+    const { executionId, endedAt, totalDurationMs, costSummary, finalOutput, traceSpans } = params
 
     logger.debug(`Completing workflow execution ${executionId}`)
 

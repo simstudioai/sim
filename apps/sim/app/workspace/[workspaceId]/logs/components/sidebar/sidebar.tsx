@@ -494,8 +494,6 @@ export function Sidebar({
                 </div>
               )}
 
-
-
               {/* Enhanced Cost - only show for enhanced logs with actual cost data */}
               {log.metadata?.enhanced && hasCostInfo && (
                 <div>

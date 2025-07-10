@@ -41,7 +41,7 @@ function ExpandableDataSection({ title, data }: { title: string; data: any }) {
               <button
                 onClick={() => setIsModalOpen(true)}
                 className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
-                title="Expand in modal"
+                title='Expand in modal'
               >
                 <Maximize2 className='h-3 w-3' />
               </button>
@@ -78,7 +78,9 @@ function ExpandableDataSection({ title, data }: { title: string; data: any }) {
               </button>
             </div>
             <div className='h-[calc(80vh-4rem)] overflow-auto p-4'>
-              <pre className='whitespace-pre-wrap break-words font-mono text-foreground text-sm'>{jsonString}</pre>
+              <pre className='whitespace-pre-wrap break-words font-mono text-foreground text-sm'>
+                {jsonString}
+              </pre>
             </div>
           </div>
         </div>
@@ -241,15 +243,9 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
           )}
         </div>
 
-        <ExpandableDataSection
-          title="Input"
-          data={formatted.input}
-        />
+        <ExpandableDataSection title='Input' data={formatted.input} />
 
-        <ExpandableDataSection
-          title="Output"
-          data={formatted.output}
-        />
+        <ExpandableDataSection title='Output' data={formatted.output} />
 
         {formatted.cost && formatted.cost.total > 0 && (
           <div>

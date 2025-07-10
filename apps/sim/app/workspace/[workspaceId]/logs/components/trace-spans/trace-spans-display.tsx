@@ -1,13 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  ChevronDown,
-  ChevronRight,
-  Code,
-  Cpu,
-  ExternalLink,
-} from 'lucide-react'
+import { ChevronDown, ChevronRight, Code, Cpu, ExternalLink } from 'lucide-react'
 import {
   AgentIcon,
   ApiIcon,
@@ -201,16 +195,10 @@ export function TraceSpansDisplay({
   // Keep track of expanded spans
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set())
 
-
-
-
-
   // Early return after all hooks
   if (!traceSpans || traceSpans.length === 0) {
     return <div className='text-muted-foreground text-sm'>No trace data available</div>
   }
-
-
 
   // Find the earliest start time among all spans to be the workflow start time
   const workflowStartTime = traceSpans.reduce((earliest, span) => {
@@ -243,8 +231,6 @@ export function TraceSpansDisplay({
       onExpansionChange(newExpandedSpans.size > 0)
     }
   }
-
-
 
   return (
     <div className='w-full'>
@@ -328,8 +314,6 @@ function TraceSpanItem({
   // Ensure values are within valid range
   const safeStartPercent = Math.min(100, Math.max(0, relativeStartPercent))
   const safeWidthPercent = Math.max(2, Math.min(100 - safeStartPercent, actualDurationPercent))
-
-
 
   // Handle click to expand/collapse this span
   const handleSpanClick = () => {
@@ -549,12 +533,12 @@ function TraceSpanItem({
         <div>
           {/* Block Input/Output Data */}
           {(span.input || span.output) && (
-            <div className='mt-2 ml-8 mr-4 mb-4 space-y-3 overflow-hidden'>
+            <div className='mt-2 mr-4 mb-4 ml-8 space-y-3 overflow-hidden'>
               {/* Input Data */}
               {span.input && (
                 <div>
                   <h4 className='mb-2 font-medium text-muted-foreground text-xs'>Input</h4>
-                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3 mb-2'>
+                  <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
                     <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
                   </div>
                 </div>
@@ -566,7 +550,7 @@ function TraceSpanItem({
                   <h4 className='mb-2 font-medium text-muted-foreground text-xs'>
                     {span.status === 'error' ? 'Error Details' : 'Output'}
                   </h4>
-                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3 mb-2'>
+                  <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
                     <BlockDataDisplay
                       data={span.output}
                       blockType={span.type}

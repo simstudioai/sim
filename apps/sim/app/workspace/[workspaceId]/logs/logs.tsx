@@ -314,8 +314,12 @@ export default function Logs() {
                     <div className='font-medium text-muted-foreground text-xs'>Time</div>
                     <div className='font-medium text-muted-foreground text-xs'>Status</div>
                     <div className='font-medium text-muted-foreground text-xs'>Workflow</div>
-                    <div className='hidden lg:block font-medium text-muted-foreground text-xs'>Trigger</div>
-                    <div className='hidden xl:block font-medium text-muted-foreground text-xs'>Cost</div>
+                    <div className='hidden font-medium text-muted-foreground text-xs lg:block'>
+                      Trigger
+                    </div>
+                    <div className='hidden font-medium text-muted-foreground text-xs xl:block'>
+                      Cost
+                    </div>
                     <div className='font-medium text-muted-foreground text-xs'>Duration</div>
                   </div>
                 </div>
@@ -405,11 +409,9 @@ export default function Logs() {
 
                           {/* Cost */}
                           <div className='hidden xl:block'>
-                            <div className='text-xs text-muted-foreground'>
+                            <div className='text-muted-foreground text-xs'>
                               {log.metadata?.enhanced && log.metadata?.cost?.total ? (
-                                <span>
-                                  ${log.metadata.cost.total.toFixed(4)}
-                                </span>
+                                <span>${log.metadata.cost.total.toFixed(4)}</span>
                               ) : (
                                 <span className='pl-0.5'>—</span>
                               )}
