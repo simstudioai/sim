@@ -25,7 +25,7 @@ import {
   githubPrTool,
   githubRepoInfoTool,
 } from './github'
-import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
+import { gmailDraftTool, gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { searchTool as googleSearchTool } from './google'
 import {
   googleCalendarCreateTool,
@@ -142,6 +142,7 @@ export const tools: Record<string, ToolConfig> = {
   gmail_send: gmailSendTool,
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,
+  gmail_draft: gmailDraftTool,
   whatsapp_send_message: whatsappSendMessageTool,
   x_write: xWriteTool,
   x_read: xReadTool,
