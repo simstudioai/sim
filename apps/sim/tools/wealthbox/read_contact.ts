@@ -17,17 +17,17 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
     },
     contactId: {
       type: 'string',
-      required: true,
+      required: false,
       description: 'The ID of the contact to read',
     },
   },
   request: {
     url: (params) => {
       const contactId = params.contactId?.trim()
-      if (!contactId) {
-        throw new Error('Contact ID is required')
+      let url = 'https://api.crmworkspace.com/v1/contacts'
+      if (contactId) {
+        url = `https://api.crmworkspace.com/v1/contacts/${contactId}`
       }
-      const url = `https://api.crmworkspace.com/v1/contacts/${contactId}`
       return url
     },
     method: 'GET',

@@ -18,16 +18,16 @@ export const wealthboxReadTaskTool: ToolConfig<WealthboxReadParams, WealthboxRea
     taskId: {
       type: 'string',
       required: false,
-      description: 'The ID of the task to read (optional)',
+      description: 'The ID of the task to read',
     },
   },
   request: {
     url: (params) => {
       const taskId = params.taskId?.trim()
-      if (!taskId) {
-        throw new Error('Task ID is required. Please provide a task ID to read a specific task.')
+      let url = 'https://api.crmworkspace.com/v1/tasks'
+      if (taskId) {
+        url = `https://api.crmworkspace.com/v1/tasks/${taskId}`
       }
-      const url = `https://api.crmworkspace.com/v1/tasks/${taskId}`
       return url
     },
     method: 'GET',

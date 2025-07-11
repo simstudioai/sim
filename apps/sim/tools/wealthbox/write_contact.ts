@@ -4,6 +4,39 @@ import type { WealthboxWriteParams, WealthboxWriteResponse } from './types'
 
 const logger = createLogger('WealthboxWriteContact')
 
+// Utility function to validate parameters and build contact body
+const validateAndBuildContactBody = (params: WealthboxWriteParams): Record<string, any> => {
+  // Validate required fields
+  if (!params.firstName?.trim()) {
+    throw new Error('First name is required')
+  }
+  if (!params.lastName?.trim()) {
+    throw new Error('Last name is required')
+  }
+
+  const body: Record<string, any> = {
+    first_name: params.firstName.trim(),
+    last_name: params.lastName.trim(),
+  }
+
+  // Add optional fields
+  if (params.emailAddress?.trim()) {
+    body.email_addresses = [
+      {
+        address: params.emailAddress.trim(),
+        kind: 'email',
+        principal: true,
+      },
+    ]
+  }
+
+  if (params.backgroundInformation?.trim()) {
+    body.background_information = params.backgroundInformation.trim()
+  }
+
+  return body
+}
+
 export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, WealthboxWriteResponse> = {
   id: 'wealthbox_write_contact',
   name: 'Write Wealthbox Contact',
@@ -51,35 +84,7 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
       }
     },
     body: (params) => {
-      // Validate required fields
-      if (!params.firstName?.trim()) {
-        throw new Error('First name is required')
-      }
-      if (!params.lastName?.trim()) {
-        throw new Error('Last name is required')
-      }
-
-      const body: Record<string, any> = {
-        first_name: params.firstName.trim(),
-        last_name: params.lastName.trim(),
-      }
-
-      // Add optional fields
-      if (params.emailAddress?.trim()) {
-        body.email_addresses = [
-          {
-            address: params.emailAddress.trim(),
-            kind: 'email',
-            principal: true,
-          },
-        ]
-      }
-
-      if (params.backgroundInformation?.trim()) {
-        body.background_information = params.backgroundInformation.trim()
-      }
-
-      return body
+      return validateAndBuildContactBody(params)
     },
   },
   directExecution: async (params: WealthboxWriteParams) => {
@@ -88,35 +93,9 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
       throw new Error('Access token is required')
     }
 
-    // Validate required fields
-    if (!params.firstName?.trim()) {
-      throw new Error('First name is required')
-    }
-    if (!params.lastName?.trim()) {
-      throw new Error('Last name is required')
-    }
+    const body = validateAndBuildContactBody(params)
 
-    const body: Record<string, any> = {
-      first_name: params.firstName.trim(),
-      last_name: params.lastName.trim(),
-    }
-
-    // Add optional fields
-    if (params.emailAddress?.trim()) {
-      body.email_addresses = [
-        {
-          address: params.emailAddress.trim(),
-          kind: 'email',
-          principal: true,
-        },
-      ]
-    }
-
-    if (params.backgroundInformation?.trim()) {
-      body.background_information = params.backgroundInformation.trim()
-    }
-
-    const response = await fetch('https://api.wealthbox.com/v1/contacts', {
+    const response = await fetch('https://api.crmworkspace.com/v1/contacts', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${params.accessToken}`,
