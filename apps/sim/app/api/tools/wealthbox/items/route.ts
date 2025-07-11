@@ -10,6 +10,16 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WealthboxItemsAPI')
 
+// Interface for transformed Wealthbox items
+interface WealthboxItem {
+  id: string
+  name: string
+  type: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
 /**
  * Get items (notes, contacts, tasks) from Wealthbox
  */
@@ -17,16 +27,13 @@ export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    // Get the session
     const session = await getSession()
 
-    // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    // Get parameters from query
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const type = searchParams.get('type') || 'contact'
@@ -37,7 +44,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    // Validate item type - only handle contacts now
     if (type !== 'contact') {
       logger.warn(`[${requestId}] Invalid item type: ${type}`)
       return NextResponse.json(
@@ -46,7 +52,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get the credential from the database
     const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
 
     if (!credentials.length) {
@@ -56,7 +61,6 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Check if the credential belongs to the user
     if (credential.userId !== session.user.id) {
       logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
         credentialUserId: credential.userId,
@@ -65,7 +69,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Refresh access token if needed
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
 
     if (!accessToken) {
@@ -73,13 +76,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Determine the endpoint based on item type - only contacts for now
     const endpoints = {
       contact: 'contacts',
     }
     const endpoint = endpoints[type as keyof typeof endpoints]
 
-    // Build URL - remove search parameters since they're not supported by Wealthbox API
     const url = new URL(`https://api.crmworkspace.com/v1/${endpoint}`)
 
     logger.info(`[${requestId}] Fetching ${type}s from Wealthbox`, {
@@ -88,7 +89,6 @@ export async function GET(request: NextRequest) {
       hasQuery: !!query.trim(),
     })
 
-    // Make request to Wealthbox API
     const response = await fetch(url.toString(), {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -114,7 +114,6 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json()
 
-    // Log the raw response for debugging
     logger.info(`[${requestId}] Wealthbox API raw response`, {
       type,
       status: response.status,
@@ -123,11 +122,9 @@ export async function GET(request: NextRequest) {
       dataStructure: typeof data === 'object' ? Object.keys(data) : 'not an object',
     })
 
-    // Transform the response based on the correct Wealthbox API format
-    let items: any[] = []
+    let items: WealthboxItem[] = []
 
     if (type === 'contact') {
-      // According to Wealthbox API docs, contacts are returned in a 'contacts' array
       const contacts = data.contacts || []
       if (!Array.isArray(contacts)) {
         logger.warn(`[${requestId}] Contacts is not an array`, {
@@ -147,7 +144,6 @@ export async function GET(request: NextRequest) {
       }))
     }
 
-    // Apply client-side filtering if query is provided
     if (query.trim()) {
       const searchTerm = query.trim().toLowerCase()
       items = items.filter(

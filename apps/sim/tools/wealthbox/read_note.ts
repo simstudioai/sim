@@ -18,16 +18,16 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
     noteId: {
       type: 'string',
       required: false,
-      description: 'The ID of the note to read (optional)',
+      description: 'The ID of the note to read',
     },
   },
   request: {
     url: (params) => {
       const noteId = params.noteId?.trim()
-      if (!noteId) {
-        throw new Error('Note ID is required. Please provide a note ID to read a specific note.')
+      let url = 'https://api.crmworkspace.com/v1/notes'
+      if (noteId) {
+        url = `https://api.crmworkspace.com/v1/notes/${noteId}`
       }
-      const url = `https://api.crmworkspace.com/v1/notes/${noteId}`
       return url
     },
     method: 'GET',
@@ -67,7 +67,7 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
 
     if (!data) {
       return {
-        success: true,
+        success: false,
         output: {
           note: undefined,
           metadata: {

@@ -42,6 +42,7 @@ export interface WealthboxTask {
   id: number
   name: string
   due_date: string
+  description?: string
   complete?: boolean
   category?: number
   priority?: 'Low' | 'Medium' | 'High'

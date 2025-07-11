@@ -4,6 +4,70 @@ import type { WealthboxWriteParams, WealthboxWriteResponse } from './types'
 
 const logger = createLogger('WealthboxWriteNote')
 
+// Utility function to validate parameters and build note body
+const validateAndBuildNoteBody = (params: WealthboxWriteParams): Record<string, any> => {
+  // Validate required fields
+  if (!params.content?.trim()) {
+    throw new Error('Note content is required')
+  }
+
+  const body: Record<string, any> = {
+    content: params.content.trim(),
+  }
+
+  // Handle contact linking
+  if (params.contactId?.trim()) {
+    body.linked_to = [
+      {
+        id: Number.parseInt(params.contactId.trim()),
+        type: 'Contact',
+      },
+    ]
+  }
+
+  return body
+}
+
+// Utility function to handle API errors
+const handleApiError = (response: Response, errorText: string): never => {
+  logger.error(
+    `Wealthbox note write API error: ${response.status} ${response.statusText}`,
+    errorText
+  )
+  throw new Error(
+    `Failed to create Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
+  )
+}
+
+// Utility function to format note response
+const formatNoteResponse = (data: any): WealthboxWriteResponse => {
+  if (!data) {
+    return {
+      success: false,
+      output: {
+        note: undefined,
+        metadata: {
+          operation: 'write_note' as const,
+          itemType: 'note' as const,
+        },
+      },
+    }
+  }
+
+  return {
+    success: true,
+    output: {
+      note: data,
+      success: true,
+      metadata: {
+        operation: 'write_note' as const,
+        itemId: data.id?.toString() || '',
+        itemType: 'note' as const,
+      },
+    },
+  }
+}
+
 export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxWriteResponse> = {
   id: 'wealthbox_write_note',
   name: 'Write Wealthbox Note',
@@ -41,26 +105,7 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
       }
     },
     body: (params) => {
-      // Validate required fields
-      if (!params.content?.trim()) {
-        throw new Error('Note content is required')
-      }
-
-      const body: Record<string, any> = {
-        content: params.content.trim(),
-      }
-
-      // Handle contact linking
-      if (params.contactId?.trim()) {
-        body.linked_to = [
-          {
-            id: Number.parseInt(params.contactId.trim()),
-            type: 'Contact',
-          },
-        ]
-      }
-
-      return body
+      return validateAndBuildNoteBody(params)
     },
   },
   directExecution: async (params: WealthboxWriteParams) => {
@@ -69,26 +114,9 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
       throw new Error('Access token is required')
     }
 
-    // Validate required fields
-    if (!params.content?.trim()) {
-      throw new Error('Note content is required')
-    }
+    const body = validateAndBuildNoteBody(params)
 
-    const body: Record<string, any> = {
-      content: params.content.trim(),
-    }
-
-    // Handle contact linking
-    if (params.contactId?.trim()) {
-      body.linked_to = [
-        {
-          id: Number.parseInt(params.contactId.trim()),
-          type: 'Contact',
-        },
-      ]
-    }
-
-    const response = await fetch('https://api.wealthbox.com/v1/notes', {
+    const response = await fetch('https://api.crmworkspace.com/v1/notes', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${params.accessToken}`,
@@ -99,136 +127,20 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
 
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error(
-        `Wealthbox note write API error: ${response.status} ${response.statusText}`,
-        errorText
-      )
-      throw new Error(
-        `Failed to create Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
-      )
+      handleApiError(response, errorText)
     }
 
     const data = await response.json()
-
-    if (!data) {
-      return {
-        success: true,
-        output: {
-          note: undefined,
-          metadata: {
-            operation: 'write_note' as const,
-            itemType: 'note' as const,
-          },
-        },
-      }
-    }
-
-    // Format note information into readable content
-    const note = data
-    let content = `Note created: ${note.content ? note.content.substring(0, 100) + (note.content.length > 100 ? '...' : '') : 'No content'}`
-
-    if (note.created_at) {
-      content += `\nCreated: ${new Date(note.created_at).toLocaleString()}`
-    }
-
-    if (note.visible_to) {
-      content += `\nVisible to: ${note.visible_to}`
-    }
-
-    if (note.linked_to && note.linked_to.length > 0) {
-      content += '\nLinked to:'
-      note.linked_to.forEach((link: any) => {
-        content += `\n  - ${link.name} (${link.type})`
-      })
-    }
-
-    if (note.tags && note.tags.length > 0) {
-      content += '\nTags:'
-      note.tags.forEach((tag: any) => {
-        content += `\n  - ${tag.name}`
-      })
-    }
-
-    return {
-      success: true,
-      output: {
-        content,
-        note,
-        success: true,
-        metadata: {
-          operation: 'write_note' as const,
-          noteId: note.id?.toString() || '',
-          itemType: 'note' as const,
-        },
-      },
-    }
+    return formatNoteResponse(data)
   },
   transformResponse: async (response: Response, params?: WealthboxWriteParams) => {
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error(
-        `Wealthbox note write API error: ${response.status} ${response.statusText}`,
-        errorText
-      )
-      throw new Error(
-        `Failed to create Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
-      )
+      handleApiError(response, errorText)
     }
 
     const data = await response.json()
-
-    if (!data) {
-      return {
-        success: true,
-        output: {
-          note: undefined,
-          metadata: {
-            operation: 'write_note' as const,
-            itemType: 'note' as const,
-          },
-        },
-      }
-    }
-
-    // Format note information into readable content
-    const note = data
-    let content = `Note created: ${note.content ? note.content.substring(0, 100) + (note.content.length > 100 ? '...' : '') : 'No content'}`
-
-    if (note.created_at) {
-      content += `\nCreated: ${new Date(note.created_at).toLocaleString()}`
-    }
-
-    if (note.visible_to) {
-      content += `\nVisible to: ${note.visible_to}`
-    }
-
-    if (note.linked_to && note.linked_to.length > 0) {
-      content += '\nLinked to:'
-      note.linked_to.forEach((link: any) => {
-        content += `\n  - ${link.name} (${link.type})`
-      })
-    }
-
-    if (note.tags && note.tags.length > 0) {
-      content += '\nTags:'
-      note.tags.forEach((tag: any) => {
-        content += `\n  - ${tag.name}`
-      })
-    }
-
-    return {
-      success: true,
-      output: {
-        content,
-        note,
-        success: true,
-        metadata: {
-          operation: 'write_note' as const,
-          noteId: note.id?.toString() || '',
-          itemType: 'note' as const,
-        },
-      },
-    }
+    return formatNoteResponse(data)
   },
   transformError: (error) => {
     // If it's an Error instance with a message, use that
