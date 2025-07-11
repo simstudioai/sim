@@ -79,6 +79,9 @@ export function UsageLimitEditor({
           min={minimumLimit}
           step='1'
           disabled={isSaving}
+          autoComplete='off'
+          data-form-type='other'
+          name='usage-limit'
         />
       ) : (
         <span className='font-medium text-sm'>{currentLimit}</span>

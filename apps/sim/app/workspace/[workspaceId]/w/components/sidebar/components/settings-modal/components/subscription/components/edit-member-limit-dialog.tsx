@@ -166,6 +166,9 @@ export function EditMemberLimitDialog({
                 max={10000}
                 step='1'
                 placeholder={planMinimum.toString()}
+                autoComplete='off'
+                data-form-type='other'
+                name='member-usage-limit'
               />
             </div>
             <p className='text-muted-foreground text-xs'>
