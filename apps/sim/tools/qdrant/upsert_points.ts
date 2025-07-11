@@ -2,7 +2,7 @@ import type { ToolConfig } from '../types'
 import type { QdrantResponse, QdrantUpsertParams } from './types'
 
 export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = {
-  id: 'qdrant_upsert',
+  id: 'qdrant_upsert_points',
   name: 'Qdrant Upsert Points',
   description: 'Insert or update points in a Qdrant collection',
   version: '1.0',
@@ -45,11 +45,27 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
   transformResponse: async (response) => {
     const data = await response.json()
     return {
-      success: true,
+      success: response.ok && data.status === 'ok',
       output: {
         status: data.status,
         data: data.result,
       },
     }
+  },
+
+  transformError: (error: any): string => {
+    if (error.error && typeof error.error === 'string') {
+      return error.error
+    }
+    if (error.status?.error) {
+      return error.status.error
+    }
+    if (error.message) {
+      return error.message
+    }
+    if (typeof error === 'string') {
+      return error
+    }
+    return 'Qdrant upsert failed'
   },
 }

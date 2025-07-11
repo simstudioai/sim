@@ -2,7 +2,7 @@ import type { ToolConfig } from '../types'
 import type { QdrantResponse, QdrantSearchParams } from './types'
 
 export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = {
-  id: 'qdrant_search',
+  id: 'qdrant_search_vector',
   name: 'Qdrant Search Vector',
   description: 'Search for similar vectors in a Qdrant collection',
   version: '1.0',
@@ -55,7 +55,7 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
   request: {
     method: 'POST',
     url: (params) =>
-      `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points/query`,
+      `${params.url.replace(/\/$/, '')}/collections/${encodeURIComponent(params.collection)}/points/query`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),
@@ -70,6 +70,9 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
   },
 
   transformResponse: async (response) => {
+    if (!response.ok) {
+      throw new Error(`Qdrant search failed: ${response.statusText}`)
+    }
     const data = await response.json()
     return {
       success: true,
@@ -78,5 +81,21 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
         status: data.status,
       },
     }
+  },
+
+  transformError: (error: any): string => {
+    if (error.error && typeof error.error === 'string') {
+      return error.error
+    }
+    if (error.status?.error) {
+      return error.status.error
+    }
+    if (error.message) {
+      return error.message
+    }
+    if (typeof error === 'string') {
+      return error
+    }
+    return 'Qdrant search vector failed'
   },
 }

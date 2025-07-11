@@ -174,16 +174,16 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
   ],
 
   tools: {
-    access: ['qdrant_upsert', 'qdrant_search', 'qdrant_fetch'],
+    access: ['qdrant_upsert_points', 'qdrant_search_vector', 'qdrant_fetch_points'],
     config: {
       tool: (params: Record<string, any>) => {
         switch (params.operation) {
           case 'upsert':
-            return 'qdrant_upsert'
+            return 'qdrant_upsert_points'
           case 'search':
-            return 'qdrant_search'
+            return 'qdrant_search_vector'
           case 'fetch':
-            return 'qdrant_fetch'
+            return 'qdrant_fetch_points'
           default:
             throw new Error('Invalid operation selected')
         }

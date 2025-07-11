@@ -224,7 +224,7 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_quick_add: googleCalendarQuickAddTool,
   google_calendar_invite: googleCalendarInviteTool,
   workflow_executor: workflowExecutorTool,
-  qdrant_fetch: qdrantFetchTool,
-  qdrant_search: qdrantSearchTool,
-  qdrant_upsert: qdrantUpsertTool,
+  qdrant_fetch_points: qdrantFetchTool,
+  qdrant_search_vector: qdrantSearchTool,
+  qdrant_upsert_points: qdrantUpsertTool,
 }

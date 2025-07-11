@@ -519,8 +519,8 @@ const Icons = {
     </svg>
   ),
   qdrant: () => (
-    <svg fill='none' viewBox='0 0 49 56' xmlns='http://www.w3.org/2000/svg'>
-      <g clip-path='url(#b)'>
+    <svg width='48' height='48' fill='none' viewBox='0 0 49 56' xmlns='http://www.w3.org/2000/svg'>
+      <g clipPath='url(#b)'>
         <path
           d='m38.489 51.477-1.1167-30.787-2.0223-8.1167 13.498 1.429v37.242l-8.2456 4.7589-2.1138-4.5259z'
           clip-rule='evenodd'
