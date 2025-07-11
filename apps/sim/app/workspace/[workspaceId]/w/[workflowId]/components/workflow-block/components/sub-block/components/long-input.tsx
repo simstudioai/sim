@@ -302,12 +302,13 @@ export function LongInput({
       />
       <div
         ref={overlayRef}
-        className='pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-sm'
+        className='pointer-events-none absolute inset-0 whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-sm'
         style={{
           fontFamily: 'inherit',
           lineHeight: 'inherit',
           width: textareaRef.current ? `${textareaRef.current.clientWidth}px` : '100%',
           height: `${height}px`,
+          overflow: 'hidden',
         }}
       >
         {formatDisplayText(value?.toString() ?? '', true)}
