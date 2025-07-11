@@ -44,6 +44,7 @@ import { OpenAIBlock } from './blocks/openai'
 import { OutlookBlock } from './blocks/outlook'
 import { PerplexityBlock } from './blocks/perplexity'
 import { PineconeBlock } from './blocks/pinecone'
+import { QdrantBlock } from './blocks/qdrant'
 import { RedditBlock } from './blocks/reddit'
 import { ResponseBlock } from './blocks/response'
 import { RouterBlock } from './blocks/router'
@@ -106,9 +107,10 @@ export const registry: Record<string, BlockConfig> = {
   outlook: OutlookBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
+  qdrant: QdrantBlock,
+  memory: MemoryBlock,
   reddit: RedditBlock,
   router: RouterBlock,
-  memory: MemoryBlock,
   s3: S3Block,
   serper: SerperBlock,
   stagehand: StagehandBlock,
