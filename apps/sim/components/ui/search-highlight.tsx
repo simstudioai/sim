@@ -1,55 +1,92 @@
-'use client'
-
-import { Fragment } from 'react'
+import React from 'react';
 
 interface SearchHighlightProps {
-  text: string
-  searchQuery: string
-  className?: string
+  text: string;
+  searchQuery: string;
+  className?: string;
 }
 
-export function SearchHighlight({ text, searchQuery, className = '' }: SearchHighlightProps) {
-  if (!searchQuery.trim()) {
-    return <span className={className}>{text}</span>
+// Sanitize search query to prevent any potential issues
+const sanitizeSearchQuery = (query: string): string => {
+  // Limit length to prevent excessive processing
+  if (query.length > 100) {
+    query = query.substring(0, 100);
+  }
+  
+  // Remove any null bytes and control characters
+  query = query.replace(/[\x00-\x1f\x7f]/g, '');
+  
+  return query.trim();
+};
+
+// Safe string-based highlighting without regex
+const highlightText = (text: string, searchQuery: string): React.ReactNode[] => {
+  const lowerText = text.toLowerCase();
+  const lowerQuery = searchQuery.toLowerCase();
+  const result: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let matchIndex = 0;
+
+  while (true) {
+    const index = lowerText.indexOf(lowerQuery, lastIndex);
+    if (index === -1) break;
+
+    // Add text before match
+    if (index > lastIndex) {
+      result.push(text.substring(lastIndex, index));
+    }
+
+    // Add highlighted match
+    result.push(
+      <mark key={`match-${matchIndex++}`} className="bg-yellow-200 dark:bg-yellow-800">
+        {text.substring(index, index + searchQuery.length)}
+      </mark>
+    );
+
+    lastIndex = index + searchQuery.length;
   }
 
-  // Create a regex to find matches (case-insensitive)
-  // Handle multiple search terms separated by spaces
-  const searchTerms = searchQuery
-    .trim()
-    .split(/\s+/)
-    .filter((term) => term.length > 0)
-
-  if (searchTerms.length === 0) {
-    return <span className={className}>{text}</span>
+  // Add remaining text
+  if (lastIndex < text.length) {
+    result.push(text.substring(lastIndex));
   }
 
-  // Create regex pattern for all search terms
-  const escapedTerms = searchTerms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  const regexPattern = `(${escapedTerms.join('|')})`
-  const regex = new RegExp(regexPattern, 'gi')
+  return result;
+};
 
-  const parts = text.split(regex)
+export const SearchHighlight: React.FC<SearchHighlightProps> = ({ 
+  text, 
+  searchQuery, 
+  className = '' 
+}: SearchHighlightProps) => {
+  // Return plain text if no search query
+  if (!searchQuery || searchQuery.trim().length === 0) {
+    return <span className={className}>{text}</span>;
+  }
 
-  return (
-    <span className={className}>
-      {parts.map((part, index) => {
-        if (!part) return null
+  // Sanitize the search query
+  const sanitizedQuery = sanitizeSearchQuery(searchQuery);
+  
+  if (sanitizedQuery.length === 0) {
+    return <span className={className}>{text}</span>;
+  }
 
-        const isMatch = regex.test(part)
+  try {
+    // Use safe string-based highlighting
+    const highlightedContent = highlightText(text, sanitizedQuery);
+    
+    if (highlightedContent.length === 0) {
+      return <span className={className}>{text}</span>;
+    }
 
-        return (
-          <Fragment key={index}>
-            {isMatch ? (
-              <span className='rounded-sm bg-yellow-200 px-0.5 py-0.5 font-medium text-yellow-900 dark:bg-yellow-900/50 dark:text-yellow-200'>
-                {part}
-              </span>
-            ) : (
-              part
-            )}
-          </Fragment>
-        )
-      })}
-    </span>
-  )
-}
+    return (
+      <span className={className}>
+        {highlightedContent}
+      </span>
+    );
+  } catch (error) {
+    // Fallback to plain text if highlighting fails
+    console.warn('SearchHighlight: Error during highlighting, falling back to plain text');
+    return <span className={className}>{text}</span>;
+  }
+};
