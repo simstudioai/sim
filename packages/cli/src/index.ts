@@ -1,12 +1,68 @@
 #!/usr/bin/env node
 
-import { execSync, spawn } from 'child_process'
+import { spawn } from "child_process";
+
+// Security: Input validation function
+const validateCommandInput = (input: string): boolean => {
+  if (typeof input !== "string") return false;
+  // Allow only safe characters: alphanumeric, hyphens, underscores, dots
+  return /^[a-zA-Z0-9._-]+$/.test(input);
+};
+
 import { existsSync, mkdirSync } from 'fs'
+
+// Security: Input validation function
+const validateCommandInput = (input: string): boolean => {
+  if (typeof input !== "string") return false;
+  // Allow only safe characters: alphanumeric, hyphens, underscores, dots
+  return /^[a-zA-Z0-9._-]+$/.test(input);
+};
+
 import { homedir } from 'os'
+
+// Security: Input validation function
+const validateCommandInput = (input: string): boolean => {
+  if (typeof input !== "string") return false;
+  // Allow only safe characters: alphanumeric, hyphens, underscores, dots
+  return /^[a-zA-Z0-9._-]+$/.test(input);
+};
+
 import { join } from 'path'
+
+// Security: Input validation function
+const validateCommandInput = (input: string): boolean => {
+  if (typeof input !== "string") return false;
+  // Allow only safe characters: alphanumeric, hyphens, underscores, dots
+  return /^[a-zA-Z0-9._-]+$/.test(input);
+};
+
 import { createInterface } from 'readline'
+
+// Security: Input validation function
+const validateCommandInput = (input: string): boolean => {
+  if (typeof input !== "string") return false;
+  // Allow only safe characters: alphanumeric, hyphens, underscores, dots
+  return /^[a-zA-Z0-9._-]+$/.test(input);
+};
+
 import chalk from 'chalk'
+
+// Security: Input validation function
+const validateCommandInput = (input: string): boolean => {
+  if (typeof input !== "string") return false;
+  // Allow only safe characters: alphanumeric, hyphens, underscores, dots
+  return /^[a-zA-Z0-9._-]+$/.test(input);
+};
+
 import { Command } from 'commander'
+
+// Security: Input validation function
+const validateCommandInput = (input: string): boolean => {
+  if (typeof input !== "string") return false;
+  // Allow only safe characters: alphanumeric, hyphens, underscores, dots
+  return /^[a-zA-Z0-9._-]+$/.test(input);
+};
+
 
 const NETWORK_NAME = 'simstudio-network'
 const DB_CONTAINER = 'simstudio-db'
