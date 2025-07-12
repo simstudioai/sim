@@ -4,34 +4,52 @@ import type { WealthboxWriteParams, WealthboxWriteResponse } from './types'
 
 const logger = createLogger('WealthboxWriteContact')
 
+// Utility function to safely convert to string and trim
+const safeStringify = (value: any): string => {
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  return JSON.stringify(value)
+}
+
 // Utility function to validate parameters and build contact body
 const validateAndBuildContactBody = (params: WealthboxWriteParams): Record<string, any> => {
-  // Validate required fields
-  if (!params.firstName?.trim()) {
+  // Validate required fields with safe stringification
+  const firstName = safeStringify(params.firstName).trim()
+  const lastName = safeStringify(params.lastName).trim()
+
+  if (!firstName) {
     throw new Error('First name is required')
   }
-  if (!params.lastName?.trim()) {
+  if (!lastName) {
     throw new Error('Last name is required')
   }
 
   const body: Record<string, any> = {
-    first_name: params.firstName.trim(),
-    last_name: params.lastName.trim(),
+    first_name: firstName,
+    last_name: lastName,
   }
 
-  // Add optional fields
-  if (params.emailAddress?.trim()) {
+  // Add optional fields with safe stringification
+  const emailAddress = safeStringify(params.emailAddress).trim()
+  if (emailAddress) {
     body.email_addresses = [
       {
-        address: params.emailAddress.trim(),
+        address: emailAddress,
         kind: 'email',
         principal: true,
       },
     ]
   }
 
-  if (params.backgroundInformation?.trim()) {
-    body.background_information = params.backgroundInformation.trim()
+  const backgroundInformation = safeStringify(params.backgroundInformation).trim()
+  if (backgroundInformation) {
+    body.background_information = backgroundInformation
   }
 
   return body

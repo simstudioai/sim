@@ -17,24 +17,41 @@ interface WealthboxTaskRequestBody {
   }>
 }
 
+// Utility function to safely convert to string and trim
+const safeStringify = (value: any): string => {
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  return JSON.stringify(value)
+}
+
 // Utility function to validate parameters and build task body
 const validateAndBuildTaskBody = (params: WealthboxWriteParams): WealthboxTaskRequestBody => {
-  // Validate required fields
-  if (!params.title?.trim()) {
+  // Validate required fields with safe stringification
+  const title = safeStringify(params.title).trim()
+  const dueDate = safeStringify(params.dueDate).trim()
+
+  if (!title) {
     throw new Error('Task title is required')
   }
-  if (!params.dueDate?.trim()) {
+  if (!dueDate) {
     throw new Error('Due date is required')
   }
 
   const body: WealthboxTaskRequestBody = {
-    name: params.title.trim(),
-    due_date: params.dueDate.trim(),
+    name: title,
+    due_date: dueDate,
   }
 
-  // Add optional fields
-  if (params.description?.trim()) {
-    body.description = params.description.trim() // Add this
+  // Add optional fields with safe stringification
+  const description = safeStringify(params.description).trim()
+  if (description) {
+    body.description = description
   }
 
   if (params.complete !== undefined) {
@@ -45,11 +62,12 @@ const validateAndBuildTaskBody = (params: WealthboxWriteParams): WealthboxTaskRe
     body.category = params.category
   }
 
-  // Handle contact linking
-  if (params.contactId?.trim()) {
+  // Handle contact linking with safe stringification
+  const contactId = safeStringify(params.contactId).trim()
+  if (contactId) {
     body.linked_to = [
       {
-        id: Number.parseInt(params.contactId.trim()),
+        id: Number.parseInt(contactId),
         type: 'Contact',
       },
     ]
