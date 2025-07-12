@@ -473,14 +473,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   // Emit workflow operations (blocks, edges, subflows)
   const emitWorkflowOperation = useCallback(
     (operation: string, target: string, payload: any, operationId?: string) => {
-      console.log('🚀 Attempting to emit operation', {
-        hasSocket: !!socket,
-        currentWorkflowId,
-        operationId,
-        operation,
-        target,
-      })
-
       if (!socket || !currentWorkflowId) {
         console.log('❌ Cannot emit - missing requirements', {
           hasSocket: !!socket,
