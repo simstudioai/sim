@@ -49,7 +49,6 @@
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss,md}": [
       "biome check --write --files-ignore-unknown=true"
-    ],
-    "!.github/*.md": []
+    ]
   }
 }
