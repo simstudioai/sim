@@ -156,6 +156,17 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
         emitFunction(operation)
         retryTimeouts.delete(operationId)
+
+        // Create new operation timeout for this retry attempt
+        const newTimeoutId = setTimeout(() => {
+          logger.warn('Retry operation timeout - no server response after 5 seconds', {
+            operationId,
+          })
+          operationTimeouts.delete(operationId)
+          get().handleOperationTimeout(operationId)
+        }, 5000)
+
+        operationTimeouts.set(operationId, newTimeoutId)
       }, delay)
 
       retryTimeouts.set(operationId, timeout)
@@ -201,8 +212,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   },
 
   handleSocketReconnection: () => {
-    logger.info('Socket reconnected - clearing timeouts but keeping operations for retry')
-
     // Clear all timeouts since they're for the old socket
     retryTimeouts.forEach((timeout) => clearTimeout(timeout))
     retryTimeouts.clear()
