@@ -5,6 +5,7 @@
     "ignoreUnknown": false,
     "includes": [
       "**",
+      ".github/**",
       "!**/.next",
       "!**/out",
       "!**/dist",
@@ -39,6 +40,7 @@
     "bracketSpacing": true,
     "includes": [
       "**",
+      ".github/**",
       "!**/.next",
       "!**/out",
       "!**/dist",

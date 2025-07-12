@@ -379,7 +379,18 @@ In addition, you will need to update the registries:
      provider: 'pinecone', // ID of the OAuth provider
 
      params: {
-       // Tool parameters
+       parameterName: {
+         type: 'string',
+         required: true,
+         visibility: 'user-or-llm', // Controls parameter visibility
+         description: 'Description of the parameter',
+       },
+       optionalParam: {
+         type: 'string',
+         required: false,
+         visibility: 'user-only',
+         description: 'Optional parameter only user can set',
+       },
      },
      request: {
        // Request configuration
@@ -429,11 +440,57 @@ Maintaining consistent naming across the codebase is critical for auto-generatio
 - **Tool Exports:** Should be named `{toolName}Tool` (e.g., `fetchTool`)
 - **Tool IDs:** Should follow the format `{provider}_{tool_name}` (e.g., `pinecone_fetch`)
 
+### Parameter Visibility System
+
+Sim Studio implements a sophisticated parameter visibility system that controls how parameters are exposed to users and LLMs in agent workflows. Each parameter can have one of four visibility levels:
+
+| Visibility  | User Sees | LLM Sees | How It Gets Set                |
+|-------------|-----------|----------|--------------------------------|
+| `user-only` | ✅ Yes     | ❌ No     | User provides in UI            |
+| `user-or-llm` | ✅ Yes     | ✅ Yes    | User provides OR LLM generates |
+| `llm-only`  | ❌ No      | ✅ Yes    | LLM generates only             |
+| `hidden`    | ❌ No      | ❌ No     | Application injects at runtime |
+
+#### Visibility Guidelines
+
+- **`user-or-llm`**: Use for core parameters that can be provided by users or intelligently filled by the LLM (e.g., search queries, email subjects)
+- **`user-only`**: Use for configuration parameters, API keys, and settings that only users should control (e.g., number of results, authentication credentials)
+- **`llm-only`**: Use for computed values that the LLM should handle internally (e.g., dynamic calculations, contextual data)
+- **`hidden`**: Use for system-level parameters injected at runtime (e.g., OAuth tokens, internal identifiers)
+
+#### Example Implementation
+
+```typescript
+params: {
+  query: {
+    type: 'string',
+    required: true,
+    visibility: 'user-or-llm', // User can provide or LLM can generate
+    description: 'Search query to execute',
+  },
+  apiKey: {
+    type: 'string',
+    required: true,
+    visibility: 'user-only', // Only user provides this
+    description: 'API key for authentication',
+  },
+  internalId: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden', // System provides this at runtime
+    description: 'Internal tracking identifier',
+  },
+}
+```
+
+This visibility system ensures clean user interfaces while maintaining full flexibility for LLM-driven workflows.
+
 ### Guidelines & Best Practices
 
 - **Code Style:** Follow the project's ESLint and Prettier configurations. Use meaningful variable names and small, focused functions.
 - **Documentation:** Clearly document the purpose, inputs, outputs, and any special behavior for your block/tool.
 - **Error Handling:** Implement robust error handling and provide user-friendly error messages.
+- **Parameter Visibility:** Always specify the appropriate visibility level for each parameter to ensure proper UI behavior and LLM integration.
 - **Testing:** Add unit or integration tests to verify your changes when possible.
 - **Commit Changes:** Update all related components and registries, and describe your changes in your pull request.
 
