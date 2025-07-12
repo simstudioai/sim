@@ -27,12 +27,21 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
   if (isInput) {
     const cleanInput = { ...data }
 
-    // Remove sensitive fields
+    // Remove sensitive fields (common API keys and tokens)
     if (cleanInput.apiKey) {
       cleanInput.apiKey = '***'
     }
     if (cleanInput.azureApiKey) {
       cleanInput.azureApiKey = '***'
+    }
+    if (cleanInput.token) {
+      cleanInput.token = '***'
+    }
+    if (cleanInput.accessToken) {
+      cleanInput.accessToken = '***'
+    }
+    if (cleanInput.authorization) {
+      cleanInput.authorization = '***'
     }
 
     // Remove null/undefined values for cleaner display
@@ -72,6 +81,10 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
           status: response.status,
           headers: response.headers,
         }
+
+      case 'tool':
+        // For tool calls, show the result data directly
+        return response
 
       default:
         // For other block types, show the response content
@@ -613,9 +626,16 @@ function TraceSpanItem({
                   startTime: new Date(toolStartTime).toISOString(),
                   endTime: new Date(toolEndTime).toISOString(),
                   status: toolCall.error ? 'error' : 'success',
+                  // Include tool call arguments as input and result as output
+                  input: toolCall.input,
+                  output: toolCall.error
+                    ? { error: toolCall.error, ...(toolCall.output || {}) }
+                    : toolCall.output,
                 }
 
-                // Tool calls typically don't have sub-items
+                // Tool calls now have input/output data to display
+                const hasToolCallData = Boolean(toolCall.input || toolCall.output || toolCall.error)
+
                 return (
                   <TraceSpanItem
                     key={`tool-${index}`}
@@ -627,7 +647,7 @@ function TraceSpanItem({
                     workflowStartTime={workflowStartTime}
                     onToggle={onToggle}
                     expandedSpans={expandedSpans}
-                    hasSubItems={false}
+                    hasSubItems={hasToolCallData}
                   />
                 )
               })}
