@@ -474,10 +474,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const emitWorkflowOperation = useCallback(
     (operation: string, target: string, payload: any, operationId?: string) => {
       if (!socket || !currentWorkflowId) {
-        console.log('❌ Cannot emit - missing requirements', {
-          hasSocket: !!socket,
-          currentWorkflowId,
-        })
         return
       }
 
