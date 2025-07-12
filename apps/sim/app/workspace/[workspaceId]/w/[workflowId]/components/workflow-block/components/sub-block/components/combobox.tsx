@@ -341,9 +341,14 @@ export function ComboBox({
     }
   }, [value])
 
-  // Reset highlighted index when filtered options change
+  // Reset highlighted index when filtered options change, but preserve if within bounds
   useEffect(() => {
-    setHighlightedIndex(-1)
+    setHighlightedIndex((prev) => {
+      if (prev >= 0 && prev < filteredOptions.length) {
+        return prev
+      }
+      return -1
+    })
   }, [filteredOptions])
 
   // Scroll highlighted option into view

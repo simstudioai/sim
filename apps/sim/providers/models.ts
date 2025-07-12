@@ -307,7 +307,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
-          toolUsageControl: false,
+          toolUsageControl: true,
         },
       },
       {
@@ -320,7 +320,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
-          toolUsageControl: false,
+          toolUsageControl: true,
         },
       },
     ],

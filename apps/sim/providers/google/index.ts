@@ -3,7 +3,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolExecution } from '../utils'
+import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('GoogleProvider')
 
@@ -26,10 +26,7 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
           if (done) {
             // Try to parse any remaining buffer as complete JSON
             if (buffer.trim()) {
-              logger.debug('Processing final buffer', {
-                bufferLength: buffer.length,
-                bufferPreview: buffer.substring(0, 200),
-              })
+              // Processing final buffer
               try {
                 const data = JSON.parse(buffer.trim())
                 const candidate = data.candidates?.[0]
@@ -37,23 +34,23 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
                   // Check if this is a function call
                   const functionCall = extractFunctionCall(candidate)
                   if (functionCall) {
-                    logger.debug('Function call detected in final buffer, should not be streamed', {
-                      functionName: functionCall.name,
-                    })
-                  } else {
-                    const content = extractTextContent(candidate)
-                    if (content) {
-                      logger.debug('Extracted content from final buffer', {
-                        contentLength: content.length,
-                      })
-                      controller.enqueue(new TextEncoder().encode(content))
-                    }
+                    logger.debug(
+                      'Function call detected in final buffer, ending stream to execute tool',
+                      {
+                        functionName: functionCall.name,
+                      }
+                    )
+                    // Function calls should not be streamed - end the stream early
+                    controller.close()
+                    return
+                  }
+                  const content = extractTextContent(candidate)
+                  if (content) {
+                    controller.enqueue(new TextEncoder().encode(content))
                   }
                 }
               } catch (e) {
-                logger.debug('Final buffer not valid JSON, checking if it contains JSON array', {
-                  error: e instanceof Error ? e.message : String(e),
-                })
+                // Final buffer not valid JSON, checking if it contains JSON array
                 // Try parsing as JSON array if it starts with [
                 if (buffer.trim().startsWith('[')) {
                   try {
@@ -66,27 +63,23 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
                           const functionCall = extractFunctionCall(candidate)
                           if (functionCall) {
                             logger.debug(
-                              'Function call detected in array item, should not be streamed',
+                              'Function call detected in array item, ending stream to execute tool',
                               {
                                 functionName: functionCall.name,
                               }
                             )
-                          } else {
-                            const content = extractTextContent(candidate)
-                            if (content) {
-                              logger.debug('Extracted content from array item', {
-                                contentLength: content.length,
-                              })
-                              controller.enqueue(new TextEncoder().encode(content))
-                            }
+                            controller.close()
+                            return
+                          }
+                          const content = extractTextContent(candidate)
+                          if (content) {
+                            controller.enqueue(new TextEncoder().encode(content))
                           }
                         }
                       }
                     }
                   } catch (arrayError) {
-                    logger.debug('Buffer also not valid JSON array', {
-                      error: arrayError instanceof Error ? arrayError.message : String(arrayError),
-                    })
+                    // Buffer is not valid JSON array
                   }
                 }
               }
@@ -97,12 +90,6 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
 
           const text = new TextDecoder().decode(value)
           buffer += text
-
-          logger.debug('Received chunk from Gemini stream', {
-            chunkLength: text.length,
-            bufferLength: buffer.length,
-            chunkPreview: text.substring(0, 100),
-          })
 
           // Try to find complete JSON objects in buffer
           // Look for patterns like: {...}\n{...} or just a single {...}
@@ -147,12 +134,7 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
 
               try {
                 const data = JSON.parse(jsonStr)
-                logger.debug('Parsed complete JSON from stream', {
-                  hasCandidate: !!data.candidates?.[0],
-                  hasParts: !!data.candidates?.[0]?.content?.parts,
-                  finishReason: data.candidates?.[0]?.finishReason,
-                  jsonLength: jsonStr.length,
-                })
+                // JSON parsed successfully from stream
 
                 const candidate = data.candidates?.[0]
 
@@ -171,19 +153,20 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
                   // Check if this is a function call
                   const functionCall = extractFunctionCall(candidate)
                   if (functionCall) {
-                    logger.debug('Function call detected in stream, should not be streamed', {
-                      functionName: functionCall.name,
-                    })
-                    // Function calls should not be streamed, they should be handled by tool execution flow
-                    // This indicates a configuration issue - streaming shouldn't happen for function calls
-                  } else {
-                    const content = extractTextContent(candidate)
-                    if (content) {
-                      logger.debug('Extracted content from stream', {
-                        contentLength: content.length,
-                      })
-                      controller.enqueue(new TextEncoder().encode(content))
-                    }
+                    logger.debug(
+                      'Function call detected in stream, ending stream to execute tool',
+                      {
+                        functionName: functionCall.name,
+                      }
+                    )
+                    // Function calls should not be streamed - we need to end the stream
+                    // and let the non-streaming tool execution flow handle this
+                    controller.close()
+                    return
+                  }
+                  const content = extractTextContent(candidate)
+                  if (content) {
+                    controller.enqueue(new TextEncoder().encode(content))
                   }
                 }
               } catch (e) {
@@ -271,8 +254,8 @@ export const googleProvider: ProviderConfig = {
         payload.systemInstruction = systemInstruction
       }
 
-      // Add structured output format if requested
-      if (request.responseFormat) {
+      // Add structured output format if requested (but not when tools are present)
+      if (request.responseFormat && !tools?.length) {
         const responseFormatSchema = request.responseFormat.schema || request.responseFormat
 
         // Clean the schema using our helper function
@@ -286,21 +269,39 @@ export const googleProvider: ProviderConfig = {
           hasSchema: !!cleanSchema,
           mimeType: 'application/json',
         })
+      } else if (request.responseFormat && tools?.length) {
+        logger.warn(
+          'Gemini does not support structured output (responseFormat) with function calling (tools). Structured output will be ignored.'
+        )
       }
 
-      // Add tools if provided
-      if (tools?.length) {
-        payload.tools = [
-          {
-            functionDeclarations: tools,
-          },
-        ]
+      // Handle tools and tool usage control
+      let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
-        logger.info('Google Gemini request with tools:', {
-          toolCount: tools.length,
-          model: requestedModel,
-          tools: tools.map((t) => t.name),
-        })
+      if (tools?.length) {
+        preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'google')
+        const { tools: filteredTools, toolConfig } = preparedTools
+
+        if (filteredTools?.length) {
+          payload.tools = [
+            {
+              functionDeclarations: filteredTools,
+            },
+          ]
+
+          // Add Google-specific tool configuration
+          if (toolConfig) {
+            payload.toolConfig = toolConfig
+          }
+
+          logger.info('Google Gemini request with tools:', {
+            toolCount: filteredTools.length,
+            model: requestedModel,
+            tools: filteredTools.map((t) => t.name),
+            hasToolConfig: !!toolConfig,
+            toolConfig: toolConfig,
+          })
+        }
       }
 
       // Make the API request
@@ -427,6 +428,38 @@ export const googleProvider: ProviderConfig = {
       const toolResults = []
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
+
+      // Track forced tools and their usage (similar to OpenAI pattern)
+      const originalToolConfig = preparedTools?.toolConfig
+      const forcedTools = preparedTools?.forcedTools || []
+      let usedForcedTools: string[] = []
+      let hasUsedForcedTool = false
+      let currentToolConfig = originalToolConfig
+
+      // Helper function to check for forced tool usage in responses
+      const checkForForcedToolUsage = (functionCall: { name: string; args: any }) => {
+        if (currentToolConfig && forcedTools.length > 0) {
+          const toolCallsForTracking = [{ name: functionCall.name, arguments: functionCall.args }]
+          const result = trackForcedToolUsage(
+            toolCallsForTracking,
+            currentToolConfig,
+            logger,
+            'google',
+            forcedTools,
+            usedForcedTools
+          )
+          hasUsedForcedTool = result.hasUsedForcedTool
+          usedForcedTools = result.usedForcedTools
+
+          if (result.nextToolConfig) {
+            currentToolConfig = result.nextToolConfig
+            logger.info('Updated tool config for next iteration', {
+              hasNextToolConfig: !!currentToolConfig,
+              usedForcedTools: usedForcedTools,
+            })
+          }
+        }
+      }
 
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
@@ -558,6 +591,9 @@ export const googleProvider: ProviderConfig = {
               const thisToolsTime = Date.now() - toolsStartTime
               toolsTime += thisToolsTime
 
+              // Check for forced tool usage and update configuration
+              checkForForcedToolUsage(latestFunctionCall)
+
               // Make the next request with updated messages
               const nextModelStartTime = Date.now()
 
@@ -568,19 +604,114 @@ export const googleProvider: ProviderConfig = {
                   const streamingPayload = {
                     ...payload,
                     contents: simplifiedMessages,
-                    toolConfig: { functionCallingConfig: { mode: 'AUTO' } }, // Always use AUTO mode for streaming after tools
                   }
 
-                  logger.info('Streaming payload for tool call follow-up', {
-                    contents: simplifiedMessages,
-                    toolConfig: streamingPayload.toolConfig,
-                    hasTools: !!streamingPayload.tools,
-                  })
+                  // Check if we should remove tools and enable structured output for final response
+                  const allForcedToolsUsed =
+                    forcedTools.length > 0 && usedForcedTools.length === forcedTools.length
 
-                  // Remove any forced tool configuration to prevent issues with streaming
-                  if ('toolConfig' in streamingPayload) {
-                    streamingPayload.toolConfig = { functionCallingConfig: { mode: 'AUTO' } }
+                  if (allForcedToolsUsed && request.responseFormat) {
+                    // All forced tools have been used, we can now remove tools and enable structured output
+                    streamingPayload.tools = undefined
+                    streamingPayload.toolConfig = undefined
+
+                    // Add structured output format for final response
+                    const responseFormatSchema =
+                      request.responseFormat.schema || request.responseFormat
+                    const cleanSchema = cleanSchemaForGemini(responseFormatSchema)
+
+                    if (!streamingPayload.generationConfig) {
+                      streamingPayload.generationConfig = {}
+                    }
+                    streamingPayload.generationConfig.responseMimeType = 'application/json'
+                    streamingPayload.generationConfig.responseSchema = cleanSchema
+
+                    logger.info('Using structured output for final response after tool execution')
+                  } else {
+                    // Use updated tool configuration if available, otherwise default to AUTO
+                    if (currentToolConfig) {
+                      streamingPayload.toolConfig = currentToolConfig
+                    } else {
+                      streamingPayload.toolConfig = { functionCallingConfig: { mode: 'AUTO' } }
+                    }
                   }
+
+                  // Check if we should handle this as a potential forced tool call
+                  // First make a non-streaming request to see if we get a function call
+                  const checkPayload = {
+                    ...streamingPayload,
+                    // Remove stream property to get non-streaming response
+                  }
+                  checkPayload.stream = undefined
+
+                  const checkResponse = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
+                    {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(checkPayload),
+                    }
+                  )
+
+                  if (!checkResponse.ok) {
+                    const errorBody = await checkResponse.text()
+                    logger.error('Error in Gemini check request:', {
+                      status: checkResponse.status,
+                      statusText: checkResponse.statusText,
+                      responseBody: errorBody,
+                    })
+                    throw new Error(
+                      `Gemini API check error: ${checkResponse.status} ${checkResponse.statusText}`
+                    )
+                  }
+
+                  const checkResult = await checkResponse.json()
+                  const checkCandidate = checkResult.candidates?.[0]
+                  const checkFunctionCall = extractFunctionCall(checkCandidate)
+
+                  if (checkFunctionCall) {
+                    // We have a function call - handle it in non-streaming mode
+                    logger.info(
+                      'Function call detected in follow-up, handling in non-streaming mode',
+                      {
+                        functionName: checkFunctionCall.name,
+                      }
+                    )
+
+                    // Update geminiResponse to continue the tool execution loop
+                    geminiResponse = checkResult
+
+                    // Update token counts if available
+                    if (checkResult.usageMetadata) {
+                      tokens.prompt += checkResult.usageMetadata.promptTokenCount || 0
+                      tokens.completion += checkResult.usageMetadata.candidatesTokenCount || 0
+                      tokens.total +=
+                        (checkResult.usageMetadata.promptTokenCount || 0) +
+                        (checkResult.usageMetadata.candidatesTokenCount || 0)
+                    }
+
+                    // Calculate timing for this model call
+                    const nextModelEndTime = Date.now()
+                    const thisModelTime = nextModelEndTime - nextModelStartTime
+                    modelTime += thisModelTime
+
+                    // Add to time segments
+                    timeSegments.push({
+                      type: 'model',
+                      name: `Model response (iteration ${iterationCount + 1})`,
+                      startTime: nextModelStartTime,
+                      endTime: nextModelEndTime,
+                      duration: thisModelTime,
+                    })
+
+                    // Continue the loop to handle the function call
+                    iterationCount++
+                    continue
+                  }
+                  // No function call - proceed with streaming
+                  logger.info('No function call detected, proceeding with streaming response')
 
                   // Make the streaming request with streamGenerateContent endpoint
                   const streamingResponse = await fetch(
@@ -670,6 +801,41 @@ export const googleProvider: ProviderConfig = {
                 }
 
                 // Make the next request for non-streaming response
+                const nextPayload = {
+                  ...payload,
+                  contents: simplifiedMessages,
+                }
+
+                // Check if we should remove tools and enable structured output for final response
+                const allForcedToolsUsed =
+                  forcedTools.length > 0 && usedForcedTools.length === forcedTools.length
+
+                if (allForcedToolsUsed && request.responseFormat) {
+                  // All forced tools have been used, we can now remove tools and enable structured output
+                  nextPayload.tools = undefined
+                  nextPayload.toolConfig = undefined
+
+                  // Add structured output format for final response
+                  const responseFormatSchema =
+                    request.responseFormat.schema || request.responseFormat
+                  const cleanSchema = cleanSchemaForGemini(responseFormatSchema)
+
+                  if (!nextPayload.generationConfig) {
+                    nextPayload.generationConfig = {}
+                  }
+                  nextPayload.generationConfig.responseMimeType = 'application/json'
+                  nextPayload.generationConfig.responseSchema = cleanSchema
+
+                  logger.info(
+                    'Using structured output for final non-streaming response after tool execution'
+                  )
+                } else {
+                  // Add updated tool configuration if available
+                  if (currentToolConfig) {
+                    nextPayload.toolConfig = currentToolConfig
+                  }
+                }
+
                 const nextResponse = await fetch(
                   `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
                   {
@@ -677,10 +843,7 @@ export const googleProvider: ProviderConfig = {
                     headers: {
                       'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                      ...payload,
-                      contents: simplifiedMessages,
-                    }),
+                    body: JSON.stringify(nextPayload),
                   }
                 )
 
