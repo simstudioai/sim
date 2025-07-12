@@ -79,19 +79,18 @@ Send emails using Gmail
 | `threadId` | string |
 | `labelIds` | string |
 
-### `gmail_read`
+### `gmail_draft`
 
-Read emails from Gmail
+Draft emails using Gmail
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | Access token for Gmail API |
-| `messageId` | string | No | ID of the message to read |
-| `folder` | string | No | Folder/label to read emails from |
-| `unreadOnly` | boolean | No | Only retrieve unread messages |
-| `maxResults` | number | No | Maximum number of messages to retrieve \(default: 1, max: 10\) |
+| `to` | string | Yes | Recipient email address |
+| `subject` | string | Yes | Email subject |
+| `body` | string | Yes | Email body content |
 
 #### Output
 
@@ -99,30 +98,19 @@ Read emails from Gmail
 | --------- | ---- |
 | `content` | string |
 | `metadata` | string |
-
-### `gmail_search`
-
-Search emails in Gmail
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Gmail API |
-| `query` | string | Yes | Search query for emails |
-| `maxResults` | number | No | Maximum number of results to return |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
+| `message` | string |
+| `threadId` | string |
+| `labelIds` | string |
 
 
 
 ## Block Configuration
 
-No configuration parameters required.
+### Input
+
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation (e.g., 'send', 'draft') |
 
 
 
