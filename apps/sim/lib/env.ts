@@ -98,6 +98,8 @@ export const env = createEnv({
     MICROSOFT_CLIENT_SECRET: z.string().optional(),
     HUBSPOT_CLIENT_ID: z.string().optional(),
     HUBSPOT_CLIENT_SECRET: z.string().optional(),
+    WEALTHBOX_CLIENT_ID: z.string().optional(),
+    WEALTHBOX_CLIENT_SECRET: z.string().optional(),
     DOCKER_BUILD: z.boolean().optional(),
     LINEAR_CLIENT_ID: z.string().optional(),
     LINEAR_CLIENT_SECRET: z.string().optional(),

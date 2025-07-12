@@ -61,6 +61,7 @@ import { TranslateBlock } from './blocks/translate'
 import { TwilioSMSBlock } from './blocks/twilio'
 import { TypeformBlock } from './blocks/typeform'
 import { VisionBlock } from './blocks/vision'
+import { WealthboxBlock } from './blocks/wealthbox'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { WorkflowBlock } from './blocks/workflow'
 import { XBlock } from './blocks/x'
@@ -130,6 +131,7 @@ export const registry: Record<string, BlockConfig> = {
   youtube: YouTubeBlock,
   huggingface: HuggingFaceBlock,
   response: ResponseBlock,
+  wealthbox: WealthboxBlock,
 }
 
 // Helper functions to access the registry
