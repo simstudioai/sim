@@ -40,8 +40,7 @@ export function setupOperationsHandlers(
 
     try {
       const validatedOperation = WorkflowOperationSchema.parse(data)
-      const extractedData = validatedOperation as any
-      operationId = extractedData.operationId
+      operationId = validatedOperation.operationId
       const { operation, target, payload, timestamp } = validatedOperation
 
       // Check operation permissions
