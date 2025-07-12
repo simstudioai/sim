@@ -155,8 +155,8 @@ export class AgentBlockHandler implements BlockHandler {
       description: tool.schema.function.description || '',
       params: userProvidedParams,
       parameters: {
-        type: tool.schema.function.parameters.type,
         ...filteredSchema,
+        type: tool.schema.function.parameters.type,
       },
       usageControl: tool.usageControl || 'auto',
     }
