@@ -103,6 +103,34 @@ export interface ToolWithParameters {
   optionalParameters: ToolParameterConfig[] // Nice to have, shown to user
 }
 
+// Cache for block configurations to avoid expensive require() calls
+let blockConfigCache: Record<string, BlockConfig> | null = null
+
+function getBlockConfigurations(): Record<string, BlockConfig> {
+  if (!blockConfigCache) {
+    try {
+      // Import blocks dynamically to avoid circular dependencies
+      const { getAllBlocks } = require('../blocks')
+      const allBlocks = getAllBlocks()
+      blockConfigCache = {}
+      allBlocks.forEach((block: BlockConfig) => {
+        blockConfigCache![block.type] = block
+      })
+    } catch (error) {
+      console.warn('Could not load block configuration:', error)
+      blockConfigCache = {}
+    }
+  }
+  return blockConfigCache
+}
+
+/**
+ * Clears the block configuration cache (useful for development/hot reload)
+ */
+export function clearBlockConfigCache(): void {
+  blockConfigCache = null
+}
+
 /**
  * Gets all parameters for a tool, categorized by their usage
  * Also includes UI component information from block configurations
@@ -119,13 +147,8 @@ export function getToolParametersConfig(
   // Get block configuration for UI component information
   let blockConfig: BlockConfig | null = null
   if (blockType) {
-    try {
-      // Import blocks dynamically to avoid circular dependencies
-      const { getAllBlocks } = require('../blocks')
-      blockConfig = getAllBlocks().find((block: BlockConfig) => block.type === blockType) || null
-    } catch (error) {
-      console.warn('Could not load block configuration:', error)
-    }
+    const blockConfigs = getBlockConfigurations()
+    blockConfig = blockConfigs[blockType] || null
   }
 
   // Convert tool params to our standard format with UI component info

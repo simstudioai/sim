@@ -1346,7 +1346,7 @@ export function ToolInput({
               >
                 <div
                   className={cn(
-                    'flex flex-col overflow-hidden rounded-md border bg-card',
+                    'flex flex-col overflow-visible rounded-md border bg-card',
                     dragOverIndex === toolIndex &&
                       draggedIndex !== toolIndex &&
                       draggedIndex !== null
@@ -1471,14 +1471,8 @@ export function ToolInput({
                     </div>
                   </div>
 
-                  {!isCustomTool && hasExpandableContent && (
-                    <div
-                      className={cn(
-                        'space-y-3 overflow-hidden p-3 transition-all duration-200',
-                        tool.isExpanded ? 'block' : 'hidden'
-                      )}
-                      aria-hidden={!tool.isExpanded}
-                    >
+                  {!isCustomTool && hasExpandableContent && tool.isExpanded && (
+                    <div className='space-y-3 overflow-visible p-3'>
                       {/* Operation dropdown for tools with multiple operations */}
                       {(() => {
                         const hasOperations = hasMultipleOperations(tool.type)
