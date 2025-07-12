@@ -15,14 +15,21 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Microsoft Excel API',
     },
     spreadsheetId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the spreadsheet to read from',
     },
-    range: { type: 'string', required: false, description: 'The range of cells to read from' },
+    range: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The range of cells to read from',
+    },
   },
   request: {
     url: (params) => {

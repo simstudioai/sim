@@ -21,21 +21,25 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token',
     },
     baseId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID of the Airtable base',
     },
     tableId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID or name of the table',
     },
     records: {
       type: 'json',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Array of records to update, each with an `id` and a `fields` object',
       // Example: [{ id: "rec123", fields: { "Status": "Done" } }, { id: "rec456", fields: { "Priority": "High" } }]
     },

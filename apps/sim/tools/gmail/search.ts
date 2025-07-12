@@ -12,26 +12,26 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: [
-      // 'https://www.googleapis.com/auth/gmail.readonly',
-      'https://www.googleapis.com/auth/gmail.labels',
-    ],
+    additionalScopes: ['https://www.googleapis.com/auth/gmail.labels'],
   },
 
   params: {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Gmail API',
     },
     query: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Search query for emails',
     },
     maxResults: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of results to return',
     },
   },

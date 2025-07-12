@@ -18,17 +18,25 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Docs API',
     },
-    title: { type: 'string', required: true, description: 'The title of the document to create' },
+    title: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The title of the document to create',
+    },
     content: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'The content of the document to create',
     },
     folderId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'The ID of the folder to create the document in',
     },
   },

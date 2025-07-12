@@ -33,7 +33,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     domain: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-or-llm',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {

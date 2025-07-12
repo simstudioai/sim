@@ -19,18 +19,31 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Drive API',
     },
-    fileName: { type: 'string', required: true, description: 'The name of the file to upload' },
-    content: { type: 'string', required: true, description: 'The content of the file to upload' },
+    fileName: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The name of the file to upload',
+    },
+    content: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The content of the file to upload',
+    },
     mimeType: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'The MIME type of the file to upload',
     },
     folderId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'The ID of the folder to upload the file to',
     },
   },

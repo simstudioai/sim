@@ -10,31 +10,37 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
     formId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Typeform form ID',
     },
     apiKey: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Typeform Personal Access Token',
     },
     pageSize: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Number of responses to retrieve (default: 25)',
     },
     since: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Retrieve responses submitted after this date (ISO 8601 format)',
     },
     until: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Retrieve responses submitted before this date (ISO 8601 format)',
     },
     completed: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Filter by completion status (true/false)',
     },
   },

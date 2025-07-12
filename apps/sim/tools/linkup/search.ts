@@ -11,23 +11,26 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
     q: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The search query',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      description: 'Enter your Linkup API key',
-      requiredForToolCall: true,
     },
     depth: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Search depth (has to either be "standard" or "deep")',
     },
     outputType: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Type of output to return (has to either be "sourcedAnswer" or "searchResults")',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Enter your Linkup API key',
     },
   },
 

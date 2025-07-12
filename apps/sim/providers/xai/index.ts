@@ -319,12 +319,21 @@ export const xAIProvider: ProviderConfig = {
               }
 
               const toolCallStartTime = Date.now()
-              const mergedArgs = {
+
+              // Only merge actual tool parameters for logging
+              const toolParams = {
                 ...tool.params,
                 ...toolArgs,
-                ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
               }
-              const result = await executeTool(toolName, mergedArgs, true)
+
+              // Add system parameters for execution
+              const executionParams = {
+                ...toolParams,
+                ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
+                ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
+              }
+
+              const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 
@@ -348,7 +357,7 @@ export const xAIProvider: ProviderConfig = {
               toolResults.push(result.output)
               toolCalls.push({
                 name: toolName,
-                arguments: toolArgs,
+                arguments: toolParams,
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,

@@ -16,28 +16,32 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token for Jira',
     },
     domain: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description:
         'Jira project ID to retrieve issues from. If not provided, all issues will be retrieved.',
     },
     issueKey: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Jira issue key to retrieve (e.g., PROJ-123)',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description:
         'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },

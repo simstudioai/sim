@@ -11,17 +11,19 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
     query: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The question to answer',
     },
     text: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Whether to include the full text of the answer',
     },
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Exa AI API Key',
     },
   },

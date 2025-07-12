@@ -15,6 +15,7 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Docs API',
     },
     documentId: {

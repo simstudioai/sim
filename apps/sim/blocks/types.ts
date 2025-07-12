@@ -68,7 +68,6 @@ export type BlockOutput =
 export interface ParamConfig {
   type: ParamType
   required: boolean
-  requiredForToolCall?: boolean
   description?: string
   schema?: {
     type: string

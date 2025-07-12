@@ -11,21 +11,23 @@ export const generateEmbeddingsTool: ToolConfig<
   version: '1.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Pinecone API key',
-    },
     model: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Model to use for generating embeddings',
     },
     inputs: {
       type: 'array',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Array of text inputs to generate embeddings for',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Pinecone API key',
     },
   },
 

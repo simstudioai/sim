@@ -20,16 +20,19 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Drive API',
     },
     fileId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the file to get content from',
     },
     mimeType: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'The MIME type to export Google Workspace files to (optional)',
     },
   },

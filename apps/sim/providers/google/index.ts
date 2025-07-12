@@ -343,40 +343,28 @@ export const googleProvider: ProviderConfig = {
                 break
               }
 
-              // First, identify parameters marked as requiredForToolCall
-              const requiredToolCallParams: Record<string, any> = {}
-              if (tool.params) {
-                Object.entries(tool.params).forEach(([key, value]) => {
-                  // Check if this parameter is marked as requiredForToolCall
-                  if (value?.requiredForToolCall) {
-                    requiredToolCallParams[key] = value
-                  }
-                })
-              }
-
               // Execute the tool
               const toolCallStartTime = Date.now()
 
-              // Merge arguments in the correct order of precedence:
-              // 1. Default parameters from tool.params
-              // 2. Arguments from the model's function call (toolArgs)
-              // 3. Parameters marked as requiredForToolCall (these should always be preserved)
-              // 4. Workflow context if needed
-              const mergedArgs = {
+              // Only merge actual tool parameters for logging
+              const toolParams = {
                 ...tool.params, // Default parameters defined for the tool
                 ...toolArgs, // Arguments from the model's function call
-                ...requiredToolCallParams, // Required parameters from the tool definition (take precedence)
+              }
+
+              // Add system parameters for execution
+              const executionParams = {
+                ...toolParams,
                 ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
                 ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
               }
 
               // For debugging only - don't log actual API keys
               logger.debug(`Executing tool ${toolName} with parameters:`, {
-                parameterKeys: Object.keys(mergedArgs),
-                hasRequiredParams: Object.keys(requiredToolCallParams).length > 0,
-                requiredParamKeys: Object.keys(requiredToolCallParams),
+                parameterKeys: Object.keys(executionParams),
+                toolArgsKeys: Object.keys(toolArgs),
               })
-              const result = await executeTool(toolName, mergedArgs, true)
+              const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 
@@ -419,7 +407,7 @@ export const googleProvider: ProviderConfig = {
               toolResults.push(result.output)
               toolCalls.push({
                 name: toolName,
-                arguments: toolArgs,
+                arguments: toolParams,
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,
@@ -866,7 +854,7 @@ function convertToGeminiFormat(request: ProviderRequest): {
     // Process schema properties
     if (toolParameters.properties) {
       const properties = { ...toolParameters.properties }
-      let required = toolParameters.required ? [...toolParameters.required] : []
+      const required = toolParameters.required ? [...toolParameters.required] : []
 
       // Remove defaults and optional parameters
       for (const key in properties) {
@@ -875,10 +863,6 @@ function convertToGeminiFormat(request: ProviderRequest): {
         if (prop.default !== undefined) {
           const { default: _, ...cleanProp } = prop
           properties[key] = cleanProp
-        }
-
-        if (tool.params?.[key]?.requiredForToolCall && required.includes(key)) {
-          required = required.filter((r) => r !== key)
         }
       }
 

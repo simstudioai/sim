@@ -7,39 +7,42 @@ export const mem0GetMemoriesTool: ToolConfig = {
   description: 'Retrieve memories from Mem0 by ID or filter criteria',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Your Mem0 API key',
-    },
     userId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'User ID to retrieve memories for',
-      optionalToolInput: true,
     },
     memoryId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Specific memory ID to retrieve',
-      optionalToolInput: true,
     },
     startDate: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Start date for filtering by created_at (format: YYYY-MM-DD)',
     },
     endDate: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'End date for filtering by created_at (format: YYYY-MM-DD)',
     },
     limit: {
       type: 'number',
       required: false,
       default: 10,
+      visibility: 'hidden',
       description: 'Maximum number of results to return',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Mem0 API key',
     },
   },
   request: {

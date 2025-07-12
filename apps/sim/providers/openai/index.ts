@@ -4,7 +4,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
+import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('OpenAIProvider')
 
@@ -355,14 +355,9 @@ export const openaiProvider: ProviderConfig = {
 
             // Execute the tool
             const toolCallStartTime = Date.now()
-            const mergedArgs = {
-              ...tool.params,
-              ...toolArgs,
-              ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
-              ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-            }
 
-            const result = await executeTool(toolName, mergedArgs, true)
+            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
+            const result = await executeTool(toolName, executionParams, true)
             const toolCallEndTime = Date.now()
             const toolCallDuration = toolCallEndTime - toolCallStartTime
 
@@ -380,7 +375,7 @@ export const openaiProvider: ProviderConfig = {
             toolResults.push(result.output)
             toolCalls.push({
               name: toolName,
-              arguments: toolArgs,
+              arguments: toolParams,
               startTime: new Date(toolCallStartTime).toISOString(),
               endTime: new Date(toolCallEndTime).toISOString(),
               duration: toolCallDuration,

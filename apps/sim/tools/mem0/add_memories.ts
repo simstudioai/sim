@@ -7,22 +7,23 @@ export const mem0AddMemoriesTool: ToolConfig = {
   description: 'Add memories to Mem0 for persistent storage and retrieval',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      description: 'Your Mem0 API key',
-      requiredForToolCall: true,
-    },
     userId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'User ID associated with the memory',
-      optionalToolInput: true,
     },
     messages: {
       type: 'json',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Array of message objects with role and content',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Mem0 API key',
     },
   },
   request: {

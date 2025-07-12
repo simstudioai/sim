@@ -16,37 +16,43 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token for Confluence',
     },
     domain: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Your Confluence domain (e.g., yourcompany.atlassian.net)',
     },
     pageId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Confluence page ID to update',
     },
     title: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'New title for the page',
     },
     content: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'New content for the page in Confluence storage format',
     },
     version: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Version number of the page (required for preventing conflicts)',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
