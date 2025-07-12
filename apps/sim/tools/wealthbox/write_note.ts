@@ -6,13 +6,27 @@ const logger = createLogger('WealthboxWriteNote')
 
 // Utility function to validate parameters and build note body
 const validateAndBuildNoteBody = (params: WealthboxWriteParams): Record<string, any> => {
-  // Validate required fields
-  if (!params.content?.trim()) {
+  // Handle content conversion - stringify if not already a string
+  let content: string
+
+  if (params.content === null || params.content === undefined) {
+    throw new Error('Note content is required')
+  }
+
+  if (typeof params.content === 'string') {
+    content = params.content
+  } else {
+    content = JSON.stringify(params.content)
+  }
+
+  content = content.trim()
+
+  if (!content) {
     throw new Error('Note content is required')
   }
 
   const body: Record<string, any> = {
-    content: params.content.trim(),
+    content: content,
   }
 
   // Handle contact linking
