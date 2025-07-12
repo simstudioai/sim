@@ -269,7 +269,8 @@ export function useSubBlockValue<T = any>(
       if (!isEqual(valueRef.current, newValue)) {
         valueRef.current = newValue
 
-        // Always update local store immediately for UI responsiveness
+        // Update local store immediately for UI responsiveness
+        // The collaborative function will also update it, but that's okay for idempotency
         useSubBlockStore.setState((state) => ({
           workflowValues: {
             ...state.workflowValues,

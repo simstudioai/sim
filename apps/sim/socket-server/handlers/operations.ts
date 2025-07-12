@@ -36,8 +36,11 @@ export function setupOperationsHandlers(
       return
     }
 
+    let operationId: string | undefined
+
     try {
       const validatedOperation = WorkflowOperationSchema.parse(data)
+      operationId = validatedOperation.operationId
       const { operation, target, payload, timestamp } = validatedOperation
 
       // Check operation permissions
@@ -100,16 +103,25 @@ export function setupOperationsHandlers(
           userId: session.userId,
         }).catch((error) => {
           logger.error('Failed to persist position update:', error)
+          // Emit failure for position updates if operationId is provided
+          if (operationId) {
+            socket.emit('operation-failed', {
+              operationId,
+              error: error instanceof Error ? error.message : 'Database persistence failed',
+              retryable: true,
+            })
+          }
         })
 
         room.lastModified = Date.now()
 
-        socket.emit('operation-confirmed', {
-          operation,
-          target,
-          operationId: broadcastData.metadata.operationId,
-          serverTimestamp: Date.now(),
-        })
+        // Emit confirmation if operationId is provided
+        if (operationId) {
+          socket.emit('operation-confirmed', {
+            operationId,
+            serverTimestamp: Date.now(),
+          })
+        }
 
         return // Early return for position updates
       }
@@ -143,13 +155,26 @@ export function setupOperationsHandlers(
 
       socket.to(workflowId).emit('workflow-operation', broadcastData)
 
-      socket.emit('operation-confirmed', {
-        operation,
-        target,
-        operationId: broadcastData.metadata.operationId,
-        serverTimestamp: Date.now(),
-      })
+      // Emit confirmation if operationId is provided
+      if (operationId) {
+        socket.emit('operation-confirmed', {
+          operationId,
+          serverTimestamp: Date.now(),
+        })
+      }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+
+      // Emit operation-failed for queue-tracked operations
+      if (operationId) {
+        socket.emit('operation-failed', {
+          operationId,
+          error: errorMessage,
+          retryable: !(error instanceof ZodError), // Don't retry validation errors
+        })
+      }
+
+      // Also emit legacy operation-error for backward compatibility
       if (error instanceof ZodError) {
         socket.emit('operation-error', {
           type: 'VALIDATION_ERROR',

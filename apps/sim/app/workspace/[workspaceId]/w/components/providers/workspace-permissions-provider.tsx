@@ -4,12 +4,12 @@ import type React from 'react'
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useUserPermissions, type WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import {
   useWorkspacePermissions,
   type WorkspacePermissions,
 } from '@/hooks/use-workspace-permissions'
-import { usePresence } from '../../[workflowId]/hooks/use-presence'
 
 const logger = createLogger('WorkspacePermissionsProvider')
 
@@ -57,7 +57,16 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
 
   // Manage offline mode state locally
   const [isOfflineMode, setIsOfflineMode] = useState(false)
-  const [hasBeenConnected, setHasBeenConnected] = useState(false)
+
+  // Get operation error state from collaborative workflow
+  const { hasOperationError } = useCollaborativeWorkflow()
+
+  // Set offline mode when there are operation errors
+  useEffect(() => {
+    if (hasOperationError) {
+      setIsOfflineMode(true)
+    }
+  }, [hasOperationError])
 
   // Fetch workspace permissions and loading state
   const {
@@ -74,26 +83,8 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     permissionsError
   )
 
-  // Get connection status and update offline mode accordingly
-  const { isConnected } = usePresence()
-
-  useEffect(() => {
-    if (isConnected) {
-      // Mark that we've been connected at least once
-      setHasBeenConnected(true)
-      // On initial connection, allow going online
-      if (!hasBeenConnected) {
-        setIsOfflineMode(false)
-      }
-      // If we were previously connected and this is a reconnection, stay offline (user must refresh)
-    } else if (hasBeenConnected) {
-      const timeoutId = setTimeout(() => {
-        setIsOfflineMode(true)
-      }, 6000)
-      return () => clearTimeout(timeoutId)
-    }
-    // If not connected and never been connected, stay in initial state (not offline mode)
-  }, [isConnected, hasBeenConnected])
+  // Note: Connection-based error detection removed - only rely on operation timeouts
+  // The 5-second operation timeout system will handle all error cases
 
   // Create connection-aware permissions that override user permissions when offline
   const userPermissions = useMemo((): WorkspaceUserPermissions & { isOfflineMode?: boolean } => {
