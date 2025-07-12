@@ -85,6 +85,7 @@ import {
   pineconeSearchVectorTool,
   pineconeUpsertTextTool,
 } from './pinecone'
+import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from './qdrant'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from './reddit'
 import { s3GetObjectTool } from './s3'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
@@ -224,4 +225,7 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_quick_add: googleCalendarQuickAddTool,
   google_calendar_invite: googleCalendarInviteTool,
   workflow_executor: workflowExecutorTool,
+  qdrant_fetch_points: qdrantFetchTool,
+  qdrant_search_vector: qdrantSearchTool,
+  qdrant_upsert_points: qdrantUpsertTool,
 }
