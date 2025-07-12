@@ -85,51 +85,100 @@ export function buildTraceSpans(result: ExecutionResult): {
         endTime: providerTiming.endTime,
         segments: providerTiming.timeSegments || [],
       }
+    }
 
-      // Add cost information if available
-      if (log.output?.cost) {
-        ;(span as any).cost = log.output.cost
-        logger.debug(`Added cost to span ${span.id}`, {
+    // Always add cost, token, and model information if available (regardless of provider timing)
+    if (log.output?.cost) {
+      ;(span as any).cost = log.output.cost
+      logger.debug(`Added cost to span ${span.id}`, {
+        blockId: log.blockId,
+        blockType: log.blockType,
+        cost: log.output.cost,
+      })
+    }
+
+    if (log.output?.tokens) {
+      ;(span as any).tokens = log.output.tokens
+      logger.debug(`Added tokens to span ${span.id}`, {
+        blockId: log.blockId,
+        blockType: log.blockType,
+        tokens: log.output.tokens,
+      })
+    }
+
+    if (log.output?.model) {
+      ;(span as any).model = log.output.model
+      logger.debug(`Added model to span ${span.id}`, {
+        blockId: log.blockId,
+        blockType: log.blockType,
+        model: log.output.model,
+      })
+    }
+
+    // Enhanced approach: Use timeSegments for sequential flow if available
+    // This provides the actual model→tool→model execution sequence
+    if (
+      log.output?.providerTiming?.timeSegments &&
+      Array.isArray(log.output.providerTiming.timeSegments)
+    ) {
+      const timeSegments = log.output.providerTiming.timeSegments
+      const toolCallsData = log.output?.toolCalls?.list || log.output?.toolCalls || []
+
+      // Create child spans for each time segment
+      span.children = timeSegments.map((segment: any, index: number) => {
+        const segmentStartTime = new Date(segment.startTime).toISOString()
+        const segmentEndTime = new Date(segment.endTime).toISOString()
+
+        if (segment.type === 'tool') {
+          // Find matching tool call data for this segment
+          const matchingToolCall = toolCallsData.find(
+            (tc: any) => tc.name === segment.name || stripCustomToolPrefix(tc.name) === segment.name
+          )
+
+          return {
+            id: `${span.id}-segment-${index}`,
+            name: stripCustomToolPrefix(segment.name),
+            type: 'tool',
+            duration: segment.duration,
+            startTime: segmentStartTime,
+            endTime: segmentEndTime,
+            status: matchingToolCall?.error ? 'error' : 'success',
+            input: matchingToolCall?.arguments || matchingToolCall?.input,
+            output: matchingToolCall?.error
+              ? {
+                  error: matchingToolCall.error,
+                  ...(matchingToolCall.result || matchingToolCall.output || {}),
+                }
+              : matchingToolCall?.result || matchingToolCall?.output,
+          }
+        }
+        // Model segment
+        return {
+          id: `${span.id}-segment-${index}`,
+          name: segment.name,
+          type: 'model',
+          duration: segment.duration,
+          startTime: segmentStartTime,
+          endTime: segmentEndTime,
+          status: 'success',
+        }
+      })
+
+      logger.debug(
+        `Created ${span.children?.length || 0} sequential segments for span ${span.id}`,
+        {
           blockId: log.blockId,
           blockType: log.blockType,
-          cost: log.output.cost,
-        })
-      }
-
-      // Add token information if available
-      if (log.output?.tokens) {
-        ;(span as any).tokens = log.output.tokens
-        logger.debug(`Added tokens to span ${span.id}`, {
-          blockId: log.blockId,
-          blockType: log.blockType,
-          tokens: log.output.tokens,
-        })
-      }
-
-      // Add model information
-      if (log.output?.model) {
-        ;(span as any).model = log.output.model
-        logger.debug(`Added model to span ${span.id}`, {
-          blockId: log.blockId,
-          blockType: log.blockType,
-          model: log.output.model,
-        })
-      }
+          segments:
+            span.children?.map((child) => ({
+              name: child.name,
+              type: child.type,
+              duration: child.duration,
+            })) || [],
+        }
+      )
     } else {
-      // When not using provider timing, still add cost and token information
-      if (log.output?.cost) {
-        ;(span as any).cost = log.output.cost
-      }
-
-      if (log.output?.tokens) {
-        ;(span as any).tokens = log.output.tokens
-      }
-
-      if (log.output?.model) {
-        ;(span as any).model = log.output.model
-      }
-
-      // When not using provider timing at all, add tool calls if they exist
+      // Fallback: Extract tool calls using the original approach for backwards compatibility
       // Tool calls handling for different formats:
       // 1. Standard format in response.toolCalls.list
       // 2. Direct toolCalls array in response
@@ -154,11 +203,14 @@ export function buildTraceSpans(result: ExecutionResult): {
 
         // Validate that toolCallsList is actually an array before processing
         if (toolCallsList && !Array.isArray(toolCallsList)) {
-          console.warn(`toolCallsList is not an array: ${typeof toolCallsList}`)
+          logger.warn(`toolCallsList is not an array: ${typeof toolCallsList}`, {
+            blockId: log.blockId,
+            blockType: log.blockType,
+          })
           toolCallsList = []
         }
       } catch (error) {
-        console.error(`Error extracting toolCalls: ${error}`)
+        logger.error(`Error extracting toolCalls from block ${log.blockId}:`, error)
         toolCallsList = [] // Set to empty array as fallback
       }
 
@@ -180,11 +232,17 @@ export function buildTraceSpans(result: ExecutionResult): {
                 error: tc.error,
               }
             } catch (tcError) {
-              console.error(`Error processing tool call: ${tcError}`)
+              logger.error(`Error processing tool call in block ${log.blockId}:`, tcError)
               return null
             }
           })
           .filter(Boolean) // Remove any null entries from failed processing
+
+        logger.debug(`Added ${span.toolCalls?.length || 0} tool calls to span ${span.id}`, {
+          blockId: log.blockId,
+          blockType: log.blockType,
+          toolCallNames: span.toolCalls?.map((tc) => tc.name) || [],
+        })
       }
     }
 
