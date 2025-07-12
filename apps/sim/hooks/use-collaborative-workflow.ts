@@ -410,12 +410,6 @@ export function useCollaborativeWorkflow() {
 
   const executeQueuedOperation = useCallback(
     (operation: string, target: string, payload: any, localAction: () => void) => {
-      console.log('🎯 executeQueuedOperation called', {
-        operation,
-        target,
-        isApplyingRemoteChange: isApplyingRemoteChange.current,
-      })
-
       if (isApplyingRemoteChange.current) {
         return
       }
@@ -762,7 +756,7 @@ export function useCollaborativeWorkflow() {
         workflowStore.removeEdge(edgeId)
       )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeSetSubblockValue = useCallback(
