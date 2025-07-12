@@ -12,7 +12,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { OAuthProvider } from '@/lib/oauth/oauth'
+import type { OAuthProvider, OAuthService } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
@@ -63,7 +63,35 @@ interface StoredTool {
   usageControl?: 'auto' | 'force' | 'none'
 }
 
-// Helper component to sync FileSelectorInput with tool parameter
+function GenericSyncWrapper<T = unknown>({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  children,
+  transformer,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  children: React.ReactNode
+  transformer?: (storeValue: T) => string
+}) {
+  const [storeValue] = useSubBlockValue(blockId, paramId)
+
+  useEffect(() => {
+    if (storeValue) {
+      const transformedValue = transformer ? transformer(storeValue) : String(storeValue)
+      if (transformedValue !== value) {
+        onChange(transformedValue)
+      }
+    }
+  }, [storeValue, value, onChange, transformer])
+
+  return <>{children}</>
+}
+
 function FileSelectorSyncWrapper({
   blockId,
   paramId,
@@ -79,34 +107,26 @@ function FileSelectorSyncWrapper({
   uiComponent: any
   disabled: boolean
 }) {
-  const [fileSelectorValue, setFileSelectorValue] = useSubBlockValue(blockId, paramId)
-
-  // Sync file selector value with tool parameter
-  useEffect(() => {
-    if (fileSelectorValue && fileSelectorValue !== value) {
-      onChange(fileSelectorValue)
-    }
-  }, [fileSelectorValue, value, onChange])
-
   return (
-    <FileSelectorInput
-      blockId={blockId}
-      subBlock={{
-        id: paramId,
-        type: 'file-selector' as const,
-        title: paramId,
-        provider: uiComponent.provider,
-        serviceId: uiComponent.serviceId,
-        mimeType: uiComponent.mimeType,
-        requiredScopes: uiComponent.requiredScopes || [],
-        placeholder: uiComponent.placeholder,
-      }}
-      disabled={disabled}
-    />
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <FileSelectorInput
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'file-selector' as const,
+          title: paramId,
+          provider: uiComponent.provider,
+          serviceId: uiComponent.serviceId,
+          mimeType: uiComponent.mimeType,
+          requiredScopes: uiComponent.requiredScopes || [],
+          placeholder: uiComponent.placeholder,
+        }}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
-// Helper component to sync Table with tool parameter
 function TableSyncWrapper({
   blockId,
   paramId,
@@ -122,26 +142,24 @@ function TableSyncWrapper({
   uiComponent: any
   disabled: boolean
 }) {
-  const [tableValue, setTableValue] = useSubBlockValue(blockId, paramId)
-
-  // Sync table value with tool parameter
-  useEffect(() => {
-    if (tableValue && JSON.stringify(tableValue) !== value) {
-      onChange(JSON.stringify(tableValue))
-    }
-  }, [tableValue, value, onChange])
-
   return (
-    <Table
+    <GenericSyncWrapper
       blockId={blockId}
-      subBlockId={paramId}
-      columns={uiComponent.columns || ['Key', 'Value']}
-      disabled={disabled}
-    />
+      paramId={paramId}
+      value={value}
+      onChange={onChange}
+      transformer={(storeValue) => JSON.stringify(storeValue)}
+    >
+      <Table
+        blockId={blockId}
+        subBlockId={paramId}
+        columns={uiComponent.columns || ['Key', 'Value']}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
-// Helper component to sync DateInput with tool parameter
 function DateInputSyncWrapper({
   blockId,
   paramId,
@@ -157,25 +175,18 @@ function DateInputSyncWrapper({
   uiComponent: any
   disabled: boolean
 }) {
-  const [dateValue, setDateValue] = useSubBlockValue(blockId, paramId)
-
-  useEffect(() => {
-    if (dateValue && dateValue !== value) {
-      onChange(dateValue)
-    }
-  }, [dateValue, value, onChange])
-
   return (
-    <DateInput
-      blockId={blockId}
-      subBlockId={paramId}
-      placeholder={uiComponent.placeholder}
-      disabled={disabled}
-    />
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <DateInput
+        blockId={blockId}
+        subBlockId={paramId}
+        placeholder={uiComponent.placeholder}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
-// Helper component to sync TimeInput with tool parameter
 function TimeInputSyncWrapper({
   blockId,
   paramId,
@@ -191,25 +202,18 @@ function TimeInputSyncWrapper({
   uiComponent: any
   disabled: boolean
 }) {
-  const [timeValue, setTimeValue] = useSubBlockValue(blockId, paramId)
-
-  useEffect(() => {
-    if (timeValue && timeValue !== value) {
-      onChange(timeValue)
-    }
-  }, [timeValue, value, onChange])
-
   return (
-    <TimeInput
-      blockId={blockId}
-      subBlockId={paramId}
-      placeholder={uiComponent.placeholder}
-      disabled={disabled}
-    />
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <TimeInput
+        blockId={blockId}
+        subBlockId={paramId}
+        placeholder={uiComponent.placeholder}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
-// Helper component to sync SliderInput with tool parameter
 function SliderInputSyncWrapper({
   blockId,
   paramId,
@@ -225,28 +229,27 @@ function SliderInputSyncWrapper({
   uiComponent: any
   disabled: boolean
 }) {
-  const [sliderValue, setSliderValue] = useSubBlockValue(blockId, paramId)
-
-  useEffect(() => {
-    if (sliderValue !== undefined && sliderValue.toString() !== value) {
-      onChange(sliderValue.toString())
-    }
-  }, [sliderValue, value, onChange])
-
   return (
-    <SliderInput
+    <GenericSyncWrapper
       blockId={blockId}
-      subBlockId={paramId}
-      min={uiComponent.min}
-      max={uiComponent.max}
-      step={uiComponent.step}
-      integer={uiComponent.integer}
-      disabled={disabled}
-    />
+      paramId={paramId}
+      value={value}
+      onChange={onChange}
+      transformer={(storeValue) => String(storeValue)}
+    >
+      <SliderInput
+        blockId={blockId}
+        subBlockId={paramId}
+        min={uiComponent.min}
+        max={uiComponent.max}
+        step={uiComponent.step}
+        integer={uiComponent.integer}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
-// Helper component to sync CheckboxList with tool parameter
 function CheckboxListSyncWrapper({
   blockId,
   paramId,
@@ -262,26 +265,25 @@ function CheckboxListSyncWrapper({
   uiComponent: any
   disabled: boolean
 }) {
-  const [checkboxValue, setCheckboxValue] = useSubBlockValue(blockId, paramId)
-
-  useEffect(() => {
-    if (checkboxValue && JSON.stringify(checkboxValue) !== value) {
-      onChange(JSON.stringify(checkboxValue))
-    }
-  }, [checkboxValue, value, onChange])
-
   return (
-    <CheckboxList
+    <GenericSyncWrapper
       blockId={blockId}
-      subBlockId={paramId}
-      title={uiComponent.title || paramId}
-      options={uiComponent.options || []}
-      disabled={disabled}
-    />
+      paramId={paramId}
+      value={value}
+      onChange={onChange}
+      transformer={(storeValue) => JSON.stringify(storeValue)}
+    >
+      <CheckboxList
+        blockId={blockId}
+        subBlockId={paramId}
+        title={uiComponent.title || paramId}
+        options={uiComponent.options || []}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
-// Helper component to sync Code with tool parameter
 function CodeSyncWrapper({
   blockId,
   paramId,
@@ -297,27 +299,20 @@ function CodeSyncWrapper({
   uiComponent: any
   disabled: boolean
 }) {
-  const [codeValue, setCodeValue] = useSubBlockValue(blockId, paramId)
-
-  useEffect(() => {
-    if (codeValue && codeValue !== value) {
-      onChange(codeValue)
-    }
-  }, [codeValue, value, onChange])
-
   return (
-    <Code
-      blockId={blockId}
-      subBlockId={paramId}
-      isConnecting={false}
-      language={uiComponent.language}
-      generationType={uiComponent.generationType}
-      disabled={disabled}
-    />
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <Code
+        blockId={blockId}
+        subBlockId={paramId}
+        isConnecting={false}
+        language={uiComponent.language}
+        generationType={uiComponent.generationType}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
-// Helper component to sync Combobox with tool parameter
 function ComboboxSyncWrapper({
   blockId,
   paramId,
@@ -333,32 +328,25 @@ function ComboboxSyncWrapper({
   uiComponent: any
   disabled: boolean
 }) {
-  const [comboboxValue, setComboboxValue] = useSubBlockValue(blockId, paramId)
-
-  useEffect(() => {
-    if (comboboxValue && comboboxValue !== value) {
-      onChange(comboboxValue)
-    }
-  }, [comboboxValue, value, onChange])
-
   return (
-    <ComboBox
-      blockId={blockId}
-      subBlockId={paramId}
-      options={uiComponent.options || []}
-      placeholder={uiComponent.placeholder}
-      isConnecting={false}
-      config={{
-        id: paramId,
-        type: 'combobox' as const,
-        title: paramId,
-      }}
-      disabled={disabled}
-    />
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <ComboBox
+        blockId={blockId}
+        subBlockId={paramId}
+        options={uiComponent.options || []}
+        placeholder={uiComponent.placeholder}
+        isConnecting={false}
+        config={{
+          id: paramId,
+          type: 'combobox' as const,
+          title: paramId,
+        }}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
-// Helper component to sync FileUpload with tool parameter
 function FileUploadSyncWrapper({
   blockId,
   paramId,
@@ -374,23 +362,23 @@ function FileUploadSyncWrapper({
   uiComponent: any
   disabled: boolean
 }) {
-  const [fileValue, setFileValue] = useSubBlockValue(blockId, paramId)
-
-  useEffect(() => {
-    if (fileValue && JSON.stringify(fileValue) !== value) {
-      onChange(JSON.stringify(fileValue))
-    }
-  }, [fileValue, value, onChange])
-
   return (
-    <FileUpload
+    <GenericSyncWrapper
       blockId={blockId}
-      subBlockId={paramId}
-      acceptedTypes={uiComponent.acceptedTypes}
-      multiple={uiComponent.multiple}
-      maxSize={uiComponent.maxSize}
-      disabled={disabled}
-    />
+      paramId={paramId}
+      value={value}
+      onChange={onChange}
+      transformer={(storeValue) => JSON.stringify(storeValue)}
+    >
+      <FileUpload
+        blockId={blockId}
+        subBlockId={paramId}
+        acceptedTypes={uiComponent.acceptedTypes}
+        multiple={uiComponent.multiple}
+        maxSize={uiComponent.maxSize}
+        disabled={disabled}
+      />
+    </GenericSyncWrapper>
   )
 }
 
@@ -991,6 +979,24 @@ export function ToolInput({
           />
         )
 
+      case 'short-input':
+        return (
+          <ShortInput
+            blockId={blockId}
+            subBlockId={`${subBlockId}-param`}
+            placeholder={uiComponent.placeholder || param.description}
+            isConnecting={false}
+            config={{
+              id: `${subBlockId}-param`,
+              type: 'short-input',
+              title: param.id,
+            }}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+          />
+        )
+
       case 'channel-selector':
         return (
           <ChannelSelectorInput
@@ -1013,8 +1019,8 @@ export function ToolInput({
           <ToolCredentialSelector
             value={value}
             onChange={onChange}
-            provider={uiComponent.provider || uiComponent.serviceId}
-            serviceId={uiComponent.serviceId}
+            provider={(uiComponent.provider || uiComponent.serviceId) as OAuthProvider}
+            serviceId={uiComponent.serviceId as OAuthService}
             disabled={disabled}
             requiredScopes={uiComponent.requiredScopes || []}
           />
