@@ -49,8 +49,8 @@ Read content from a Notion page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `pageId` | string | Yes | The ID of the Notion page to read |
 | `accessToken` | string | Yes | Notion OAuth access token |
+| `pageId` | string | Yes | The ID of the Notion page to read |
 
 #### Output
 
@@ -70,9 +70,9 @@ Append content to a Notion page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Notion OAuth access token |
 | `pageId` | string | Yes | The ID of the Notion page to append content to |
 | `content` | string | Yes | The content to append to the page |
-| `accessToken` | string | Yes | Notion OAuth access token |
 
 #### Output
 
@@ -88,12 +88,12 @@ Create a new page in Notion
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Notion OAuth access token |
 | `parentType` | string | Yes | Type of parent:  |
 | `parentId` | string | Yes | ID of the parent page or database |
 | `title` | string | No | Title of the page \(required for parent pages, not for databases\) |
 | `properties` | json | No | JSON object of properties for database pages |
 | `content` | string | No | Optional content to add to the page upon creation |
-| `accessToken` | string | Yes | Notion OAuth access token |
 
 #### Output
 

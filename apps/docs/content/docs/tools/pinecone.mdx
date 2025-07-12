@@ -59,9 +59,9 @@ Generate embeddings from text using Pinecone
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
 | `model` | string | Yes | Model to use for generating embeddings |
 | `inputs` | array | Yes | Array of text inputs to generate embeddings for |
+| `apiKey` | string | Yes | Pinecone API key |
 
 #### Output
 
@@ -80,10 +80,10 @@ Insert or update text records in a Pinecone index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
 | `indexHost` | string | Yes | Full Pinecone index host URL |
 | `namespace` | string | Yes | Namespace to upsert records into |
 | `records` | array | Yes | Record or array of records to upsert, each containing _id, text, and optional metadata |
+| `apiKey` | string | Yes | Pinecone API key |
 
 #### Output
 
@@ -99,7 +99,6 @@ Search for similar text in a Pinecone index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
 | `indexHost` | string | Yes | Full Pinecone index host URL |
 | `namespace` | string | No | Namespace to search in |
 | `searchQuery` | string | Yes | Text to search for |
@@ -107,6 +106,7 @@ Search for similar text in a Pinecone index
 | `fields` | array | No | Fields to return in the results |
 | `filter` | object | No | Filter to apply to the search |
 | `rerank` | object | No | Reranking parameters |
+| `apiKey` | string | Yes | Pinecone API key |
 
 #### Output
 
@@ -124,7 +124,6 @@ Search for similar vectors in a Pinecone index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
 | `indexHost` | string | Yes | Full Pinecone index host URL |
 | `namespace` | string | No | Namespace to search in |
 | `vector` | array | Yes | Vector to search for |
@@ -132,6 +131,7 @@ Search for similar vectors in a Pinecone index
 | `filter` | object | No | Filter to apply to the search |
 | `includeValues` | boolean | No | Include vector values in response |
 | `includeMetadata` | boolean | No | Include metadata in response |
+| `apiKey` | string | Yes | Pinecone API key |
 
 #### Output
 
@@ -150,10 +150,10 @@ Fetch vectors by ID from a Pinecone index
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
 | `indexHost` | string | Yes | Full Pinecone index host URL |
 | `ids` | array | Yes | Array of vector IDs to fetch |
 | `namespace` | string | No | Namespace to fetch vectors from |
+| `apiKey` | string | Yes | Pinecone API key |
 
 #### Output
 
