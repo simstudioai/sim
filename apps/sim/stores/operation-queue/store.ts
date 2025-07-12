@@ -62,7 +62,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     const existingOp = state.operations.find((op) => op.id === operation.id)
     if (existingOp) {
-      console.log('⚠️ Operation already in queue, skipping duplicate', { operationId: operation.id })
       return
     }
 
