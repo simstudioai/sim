@@ -86,9 +86,27 @@ export function ToolCredentialSelector({
         const data = await response.json()
         setCredentials(data.credentials || [])
 
-        // If we have a selected value but it's not in the credentials list, clear it
+        // If we have a value but it's not in the credentials, reset it
         if (value && !data.credentials?.some((cred: Credential) => cred.id === value)) {
           onChange('')
+        }
+
+        // Auto-selection logic (like credential-selector):
+        // 1. If we already have a valid selection, keep it
+        // 2. If there's a default credential, select it
+        // 3. If there's only one credential, select it
+        if (
+          (!value || !data.credentials?.some((cred: Credential) => cred.id === value)) &&
+          data.credentials &&
+          data.credentials.length > 0
+        ) {
+          const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
+          if (defaultCred) {
+            onChange(defaultCred.id)
+          } else if (data.credentials.length === 1) {
+            // If only one credential, select it
+            onChange(data.credentials[0].id)
+          }
         }
       } else {
         logger.error('Error fetching credentials:', { error: await response.text() })
@@ -102,9 +120,26 @@ export function ToolCredentialSelector({
     }
   }, [provider, value, onChange])
 
-  // Fetch credentials on mount and when provider changes
+  // Fetch credentials on initial mount only
   useEffect(() => {
     fetchCredentials()
+    // This effect should only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Listen for visibility changes to update credentials when user returns from settings
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchCredentials()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [fetchCredentials])
 
   const handleSelect = (credentialId: string) => {
@@ -119,11 +154,20 @@ export function ToolCredentialSelector({
     fetchCredentials()
   }
 
+  // Handle popover open to fetch fresh credentials
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen)
+    if (isOpen) {
+      // Fetch fresh credentials when opening the dropdown
+      fetchCredentials()
+    }
+  }
+
   const selectedCredential = credentials.find((cred) => cred.id === selectedId)
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
             variant='outline'

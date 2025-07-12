@@ -467,9 +467,7 @@ ${fieldDescriptions}
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-              if (!result.success) continue
-
-              // Add to time segments
+              // Add to time segments for both success and failure
               timeSegments.push({
                 type: 'tool',
                 name: toolName,
@@ -478,17 +476,31 @@ ${fieldDescriptions}
                 duration: toolCallDuration,
               })
 
-              toolResults.push(result.output)
+              // Prepare result content for the LLM
+              let resultContent: any
+              if (result.success) {
+                toolResults.push(result.output)
+                resultContent = result.output
+              } else {
+                // Include error information so LLM can respond appropriately
+                resultContent = {
+                  error: true,
+                  message: result.error || 'Tool execution failed',
+                  tool: toolName,
+                }
+              }
+
               toolCalls.push({
                 name: toolName,
                 arguments: toolParams,
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,
-                result: result.output,
+                result: resultContent,
+                success: result.success,
               })
 
-              // Add the tool call and result to messages
+              // Add the tool call and result to messages (both success and failure)
               const toolUseId = generateToolUseId(toolName)
 
               currentMessages.push({
@@ -509,7 +521,7 @@ ${fieldDescriptions}
                   {
                     type: 'tool_result',
                     tool_use_id: toolUseId,
-                    content: JSON.stringify(result.output),
+                    content: JSON.stringify(resultContent),
                   } as any,
                 ],
               })

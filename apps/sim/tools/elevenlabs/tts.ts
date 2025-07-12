@@ -11,12 +11,6 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
   version: '1.0.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Your ElevenLabs API key',
-    },
     text: {
       type: 'string',
       required: true,
@@ -34,6 +28,12 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       required: false,
       visibility: 'user-only',
       description: 'The ID of the model to use (defaults to eleven_monolingual_v1)',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your ElevenLabs API key',
     },
   },
 
