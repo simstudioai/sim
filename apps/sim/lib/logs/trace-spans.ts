@@ -115,71 +115,135 @@ export function buildTraceSpans(result: ExecutionResult): {
       })
     }
 
-    // Always extract tool calls if they exist (regardless of provider timing)
-    // Tool calls handling for different formats:
-    // 1. Standard format in response.toolCalls.list
-    // 2. Direct toolCalls array in response
-    // 3. Streaming response formats with executionData
+    // Enhanced approach: Use timeSegments for sequential flow if available
+    // This provides the actual model→tool→model execution sequence
+    if (
+      log.output?.providerTiming?.timeSegments &&
+      Array.isArray(log.output.providerTiming.timeSegments)
+    ) {
+      const timeSegments = log.output.providerTiming.timeSegments
+      const toolCallsData = log.output?.toolCalls?.list || log.output?.toolCalls || []
 
-    // Check all possible paths for toolCalls
-    let toolCallsList = null
+      // Create child spans for each time segment
+      span.children = timeSegments.map((segment: any, index: number) => {
+        const segmentStartTime = new Date(segment.startTime).toISOString()
+        const segmentEndTime = new Date(segment.endTime).toISOString()
 
-    // Wrap extraction in try-catch to handle unexpected toolCalls formats
-    try {
-      if (log.output?.toolCalls?.list) {
-        // Standard format with list property
-        toolCallsList = log.output.toolCalls.list
-      } else if (Array.isArray(log.output?.toolCalls)) {
-        // Direct array format
-        toolCallsList = log.output.toolCalls
-      } else if (log.output?.executionData?.output?.toolCalls) {
-        // Streaming format with executionData
-        const tcObj = log.output.executionData.output.toolCalls
-        toolCallsList = Array.isArray(tcObj) ? tcObj : tcObj.list || []
-      }
+        if (segment.type === 'tool') {
+          // Find matching tool call data for this segment
+          const matchingToolCall = toolCallsData.find(
+            (tc: any) => tc.name === segment.name || stripCustomToolPrefix(tc.name) === segment.name
+          )
 
-      // Validate that toolCallsList is actually an array before processing
-      if (toolCallsList && !Array.isArray(toolCallsList)) {
-        logger.warn(`toolCallsList is not an array: ${typeof toolCallsList}`, {
+          return {
+            id: `${span.id}-segment-${index}`,
+            name: stripCustomToolPrefix(segment.name),
+            type: 'tool',
+            duration: segment.duration,
+            startTime: segmentStartTime,
+            endTime: segmentEndTime,
+            status: matchingToolCall?.error ? 'error' : 'success',
+            input: matchingToolCall?.arguments || matchingToolCall?.input,
+            output: matchingToolCall?.error
+              ? {
+                  error: matchingToolCall.error,
+                  ...(matchingToolCall.result || matchingToolCall.output || {}),
+                }
+              : matchingToolCall?.result || matchingToolCall?.output,
+          }
+        }
+        // Model segment
+        return {
+          id: `${span.id}-segment-${index}`,
+          name: segment.name,
+          type: 'model',
+          duration: segment.duration,
+          startTime: segmentStartTime,
+          endTime: segmentEndTime,
+          status: 'success',
+        }
+      })
+
+      logger.debug(
+        `Created ${span.children?.length || 0} sequential segments for span ${span.id}`,
+        {
           blockId: log.blockId,
           blockType: log.blockType,
-        })
-        toolCallsList = []
+          segments:
+            span.children?.map((child) => ({
+              name: child.name,
+              type: child.type,
+              duration: child.duration,
+            })) || [],
+        }
+      )
+    } else {
+      // Fallback: Extract tool calls using the original approach for backwards compatibility
+      // Tool calls handling for different formats:
+      // 1. Standard format in response.toolCalls.list
+      // 2. Direct toolCalls array in response
+      // 3. Streaming response formats with executionData
+
+      // Check all possible paths for toolCalls
+      let toolCallsList = null
+
+      // Wrap extraction in try-catch to handle unexpected toolCalls formats
+      try {
+        if (log.output?.toolCalls?.list) {
+          // Standard format with list property
+          toolCallsList = log.output.toolCalls.list
+        } else if (Array.isArray(log.output?.toolCalls)) {
+          // Direct array format
+          toolCallsList = log.output.toolCalls
+        } else if (log.output?.executionData?.output?.toolCalls) {
+          // Streaming format with executionData
+          const tcObj = log.output.executionData.output.toolCalls
+          toolCallsList = Array.isArray(tcObj) ? tcObj : tcObj.list || []
+        }
+
+        // Validate that toolCallsList is actually an array before processing
+        if (toolCallsList && !Array.isArray(toolCallsList)) {
+          logger.warn(`toolCallsList is not an array: ${typeof toolCallsList}`, {
+            blockId: log.blockId,
+            blockType: log.blockType,
+          })
+          toolCallsList = []
+        }
+      } catch (error) {
+        logger.error(`Error extracting toolCalls from block ${log.blockId}:`, error)
+        toolCallsList = [] // Set to empty array as fallback
       }
-    } catch (error) {
-      logger.error(`Error extracting toolCalls from block ${log.blockId}:`, error)
-      toolCallsList = [] // Set to empty array as fallback
-    }
 
-    if (toolCallsList && toolCallsList.length > 0) {
-      span.toolCalls = toolCallsList
-        .map((tc: any) => {
-          // Add null check for each tool call
-          if (!tc) return null
+      if (toolCallsList && toolCallsList.length > 0) {
+        span.toolCalls = toolCallsList
+          .map((tc: any) => {
+            // Add null check for each tool call
+            if (!tc) return null
 
-          try {
-            return {
-              name: stripCustomToolPrefix(tc.name || 'unnamed-tool'),
-              duration: tc.duration || 0,
-              startTime: tc.startTime || log.startedAt,
-              endTime: tc.endTime || log.endedAt,
-              status: tc.error ? 'error' : 'success',
-              input: tc.arguments || tc.input,
-              output: tc.result || tc.output,
-              error: tc.error,
+            try {
+              return {
+                name: stripCustomToolPrefix(tc.name || 'unnamed-tool'),
+                duration: tc.duration || 0,
+                startTime: tc.startTime || log.startedAt,
+                endTime: tc.endTime || log.endedAt,
+                status: tc.error ? 'error' : 'success',
+                input: tc.arguments || tc.input,
+                output: tc.result || tc.output,
+                error: tc.error,
+              }
+            } catch (tcError) {
+              logger.error(`Error processing tool call in block ${log.blockId}:`, tcError)
+              return null
             }
-          } catch (tcError) {
-            logger.error(`Error processing tool call in block ${log.blockId}:`, tcError)
-            return null
-          }
-        })
-        .filter(Boolean) // Remove any null entries from failed processing
+          })
+          .filter(Boolean) // Remove any null entries from failed processing
 
-      logger.debug(`Added ${span.toolCalls?.length || 0} tool calls to span ${span.id}`, {
-        blockId: log.blockId,
-        blockType: log.blockType,
-        toolCallNames: span.toolCalls?.map((tc) => tc.name) || [],
-      })
+        logger.debug(`Added ${span.toolCalls?.length || 0} tool calls to span ${span.id}`, {
+          blockId: log.blockId,
+          blockType: log.blockType,
+          toolCallNames: span.toolCalls?.map((tc) => tc.name) || [],
+        })
+      }
     }
 
     // Store in map

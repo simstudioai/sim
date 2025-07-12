@@ -95,6 +95,70 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
   return data
 }
 
+// Collapsible Input/Output component
+interface CollapsibleInputOutputProps {
+  span: TraceSpan
+  spanId: string
+}
+
+function CollapsibleInputOutput({ span, spanId }: CollapsibleInputOutputProps) {
+  const [inputExpanded, setInputExpanded] = useState(false)
+  const [outputExpanded, setOutputExpanded] = useState(false)
+
+  return (
+    <div className='mt-2 mr-4 mb-4 ml-8 space-y-3 overflow-hidden'>
+      {/* Input Data - Collapsible */}
+      {span.input && (
+        <div>
+          <button
+            onClick={() => setInputExpanded(!inputExpanded)}
+            className='flex items-center gap-2 mb-2 font-medium text-muted-foreground text-xs hover:text-foreground transition-colors'
+          >
+            {inputExpanded ? (
+              <ChevronDown className='h-3 w-3' />
+            ) : (
+              <ChevronRight className='h-3 w-3' />
+            )}
+            Input
+          </button>
+          {inputExpanded && (
+            <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
+              <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Output Data - Collapsible */}
+      {span.output && (
+        <div>
+          <button
+            onClick={() => setOutputExpanded(!outputExpanded)}
+            className='flex items-center gap-2 mb-2 font-medium text-muted-foreground text-xs hover:text-foreground transition-colors'
+          >
+            {outputExpanded ? (
+              <ChevronDown className='h-3 w-3' />
+            ) : (
+              <ChevronRight className='h-3 w-3' />
+            )}
+            {span.status === 'error' ? 'Error Details' : 'Output'}
+          </button>
+          {outputExpanded && (
+            <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
+              <BlockDataDisplay
+                data={span.output}
+                blockType={span.type}
+                isInput={false}
+                isError={span.status === 'error'}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Component to display block input/output data in a clean, readable format
 function BlockDataDisplay({
   data,
@@ -544,37 +608,8 @@ function TraceSpanItem({
       {/* Expanded content */}
       {expanded && (
         <div>
-          {/* Block Input/Output Data */}
-          {(span.input || span.output) && (
-            <div className='mt-2 mr-4 mb-4 ml-8 space-y-3 overflow-hidden'>
-              {/* Input Data */}
-              {span.input && (
-                <div>
-                  <h4 className='mb-2 font-medium text-muted-foreground text-xs'>Input</h4>
-                  <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
-                    <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
-                  </div>
-                </div>
-              )}
-
-              {/* Output Data */}
-              {span.output && (
-                <div>
-                  <h4 className='mb-2 font-medium text-muted-foreground text-xs'>
-                    {span.status === 'error' ? 'Error Details' : 'Output'}
-                  </h4>
-                  <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
-                    <BlockDataDisplay
-                      data={span.output}
-                      blockType={span.type}
-                      isInput={false}
-                      isError={span.status === 'error'}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Block Input/Output Data - Collapsible */}
+          {(span.input || span.output) && <CollapsibleInputOutput span={span} spanId={spanId} />}
 
           {/* Children and tool calls */}
           {/* Render child spans */}
