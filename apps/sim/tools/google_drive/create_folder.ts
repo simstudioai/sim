@@ -15,16 +15,19 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Drive API',
     },
     fileName: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Name of the folder to create',
     },
     folderId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'ID of the parent folder (leave empty for root folder)',
     },
   },

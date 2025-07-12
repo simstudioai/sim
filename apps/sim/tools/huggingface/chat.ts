@@ -13,46 +13,53 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
   version: '1.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Hugging Face API token',
-    },
     provider: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The provider to use for the API request (e.g., novita, cerebras, etc.)',
     },
     model: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Model to use for chat completions (e.g., deepseek/deepseek-v3-0324)',
     },
     content: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The user message content to send to the model',
     },
     systemPrompt: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'System prompt to guide the model behavior',
     },
     maxTokens: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Maximum number of tokens to generate',
     },
     temperature: {
       type: 'number',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Sampling temperature (0-2). Higher values make output more random',
     },
     stream: {
       type: 'boolean',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Whether to stream the response',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Hugging Face API token',
     },
   },
 

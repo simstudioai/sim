@@ -14,22 +14,26 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
     instruction: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Instructions for extraction',
     },
     schema: {
       type: 'json',
       required: true,
+      visibility: 'user-only',
       description: 'JSON schema defining the structure of the data to extract',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      description: 'OpenAI API key for extraction (required by Stagehand)',
     },
     url: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'URL of the webpage to extract data from',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'OpenAI API key for extraction (required by Stagehand)',
     },
   },
 

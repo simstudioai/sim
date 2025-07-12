@@ -14,22 +14,26 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Microsoft Teams API',
     },
     teamId: {
       type: 'string',
       required: true,
       description: 'The ID of the team to write to',
+      visibility: 'user-only',
     },
     channelId: {
       type: 'string',
       required: true,
       description: 'The ID of the channel to write to',
+      visibility: 'user-only',
     },
     content: {
       type: 'string',
       required: true,
       description: 'The content to write to the channel',
+      visibility: 'user-or-llm',
     },
   },
   request: {

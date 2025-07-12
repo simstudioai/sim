@@ -19,22 +19,25 @@ export const confluenceRetrieveTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token for Confluence',
     },
     domain: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Your Confluence domain (e.g., yourcompany.atlassian.net)',
     },
     pageId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Confluence page ID to retrieve',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },

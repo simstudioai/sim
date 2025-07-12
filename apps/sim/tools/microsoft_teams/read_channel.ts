@@ -18,17 +18,20 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Microsoft Teams API',
     },
     teamId: {
       type: 'string',
       required: true,
       description: 'The ID of the team to read from',
+      visibility: 'user-only',
     },
     channelId: {
       type: 'string',
       required: true,
       description: 'The ID of the channel to read from',
+      visibility: 'user-only',
     },
   },
   request: {

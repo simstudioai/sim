@@ -14,23 +14,26 @@ export const sendMessageTool: ToolConfig<any, WhatsAppToolResponse> = {
     phoneNumber: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Recipient phone number with country code',
     },
     message: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Message content to send',
     },
     phoneNumberId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'WhatsApp Business Phone Number ID',
     },
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'WhatsApp Business API Access Token',
-      requiredForToolCall: true,
     },
   },
 

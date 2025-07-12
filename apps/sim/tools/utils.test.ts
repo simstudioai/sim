@@ -202,11 +202,11 @@ describe('validateToolRequest', () => {
       params: {
         required1: {
           type: 'string',
-          requiredForToolCall: true,
+          visibility: 'user-or-llm',
         },
         required2: {
           type: 'number',
-          requiredForToolCall: true,
+          visibility: 'user-or-llm',
         },
         optional: {
           type: 'boolean',
@@ -519,13 +519,13 @@ describe('createParamSchema', () => {
       required1: {
         type: 'string',
         required: true,
-        requiredForToolCall: true,
+        visibility: 'user-or-llm',
         description: 'Required param',
       },
       optional1: {
         type: 'number',
         required: false,
-        requiredForToolCall: false,
+        visibility: 'user-only',
         description: 'Optional param',
       },
     })

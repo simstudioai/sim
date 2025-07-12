@@ -4,7 +4,6 @@ import {
   airtableListRecordsTool,
   airtableUpdateRecordTool,
 } from './airtable'
-import { autoblocksPromptManagerTool } from './autoblocks'
 import { browserUseRunTaskTool } from './browser_use'
 import { clayPopulateTool } from './clay'
 import { confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
@@ -47,9 +46,7 @@ import {
   googleSheetsUpdateTool,
   googleSheetsWriteTool,
 } from './google_sheets'
-import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http'
-import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { huggingfaceChatTool } from './huggingface'
 import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
@@ -87,7 +84,6 @@ import {
 } from './pinecone'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from './reddit'
 import { s3GetObjectTool } from './s3'
-import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper'
 import { slackMessageTool } from './slack'
 import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
@@ -107,12 +103,9 @@ import { youtubeSearchTool } from './youtube'
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
   browser_use_run_task: browserUseRunTaskTool,
-  autoblocks_prompt_manager: autoblocksPromptManagerTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   huggingface_chat: huggingfaceChatTool,
-  hubspot_contacts: hubspotContacts,
-  salesforce_opportunities: salesforceOpportunities,
   function_execute: functionExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
@@ -173,8 +166,6 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_write: googleSheetsWriteTool,
   google_sheets_update: googleSheetsUpdateTool,
   google_sheets_append: googleSheetsAppendTool,
-  guesty_reservation: guestyReservationTool,
-  guesty_guest: guestyGuestTool,
   perplexity_chat: perplexityChatTool,
   confluence_retrieve: confluenceRetrieveTool,
   confluence_update: confluenceUpdateTool,

@@ -12,20 +12,30 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
     additionalScopes: ['database.write', 'projects.read'],
   },
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Your Supabase client anon key',
-    },
     projectId: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)',
     },
-    table: { type: 'string', required: true },
-    data: { type: 'any', required: true },
+    table: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The name of the Supabase table to insert data into',
+    },
+    data: {
+      type: 'any',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The data to insert',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Supabase client anon key',
+    },
   },
   request: {
     url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,

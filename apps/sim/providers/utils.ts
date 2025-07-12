@@ -404,29 +404,22 @@ export async function transformBlockTool(
     return null
   }
 
+  // Import the new tool parameter utilities
+  const { createLLMToolSchema } = await import('../tools/params')
+
+  // Get user-provided parameters from the block
+  const userProvidedParams = block.params || {}
+
+  // Create LLM schema that excludes user-provided parameters
+  const llmSchema = createLLMToolSchema(toolConfig, userProvidedParams)
+
   // Return formatted tool config
   return {
     id: toolConfig.id,
     name: toolConfig.name,
     description: toolConfig.description,
-    params: block.params || {},
-    parameters: {
-      type: 'object',
-      properties: Object.entries(toolConfig.params).reduce(
-        (acc, [key, config]: [string, any]) => ({
-          ...acc,
-          [key]: {
-            type: config.type === 'json' ? 'object' : config.type,
-            description: config.description || '',
-            ...(key in block.params && { default: block.params[key] }),
-          },
-        }),
-        {}
-      ),
-      required: Object.entries(toolConfig.params)
-        .filter(([_, config]: [string, any]) => config.required)
-        .map(([key]) => key),
-    },
+    params: userProvidedParams,
+    parameters: llmSchema,
   }
 }
 
@@ -887,4 +880,31 @@ export function getMaxTemperature(model: string): number | undefined {
  */
 export function supportsToolUsageControl(provider: string): boolean {
   return supportsToolUsageControlFromDefinitions(provider)
+}
+
+/**
+ * Prepare tool execution parameters, separating tool parameters from system parameters
+ */
+export function prepareToolExecution(
+  tool: { params?: Record<string, any> },
+  llmArgs: Record<string, any>,
+  request: { workflowId?: string; environmentVariables?: Record<string, any> }
+): {
+  toolParams: Record<string, any>
+  executionParams: Record<string, any>
+} {
+  // Only merge actual tool parameters for logging
+  const toolParams = {
+    ...tool.params,
+    ...llmArgs,
+  }
+
+  // Add system parameters for execution
+  const executionParams = {
+    ...toolParams,
+    ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
+    ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
+  }
+
+  return { toolParams, executionParams }
 }

@@ -15,11 +15,13 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Microsoft Teams API',
     },
     chatId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the chat to read from',
     },
   },

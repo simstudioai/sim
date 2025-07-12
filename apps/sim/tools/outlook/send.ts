@@ -16,22 +16,26 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Outlook API',
     },
     to: {
       type: 'string',
       required: true,
       description: 'Recipient email address',
+      visibility: 'user-or-llm',
     },
     subject: {
       type: 'string',
       required: true,
       description: 'Email subject',
+      visibility: 'user-or-llm',
     },
     body: {
       type: 'string',
       required: true,
       description: 'Email body content',
+      visibility: 'user-or-llm',
     },
   },
 

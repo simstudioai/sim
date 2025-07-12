@@ -10,11 +10,13 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
     formId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Typeform form ID',
     },
     apiKey: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Typeform Personal Access Token',
     },
   },

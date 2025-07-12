@@ -16,21 +16,25 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Outlook API',
     },
     to: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Recipient email address',
     },
     subject: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Email subject',
     },
     body: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Email body content',
     },
   },

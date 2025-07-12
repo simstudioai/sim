@@ -8,31 +8,35 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
   version: '1.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Perplexity API key',
-    },
     model: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Model to use for chat completions (e.g., sonar, mistral)',
     },
     messages: {
       type: 'array',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Array of message objects with role and content',
     },
     max_tokens: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of tokens to generate',
     },
     temperature: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Sampling temperature between 0 and 1',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Perplexity API key',
     },
   },
 

@@ -15,18 +15,31 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Drive API',
     },
     folderId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'The ID of the folder to list files from',
     },
-    query: { type: 'string', required: false, description: 'A query to filter the files' },
-    pageSize: { type: 'number', required: false, description: 'The number of files to return' },
+    query: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'A query to filter the files',
+    },
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'hidden',
+      description: 'The number of files to return',
+    },
     pageToken: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'The page token to use for pagination',
     },
   },

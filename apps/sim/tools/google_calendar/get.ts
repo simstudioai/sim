@@ -22,16 +22,19 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Google Calendar API',
     },
     calendarId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Calendar ID (defaults to primary)',
     },
     eventId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Event ID to retrieve',
     },
   },
