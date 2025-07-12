@@ -3,6 +3,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { prepareToolExecution } from '../utils'
 
 const logger = createLogger('GoogleProvider')
 
@@ -23,6 +24,73 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
         while (true) {
           const { done, value } = await reader.read()
           if (done) {
+            // Try to parse any remaining buffer as complete JSON
+            if (buffer.trim()) {
+              logger.debug('Processing final buffer', {
+                bufferLength: buffer.length,
+                bufferPreview: buffer.substring(0, 200),
+              })
+              try {
+                const data = JSON.parse(buffer.trim())
+                const candidate = data.candidates?.[0]
+                if (candidate?.content?.parts) {
+                  // Check if this is a function call
+                  const functionCall = extractFunctionCall(candidate)
+                  if (functionCall) {
+                    logger.debug('Function call detected in final buffer, should not be streamed', {
+                      functionName: functionCall.name,
+                    })
+                  } else {
+                    const content = extractTextContent(candidate)
+                    if (content) {
+                      logger.debug('Extracted content from final buffer', {
+                        contentLength: content.length,
+                      })
+                      controller.enqueue(new TextEncoder().encode(content))
+                    }
+                  }
+                }
+              } catch (e) {
+                logger.debug('Final buffer not valid JSON, checking if it contains JSON array', {
+                  error: e instanceof Error ? e.message : String(e),
+                })
+                // Try parsing as JSON array if it starts with [
+                if (buffer.trim().startsWith('[')) {
+                  try {
+                    const dataArray = JSON.parse(buffer.trim())
+                    if (Array.isArray(dataArray)) {
+                      for (const item of dataArray) {
+                        const candidate = item.candidates?.[0]
+                        if (candidate?.content?.parts) {
+                          // Check if this is a function call
+                          const functionCall = extractFunctionCall(candidate)
+                          if (functionCall) {
+                            logger.debug(
+                              'Function call detected in array item, should not be streamed',
+                              {
+                                functionName: functionCall.name,
+                              }
+                            )
+                          } else {
+                            const content = extractTextContent(candidate)
+                            if (content) {
+                              logger.debug('Extracted content from array item', {
+                                contentLength: content.length,
+                              })
+                              controller.enqueue(new TextEncoder().encode(content))
+                            }
+                          }
+                        }
+                      }
+                    }
+                  } catch (arrayError) {
+                    logger.debug('Buffer also not valid JSON array', {
+                      error: arrayError instanceof Error ? arrayError.message : String(arrayError),
+                    })
+                  }
+                }
+              }
+            }
             controller.close()
             break
           }
@@ -30,47 +98,108 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
           const text = new TextDecoder().decode(value)
           buffer += text
 
-          try {
-            const lines = buffer.split('\n')
-            buffer = ''
+          logger.debug('Received chunk from Gemini stream', {
+            chunkLength: text.length,
+            bufferLength: buffer.length,
+            chunkPreview: text.substring(0, 100),
+          })
 
-            for (let i = 0; i < lines.length; i++) {
-              const line = lines[i].trim()
+          // Try to find complete JSON objects in buffer
+          // Look for patterns like: {...}\n{...} or just a single {...}
+          let searchIndex = 0
+          while (searchIndex < buffer.length) {
+            const openBrace = buffer.indexOf('{', searchIndex)
+            if (openBrace === -1) break
 
-              if (i === lines.length - 1 && line !== '') {
-                buffer = line
-                continue
+            // Try to find the matching closing brace
+            let braceCount = 0
+            let inString = false
+            let escaped = false
+            let closeBrace = -1
+
+            for (let i = openBrace; i < buffer.length; i++) {
+              const char = buffer[i]
+
+              if (!inString) {
+                if (char === '"' && !escaped) {
+                  inString = true
+                } else if (char === '{') {
+                  braceCount++
+                } else if (char === '}') {
+                  braceCount--
+                  if (braceCount === 0) {
+                    closeBrace = i
+                    break
+                  }
+                }
+              } else {
+                if (char === '"' && !escaped) {
+                  inString = false
+                }
               }
 
-              if (!line) continue
+              escaped = char === '\\' && !escaped
+            }
 
-              if (line.startsWith('data: ')) {
-                const jsonStr = line.substring(6)
+            if (closeBrace !== -1) {
+              // Found a complete JSON object
+              const jsonStr = buffer.substring(openBrace, closeBrace + 1)
 
-                if (jsonStr === '[DONE]') continue
+              try {
+                const data = JSON.parse(jsonStr)
+                logger.debug('Parsed complete JSON from stream', {
+                  hasCandidate: !!data.candidates?.[0],
+                  hasParts: !!data.candidates?.[0]?.content?.parts,
+                  finishReason: data.candidates?.[0]?.finishReason,
+                  jsonLength: jsonStr.length,
+                })
 
-                try {
-                  const data = JSON.parse(jsonStr)
-                  const candidate = data.candidates?.[0]
-                  if (candidate?.content?.parts) {
+                const candidate = data.candidates?.[0]
+
+                // Handle specific finish reasons
+                if (candidate?.finishReason === 'UNEXPECTED_TOOL_CALL') {
+                  logger.warn('Gemini returned UNEXPECTED_TOOL_CALL in streaming mode', {
+                    finishReason: candidate.finishReason,
+                    hasContent: !!candidate?.content,
+                    hasParts: !!candidate?.content?.parts,
+                  })
+                  // This indicates a configuration issue - tools might be improperly configured for streaming
+                  continue
+                }
+
+                if (candidate?.content?.parts) {
+                  // Check if this is a function call
+                  const functionCall = extractFunctionCall(candidate)
+                  if (functionCall) {
+                    logger.debug('Function call detected in stream, should not be streamed', {
+                      functionName: functionCall.name,
+                    })
+                    // Function calls should not be streamed, they should be handled by tool execution flow
+                    // This indicates a configuration issue - streaming shouldn't happen for function calls
+                  } else {
                     const content = extractTextContent(candidate)
                     if (content) {
+                      logger.debug('Extracted content from stream', {
+                        contentLength: content.length,
+                      })
                       controller.enqueue(new TextEncoder().encode(content))
                     }
                   }
-                } catch (e) {
-                  logger.error('Error parsing Gemini SSE JSON data', {
-                    error: e instanceof Error ? e.message : String(e),
-                    data: jsonStr,
-                  })
                 }
+              } catch (e) {
+                logger.error('Error parsing JSON from stream', {
+                  error: e instanceof Error ? e.message : String(e),
+                  jsonPreview: jsonStr.substring(0, 200),
+                })
               }
+
+              // Remove processed JSON from buffer and continue searching
+              buffer = buffer.substring(closeBrace + 1)
+              searchIndex = 0
+            } else {
+              // No complete JSON object found, wait for more data
+              break
             }
-          } catch (e) {
-            logger.error('Error processing Gemini SSE stream', {
-              error: e instanceof Error ? e.message : String(e),
-              chunk: text,
-            })
           }
         }
       } catch (e) {
@@ -177,10 +306,21 @@ export const googleProvider: ProviderConfig = {
       // Make the API request
       const initialCallTime = Date.now()
 
-      // For streaming requests, add the alt=sse parameter to the URL
-      const endpoint = request.stream
-        ? `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}&alt=sse`
+      // Disable streaming for initial requests when tools are present to avoid function calls in streams
+      // Only enable streaming for the final response after tool execution
+      const shouldStream = request.stream && !tools?.length
+
+      // Use streamGenerateContent for streaming requests
+      const endpoint = shouldStream
+        ? `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:streamGenerateContent?key=${request.apiKey}`
         : `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`
+
+      if (request.stream && tools?.length) {
+        logger.info('Streaming disabled for initial request due to tools presence', {
+          toolCount: tools.length,
+          willStreamAfterTools: true,
+        })
+      }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -203,7 +343,7 @@ export const googleProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       // Handle streaming response
-      if (request.stream) {
+      if (shouldStream) {
         logger.info('Handling Google Gemini streaming response')
 
         // Create a ReadableStream from the Google Gemini stream
@@ -346,55 +486,12 @@ export const googleProvider: ProviderConfig = {
               // Execute the tool
               const toolCallStartTime = Date.now()
 
-              // Only merge actual tool parameters for logging
-              const toolParams = {
-                ...tool.params, // Default parameters defined for the tool
-                ...toolArgs, // Arguments from the model's function call
-              }
-
-              // Add system parameters for execution
-              const executionParams = {
-                ...toolParams,
-                ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
-                ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-              }
-
-              // For debugging only - don't log actual API keys
-              logger.debug(`Executing tool ${toolName} with parameters:`, {
-                parameterKeys: Object.keys(executionParams),
-                toolArgsKeys: Object.keys(toolArgs),
-              })
+              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
               const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-              if (!result.success) {
-                // Check for API key related errors
-                const errorMessage = result.error?.toLowerCase() || ''
-                if (
-                  errorMessage.includes('api key') ||
-                  errorMessage.includes('apikey') ||
-                  errorMessage.includes('x-api-key') ||
-                  errorMessage.includes('authentication')
-                ) {
-                  logger.error(`Tool ${toolName} failed with API key error:`, {
-                    error: result.error,
-                    toolRequiresKey: true,
-                  })
-
-                  // Add a more helpful error message for the user
-                  content = `Error: The ${toolName} tool requires a valid API key. Please ensure you've provided the correct API key for this specific service.`
-                } else {
-                  // Regular error handling
-                  logger.warn(`Tool ${toolName} execution failed`, {
-                    error: result.error,
-                    duration: toolCallDuration,
-                  })
-                }
-                break
-              }
-
-              // Add to time segments
+              // Add to time segments for both success and failure
               timeSegments.push({
                 type: 'tool',
                 name: toolName,
@@ -403,15 +500,28 @@ export const googleProvider: ProviderConfig = {
                 duration: toolCallDuration,
               })
 
-              // Track results
-              toolResults.push(result.output)
+              // Prepare result content for the LLM
+              let resultContent: any
+              if (result.success) {
+                toolResults.push(result.output)
+                resultContent = result.output
+              } else {
+                // Include error information so LLM can respond appropriately
+                resultContent = {
+                  error: true,
+                  message: result.error || 'Tool execution failed',
+                  tool: toolName,
+                }
+              }
+
               toolCalls.push({
                 name: toolName,
                 arguments: toolParams,
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,
-                result: result.output,
+                result: resultContent,
+                success: result.success,
               })
 
               // Prepare for next request with simplified messages
@@ -438,7 +548,7 @@ export const googleProvider: ProviderConfig = {
                   role: 'user',
                   parts: [
                     {
-                      text: `Function ${latestFunctionCall.name} result: ${JSON.stringify(toolResults[toolResults.length - 1])}`,
+                      text: `Function ${latestFunctionCall.name} result: ${JSON.stringify(resultContent)}`,
                     },
                   ],
                 },
@@ -458,17 +568,23 @@ export const googleProvider: ProviderConfig = {
                   const streamingPayload = {
                     ...payload,
                     contents: simplifiedMessages,
-                    tool_config: { mode: 'AUTO' }, // Always use AUTO mode for streaming after tools
+                    toolConfig: { functionCallingConfig: { mode: 'AUTO' } }, // Always use AUTO mode for streaming after tools
                   }
+
+                  logger.info('Streaming payload for tool call follow-up', {
+                    contents: simplifiedMessages,
+                    toolConfig: streamingPayload.toolConfig,
+                    hasTools: !!streamingPayload.tools,
+                  })
 
                   // Remove any forced tool configuration to prevent issues with streaming
-                  if ('tool_config' in streamingPayload) {
-                    streamingPayload.tool_config = { mode: 'AUTO' }
+                  if ('toolConfig' in streamingPayload) {
+                    streamingPayload.toolConfig = { functionCallingConfig: { mode: 'AUTO' } }
                   }
 
-                  // Make the streaming request with alt=sse parameter
+                  // Make the streaming request with streamGenerateContent endpoint
                   const streamingResponse = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}&alt=sse`,
+                    `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:streamGenerateContent?key=${request.apiKey}`,
                     {
                       method: 'POST',
                       headers: {

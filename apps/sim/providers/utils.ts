@@ -601,8 +601,10 @@ export function prepareToolsWithUsageControl(
     | undefined
   toolConfig?: {
     // Add toolConfig for Google's format
-    mode: 'AUTO' | 'ANY' | 'NONE'
-    allowed_function_names?: string[]
+    functionCallingConfig: {
+      mode: 'AUTO' | 'ANY' | 'NONE'
+      allowedFunctionNames?: string[]
+    }
   }
   hasFilteredTools: boolean
   forcedTools: string[] // Return all forced tool IDs
@@ -658,8 +660,10 @@ export function prepareToolsWithUsageControl(
   // For Google, we'll use a separate toolConfig object
   let toolConfig:
     | {
-        mode: 'AUTO' | 'ANY' | 'NONE'
-        allowed_function_names?: string[]
+        functionCallingConfig: {
+          mode: 'AUTO' | 'ANY' | 'NONE'
+          allowedFunctionNames?: string[]
+        }
       }
     | undefined
 
@@ -674,13 +678,15 @@ export function prepareToolsWithUsageControl(
         name: forcedTool.id,
       }
     } else if (provider === 'google') {
-      // Google Gemini format uses a separate tool_config object
+      // Google Gemini format uses a separate toolConfig object
       toolConfig = {
-        mode: 'ANY',
-        allowed_function_names:
-          forcedTools.length === 1
-            ? [forcedTool.id] // If only one tool, specify just that one
-            : forcedToolIds, // If multiple tools, include all of them
+        functionCallingConfig: {
+          mode: 'ANY',
+          allowedFunctionNames:
+            forcedTools.length === 1
+              ? [forcedTool.id] // If only one tool, specify just that one
+              : forcedToolIds, // If multiple tools, include all of them
+        },
       }
       // Keep toolChoice as 'auto' since we use toolConfig instead
       toolChoice = 'auto'
@@ -703,7 +709,7 @@ export function prepareToolsWithUsageControl(
     // Default to auto if no forced tools
     toolChoice = 'auto'
     if (provider === 'google') {
-      toolConfig = { mode: 'AUTO' }
+      toolConfig = { functionCallingConfig: { mode: 'AUTO' } }
     }
     logger.info('Setting tool_choice to auto - letting model decide which tools to use')
   }
@@ -745,8 +751,10 @@ export function trackForcedToolUsage(
     | { type: 'any'; any: { model: string; name: string } }
     | null
   nextToolConfig?: {
-    mode: 'AUTO' | 'ANY' | 'NONE'
-    allowed_function_names?: string[]
+    functionCallingConfig: {
+      mode: 'AUTO' | 'ANY' | 'NONE'
+      allowedFunctionNames?: string[]
+    }
   }
 } {
   // Default to keeping the original tool_choice
@@ -754,8 +762,10 @@ export function trackForcedToolUsage(
   let nextToolChoice = originalToolChoice
   let nextToolConfig:
     | {
-        mode: 'AUTO' | 'ANY' | 'NONE'
-        allowed_function_names?: string[]
+        functionCallingConfig: {
+          mode: 'AUTO' | 'ANY' | 'NONE'
+          allowedFunctionNames?: string[]
+        }
       }
     | undefined
 
@@ -766,9 +776,9 @@ export function trackForcedToolUsage(
 
   // Get the name of the current forced tool(s)
   let forcedToolNames: string[] = []
-  if (isGoogleFormat && originalToolChoice?.allowed_function_names) {
+  if (isGoogleFormat && originalToolChoice?.functionCallingConfig?.allowedFunctionNames) {
     // For Google format
-    forcedToolNames = originalToolChoice.allowed_function_names
+    forcedToolNames = originalToolChoice.functionCallingConfig.allowedFunctionNames
   } else if (
     typeof originalToolChoice === 'object' &&
     (originalToolChoice?.function?.name ||
@@ -811,11 +821,13 @@ export function trackForcedToolUsage(
           }
         } else if (provider === 'google') {
           nextToolConfig = {
-            mode: 'ANY',
-            allowed_function_names:
-              remainingTools.length === 1
-                ? [nextToolToForce] // If only one tool left, specify just that one
-                : remainingTools, // If multiple tools, include all remaining
+            functionCallingConfig: {
+              mode: 'ANY',
+              allowedFunctionNames:
+                remainingTools.length === 1
+                  ? [nextToolToForce] // If only one tool left, specify just that one
+                  : remainingTools, // If multiple tools, include all remaining
+            },
           }
         } else {
           // Default OpenAI format
@@ -833,7 +845,7 @@ export function trackForcedToolUsage(
         if (provider === 'anthropic') {
           nextToolChoice = null // Anthropic requires null to remove the parameter
         } else if (provider === 'google') {
-          nextToolConfig = { mode: 'AUTO' }
+          nextToolConfig = { functionCallingConfig: { mode: 'AUTO' } }
         } else {
           nextToolChoice = 'auto'
         }
