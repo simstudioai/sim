@@ -7,17 +7,21 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/compo
 
 interface ConnectionStatusProps {
   isConnected: boolean
+  hasOperationError?: boolean
 }
 
-export function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
+export function ConnectionStatus({ isConnected, hasOperationError }: ConnectionStatusProps) {
   const userPermissions = useUserPermissionsContext()
 
   const handleRefresh = () => {
     window.location.reload()
   }
 
-  // Don't render anything if not in offline mode
-  if (!userPermissions.isOfflineMode) {
+  // Show error if either offline mode OR operation error
+  const shouldShowError = userPermissions.isOfflineMode || hasOperationError
+
+  // Don't render anything if no errors
+  if (!shouldShowError) {
     return null
   }
 
@@ -32,10 +36,14 @@ export function ConnectionStatus({ isConnected }: ConnectionStatusProps) {
         </div>
         <div className='flex flex-col'>
           <span className='font-medium text-xs leading-tight'>
-            {isConnected ? 'Reconnected' : 'Connection lost - please refresh'}
+            {hasOperationError
+              ? 'Workflow Edit Failed'
+              : isConnected
+                ? 'Reconnected'
+                : 'Connection lost - please refresh'}
           </span>
           <span className='text-red-600 text-xs leading-tight'>
-            {isConnected ? 'Refresh to continue editing' : 'Read-only mode active'}
+            Please refresh to continue editing
           </span>
         </div>
       </div>
