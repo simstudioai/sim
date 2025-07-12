@@ -13,7 +13,7 @@ export interface QueuedOperation {
   workflowId: string
   timestamp: number
   retryCount: number
-  status: 'pending' | 'confirmed' | 'failed'
+  status: 'pending' | 'processing' | 'confirmed' | 'failed'
   userId: string
 }
 
@@ -24,9 +24,11 @@ interface OperationQueueState {
 
   addToQueue: (operation: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>) => void
   confirmOperation: (operationId: string) => void
-  failOperation: (operationId: string, emitFunction: (operation: QueuedOperation) => void) => void
+  failOperation: (operationId: string) => void
   handleOperationTimeout: (operationId: string) => void
   handleSocketReconnection: () => void
+  processNextOperation: () => void
+
   triggerOfflineMode: () => void
   clearError: () => void
 }
@@ -60,8 +62,28 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   addToQueue: (operation) => {
     const state = get()
 
+    // Check for duplicate operation ID
     const existingOp = state.operations.find((op) => op.id === operation.id)
     if (existingOp) {
+      logger.debug('Skipping duplicate operation', { operationId: operation.id })
+      return
+    }
+
+    // Check for duplicate operation content (same operation on same target with same payload)
+    const duplicateContent = state.operations.find(
+      (op) =>
+        op.operation.operation === operation.operation.operation &&
+        op.operation.target === operation.operation.target &&
+        JSON.stringify(op.operation.payload) === JSON.stringify(operation.operation.payload) &&
+        op.workflowId === operation.workflowId
+    )
+    if (duplicateContent) {
+      logger.debug('Skipping duplicate operation content', {
+        operationId: operation.id,
+        existingOperationId: duplicateContent.id,
+        operation: operation.operation.operation,
+        target: operation.operation.target,
+      })
       return
     }
 
@@ -77,20 +99,12 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       operation: queuedOp.operation,
     })
 
-    const timeoutId = setTimeout(() => {
-      logger.warn('Operation timeout - no server response after 5 seconds', {
-        operationId: queuedOp.id,
-      })
-      operationTimeouts.delete(queuedOp.id)
-
-      get().handleOperationTimeout(queuedOp.id)
-    }, 5000)
-
-    operationTimeouts.set(queuedOp.id, timeoutId)
-
     set((state) => ({
       operations: [...state.operations, queuedOp],
     }))
+
+    // Start processing if not already processing
+    get().processNextOperation()
   },
 
   confirmOperation: (operationId) => {
@@ -114,10 +128,13 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       remainingOps: newOperations.length,
     })
 
-    set({ operations: newOperations })
+    set({ operations: newOperations, isProcessing: false })
+
+    // Process next operation in queue
+    get().processNextOperation()
   },
 
-  failOperation: (operationId: string, emitFunction: (operation: QueuedOperation) => void) => {
+  failOperation: (operationId: string) => {
     const state = get()
     const operation = state.operations.find((op) => op.id === operationId)
     if (!operation) {
@@ -140,42 +157,23 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         retryCount: newRetryCount,
       })
 
+      // Update retry count and mark as pending for retry
+      set((state) => ({
+        operations: state.operations.map((op) =>
+          op.id === operationId
+            ? { ...op, retryCount: newRetryCount, status: 'pending' as const }
+            : op
+        ),
+        isProcessing: false, // Allow processing to continue
+      }))
+
+      // Schedule retry
       const timeout = setTimeout(() => {
-        if (operation.workflowId !== currentWorkflowId) {
-          logger.warn('Cancelling retry - workflow changed', {
-            operationId,
-            operationWorkflow: operation.workflowId,
-            currentWorkflow: currentWorkflowId,
-          })
-          retryTimeouts.delete(operationId)
-          set((state) => ({
-            operations: state.operations.filter((op) => op.id !== operationId),
-          }))
-          return
-        }
-
-        emitFunction(operation)
         retryTimeouts.delete(operationId)
-
-        // Create new operation timeout for this retry attempt
-        const newTimeoutId = setTimeout(() => {
-          logger.warn('Retry operation timeout - no server response after 5 seconds', {
-            operationId,
-          })
-          operationTimeouts.delete(operationId)
-          get().handleOperationTimeout(operationId)
-        }, 5000)
-
-        operationTimeouts.set(operationId, newTimeoutId)
+        get().processNextOperation()
       }, delay)
 
       retryTimeouts.set(operationId, timeout)
-
-      set((state) => ({
-        operations: state.operations.map((op) =>
-          op.id === operationId ? { ...op, retryCount: newRetryCount } : op
-        ),
-      }))
     } else {
       logger.error('Operation failed after max retries, triggering offline mode', { operationId })
       get().triggerOfflineMode()
@@ -194,21 +192,74 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       operationId,
     })
 
-    const retryFunction = (operation: any) => {
-      const { operation: op, target, payload } = operation.operation
+    get().failOperation(operationId)
+  },
 
-      if (op === 'subblock-update' && target === 'subblock') {
-        if (emitSubblockUpdate) {
-          emitSubblockUpdate(payload.blockId, payload.subblockId, payload.value, operation.id)
-        }
-      } else {
-        if (emitWorkflowOperation) {
-          emitWorkflowOperation(op, target, payload, operation.id)
-        }
+  processNextOperation: () => {
+    const state = get()
+
+    // Don't process if already processing
+    if (state.isProcessing) {
+      return
+    }
+
+    // Find the first pending operation (FIFO - first in, first out)
+    const nextOperation = state.operations.find((op) => op.status === 'pending')
+    if (!nextOperation) {
+      return // No pending operations
+    }
+
+    // Check workflow context
+    if (nextOperation.workflowId !== currentWorkflowId) {
+      logger.warn('Cancelling operation - workflow changed', {
+        operationId: nextOperation.id,
+        operationWorkflow: nextOperation.workflowId,
+        currentWorkflow: currentWorkflowId,
+      })
+      set((state) => ({
+        operations: state.operations.filter((op) => op.id !== nextOperation.id),
+      }))
+      // Try next operation
+      get().processNextOperation()
+      return
+    }
+
+    // Mark as processing
+    set((state) => ({
+      operations: state.operations.map((op) =>
+        op.id === nextOperation.id ? { ...op, status: 'processing' as const } : op
+      ),
+      isProcessing: true,
+    }))
+
+    logger.debug('Processing operation sequentially', {
+      operationId: nextOperation.id,
+      operation: nextOperation.operation,
+      retryCount: nextOperation.retryCount,
+    })
+
+    // Emit the operation
+    const { operation: op, target, payload } = nextOperation.operation
+    if (op === 'subblock-update' && target === 'subblock') {
+      if (emitSubblockUpdate) {
+        emitSubblockUpdate(payload.blockId, payload.subblockId, payload.value, nextOperation.id)
+      }
+    } else {
+      if (emitWorkflowOperation) {
+        emitWorkflowOperation(op, target, payload, nextOperation.id)
       }
     }
 
-    get().failOperation(operationId, retryFunction)
+    // Create operation timeout
+    const timeoutId = setTimeout(() => {
+      logger.warn('Operation timeout - no server response after 5 seconds', {
+        operationId: nextOperation.id,
+      })
+      operationTimeouts.delete(nextOperation.id)
+      get().handleOperationTimeout(nextOperation.id)
+    }, 5000)
+
+    operationTimeouts.set(nextOperation.id, timeoutId)
   },
 
   handleSocketReconnection: () => {
@@ -275,6 +326,7 @@ export function useOperationQueue() {
     confirmOperation: store.confirmOperation,
     failOperation: store.failOperation,
     handleSocketReconnection: store.handleSocketReconnection,
+    processNextOperation: store.processNextOperation,
     triggerOfflineMode: store.triggerOfflineMode,
     clearError: store.clearError,
   }

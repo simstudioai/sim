@@ -362,19 +362,7 @@ export function useCollaborativeWorkflow() {
       const { operationId, error, retryable } = data
       logger.warn('Operation failed', { operationId, error, retryable })
 
-      const retryFunction = (operation: any) => {
-        const { operation: op, target, payload } = operation.operation
-
-        if (op === 'subblock-update' && target === 'subblock') {
-          // Use subblock-update channel for subblock operations
-          emitSubblockUpdate(payload.blockId, payload.subblockId, payload.value, operation.id)
-        } else {
-          // Use workflow-operation channel for block/edge/subflow operations
-          emitWorkflowOperation(op, target, payload, operation.id)
-        }
-      }
-
-      failOperation(operationId, retryFunction)
+      failOperation(operationId)
     }
 
     // Register event handlers
@@ -478,14 +466,38 @@ export function useCollaborativeWorkflow() {
           autoConnectEdge, // Include edge data for atomic operation
         }
 
+        // Skip if applying remote changes
+        if (isApplyingRemoteChange.current) {
+          workflowStore.addBlock(id, type, name, position, data, parentId, extent)
+          if (autoConnectEdge) {
+            workflowStore.addEdge(autoConnectEdge)
+          }
+          return
+        }
+
+        // Generate operation ID for queue tracking
+        const operationId = crypto.randomUUID()
+
+        // Add to queue for retry mechanism
+        addToQueue({
+          id: operationId,
+          operation: {
+            operation: 'add',
+            target: 'block',
+            payload: completeBlockData,
+          },
+          workflowId: activeWorkflowId || '',
+          userId: session?.user?.id || 'unknown',
+        })
+
+        // Apply locally first (immediate UI feedback)
         workflowStore.addBlock(id, type, name, position, data, parentId, extent)
         if (autoConnectEdge) {
           workflowStore.addEdge(autoConnectEdge)
         }
 
-        if (!isApplyingRemoteChange.current) {
-          emitWorkflowOperation('add', 'block', completeBlockData)
-        }
+        // Emit to server with operation ID for tracking
+        emitWorkflowOperation('add', 'block', completeBlockData, operationId)
         return
       }
 
