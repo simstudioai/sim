@@ -1,6 +1,88 @@
 import type { ParameterVisibility, ToolConfig } from './types'
 import { getTool } from './utils'
 
+export interface Option {
+  label: string
+  value: string
+}
+
+export interface ComponentCondition {
+  field: string
+  value: string
+}
+
+export interface UIComponentConfig {
+  type: string
+  options?: Option[]
+  placeholder?: string
+  password?: boolean
+  condition?: ComponentCondition
+  title?: string
+  layout?: string
+  value?: unknown
+  provider?: string
+  serviceId?: string
+  requiredScopes?: string[]
+  mimeType?: string
+  columns?: string[]
+  min?: number
+  max?: number
+  step?: number
+  integer?: boolean
+  language?: string
+  generationType?: string
+  acceptedTypes?: string[]
+  multiple?: boolean
+  maxSize?: number
+}
+
+export interface SubBlockConfig {
+  id: string
+  type: string
+  title?: string
+  options?: Option[]
+  placeholder?: string
+  password?: boolean
+  condition?: ComponentCondition
+  layout?: string
+  value?: unknown
+  provider?: string
+  serviceId?: string
+  requiredScopes?: string[]
+  mimeType?: string
+  columns?: string[]
+  min?: number
+  max?: number
+  step?: number
+  integer?: boolean
+  language?: string
+  generationType?: string
+  acceptedTypes?: string[]
+  multiple?: boolean
+  maxSize?: number
+}
+
+export interface BlockConfig {
+  type: string
+  subBlocks?: SubBlockConfig[]
+}
+
+export interface SchemaProperty {
+  type: string
+  description: string
+}
+
+export interface ToolSchema {
+  type: 'object'
+  properties: Record<string, SchemaProperty>
+  required: string[]
+}
+
+export interface ValidationResult {
+  valid: boolean
+  missingParams: string[]
+}
+
 export interface ToolParameterConfig {
   id: string
   type: string
@@ -8,16 +90,9 @@ export interface ToolParameterConfig {
   visibility?: ParameterVisibility // Controls who can/must provide this parameter
   userProvided?: boolean // User filled this parameter
   description?: string
-  default?: any
+  default?: unknown
   // UI component information from block config
-  uiComponent?: {
-    type: string
-    options?: any[]
-    placeholder?: string
-    password?: boolean
-    condition?: any
-    [key: string]: any
-  }
+  uiComponent?: UIComponentConfig
 }
 
 export interface ToolWithParameters {
@@ -42,12 +117,12 @@ export function getToolParametersConfig(
   }
 
   // Get block configuration for UI component information
-  let blockConfig: any = null
+  let blockConfig: BlockConfig | null = null
   if (blockType) {
     try {
       // Import blocks dynamically to avoid circular dependencies
       const { getAllBlocks } = require('../blocks')
-      blockConfig = getAllBlocks().find((block: any) => block.type === blockType)
+      blockConfig = getAllBlocks().find((block: BlockConfig) => block.type === blockType) || null
     } catch (error) {
       console.warn('Could not load block configuration:', error)
     }
@@ -69,7 +144,7 @@ export function getToolParametersConfig(
       if (blockConfig) {
         // For multi-operation tools, find the subblock that matches both the parameter ID
         // and the current tool operation
-        let subBlock = blockConfig.subBlocks?.find((sb: any) => {
+        let subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => {
           if (sb.id !== paramId) return false
 
           // If there's a condition, check if it matches the current tool
@@ -85,7 +160,7 @@ export function getToolParametersConfig(
 
         // Fallback: if no operation-specific match, find any matching parameter
         if (!subBlock) {
-          subBlock = blockConfig.subBlocks?.find((sb: any) => sb.id === paramId)
+          subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => sb.id === paramId)
         }
 
         if (subBlock) {
@@ -147,12 +222,12 @@ export function getToolParametersConfig(
  */
 export function createLLMToolSchema(
   toolConfig: ToolConfig,
-  userProvidedParams: Record<string, any>
-): any {
-  const schema = {
+  userProvidedParams: Record<string, unknown>
+): ToolSchema {
+  const schema: ToolSchema = {
     type: 'object',
-    properties: {} as Record<string, any>,
-    required: [] as string[],
+    properties: {},
+    required: [],
   }
 
   // Only include parameters that the LLM should/can provide
@@ -195,11 +270,11 @@ export function createLLMToolSchema(
 /**
  * Creates a complete tool schema for execution with all parameters
  */
-export function createExecutionToolSchema(toolConfig: ToolConfig): any {
-  const schema = {
+export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
+  const schema: ToolSchema = {
     type: 'object',
-    properties: {} as Record<string, any>,
-    required: [] as string[],
+    properties: {},
+    required: [],
   }
 
   Object.entries(toolConfig.params).forEach(([paramId, param]) => {
@@ -220,9 +295,9 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): any {
  * Merges user-provided parameters with LLM-generated parameters
  */
 export function mergeToolParameters(
-  userProvidedParams: Record<string, any>,
-  llmGeneratedParams: Record<string, any>
-): Record<string, any> {
+  userProvidedParams: Record<string, unknown>,
+  llmGeneratedParams: Record<string, unknown>
+): Record<string, unknown> {
   // User-provided parameters take precedence
   return {
     ...llmGeneratedParams,
@@ -234,9 +309,9 @@ export function mergeToolParameters(
  * Filters out user-provided parameters from tool schema for LLM
  */
 export function filterSchemaForLLM(
-  originalSchema: any,
-  userProvidedParams: Record<string, any>
-): any {
+  originalSchema: ToolSchema,
+  userProvidedParams: Record<string, unknown>
+): ToolSchema {
   if (!originalSchema || !originalSchema.properties) {
     return originalSchema
   }
@@ -271,8 +346,8 @@ export function filterSchemaForLLM(
  */
 export function validateToolParameters(
   toolConfig: ToolConfig,
-  finalParams: Record<string, any>
-): { valid: boolean; missingParams: string[] } {
+  finalParams: Record<string, unknown>
+): ValidationResult {
   const requiredParams = Object.entries(toolConfig.params)
     .filter(([_, param]) => param.required)
     .map(([paramId]) => paramId)

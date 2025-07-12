@@ -7,6 +7,9 @@ import {
   getToolParametersConfig,
   isPasswordParameter,
   mergeToolParameters,
+  type ToolParameterConfig,
+  type ToolSchema,
+  type ValidationResult,
   validateToolParameters,
 } from './params'
 import type { ParameterVisibility } from './types'
@@ -172,8 +175,8 @@ describe('Tool Parameters Utils', () => {
 
   describe('filterSchemaForLLM', () => {
     it.concurrent('should filter out user-provided parameters from schema', () => {
-      const originalSchema = {
-        type: 'object',
+      const originalSchema: ToolSchema = {
+        type: 'object' as const,
         properties: {
           apiKey: { type: 'string', description: 'API key' },
           message: { type: 'string', description: 'Message' },
@@ -219,6 +222,52 @@ describe('Tool Parameters Utils', () => {
       expect(isPasswordParameter('message')).toBe(false)
       expect(isPasswordParameter('channel')).toBe(false)
       expect(isPasswordParameter('timeout')).toBe(false)
+    })
+  })
+
+  describe('Type Interface Validation', () => {
+    it.concurrent('should have properly typed ToolSchema', () => {
+      const schema: ToolSchema = createLLMToolSchema(mockToolConfig, {})
+
+      expect(schema.type).toBe('object')
+      expect(typeof schema.properties).toBe('object')
+      expect(Array.isArray(schema.required)).toBe(true)
+
+      // Verify properties have correct structure
+      Object.values(schema.properties).forEach((prop) => {
+        expect(prop).toHaveProperty('type')
+        expect(prop).toHaveProperty('description')
+        expect(typeof prop.type).toBe('string')
+        expect(typeof prop.description).toBe('string')
+      })
+    })
+
+    it.concurrent('should have properly typed ValidationResult', () => {
+      const result: ValidationResult = validateToolParameters(mockToolConfig, {})
+
+      expect(typeof result.valid).toBe('boolean')
+      expect(Array.isArray(result.missingParams)).toBe(true)
+      expect(result.missingParams.every((param) => typeof param === 'string')).toBe(true)
+    })
+
+    it.concurrent('should have properly typed ToolParameterConfig', () => {
+      const config = getToolParametersConfig('test_tool')
+      expect(config).toBeDefined()
+
+      if (config) {
+        config.allParameters.forEach((param: ToolParameterConfig) => {
+          expect(typeof param.id).toBe('string')
+          expect(typeof param.type).toBe('string')
+          expect(typeof param.required).toBe('boolean')
+          expect(
+            ['user-or-llm', 'user-only', 'llm-only', 'hidden'].includes(param.visibility!)
+          ).toBe(true)
+          if (param.description) expect(typeof param.description).toBe('string')
+          if (param.uiComponent) {
+            expect(typeof param.uiComponent.type).toBe('string')
+          }
+        })
+      }
     })
   })
 })
