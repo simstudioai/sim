@@ -103,13 +103,11 @@ export interface ToolWithParameters {
   optionalParameters: ToolParameterConfig[] // Nice to have, shown to user
 }
 
-// Cache for block configurations to avoid expensive require() calls
 let blockConfigCache: Record<string, BlockConfig> | null = null
 
 function getBlockConfigurations(): Record<string, BlockConfig> {
   if (!blockConfigCache) {
     try {
-      // Import blocks dynamically to avoid circular dependencies
       const { getAllBlocks } = require('../blocks')
       const allBlocks = getAllBlocks()
       blockConfigCache = {}
@@ -122,13 +120,6 @@ function getBlockConfigurations(): Record<string, BlockConfig> {
     }
   }
   return blockConfigCache
-}
-
-/**
- * Clears the block configuration cache (useful for development/hot reload)
- */
-export function clearBlockConfigCache(): void {
-  blockConfigCache = null
 }
 
 /**
@@ -172,9 +163,9 @@ export function getToolParametersConfig(
 
           // If there's a condition, check if it matches the current tool
           if (sb.condition && sb.condition.field === 'operation') {
-            // Extract operation from tool ID (e.g., 'google_docs_read' -> 'read')
+            // First try exact match with full tool ID, then fallback to suffix extraction
             const operation = toolId.split('_').pop()
-            return sb.condition.value === operation
+            return sb.condition.value === toolId || sb.condition.value === operation
           }
 
           // If no condition, it's a global parameter (like apiKey)
