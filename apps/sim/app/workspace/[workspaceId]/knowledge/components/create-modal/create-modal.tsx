@@ -430,6 +430,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                           placeholder='100'
                           {...register('minChunkSize', { valueAsNumber: true })}
                           className={errors.minChunkSize ? 'border-red-500' : ''}
+                          autoComplete='off'
+                          data-form-type='other'
+                          name='min-chunk-size'
                         />
                         {errors.minChunkSize && (
                           <p className='mt-1 text-red-500 text-xs'>{errors.minChunkSize.message}</p>
@@ -444,6 +447,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                           placeholder='1024'
                           {...register('maxChunkSize', { valueAsNumber: true })}
                           className={errors.maxChunkSize ? 'border-red-500' : ''}
+                          autoComplete='off'
+                          data-form-type='other'
+                          name='max-chunk-size'
                         />
                         {errors.maxChunkSize && (
                           <p className='mt-1 text-red-500 text-xs'>{errors.maxChunkSize.message}</p>
@@ -460,6 +466,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                         placeholder='200'
                         {...register('overlapSize', { valueAsNumber: true })}
                         className={errors.overlapSize ? 'border-red-500' : ''}
+                        autoComplete='off'
+                        data-form-type='other'
+                        name='overlap-size'
                       />
                       {errors.overlapSize && (
                         <p className='mt-1 text-red-500 text-xs'>{errors.overlapSize.message}</p>

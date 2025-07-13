@@ -14,17 +14,17 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   icon: GmailIcon,
   subBlocks: [
     // Operation selector
-    // {
-    //   id: 'operation',
-    //   title: 'Operation',
-    //   type: 'dropdown',
-    //   layout: 'full',
-    //   options: [
-    //     { label: 'Send Email', id: 'send_gmail' },
-    //     // { label: 'Read Email', id: 'read_gmail' },
-    //     // { label: 'Search Emails', id: 'search_gmail' },
-    //   ],
-    // },
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Send Email', id: 'send_gmail' },
+        // { label: 'Read Email', id: 'read_gmail' },
+        { label: 'Draft Email', id: 'draft_gmail' },
+      ],
+    },
     // Gmail Credentials
     {
       id: 'credential',
@@ -48,7 +48,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Recipient email address',
-      // condition: { field: 'operation', value: 'send_gmail' },
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
     },
     {
       id: 'subject',
@@ -56,7 +56,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Email subject',
-      // condition: { field: 'operation', value: 'send_gmail' },
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
     },
     {
       id: 'body',
@@ -64,7 +64,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Email content',
-      // condition: { field: 'operation', value: 'send_gmail' },
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
     },
     // Read Email Fields - Add folder selector
     // {
@@ -130,22 +130,17 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     // },
   ],
   tools: {
-    access: ['gmail_send', 'gmail_read', 'gmail_search'],
+    access: ['gmail_send', 'gmail_draft'],
     config: {
       tool: (params) => {
-        // Since we only have send_gmail now, we can simplify this
-        return 'gmail_send'
-
-        // switch (params.operation) {
-        //   case 'send_gmail':
-        //     return 'gmail_send'
-        //   case 'read_gmail':
-        //     return 'gmail_read'
-        //   case 'search_gmail':
-        //     return 'gmail_search'
-        //   default:
-        //     throw new Error(`Invalid Gmail operation: ${params.operation}`)
-        // }
+        switch (params.operation) {
+          case 'send_gmail':
+            return 'gmail_send'
+          case 'draft_gmail':
+            return 'gmail_draft'
+          default:
+            throw new Error(`Invalid Gmail operation: ${params.operation}`)
+        }
       },
       params: (params) => {
         // Pass the credential directly from the credential field
@@ -158,13 +153,13 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
 
         return {
           ...rest,
-          credential, // Keep the credential parameter
+          credential,
         }
       },
     },
   },
   inputs: {
-    // operation: { type: 'string', required: true },
+    operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
     // Send operation inputs
     to: { type: 'string', required: false },

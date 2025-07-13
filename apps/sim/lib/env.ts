@@ -17,6 +17,7 @@ export const env = createEnv({
 
     POSTGRES_URL: z.string().url().optional(),
     STRIPE_SECRET_KEY: z.string().min(1).optional(),
+    STRIPE_BILLING_WEBHOOK_SECRET: z.string().min(1).optional(),
     STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
     STRIPE_FREE_PRICE_ID: z.string().min(1).optional(),
     FREE_TIER_COST_LIMIT: z.number().optional(),

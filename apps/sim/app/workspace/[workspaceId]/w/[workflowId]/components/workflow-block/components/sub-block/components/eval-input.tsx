@@ -192,6 +192,9 @@ export function EvalInput({
                   onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
                   disabled={isPreview || disabled}
                   className='placeholder:text-muted-foreground/50'
+                  autoComplete='off'
+                  data-form-type='other'
+                  name='eval-range-min'
                 />
               </div>
               <div className='space-y-1'>
@@ -203,6 +206,9 @@ export function EvalInput({
                   onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
                   disabled={isPreview || disabled}
                   className='placeholder:text-muted-foreground/50'
+                  autoComplete='off'
+                  data-form-type='other'
+                  name='eval-range-max'
                 />
               </div>
             </div>

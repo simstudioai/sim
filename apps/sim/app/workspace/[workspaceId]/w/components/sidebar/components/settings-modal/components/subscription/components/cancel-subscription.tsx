@@ -9,8 +9,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useSubscription } from '@/lib/auth-client'
+import { useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useOrganizationStore } from '@/stores/organization'
+import { useSubscriptionStore } from '@/stores/subscription/store'
 
 const logger = createLogger('CancelSubscription')
 
@@ -30,7 +32,10 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const { data: session } = useSession()
   const betterAuthSubscription = useSubscription()
+  const { activeOrganization } = useOrganizationStore()
+  const { getSubscriptionStatus } = useSubscriptionStore()
 
   // Don't show for free plans
   if (!subscription.isPaid) {
@@ -38,14 +43,29 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
   }
 
   const handleCancel = async () => {
+    if (!session?.user?.id) return
+
     setIsLoading(true)
     setError(null)
 
     try {
-      // Use Better Auth client-side cancel method
-      // This redirects to Stripe Billing Portal where user can cancel
-      const result = await betterAuthSubscription.cancel?.({
-        returnUrl: window.location.href, // Return to current page after cancellation
+      const subscriptionStatus = getSubscriptionStatus()
+      const activeOrgId = activeOrganization?.id
+
+      let referenceId = session.user.id
+      if (subscriptionStatus.isTeam && activeOrgId) {
+        referenceId = activeOrgId
+      }
+
+      logger.info('Canceling subscription', {
+        referenceId,
+        isTeam: subscriptionStatus.isTeam,
+        activeOrgId,
+      })
+
+      const result = await betterAuthSubscription.cancel({
+        returnUrl: window.location.href,
+        referenceId,
       })
 
       if (result && 'error' in result && result.error) {
