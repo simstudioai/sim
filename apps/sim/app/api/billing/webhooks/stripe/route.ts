@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing Stripe signature' }, { status: 400 })
     }
 
-    if (!env.STRIPE_WEBHOOK_SECRET) {
+    if (!env.STRIPE_BILLING_WEBHOOK_SECRET) {
       logger.error('Missing Stripe webhook secret configuration')
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
     }
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     // Verify webhook signature
     let event: Stripe.Event
     try {
-      event = stripe.webhooks.constructEvent(body, signature, env.STRIPE_WEBHOOK_SECRET)
+      event = stripe.webhooks.constructEvent(body, signature, env.STRIPE_BILLING_WEBHOOK_SECRET)
     } catch (signatureError) {
       logger.error('Invalid Stripe webhook signature', {
         error: signatureError,
