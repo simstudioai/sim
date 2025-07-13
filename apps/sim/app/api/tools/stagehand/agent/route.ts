@@ -774,13 +774,12 @@ IMPORTANT: For any form fields that require sensitive information like usernames
 1. If you see placeholders like %username% or %password% in the task, DO NOT ask for the actual values.
 2. If you need to type in login forms, use the EXACT placeholder text (e.g., "%username%" or "%password%") UNLESS instructed otherwise.
 3. The system will automatically substitute the real values when you use these placeholders IF direct login was not attempted.
-4. Example correct approach: "type %username% in the username field".${
-          variablesObject && Object.keys(variablesObject).length > 0
+4. Example correct approach: "type %username% in the username field".${variablesObject && Object.keys(variablesObject).length > 0
             ? `\n5. Available variables: ${Object.keys(variablesObject)
-                .map((k) => `%${k}%`)
-                .join(', ')}`
+              .map((k) => `%${k}%`)
+              .join(', ')}`
             : ''
-        }\n
+          }\n
 WEBSITE NAVIGATION GUIDANCE:
 1. If you need to log in but don't see a login form, LOOK for login buttons or links (they might say "Login" or "Sign in").
 2. If you're on a login page but don't see a username/password form, try scrolling or looking for "Continue with email" or similar options.
