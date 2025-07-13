@@ -26,7 +26,6 @@ interface OperationQueueState {
   confirmOperation: (operationId: string) => void
   failOperation: (operationId: string) => void
   handleOperationTimeout: (operationId: string) => void
-  handleSocketReconnection: () => void
   processNextOperation: () => void
 
   triggerOfflineMode: () => void
@@ -65,24 +64,43 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     // Check for duplicate operation ID
     const existingOp = state.operations.find((op) => op.id === operation.id)
     if (existingOp) {
-      logger.debug('Skipping duplicate operation', { operationId: operation.id })
+      logger.debug('Skipping duplicate operation ID', {
+        operationId: operation.id,
+        existingStatus: existingOp.status,
+      })
       return
     }
 
-    // Check for duplicate operation content (same operation on same target with same payload)
+    // Enhanced duplicate content check - especially important for block operations
     const duplicateContent = state.operations.find(
       (op) =>
         op.operation.operation === operation.operation.operation &&
         op.operation.target === operation.operation.target &&
-        JSON.stringify(op.operation.payload) === JSON.stringify(operation.operation.payload) &&
-        op.workflowId === operation.workflowId
+        op.workflowId === operation.workflowId &&
+        // For block operations, check the block ID specifically
+        ((operation.operation.target === 'block' &&
+          op.operation.payload?.id === operation.operation.payload?.id) ||
+          // For subblock operations, check blockId and subblockId
+          (operation.operation.target === 'subblock' &&
+            op.operation.payload?.blockId === operation.operation.payload?.blockId &&
+            op.operation.payload?.subblockId === operation.operation.payload?.subblockId) ||
+          // For other operations, fall back to full payload comparison
+          (operation.operation.target !== 'block' &&
+            operation.operation.target !== 'subblock' &&
+            JSON.stringify(op.operation.payload) === JSON.stringify(operation.operation.payload)))
     )
+
     if (duplicateContent) {
       logger.debug('Skipping duplicate operation content', {
         operationId: operation.id,
         existingOperationId: duplicateContent.id,
         operation: operation.operation.operation,
         target: operation.operation.target,
+        existingStatus: duplicateContent.status,
+        payload:
+          operation.operation.target === 'block'
+            ? { id: operation.operation.payload?.id }
+            : operation.operation.payload,
       })
       return
     }
@@ -262,39 +280,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     operationTimeouts.set(nextOperation.id, timeoutId)
   },
 
-  handleSocketReconnection: () => {
-    // Clear all timeouts since they're for the old socket
-    retryTimeouts.forEach((timeout) => clearTimeout(timeout))
-    retryTimeouts.clear()
-    operationTimeouts.forEach((timeout) => clearTimeout(timeout))
-    operationTimeouts.clear()
-
-    const state = get()
-    const resetOperations = state.operations.map((op) => ({
-      ...op,
-      retryCount: 0, // Reset retry count for fresh attempts
-      status: 'pending' as const,
-    }))
-
-    set({
-      operations: resetOperations,
-      isProcessing: false,
-      hasOperationError: false,
-    })
-
-    resetOperations.forEach((operation) => {
-      const timeoutId = setTimeout(() => {
-        logger.warn('Operation timeout after reconnection - no server response after 5 seconds', {
-          operationId: operation.id,
-        })
-        operationTimeouts.delete(operation.id)
-        get().handleOperationTimeout(operation.id)
-      }, 5000)
-
-      operationTimeouts.set(operation.id, timeoutId)
-    })
-  },
-
   triggerOfflineMode: () => {
     logger.error('Operation failed after retries - triggering offline mode')
 
@@ -325,7 +310,6 @@ export function useOperationQueue() {
     addToQueue: store.addToQueue,
     confirmOperation: store.confirmOperation,
     failOperation: store.failOperation,
-    handleSocketReconnection: store.handleSocketReconnection,
     processNextOperation: store.processNextOperation,
     triggerOfflineMode: store.triggerOfflineMode,
     clearError: store.clearError,

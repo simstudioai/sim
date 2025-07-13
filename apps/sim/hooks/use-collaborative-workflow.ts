@@ -44,14 +44,8 @@ export function useCollaborativeWorkflow() {
   const lastPositionTimestamps = useRef<Map<string, number>>(new Map())
 
   // Operation queue
-  const {
-    queue,
-    hasOperationError,
-    addToQueue,
-    confirmOperation,
-    failOperation,
-    handleSocketReconnection,
-  } = useOperationQueue()
+  const { queue, hasOperationError, addToQueue, confirmOperation, failOperation } =
+    useOperationQueue()
 
   // Clear position timestamps when switching workflows
   // Note: Workflow joining is now handled automatically by socket connect event based on URL
@@ -73,30 +67,6 @@ export function useCollaborativeWorkflow() {
   useEffect(() => {
     registerEmitFunctions(emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId)
   }, [emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId])
-
-  // Log connection status changes and handle reconnection
-  useEffect(() => {
-    logger.info('Collaborative workflow connection status changed', {
-      isConnected,
-      currentWorkflowId,
-      activeWorkflowId,
-      presenceUsers: presenceUsers.length,
-    })
-
-    // Clear operation queue when socket reconnects AND has joined workflow
-    // We need both isConnected=true AND currentWorkflowId to match activeWorkflowId
-    // This ensures the socket has actually joined the workflow room before we allow retries
-    if (isConnected && currentWorkflowId && currentWorkflowId === activeWorkflowId) {
-      logger.info('Socket reconnected and joined workflow - clearing operation queue')
-      handleSocketReconnection()
-    }
-  }, [
-    isConnected,
-    currentWorkflowId,
-    activeWorkflowId,
-    presenceUsers.length,
-    handleSocketReconnection,
-  ])
 
   useEffect(() => {
     const handleWorkflowOperation = (data: any) => {
@@ -416,10 +386,8 @@ export function useCollaborativeWorkflow() {
       })
 
       localAction()
-
-      emitWorkflowOperation(operation, target, payload, operationId)
     },
-    [addToQueue, emitWorkflowOperation, session?.user?.id]
+    [addToQueue, session?.user?.id]
   )
 
   const executeQueuedDebouncedOperation = useCallback(
@@ -496,8 +464,6 @@ export function useCollaborativeWorkflow() {
           workflowStore.addEdge(autoConnectEdge)
         }
 
-        // Emit to server with operation ID for tracking
-        emitWorkflowOperation('add', 'block', completeBlockData, operationId)
         return
       }
 
@@ -562,9 +528,6 @@ export function useCollaborativeWorkflow() {
       if (autoConnectEdge) {
         workflowStore.addEdge(autoConnectEdge)
       }
-
-      // Emit to server with operation ID
-      emitWorkflowOperation('add', 'block', completeBlockData, operationId)
     },
     [workflowStore, emitWorkflowOperation, addToQueue, session?.user?.id]
   )
@@ -594,17 +557,37 @@ export function useCollaborativeWorkflow() {
         const globalWindow = window as any
         const pendingUpdates = globalWindow.__pendingSubblockUpdates
         if (pendingUpdates && Array.isArray(pendingUpdates)) {
-          // Emit collaborative subblock updates for each changed subblock
+          // Queue each subblock update individually
           for (const update of pendingUpdates) {
             const { blockId, subBlockId, newValue } = update
-            emitSubblockUpdate(blockId, subBlockId, newValue)
+            const operationId = crypto.randomUUID()
+
+            addToQueue({
+              id: operationId,
+              operation: {
+                operation: 'subblock-update',
+                target: 'subblock',
+                payload: { blockId, subblockId: subBlockId, value: newValue },
+              },
+              workflowId: activeWorkflowId || '',
+              userId: session?.user?.id || 'unknown',
+            })
+
+            subBlockStore.setValue(blockId, subBlockId, newValue)
           }
           // Clear the pending updates
           globalWindow.__pendingSubblockUpdates = undefined
         }
       })
     },
-    [executeQueuedOperation, workflowStore, emitSubblockUpdate]
+    [
+      executeQueuedOperation,
+      workflowStore,
+      addToQueue,
+      subBlockStore,
+      activeWorkflowId,
+      session?.user?.id,
+    ]
   )
 
   const collaborativeToggleBlockEnabled = useCallback(
@@ -802,9 +785,6 @@ export function useCollaborativeWorkflow() {
 
       // Apply locally first (immediate UI feedback)
       subBlockStore.setValue(blockId, subblockId, value)
-
-      // Emit to server with operation ID for tracking
-      emitSubblockUpdate(blockId, subblockId, value, operationId)
     },
     [
       subBlockStore,
