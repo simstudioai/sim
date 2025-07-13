@@ -227,21 +227,6 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       return // No pending operations
     }
 
-    // Check workflow context
-    if (nextOperation.workflowId !== currentWorkflowId) {
-      logger.warn('Cancelling operation - workflow changed', {
-        operationId: nextOperation.id,
-        operationWorkflow: nextOperation.workflowId,
-        currentWorkflow: currentWorkflowId,
-      })
-      set((state) => ({
-        operations: state.operations.filter((op) => op.id !== nextOperation.id),
-      }))
-      // Try next operation
-      get().processNextOperation()
-      return
-    }
-
     // Mark as processing
     set((state) => ({
       operations: state.operations.map((op) =>
