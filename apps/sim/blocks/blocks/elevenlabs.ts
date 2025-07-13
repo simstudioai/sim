@@ -58,14 +58,6 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       placeholder: 'Enter the voice ID',
     },
     {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter your ElevenLabs API key',
-      password: true,
-    },
-    {
       id: 'modelId',
       title: 'Model ID',
       type: 'dropdown',
@@ -77,6 +69,14 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
         { label: 'eleven_turbo_v2_5', id: 'eleven_turbo_v2_5' },
         { label: 'eleven_flash_v2_5', id: 'eleven_flash_v2_5' },
       ],
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your ElevenLabs API key',
+      password: true,
     },
   ],
 }

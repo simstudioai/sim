@@ -35,6 +35,7 @@ import { DateInput } from '../date-input'
 import { FileSelectorInput } from '../file-selector/file-selector-input'
 import { FileUpload } from '../file-upload'
 import { LongInput } from '../long-input'
+import { ProjectSelectorInput } from '../project-selector/project-selector-input'
 import { ShortInput } from '../short-input'
 import { SliderInput } from '../slider-input'
 import { Table } from '../table'
@@ -437,8 +438,13 @@ export function ToolInput({
       ? (value as unknown as StoredTool[])
       : []
 
-  // Check if a tool is already selected
-  const isToolAlreadySelected = (toolId: string) => {
+  // Check if a tool is already selected (allowing multiple instances for multi-operation tools)
+  const isToolAlreadySelected = (toolId: string, blockType: string) => {
+    // For tools with multiple operations, allow multiple instances
+    if (hasMultipleOperations(blockType)) {
+      return false
+    }
+    // For single-operation tools, prevent duplicates
     return selectedTools.some((tool) => tool.toolId === toolId)
   }
 
@@ -534,7 +540,7 @@ export function ToolInput({
     if (!toolId) return
 
     // Check if tool is already selected
-    if (isToolAlreadySelected(toolId)) return
+    if (isToolAlreadySelected(toolId, toolBlock.type)) return
 
     // Get tool parameters using the new utility with block type for UI components
     const toolParams = getToolParametersConfig(toolId, toolBlock.type)
@@ -584,11 +590,6 @@ export function ToolInput({
     if (isPreview || disabled) return
 
     const customToolId = `custom-${customTool.schema.function.name}`
-
-    // Check if a tool with the same name already exists
-    if (isToolAlreadySelected(customToolId)) {
-      return
-    }
 
     const newTool: StoredTool = {
       type: 'custom-tool',
@@ -703,15 +704,36 @@ export function ToolInput({
   }
 
   const handleOperationChange = (toolIndex: number, operation: string) => {
-    if (isPreview || disabled) return
+    console.log('🔄 handleOperationChange called:', { toolIndex, operation, isPreview, disabled })
+
+    if (isPreview || disabled) {
+      console.log('❌ Early return: preview or disabled')
+      return
+    }
 
     const tool = selectedTools[toolIndex]
+    console.log('🔧 Current tool:', tool)
+
     const newToolId = getToolIdForOperation(tool.type, operation)
-    if (!newToolId) return
+    console.log('🆔 getToolIdForOperation result:', { toolType: tool.type, operation, newToolId })
+
+    if (!newToolId) {
+      console.log('❌ Early return: no newToolId')
+      return
+    }
 
     // Get parameters for the new tool
     const toolParams = getToolParametersConfig(newToolId, tool.type)
-    if (!toolParams) return
+    console.log('📋 getToolParametersConfig result:', {
+      newToolId,
+      toolType: tool.type,
+      toolParams,
+    })
+
+    if (!toolParams) {
+      console.log('❌ Early return: no toolParams')
+      return
+    }
 
     // Initialize parameters for the new operation
     const initialParams = initializeToolParams(newToolId, toolParams.userInputParameters, blockId)
@@ -909,15 +931,18 @@ export function ToolInput({
   const renderParameterInput = (
     param: ToolParameterConfig,
     value: string,
-    onChange: (value: string) => void
+    onChange: (value: string) => void,
+    toolIndex?: number
   ) => {
+    // Create unique blockId for tool parameters to avoid conflicts with main block
+    const uniqueBlockId = toolIndex !== undefined ? `${blockId}-tool-${toolIndex}` : blockId
     const uiComponent = param.uiComponent
 
     // If no UI component info, fall back to basic input
     if (!uiComponent) {
       return (
         <ShortInput
-          blockId={blockId}
+          blockId={uniqueBlockId}
           subBlockId={`${subBlockId}-param`}
           placeholder={param.description}
           password={isPasswordParameter(param.id)}
@@ -965,7 +990,7 @@ export function ToolInput({
       case 'long-input':
         return (
           <LongInput
-            blockId={blockId}
+            blockId={uniqueBlockId}
             subBlockId={`${subBlockId}-param`}
             placeholder={uiComponent.placeholder || param.description}
             isConnecting={false}
@@ -982,9 +1007,10 @@ export function ToolInput({
       case 'short-input':
         return (
           <ShortInput
-            blockId={blockId}
+            blockId={uniqueBlockId}
             subBlockId={`${subBlockId}-param`}
             placeholder={uiComponent.placeholder || param.description}
+            password={uiComponent.password || isPasswordParameter(param.id)}
             isConnecting={false}
             config={{
               id: `${subBlockId}-param`,
@@ -1000,7 +1026,7 @@ export function ToolInput({
       case 'channel-selector':
         return (
           <ChannelSelectorInput
-            blockId={blockId}
+            blockId={uniqueBlockId}
             subBlock={{
               id: param.id,
               type: 'channel-selector' as const,
@@ -1010,6 +1036,24 @@ export function ToolInput({
             }}
             onChannelSelect={onChange}
             credential={getCredentialForChannelSelector(param.id)}
+            disabled={disabled}
+          />
+        )
+
+      case 'project-selector':
+        return (
+          <ProjectSelectorInput
+            blockId={uniqueBlockId}
+            subBlock={{
+              id: param.id,
+              type: 'project-selector' as const,
+              title: param.id,
+              provider: uiComponent.provider || 'jira',
+              serviceId: uiComponent.serviceId,
+              placeholder: uiComponent.placeholder,
+              requiredScopes: uiComponent.requiredScopes,
+            }}
+            onProjectSelect={onChange}
             disabled={disabled}
           />
         )
@@ -1065,7 +1109,7 @@ export function ToolInput({
       case 'slider':
         return (
           <SliderInputSyncWrapper
-            blockId={blockId}
+            blockId={uniqueBlockId}
             paramId={param.id}
             value={value}
             onChange={onChange}
@@ -1528,47 +1572,122 @@ export function ToolInput({
                       )}
 
                       {/* Tool parameters */}
-                      {displayParams
-                        .filter((param) => evaluateParameterCondition(param, tool))
-                        .map((param) => (
-                          <div key={param.id} className='relative min-w-0 space-y-1.5'>
-                            <div className='flex items-center font-medium text-muted-foreground text-xs'>
-                              {('uiComponent' in param ? param.uiComponent?.title : null) ||
-                                formatParameterLabel(param.id)}
-                              {!('required' in param && param.required) && (
-                                <span className='ml-1 text-muted-foreground/60 text-xs'>
-                                  (Optional)
-                                </span>
-                              )}
-                            </div>
-                            <div className='relative w-full min-w-0'>
-                              {'uiComponent' in param ? (
-                                renderParameterInput(
-                                  param as ToolParameterConfig,
-                                  tool.params[param.id] || '',
-                                  (value) => handleParamChange(toolIndex, param.id, value)
-                                )
-                              ) : (
-                                <ShortInput
+                      {(() => {
+                        const filteredParams = displayParams.filter((param) =>
+                          evaluateParameterCondition(param, tool)
+                        )
+                        const groupedParams: { [key: string]: ToolParameterConfig[] } = {}
+                        const standaloneParams: ToolParameterConfig[] = []
+
+                        // Group checkbox-list parameters by their UI component title
+                        filteredParams.forEach((param) => {
+                          const paramConfig = param as ToolParameterConfig
+                          if (
+                            paramConfig.uiComponent?.type === 'checkbox-list' &&
+                            paramConfig.uiComponent?.title
+                          ) {
+                            const groupKey = paramConfig.uiComponent.title
+                            if (!groupedParams[groupKey]) {
+                              groupedParams[groupKey] = []
+                            }
+                            groupedParams[groupKey].push(paramConfig)
+                          } else {
+                            standaloneParams.push(paramConfig)
+                          }
+                        })
+
+                        const renderedElements: React.ReactNode[] = []
+
+                        // Render grouped checkbox-lists
+                        Object.entries(groupedParams).forEach(([groupTitle, params]) => {
+                          const firstParam = params[0] as ToolParameterConfig
+                          const groupValue = JSON.stringify(
+                            params.reduce(
+                              (acc, p) => ({ ...acc, [p.id]: tool.params[p.id] === 'true' }),
+                              {}
+                            )
+                          )
+
+                          renderedElements.push(
+                            <div
+                              key={`group-${groupTitle}`}
+                              className='relative min-w-0 space-y-1.5'
+                            >
+                              <div className='flex items-center font-medium text-muted-foreground text-xs'>
+                                {groupTitle}
+                              </div>
+                              <div className='relative w-full min-w-0'>
+                                <CheckboxListSyncWrapper
                                   blockId={blockId}
-                                  subBlockId={`${subBlockId}-param`}
-                                  placeholder={param.description}
-                                  password={isPasswordParameter(param.id)}
-                                  isConnecting={false}
-                                  config={{
-                                    id: `${subBlockId}-param`,
-                                    type: 'short-input',
-                                    title: param.id,
+                                  paramId={`group-${groupTitle}`}
+                                  value={groupValue}
+                                  onChange={(value) => {
+                                    try {
+                                      const parsed = JSON.parse(value)
+                                      params.forEach((param) => {
+                                        handleParamChange(
+                                          toolIndex,
+                                          param.id,
+                                          parsed[param.id] ? 'true' : 'false'
+                                        )
+                                      })
+                                    } catch (e) {
+                                      // Handle error
+                                    }
                                   }}
-                                  value={tool.params[param.id] || ''}
-                                  onChange={(value) =>
-                                    handleParamChange(toolIndex, param.id, value)
-                                  }
+                                  uiComponent={firstParam.uiComponent}
+                                  disabled={disabled}
                                 />
-                              )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })
+
+                        // Render standalone parameters
+                        standaloneParams.forEach((param) => {
+                          renderedElements.push(
+                            <div key={param.id} className='relative min-w-0 space-y-1.5'>
+                              <div className='flex items-center font-medium text-muted-foreground text-xs'>
+                                {param.uiComponent?.title || formatParameterLabel(param.id)}
+                                {!param.required && (
+                                  <span className='ml-1 text-muted-foreground/60 text-xs'>
+                                    (Optional)
+                                  </span>
+                                )}
+                              </div>
+                              <div className='relative w-full min-w-0'>
+                                {param.uiComponent ? (
+                                  renderParameterInput(
+                                    param,
+                                    tool.params[param.id] || '',
+                                    (value) => handleParamChange(toolIndex, param.id, value),
+                                    toolIndex
+                                  )
+                                ) : (
+                                  <ShortInput
+                                    blockId={`${blockId}-tool-${toolIndex}`}
+                                    subBlockId={`${subBlockId}-param`}
+                                    placeholder={param.description}
+                                    password={isPasswordParameter(param.id)}
+                                    isConnecting={false}
+                                    config={{
+                                      id: `${subBlockId}-param`,
+                                      type: 'short-input',
+                                      title: param.id,
+                                    }}
+                                    value={tool.params[param.id] || ''}
+                                    onChange={(value) =>
+                                      handleParamChange(toolIndex, param.id, value)
+                                    }
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })
+
+                        return renderedElements
+                      })()}
                     </div>
                   )}
                 </div>

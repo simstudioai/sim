@@ -20,17 +20,17 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
       visibility: 'user-or-llm',
       description: 'Repository name',
     },
-    pullNumber: {
-      type: 'number',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Pull request number',
-    },
     body: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description: 'Comment content',
+    },
+    pullNumber: {
+      type: 'number',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Pull request number',
     },
     path: {
       type: 'string',
@@ -41,7 +41,7 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
     position: {
       type: 'number',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description: 'Line number for review comment',
     },
     commentType: {
@@ -53,20 +53,20 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
     line: {
       type: 'number',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description: 'Line number for review comment',
     },
     side: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description: 'Side of the diff (LEFT or RIGHT)',
       default: 'RIGHT',
     },
     commitId: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description: 'The SHA of the commit to comment on',
     },
     apiKey: {

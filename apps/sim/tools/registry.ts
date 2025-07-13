@@ -71,7 +71,7 @@ import {
   microsoftTeamsWriteChatTool,
 } from './microsoft_teams'
 import { mistralParserTool } from './mistral'
-import { notionReadTool, notionWriteTool } from './notion'
+import { notionCreatePageTool, notionReadTool, notionWriteTool } from './notion'
 import { imageTool, embeddingsTool as openAIEmbeddings } from './openai'
 import { outlookDraftTool, outlookReadTool, outlookSendTool } from './outlook'
 import { perplexityChatTool } from './perplexity'
@@ -132,6 +132,7 @@ export const tools: Record<string, ToolConfig> = {
   youtube_search: youtubeSearchTool,
   notion_read: notionReadTool,
   notion_write: notionWriteTool,
+  notion_create_page: notionCreatePageTool,
   gmail_send: gmailSendTool,
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,

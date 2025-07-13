@@ -8,17 +8,23 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
   version: '1.0',
 
   params: {
+    systemPrompt: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'System prompt to guide the model behavior',
+    },
+    content: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The user message content to send to the model',
+    },
     model: {
       type: 'string',
       required: true,
       visibility: 'user-only',
       description: 'Model to use for chat completions (e.g., sonar, mistral)',
-    },
-    messages: {
-      type: 'array',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Array of message objects with role and content',
     },
     max_tokens: {
       type: 'number',
@@ -48,53 +54,41 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      let messages = params.messages
+      const messages: Array<{ role: string; content: string }> = []
 
-      if (!messages && (params.prompt || params.system)) {
-        messages = []
-
-        // Add system message if provided
-        if (params.system && typeof params.system === 'string' && params.system.trim() !== '') {
-          messages.push({
-            role: 'system',
-            content: params.system,
-          })
-        }
-
-        // Add user message
-        if (params.prompt && typeof params.prompt === 'string' && params.prompt.trim() !== '') {
-          messages.push({
-            role: 'user',
-            content: params.prompt,
-          })
-        }
+      // Add system prompt if provided
+      if (params.systemPrompt) {
+        messages.push({
+          role: 'system',
+          content: params.systemPrompt,
+        })
       }
 
-      // Validate that each message has role and content
-      for (const msg of messages!) {
-        if (!msg.role || !msg.content) {
-          throw new Error('Each message must have role and content properties')
-        }
-      }
+      // Add user message
+      messages.push({
+        role: 'user',
+        content: params.content,
+      })
 
       const body: Record<string, any> = {
         model: params.model,
         messages: messages,
       }
 
+      // Add optional parameters if provided
       if (params.max_tokens !== undefined) {
-        body.max_tokens = params.max_tokens
+        body.max_tokens = Number(params.max_tokens) || 10000
       }
 
       if (params.temperature !== undefined) {
-        body.temperature = params.temperature
+        body.temperature = Number(params.temperature)
       }
 
       return body
     },
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response) => {
     try {
       // Check if the response was successful
       if (!response.ok) {

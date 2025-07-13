@@ -163,9 +163,21 @@ export function getToolParametersConfig(
 
           // If there's a condition, check if it matches the current tool
           if (sb.condition && sb.condition.field === 'operation') {
-            // First try exact match with full tool ID, then fallback to suffix extraction
-            const operation = toolId.split('_').pop()
-            return sb.condition.value === toolId || sb.condition.value === operation
+            // First try exact match with full tool ID
+            if (sb.condition.value === toolId) return true
+
+            // Then try extracting operation from tool ID
+            // For tools like 'google_calendar_quick_add', extract 'quick_add'
+            const parts = toolId.split('_')
+            if (parts.length >= 3) {
+              // Join everything after the provider prefix (e.g., 'google_calendar_')
+              const operation = parts.slice(2).join('_')
+              if (sb.condition.value === operation) return true
+            }
+
+            // Fallback to last part only
+            const operation = parts[parts.length - 1]
+            return sb.condition.value === operation
           }
 
           // If no condition, it's a global parameter (like apiKey)
@@ -175,6 +187,21 @@ export function getToolParametersConfig(
         // Fallback: if no operation-specific match, find any matching parameter
         if (!subBlock) {
           subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => sb.id === paramId)
+        }
+
+        // Special case: Check if this boolean parameter is part of a checkbox-list
+        if (!subBlock && param.type === 'boolean' && blockConfig) {
+          // Look for a checkbox-list that includes this parameter as an option
+          const checkboxListBlock = blockConfig.subBlocks?.find(
+            (sb: SubBlockConfig) =>
+              sb.type === 'checkbox-list' &&
+              Array.isArray(sb.options) &&
+              sb.options.some((opt: any) => opt.id === paramId)
+          )
+
+          if (checkboxListBlock) {
+            subBlock = checkboxListBlock
+          }
         }
 
         if (subBlock) {

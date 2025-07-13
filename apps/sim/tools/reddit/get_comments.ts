@@ -12,8 +12,13 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     provider: 'reddit',
     additionalScopes: ['read'],
   },
-
   params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Access token for Reddit API',
+    },
     postId: {
       type: 'string',
       required: true,

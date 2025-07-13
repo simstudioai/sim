@@ -21,10 +21,10 @@ export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
       description: 'Model to use for embeddings',
       default: 'text-embedding-3-small',
     },
-    encoding_format: {
+    encodingFormat: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description: 'The format to return the embeddings in',
       default: 'float',
     },
@@ -46,7 +46,7 @@ export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
     body: (params) => ({
       input: params.input,
       model: params.model || 'text-embedding-3-small',
-      encoding_format: params.encoding_format || 'float',
+      encoding_format: params.encodingFormat || 'float',
     }),
   },
 

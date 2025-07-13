@@ -40,11 +40,17 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       visibility: 'hidden',
       description: 'The MIME type of the file to upload',
     },
-    folderId: {
+    folderSelector: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'The ID of the folder to upload the file to',
+      description: 'Select the folder to upload the file to',
+    },
+    folderId: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'The ID of the folder to upload the file to (internal use)',
     },
   },
   request: {
@@ -55,14 +61,19 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const metadata = {
+      const metadata: {
+        name: string | undefined
+        mimeType: string
+        parents?: string[]
+      } = {
         name: params.fileName, // Important: Always include the filename in metadata
         mimeType: params.mimeType || 'text/plain',
-        ...(params.folderId && params.folderId.trim() !== '' ? { parents: [params.folderId] } : {}),
       }
 
-      if (params.folderSelector) {
-        metadata.parents = [params.folderSelector]
+      // Add parent folder if specified (prefer folderSelector over folderId)
+      const parentFolderId = params.folderSelector || params.folderId
+      if (parentFolderId && parentFolderId.trim() !== '') {
+        metadata.parents = [parentFolderId]
       }
 
       return metadata

@@ -21,6 +21,12 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   },
 
   params: {
+    authMethod: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Authentication method: oauth or bot_token',
+    },
     botToken: {
       type: 'string',
       required: false,
@@ -30,7 +36,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     accessToken: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'OAuth access token or bot token for Slack API',
     },
     channel: {

@@ -11,17 +11,17 @@ export const imageTool: ToolConfig = {
   description: "Generate images using OpenAI's Image models",
   version: '1.0.0',
   params: {
-    prompt: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'A text description of the desired image',
-    },
     model: {
       type: 'string',
       required: true,
       visibility: 'user-only',
       description: 'The model to use (gpt-image-1 or dall-e-3)',
+    },
+    prompt: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'A text description of the desired image',
     },
     size: {
       type: 'string',
@@ -50,7 +50,7 @@ export const imageTool: ToolConfig = {
     n: {
       type: 'number',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description: 'The number of images to generate (1-10)',
     },
     apiKey: {

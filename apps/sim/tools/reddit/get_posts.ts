@@ -14,6 +14,12 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
   },
 
   params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Access token for Reddit API',
+    },
     subreddit: {
       type: 'string',
       required: true,

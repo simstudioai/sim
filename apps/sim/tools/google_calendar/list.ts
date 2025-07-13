@@ -47,13 +47,13 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'Order of events returned (startTime or updated)',
     },
     showDeleted: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'Include deleted events',
     },
   },

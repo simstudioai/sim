@@ -22,6 +22,6 @@ export interface OpenAIEmbeddingsParams {
   apiKey: string
   input: string | string[]
   model?: string
-  encoding_format?: 'float' | 'base64'
+  encodingFormat?: 'float' | 'base64'
   user?: string
 }

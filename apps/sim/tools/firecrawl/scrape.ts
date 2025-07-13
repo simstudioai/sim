@@ -18,7 +18,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
     scrapeOptions: {
       type: 'json',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description: 'Options for content scraping',
     },
     apiKey: {
