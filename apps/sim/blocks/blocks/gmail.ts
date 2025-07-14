@@ -90,14 +90,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       condition: { field: 'operation', value: 'read_gmail' },
     },
     {
-      id: 'maxResults',
-      title: 'Number of Emails',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
-      condition: { field: 'operation', value: 'read_gmail' },
-    },
-    {
       id: 'messageId',
       title: 'Message ID',
       type: 'short-input',
@@ -127,7 +119,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Maximum number of results (default: 10)',
-      condition: { field: 'operation', value: 'search_gmail' },
+      condition: { field: 'operation', value: ['search_gmail', 'read_gmail'] },
     },
   ],
   tools: {
