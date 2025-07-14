@@ -25,7 +25,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'The Discord server ID (guild ID)',
     },
   },

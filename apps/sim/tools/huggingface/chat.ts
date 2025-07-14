@@ -40,13 +40,13 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
     maxTokens: {
       type: 'number',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Maximum number of tokens to generate',
     },
     temperature: {
       type: 'number',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Sampling temperature (0-2). Higher values make output more random',
     },
     apiKey: {

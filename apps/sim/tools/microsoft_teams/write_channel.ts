@@ -20,20 +20,20 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
     teamId: {
       type: 'string',
       required: true,
-      description: 'The ID of the team to write to',
       visibility: 'user-only',
+      description: 'The ID of the team to write to',
     },
     channelId: {
       type: 'string',
       required: true,
-      description: 'The ID of the channel to write to',
       visibility: 'user-only',
+      description: 'The ID of the channel to write to',
     },
     content: {
       type: 'string',
       required: true,
-      description: 'The content to write to the channel',
       visibility: 'user-or-llm',
+      description: 'The content to write to the channel',
     },
   },
   request: {

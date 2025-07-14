@@ -34,7 +34,7 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
     maxRecords: {
       type: 'number',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Maximum number of records to return',
     },
     filterFormula: {

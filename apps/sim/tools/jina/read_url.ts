@@ -17,21 +17,25 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
     },
     useReaderLMv2: {
       type: 'boolean',
+      required: false,
       visibility: 'user-only',
       description: 'Whether to use ReaderLM-v2 for better quality',
     },
     gatherLinks: {
       type: 'boolean',
+      required: false,
       visibility: 'user-only',
       description: 'Whether to gather all links at the end',
     },
     jsonResponse: {
       type: 'boolean',
+      required: false,
       visibility: 'user-only',
       description: 'Whether to return response in JSON format',
     },
     apiKey: {
       type: 'string',
+      required: true,
       visibility: 'user-only',
       description: 'Your Jina AI API key',
     },

@@ -22,20 +22,20 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
     to: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Recipient email address',
-      visibility: 'user-or-llm',
     },
     subject: {
       type: 'string',
       required: true,
-      description: 'Email subject',
       visibility: 'user-or-llm',
+      description: 'Email subject',
     },
     body: {
       type: 'string',
       required: true,
-      description: 'Email body content',
       visibility: 'user-or-llm',
+      description: 'Email body content',
     },
   },
 

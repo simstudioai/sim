@@ -35,19 +35,19 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     startTime: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Start time for search (ISO 8601 format)',
     },
     endTime: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'End time for search (ISO 8601 format)',
     },
     sortOrder: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Sort order for results (recency or relevancy)',
     },
   },

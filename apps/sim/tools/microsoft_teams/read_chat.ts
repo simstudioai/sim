@@ -1,6 +1,6 @@
 import type { ToolConfig } from '../types'
-import { extractMessageAttachments } from './attachment-utils'
 import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
+import { extractMessageAttachments } from './utils'
 
 export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_chat',

@@ -28,7 +28,7 @@ export const discordSendMessageTool: ToolConfig<
     channelId: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'The Discord channel ID to send the message to',
     },
     content: {
@@ -40,7 +40,7 @@ export const discordSendMessageTool: ToolConfig<
     serverId: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'The Discord server ID (guild ID)',
     },
   },

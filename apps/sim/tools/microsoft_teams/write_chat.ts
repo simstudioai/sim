@@ -20,14 +20,14 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
     chatId: {
       type: 'string',
       required: true,
-      description: 'The ID of the chat to write to',
       visibility: 'user-only',
+      description: 'The ID of the chat to write to',
     },
     content: {
       type: 'string',
       required: true,
-      description: 'The content to write to the message',
       visibility: 'user-or-llm',
+      description: 'The content to write to the message',
     },
   },
   request: {
