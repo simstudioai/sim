@@ -380,11 +380,7 @@ export const googleProvider: ProviderConfig = {
                     duration: firstResponseTime,
                   },
                 ],
-                cost: {
-                  total: 0.0, // Initial estimate, updated as tokens are processed
-                  input: 0.0,
-                  output: 0.0,
-                },
+                // Cost will be calculated in logger
               },
             },
             logs: [],
@@ -781,11 +777,7 @@ export const googleProvider: ProviderConfig = {
                           iterations: iterationCount + 1,
                           timeSegments,
                         },
-                        cost: {
-                          total: (tokens.total || 0) * 0.0001, // Estimate cost based on tokens
-                          input: (tokens.prompt || 0) * 0.0001,
-                          output: (tokens.completion || 0) * 0.0001,
-                        },
+                        // Cost will be calculated in logger
                       },
                       logs: [],
                       metadata: {
@@ -948,6 +940,7 @@ export const googleProvider: ProviderConfig = {
           iterations: iterationCount + 1,
           timeSegments: timeSegments,
         },
+        // Cost will be calculated in logger
       }
     } catch (error) {
       // Include timing information even for errors

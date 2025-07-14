@@ -265,7 +265,7 @@ export const azureOpenAIProvider: ProviderConfig = {
                   },
                 ],
               },
-              // Cost will be calculated in execution-logger.ts
+              // Cost will be calculated in logger
             },
             logs: [], // No block logs for direct streaming
             metadata: {
@@ -584,7 +584,7 @@ export const azureOpenAIProvider: ProviderConfig = {
                 iterations: iterationCount + 1,
                 timeSegments: timeSegments,
               },
-              // Cost will be calculated in execution-logger.ts
+              // Cost will be calculated in logger
             },
             logs: [], // No block logs at provider level
             metadata: {
