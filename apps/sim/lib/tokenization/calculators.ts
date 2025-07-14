@@ -3,15 +3,24 @@
  */
 
 import { createLogger } from '@/lib/logs/console-logger'
-import { calculateCost } from '@/providers/utils'
-import { createTokenizationError } from './errors'
-import { estimateInputTokens, estimateOutputTokens, estimateTokenCount } from './estimators'
-import type { CostBreakdown, StreamingCostResult, TokenizationInput, TokenUsage } from './types'
+import { createTokenizationError } from '@/lib/tokenization/errors'
+import {
+  estimateInputTokens,
+  estimateOutputTokens,
+  estimateTokenCount,
+} from '@/lib/tokenization/estimators'
+import type {
+  CostBreakdown,
+  StreamingCostResult,
+  TokenizationInput,
+  TokenUsage,
+} from '@/lib/tokenization/types'
 import {
   getProviderForTokenization,
   logTokenizationDetails,
   validateTokenizationInput,
-} from './utils'
+} from '@/lib/tokenization/utils'
+import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('TokenizationCalculators')
 

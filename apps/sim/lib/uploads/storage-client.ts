@@ -7,7 +7,7 @@ import {
   getPresignedUrl as getBlobPresignedUrl,
   getPresignedUrlWithConfig as getBlobPresignedUrlWithConfig,
   uploadToBlob,
-} from './blob/blob-client'
+} from '@/lib/uploads/blob/blob-client'
 import {
   type CustomS3Config,
   deleteFromS3,
@@ -16,8 +16,8 @@ import {
   getPresignedUrlWithConfig as getS3PresignedUrlWithConfig,
   type FileInfo as S3FileInfo,
   uploadToS3,
-} from './s3/s3-client'
-import { USE_BLOB_STORAGE, USE_S3_STORAGE } from './setup'
+} from '@/lib/uploads/s3/s3-client'
+import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/setup'
 
 const logger = createLogger('StorageClient')
 

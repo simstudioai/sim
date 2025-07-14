@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm'
+import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { userStats } from '@/db/schema'
-import { getUserUsageLimit } from '../core/usage'
 
 const logger = createLogger('UsageMonitor')
 

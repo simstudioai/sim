@@ -1,5 +1,5 @@
+import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from '@/lib/logs/types'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
-import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from './types'
 
 export function createTriggerObject(
   type: ExecutionTrigger['type'],

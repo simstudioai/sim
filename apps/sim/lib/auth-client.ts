@@ -1,8 +1,8 @@
 import { stripeClient } from '@better-auth/stripe/client'
 import { emailOTPClient, genericOAuthClient, organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
-import { env } from './env'
-import { isDev, isProd } from './environment'
+import { env } from '@/lib/env'
+import { isDev, isProd } from '@/lib/environment'
 
 export function getBaseURL() {
   let baseURL

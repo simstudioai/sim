@@ -1,9 +1,9 @@
 import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import path from 'path'
+import { RawPdfParser } from '@/lib/file-parsers/raw-pdf-parser'
+import type { FileParseResult, FileParser, SupportedFileType } from '@/lib/file-parsers/types'
 import { createLogger } from '@/lib/logs/console-logger'
-import { RawPdfParser } from './raw-pdf-parser'
-import type { FileParseResult, FileParser, SupportedFileType } from './types'
 
 const logger = createLogger('FileParser')
 

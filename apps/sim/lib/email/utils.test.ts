@@ -1,4 +1,4 @@
-import { validateAndNormalizeEmail } from './utils'
+import { validateAndNormalizeEmail } from '@/lib/email/utils'
 
 describe('validateAndNormalizeEmail', () => {
   describe('valid emails', () => {

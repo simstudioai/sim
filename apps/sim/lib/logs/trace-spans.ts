@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { TraceSpan } from '@/app/workspace/[workspaceId]/logs/stores/types'
+import type { TraceSpan } from '@/lib/logs/types'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('TraceSpans')
