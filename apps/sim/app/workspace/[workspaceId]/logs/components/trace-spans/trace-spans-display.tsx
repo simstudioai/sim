@@ -112,7 +112,7 @@ function CollapsibleInputOutput({ span, spanId }: CollapsibleInputOutputProps) {
         <div>
           <button
             onClick={() => setInputExpanded(!inputExpanded)}
-            className='flex items-center gap-2 mb-2 font-medium text-muted-foreground text-xs hover:text-foreground transition-colors'
+            className='mb-2 flex items-center gap-2 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground'
           >
             {inputExpanded ? (
               <ChevronDown className='h-3 w-3' />
@@ -134,7 +134,7 @@ function CollapsibleInputOutput({ span, spanId }: CollapsibleInputOutputProps) {
         <div>
           <button
             onClick={() => setOutputExpanded(!outputExpanded)}
-            className='flex items-center gap-2 mb-2 font-medium text-muted-foreground text-xs hover:text-foreground transition-colors'
+            className='mb-2 flex items-center gap-2 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground'
           >
             {outputExpanded ? (
               <ChevronDown className='h-3 w-3' />

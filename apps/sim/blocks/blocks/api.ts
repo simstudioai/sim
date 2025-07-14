@@ -25,7 +25,13 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       title: 'Method',
       type: 'dropdown',
       layout: 'half',
-      options: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+      options: [
+        { label: 'GET', id: 'GET' },
+        { label: 'POST', id: 'POST' },
+        { label: 'PUT', id: 'PUT' },
+        { label: 'DELETE', id: 'DELETE' },
+        { label: 'PATCH', id: 'PATCH' },
+      ],
     },
     {
       id: 'params',
