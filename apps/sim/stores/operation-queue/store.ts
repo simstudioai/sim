@@ -34,6 +34,7 @@ interface OperationQueueState {
 
 const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()
+const subblockDebounceTimeouts = new Map<string, NodeJS.Timeout>()
 
 let emitWorkflowOperation:
   | ((operation: string, target: string, payload: any, operationId?: string) => void)
@@ -59,6 +60,54 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   hasOperationError: false,
 
   addToQueue: (operation) => {
+    // Handle debouncing for subblock operations
+    if (
+      operation.operation.operation === 'subblock-update' &&
+      operation.operation.target === 'subblock'
+    ) {
+      const { blockId, subblockId } = operation.operation.payload
+      const debounceKey = `${blockId}-${subblockId}`
+
+      const existingTimeout = subblockDebounceTimeouts.get(debounceKey)
+      if (existingTimeout) {
+        clearTimeout(existingTimeout)
+      }
+
+      set((state) => ({
+        operations: state.operations.filter(
+          (op) =>
+            !(
+              op.status === 'pending' &&
+              op.operation.operation === 'subblock-update' &&
+              op.operation.target === 'subblock' &&
+              op.operation.payload?.blockId === blockId &&
+              op.operation.payload?.subblockId === subblockId
+            )
+        ),
+      }))
+
+      const timeoutId = setTimeout(() => {
+        subblockDebounceTimeouts.delete(debounceKey)
+
+        const queuedOp: QueuedOperation = {
+          ...operation,
+          timestamp: Date.now(),
+          retryCount: 0,
+          status: 'pending',
+        }
+
+        set((state) => ({
+          operations: [...state.operations, queuedOp],
+        }))
+
+        get().processNextOperation()
+      }, 150) // 150ms debounce for subblock operations
+
+      subblockDebounceTimeouts.set(debounceKey, timeoutId)
+      return
+    }
+
+    // Handle non-subblock operations (existing logic)
     const state = get()
 
     // Check for duplicate operation ID
@@ -80,13 +129,8 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         // For block operations, check the block ID specifically
         ((operation.operation.target === 'block' &&
           op.operation.payload?.id === operation.operation.payload?.id) ||
-          // For subblock operations, check blockId and subblockId
-          (operation.operation.target === 'subblock' &&
-            op.operation.payload?.blockId === operation.operation.payload?.blockId &&
-            op.operation.payload?.subblockId === operation.operation.payload?.subblockId) ||
           // For other operations, fall back to full payload comparison
           (operation.operation.target !== 'block' &&
-            operation.operation.target !== 'subblock' &&
             JSON.stringify(op.operation.payload) === JSON.stringify(operation.operation.payload)))
     )
 
@@ -127,6 +171,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
   confirmOperation: (operationId) => {
     const state = get()
+    const operation = state.operations.find((op) => op.id === operationId)
     const newOperations = state.operations.filter((op) => op.id !== operationId)
 
     const retryTimeout = retryTimeouts.get(operationId)
@@ -139,6 +184,20 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     if (operationTimeout) {
       clearTimeout(operationTimeout)
       operationTimeouts.delete(operationId)
+    }
+
+    // Clean up any debounce timeouts for subblock operations
+    if (
+      operation?.operation.operation === 'subblock-update' &&
+      operation.operation.target === 'subblock'
+    ) {
+      const { blockId, subblockId } = operation.operation.payload
+      const debounceKey = `${blockId}-${subblockId}`
+      const debounceTimeout = subblockDebounceTimeouts.get(debounceKey)
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout)
+        subblockDebounceTimeouts.delete(debounceKey)
+      }
     }
 
     logger.debug('Removing operation from queue', {
@@ -164,6 +223,20 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     if (operationTimeout) {
       clearTimeout(operationTimeout)
       operationTimeouts.delete(operationId)
+    }
+
+    // Clean up any debounce timeouts for subblock operations
+    if (
+      operation.operation.operation === 'subblock-update' &&
+      operation.operation.target === 'subblock'
+    ) {
+      const { blockId, subblockId } = operation.operation.payload
+      const debounceKey = `${blockId}-${subblockId}`
+      const debounceTimeout = subblockDebounceTimeouts.get(debounceKey)
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout)
+        subblockDebounceTimeouts.delete(debounceKey)
+      }
     }
 
     if (operation.retryCount < 3) {
