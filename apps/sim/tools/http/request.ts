@@ -312,7 +312,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
       // Handle timeout
       const controller = new AbortController()
-      const timeout = params.timeout || 50000
+      const timeout = params.timeout || 120000
       const timeoutId = setTimeout(() => controller.abort(), timeout)
       fetchOptions.signal = controller.signal
 
