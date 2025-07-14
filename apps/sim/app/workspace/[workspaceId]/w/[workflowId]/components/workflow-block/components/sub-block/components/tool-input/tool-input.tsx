@@ -1649,6 +1649,9 @@ export function ToolInput({
                             <div key={param.id} className='relative min-w-0 space-y-1.5'>
                               <div className='flex items-center font-medium text-muted-foreground text-xs'>
                                 {param.uiComponent?.title || formatParameterLabel(param.id)}
+                                {param.required && param.visibility === 'user-only' && (
+                                  <span className='ml-1 text-red-500'>*</span>
+                                )}
                                 {!param.required && (
                                   <span className='ml-1 text-muted-foreground/60 text-xs'>
                                     (Optional)
