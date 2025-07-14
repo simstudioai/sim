@@ -13,11 +13,13 @@ export const wealthboxReadContactTool: ToolConfig<WealthboxReadParams, Wealthbox
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Wealthbox API',
     },
     contactId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'The ID of the contact to read',
     },
   },

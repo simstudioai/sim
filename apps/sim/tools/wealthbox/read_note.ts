@@ -14,11 +14,13 @@ export const wealthboxReadNoteTool: ToolConfig<WealthboxReadParams, WealthboxRea
       type: 'string',
       required: true,
       description: 'The access token for the Wealthbox API',
+      visibility: 'hidden',
     },
     noteId: {
       type: 'string',
       required: false,
       description: 'The ID of the note to read',
+      visibility: 'user-only',
     },
   },
   request: {

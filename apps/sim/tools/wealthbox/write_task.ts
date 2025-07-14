@@ -126,27 +126,32 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
       type: 'string',
       required: true,
       description: 'The access token for the Wealthbox API',
+      visibility: 'hidden',
     },
     title: {
       type: 'string',
       required: true,
       description: 'The name/title of the task',
+      visibility: 'user-or-llm',
     },
     dueDate: {
       type: 'string',
       required: true,
       description:
         'The due date and time of the task (format: "YYYY-MM-DD HH:MM AM/PM -HHMM", e.g., "2015-05-24 11:00 AM -0400")',
+      visibility: 'user-or-llm',
     },
     contactId: {
       type: 'string',
       required: false,
       description: 'ID of contact to link to this task',
+      visibility: 'user-only',
     },
     description: {
       type: 'string',
       required: false,
       description: 'Description or notes about the task',
+      visibility: 'user-or-llm',
     },
   },
   request: {

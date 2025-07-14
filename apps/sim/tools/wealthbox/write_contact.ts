@@ -65,26 +65,31 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
       type: 'string',
       required: true,
       description: 'The access token for the Wealthbox API',
+      visibility: 'hidden',
     },
     firstName: {
       type: 'string',
       required: true,
       description: 'The first name of the contact',
+      visibility: 'user-or-llm',
     },
     lastName: {
       type: 'string',
       required: true,
       description: 'The last name of the contact',
+      visibility: 'user-or-llm',
     },
     emailAddress: {
       type: 'string',
       required: false,
       description: 'The email address of the contact',
+      visibility: 'user-or-llm',
     },
     backgroundInformation: {
       type: 'string',
       required: false,
       description: 'Background information about the contact',
+      visibility: 'user-or-llm',
     },
   },
   request: {

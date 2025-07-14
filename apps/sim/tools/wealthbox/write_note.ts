@@ -92,16 +92,19 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
       type: 'string',
       required: true,
       description: 'The access token for the Wealthbox API',
+      visibility: 'hidden',
     },
     content: {
       type: 'string',
       required: true,
       description: 'The main body of the note',
+      visibility: 'user-or-llm',
     },
     contactId: {
       type: 'string',
       required: false,
       description: 'ID of contact to link to this note',
+      visibility: 'user-only',
     },
   },
   request: {
