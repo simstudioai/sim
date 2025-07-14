@@ -95,6 +95,14 @@ import { sendSMSTool } from './twilio'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
 import type { ToolConfig } from './types'
 import { visionTool } from './vision'
+import {
+  wealthboxReadContactTool,
+  wealthboxReadNoteTool,
+  wealthboxReadTaskTool,
+  wealthboxWriteContactTool,
+  wealthboxWriteNoteTool,
+  wealthboxWriteTaskTool,
+} from './wealthbox'
 import { whatsappSendMessageTool } from './whatsapp'
 import { workflowExecutorTool } from './workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
@@ -216,4 +224,10 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_quick_add: googleCalendarQuickAddTool,
   google_calendar_invite: googleCalendarInviteTool,
   workflow_executor: workflowExecutorTool,
+  wealthbox_read_contact: wealthboxReadContactTool,
+  wealthbox_write_contact: wealthboxWriteContactTool,
+  wealthbox_read_task: wealthboxReadTaskTool,
+  wealthbox_write_task: wealthboxWriteTaskTool,
+  wealthbox_read_note: wealthboxReadNoteTool,
+  wealthbox_write_note: wealthboxWriteNoteTool,
 }
