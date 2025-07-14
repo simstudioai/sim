@@ -1,6 +1,7 @@
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/lib/env'
+import { isDev } from '@/lib/environment'
 import * as schema from './schema'
 
 // In production, use the Vercel-generated POSTGRES_URL
@@ -38,4 +39,4 @@ declare global {
 }
 
 export const db = global.database || drizzleClient
-if (env.NODE_ENV !== 'production') global.database = db
+if (isDev) global.database = db

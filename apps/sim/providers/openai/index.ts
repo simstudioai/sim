@@ -4,7 +4,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
+import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('OpenAIProvider')
 
@@ -247,7 +247,7 @@ export const openaiProvider: ProviderConfig = {
                   },
                 ],
               },
-              // Cost will be calculated in execution-logger.ts
+              // Cost will be calculated in logger
             },
             logs: [], // No block logs for direct streaming
             metadata: {
@@ -355,20 +355,13 @@ export const openaiProvider: ProviderConfig = {
 
             // Execute the tool
             const toolCallStartTime = Date.now()
-            const mergedArgs = {
-              ...tool.params,
-              ...toolArgs,
-              ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
-              ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-            }
 
-            const result = await executeTool(toolName, mergedArgs, true)
+            const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
+            const result = await executeTool(toolName, executionParams, true)
             const toolCallEndTime = Date.now()
             const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-            if (!result.success) continue
-
-            // Add to time segments
+            // Add to time segments for both success and failure
             timeSegments.push({
               type: 'tool',
               name: toolName,
@@ -377,17 +370,31 @@ export const openaiProvider: ProviderConfig = {
               duration: toolCallDuration,
             })
 
-            toolResults.push(result.output)
+            // Prepare result content for the LLM
+            let resultContent: any
+            if (result.success) {
+              toolResults.push(result.output)
+              resultContent = result.output
+            } else {
+              // Include error information so LLM can respond appropriately
+              resultContent = {
+                error: true,
+                message: result.error || 'Tool execution failed',
+                tool: toolName,
+              }
+            }
+
             toolCalls.push({
               name: toolName,
-              arguments: toolArgs,
+              arguments: toolParams,
               startTime: new Date(toolCallStartTime).toISOString(),
               endTime: new Date(toolCallEndTime).toISOString(),
               duration: toolCallDuration,
-              result: result.output,
+              result: resultContent,
+              success: result.success,
             })
 
-            // Add the tool call and result to messages
+            // Add the tool call and result to messages (both success and failure)
             currentMessages.push({
               role: 'assistant',
               content: null,
@@ -406,7 +413,7 @@ export const openaiProvider: ProviderConfig = {
             currentMessages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: JSON.stringify(result.output),
+              content: JSON.stringify(resultContent),
             })
           } catch (error) {
             logger.error('Error processing tool call:', {
@@ -547,7 +554,7 @@ export const openaiProvider: ProviderConfig = {
                 iterations: iterationCount + 1,
                 timeSegments: timeSegments,
               },
-              // Cost will be calculated in execution-logger.ts
+              // Cost will be calculated in logger
             },
             logs: [], // No block logs at provider level
             metadata: {

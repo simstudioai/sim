@@ -5,6 +5,7 @@ export interface ConsoleEntry {
   timestamp: string
   workflowId: string
   blockId: string
+  executionId?: string
   blockName?: string
   blockType?: string
   startedAt?: string
@@ -36,5 +37,5 @@ export interface ConsoleStore {
   clearConsole: (workflowId: string | null) => void
   getWorkflowEntries: (workflowId: string) => ConsoleEntry[]
   toggleConsole: () => void
-  updateConsole: (blockId: string, update: string | ConsoleUpdate) => void
+  updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void
 }

@@ -18,18 +18,32 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Docs API',
     },
-    title: { type: 'string', required: true, description: 'The title of the document to create' },
+    title: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The title of the document to create',
+    },
     content: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'The content of the document to create',
+    },
+    folderSelector: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Select the folder to create the document in',
     },
     folderId: {
       type: 'string',
       required: false,
-      description: 'The ID of the folder to create the document in',
+      visibility: 'hidden',
+      description: 'The ID of the folder to create the document in (internal use)',
     },
   },
   request: {
@@ -58,9 +72,10 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
         mimeType: 'application/vnd.google-apps.document',
       }
 
-      // Add parent folder if specified
-      if (params.folderId || params.folderSelector) {
-        requestBody.parents = [params.folderId || params.folderSelector]
+      // Add parent folder if specified (prefer folderSelector over folderId)
+      const folderId = params.folderSelector || params.folderId
+      if (folderId) {
+        requestBody.parents = [folderId]
       }
 
       return requestBody

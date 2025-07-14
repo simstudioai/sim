@@ -26,14 +26,14 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
   icon: PerplexityIcon,
   subBlocks: [
     {
-      id: 'system',
+      id: 'systemPrompt',
       title: 'System Prompt',
       type: 'long-input',
       layout: 'full',
       placeholder: 'Optional system prompt to guide the model behavior...',
     },
     {
-      id: 'prompt',
+      id: 'content',
       title: 'User Prompt',
       type: 'long-input',
       layout: 'full',
@@ -87,8 +87,8 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
         const toolParams = {
           apiKey: params.apiKey,
           model: params.model,
-          prompt: params.prompt,
-          system: params.system,
+          content: params.content,
+          systemPrompt: params.systemPrompt,
           max_tokens: params.max_tokens ? Number.parseInt(params.max_tokens) : undefined,
           temperature: params.temperature ? Number.parseFloat(params.temperature) : undefined,
         }
@@ -98,8 +98,8 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
     },
   },
   inputs: {
-    prompt: { type: 'string', required: true },
-    system: { type: 'string', required: false },
+    content: { type: 'string', required: true },
+    systemPrompt: { type: 'string', required: false },
     model: { type: 'string', required: true },
     max_tokens: { type: 'string', required: false },
     temperature: { type: 'string', required: false },

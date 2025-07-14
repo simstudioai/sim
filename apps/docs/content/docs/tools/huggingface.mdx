@@ -80,14 +80,13 @@ Generate completions using Hugging Face Inference API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Hugging Face API token |
+| `systemPrompt` | string | No | System prompt to guide the model behavior |
+| `content` | string | Yes | The user message content to send to the model |
 | `provider` | string | Yes | The provider to use for the API request \(e.g., novita, cerebras, etc.\) |
 | `model` | string | Yes | Model to use for chat completions \(e.g., deepseek/deepseek-v3-0324\) |
-| `content` | string | Yes | The user message content to send to the model |
-| `systemPrompt` | string | No | System prompt to guide the model behavior |
 | `maxTokens` | number | No | Maximum number of tokens to generate |
 | `temperature` | number | No | Sampling temperature \(0-2\). Higher values make output more random |
-| `stream` | boolean | No | Whether to stream the response |
+| `apiKey` | string | Yes | Hugging Face API token |
 
 #### Output
 

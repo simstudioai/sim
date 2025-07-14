@@ -15,22 +15,25 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token for Jira',
     },
     domain: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Jira project ID',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Jira cloud ID',
     },
   },

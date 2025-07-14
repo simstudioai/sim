@@ -12,23 +12,26 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
     urls: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Comma-separated list of URLs to retrieve content from',
     },
     text: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description:
         'If true, returns full page text with default settings. If false, disables text return.',
     },
     summaryQuery: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Query to guide the summary generation',
     },
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Exa AI API Key',
     },
   },

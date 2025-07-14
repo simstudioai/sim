@@ -91,7 +91,8 @@ Upload a file to Google Drive
 | `fileName` | string | Yes | The name of the file to upload |
 | `content` | string | Yes | The content of the file to upload |
 | `mimeType` | string | No | The MIME type of the file to upload |
-| `folderId` | string | No | The ID of the folder to upload the file to |
+| `folderSelector` | string | No | Select the folder to upload the file to |
+| `folderId` | string | No | The ID of the folder to upload the file to \(internal use\) |
 
 #### Output
 
@@ -117,7 +118,8 @@ Create a new folder in Google Drive
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | The access token for the Google Drive API |
 | `fileName` | string | Yes | Name of the folder to create |
-| `folderId` | string | No | ID of the parent folder \(leave empty for root folder\) |
+| `folderSelector` | string | No | Select the parent folder to create the folder in |
+| `folderId` | string | No | ID of the parent folder \(internal use\) |
 
 #### Output
 
@@ -142,7 +144,8 @@ List files and folders in Google Drive
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | The access token for the Google Drive API |
-| `folderId` | string | No | The ID of the folder to list files from |
+| `folderSelector` | string | No | Select the folder to list files from |
+| `folderId` | string | No | The ID of the folder to list files from \(internal use\) |
 | `query` | string | No | A query to filter the files |
 | `pageSize` | number | No | The number of files to return |
 | `pageToken` | string | No | The page token to use for pagination |

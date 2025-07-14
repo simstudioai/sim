@@ -79,7 +79,10 @@ export const XBlock: BlockConfig<XResponse> = {
       title: 'Include Replies',
       type: 'dropdown',
       layout: 'full',
-      options: ['true', 'false'],
+      options: [
+        { label: 'true', id: 'true' },
+        { label: 'false', id: 'false' },
+      ],
       value: () => 'false',
       condition: { field: 'operation', value: 'x_read' },
     },
@@ -105,7 +108,10 @@ export const XBlock: BlockConfig<XResponse> = {
       title: 'Sort Order',
       type: 'dropdown',
       layout: 'full',
-      options: ['recency', 'relevancy'],
+      options: [
+        { label: 'recency', id: 'recency' },
+        { label: 'relevancy', id: 'relevancy' },
+      ],
       value: () => 'recency',
       condition: { field: 'operation', value: 'x_search' },
     },

@@ -8,28 +8,30 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
   description: 'Search for memories in Mem0 using semantic search',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Your Mem0 API key',
-    },
     userId: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'User ID to search memories for',
     },
     query: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Search query to find relevant memories',
     },
     limit: {
       type: 'number',
       required: false,
       default: 10,
+      visibility: 'user-only',
       description: 'Maximum number of results to return',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Mem0 API key',
     },
   },
   request: {

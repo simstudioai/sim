@@ -5,8 +5,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { env } from '../../env'
-import { S3_CONFIG } from '../setup'
+import { env } from '@/lib/env'
+import { S3_CONFIG } from '@/lib/uploads/setup'
 
 // Lazily create a single S3 client instance.
 let _s3Client: S3Client | null = null

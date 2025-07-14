@@ -176,7 +176,10 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       options: () => {
         const ollamaModels = useOllamaStore.getState().models
         const baseModels = Object.keys(getBaseModelProviders())
-        return [...baseModels, ...ollamaModels]
+        return [...baseModels, ...ollamaModels].map((model) => ({
+          label: model,
+          id: model,
+        }))
       },
     },
     {

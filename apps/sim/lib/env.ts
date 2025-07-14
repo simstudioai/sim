@@ -1,8 +1,5 @@
 import { createEnv } from '@t3-oss/env-nextjs'
-import { env as runtimeEnv } from 'next-runtime-env'
 import { z } from 'zod'
-
-const getEnv = (variable: string) => runtimeEnv(variable) ?? process.env[variable]
 
 export const env = createEnv({
   skipValidation: true,
@@ -48,7 +45,6 @@ export const env = createEnv({
     SENTRY_PROJECT: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     REDIS_URL: z.string().url().optional(),
-    NEXT_TELEMETRY_DISABLED: z.string().optional(),
     NEXT_RUNTIME: z.string().optional(),
     VERCEL_ENV: z.string().optional(),
 
@@ -68,7 +64,6 @@ export const env = createEnv({
     // Miscellaneous
     CRON_SECRET: z.string().optional(),
     FREE_PLAN_LOG_RETENTION_DAYS: z.string().optional(),
-    NODE_ENV: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
     ELEVENLABS_API_KEY: z.string().min(1).optional(),
     AZURE_OPENAI_ENDPOINT: z.string().url().optional(),
@@ -99,6 +94,8 @@ export const env = createEnv({
     MICROSOFT_CLIENT_SECRET: z.string().optional(),
     HUBSPOT_CLIENT_ID: z.string().optional(),
     HUBSPOT_CLIENT_SECRET: z.string().optional(),
+    WEALTHBOX_CLIENT_ID: z.string().optional(),
+    WEALTHBOX_CLIENT_SECRET: z.string().optional(),
     DOCKER_BUILD: z.boolean().optional(),
     LINEAR_CLIENT_ID: z.string().optional(),
     LINEAR_CLIENT_SECRET: z.string().optional(),
@@ -109,6 +106,7 @@ export const env = createEnv({
     SOCKET_SERVER_URL: z.string().url().optional(),
     SOCKET_PORT: z.number().optional(),
     PORT: z.number().optional(),
+    ALLOWED_ORIGINS: z.string().optional(),
   },
 
   client: {
@@ -121,15 +119,22 @@ export const env = createEnv({
     NEXT_PUBLIC_SOCKET_URL: z.string().url().optional(),
   },
 
-  // Only need to define client variables, server variables are automatically handled
+  // Variables available on both server and client
+  shared: {
+    NODE_ENV: z.enum(['development', 'test', 'production']).optional(),
+    NEXT_TELEMETRY_DISABLED: z.string().optional(),
+  },
+
   experimental__runtimeEnv: {
-    NEXT_PUBLIC_APP_URL: getEnv('NEXT_PUBLIC_APP_URL'),
-    NEXT_PUBLIC_VERCEL_URL: getEnv('NEXT_PUBLIC_VERCEL_URL'),
-    NEXT_PUBLIC_SENTRY_DSN: getEnv('NEXT_PUBLIC_SENTRY_DSN'),
-    NEXT_PUBLIC_GOOGLE_CLIENT_ID: getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'),
-    NEXT_PUBLIC_GOOGLE_API_KEY: getEnv('NEXT_PUBLIC_GOOGLE_API_KEY'),
-    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER'),
-    NEXT_PUBLIC_SOCKET_URL: getEnv('NEXT_PUBLIC_SOCKET_URL'),
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_VERCEL_URL: process.env.VERCEL_URL,
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
+    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER,
+    NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
+    NODE_ENV: process.env.NODE_ENV,
+    NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED,
   },
 })
 

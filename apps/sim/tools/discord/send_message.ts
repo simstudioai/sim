@@ -22,24 +22,25 @@ export const discordSendMessageTool: ToolConfig<
     botToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'The bot token for authentication',
     },
     channelId: {
       type: 'string',
       required: true,
-      optionalToolInput: true,
+      visibility: 'user-only',
       description: 'The Discord channel ID to send the message to',
     },
     content: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'The text content of the message',
     },
     serverId: {
       type: 'string',
       required: true,
-      optionalToolInput: true,
+      visibility: 'user-only',
       description: 'The Discord server ID (guild ID)',
     },
   },

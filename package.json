@@ -47,9 +47,8 @@
     "turbo": "2.5.4"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,css,scss,md}": [
+    "*.{js,jsx,ts,tsx,json,css,scss}": [
       "biome check --write --files-ignore-unknown=true"
-    ],
-    "!.github/*.md": []
+    ]
   }
 }

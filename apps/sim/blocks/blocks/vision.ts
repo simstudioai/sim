@@ -25,7 +25,11 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
       title: 'Vision Model',
       type: 'dropdown',
       layout: 'half',
-      options: ['gpt-4o', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229'],
+      options: [
+        { label: 'gpt-4o', id: 'gpt-4o' },
+        { label: 'claude-3-opus', id: 'claude-3-opus-20240229' },
+        { label: 'claude-3-sonnet', id: 'claude-3-sonnet-20240229' },
+      ],
     },
     {
       id: 'prompt',

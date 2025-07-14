@@ -48,6 +48,7 @@ export const BlockOperationSchema = z.object({
     autoConnectEdge: AutoConnectEdgeSchema.optional(), // Add support for auto-connect edges
   }),
   timestamp: z.number(),
+  operationId: z.string().optional(),
 })
 
 export const EdgeOperationSchema = z.object({
@@ -61,6 +62,7 @@ export const EdgeOperationSchema = z.object({
     targetHandle: z.string().nullable().optional(),
   }),
   timestamp: z.number(),
+  operationId: z.string().optional(),
 })
 
 export const SubflowOperationSchema = z.object({
@@ -72,6 +74,7 @@ export const SubflowOperationSchema = z.object({
     config: z.record(z.any()).optional(),
   }),
   timestamp: z.number(),
+  operationId: z.string().optional(),
 })
 
 export const WorkflowOperationSchema = z.union([

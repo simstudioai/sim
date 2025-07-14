@@ -13,6 +13,7 @@ import {
 } from '@/lib/billing/validation/seat-management'
 import { sendEmail } from '@/lib/email/mailer'
 import { validateAndNormalizeEmail } from '@/lib/email/utils'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
@@ -344,7 +345,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           organizationEntry[0]?.name || 'organization',
           role,
           workspaceInvitationsWithNames,
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`
+          `${env.NEXT_PUBLIC_APP_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`
         )
 
         emailResult = await sendEmail({
@@ -357,7 +358,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const emailHtml = await renderInvitationEmail(
           inviter[0]?.name || 'Someone',
           organizationEntry[0]?.name || 'organization',
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`,
+          `${env.NEXT_PUBLIC_APP_URL}/api/organizations/invitations/accept?id=${orgInvitation.id}`,
           email
         )
 

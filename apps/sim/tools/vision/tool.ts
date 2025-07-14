@@ -12,22 +12,25 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'API key for the selected model provider',
     },
     imageUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Publicly accessible image URL',
     },
     model: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Vision model to use (gpt-4o, claude-3-opus-20240229, etc)',
     },
     prompt: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Custom prompt for image analysis',
     },
   },

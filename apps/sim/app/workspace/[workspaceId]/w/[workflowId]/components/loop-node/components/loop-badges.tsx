@@ -260,7 +260,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
                   <div className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'>
                     {editorValue === '' && (
                       <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
-                        ["item1", "item2", "item3"]
+                        ['item1', 'item2', 'item3']
                       </div>
                     )}
                     <Editor

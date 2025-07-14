@@ -115,7 +115,7 @@ export function SubBlock({
             <Dropdown
               blockId={blockId}
               subBlockId={config.id}
-              options={config.options as string[]}
+              options={config.options as { label: string; id: string }[]}
               isPreview={isPreview}
               previewValue={previewValue}
               disabled={isDisabled}
@@ -128,7 +128,7 @@ export function SubBlock({
             <ComboBox
               blockId={blockId}
               subBlockId={config.id}
-              options={config.options as string[]}
+              options={config.options as { label: string; id: string }[]}
               placeholder={config.placeholder}
               isPreview={isPreview}
               previewValue={previewValue}

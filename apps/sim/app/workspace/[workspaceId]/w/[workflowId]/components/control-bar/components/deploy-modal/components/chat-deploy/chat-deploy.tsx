@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { env } from '@/lib/env'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
@@ -55,7 +55,7 @@ interface ChatDeployProps {
 type AuthType = 'public' | 'password' | 'email'
 
 const getDomainSuffix = (() => {
-  const suffix = env.NODE_ENV === 'development' ? `.${getBaseDomain()}` : '.simstudio.ai'
+  const suffix = isDev ? `.${getBaseDomain()}` : '.simstudio.ai'
   return () => suffix
 })()
 

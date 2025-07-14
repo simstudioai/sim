@@ -23,31 +23,37 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Google Calendar API',
     },
     calendarId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Calendar ID (defaults to primary)',
     },
     timeMin: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Lower bound for events (RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z)',
     },
     timeMax: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Upper bound for events (RFC3339 timestamp, e.g., 2025-06-04T00:00:00Z)',
     },
     orderBy: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'Order of events returned (startTime or updated)',
     },
     showDeleted: {
       type: 'boolean',
       required: false,
+      visibility: 'hidden',
       description: 'Include deleted events',
     },
   },

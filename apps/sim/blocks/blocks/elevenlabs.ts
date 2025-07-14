@@ -58,25 +58,25 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       placeholder: 'Enter the voice ID',
     },
     {
+      id: 'modelId',
+      title: 'Model ID',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'eleven_monolingual_v1', id: 'eleven_monolingual_v1' },
+        { label: 'eleven_multilingual_v2', id: 'eleven_multilingual_v2' },
+        { label: 'eleven_turbo_v2', id: 'eleven_turbo_v2' },
+        { label: 'eleven_turbo_v2_5', id: 'eleven_turbo_v2_5' },
+        { label: 'eleven_flash_v2_5', id: 'eleven_flash_v2_5' },
+      ],
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your ElevenLabs API key',
       password: true,
-    },
-    {
-      id: 'modelId',
-      title: 'Model ID (Optional)',
-      type: 'dropdown',
-      layout: 'half',
-      options: [
-        'eleven_monolingual_v1',
-        'eleven_multilingual_v2',
-        'eleven_turbo_v2',
-        'eleven_turbo_v2_5',
-        'eleven_flash_v2_5',
-      ],
     },
   ],
 }

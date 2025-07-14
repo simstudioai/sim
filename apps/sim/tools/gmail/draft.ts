@@ -19,21 +19,25 @@ export const gmailDraftTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Gmail API',
     },
     to: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Recipient email address',
     },
     subject: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Email subject',
     },
     body: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Email body content',
     },
   },

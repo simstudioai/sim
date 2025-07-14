@@ -4,7 +4,6 @@ import {
   airtableListRecordsTool,
   airtableUpdateRecordTool,
 } from './airtable'
-import { autoblocksPromptManagerTool } from './autoblocks'
 import { browserUseRunTaskTool } from './browser_use'
 import { clayPopulateTool } from './clay'
 import { confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
@@ -47,9 +46,7 @@ import {
   googleSheetsUpdateTool,
   googleSheetsWriteTool,
 } from './google_sheets'
-import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http'
-import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { huggingfaceChatTool } from './huggingface'
 import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
@@ -74,7 +71,7 @@ import {
   microsoftTeamsWriteChatTool,
 } from './microsoft_teams'
 import { mistralParserTool } from './mistral'
-import { notionReadTool, notionWriteTool } from './notion'
+import { notionCreatePageTool, notionReadTool, notionWriteTool } from './notion'
 import { imageTool, embeddingsTool as openAIEmbeddings } from './openai'
 import { outlookDraftTool, outlookReadTool, outlookSendTool } from './outlook'
 import { perplexityChatTool } from './perplexity'
@@ -87,7 +84,6 @@ import {
 } from './pinecone'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from './reddit'
 import { s3GetObjectTool } from './s3'
-import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper'
 import { slackMessageTool } from './slack'
 import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
@@ -99,6 +95,14 @@ import { sendSMSTool } from './twilio'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
 import type { ToolConfig } from './types'
 import { visionTool } from './vision'
+import {
+  wealthboxReadContactTool,
+  wealthboxReadNoteTool,
+  wealthboxReadTaskTool,
+  wealthboxWriteContactTool,
+  wealthboxWriteNoteTool,
+  wealthboxWriteTaskTool,
+} from './wealthbox'
 import { whatsappSendMessageTool } from './whatsapp'
 import { workflowExecutorTool } from './workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
@@ -107,12 +111,9 @@ import { youtubeSearchTool } from './youtube'
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
   browser_use_run_task: browserUseRunTaskTool,
-  autoblocks_prompt_manager: autoblocksPromptManagerTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   huggingface_chat: huggingfaceChatTool,
-  hubspot_contacts: hubspotContacts,
-  salesforce_opportunities: salesforceOpportunities,
   function_execute: functionExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
@@ -139,6 +140,7 @@ export const tools: Record<string, ToolConfig> = {
   youtube_search: youtubeSearchTool,
   notion_read: notionReadTool,
   notion_write: notionWriteTool,
+  notion_create_page: notionCreatePageTool,
   gmail_send: gmailSendTool,
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,
@@ -173,8 +175,6 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_write: googleSheetsWriteTool,
   google_sheets_update: googleSheetsUpdateTool,
   google_sheets_append: googleSheetsAppendTool,
-  guesty_reservation: guestyReservationTool,
-  guesty_guest: guestyGuestTool,
   perplexity_chat: perplexityChatTool,
   confluence_retrieve: confluenceRetrieveTool,
   confluence_update: confluenceUpdateTool,
@@ -224,4 +224,10 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_quick_add: googleCalendarQuickAddTool,
   google_calendar_invite: googleCalendarInviteTool,
   workflow_executor: workflowExecutorTool,
+  wealthbox_read_contact: wealthboxReadContactTool,
+  wealthbox_write_contact: wealthboxWriteContactTool,
+  wealthbox_read_task: wealthboxReadTaskTool,
+  wealthbox_write_task: wealthboxWriteTaskTool,
+  wealthbox_read_note: wealthboxReadNoteTool,
+  wealthbox_write_note: wealthboxWriteNoteTool,
 }

@@ -7,7 +7,7 @@ import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
 import { getBlobServiceClient } from '@/lib/uploads/blob/blob-client'
 import { getS3Client, sanitizeFilenameForMetadata } from '@/lib/uploads/s3/s3-client'
 import { BLOB_CONFIG, BLOB_KB_CONFIG, S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
-import { createErrorResponse, createOptionsResponse } from '../utils'
+import { createErrorResponse, createOptionsResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('PresignedUploadAPI')
 

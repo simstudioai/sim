@@ -12,17 +12,19 @@ export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
     owner: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Repository owner (user or organization)',
     },
     repo: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Repository name',
     },
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'GitHub Personal Access Token',
     },
   },

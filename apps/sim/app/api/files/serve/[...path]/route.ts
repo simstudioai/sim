@@ -11,7 +11,7 @@ import {
   FileNotFoundError,
   findLocalFile,
   getContentType,
-} from '../../utils'
+} from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 

@@ -67,7 +67,10 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Extract Depth',
       type: 'dropdown',
       layout: 'full',
-      options: ['basic', 'advanced'],
+      options: [
+        { label: 'basic', id: 'basic' },
+        { label: 'advanced', id: 'advanced' },
+      ],
       value: () => 'basic',
       condition: { field: 'operation', value: 'tavily_extract' },
     },

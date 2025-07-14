@@ -1,5 +1,7 @@
 import type { Server as HttpServer } from 'http'
 import { Server } from 'socket.io'
+import { env } from '@/lib/env'
+import { isProd } from '@/lib/environment'
 import { createLogger } from '../../lib/logs/console-logger'
 
 const logger = createLogger('SocketIOConfig')
@@ -9,11 +11,11 @@ const logger = createLogger('SocketIOConfig')
  */
 function getAllowedOrigins(): string[] {
   const allowedOrigins = [
-    process.env.NEXT_PUBLIC_APP_URL,
-    process.env.VERCEL_URL,
+    env.NEXT_PUBLIC_APP_URL,
+    env.NEXT_PUBLIC_VERCEL_URL,
     'http://localhost:3000',
     'http://localhost:3001',
-    ...(process.env.ALLOWED_ORIGINS?.split(',') || []),
+    ...(env.ALLOWED_ORIGINS?.split(',') || []),
   ].filter((url): url is string => Boolean(url))
 
   logger.info('Socket.IO CORS configuration:', { allowedOrigins })
@@ -46,7 +48,7 @@ export function createSocketIOServer(httpServer: HttpServer): Server {
       path: '/',
       httpOnly: true,
       sameSite: 'none', // Required for cross-origin cookies
-      secure: process.env.NODE_ENV === 'production', // HTTPS in production
+      secure: isProd, // HTTPS in production
     },
   })
 
@@ -56,7 +58,7 @@ export function createSocketIOServer(httpServer: HttpServer): Server {
     pingTimeout: 60000,
     pingInterval: 25000,
     maxHttpBufferSize: 1e6,
-    cookieSecure: process.env.NODE_ENV === 'production',
+    cookieSecure: isProd,
     corsCredentials: true,
   })
 

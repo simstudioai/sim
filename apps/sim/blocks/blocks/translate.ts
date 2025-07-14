@@ -44,7 +44,7 @@ export const TranslateBlock: BlockConfig = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: Object.keys(getBaseModelProviders()),
+      options: Object.keys(getBaseModelProviders()).map((key) => ({ label: key, id: key })),
     },
     {
       id: 'apiKey',

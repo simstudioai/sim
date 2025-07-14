@@ -24,27 +24,32 @@ export const quickAddTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Google Calendar API',
     },
     calendarId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Calendar ID (defaults to primary)',
     },
     text: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description:
         'Natural language text describing the event (e.g., "Meeting with John tomorrow at 3pm")',
     },
     attendees: {
       type: 'array',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Array of attendee email addresses (comma-separated string also accepted)',
     },
     sendUpdates: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'How to send updates to attendees: all, externalOnly, or none',
     },
   },

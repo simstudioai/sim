@@ -1,4 +1,5 @@
 import { createServer } from 'http'
+import { env } from '@/lib/env'
 import { createLogger } from '../lib/logs/console-logger'
 import { createSocketIOServer } from './config/socket'
 import { setupAllHandlers } from './handlers'
@@ -75,13 +76,13 @@ io.engine.on('connection_error', (err) => {
   })
 })
 
-const PORT = Number(process.env.PORT || process.env.SOCKET_PORT || 3002)
+const PORT = Number(env.PORT || env.SOCKET_PORT || 3002)
 
 logger.info('Starting Socket.IO server...', {
   port: PORT,
-  nodeEnv: process.env.NODE_ENV,
-  hasDatabase: !!process.env.DATABASE_URL,
-  hasAuth: !!process.env.BETTER_AUTH_SECRET,
+  nodeEnv: env.NODE_ENV,
+  hasDatabase: !!env.DATABASE_URL,
+  hasAuth: !!env.BETTER_AUTH_SECRET,
 })
 
 httpServer.listen(PORT, '0.0.0.0', () => {

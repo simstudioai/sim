@@ -15,32 +15,31 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     filePath: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'URL to a PDF document to be processed',
     },
     fileUpload: {
       type: 'object',
       required: false,
+      visibility: 'hidden',
       description: 'File upload data from file-upload component',
     },
     resultType: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Type of parsed result (markdown, text, or json). Defaults to markdown.',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Mistral API key (MISTRAL_API_KEY)',
     },
     includeImageBase64: {
       type: 'boolean',
       required: false,
+      visibility: 'hidden',
       description: 'Include base64-encoded images in the response',
     },
     pages: {
       type: 'array',
       required: false,
+      visibility: 'user-only',
       description: 'Specific pages to process (array of page numbers, starting from 0)',
     },
     // Note: The following image-related parameters are still supported by the parser
@@ -48,12 +47,20 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     imageLimit: {
       type: 'number',
       required: false,
+      visibility: 'hidden',
       description: 'Maximum number of images to extract from the PDF',
     },
     imageMinSize: {
       type: 'number',
       required: false,
+      visibility: 'hidden',
       description: 'Minimum height and width of images to extract from the PDF',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Mistral API key (MISTRAL_API_KEY)',
     },
   },
 

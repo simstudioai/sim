@@ -2,8 +2,8 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { type ClassValue, clsx } from 'clsx'
 import { nanoid } from 'nanoid'
 import { twMerge } from 'tailwind-merge'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from './env'
 
 const logger = createLogger('Utils')
 

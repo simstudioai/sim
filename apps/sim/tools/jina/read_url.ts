@@ -12,23 +12,31 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
     url: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The URL to read and convert to markdown',
     },
     useReaderLMv2: {
       type: 'boolean',
+      required: false,
+      visibility: 'user-only',
       description: 'Whether to use ReaderLM-v2 for better quality',
     },
     gatherLinks: {
       type: 'boolean',
+      required: false,
+      visibility: 'user-only',
       description: 'Whether to gather all links at the end',
     },
     jsonResponse: {
       type: 'boolean',
+      required: false,
+      visibility: 'user-only',
       description: 'Whether to return response in JSON format',
     },
     apiKey: {
       type: 'string',
-      requiredForToolCall: true,
+      required: true,
+      visibility: 'user-only',
       description: 'Your Jina AI API key',
     },
   },

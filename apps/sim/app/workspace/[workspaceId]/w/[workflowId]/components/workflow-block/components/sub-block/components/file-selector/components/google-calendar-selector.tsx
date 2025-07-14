@@ -206,27 +206,29 @@ export function GoogleCalendarSelector({
             variant='outline'
             role='combobox'
             aria-expanded={open}
-            className='w-full justify-between'
+            className='h-10 w-full min-w-0 justify-between'
             disabled={disabled || !credentialId}
           >
-            {selectedCalendar ? (
-              <div className='flex items-center gap-2 overflow-hidden'>
-                <div
-                  className='h-3 w-3 flex-shrink-0 rounded-full'
-                  style={{
-                    backgroundColor: selectedCalendar.backgroundColor || '#4285f4',
-                  }}
-                />
-                <span className='truncate font-normal'>
-                  {getCalendarDisplayName(selectedCalendar)}
-                </span>
-              </div>
-            ) : (
-              <div className='flex items-center gap-2'>
-                <GoogleCalendarIcon className='h-4 w-4' />
-                <span className='text-muted-foreground'>{label}</span>
-              </div>
-            )}
+            <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
+              {selectedCalendar ? (
+                <>
+                  <div
+                    className='h-3 w-3 flex-shrink-0 rounded-full'
+                    style={{
+                      backgroundColor: selectedCalendar.backgroundColor || '#4285f4',
+                    }}
+                  />
+                  <span className='truncate font-normal'>
+                    {getCalendarDisplayName(selectedCalendar)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <GoogleCalendarIcon className='h-4 w-4' />
+                  <span className='truncate text-muted-foreground'>{label}</span>
+                </>
+              )}
+            </div>
             <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>

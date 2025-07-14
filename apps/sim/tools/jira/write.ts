@@ -28,48 +28,56 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token for Jira',
     },
     domain: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-or-llm',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Project ID for the issue',
     },
     summary: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Summary for the issue',
     },
     description: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Description for the issue',
     },
     priority: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'Priority for the issue',
     },
     assignee: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'Assignee for the issue',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description:
         'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
     issueType: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Type of issue to create (e.g., Task, Story, Bug, Sub-task)',
     },
   },

@@ -2,7 +2,6 @@
   "items": [
     "index",
     "airtable",
-    "autoblocks",
     "browser_use",
     "clay",
     "confluence",
@@ -18,7 +17,6 @@
     "google_drive",
     "google_search",
     "google_sheets",
-    "guesty",
     "huggingface",
     "image_generator",
     "jina",
@@ -50,6 +48,7 @@
     "twilio_sms",
     "typeform",
     "vision",
+    "wealthbox",
     "whatsapp",
     "x",
     "youtube"

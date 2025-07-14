@@ -12,33 +12,38 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     query: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The search query',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Serper API Key',
     },
     num: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Number of results to return',
     },
     gl: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Country code for search results',
     },
     hl: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Language code for search results',
     },
     type: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Type of search to perform',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Serper API Key',
     },
   },
 
