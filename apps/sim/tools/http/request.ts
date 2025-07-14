@@ -1,5 +1,5 @@
 import { env } from '@/lib/env'
-import { getNodeEnv } from '@/lib/environment'
+import { isTest } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { HttpMethod, TableRow, ToolConfig } from '../types'
@@ -109,7 +109,7 @@ const processUrl = (
 // Check if a URL needs proxy to avoid CORS/method restrictions
 const shouldUseProxy = (url: string): boolean => {
   // Skip proxying in test environment
-  if (getNodeEnv() === 'test') {
+  if (isTest) {
     return false
   }
 

@@ -1,5 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
 import { TextChunker } from './chunker'
@@ -28,7 +29,6 @@ export class DocsChunker {
       overlap: options.overlap ?? 50,
     })
     // Use localhost docs in development, production docs otherwise
-    const isDev = process.env.NODE_ENV === 'development'
     this.baseUrl =
       options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.simstudio.ai')
   }

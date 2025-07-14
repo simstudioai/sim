@@ -11,7 +11,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { getNodeEnv } from '@/lib/environment'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
@@ -50,7 +50,6 @@ export function TelemetryConsentDialog() {
   const loadSettings = useGeneralStore((state) => state.loadSettings)
 
   const hasShownDialogThisSession = useRef(false)
-  const isDevelopment = getNodeEnv() === 'development'
 
   const isChatSubdomainOrPath =
     typeof window !== 'undefined' &&
@@ -116,7 +115,7 @@ export function TelemetryConsentDialog() {
       telemetryNotifiedUser,
       telemetryEnabled,
       hasShownInSession: hasShownDialogThisSession.current,
-      environment: getNodeEnv(),
+      environment: isDev,
     })
 
     const localStorageNotified =
@@ -134,11 +133,11 @@ export function TelemetryConsentDialog() {
       !localStorageNotified &&
       telemetryEnabled &&
       !hasShownDialogThisSession.current &&
-      isDevelopment
+      isDev
     ) {
       setOpen(true)
       hasShownDialogThisSession.current = true
-    } else if (settingsLoaded && !telemetryNotifiedUser && !isDevelopment) {
+    } else if (settingsLoaded && !telemetryNotifiedUser && !isDev) {
       // Auto-notify in non-development environments
       setTelemetryNotifiedUser(true)
       if (typeof window !== 'undefined') {

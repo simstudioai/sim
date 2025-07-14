@@ -19,16 +19,15 @@ import {
   renderOTPEmail,
   renderPasswordResetEmail,
 } from '@/components/emails/render-email'
+import { env, isTruthy } from '@/lib/env'
+import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 import { getBaseURL } from './auth-client'
-import { env, isTruthy } from './env'
-import { getEmailDomain } from './urls/utils'
 
 const logger = createLogger('Auth')
-
-const isProd = env.NODE_ENV === 'production'
 
 // Only initialize Stripe if the key is provided
 // This allows local development without a Stripe account

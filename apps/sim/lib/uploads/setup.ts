@@ -1,8 +1,8 @@
 import { existsSync } from 'fs'
 import { mkdir } from 'fs/promises'
 import path, { join } from 'path'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from '../env'
 
 const logger = createLogger('UploadsSetup')
 

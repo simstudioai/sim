@@ -447,7 +447,7 @@ async function handleCsvBuffer(
     logger.info(`Parsing CSV in memory: ${filename}`)
 
     // Use the parseBuffer function from our library
-    const { parseBuffer } = await import('../../../../lib/file-parsers')
+    const { parseBuffer } = await import('@/lib/file-parsers')
     const result = await parseBuffer(fileBuffer, 'csv')
 
     return {
@@ -492,7 +492,7 @@ async function handleGenericTextBuffer(
 
     // Try to use a specialized parser if available
     try {
-      const { parseBuffer, isSupportedFileType } = await import('../../../../lib/file-parsers')
+      const { parseBuffer, isSupportedFileType } = await import('@/lib/file-parsers')
 
       if (isSupportedFileType(extension)) {
         const result = await parseBuffer(fileBuffer, extension)
@@ -578,7 +578,7 @@ async function parseBufferAsPdf(buffer: Buffer) {
     // Import parsers dynamically to avoid initialization issues in tests
     // First try to use the main PDF parser
     try {
-      const { PdfParser } = await import('../../../../lib/file-parsers/pdf-parser')
+      const { PdfParser } = await import('@/lib/file-parsers/pdf-parser')
       const parser = new PdfParser()
       logger.info('Using main PDF parser for buffer')
 
@@ -589,7 +589,7 @@ async function parseBufferAsPdf(buffer: Buffer) {
     } catch (error) {
       // Fallback to raw PDF parser
       logger.warn('Main PDF parser failed, using raw parser for buffer:', error)
-      const { RawPdfParser } = await import('../../../../lib/file-parsers/raw-pdf-parser')
+      const { RawPdfParser } = await import('@/lib/file-parsers/raw-pdf-parser')
       const rawParser = new RawPdfParser()
 
       return await rawParser.parseBuffer(buffer)

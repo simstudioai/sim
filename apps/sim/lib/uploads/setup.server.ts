@@ -1,5 +1,5 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from '../env'
 import {
   ensureUploadsDirectory,
   getStorageProvider,

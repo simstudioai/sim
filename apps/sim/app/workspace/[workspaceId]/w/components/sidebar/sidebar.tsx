@@ -7,7 +7,7 @@ import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
-import { env } from '@/lib/env'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   getKeyboardShortcutText,
@@ -27,8 +27,6 @@ import { SidebarControl } from './components/sidebar-control/sidebar-control'
 import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 const logger = createLogger('Sidebar')
-
-const IS_DEV = env.NODE_ENV === 'development'
 
 export function Sidebar() {
   useGlobalShortcuts()
@@ -239,7 +237,7 @@ export function Sidebar() {
       {isCollapsed ? (
         <div className='flex-shrink-0 px-3 pt-1 pb-3'>
           <div className='flex flex-col space-y-[1px]'>
-            {!IS_DEV && (
+            {!isDev && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
@@ -286,7 +284,7 @@ export function Sidebar() {
         </div>
       ) : (
         <>
-          {!IS_DEV && (
+          {!isDev && (
             <div className='flex-shrink-0 px-3 pt-1'>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -343,7 +341,7 @@ export function Sidebar() {
       {/* Modals */}
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
-      {!IS_DEV && <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />}
+      {!isDev && <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />}
     </aside>
   )
 }

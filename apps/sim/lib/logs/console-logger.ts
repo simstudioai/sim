@@ -44,8 +44,8 @@ const LOG_CONFIG = {
     colorize: true,
   },
   production: {
-    enabled: true,
-    minLevel: LogLevel.INFO, // Only show INFO and above in production
+    enabled: false, // Disable all console logs in production
+    minLevel: LogLevel.ERROR,
     colorize: false,
   },
   test: {

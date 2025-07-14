@@ -1,6 +1,6 @@
 import type { Socket } from 'socket.io'
-import { auth } from '../../lib/auth'
-import { createLogger } from '../../lib/logs/console-logger'
+import { auth } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('SocketAuth')
 
