@@ -51,11 +51,12 @@ Generate completions using Perplexity AI chat models
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Perplexity API key |
+| `systemPrompt` | string | No | System prompt to guide the model behavior |
+| `content` | string | Yes | The user message content to send to the model |
 | `model` | string | Yes | Model to use for chat completions \(e.g., sonar, mistral\) |
-| `messages` | array | Yes | Array of message objects with role and content |
 | `max_tokens` | number | No | Maximum number of tokens to generate |
 | `temperature` | number | No | Sampling temperature between 0 and 1 |
+| `apiKey` | string | Yes | Perplexity API key |
 
 #### Output
 
@@ -75,7 +76,7 @@ Generate completions using Perplexity AI chat models
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `prompt` | string | Yes | User Prompt - Enter your prompt here... |
+| `content` | string | Yes | User Prompt - Enter your prompt here... |
 
 
 

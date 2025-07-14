@@ -12,20 +12,30 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
     additionalScopes: ['database.read', 'projects.read'],
   },
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Your Supabase client anon key',
-    },
     projectId: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)',
     },
-    table: { type: 'string', required: true },
-    filter: { type: 'object', required: false },
+    table: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The name of the Supabase table to query',
+    },
+    filter: {
+      type: 'object',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter to apply to the query',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your Supabase client anon key',
+    },
   },
   request: {
     url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}`,

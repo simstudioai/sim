@@ -68,7 +68,6 @@ export type BlockOutput =
 export interface ParamConfig {
   type: ParamType
   required: boolean
-  requiredForToolCall?: boolean
   description?: string
   schema?: {
     type: string
@@ -92,11 +91,8 @@ export interface SubBlockConfig {
   layout?: SubBlockLayout
   mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
   options?:
-    | string[]
     | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]
-    | (() =>
-        | string[]
-        | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])
+    | (() => { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])
   min?: number
   max?: number
   columns?: string[]

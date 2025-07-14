@@ -83,8 +83,10 @@ Query data from a Supabase table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Supabase client anon key |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to query |
+| `filter` | object | No | Filter to apply to the query |
+| `apiKey` | string | Yes | Your Supabase client anon key |
 
 #### Output
 
@@ -101,8 +103,10 @@ Insert data into a Supabase table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Supabase client anon key |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `table` | string | Yes | The name of the Supabase table to insert data into |
+| `data` | any | Yes | The data to insert |
+| `apiKey` | string | Yes | Your Supabase client anon key |
 
 #### Output
 

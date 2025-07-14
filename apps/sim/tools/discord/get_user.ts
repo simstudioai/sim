@@ -19,13 +19,13 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
     botToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Discord bot token for authentication',
     },
     userId: {
       type: 'string',
       required: true,
-      optionalToolInput: true,
+      visibility: 'user-only',
       description: 'The Discord user ID',
     },
   },

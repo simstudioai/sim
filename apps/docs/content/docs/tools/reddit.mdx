@@ -50,24 +50,6 @@ Access Reddit data to retrieve posts and comments from any subreddit. Get post t
 
 ## Tools
 
-### `reddit_hot_posts`
-
-Fetch the most popular (hot) posts from a specified subreddit.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Yes | The name of the subreddit to fetch posts from \(without the r/ prefix\) |
-| `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `subreddit` | string |
-| `posts` | string |
-
 ### `reddit_get_posts`
 
 Fetch posts from a subreddit with different sorting options
@@ -76,6 +58,7 @@ Fetch posts from a subreddit with different sorting options
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Access token for Reddit API |
 | `subreddit` | string | Yes | The name of the subreddit to fetch posts from \(without the r/ prefix\) |
 | `sort` | string | No | Sort method for posts:  |
 | `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
@@ -96,6 +79,7 @@ Fetch comments from a specific Reddit post
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Access token for Reddit API |
 | `postId` | string | Yes | The ID of the Reddit post to fetch comments from |
 | `subreddit` | string | Yes | The subreddit where the post is located \(without the r/ prefix\) |
 | `sort` | string | No | Sort method for comments:  |
@@ -121,7 +105,7 @@ Fetch comments from a specific Reddit post
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `action` | string | Yes | Action |
+| `operation` | string | Yes | Operation |
 
 
 

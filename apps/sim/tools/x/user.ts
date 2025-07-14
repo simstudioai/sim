@@ -20,11 +20,13 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'X OAuth access token',
     },
     username: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Username to look up (without @ symbol)',
     },
   },

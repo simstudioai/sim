@@ -17,7 +17,6 @@ interface AirtableBaseParams {
 export interface AirtableListParams extends AirtableBaseParams {
   maxRecords?: number
   filterFormula?: string
-  // TODO: Add other list parameters like pageSize, offset, view, sort, fields, returnFieldsByFieldId, recordMetadata
 }
 
 export interface AirtableListResponse extends ToolResponse {
@@ -47,7 +46,6 @@ export interface AirtableGetResponse extends ToolResponse {
 // Create Records Types
 export interface AirtableCreateParams extends AirtableBaseParams {
   records: Array<{ fields: Record<string, any> }>
-  // TODO: Add typecast parameter
 }
 
 export interface AirtableCreateResponse extends ToolResponse {
@@ -63,7 +61,6 @@ export interface AirtableCreateResponse extends ToolResponse {
 export interface AirtableUpdateParams extends AirtableBaseParams {
   recordId: string
   fields: Record<string, any>
-  // TODO: Add typecast parameter
 }
 
 export interface AirtableUpdateResponse extends ToolResponse {
@@ -79,7 +76,6 @@ export interface AirtableUpdateResponse extends ToolResponse {
 // Update Multiple Records Types
 export interface AirtableUpdateMultipleParams extends AirtableBaseParams {
   records: Array<{ id: string; fields: Record<string, any> }>
-  // TODO: Add typecast, performUpsert parameters
 }
 
 export interface AirtableUpdateMultipleResponse extends ToolResponse {

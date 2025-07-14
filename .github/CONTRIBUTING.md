@@ -15,8 +15,6 @@ Thank you for your interest in contributing to Sim Studio! Our goal is to provid
 - [Commit Message Guidelines](#commit-message-guidelines)
 - [Local Development Setup](#local-development-setup)
 - [Adding New Blocks and Tools](#adding-new-blocks-and-tools)
-- [Local Storage Mode](#local-storage-mode)
-- [Standalone Build](#standalone-build)
 - [License](#license)
 - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
 
@@ -57,7 +55,7 @@ We strive to keep our workflow as simple as possible. To contribute:
    ```
 
 7. **Create a Pull Request**  
-   Open a pull request against the `main` branch on GitHub. Please provide a clear description of the changes and reference any relevant issues (e.g., `fixes #123`).
+   Open a pull request against the `staging` branch on GitHub. Please provide a clear description of the changes and reference any relevant issues (e.g., `fixes #123`).
 
 ---
 
@@ -85,7 +83,7 @@ If you discover a bug or have a feature request, please open an issue in our Git
 Before creating a pull request:
 
 - **Ensure Your Branch Is Up-to-Date:**  
-  Rebase your branch onto the latest `main` branch to prevent merge conflicts.
+  Rebase your branch onto the latest `staging` branch to prevent merge conflicts.
 - **Follow the Guidelines:**  
   Make sure your changes are well-tested, follow our coding standards, and include relevant documentation if necessary.
 
@@ -209,13 +207,14 @@ Dev Containers provide a consistent and easy-to-use development environment:
 
 3. **Start Developing:**
 
-   - Run `bun run dev` in the terminal or use the `sim-start` alias
+   - Run `bun run dev:full` in the terminal or use the `sim-start` alias
+   - This starts both the main application and the realtime socket server
    - All dependencies and configurations are automatically set up
    - Your changes will be automatically hot-reloaded
 
 4. **GitHub Codespaces:**
    - This setup also works with GitHub Codespaces if you prefer development in the browser
-   - Just click "Code" → "Codespaces" → "Create codespace on main"
+   - Just click "Code" → "Codespaces" → "Create codespace on staging"
 
 ### Option 4: Manual Setup
 
@@ -246,8 +245,10 @@ If you prefer not to use Docker or Dev Containers:
 4. **Run the Development Server:**
 
    ```bash
-   bun run dev
+   bun run dev:full
    ```
+
+   This command starts both the main application and the realtime socket server required for full functionality.
 
 5. **Make Your Changes and Test Locally.**
 
@@ -379,7 +380,18 @@ In addition, you will need to update the registries:
      provider: 'pinecone', // ID of the OAuth provider
 
      params: {
-       // Tool parameters
+       parameterName: {
+         type: 'string',
+         required: true,
+         visibility: 'user-or-llm', // Controls parameter visibility
+         description: 'Description of the parameter',
+       },
+       optionalParam: {
+         type: 'string',
+         required: false,
+         visibility: 'user-only',
+         description: 'Optional parameter only user can set',
+       },
      },
      request: {
        // Request configuration
@@ -429,11 +441,57 @@ Maintaining consistent naming across the codebase is critical for auto-generatio
 - **Tool Exports:** Should be named `{toolName}Tool` (e.g., `fetchTool`)
 - **Tool IDs:** Should follow the format `{provider}_{tool_name}` (e.g., `pinecone_fetch`)
 
+### Parameter Visibility System
+
+Sim Studio implements a sophisticated parameter visibility system that controls how parameters are exposed to users and LLMs in agent workflows. Each parameter can have one of four visibility levels:
+
+| Visibility  | User Sees | LLM Sees | How It Gets Set                |
+|-------------|-----------|----------|--------------------------------|
+| `user-only` | ✅ Yes     | ❌ No     | User provides in UI            |
+| `user-or-llm` | ✅ Yes     | ✅ Yes    | User provides OR LLM generates |
+| `llm-only`  | ❌ No      | ✅ Yes    | LLM generates only             |
+| `hidden`    | ❌ No      | ❌ No     | Application injects at runtime |
+
+#### Visibility Guidelines
+
+- **`user-or-llm`**: Use for core parameters that can be provided by users or intelligently filled by the LLM (e.g., search queries, email subjects)
+- **`user-only`**: Use for configuration parameters, API keys, and settings that only users should control (e.g., number of results, authentication credentials)
+- **`llm-only`**: Use for computed values that the LLM should handle internally (e.g., dynamic calculations, contextual data)
+- **`hidden`**: Use for system-level parameters injected at runtime (e.g., OAuth tokens, internal identifiers)
+
+#### Example Implementation
+
+```typescript
+params: {
+  query: {
+    type: 'string',
+    required: true,
+    visibility: 'user-or-llm', // User can provide or LLM can generate
+    description: 'Search query to execute',
+  },
+  apiKey: {
+    type: 'string',
+    required: true,
+    visibility: 'user-only', // Only user provides this
+    description: 'API key for authentication',
+  },
+  internalId: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden', // System provides this at runtime
+    description: 'Internal tracking identifier',
+  },
+}
+```
+
+This visibility system ensures clean user interfaces while maintaining full flexibility for LLM-driven workflows.
+
 ### Guidelines & Best Practices
 
 - **Code Style:** Follow the project's ESLint and Prettier configurations. Use meaningful variable names and small, focused functions.
 - **Documentation:** Clearly document the purpose, inputs, outputs, and any special behavior for your block/tool.
 - **Error Handling:** Implement robust error handling and provide user-friendly error messages.
+- **Parameter Visibility:** Always specify the appropriate visibility level for each parameter to ensure proper UI behavior and LLM integration.
 - **Testing:** Add unit or integration tests to verify your changes when possible.
 - **Commit Changes:** Update all related components and registries, and describe your changes in your pull request.
 

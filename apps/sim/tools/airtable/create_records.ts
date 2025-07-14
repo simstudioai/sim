@@ -1,8 +1,6 @@
 import type { ToolConfig } from '../types'
 import type { AirtableCreateParams, AirtableCreateResponse } from './types'
 
-// import { logger } from '@/utils/logger' // Removed logger due to import issues
-
 export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, AirtableCreateResponse> = {
   id: 'airtable_create_records',
   name: 'Airtable Create Records',
@@ -18,21 +16,25 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token',
     },
     baseId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID of the Airtable base',
     },
     tableId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID or name of the table',
     },
     records: {
       type: 'json',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Array of records to create, each with a `fields` object',
       // Example: [{ fields: { "Field 1": "Value1", "Field 2": "Value2" } }]
     },

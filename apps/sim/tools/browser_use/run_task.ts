@@ -17,27 +17,31 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     task: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'What should the browser agent do',
     },
     variables: {
       type: 'json',
       required: false,
+      visibility: 'user-only',
       description: 'Optional variables to use as secrets (format: {key: value})',
     },
     save_browser_data: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Whether to save browser data',
     },
     model: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'LLM model to use (default: gpt-4o)',
     },
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'API key for BrowserUse API',
     },
   },

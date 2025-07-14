@@ -12,27 +12,31 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
     query: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The search query to execute',
     },
     numResults: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Number of results to return (default: 10, max: 25)',
     },
     useAutoprompt: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Whether to use autoprompt to improve the query (default: false)',
     },
     type: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Search type: neural, keyword, auto or magic (default: auto)',
     },
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Exa AI API Key',
     },
   },

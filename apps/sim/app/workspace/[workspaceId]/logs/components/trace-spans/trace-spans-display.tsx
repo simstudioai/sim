@@ -10,7 +10,7 @@ import {
   ConditionalIcon,
   ConnectIcon,
 } from '@/components/icons'
-import { cn } from '@/lib/utils'
+import { cn, redactApiKeys } from '@/lib/utils'
 import type { TraceSpan } from '../../stores/types'
 
 interface TraceSpansDisplayProps {
@@ -25,24 +25,7 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
 
   // For input data, filter out sensitive information
   if (isInput) {
-    const cleanInput = { ...data }
-
-    // Remove sensitive fields (common API keys and tokens)
-    if (cleanInput.apiKey) {
-      cleanInput.apiKey = '***'
-    }
-    if (cleanInput.azureApiKey) {
-      cleanInput.azureApiKey = '***'
-    }
-    if (cleanInput.token) {
-      cleanInput.token = '***'
-    }
-    if (cleanInput.accessToken) {
-      cleanInput.accessToken = '***'
-    }
-    if (cleanInput.authorization) {
-      cleanInput.authorization = '***'
-    }
+    const cleanInput = redactApiKeys(data)
 
     // Remove null/undefined values for cleaner display
     Object.keys(cleanInput).forEach((key) => {
@@ -112,7 +95,7 @@ function CollapsibleInputOutput({ span, spanId }: CollapsibleInputOutputProps) {
         <div>
           <button
             onClick={() => setInputExpanded(!inputExpanded)}
-            className='flex items-center gap-2 mb-2 font-medium text-muted-foreground text-xs hover:text-foreground transition-colors'
+            className='mb-2 flex items-center gap-2 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground'
           >
             {inputExpanded ? (
               <ChevronDown className='h-3 w-3' />
@@ -134,7 +117,7 @@ function CollapsibleInputOutput({ span, spanId }: CollapsibleInputOutputProps) {
         <div>
           <button
             onClick={() => setOutputExpanded(!outputExpanded)}
-            className='flex items-center gap-2 mb-2 font-medium text-muted-foreground text-xs hover:text-foreground transition-colors'
+            className='mb-2 flex items-center gap-2 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground'
           >
             {outputExpanded ? (
               <ChevronDown className='h-3 w-3' />

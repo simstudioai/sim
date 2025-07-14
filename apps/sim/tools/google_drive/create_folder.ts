@@ -15,17 +15,26 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Drive API',
     },
     fileName: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Name of the folder to create',
+    },
+    folderSelector: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Select the parent folder to create the folder in',
     },
     folderId: {
       type: 'string',
       required: false,
-      description: 'ID of the parent folder (leave empty for root folder)',
+      visibility: 'hidden',
+      description: 'ID of the parent folder (internal use)',
     },
   },
   request: {
@@ -36,14 +45,19 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const metadata = {
+      const metadata: {
+        name: string | undefined
+        mimeType: string
+        parents?: string[]
+      } = {
         name: params.fileName,
         mimeType: 'application/vnd.google-apps.folder',
-        ...(params.folderId ? { parents: [params.folderId] } : {}),
       }
 
-      if (params.folderSelector) {
-        metadata.parents = [params.folderSelector]
+      // Add parent folder if specified (prefer folderSelector over folderId)
+      const parentFolderId = params.folderSelector || params.folderId
+      if (parentFolderId) {
+        metadata.parents = [parentFolderId]
       }
 
       return metadata

@@ -12,35 +12,41 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
     additionalScopes: ['workspace.content', 'page.write'],
   },
   params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Notion OAuth access token',
+    },
     parentType: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Type of parent: "page" or "database"',
     },
     parentId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID of the parent page or database',
     },
     title: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Title of the page (required for parent pages, not for databases)',
     },
     properties: {
       type: 'json',
       required: false,
+      visibility: 'user-or-llm',
       description: 'JSON object of properties for database pages',
     },
     content: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Optional content to add to the page upon creation',
-    },
-    accessToken: {
-      type: 'string',
-      required: true,
-      description: 'Notion OAuth access token',
     },
   },
 

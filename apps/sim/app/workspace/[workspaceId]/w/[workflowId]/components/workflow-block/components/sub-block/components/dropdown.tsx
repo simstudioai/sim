@@ -113,8 +113,8 @@ export function Dropdown({
       }}
       disabled={isPreview || disabled}
     >
-      <SelectTrigger className='text-left'>
-        <SelectValue placeholder='Select an option' />
+      <SelectTrigger className='min-w-0 text-left'>
+        <SelectValue placeholder='Select an option' className='truncate' />
       </SelectTrigger>
       <SelectContent className='max-h-48'>
         {evaluatedOptions.map((option) => (

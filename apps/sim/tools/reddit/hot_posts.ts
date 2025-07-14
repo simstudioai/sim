@@ -20,14 +20,22 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
   },
 
   params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Access token for Reddit API',
+    },
     subreddit: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The name of the subreddit to fetch posts from (without the r/ prefix)',
     },
     limit: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of posts to return (default: 10, max: 100)',
     },
   },

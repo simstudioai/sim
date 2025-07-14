@@ -6,14 +6,12 @@ export interface PerplexityMessage {
 }
 
 export interface PerplexityChatParams {
-  apiKey: string
+  systemPrompt?: string
+  content: string
   model: string
-  messages?: PerplexityMessage[]
   max_tokens?: number
   temperature?: number
-
-  prompt?: string
-  system?: string
+  apiKey: string
 }
 
 export interface PerplexityChatResponse extends ToolResponse {

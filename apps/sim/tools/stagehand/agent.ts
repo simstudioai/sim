@@ -11,31 +11,36 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
   version: '1.0.0',
 
   params: {
-    task: {
-      type: 'string',
-      required: true,
-      description: 'The task to complete or goal to achieve on the website',
-    },
     startUrl: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'URL of the webpage to start the agent on',
     },
-    outputSchema: {
-      type: 'json',
-      required: false,
-      description: 'Optional JSON schema defining the structure of data the agent should return',
+    task: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The task to complete or goal to achieve on the website',
     },
     variables: {
       type: 'json',
       required: false,
+      visibility: 'user-only',
       description:
         'Optional variables to substitute in the task (format: {key: value}). Reference in task using %key%',
     },
     apiKey: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'OpenAI API key for agent execution (required by Stagehand)',
+    },
+    outputSchema: {
+      type: 'json',
+      required: false,
+      visibility: 'user-only',
+      description: 'Optional JSON schema defining the structure of data the agent should return',
     },
   },
 

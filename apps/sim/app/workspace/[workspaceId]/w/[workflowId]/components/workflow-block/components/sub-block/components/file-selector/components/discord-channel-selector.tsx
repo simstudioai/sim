@@ -220,20 +220,22 @@ export function DiscordChannelSelector({
             variant='outline'
             role='combobox'
             aria-expanded={open}
-            className='w-full justify-between'
+            className='h-10 w-full min-w-0 justify-between'
             disabled={disabled || !botToken || !serverId}
           >
-            {selectedChannel ? (
-              <div className='flex items-center gap-2 overflow-hidden'>
-                <span className='text-muted-foreground'>#</span>
-                <span className='truncate font-normal'>{selectedChannel.name}</span>
-              </div>
-            ) : (
-              <div className='flex items-center gap-2'>
-                <DiscordIcon className='h-4 w-4' />
-                <span className='text-muted-foreground'>{label}</span>
-              </div>
-            )}
+            <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
+              {selectedChannel ? (
+                <>
+                  <span className='text-muted-foreground'>#</span>
+                  <span className='truncate font-normal'>{selectedChannel.name}</span>
+                </>
+              ) : (
+                <>
+                  <DiscordIcon className='h-4 w-4' />
+                  <span className='truncate text-muted-foreground'>{label}</span>
+                </>
+              )}
+            </div>
             <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>

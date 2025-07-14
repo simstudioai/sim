@@ -19,10 +19,10 @@ export const RedditBlock: BlockConfig<
   bgColor: '#FF5700',
   icon: RedditIcon,
   subBlocks: [
-    // Action selection
+    // Operation selection
     {
-      id: 'action',
-      title: 'Action',
+      id: 'operation',
+      title: 'Operation',
       type: 'dropdown',
       layout: 'full',
       options: [
@@ -51,7 +51,7 @@ export const RedditBlock: BlockConfig<
       layout: 'full',
       placeholder: 'Enter subreddit name (without r/)',
       condition: {
-        field: 'action',
+        field: 'operation',
         value: ['get_posts', 'get_comments'],
       },
     },
@@ -69,7 +69,7 @@ export const RedditBlock: BlockConfig<
         { label: 'Rising', id: 'rising' },
       ],
       condition: {
-        field: 'action',
+        field: 'operation',
         value: 'get_posts',
       },
     },
@@ -86,7 +86,7 @@ export const RedditBlock: BlockConfig<
         { label: 'All Time', id: 'all' },
       ],
       condition: {
-        field: 'action',
+        field: 'operation',
         value: 'get_posts',
         and: {
           field: 'sort',
@@ -101,7 +101,7 @@ export const RedditBlock: BlockConfig<
       layout: 'full',
       placeholder: '10',
       condition: {
-        field: 'action',
+        field: 'operation',
         value: 'get_posts',
       },
     },
@@ -114,7 +114,7 @@ export const RedditBlock: BlockConfig<
       layout: 'full',
       placeholder: 'Enter post ID',
       condition: {
-        field: 'action',
+        field: 'operation',
         value: 'get_comments',
       },
     },
@@ -133,7 +133,7 @@ export const RedditBlock: BlockConfig<
         { label: 'Q&A', id: 'qa' },
       ],
       condition: {
-        field: 'action',
+        field: 'operation',
         value: 'get_comments',
       },
     },
@@ -144,28 +144,28 @@ export const RedditBlock: BlockConfig<
       layout: 'full',
       placeholder: '50',
       condition: {
-        field: 'action',
+        field: 'operation',
         value: 'get_comments',
       },
     },
   ],
   tools: {
-    access: ['reddit_hot_posts', 'reddit_get_posts', 'reddit_get_comments'],
+    access: ['reddit_get_posts', 'reddit_get_comments'],
     config: {
       tool: (inputs) => {
-        const action = inputs.action || 'get_posts'
+        const operation = inputs.operation || 'get_posts'
 
-        if (action === 'get_comments') {
+        if (operation === 'get_comments') {
           return 'reddit_get_comments'
         }
 
         return 'reddit_get_posts'
       },
       params: (inputs) => {
-        const action = inputs.action || 'get_posts'
+        const operation = inputs.operation || 'get_posts'
         const { credential, ...rest } = inputs
 
-        if (action === 'get_comments') {
+        if (operation === 'get_comments') {
           return {
             postId: rest.postId,
             subreddit: rest.subreddit,
@@ -186,7 +186,7 @@ export const RedditBlock: BlockConfig<
     },
   },
   inputs: {
-    action: { type: 'string', required: true },
+    operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
     subreddit: { type: 'string', required: true },
     sort: { type: 'string', required: true },

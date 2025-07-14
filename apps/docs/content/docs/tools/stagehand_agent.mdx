@@ -209,11 +209,11 @@ Run an autonomous web agent to complete tasks and extract structured data
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `task` | string | Yes | The task to complete or goal to achieve on the website |
 | `startUrl` | string | Yes | URL of the webpage to start the agent on |
-| `outputSchema` | json | No | Optional JSON schema defining the structure of data the agent should return |
+| `task` | string | Yes | The task to complete or goal to achieve on the website |
 | `variables` | json | No | Optional variables to substitute in the task \(format: \{key: value\}\). Reference in task using %key% |
 | `apiKey` | string | Yes | OpenAI API key for agent execution \(required by Stagehand\) |
+| `outputSchema` | json | No | Optional JSON schema defining the structure of data the agent should return |
 
 #### Output
 

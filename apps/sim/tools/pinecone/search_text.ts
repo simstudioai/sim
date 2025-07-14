@@ -8,47 +8,53 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
   version: '1.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Pinecone API key',
-    },
     indexHost: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Full Pinecone index host URL',
     },
     namespace: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Namespace to search in',
     },
     searchQuery: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Text to search for',
     },
     topK: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Number of results to return',
     },
     fields: {
       type: 'array',
       required: false,
+      visibility: 'user-only',
       description: 'Fields to return in the results',
     },
     filter: {
       type: 'object',
       required: false,
+      visibility: 'user-only',
       description: 'Filter to apply to the search',
     },
     rerank: {
       type: 'object',
       required: false,
+      visibility: 'user-only',
       description: 'Reranking parameters',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Pinecone API key',
     },
   },
 
