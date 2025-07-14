@@ -500,7 +500,7 @@ const WorkflowContent = React.memo(() => {
       let autoConnectEdge
       if (isAutoConnectEnabled && type !== 'starter') {
         const closestBlock = findClosestOutput(centerPosition)
-        console.log('🎯 Closest block found:', closestBlock)
+        logger.info('🎯 Closest block found:', closestBlock)
         if (closestBlock) {
           // Get appropriate source handle
           const sourceHandle = determineSourceHandle(closestBlock)
@@ -513,7 +513,7 @@ const WorkflowContent = React.memo(() => {
             targetHandle: 'target',
             type: 'workflowEdge',
           }
-          console.log('✅ Auto-connect edge created:', autoConnectEdge)
+          logger.info('✅ Auto-connect edge created:', autoConnectEdge)
         }
       }
 
