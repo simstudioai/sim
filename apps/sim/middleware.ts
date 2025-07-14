@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
 
   // Handle chat subdomains
   if (subdomain && isCustomDomain) {
-    if (url.pathname.startsWith('/api/chat/')) {
+    if (url.pathname.startsWith('/api/chat/') || url.pathname.startsWith('/api/proxy/')) {
       return NextResponse.next()
     }
 
