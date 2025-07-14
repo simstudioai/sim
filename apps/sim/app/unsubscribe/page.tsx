@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { CheckCircle, Heart, Info, Loader2, XCircle } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,7 @@ interface UnsubscribeData {
   }
 }
 
-export default function UnsubscribePage() {
+function UnsubscribeContent() {
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<UnsubscribeData | null>(null)
@@ -378,5 +378,23 @@ export default function UnsubscribePage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function UnsubscribePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className='flex min-h-screen items-center justify-center bg-background'>
+          <Card className='w-full max-w-md border shadow-sm'>
+            <CardContent className='flex items-center justify-center p-8'>
+              <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <UnsubscribeContent />
+    </Suspense>
   )
 }
