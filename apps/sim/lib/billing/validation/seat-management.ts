@@ -1,8 +1,8 @@
 import { and, count, eq } from 'drizzle-orm'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { invitation, member, organization, subscription, user, userStats } from '@/db/schema'
-import { getHighestPrioritySubscription } from '../core/subscription'
 
 const logger = createLogger('SeatManagement')
 

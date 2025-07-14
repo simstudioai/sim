@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getUserEntityPermissions, getUsersWithPermissions, hasAdminPermission } from './utils'
+import {
+  getUserEntityPermissions,
+  getUsersWithPermissions,
+  hasAdminPermission,
+} from '@/lib/permissions/utils'
 
 vi.mock('@/db', () => ({
   db: {

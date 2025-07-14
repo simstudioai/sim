@@ -1,16 +1,16 @@
 import { and, eq, inArray } from 'drizzle-orm'
-import { isProd } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { member, subscription, userStats } from '@/db/schema'
-import { client } from '../../auth-client'
+import { client } from '@/lib/auth-client'
 import {
   calculateDefaultUsageLimit,
   checkEnterprisePlan,
   checkProPlan,
   checkTeamPlan,
-} from '../subscriptions/utils'
-import type { UserSubscriptionState } from '../types'
+} from '@/lib/billing/subscriptions/utils'
+import type { UserSubscriptionState } from '@/lib/billing/types'
+import { isProd } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console-logger'
+import { db } from '@/db'
+import { member, subscription, userStats } from '@/db/schema'
 
 const logger = createLogger('SubscriptionCore')
 

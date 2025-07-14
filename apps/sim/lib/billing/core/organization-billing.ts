@@ -1,9 +1,9 @@
 import { and, eq } from 'drizzle-orm'
+import { getPlanPricing } from '@/lib/billing/core/billing'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { member, organization, user, userStats } from '@/db/schema'
-import { getPlanPricing } from './billing'
-import { getHighestPrioritySubscription } from './subscription'
 
 const logger = createLogger('OrganizationBilling')
 

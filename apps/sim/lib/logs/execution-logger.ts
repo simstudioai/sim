@@ -3,11 +3,11 @@ import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { redactApiKeys } from '@/lib/utils'
+import { stripCustomToolPrefix } from '@/lib/workflows/utils'
 import { db } from '@/db'
 import { userStats, workflow, workflowLogs } from '@/db/schema'
 import type { ExecutionResult as ExecutorResult } from '@/executor/types'
 import { calculateCost } from '@/providers/utils'
-import { stripCustomToolPrefix } from '../workflows/utils'
 
 const logger = createLogger('ExecutionLogger')
 

@@ -1,12 +1,12 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { enhancedExecutionLogger } from './enhanced-execution-logger'
+import { enhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
 import {
   calculateCostSummary,
   createEnvironmentObject,
   createTriggerObject,
   loadWorkflowStateForExecution,
-} from './enhanced-logging-factory'
-import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from './types'
+} from '@/lib/logs/enhanced-logging-factory'
+import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from '@/lib/logs/types'
 
 const logger = createLogger('EnhancedLoggingSession')
 
