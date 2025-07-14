@@ -55,7 +55,7 @@ We strive to keep our workflow as simple as possible. To contribute:
    ```
 
 7. **Create a Pull Request**  
-   Open a pull request against the `main` branch on GitHub. Please provide a clear description of the changes and reference any relevant issues (e.g., `fixes #123`).
+   Open a pull request against the `staging` branch on GitHub. Please provide a clear description of the changes and reference any relevant issues (e.g., `fixes #123`).
 
 ---
 
@@ -83,7 +83,7 @@ If you discover a bug or have a feature request, please open an issue in our Git
 Before creating a pull request:
 
 - **Ensure Your Branch Is Up-to-Date:**  
-  Rebase your branch onto the latest `main` branch to prevent merge conflicts.
+  Rebase your branch onto the latest `staging` branch to prevent merge conflicts.
 - **Follow the Guidelines:**  
   Make sure your changes are well-tested, follow our coding standards, and include relevant documentation if necessary.
 
@@ -214,7 +214,7 @@ Dev Containers provide a consistent and easy-to-use development environment:
 
 4. **GitHub Codespaces:**
    - This setup also works with GitHub Codespaces if you prefer development in the browser
-   - Just click "Code" → "Codespaces" → "Create codespace on main"
+   - Just click "Code" → "Codespaces" → "Create codespace on staging"
 
 ### Option 4: Manual Setup
 
