@@ -33,6 +33,7 @@ interface ExecutorOptions {
     selectedOutputIds?: string[]
     edges?: Array<{ source: string; target: string }>
     onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+    executionId?: string
   }
 }
 
@@ -203,7 +204,7 @@ export function useWorkflowExecution() {
             }
 
             try {
-              const result = await executeWorkflow(workflowInput, onStream)
+              const result = await executeWorkflow(workflowInput, onStream, executionId)
 
               await Promise.all(streamReadingPromises)
 
@@ -216,14 +217,18 @@ export function useWorkflowExecution() {
                 if (result.logs) {
                   result.logs.forEach((log: BlockLog) => {
                     if (streamedContent.has(log.blockId)) {
-                      const content = streamedContent.get(log.blockId) || ''
                       // For console display, show the actual structured block output instead of formatted streaming content
                       // This ensures console logs match the block state structure
                       // Use replaceOutput to completely replace the output instead of merging
-                      useConsoleStore.getState().updateConsole(log.blockId, {
-                        replaceOutput: log.output,
-                        success: true,
-                      })
+                      // Use the executionId from this execution context
+                      useConsoleStore.getState().updateConsole(
+                        log.blockId,
+                        {
+                          replaceOutput: log.output,
+                          success: true,
+                        },
+                        executionId
+                      )
                     }
                   })
 
@@ -262,7 +267,7 @@ export function useWorkflowExecution() {
       // For manual (non-chat) execution
       const executionId = uuidv4()
       try {
-        const result = await executeWorkflow(workflowInput)
+        const result = await executeWorkflow(workflowInput, undefined, executionId)
         if (result && 'metadata' in result && result.metadata?.isDebugSession) {
           setDebugContext(result.metadata.context || null)
           if (result.metadata.pendingBlocks) {
@@ -330,7 +335,8 @@ export function useWorkflowExecution() {
 
   const executeWorkflow = async (
     workflowInput?: any,
-    onStream?: (se: StreamingExecution) => Promise<void>
+    onStream?: (se: StreamingExecution) => Promise<void>,
+    executionId?: string
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use the mergeSubblockState utility to get all block states
     const mergedStates = mergeSubblockState(blocks)
@@ -401,6 +407,7 @@ export function useWorkflowExecution() {
           target: conn.target,
         })),
         onStream,
+        executionId,
       },
     }
 

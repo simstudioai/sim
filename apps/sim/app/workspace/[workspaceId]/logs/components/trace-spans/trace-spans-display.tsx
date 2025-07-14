@@ -10,7 +10,7 @@ import {
   ConditionalIcon,
   ConnectIcon,
 } from '@/components/icons'
-import { cn } from '@/lib/utils'
+import { cn, redactApiKeys } from '@/lib/utils'
 import type { TraceSpan } from '../../stores/types'
 
 interface TraceSpansDisplayProps {
@@ -25,24 +25,7 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
 
   // For input data, filter out sensitive information
   if (isInput) {
-    const cleanInput = { ...data }
-
-    // Remove sensitive fields (common API keys and tokens)
-    if (cleanInput.apiKey) {
-      cleanInput.apiKey = '***'
-    }
-    if (cleanInput.azureApiKey) {
-      cleanInput.azureApiKey = '***'
-    }
-    if (cleanInput.token) {
-      cleanInput.token = '***'
-    }
-    if (cleanInput.accessToken) {
-      cleanInput.accessToken = '***'
-    }
-    if (cleanInput.authorization) {
-      cleanInput.authorization = '***'
-    }
+    const cleanInput = redactApiKeys(data)
 
     // Remove null/undefined values for cleaner display
     Object.keys(cleanInput).forEach((key) => {
