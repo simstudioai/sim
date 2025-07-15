@@ -7,11 +7,13 @@ import {
   Copy,
   Layers,
   Play,
+  RefreshCw,
   SkipForward,
   StepForward,
   Store,
   Trash2,
   Upload,
+  WifiOff,
   X,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -124,12 +126,21 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     limit: number
   } | null>(null)
 
+  // Helper function to open console panel
+  const openConsolePanel = useCallback(() => {
+    setActiveTab('console')
+    if (!isOpen) {
+      togglePanel()
+    }
+  }, [setActiveTab, isOpen, togglePanel])
+
   // Shared condition for keyboard shortcut and button disabled state
   const isWorkflowBlocked = isExecuting || hasValidationErrors
 
   // Register keyboard shortcut for running workflow
   useKeyboardShortcuts(() => {
     if (!isWorkflowBlocked) {
+      openConsolePanel()
       handleRunWorkflow()
     }
   }, isWorkflowBlocked)
@@ -571,6 +582,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       if (usageExceeded) {
         openSubscriptionSettings()
       } else {
+        openConsolePanel()
         handleRunWorkflow(undefined, true) // Start in debug mode
       }
     }
@@ -583,6 +595,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     handleCancelDebug,
     toggleDebugMode,
     handleRunWorkflow,
+    openConsolePanel,
   ])
 
   /**
@@ -605,7 +618,10 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              onClick={handleStepDebug}
+              onClick={() => {
+                openConsolePanel()
+                handleStepDebug()
+              }}
               className={debugButtonClass}
               disabled={isControlDisabled}
             >
@@ -619,7 +635,10 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              onClick={handleResumeDebug}
+              onClick={() => {
+                openConsolePanel()
+                handleResumeDebug()
+              }}
               className={debugButtonClass}
               disabled={isControlDisabled}
             >
@@ -632,7 +651,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button onClick={handleCancelDebug} className={debugButtonClass}>
+            <Button
+              onClick={() => {
+                handleCancelDebug()
+              }}
+              className={debugButtonClass}
+            >
               <X className='h-5 w-5' />
               <span className='sr-only'>Cancel Debugging</span>
             </Button>
@@ -760,8 +784,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           <div className='text-center'>
             <p className='font-medium text-destructive'>Usage Limit Exceeded</p>
             <p className='text-xs'>
-              You've used {usageData?.currentUsage.toFixed(2)}$ of {usageData?.limit}$. Upgrade your
-              plan to continue.
+              You've used {usageData?.currentUsage?.toFixed(2) || 0}$ of{' '}
+              {usageData?.limit?.toFixed(2) || 0}$ Upgrade your plan to continue.
             </p>
           </div>
         )
@@ -771,10 +795,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     const handleRunClick = () => {
-      setActiveTab('console')
-      if (!isOpen) {
-        togglePanel()
-      }
+      openConsolePanel()
 
       if (usageExceeded) {
         openSubscriptionSettings()
@@ -863,6 +884,36 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }
 
   /**
+   * Render disconnection notice
+   */
+  const renderDisconnectionNotice = () => {
+    if (!userPermissions.isOfflineMode) return null
+
+    const handleRefresh = () => {
+      window.location.reload()
+    }
+
+    return (
+      <div className='flex h-12 items-center gap-2 rounded-[11px] border border-red-500 bg-red-500 px-3 text-white shadow-xs'>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <WifiOff className='h-[18px] w-[18px] cursor-help' />
+          </TooltipTrigger>
+          <TooltipContent className='mt-3'>Connection lost - refresh</TooltipContent>
+        </Tooltip>
+        <Button
+          variant='ghost'
+          size='sm'
+          onClick={handleRefresh}
+          className='h-8 bg-white px-2 text-red-500 hover:bg-red-50'
+        >
+          <RefreshCw className='h-3 w-3' />
+        </Button>
+      </div>
+    )
+  }
+
+  /**
    * Render control bar toggle button
    */
   const renderToggleButton = () => {
@@ -890,13 +941,14 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
   return (
     <div className='fixed top-4 right-4 z-20 flex items-center gap-1'>
+      {renderDisconnectionNotice()}
       {renderToggleButton()}
-      {isExpanded && <ExportControls disabled={!userPermissions.canRead} />}
+      {isExpanded && <ExportControls />}
       {isExpanded && renderAutoLayoutButton()}
-      {isExpanded && renderPublishButton()}
+      {isExpanded && renderDuplicateButton()}
       {renderDeleteButton()}
-      {renderDuplicateButton()}
       {!isDebugging && renderDebugModeToggle()}
+      {renderPublishButton()}
       {renderDeployButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
 

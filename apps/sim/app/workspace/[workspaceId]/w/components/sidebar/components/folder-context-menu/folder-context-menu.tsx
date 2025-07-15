@@ -26,6 +26,7 @@ interface FolderContextMenuProps {
   onCreateWorkflow: (folderId: string) => void
   onRename?: (folderId: string, newName: string) => void
   onDelete?: (folderId: string) => void
+  level: number
 }
 
 export function FolderContextMenu({
@@ -34,6 +35,7 @@ export function FolderContextMenu({
   onCreateWorkflow,
   onRename,
   onDelete,
+  level,
 }: FolderContextMenuProps) {
   const [showSubfolderDialog, setShowSubfolderDialog] = useState(false)
   const [showRenameDialog, setShowRenameDialog] = useState(false)
@@ -151,13 +153,15 @@ export function FolderContextMenu({
                 <File className='mr-2 h-4 w-4' />
                 New Workflow
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleCreateSubfolder}
-                className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-              >
-                <Folder className='mr-2 h-4 w-4' />
-                New Subfolder
-              </DropdownMenuItem>
+              {level === 0 && (
+                <DropdownMenuItem
+                  onClick={handleCreateSubfolder}
+                  className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                >
+                  <Folder className='mr-2 h-4 w-4' />
+                  New Subfolder
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={handleRename}
                 className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'

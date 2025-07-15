@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lucide-react'
-import { useParams, usePathname } from 'next/navigation'
+import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -60,6 +60,7 @@ export function Sidebar() {
     createWorkflow,
     isLoading: workflowsLoading,
     loadWorkflows,
+    switchToWorkspace,
   } = useWorkflowRegistry()
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
@@ -71,9 +72,18 @@ export function Sidebar() {
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
   const pathname = usePathname()
+  const router = useRouter()
 
   // Refs
   const workflowScrollAreaRef = useRef<HTMLDivElement>(null)
+  const workspaceIdRef = useRef<string>(workspaceId)
+  const routerRef = useRef<ReturnType<typeof useRouter>>(router)
+  const isInitializedRef = useRef<boolean>(false)
+  const activeWorkspaceRef = useRef<Workspace | null>(null)
+
+  // Update refs when values change
+  workspaceIdRef.current = workspaceId
+  routerRef.current = router
 
   // Workspace selector visibility state
   const [isWorkspaceSelectorVisible, setIsWorkspaceSelectorVisible] = useState(false)
@@ -82,6 +92,10 @@ export function Sidebar() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
   const [isWorkspacesLoading, setIsWorkspacesLoading] = useState(true)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Update activeWorkspace ref when state changes
+  activeWorkspaceRef.current = activeWorkspace
 
   // Check if we're on a workflow page
   const isOnWorkflowPage = useMemo(() => {
@@ -91,7 +105,46 @@ export function Sidebar() {
   }, [pathname])
 
   /**
-   * Fetch workspaces for the current user
+   * Refresh workspace list without validation logic - used for non-current workspace operations
+   */
+  const refreshWorkspaceList = useCallback(async () => {
+    setIsWorkspacesLoading(true)
+    try {
+      const response = await fetch('/api/workspaces')
+      const data = await response.json()
+
+      if (data.workspaces && Array.isArray(data.workspaces)) {
+        const fetchedWorkspaces = data.workspaces as Workspace[]
+        setWorkspaces(fetchedWorkspaces)
+
+        // Only update activeWorkspace if it still exists in the fetched workspaces
+        // Use current state to avoid dependency on activeWorkspace
+        setActiveWorkspace((currentActive) => {
+          if (!currentActive) {
+            return currentActive
+          }
+
+          const matchingWorkspace = fetchedWorkspaces.find(
+            (workspace) => workspace.id === currentActive.id
+          )
+          if (matchingWorkspace) {
+            return matchingWorkspace
+          }
+
+          // Active workspace was deleted, clear it
+          logger.warn(`Active workspace ${currentActive.id} no longer exists`)
+          return null
+        })
+      }
+    } catch (err) {
+      logger.error('Error refreshing workspace list:', err)
+    } finally {
+      setIsWorkspacesLoading(false)
+    }
+  }, []) // Remove activeWorkspace dependency
+
+  /**
+   * Fetch workspaces for the current user with full validation and URL handling
    */
   const fetchWorkspaces = useCallback(async () => {
     setIsWorkspacesLoading(true)
@@ -103,20 +156,27 @@ export function Sidebar() {
         const fetchedWorkspaces = data.workspaces as Workspace[]
         setWorkspaces(fetchedWorkspaces)
 
-        // Handle active workspace selection
-        if (workspaceId) {
+        // Handle active workspace selection with URL validation using refs
+        const currentWorkspaceId = workspaceIdRef.current
+        const currentRouter = routerRef.current
+
+        if (currentWorkspaceId) {
           const matchingWorkspace = fetchedWorkspaces.find(
-            (workspace) => workspace.id === workspaceId
+            (workspace) => workspace.id === currentWorkspaceId
           )
           if (matchingWorkspace) {
             setActiveWorkspace(matchingWorkspace)
           } else {
-            logger.warn(`Workspace ${workspaceId} not found in user's workspaces`)
+            logger.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
 
-            // Fallback to first workspace if current not found
+            // Fallback to first workspace if current not found - FIX: Update URL to match
             if (fetchedWorkspaces.length > 0) {
               const fallbackWorkspace = fetchedWorkspaces[0]
               setActiveWorkspace(fallbackWorkspace)
+
+              // Update URL to match the fallback workspace
+              logger.info(`Redirecting to fallback workspace: ${fallbackWorkspace.id}`)
+              currentRouter?.push(`/workspace/${fallbackWorkspace.id}/w`)
             } else {
               logger.error('No workspaces available for user')
             }
@@ -128,7 +188,7 @@ export function Sidebar() {
     } finally {
       setIsWorkspacesLoading(false)
     }
-  }, [workspaceId])
+  }, []) // Remove workspaceId and router dependencies
 
   /**
    * Update workspace name both in API and local state
@@ -165,19 +225,152 @@ export function Sidebar() {
     []
   )
 
+  /**
+   * Switch to a different workspace
+   */
+  const switchWorkspace = useCallback(
+    async (workspace: Workspace) => {
+      // If already on this workspace, return
+      if (activeWorkspaceRef.current?.id === workspace.id) {
+        return
+      }
+
+      try {
+        // Switch workspace and update URL
+        await switchToWorkspace(workspace.id)
+        routerRef.current?.push(`/workspace/${workspace.id}/w`)
+        logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
+      } catch (error) {
+        logger.error('Error switching workspace:', error)
+      }
+    },
+    [switchToWorkspace] // Removed activeWorkspace and router dependencies
+  )
+
+  /**
+   * Handle create workspace
+   */
+  const handleCreateWorkspace = useCallback(async () => {
+    try {
+      logger.info('Creating new workspace')
+
+      const response = await fetch('/api/workspaces', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Untitled workspace',
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create workspace')
+      }
+
+      const data = await response.json()
+      const newWorkspace = data.workspace
+
+      logger.info('Created new workspace:', newWorkspace)
+
+      // Refresh workspace list (no URL validation needed for creation)
+      await refreshWorkspaceList()
+
+      // Switch to the new workspace
+      await switchWorkspace(newWorkspace)
+    } catch (error) {
+      logger.error('Error creating workspace:', error)
+    }
+  }, [refreshWorkspaceList, switchWorkspace])
+
+  /**
+   * Confirm delete workspace
+   */
+  const confirmDeleteWorkspace = useCallback(
+    async (workspaceToDelete: Workspace) => {
+      setIsDeleting(true)
+      try {
+        logger.info('Deleting workspace:', workspaceToDelete.id)
+
+        const response = await fetch(`/api/workspaces/${workspaceToDelete.id}`, {
+          method: 'DELETE',
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to delete workspace')
+        }
+
+        logger.info('Workspace deleted successfully:', workspaceToDelete.id)
+
+        // Check if we're deleting the current workspace (either active or in URL)
+        const isDeletingCurrentWorkspace =
+          workspaceIdRef.current === workspaceToDelete.id ||
+          activeWorkspaceRef.current?.id === workspaceToDelete.id
+
+        if (isDeletingCurrentWorkspace) {
+          // For current workspace deletion, use full fetchWorkspaces with URL validation
+          logger.info(
+            'Deleting current workspace - using full workspace refresh with URL validation'
+          )
+          await fetchWorkspaces()
+
+          // If we deleted the active workspace, switch to the first available workspace
+          if (activeWorkspaceRef.current?.id === workspaceToDelete.id) {
+            const remainingWorkspaces = workspaces.filter((w) => w.id !== workspaceToDelete.id)
+            if (remainingWorkspaces.length > 0) {
+              await switchWorkspace(remainingWorkspaces[0])
+            }
+          }
+        } else {
+          // For non-current workspace deletion, just refresh the list without URL validation
+          logger.info('Deleting non-current workspace - using simple list refresh')
+          await refreshWorkspaceList()
+        }
+      } catch (error) {
+        logger.error('Error deleting workspace:', error)
+      } finally {
+        setIsDeleting(false)
+      }
+    },
+    [fetchWorkspaces, refreshWorkspaceList, workspaces, switchWorkspace]
+  )
+
+  /**
+   * Validate workspace exists before making API calls
+   */
+  const isWorkspaceValid = useCallback(async (workspaceId: string) => {
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}`)
+      return response.ok
+    } catch {
+      return false
+    }
+  }, [])
+
   // Load workflows for the current workspace when workspaceId changes
   useEffect(() => {
     if (workspaceId) {
-      loadWorkflows(workspaceId)
+      // Validate workspace exists before loading workflows
+      isWorkspaceValid(workspaceId).then((valid) => {
+        if (valid) {
+          loadWorkflows(workspaceId)
+        } else {
+          logger.warn(`Workspace ${workspaceId} no longer exists, triggering workspace refresh`)
+          fetchWorkspaces() // This will handle the redirect through the fallback logic
+        }
+      })
     }
-  }, [workspaceId, loadWorkflows])
+  }, [workspaceId, loadWorkflows]) // Removed isWorkspaceValid and fetchWorkspaces dependencies
 
-  // Initialize workspace data on mount
+  // Initialize workspace data on mount (uses full validation with URL handling)
   useEffect(() => {
-    if (sessionData?.user?.id) {
+    if (sessionData?.user?.id && !isInitializedRef.current) {
+      isInitializedRef.current = true
       fetchWorkspaces()
     }
-  }, [sessionData?.user?.id, fetchWorkspaces])
+  }, [sessionData?.user?.id]) // Removed fetchWorkspaces dependency
 
   // Scroll to active workflow when it changes
   useEffect(() => {
@@ -367,7 +560,11 @@ export function Sidebar() {
                 workspaces={workspaces}
                 activeWorkspace={activeWorkspace}
                 isWorkspacesLoading={isWorkspacesLoading}
-                onWorkspaceUpdate={fetchWorkspaces}
+                onWorkspaceUpdate={refreshWorkspaceList}
+                onSwitchWorkspace={switchWorkspace}
+                onCreateWorkspace={handleCreateWorkspace}
+                onDeleteWorkspace={confirmDeleteWorkspace}
+                isDeleting={isDeleting}
               />
             </div>
           )}
@@ -394,7 +591,7 @@ export function Sidebar() {
           {/* 4. Workflow Selector */}
           <div className='pointer-events-auto relative h-[212px] flex-shrink-0 rounded-[14px] border bg-card shadow-xs'>
             <div className='px-2'>
-              <ScrollArea ref={workflowScrollAreaRef} className='h-[212px]' hideScrollbar={true}>
+              <ScrollArea ref={workflowScrollAreaRef} className='h-[210px]' hideScrollbar={true}>
                 <FolderTree
                   regularWorkflows={regularWorkflows}
                   marketplaceWorkflows={tempWorkflows}

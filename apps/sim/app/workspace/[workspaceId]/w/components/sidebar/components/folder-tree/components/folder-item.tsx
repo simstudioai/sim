@@ -30,6 +30,7 @@ interface FolderItemProps {
   onDragLeave?: (e: React.DragEvent) => void
   onDrop?: (e: React.DragEvent) => void
   isFirstItem?: boolean
+  level: number
 }
 
 export function FolderItem({
@@ -41,6 +42,7 @@ export function FolderItem({
   onDragLeave,
   onDrop,
   isFirstItem = false,
+  level,
 }: FolderItemProps) {
   const { expandedFolders, toggleExpanded, updateFolderAPI, deleteFolder } = useFolderStore()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -79,6 +81,11 @@ export function FolderItem({
 
     e.dataTransfer.setData('folder-id', folder.id)
     e.dataTransfer.effectAllowed = 'move'
+
+    // Set global drag state for validation in other components
+    if (typeof window !== 'undefined') {
+      ;(window as any).currentDragFolderId = folder.id
+    }
   }
 
   const handleDragEnd = () => {
@@ -86,6 +93,11 @@ export function FolderItem({
     requestAnimationFrame(() => {
       dragStartedRef.current = false
     })
+
+    // Clear global drag state
+    if (typeof window !== 'undefined') {
+      ;(window as any).currentDragFolderId = null
+    }
   }
 
   const handleClick = (e: React.MouseEvent) => {
@@ -206,6 +218,9 @@ export function FolderItem({
             isDragging ? 'opacity-50' : '',
             isFirstItem ? 'mr-[44px]' : ''
           )}
+          style={{
+            maxWidth: isFirstItem ? `${164 - level * 20}px` : `${206 - level * 20}px`,
+          }}
           onClick={handleClick}
           draggable={true}
           onDragStart={handleDragStart}
@@ -228,6 +243,7 @@ export function FolderItem({
               onCreateWorkflow={onCreateWorkflow}
               onRename={handleRename}
               onDelete={handleDelete}
+              level={level}
             />
           </div>
         </div>

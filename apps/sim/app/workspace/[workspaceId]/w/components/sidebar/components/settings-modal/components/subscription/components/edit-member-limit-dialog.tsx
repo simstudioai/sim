@@ -84,7 +84,7 @@ export function EditMemberLimitDialog({
 
     if (newLimit < member.currentUsage) {
       setError(
-        `The new limit ($${newLimit.toFixed(2)}) cannot be lower than the member's current usage ($${member.currentUsage.toFixed(2)})`
+        `The new limit ($${newLimit.toFixed(2)}) cannot be lower than the member's current usage ($${member.currentUsage?.toFixed(2) || 0})`
       )
       return
     }

@@ -300,7 +300,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                     <div className='flex items-center justify-between'>
                       <span className='text-muted-foreground text-sm'>Current Usage</span>
                       <span className='font-semibold'>
-                        ${organizationBillingData.totalCurrentUsage.toFixed(2)}
+                        ${organizationBillingData.totalCurrentUsage?.toFixed(2) || 0}
                       </span>
                     </div>
                   </div>

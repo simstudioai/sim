@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, Send, Trash2 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +18,6 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useUserPermissionsContext } from '../../../providers/workspace-permissions-provider'
 import { InviteModal } from './components/invite-modal/invite-modal'
 
@@ -42,6 +40,10 @@ interface WorkspaceSelectorProps {
   activeWorkspace: Workspace | null
   isWorkspacesLoading: boolean
   onWorkspaceUpdate: () => Promise<void>
+  onSwitchWorkspace: (workspace: Workspace) => Promise<void>
+  onCreateWorkspace: () => Promise<void>
+  onDeleteWorkspace: (workspace: Workspace) => Promise<void>
+  isDeleting: boolean
 }
 
 export function WorkspaceSelector({
@@ -49,15 +51,16 @@ export function WorkspaceSelector({
   activeWorkspace,
   isWorkspacesLoading,
   onWorkspaceUpdate,
+  onSwitchWorkspace,
+  onCreateWorkspace,
+  onDeleteWorkspace,
+  isDeleting,
 }: WorkspaceSelectorProps) {
   const userPermissions = useUserPermissionsContext()
-  const router = useRouter()
-  const { switchToWorkspace } = useWorkflowRegistry()
 
   // State
   const [showInviteMembers, setShowInviteMembers] = useState(false)
   const [hoveredWorkspaceId, setHoveredWorkspaceId] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
 
   // Refs
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -82,96 +85,13 @@ export function WorkspaceSelector({
   }, [activeWorkspace, isWorkspacesLoading])
 
   /**
-   * Switch to a different workspace
-   */
-  const switchWorkspace = useCallback(
-    async (workspace: Workspace) => {
-      // If already on this workspace, return
-      if (activeWorkspace?.id === workspace.id) {
-        return
-      }
-
-      // Switch workspace and update URL
-      await switchToWorkspace(workspace.id)
-      router.push(`/workspace/${workspace.id}/w`)
-    },
-    [activeWorkspace?.id, switchToWorkspace, router]
-  )
-
-  /**
-   * Handle create workspace
-   */
-  const handleCreateWorkspace = useCallback(async () => {
-    try {
-      logger.info('Creating new workspace')
-
-      const response = await fetch('/api/workspaces', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: 'Untitled workspace',
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create workspace')
-      }
-
-      const data = await response.json()
-      const newWorkspace = data.workspace
-
-      logger.info('Created new workspace:', newWorkspace)
-
-      // Refresh workspace list
-      await onWorkspaceUpdate()
-
-      // Switch to the new workspace
-      await switchWorkspace(newWorkspace)
-    } catch (error) {
-      logger.error('Error creating workspace:', error)
-    }
-  }, [switchWorkspace, onWorkspaceUpdate])
-
-  /**
    * Confirm delete workspace
    */
   const confirmDeleteWorkspace = useCallback(
     async (workspaceToDelete: Workspace) => {
-      setIsDeleting(true)
-      try {
-        logger.info('Deleting workspace:', workspaceToDelete.id)
-
-        const response = await fetch(`/api/workspaces/${workspaceToDelete.id}`, {
-          method: 'DELETE',
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to delete workspace')
-        }
-
-        logger.info('Workspace deleted successfully:', workspaceToDelete.id)
-
-        // Refresh workspace list
-        await onWorkspaceUpdate()
-
-        // If we deleted the active workspace, switch to the first available workspace
-        if (activeWorkspace?.id === workspaceToDelete.id) {
-          const remainingWorkspaces = workspaces.filter((w) => w.id !== workspaceToDelete.id)
-          if (remainingWorkspaces.length > 0) {
-            await switchWorkspace(remainingWorkspaces[0])
-          }
-        }
-      } catch (error) {
-        logger.error('Error deleting workspace:', error)
-      } finally {
-        setIsDeleting(false)
-      }
+      await onDeleteWorkspace(workspaceToDelete)
     },
-    [onWorkspaceUpdate, activeWorkspace, workspaces, switchWorkspace]
+    [onDeleteWorkspace]
   )
 
   // Render workspace list
@@ -196,7 +116,7 @@ export function WorkspaceSelector({
             data-workspace-id={workspace.id}
             onMouseEnter={() => setHoveredWorkspaceId(workspace.id)}
             onMouseLeave={() => setHoveredWorkspaceId(null)}
-            onClick={() => switchWorkspace(workspace)}
+            onClick={() => onSwitchWorkspace(workspace)}
             className={cn(
               'group flex h-9 w-full cursor-pointer items-center rounded-lg p-2 text-left transition-colors',
               activeWorkspace?.id === workspace.id ? 'bg-accent' : 'hover:bg-accent/50'
@@ -287,7 +207,7 @@ export function WorkspaceSelector({
             <Button
               variant='secondary'
               size='sm'
-              onClick={handleCreateWorkspace}
+              onClick={onCreateWorkspace}
               className='h-8 flex-1 justify-center gap-2 rounded-[8px] font-medium text-muted-foreground text-xs hover:bg-secondary hover:text-muted-foreground'
             >
               <Plus className='h-3 w-3' />

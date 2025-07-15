@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { createLogger } from '@/lib/logs/console-logger'
 import { useFolderStore, useIsWorkflowSelected } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { WorkflowContextMenu } from '../../workflow-context-menu/workflow-context-menu'
 
 const logger = createLogger('WorkflowItem')
 
@@ -117,9 +118,7 @@ export function WorkflowItem({
 
   return (
     <div className='group mb-1'>
-      <Link
-        href={`/workspace/${workspaceId}/w/${workflow.id}`}
-        data-workflow-id={workflow.id}
+      <div
         className={clsx(
           'flex h-9 items-center rounded-lg px-2 py-2 font-medium text-sm transition-colors',
           active && !isDragOver
@@ -130,20 +129,37 @@ export function WorkflowItem({
           'cursor-pointer',
           isFirstItem ? 'mr-[44px]' : ''
         )}
+        style={{
+          maxWidth: isFirstItem
+            ? `${164 - (level >= 0 ? (level + 1) * 20 + 8 : 0) - (level > 0 ? 8 : 0)}px`
+            : `${206 - (level >= 0 ? (level + 1) * 20 + 8 : 0) - (level > 0 ? 8 : 0)}px`,
+        }}
         draggable={!isMarketplace}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onClick={handleClick}
+        data-workflow-id={workflow.id}
       >
-        <div
-          className='mr-2 h-[14px] w-[14px] flex-shrink-0 rounded'
-          style={{ backgroundColor: workflow.color }}
-        />
-        <span className='flex-1 select-none truncate'>
-          {workflow.name}
-          {isMarketplace && ' (Preview)'}
-        </span>
-      </Link>
+        <Link
+          href={`/workspace/${workspaceId}/w/${workflow.id}`}
+          className='flex min-w-0 flex-1 items-center'
+          onClick={handleClick}
+        >
+          <div
+            className='mr-2 h-[14px] w-[14px] flex-shrink-0 rounded'
+            style={{ backgroundColor: workflow.color }}
+          />
+          <span className='flex-1 select-none truncate'>
+            {workflow.name}
+            {isMarketplace && ' (Preview)'}
+          </span>
+        </Link>
+
+        {!isMarketplace && (
+          <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
+            <WorkflowContextMenu workflow={workflow} level={level} />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

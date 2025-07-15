@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { useParams, usePathname } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -45,12 +45,13 @@ function FolderSection({
 }: FolderSectionProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { isDragOver, handleDragOver, handleDragLeave, handleDrop } = useDragHandlers(
-    updateWorkflow,
-    updateFolder,
-    folder.id,
-    `Moved workflow(s) to folder ${folder.id}`
-  )
+  const { isDragOver, isInvalidDrop, handleDragOver, handleDragLeave, handleDrop } =
+    useDragHandlers(
+      updateWorkflow,
+      updateFolder,
+      folder.id,
+      `Moved workflow(s) to folder ${folder.id}`
+    )
 
   const workflowsInFolder = workflowsByFolder[folder.id] || []
   const isAnyDragOver = isDragOver || parentDragOver
@@ -59,11 +60,19 @@ function FolderSection({
 
   return (
     <div
-      className={clsx(isDragOver ? 'rounded-md bg-blue-500/10 dark:bg-blue-400/10' : '')}
+      className={clsx(
+        isDragOver
+          ? isInvalidDrop
+            ? 'rounded-md bg-red-500/10 dark:bg-red-400/10'
+            : 'rounded-md bg-blue-500/10 dark:bg-blue-400/10'
+          : ''
+      )}
       style={
         isDragOver
           ? {
-              boxShadow: 'inset 0 0 0 1px rgb(59 130 246 / 0.5)',
+              boxShadow: isInvalidDrop
+                ? 'inset 0 0 0 1px rgb(239 68 68 / 0.5)'
+                : 'inset 0 0 0 1px rgb(59 130 246 / 0.5)',
             }
           : {}
       }
@@ -79,6 +88,7 @@ function FolderSection({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           isFirstItem={isFirstItem}
+          level={level}
         />
       </div>
 
@@ -185,20 +195,23 @@ function FolderSection({
                       }}
                     />
                   )}
-                  <FolderSection
-                    key={childFolder.id}
-                    folder={childFolder}
-                    level={level + 1}
-                    isCollapsed={isCollapsed}
-                    onCreateWorkflow={onCreateWorkflow}
-                    workflowsByFolder={workflowsByFolder}
-                    expandedFolders={expandedFolders}
-                    pathname={pathname}
-                    updateWorkflow={updateWorkflow}
-                    updateFolder={updateFolder}
-                    renderFolderTree={renderFolderTree}
-                    parentDragOver={isAnyDragOver}
-                  />
+                  <div style={{ paddingLeft: isCollapsed ? '0px' : '8px' }}>
+                    <FolderSection
+                      key={childFolder.id}
+                      folder={childFolder}
+                      level={level + 1}
+                      isCollapsed={isCollapsed}
+                      onCreateWorkflow={onCreateWorkflow}
+                      workflowsByFolder={workflowsByFolder}
+                      expandedFolders={expandedFolders}
+                      pathname={pathname}
+                      updateWorkflow={updateWorkflow}
+                      updateFolder={updateFolder}
+                      renderFolderTree={renderFolderTree}
+                      parentDragOver={isAnyDragOver}
+                      isFirstItem={false}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -217,17 +230,41 @@ function useDragHandlers(
   logMessage?: string
 ) {
   const [isDragOver, setIsDragOver] = useState(false)
+  const [isInvalidDrop, setIsInvalidDrop] = useState(false)
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(true)
+
+    // Check if this would be an invalid folder drop
+    const draggedFolderId =
+      (typeof window !== 'undefined' && (window as any).currentDragFolderId) || null
+
+    if (draggedFolderId && targetFolderId) {
+      const folderStore = useFolderStore.getState()
+      const targetFolderPath = folderStore.getFolderPath(targetFolderId)
+
+      // Check for circular reference
+      const draggedFolderPath = folderStore.getFolderPath(draggedFolderId)
+      const isCircular =
+        targetFolderId === draggedFolderId ||
+        draggedFolderPath.some((ancestor) => ancestor.id === targetFolderId)
+
+      // Check for deep nesting (target folder already has a parent)
+      const wouldBeDeepNesting = targetFolderPath.length >= 1
+
+      setIsInvalidDrop(isCircular || wouldBeDeepNesting)
+    } else {
+      setIsInvalidDrop(false)
+    }
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(false)
+    setIsInvalidDrop(false)
   }
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -255,6 +292,33 @@ function useDragHandlers(
     const folderIdData = e.dataTransfer.getData('folder-id')
     if (folderIdData) {
       try {
+        // Check if the target folder would create more than 2 levels of nesting
+        const folderStore = useFolderStore.getState()
+        const targetFolderPath = targetFolderId ? folderStore.getFolderPath(targetFolderId) : []
+
+        // Prevent circular references - don't allow dropping a folder into itself or its descendants
+        if (targetFolderId === folderIdData) {
+          console.log('Cannot move folder into itself')
+          return
+        }
+
+        // Check if target folder is a descendant of the dragged folder
+        const draggedFolderPath = folderStore.getFolderPath(folderIdData)
+        if (
+          targetFolderId &&
+          draggedFolderPath.some((ancestor) => ancestor.id === targetFolderId)
+        ) {
+          console.log('Cannot move folder into its own descendant')
+          return
+        }
+
+        // If target folder is already at level 1 (has 1 parent), we can't nest another folder
+        if (targetFolderPath.length >= 1) {
+          console.log('Cannot nest folder: Maximum 2 levels of nesting allowed. Drop prevented.')
+          return // Prevent the drop entirely
+        }
+
+        // Target folder is at root level, safe to nest
         await updateFolder(folderIdData, { parentId: targetFolderId })
         console.log(`Moved folder to ${targetFolderId ? `folder ${targetFolderId}` : 'root'}`)
       } catch (error) {
@@ -265,6 +329,7 @@ function useDragHandlers(
 
   return {
     isDragOver,
+    isInvalidDrop,
     handleDragOver,
     handleDragLeave,
     handleDrop,
@@ -299,12 +364,49 @@ export function FolderTree({
   } = useFolderStore()
   const { updateWorkflow } = useWorkflowRegistry()
 
+  // Clean up any existing folders with 3+ levels of nesting
+  const cleanupDeepNesting = useCallback(async () => {
+    const { getFolderTree, updateFolderAPI } = useFolderStore.getState()
+    const folderTree = getFolderTree(workspaceId)
+
+    const findDeepFolders = (nodes: FolderTreeNode[], currentLevel = 0): FolderTreeNode[] => {
+      let deepFolders: FolderTreeNode[] = []
+
+      for (const node of nodes) {
+        if (currentLevel >= 2) {
+          // This folder is at level 2+ (too deep), add it to cleanup list
+          deepFolders.push(node)
+        } else {
+          // Recursively check children
+          deepFolders = deepFolders.concat(findDeepFolders(node.children, currentLevel + 1))
+        }
+      }
+
+      return deepFolders
+    }
+
+    const deepFolders = findDeepFolders(folderTree)
+
+    // Move deeply nested folders to root level
+    for (const folder of deepFolders) {
+      try {
+        await updateFolderAPI(folder.id, { parentId: null })
+        console.log(`Moved deeply nested folder "${folder.name}" to root level`)
+      } catch (error) {
+        console.error(`Failed to move folder "${folder.name}":`, error)
+      }
+    }
+  }, [workspaceId])
+
   // Fetch folders when workspace changes
   useEffect(() => {
     if (workspaceId) {
-      fetchFolders(workspaceId)
+      fetchFolders(workspaceId).then(() => {
+        // Clean up any existing deep nesting after folders are loaded
+        cleanupDeepNesting()
+      })
     }
-  }, [workspaceId, fetchFolders])
+  }, [workspaceId, fetchFolders, cleanupDeepNesting])
 
   useEffect(() => {
     clearSelection()
@@ -325,6 +427,7 @@ export function FolderTree({
 
   const {
     isDragOver: rootDragOver,
+    isInvalidDrop: rootInvalidDrop,
     handleDragOver: handleRootDragOver,
     handleDragLeave: handleRootDragLeave,
     handleDrop: handleRootDrop,
@@ -356,7 +459,6 @@ export function FolderTree({
 
   const showLoading = isLoading || foldersLoading
   const rootWorkflows = workflowsByFolder.root || []
-  const hasFirstLevelItems = folderTree.length > 0 || rootWorkflows.length > 0
 
   // Render skeleton loading state
   const renderSkeletonLoading = () => {
@@ -397,14 +499,20 @@ export function FolderTree({
       <div
         className={clsx(
           'space-y-1',
-          rootDragOver ? 'rounded-md bg-blue-500/10 dark:bg-blue-400/10' : '',
+          rootDragOver
+            ? rootInvalidDrop
+              ? 'rounded-md bg-red-500/10 dark:bg-red-400/10'
+              : 'rounded-md bg-blue-500/10 dark:bg-blue-400/10'
+            : '',
           // Always provide minimal drop zone when root is empty, but keep it subtle
           rootWorkflows.length === 0 ? 'min-h-2 py-1' : ''
         )}
         style={
           rootDragOver
             ? {
-                boxShadow: 'inset 0 0 0 1px rgb(59 130 246 / 0.5)',
+                boxShadow: rootInvalidDrop
+                  ? 'inset 0 0 0 1px rgb(239 68 68 / 0.5)'
+                  : 'inset 0 0 0 1px rgb(59 130 246 / 0.5)',
               }
             : {}
         }

@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { logger } from '@sentry/nextjs'
-import { ChevronRight, File, Folder, Plus, Upload } from 'lucide-react'
+import { File, Folder, Plus, Upload } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useFolderStore } from '@/stores/folders/store'
@@ -31,10 +30,6 @@ export function CreateMenu({
   const [isCreating, setIsCreating] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null)
-  const [isHoverOpen, setIsHoverOpen] = useState(false)
-  const [isImportSubmenuOpen, setIsImportSubmenuOpen] = useState(false)
-
-  const timeoutRef = useRef<number | null>(null)
 
   const params = useParams()
   const router = useRouter()
@@ -45,13 +40,6 @@ export function CreateMenu({
   // Ref for the file input that will be used by ImportControls
   const importControlsRef = useRef<ImportControlsRef>(null)
 
-  const clearTimeout = useCallback(() => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
-  }, [])
-
   const handleCreateWorkflow = useCallback(async () => {
     if (isCreatingWorkflow) {
       logger.info('Workflow creation already in progress, ignoring request')
@@ -59,7 +47,6 @@ export function CreateMenu({
     }
 
     setIsOpen(false)
-    clearTimeout()
 
     try {
       // Call the parent's workflow creation function and wait for the ID
@@ -72,25 +59,18 @@ export function CreateMenu({
     } catch (error) {
       logger.error('Error creating workflow:', { error })
     }
-  }, [onCreateWorkflow, clearTimeout, isCreatingWorkflow, router, workspaceId])
+  }, [onCreateWorkflow, isCreatingWorkflow, router, workspaceId])
 
   const handleCreateFolder = useCallback(() => {
     setIsOpen(false)
-    clearTimeout()
     setShowFolderDialog(true)
-  }, [clearTimeout])
+  }, [])
 
-  const handleMouseEnter = useCallback(() => {
-    clearTimeout()
-    setIsOpen(true)
-  }, [clearTimeout])
-
-  const handleMouseLeave = useCallback(() => {
-    clearTimeout()
-    timeoutRef.current = window.setTimeout(() => {
-      setIsOpen(false)
-    }, 150)
-  }, [clearTimeout])
+  const handleImportWorkflow = useCallback(() => {
+    setIsOpen(false)
+    // Trigger the file upload from ImportControls component
+    importControlsRef.current?.triggerFileUpload()
+  }, [])
 
   // Handle direct click for workflow creation
   const handleButtonClick = useCallback(
@@ -109,6 +89,28 @@ export function CreateMenu({
     },
     [handleCreateWorkflow, pressTimer]
   )
+
+  // Handle hover to show popover
+  const handleMouseEnter = useCallback(() => {
+    setIsOpen(true)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    if (pressTimer) {
+      window.clearTimeout(pressTimer)
+      setPressTimer(null)
+    }
+    setIsOpen(false)
+  }, [pressTimer])
+
+  // Handle dropdown content hover
+  const handlePopoverMouseEnter = useCallback(() => {
+    setIsOpen(true)
+  }, [])
+
+  const handlePopoverMouseLeave = useCallback(() => {
+    setIsOpen(false)
+  }, [])
 
   // Handle right-click to show popover
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -138,19 +140,11 @@ export function CreateMenu({
 
   useEffect(() => {
     return () => {
-      clearTimeout()
       if (pressTimer) {
         window.clearTimeout(pressTimer)
       }
     }
-  }, [clearTimeout, pressTimer])
-
-  const handleUploadYaml = () => {
-    setIsHoverOpen(false)
-    setIsImportSubmenuOpen(false)
-    // Trigger the file upload from ImportControls component
-    importControlsRef.current?.triggerFileUpload()
-  }
+  }, [pressTimer])
 
   const handleFolderSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -184,17 +178,14 @@ export function CreateMenu({
             variant='ghost'
             size='icon'
             className='h-9 w-9 shrink-0 rounded-lg border bg-card shadow-xs hover:bg-accent focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-            title='Create Workflow (Right-click or long press for more options)'
+            title='Create Workflow (Hover, right-click, or long press for more options)'
             disabled={isCreatingWorkflow}
             onClick={handleButtonClick}
             onContextMenu={handleContextMenu}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
-            onMouseLeave={() => {
-              handleMouseUp()
-              handleMouseLeave()
-            }}
             onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           >
             <Plus className='h-[18px] w-[18px] stroke-[2px]' />
             <span className='sr-only'>Create Workflow</span>
@@ -212,10 +203,10 @@ export function CreateMenu({
             'data-[state=closed]:animate-out',
             'w-48'
           )}
-          onMouseEnter={() => setIsHoverOpen(true)}
-          onMouseLeave={() => setIsHoverOpen(false)}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
+          onMouseEnter={handlePopoverMouseEnter}
+          onMouseLeave={handlePopoverMouseLeave}
         >
           <button
             className={cn(
@@ -238,45 +229,13 @@ export function CreateMenu({
           </button>
 
           {userPermissions.canEdit && (
-            <>
-              <Separator className='my-1' />
-
-              <Popover open={isImportSubmenuOpen} onOpenChange={setIsImportSubmenuOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    className='flex w-full cursor-default select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground'
-                    onMouseEnter={() => setIsImportSubmenuOpen(true)}
-                  >
-                    <div className='flex items-center gap-2'>
-                      <Upload className='h-4 w-4' />
-                      <span>Import Workflow</span>
-                    </div>
-                    <ChevronRight className='h-3 w-3' />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  side='right'
-                  align='start'
-                  sideOffset={4}
-                  className='w-48 p-1'
-                  onMouseEnter={() => setIsImportSubmenuOpen(true)}
-                  onMouseLeave={() => setIsImportSubmenuOpen(false)}
-                  onOpenAutoFocus={(e) => e.preventDefault()}
-                  onCloseAutoFocus={(e) => e.preventDefault()}
-                >
-                  <button
-                    className='flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground'
-                    onClick={handleUploadYaml}
-                  >
-                    <Upload className='h-4 w-4' />
-                    <div className='flex flex-col items-start'>
-                      <span>YAML</span>
-                      <span className='text-muted-foreground text-xs'>.yaml or .yml</span>
-                    </div>
-                  </button>
-                </PopoverContent>
-              </Popover>
-            </>
+            <button
+              className='flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 font-[380] text-card-foreground text-sm outline-none hover:bg-secondary/50 focus:bg-secondary/50'
+              onClick={handleImportWorkflow}
+            >
+              <Upload className='h-4 w-4' />
+              Import workflow
+            </button>
           )}
         </PopoverContent>
       </Popover>
@@ -285,10 +244,7 @@ export function CreateMenu({
       <ImportControls
         ref={importControlsRef}
         disabled={!userPermissions.canEdit}
-        onClose={() => {
-          setIsHoverOpen(false)
-          setIsImportSubmenuOpen(false)
-        }}
+        onClose={() => setIsOpen(false)}
       />
 
       {/* Folder creation dialog */}
