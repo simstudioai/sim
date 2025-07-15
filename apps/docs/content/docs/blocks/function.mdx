@@ -8,99 +8,281 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 
-The Function block allows you to write and execute custom JavaScript or TypeScript code directly within your workflow. This powerful feature enables you to implement complex logic, data transformations, and integration with external libraries.
+The Function block lets you run custom JavaScript or TypeScript code in your workflow. Use it to transform data, perform calculations, or implement custom logic that isn't available in other blocks.
 
 <ThemeImage
   lightSrc="/static/light/function-light.png"
   darkSrc="/static/dark/function-dark.png"
-  alt="Function Block"
-  width={300}
+  alt="Function Block with Code Editor"
+  width={350}
   height={175}
 />
 
 ## Overview
 
-The Function block brings the full power of JavaScript/TypeScript to your workflows, allowing for:
+The Function block enables you to:
 
-- Custom data transformation and manipulation
-- Complex conditional logic
-- Mathematical calculations and algorithms
-- Integration with external libraries
-- Creation of reusable utility functions
+<Steps>
+  <Step>
+    <strong>Transform data</strong>: Convert formats, parse text, manipulate arrays and objects
+  </Step>
+  <Step>
+    <strong>Perform calculations</strong>: Math operations, statistics, financial calculations
+  </Step>
+  <Step>
+    <strong>Implement custom logic</strong>: Complex conditionals, loops, and algorithms
+  </Step>
+  <Step>
+    <strong>Process external data</strong>: Parse responses, format requests, handle authentication
+  </Step>
+</Steps>
 
 ## How It Works
 
-The Function block:
+The Function block runs your code in a secure, isolated environment:
 
-1. Takes your custom JavaScript/TypeScript code
-2. Executes it in a secure, isolated environment
-3. Processes any inputs provided from previous blocks
-4. Returns the result for use in subsequent blocks
+1. **Receive Input**: Access data from previous blocks via the `input` object
+2. **Execute Code**: Run your JavaScript/TypeScript code 
+3. **Return Results**: Use `return` to pass data to the next block
+4. **Handle Errors**: Built-in error handling and logging
 
 ## Configuration Options
 
 ### Code Editor
 
-A full-featured code editor where you can write your JavaScript/TypeScript code. The editor supports:
+Write your JavaScript/TypeScript code in a full-featured editor with:
+- Syntax highlighting and error checking
+- Line numbers and bracket matching
+- Support for modern JavaScript features
+- Native support for `fetch` 
 
-- Syntax highlighting
-- Code completion
-- Error checking
-- Multiple lines of code
+### Accessing Input Data
 
-### Inputs
-
-Your function can access inputs from previous blocks through an `input` object. For example:
+Use the `input` object to access data from previous blocks:
 
 ```javascript
-// Access data from a previous block
-const customerName = input.customerData.name;
-const orderTotal = input.orderData.total;
+// Access data from connected blocks
+const userData = <agent.userData>;
+const orderData = <agent.orderData>;
 
-// Process the data
-const discount = orderTotal > 100 ? 0.1 : 0;
-const finalPrice = orderTotal * (1 - discount);
-
-// Return the result
-return {
-  customerName,
-  originalTotal: orderTotal,
-  discount: discount * 100 + '%',
-  finalPrice
-};
+// Access specific fields
+const customerName = <agent.customer.name>;
+const total = <agent.order.total>;
 ```
 
-## Safety and Limitations
+### Common Examples
 
-For security and performance reasons, function execution has certain limitations:
+**Data Transformation**:
+```javascript
+// Convert and format data
+const formatted = {
+  name: <agent.user.firstName> + ' ' + <agent.user.lastName>,
+  email: <agent.user.email>.toLowerCase(),
+  joinDate: new Date(<agent.user.created>).toLocaleDateString()
+};
+return formatted;
+```
 
-- **Execution Time**: Functions have a maximum execution time to prevent infinite loops
-- **Memory Usage**: Memory is limited to prevent excessive resource usage
-- **Network Access**: Network calls are restricted to prevent unauthorized access
-- **Available APIs**: Only a subset of browser APIs are available
+**Calculations**:
+```javascript
+// Calculate discounts and totals
+const subtotal = <agent.items>.reduce((sum, item) => sum + item.price, 0);
+const discount = subtotal > 100 ? 0.1 : 0;
+const total = subtotal * (1 - discount);
+
+return { subtotal, discount, total };
+```
+
+**Data Validation**:
+```javascript
+// Validate email format
+const email = <agent.email>;
+const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+if (!isValid) {
+  throw new Error('Invalid email format');
+}
+return { email, isValid };
+```
+
+### Accessing Results
+
+After a function executes, you can access its outputs:
+
+- **`<function.result>`**: The value returned from your function
+- **`<function.stdout>`**: Any console.log() output from your code
+
+## Advanced Features
+
+### Async/Await Support
+
+Use async functions for complex operations:
+
+```javascript
+// Async function example
+const processData = async () => {
+  const data = <api.response>;
+  
+  // Process data with async operations
+  const processed = await Promise.all(
+    data.map(async (item) => {
+      return {
+        id: item.id,
+        processed: true,
+        timestamp: new Date().toISOString()
+      };
+    })
+  );
+  
+  return processed;
+};
+
+return await processData();
+```
+
+### Error Handling
+
+Implement robust error handling:
+
+```javascript
+try {
+  const result = <api.data>;
+  
+  if (!result || !result.length) {
+    throw new Error('No data received');
+  }
+  
+  return result.map(item => ({
+    id: item.id,
+    name: item.name.trim(),
+    valid: true
+  }));
+} catch (error) {
+  console.error('Processing failed:', error.message);
+  return { error: error.message, valid: false };
+}
+```
+
+### Performance Optimization
+
+Optimize for large datasets:
+
+```javascript
+// Efficient data processing
+const data = <api.large_dataset>;
+
+// Use efficient array methods
+const processed = data
+  .filter(item => item.status === 'active')
+  .map(item => ({
+    id: item.id,
+    summary: item.description.substring(0, 100)
+  }))
+  .slice(0, 1000); // Limit results
+
+return processed;
+```
+
+## Security and Limitations
+
+<Callout type="warning">
+  Functions run in a secure environment with these restrictions:
+  - **Execution timeout**: 30 seconds maximum to prevent infinite loops
+  - **Memory limits**: Limited memory to prevent resource exhaustion
+  - **No network access**: Cannot make HTTP requests (use API blocks instead)
+  - **Limited APIs**: Only safe JavaScript APIs are available
+</Callout>
 
 ## Inputs and Outputs
 
-### Inputs
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Code</strong>: Your JavaScript/TypeScript code to execute
+      </li>
+      <li>
+        <strong>Timeout</strong>: Maximum execution time (defaults to 30 seconds)
+      </li>
+      <li>
+        <strong>Input Data</strong>: All connected block outputs available via variables
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>function.result</strong>: The value returned from your function
+      </li>
+      <li>
+        <strong>function.stdout</strong>: Console.log() output from your code
+      </li>
+      <li>
+        <strong>function.error</strong>: Error details if function failed
+      </li>
+      <li>
+        <strong>function.execution_time</strong>: Time taken to execute
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Function Result</strong>: Primary output from your code
+      </li>
+      <li>
+        <strong>Debug Information</strong>: Logs and execution details
+      </li>
+      <li>
+        <strong>Access</strong>: Available in blocks after the function
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
 
-- **Code**: Your JavaScript/TypeScript code to execute
-- **Input Data**: Values from previous blocks that can be accessed in your code
+## Example Use Cases
 
-### Outputs
+### Data Processing Pipeline
 
-- **result**: The value returned by your function
-- **stdout**: Any console output from your function
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Transform API response into structured data</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API block fetches raw customer data</li>
+    <li>Function block processes and validates data</li>
+    <li>Function block calculates derived metrics</li>
+    <li>Response block returns formatted results</li>
+  </ol>
+</div>
 
-## Example Usage
+### Business Logic Implementation
 
-Here's an example of a Function block that processes customer data and calculates a loyalty score:
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Calculate loyalty scores and tiers</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent retrieves customer purchase history</li>
+    <li>Function block calculates loyalty metrics</li>
+    <li>Function block determines customer tier</li>
+    <li>Condition block routes based on tier level</li>
+  </ol>
+</div>
 
-```javascript
-// Example Function Block Code
+### Data Validation and Sanitization
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Validate and clean user input</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>User input received from form submission</li>
+    <li>Function block validates email format and phone numbers</li>
+    <li>Function block sanitizes and normalizes data</li>
+    <li>API block saves validated data to database</li>
+  </ol>
+</div>
+
+### Example: Loyalty Score Calculator
+
+```javascript title="loyalty-calculator.js"
 // Process customer data and calculate loyalty score
-
-// Access input from previous blocks
-const { purchaseHistory, accountAge, supportTickets } = input;
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
 
 // Calculate metrics
 const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
@@ -114,23 +296,18 @@ const supportScore = ticketRatio * 30;
 
 const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
 
-// Return results
 return {
-  customer: input.name,
+  customer: <agent.name>,
   loyaltyScore,
-  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : loyaltyScore >= 40 ? "Silver" : "Bronze",
-  metrics: {
-    spendScore,
-    frequencyScore,
-    supportScore
-  }
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
 };
 ```
 
 ## Best Practices
 
-- **Keep functions focused**: Write functions that do one thing well
-- **Handle errors gracefully**: Use try/catch blocks to handle potential errors
-- **Document your code**: Add comments to explain complex logic
-- **Test edge cases**: Ensure your code handles unusual inputs correctly
-- **Optimize for performance**: Be mindful of computational complexity for large datasets
+- **Keep functions focused**: Write functions that do one thing well to improve maintainability and debugging
+- **Handle errors gracefully**: Use try/catch blocks to handle potential errors and provide meaningful error messages
+- **Test edge cases**: Ensure your code handles unusual inputs, null values, and boundary conditions correctly
+- **Optimize for performance**: Be mindful of computational complexity and memory usage for large datasets
+- **Use console.log() for debugging**: Leverage stdout output to debug and monitor function execution

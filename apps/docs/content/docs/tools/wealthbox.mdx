@@ -24,6 +24,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Wealthbox](https://www.wealthbox.com/) is a comprehensive CRM platform designed specifically for financial advisors and wealth management professionals. It provides a centralized system for managing client relationships, tracking interactions, and organizing business workflows in the financial services industry.
+
+With Wealthbox, you can:
+
+- **Manage client relationships**: Store detailed contact information, background data, and relationship histories for all your clients
+- **Track interactions**: Create and maintain notes about meetings, calls, and other client touchpoints
+- **Organize tasks**: Schedule and manage follow-up activities, deadlines, and important action items
+- **Document workflows**: Keep comprehensive records of client communications and business processes
+- **Access client data**: Retrieve information quickly with organized contact management and search capabilities
+- **Automate follow-ups**: Set reminders and schedule tasks to ensure consistent client engagement
+
+In Sim Studio, the Wealthbox integration enables your agents to seamlessly interact with your CRM data through OAuth authentication. This allows for powerful automation scenarios such as automatically creating client notes from meeting transcripts, updating contact information, scheduling follow-up tasks, and retrieving client details for personalized communications. Your agents can read existing notes, contacts, and tasks to understand client history, while also creating new entries to maintain up-to-date records. This integration bridges the gap between your AI workflows and your client relationship management, enabling automated data entry, intelligent client insights, and streamlined administrative processes that free up time for more valuable client-facing activities.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Wealthbox functionality to manage notes, contacts, and tasks. Read content from existing notes, contacts, and tasks and write to them using OAuth authentication. Supports text content manipulation for note creation and editing.
@@ -41,7 +57,7 @@ Read content from a Wealthbox note
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | The access token for the Wealthbox API |
-| `noteId` | string | No | The ID of the note to read \(optional\) |
+| `noteId` | string | No | The ID of the note to read |
 
 #### Output
 
@@ -68,9 +84,7 @@ Create or update a Wealthbox note
 
 | Parameter | Type |
 | --------- | ---- |
-| `note` | string |
-| `metadata` | string |
-| `itemType` | string |
+| `data` | json |
 
 ### `wealthbox_read_contact`
 
@@ -81,7 +95,7 @@ Read content from a Wealthbox contact
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | The access token for the Wealthbox API |
-| `contactId` | string | Yes | The ID of the contact to read |
+| `contactId` | string | No | The ID of the contact to read |
 
 #### Output
 
@@ -123,7 +137,7 @@ Read content from a Wealthbox task
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | The access token for the Wealthbox API |
-| `taskId` | string | No | The ID of the task to read \(optional\) |
+| `taskId` | string | No | The ID of the task to read |
 
 #### Output
 
@@ -144,19 +158,15 @@ Create or update a Wealthbox task
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | The access token for the Wealthbox API |
 | `title` | string | Yes | The name/title of the task |
-| `dueDate` | string | Yes | The due date and time of the task  |
-| `complete` | boolean | No | Whether the task is complete |
-| `category` | number | No | The category ID the task belongs to |
+| `dueDate` | string | Yes | The due date and time of the task \(format:  |
 | `contactId` | string | No | ID of contact to link to this task |
+| `description` | string | No | Description or notes about the task |
 
 #### Output
 
 | Parameter | Type |
 | --------- | ---- |
-| `task` | string |
-| `metadata` | string |
-| `taskId` | string |
-| `itemType` | string |
+| `data` | json |
 
 
 

@@ -1,84 +1,94 @@
 ---
 title: Introduction
-description: The UI for agents
+description: Build AI workflows visually without code
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { File, Files, Folder } from 'fumadocs-ui/components/files'
 import { Features } from '@/components/ui/features'
 
-Sim Studio is a powerful platform for building, testing, and optimizing agentic workflows. It provides developers with intuitive tools to design sophisticated agent-based applications through a visual interface. Whether you're prototyping a simple AI assistant or building complex multi-agent systems, Sim Studio offers the flexibility and performance needed for modern AI applications.
+Sim Studio is a visual workflow editor that enables you to build AI-powered applications by connecting blocks on a canvas. Drag and drop components to create chatbots, automation workflows, and data processing pipelines without writing code.
 
-## Why Sim Studio?
+## What Makes Sim Studio Powerful
 
-Building agentic applications requires extensive coding and integration work. Developers spend more time on infrastructure and plumbing than focusing on core AI logic. Sim Studio changes this with a <span className="text-highlight">comprehensive visual workflow editor</span> that handles complexity while keeping you in control of what matters.
+**Multi-Model AI Support** - Connect to OpenAI, Anthropic, Google, Groq, Cerebras, and local models through Ollama. Switch providers without rebuilding workflows.
 
-## How Sim Studio Differs
+**60+ Pre-Built Tools** - Gmail, Slack, Notion, Google Sheets, Airtable, Supabase, Pinecone, and more. Extensible architecture allows custom tool integration.
 
-Sim Studio takes a fundamentally different approach from existing agent development solutions:
+**Flexible Execution** - Run workflows via chat interface, REST API, webhooks, scheduled jobs, or trigger from external systems.
 
-### Focus on What Matters
+**Production Deployment** - Deploy as APIs, integrate with existing systems using our SDK, or embed as plugins. Built-in monitoring, logging, and error handling.
 
-Developers waste countless hours customizing multi-agent frameworks, writing boilerplate code, creating integrations, and building tooling from scratch. By the time they've configured their environment, precious resources are consumed before any real agent work begins.
+**Real-time Collaboration** - Work simultaneously with team members on the same workflow, like Google Docs for AI development.
 
-Sim Studio eliminates this overhead. We've distilled agent development to its essence, removing boilerplate and infrastructure complexity. With Sim Studio, you can <span className="text-highlight">immediately start designing intelligence</span> rather than wrestling with configuration. Your time is best spent refining agent behaviors, not writing glue code that doesn't improve the end-user experience.
+Connect multiple AI models, integrate with 60+ services, and deploy production-ready applications through an intuitive visual interface designed specifically for AI development.
 
-### Provider-Aligned Interfaces
+## Core Building Blocks
 
-Existing frameworks abstract away provider-specific features, forcing developers to navigate layers of abstraction to access specific capabilities. The result: lost functionality, reduced flexibility, and additional code to bridge these gaps.
+**Processing Blocks**
 
-Sim Studio stays <span className="text-highlight">close to provider definitions</span>, directly exposing the parameters that matter:
+- **Agent** - Execute AI model inference with any LLM provider
+- **API** - Connect to REST endpoints and external services  
+- **Function** - Run custom JavaScript for data processing
 
-<ul className="highlight-markers list-disc space-y-2 pl-6">
-  <li>System prompts and instructions with native formatting</li>
-  <li>Tool definitions and access patterns that match provider implementations</li>
-  <li>Temperature and sampling parameters with their full range of options</li>
-  <li>Structured output formatting that aligns with provider capabilities</li>
-  <li>Model selection and configuration with provider-specific optimizations</li>
-</ul>
+**Logic Blocks**
 
-This approach gives you full control over agent behavior without unnecessary complexity. You leverage each provider's full capabilities without sacrificing the convenience of a unified platform.
+- **Condition** - Create branching logic based on data evaluation
+- **Router** - Route execution paths using AI-powered decision making
+- **Loop** - Iterate over collections sequentially
+- **Parallel** - Execute multiple operations concurrently
 
-### Unified Model Interface
+**Output Blocks**
 
-Most environments lock you into a specific LLM provider early in development. Changing providers later requires significant refactoring, often affecting your entire application architecture and limiting your ability to leverage advances in model capabilities.
+- **Response** - Format and return final workflow results
+- **Evaluator** - Validate outputs against defined criteria
 
-Our platform provides a <span className="text-highlight">consistent interface across different AI models</span>, letting you switch between OpenAI, Anthropic, Claude, Llama, Gemini and others without rewriting your agent logic. This model-agnostic approach future-proofs your applications and gives you freedom to select the best model for each specific use case—optimize for cost with one agent and performance with another, all within the same workflow.
+## Built-in Integrations
 
-### AI-Native Design
+**AI Models**: OpenAI, Anthropic, Google, Groq, Cerebras, Ollama
 
-Traditional development environments were designed for conventional software and later adapted for AI. These adaptations often feel like afterthoughts, with AI capabilities awkwardly grafted onto existing paradigms.
+**Communication**: Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
 
-Sim Studio is <span className="text-highlight">built from the ground up as an AI-native application</span>. Every aspect—from the visual workflow editor to testing environments—is designed specifically for agent development. Common AI development patterns are first-class concepts in our platform, not workarounds. Testing prompts, adjusting parameters, or implementing complex tool calling patterns feel natural because they're core to our design philosophy.
+**Data Sources**: Notion, Google Sheets, Airtable, Supabase, Pinecone
 
-### Local Development Support
+**Web Services**: Firecrawl, Google Search, Exa AI, Perplexity
 
-Many AI platforms force you to develop against cloud APIs, creating dependencies on internet connectivity, increasing costs, and introducing privacy concerns with sensitive data.
+**Development**: GitHub, Jira, Linear, browser automation
 
-Sim Studio supports <span className="text-highlight">full local development</span> using Ollama integration. Develop with privacy-preserving local models, then seamlessly deploy with cloud providers in production. This hybrid approach gives you the best of both worlds: privacy, cost-efficiency, and reliability during development, with scalability and performance in production.
+## Use Cases
 
-### Comprehensive Observability
+**AI Assistants** - Build chatbots with web search, calendar access, and email capabilities
 
-Existing solutions provide limited visibility into agent performance, making it difficult to identify bottlenecks, understand costs, or diagnose failures. Developers build custom instrumentation or operate in the dark.
+**Content Generation** - Create blog posts, social media content, and marketing materials
 
-Sim Studio provides <span className="text-highlight">full visibility into agent performance</span> with integrated observability:
+**Data Processing** - Extract insights from documents, analyze datasets, and generate reports
 
-<ul className="highlight-markers list-disc space-y-2 pl-6">
-  <li>Detailed execution logs capturing every interaction between agents and models</li>
-  <li>Latency tracing with span visualization to identify performance bottlenecks</li>
-  <li>Cost tracking and optimization to prevent budget overruns</li>
-  <li>Error analysis and debugging tools for complex workflows</li>
-  <li>Performance comparisons across different model configurations</li>
-</ul>
+**Process Automation** - Automate business workflows with event-driven triggers
 
-This comprehensive observability means less time investigating issues and more time resolving them—faster development cycles and more reliable agent workflows.
+**API Orchestration** - Combine multiple services into unified endpoints
 
-## Features
+## Key Features
 
-Sim Studio provides a wide range of features designed to accelerate your development process:
+**Multi-Provider AI Support** - Switch between OpenAI, Anthropic, Google, and local models without rebuilding workflows
 
-<Features />
+**Real-time Collaboration** - Work simultaneously with team members on the same workflow
 
-##
+**Production-Ready** - Built-in error handling, logging, and monitoring for production deployments
 
-Ready to get started? Check out our [Getting Started](/getting-started) guide or explore our [Blocks](/blocks) and [Tools](/tools) in more detail.
+**Local Development** - Test with Ollama locally, then deploy with cloud providers
+
+## Getting Started
+
+Ready to build your first workflow? Our [Getting Started guide](/getting-started) will walk you through creating a customer support assistant in under 10 minutes.
+
+<Cards>
+  <Card title="Getting Started" href="/getting-started">
+    Build your first workflow
+  </Card>
+  <Card title="Blocks" href="/blocks">
+    Learn about workflow components
+  </Card>
+  <Card title="Tools" href="/tools">
+    Explore integrations
+  </Card>
+</Cards>
