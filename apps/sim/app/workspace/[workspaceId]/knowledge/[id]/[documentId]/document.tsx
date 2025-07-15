@@ -117,7 +117,7 @@ export function Document({
         setError(null)
 
         const cachedDocuments = getCachedDocuments(knowledgeBaseId)
-        const cachedDoc = cachedDocuments?.find((d) => d.id === documentId)
+        const cachedDoc = cachedDocuments?.documents?.find((d) => d.id === documentId)
 
         if (cachedDoc) {
           setDocument(cachedDoc)

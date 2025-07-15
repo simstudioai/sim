@@ -30,6 +30,8 @@ describe('Knowledge Base Documents API Route', () => {
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    offset: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
     values: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
@@ -99,7 +101,12 @@ describe('Knowledge Base Documents API Route', () => {
     it('should retrieve documents successfully for authenticated user', async () => {
       mockAuth$.mockAuthenticatedUser()
       mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: true })
-      mockDbChain.orderBy.mockResolvedValue([mockDocument])
+
+      // Mock the count query (first query)
+      mockDbChain.where.mockResolvedValueOnce([{ count: 1 }])
+
+      // Mock the documents query (second query)
+      mockDbChain.offset.mockResolvedValue([mockDocument])
 
       const req = createMockRequest('GET')
       const { GET } = await import('./route')
@@ -108,8 +115,8 @@ describe('Knowledge Base Documents API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(data.data).toHaveLength(1)
-      expect(data.data[0].id).toBe('doc-123')
+      expect(data.data.documents).toHaveLength(1)
+      expect(data.data.documents[0].id).toBe('doc-123')
       expect(mockDbChain.select).toHaveBeenCalled()
       expect(mockCheckKnowledgeBaseAccess).toHaveBeenCalledWith('kb-123', 'user-123')
     })
@@ -117,7 +124,12 @@ describe('Knowledge Base Documents API Route', () => {
     it('should filter disabled documents by default', async () => {
       mockAuth$.mockAuthenticatedUser()
       mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: true })
-      mockDbChain.orderBy.mockResolvedValue([mockDocument])
+
+      // Mock the count query (first query)
+      mockDbChain.where.mockResolvedValueOnce([{ count: 1 }])
+
+      // Mock the documents query (second query)
+      mockDbChain.offset.mockResolvedValue([mockDocument])
 
       const req = createMockRequest('GET')
       const { GET } = await import('./route')
@@ -130,7 +142,12 @@ describe('Knowledge Base Documents API Route', () => {
     it('should include disabled documents when requested', async () => {
       mockAuth$.mockAuthenticatedUser()
       mockCheckKnowledgeBaseAccess.mockResolvedValue({ hasAccess: true })
-      mockDbChain.orderBy.mockResolvedValue([mockDocument])
+
+      // Mock the count query (first query)
+      mockDbChain.where.mockResolvedValueOnce([{ count: 1 }])
+
+      // Mock the documents query (second query)
+      mockDbChain.offset.mockResolvedValue([mockDocument])
 
       const url = 'http://localhost:3000/api/knowledge/kb-123/documents?includeDisabled=true'
       const req = new Request(url, { method: 'GET' }) as any

@@ -176,7 +176,7 @@ describe('Knowledge Utils', () => {
         {}
       )
 
-      expect(dbOps.order).toEqual(['insert', 'updateDoc', 'updateKb'])
+      expect(dbOps.order).toEqual(['insert', 'updateDoc'])
 
       expect(dbOps.updatePayloads[0]).toMatchObject({
         processingStatus: 'completed',
