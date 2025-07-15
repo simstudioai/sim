@@ -183,10 +183,8 @@ export const useConsoleStore = create<ConsoleStore>()(
         ) => {
           set((state) => {
             const updatedEntries = state.entries.map((entry) => {
-              // Match by executionId if provided, otherwise fall back to blockId for backward compatibility
-              const isMatch = executionId
-                ? entry.executionId === executionId
-                : entry.blockId === blockId
+              // Only update if both blockId and executionId match
+              const isMatch = entry.blockId === blockId && entry.executionId === executionId
               if (isMatch) {
                 if (typeof update === 'string') {
                   // Simple content update for backward compatibility
