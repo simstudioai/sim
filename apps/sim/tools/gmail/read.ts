@@ -31,7 +31,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
     folder: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Folder/label to read emails from',
     },
     unreadOnly: {

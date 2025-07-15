@@ -102,6 +102,46 @@ Draft emails using Gmail
 | `threadId` | string |
 | `labelIds` | string |
 
+### `gmail_read`
+
+Read emails from Gmail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Access token for Gmail API |
+| `messageId` | string | No | ID of the message to read |
+| `folder` | string | No | Folder/label to read emails from |
+| `unreadOnly` | boolean | No | Only retrieve unread messages |
+| `maxResults` | number | No | Maximum number of messages to retrieve \(default: 1, max: 10\) |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `content` | string |
+| `metadata` | string |
+
+### `gmail_search`
+
+Search emails in Gmail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Access token for Gmail API |
+| `query` | string | Yes | Search query for emails |
+| `maxResults` | number | No | Maximum number of results to return \(default: 1, max: 10\) |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `content` | string |
+| `metadata` | string |
+
 
 
 ## Block Configuration
