@@ -1044,6 +1044,9 @@ export const templates = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
     author: text('author').notNull(),
@@ -1059,6 +1062,7 @@ export const templates = pgTable(
   (table) => ({
     // Primary access patterns
     workflowIdIdx: index('templates_workflow_id_idx').on(table.workflowId),
+    userIdIdx: index('templates_user_id_idx').on(table.userId),
     categoryIdx: index('templates_category_idx').on(table.category),
 
     // Sorting indexes for popular/trending templates
@@ -1068,6 +1072,7 @@ export const templates = pgTable(
     // Composite indexes for common queries
     categoryViewsIdx: index('templates_category_views_idx').on(table.category, table.views),
     categoryStarsIdx: index('templates_category_stars_idx').on(table.category, table.stars),
+    userCategoryIdx: index('templates_user_category_idx').on(table.userId, table.category),
 
     // Temporal indexes
     createdAtIdx: index('templates_created_at_idx').on(table.createdAt),

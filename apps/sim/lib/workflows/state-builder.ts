@@ -1,5 +1,4 @@
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
@@ -8,7 +7,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
  */
 export function buildWorkflowStateForTemplate(workflowId: string) {
   const workflowStore = useWorkflowStore.getState()
-  const subBlockStore = useSubBlockStore.getState()
   const { activeWorkflowId } = useWorkflowRegistry.getState()
 
   // Get current workflow state
@@ -18,9 +16,6 @@ export function buildWorkflowStateForTemplate(workflowId: string) {
   const loops = workflowStore.generateLoopBlocks()
   const parallels = workflowStore.generateParallelBlocks()
 
-  // Get subblock values for the active workflow
-  const subBlockValues = activeWorkflowId ? subBlockStore.workflowValues[activeWorkflowId] : null
-
   // Build the state object in the same format as deployment
   const state = {
     blocks,
@@ -28,7 +23,6 @@ export function buildWorkflowStateForTemplate(workflowId: string) {
     loops,
     parallels,
     lastSaved: Date.now(),
-    subBlockValues: subBlockValues || {},
   }
 
   return state

@@ -1,6 +1,108 @@
-import { User } from 'lucide-react'
+import {
+  Award,
+  BarChart3,
+  Bell,
+  BookOpen,
+  Bot,
+  Brain,
+  Briefcase,
+  Calculator,
+  Cloud,
+  Code,
+  Cpu,
+  CreditCard,
+  Database,
+  DollarSign,
+  Edit,
+  FileText,
+  Folder,
+  Globe,
+  HeadphonesIcon,
+  Layers,
+  Lightbulb,
+  LineChart,
+  Mail,
+  Megaphone,
+  MessageSquare,
+  NotebookPen,
+  Phone,
+  Play,
+  Search,
+  Server,
+  Settings,
+  ShoppingCart,
+  Star,
+  Target,
+  TrendingUp,
+  User,
+  Users,
+  Workflow,
+  Wrench,
+  Zap,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks/registry'
+
+// Icon mapping for template icons
+const iconMap = {
+  // Content & Documentation
+  FileText,
+  NotebookPen,
+  BookOpen,
+  Edit,
+
+  // Analytics & Charts
+  BarChart3,
+  LineChart,
+  TrendingUp,
+  Target,
+
+  // Database & Storage
+  Database,
+  Server,
+  Cloud,
+  Folder,
+
+  // Marketing & Communication
+  Megaphone,
+  Mail,
+  MessageSquare,
+  Phone,
+  Bell,
+
+  // Sales & Finance
+  DollarSign,
+  CreditCard,
+  Calculator,
+  ShoppingCart,
+  Briefcase,
+
+  // Support & Service
+  HeadphonesIcon,
+  User,
+  Users,
+  Settings,
+  Wrench,
+
+  // AI & Technology
+  Bot,
+  Brain,
+  Cpu,
+  Code,
+  Zap,
+
+  // Workflow & Process
+  Workflow,
+  Search,
+  Play,
+  Layers,
+
+  // General
+  Lightbulb,
+  Star,
+  Globe,
+  Award,
+}
 
 interface TemplateCardProps {
   id: string
@@ -8,7 +110,8 @@ interface TemplateCardProps {
   description: string
   author: string
   usageCount: string
-  icon?: React.ReactNode
+  stars?: number
+  icon?: React.ReactNode | string
   iconColor?: string
   blocks?: string[]
   onClick?: () => void
@@ -71,18 +174,24 @@ const extractBlockTypesFromState = (state?: {
 }): string[] => {
   if (!state?.blocks) return []
 
-  // Get unique block types from the state
-  const blockTypes = Object.values(state.blocks).map((block) => block.type)
+  // Get unique block types from the state, excluding starter blocks
+  const blockTypes = Object.values(state.blocks)
+    .map((block) => block.type)
+    .filter((type) => type !== 'starter')
   return [...new Set(blockTypes)]
 }
 
-// Utility function to get block icon component from block type
-const getBlockIcon = (blockType: string): React.ReactNode => {
-  const block = getBlock(blockType)
-  if (!block?.icon) return null
-
-  const IconComponent = block.icon
-  return <IconComponent className='h-3 w-3' />
+// Utility function to get icon component from string or return the component directly
+const getIconComponent = (icon: React.ReactNode | string | undefined): React.ReactNode => {
+  if (typeof icon === 'string') {
+    const IconComponent = iconMap[icon as keyof typeof iconMap]
+    return IconComponent ? <IconComponent /> : <FileText />
+  }
+  if (icon) {
+    return icon
+  }
+  // Default fallback icon
+  return <FileText />
 }
 
 // Utility function to get block display name
@@ -91,12 +200,19 @@ const getBlockDisplayName = (blockType: string): string => {
   return block?.name || blockType
 }
 
+// Utility function to get the full block config for colored icon display
+const getBlockConfig = (blockType: string) => {
+  const block = getBlock(blockType)
+  return block
+}
+
 export function TemplateCard({
   id,
   title,
   description,
   author,
   usageCount,
+  stars = 0,
   icon,
   iconColor = 'bg-blue-500',
   blocks = [],
@@ -105,7 +221,13 @@ export function TemplateCard({
   state,
 }: TemplateCardProps) {
   // Extract block types from state if provided, otherwise use the blocks prop
-  const blockTypes = state ? extractBlockTypesFromState(state) : blocks
+  // Filter out starter blocks in both cases
+  const blockTypes = state
+    ? extractBlockTypesFromState(state)
+    : blocks.filter((blockType) => blockType !== 'starter')
+
+  // Get the icon component
+  const iconComponent = getIconComponent(icon)
 
   return (
     <div
@@ -124,11 +246,16 @@ export function TemplateCard({
             {/* Icon container */}
             <div
               className={cn(
-                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded',
-                iconColor
+                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md',
+                // Use CSS class if iconColor doesn't start with #
+                iconColor?.startsWith('#') ? '' : iconColor || 'bg-blue-500'
               )}
+              style={{
+                // Use inline style for hex colors
+                backgroundColor: iconColor?.startsWith('#') ? iconColor : undefined,
+              }}
             >
-              {icon && <div className='h-3 w-3 text-white [&>svg]:h-3 [&>svg]:w-3'>{icon}</div>}
+              <div className='h-3 w-3 text-white [&>svg]:h-3 [&>svg]:w-3'>{iconComponent}</div>
             </div>
             {/* Template name */}
             <h3 className='truncate font-medium font-sans text-card-foreground text-sm leading-tight'>
@@ -149,25 +276,35 @@ export function TemplateCard({
           <span className='flex-shrink-0'>•</span>
           <User className='h-3 w-3 flex-shrink-0' />
           <span className='truncate'>{usageCount}</span>
+          <span className='flex-shrink-0'>•</span>
+          <Star className='h-3 w-3 flex-shrink-0' />
+          <span className='truncate'>{stars}</span>
         </div>
       </div>
 
       {/* Right side - Block Icons */}
-      <div className='flex w-20 flex-col gap-1 rounded-r-[14px] bg-secondary p-2'>
-        {blockTypes.slice(0, 4).map((blockType, index) => (
-          <div key={index} className='flex items-center gap-1.5'>
-            {/* Block icon */}
-            <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
-              {getBlockIcon(blockType)}
+      <div className='flex w-14 flex-col items-center justify-center gap-2 rounded-r-[14px] bg-secondary p-2'>
+        {blockTypes.slice(0, 3).map((blockType, index) => {
+          const blockConfig = getBlockConfig(blockType)
+          if (!blockConfig) return null
+
+          return (
+            <div key={index} className='flex items-center justify-center'>
+              <div
+                className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded'
+                style={{ backgroundColor: blockConfig.bgColor || 'gray' }}
+              >
+                <blockConfig.icon className='h-4 w-4 text-white' />
+              </div>
             </div>
-            {/* Block name */}
-            <span className='truncate font-sans text-muted-foreground text-xs'>
-              {getBlockDisplayName(blockType)}
-            </span>
+          )
+        })}
+        {blockTypes.length > 3 && (
+          <div className='flex items-center justify-center'>
+            <div className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded bg-gray-400'>
+              <span className='font-medium text-white text-xs'>+{blockTypes.length - 3}</span>
+            </div>
           </div>
-        ))}
-        {blockTypes.length > 4 && (
-          <div className='font-sans text-muted-foreground text-xs'>+{blockTypes.length - 4}</div>
         )}
       </div>
     </div>

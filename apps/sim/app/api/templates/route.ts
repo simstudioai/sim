@@ -30,7 +30,8 @@ const CreateTemplateSchema = z.object({
   state: z.object({
     blocks: z.record(z.any()),
     edges: z.array(z.any()),
-    subBlockValues: z.record(z.any()).optional(),
+    loops: z.record(z.any()),
+    parallels: z.record(z.any()),
   }),
 })
 
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
       .select({
         id: templates.id,
         workflowId: templates.workflowId,
+        userId: templates.userId,
         name: templates.name,
         description: templates.description,
         author: templates.author,
@@ -178,6 +180,7 @@ export async function POST(request: NextRequest) {
     const newTemplate = {
       id: templateId,
       workflowId: data.workflowId,
+      userId: session.user.id,
       name: data.name,
       description: data.description || null,
       author: data.author,
