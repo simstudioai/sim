@@ -5,7 +5,6 @@ import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { client } from '@/lib/auth-client'
-import { useNotificationStore } from '@/stores/notifications/store'
 
 interface SocialLoginButtonsProps {
   githubAvailable: boolean
@@ -22,7 +21,6 @@ export function SocialLoginButtons({
 }: SocialLoginButtonsProps) {
   const [isGithubLoading, setIsGithubLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
-  const { addNotification } = useNotificationStore()
   const [mounted, setMounted] = useState(false)
 
   // Set mounted state to true on client-side
@@ -57,8 +55,6 @@ export function SocialLoginButtons({
       } else if (err.message?.includes('rate limit')) {
         errorMessage = 'Too many attempts. Please try again later.'
       }
-
-      addNotification('error', errorMessage, null)
     } finally {
       setIsGithubLoading(false)
     }
@@ -89,8 +85,6 @@ export function SocialLoginButtons({
       } else if (err.message?.includes('rate limit')) {
         errorMessage = 'Too many attempts. Please try again later.'
       }
-
-      addNotification('error', errorMessage, null)
     } finally {
       setIsGoogleLoading(false)
     }

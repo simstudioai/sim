@@ -3,7 +3,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { GridPattern } from '../(landing)/components/grid-pattern'
-import { NotificationList } from '../workspace/[workspaceId]/w/[workflowId]/components/notifications/notifications'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -30,11 +29,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Content */}
       <div className='relative z-10 flex flex-1 items-center justify-center px-4 pb-6'>
         <div className='w-full max-w-md'>{children}</div>
-      </div>
-
-      {/* Notifications */}
-      <div className='fixed right-4 bottom-4 z-50'>
-        <NotificationList />
       </div>
     </main>
   )

@@ -58,53 +58,40 @@ export function WorkflowPreview({
   defaultZoom,
   onNodeClick,
 }: WorkflowPreviewProps) {
-  // Handle migrated logs that don't have complete workflow state
-  if (!workflowState || !workflowState.blocks || !workflowState.edges) {
-    return (
-      <div
-        style={{ height, width }}
-        className='flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'
-      >
-        <div className='text-center text-gray-500 dark:text-gray-400'>
-          <div className='mb-2 font-medium text-lg'>⚠️ Logged State Not Found</div>
-          <div className='text-sm'>
-            This log was migrated from the old system and doesn't contain workflow state data.
-          </div>
-        </div>
-      </div>
-    )
-  }
-  const blocksStructure = useMemo(
-    () => ({
+  // Check if the workflow state is valid
+  const isValidWorkflowState = workflowState?.blocks && workflowState.edges
+
+  const blocksStructure = useMemo(() => {
+    if (!isValidWorkflowState) return { count: 0, ids: '' }
+    return {
       count: Object.keys(workflowState.blocks || {}).length,
       ids: Object.keys(workflowState.blocks || {}).join(','),
-    }),
-    [workflowState.blocks]
-  )
+    }
+  }, [workflowState.blocks, isValidWorkflowState])
 
-  const loopsStructure = useMemo(
-    () => ({
+  const loopsStructure = useMemo(() => {
+    if (!isValidWorkflowState) return { count: 0, ids: '' }
+    return {
       count: Object.keys(workflowState.loops || {}).length,
       ids: Object.keys(workflowState.loops || {}).join(','),
-    }),
-    [workflowState.loops]
-  )
+    }
+  }, [workflowState.loops, isValidWorkflowState])
 
-  const parallelsStructure = useMemo(
-    () => ({
+  const parallelsStructure = useMemo(() => {
+    if (!isValidWorkflowState) return { count: 0, ids: '' }
+    return {
       count: Object.keys(workflowState.parallels || {}).length,
       ids: Object.keys(workflowState.parallels || {}).join(','),
-    }),
-    [workflowState.parallels]
-  )
+    }
+  }, [workflowState.parallels, isValidWorkflowState])
 
-  const edgesStructure = useMemo(
-    () => ({
+  const edgesStructure = useMemo(() => {
+    if (!isValidWorkflowState) return { count: 0, ids: '' }
+    return {
       count: workflowState.edges?.length || 0,
       ids: workflowState.edges?.map((e) => e.id).join(',') || '',
-    }),
-    [workflowState.edges]
-  )
+    }
+  }, [workflowState.edges, isValidWorkflowState])
 
   const calculateAbsolutePosition = (
     block: any,
@@ -129,6 +116,8 @@ export function WorkflowPreview({
   }
 
   const nodes: Node[] = useMemo(() => {
+    if (!isValidWorkflowState) return []
+
     const nodeArray: Node[] = []
 
     Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
@@ -236,9 +225,18 @@ export function WorkflowPreview({
     })
 
     return nodeArray
-  }, [blocksStructure, loopsStructure, parallelsStructure, showSubBlocks, workflowState.blocks])
+  }, [
+    blocksStructure,
+    loopsStructure,
+    parallelsStructure,
+    showSubBlocks,
+    workflowState.blocks,
+    isValidWorkflowState,
+  ])
 
   const edges: Edge[] = useMemo(() => {
+    if (!isValidWorkflowState) return []
+
     return (workflowState.edges || []).map((edge) => ({
       id: edge.id,
       source: edge.source,
@@ -247,7 +245,24 @@ export function WorkflowPreview({
       targetHandle: edge.targetHandle,
       type: 'workflowEdge',
     }))
-  }, [edgesStructure, workflowState.edges])
+  }, [edgesStructure, workflowState.edges, isValidWorkflowState])
+
+  // Handle migrated logs that don't have complete workflow state
+  if (!isValidWorkflowState) {
+    return (
+      <div
+        style={{ height, width }}
+        className='flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'
+      >
+        <div className='text-center text-gray-500 dark:text-gray-400'>
+          <div className='mb-2 font-medium text-lg'>⚠️ Logged State Not Found</div>
+          <div className='text-sm'>
+            This log was migrated from the old system and doesn't contain workflow state data.
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <ReactFlowProvider>

@@ -209,7 +209,7 @@ export function General() {
                   disabled={isLoading}
                 />
               </div>
-              <div className='flex items-center justify-between py-1'>
+              {/* <div className='flex items-center justify-between py-1'>
                 <div className='flex items-center gap-2'>
                   <Label htmlFor='auto-pan' className='font-medium'>
                     Auto-pan during execution
@@ -237,7 +237,7 @@ export function General() {
                   onCheckedChange={handleAutoPanChange}
                   disabled={isLoading}
                 />
-              </div>
+              </div> */}
             </>
           )}
         </div>

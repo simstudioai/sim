@@ -3,7 +3,6 @@
 import { Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../../../components/knowledge-header/knowledge-header'
 import { DocumentTableSkeleton } from '../../../components/skeletons/table-skeleton'
 
@@ -12,11 +11,8 @@ interface KnowledgeBaseLoadingProps {
 }
 
 export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) {
-  const { mode, isExpanded } = useSidebarStore()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   const breadcrumbs = [
     {
@@ -31,9 +27,7 @@ export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoading
   ]
 
   return (
-    <div
-      className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-    >
+    <div className='flex h-[100vh] flex-col pl-64'>
       {/* Fixed Header with Breadcrumbs */}
       <KnowledgeHeader breadcrumbs={breadcrumbs} />
 
@@ -70,7 +64,7 @@ export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoading
               </div>
 
               {/* Table container */}
-              <DocumentTableSkeleton isSidebarCollapsed={isSidebarCollapsed} rowCount={8} />
+              <DocumentTableSkeleton isSidebarCollapsed={false} rowCount={8} />
             </div>
           </div>
         </div>

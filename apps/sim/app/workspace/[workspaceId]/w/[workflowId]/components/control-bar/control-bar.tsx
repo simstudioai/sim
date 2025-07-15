@@ -1,19 +1,18 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { formatDistanceToNow } from 'date-fns'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  Bell,
   Bug,
-  ChevronDown,
+  ChevronLeft,
   Copy,
-  History,
   Layers,
-  Loader2,
   Play,
+  RefreshCw,
   SkipForward,
   StepForward,
+  Store,
   Trash2,
+  WifiOff,
   X,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -29,21 +28,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
-import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
-import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubscriptionStore } from '@/stores/subscription/store'
@@ -58,10 +48,7 @@ import {
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { ExportControls } from './components/export-controls/export-controls'
-import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
-import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
-import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
-import { UserAvatarStack } from './components/user-avatar-stack/user-avatar-stack'
+import { TemplateModal } from './components/template-modal/template-modal'
 
 const logger = createLogger('ControlBar')
 
@@ -76,9 +63,6 @@ let usageDataCache: {
   // Cache expires after 1 minute
   expirationMs: 60 * 1000,
 }
-
-// Predefined run count options
-const RUN_COUNT_OPTIONS = [1, 5, 10, 25, 50, 100]
 
 interface ControlBarProps {
   hasValidationErrors?: boolean
@@ -95,16 +79,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const workspaceId = params.workspaceId as string
 
   // Store hooks
-  const {
-    notifications,
-    getWorkflowNotifications,
-    addNotification,
-    showNotification,
-    removeNotification,
-  } = useNotificationStore()
   const { history, revertToHistoryState, lastSaved, setNeedsRedeploymentFlag, blocks } =
     useWorkflowStore()
-  const { workflowValues } = useSubBlockStore()
   const {
     workflows,
     updateWorkflow,
@@ -115,11 +91,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     isLoading: isRegistryLoading,
   } = useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
-  const { setActiveTab } = usePanelStore()
+  const { setActiveTab, togglePanel, isOpen } = usePanelStore()
   const { getFolderTree, expandedFolders } = useFolderStore()
-
-  // Get current workflow and workspace ID for permissions
-  const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
   // User permissions - use stable activeWorkspaceId from registry instead of deriving from currentWorkflow
   const userPermissions = useUserPermissionsContext()
@@ -132,6 +105,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   // Local state
   const [mounted, setMounted] = useState(false)
   const [, forceUpdate] = useState({})
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
 
   // Deployed state management
   const [deployedState, setDeployedState] = useState<WorkflowState | null>(null)
@@ -139,25 +114,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
   // Change detection state
   const [changeDetected, setChangeDetected] = useState(false)
-
-  // Workflow name editing state
-  const [isEditing, setIsEditing] = useState(false)
-  const [editedName, setEditedName] = useState('')
-
-  // Dropdown states
-  const [historyOpen, setHistoryOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-
-  // Marketplace modal state
-  const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
-
-  // Multiple runs state
-  const [runCount, setRunCount] = useState(1)
-  const [completedRuns, setCompletedRuns] = useState(0)
-  const [isMultiRunning, setIsMultiRunning] = useState(false)
-  const [showRunProgress, setShowRunProgress] = useState(false)
-  const [isCancelling, setIsCancelling] = useState(false)
-  const cancelFlagRef = useRef(false)
 
   // Usage limit state
   const [usageExceeded, setUsageExceeded] = useState(false)
@@ -169,31 +125,24 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     limit: number
   } | null>(null)
 
+  // Helper function to open console panel
+  const openConsolePanel = useCallback(() => {
+    setActiveTab('console')
+    if (!isOpen) {
+      togglePanel()
+    }
+  }, [setActiveTab, isOpen, togglePanel])
+
   // Shared condition for keyboard shortcut and button disabled state
-  const isWorkflowBlocked = isExecuting || isMultiRunning || isCancelling || hasValidationErrors
+  const isWorkflowBlocked = isExecuting || hasValidationErrors
 
   // Register keyboard shortcut for running workflow
   useKeyboardShortcuts(() => {
     if (!isWorkflowBlocked) {
-      if (isDebugModeEnabled) {
-        handleRunWorkflow()
-      } else {
-        handleMultipleRuns()
-      }
+      openConsolePanel()
+      handleRunWorkflow()
     }
   }, isWorkflowBlocked)
-
-  // Get the marketplace data from the workflow registry if available
-  const getMarketplaceData = () => {
-    if (!activeWorkflowId || !workflows[activeWorkflowId]) return null
-    return workflows[activeWorkflowId].marketplaceData
-  }
-
-  // Check if the current workflow is published to marketplace
-  const _isPublishedToMarketplace = () => {
-    const marketplaceData = getMarketplaceData()
-    return !!marketplaceData
-  }
 
   // // Check if the current user is the owner of the published workflow
   // const isWorkflowOwner = () => {
@@ -340,7 +289,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         }
       })
     }
-  }, [session?.user?.id, completedRuns, isRegistryLoading])
+  }, [session?.user?.id, isRegistryLoading])
 
   /**
    * Check user usage limits and cache results
@@ -383,29 +332,502 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }
 
   /**
-   * Workflow name handlers
+   * Handle deleting the current workflow
    */
-  const handleNameClick = () => {
-    if (!userPermissions.canEdit) return
-    setIsEditing(true)
-    setEditedName(activeWorkflowId ? workflows[activeWorkflowId]?.name || '' : '')
+  const handleDeleteWorkflow = () => {
+    if (!activeWorkflowId || !userPermissions.canEdit) return
+
+    const sidebarWorkflows = getSidebarOrderedWorkflows()
+    const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
+
+    // Find next workflow: try next, then previous
+    let nextWorkflowId: string | null = null
+    if (sidebarWorkflows.length > 1) {
+      if (currentIndex < sidebarWorkflows.length - 1) {
+        nextWorkflowId = sidebarWorkflows[currentIndex + 1].id
+      } else if (currentIndex > 0) {
+        nextWorkflowId = sidebarWorkflows[currentIndex - 1].id
+      }
+    }
+
+    // Navigate to next workflow or workspace home
+    if (nextWorkflowId) {
+      router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
+    } else {
+      router.push(`/workspace/${workspaceId}`)
+    }
+
+    // Remove the workflow from the registry
+    useWorkflowRegistry.getState().removeWorkflow(activeWorkflowId)
   }
 
-  const handleNameSubmit = () => {
-    if (!userPermissions.canEdit) return
-
-    if (editedName.trim() && activeWorkflowId) {
-      updateWorkflow(activeWorkflowId, { name: editedName.trim() })
+  // Helper function to open subscription settings
+  const openSubscriptionSettings = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('open-settings', {
+          detail: { tab: 'subscription' },
+        })
+      )
     }
-    setIsEditing(false)
   }
 
-  const handleNameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleNameSubmit()
-    } else if (e.key === 'Escape') {
-      setIsEditing(false)
+  /**
+   * Handle duplicating the current workflow
+   */
+  const handleDuplicateWorkflow = async () => {
+    if (!activeWorkflowId || !userPermissions.canEdit) return
+
+    try {
+      const newWorkflow = await duplicateWorkflow(activeWorkflowId)
+      if (newWorkflow) {
+        router.push(`/workspace/${workspaceId}/w/${newWorkflow}`)
+      }
+    } catch (error) {
+      logger.error('Error duplicating workflow:', { error })
     }
+  }
+
+  /**
+   * Render delete workflow button with confirmation dialog
+   */
+  const renderDeleteButton = () => {
+    const canEdit = userPermissions.canEdit
+    const hasMultipleWorkflows = Object.keys(workflows).length > 1
+    const isDisabled = !canEdit || !hasMultipleWorkflows
+
+    const getTooltipText = () => {
+      if (!canEdit) return 'Admin permission required to delete workflows'
+      if (!hasMultipleWorkflows) return 'Cannot delete the last workflow'
+      return 'Delete workflow'
+    }
+
+    if (isDisabled) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border bg-card font-medium text-card-foreground text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Trash2 className='h-5 w-5' />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>{getTooltipText()}</TooltipContent>
+        </Tooltip>
+      )
+    }
+
+    return (
+      <AlertDialog>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant='outline'
+                className={cn(
+                  'h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs',
+                  'hover:border-red-500 hover:bg-red-500 hover:text-white',
+                  'transition-all duration-200'
+                )}
+              >
+                <Trash2 className='h-5 w-5' />
+                <span className='sr-only'>Delete Workflow</span>
+              </Button>
+            </AlertDialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{getTooltipText()}</TooltipContent>
+        </Tooltip>
+
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Workflow</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this workflow? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteWorkflow}
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    )
+  }
+
+  /**
+   * Render deploy button with tooltip
+   */
+  const renderDeployButton = () => (
+    <DeploymentControls
+      activeWorkflowId={activeWorkflowId}
+      needsRedeployment={changeDetected}
+      setNeedsRedeployment={setChangeDetected}
+      deployedState={deployedState}
+      isLoadingDeployedState={isLoadingDeployedState}
+      refetchDeployedState={fetchDeployedState}
+      userPermissions={userPermissions}
+    />
+  )
+
+  /**
+   * Render workflow duplicate button
+   */
+  const renderDuplicateButton = () => {
+    const canEdit = userPermissions.canEdit
+    const isDisabled = !canEdit || isDebugging
+
+    const getTooltipText = () => {
+      if (!canEdit) return 'Admin permission required to duplicate workflows'
+      if (isDebugging) return 'Cannot duplicate workflow while debugging'
+      return 'Duplicate workflow'
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {isDisabled ? (
+            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border bg-card font-medium text-card-foreground text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Copy className='h-5 w-5' />
+            </div>
+          ) : (
+            <Button
+              variant='outline'
+              onClick={handleDuplicateWorkflow}
+              className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+            >
+              <Copy className='h-5 w-5' />
+              <span className='sr-only'>Duplicate Workflow</span>
+            </Button>
+          )}
+        </TooltipTrigger>
+        <TooltipContent>{getTooltipText()}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  /**
+   * Render auto-layout button
+   */
+  const renderAutoLayoutButton = () => {
+    const handleAutoLayoutClick = () => {
+      if (isExecuting || isDebugging || !userPermissions.canEdit) {
+        return
+      }
+
+      window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
+    }
+
+    const canEdit = userPermissions.canEdit
+    const isDisabled = isExecuting || isDebugging || !canEdit
+
+    const getTooltipText = () => {
+      if (!canEdit) return 'Admin permission required to use auto-layout'
+      if (isDebugging) return 'Cannot auto-layout while debugging'
+      if (isExecuting) return 'Cannot auto-layout while workflow is running'
+      return 'Auto layout'
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {isDisabled ? (
+            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border bg-card font-medium text-card-foreground text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Layers className='h-5 w-5' />
+            </div>
+          ) : (
+            <Button
+              variant='outline'
+              onClick={handleAutoLayoutClick}
+              className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+            >
+              <Layers className='h-5 w-5' />
+              <span className='sr-only'>Auto Layout</span>
+            </Button>
+          )}
+        </TooltipTrigger>
+        <TooltipContent command={`${isDebugging ? '' : 'Shift+L'}`}>
+          {getTooltipText()}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  /**
+   * Handles debug mode toggle - starts or stops debugging
+   */
+  const handleDebugToggle = useCallback(() => {
+    if (!userPermissions.canRead) return
+
+    if (isDebugging) {
+      // Stop debugging
+      handleCancelDebug()
+    } else {
+      // Check if there are executable blocks before starting debug mode
+      const hasExecutableBlocks = Object.values(blocks).some(
+        (block) => block.type !== 'starter' && block.enabled !== false
+      )
+
+      if (!hasExecutableBlocks) {
+        return // Do nothing if no executable blocks
+      }
+
+      // Start debugging
+      if (!isDebugModeEnabled) {
+        toggleDebugMode()
+      }
+      if (usageExceeded) {
+        openSubscriptionSettings()
+      } else {
+        openConsolePanel()
+        handleRunWorkflow(undefined, true) // Start in debug mode
+      }
+    }
+  }, [
+    userPermissions.canRead,
+    isDebugging,
+    isDebugModeEnabled,
+    usageExceeded,
+    blocks,
+    handleCancelDebug,
+    toggleDebugMode,
+    handleRunWorkflow,
+    openConsolePanel,
+  ])
+
+  /**
+   * Render debug controls bar (replaces run button when debugging)
+   */
+  const renderDebugControlsBar = () => {
+    const pendingCount = pendingBlocks.length
+    const isControlDisabled = pendingCount === 0
+
+    const debugButtonClass = cn(
+      'h-12 w-12 rounded-[11px] font-medium',
+      'bg-[#701FFC] hover:bg-[#6518E6]',
+      'shadow-[0_0_0_0_#701FFC] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+      'text-white transition-all duration-200',
+      'disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none'
+    )
+
+    return (
+      <div className='flex items-center gap-1'>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => {
+                openConsolePanel()
+                handleStepDebug()
+              }}
+              className={debugButtonClass}
+              disabled={isControlDisabled}
+            >
+              <StepForward className='h-5 w-5' />
+              <span className='sr-only'>Step Forward</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Step Forward</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => {
+                openConsolePanel()
+                handleResumeDebug()
+              }}
+              className={debugButtonClass}
+              disabled={isControlDisabled}
+            >
+              <SkipForward className='h-5 w-5' />
+              <span className='sr-only'>Resume Until End</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Resume Until End</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => {
+                handleCancelDebug()
+              }}
+              className={debugButtonClass}
+            >
+              <X className='h-5 w-5' />
+              <span className='sr-only'>Cancel Debugging</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Cancel Debugging</TooltipContent>
+        </Tooltip>
+      </div>
+    )
+  }
+
+  /**
+   * Render publish template button
+   */
+  const renderPublishButton = () => {
+    const canEdit = userPermissions.canEdit
+    const isDisabled = isExecuting || isDebugging || !canEdit
+
+    const getTooltipText = () => {
+      if (!canEdit) return 'Admin permission required to publish templates'
+      if (isDebugging) return 'Cannot publish template while debugging'
+      if (isExecuting) return 'Cannot publish template while workflow is running'
+      return 'Publish as template'
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {isDisabled ? (
+            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border bg-card font-medium text-card-foreground text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Store className='h-5 w-5' />
+            </div>
+          ) : (
+            <Button
+              variant='outline'
+              onClick={() => setIsTemplateModalOpen(true)}
+              className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+            >
+              <Store className='h-5 w-5' />
+              <span className='sr-only'>Publish Template</span>
+            </Button>
+          )}
+        </TooltipTrigger>
+        <TooltipContent>{getTooltipText()}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  /**
+   * Render debug mode toggle button
+   */
+  const renderDebugModeToggle = () => {
+    const canDebug = userPermissions.canRead
+
+    // Check if there are any meaningful blocks in the workflow (excluding just the starter block)
+    const hasExecutableBlocks = Object.values(blocks).some(
+      (block) => block.type !== 'starter' && block.enabled !== false
+    )
+
+    const isDisabled = isExecuting || !canDebug || !hasExecutableBlocks
+
+    const getTooltipText = () => {
+      if (!canDebug) return 'Read permission required to use debug mode'
+      if (!hasExecutableBlocks) return 'Add blocks to enable debug mode'
+      return isDebugging ? 'Stop debugging' : 'Start debugging'
+    }
+
+    const buttonClass = cn(
+      'h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary',
+      isDebugging && 'text-amber-500'
+    )
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {isDisabled ? (
+            <div
+              className={cn(
+                'inline-flex h-12 w-12 cursor-not-allowed items-center justify-center',
+                'rounded-[11px] border bg-card text-card-foreground opacity-50',
+                'transition-colors [&_svg]:size-4 [&_svg]:shrink-0',
+                isDebugging && 'text-amber-500'
+              )}
+            >
+              <Bug className='h-5 w-5' />
+            </div>
+          ) : (
+            <Button variant='outline' onClick={handleDebugToggle} className={buttonClass}>
+              <Bug className='h-5 w-5' />
+              <span className='sr-only'>{getTooltipText()}</span>
+            </Button>
+          )}
+        </TooltipTrigger>
+        <TooltipContent>{getTooltipText()}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  /**
+   * Render run workflow button
+   */
+  const renderRunButton = () => {
+    const canRun = userPermissions.canRead // Running only requires read permissions
+    const isLoadingPermissions = userPermissions.isLoading
+    const isButtonDisabled = isWorkflowBlocked || (!canRun && !isLoadingPermissions)
+
+    const getTooltipContent = () => {
+      if (hasValidationErrors) {
+        return (
+          <div className='text-center'>
+            <p className='font-medium text-destructive'>Workflow Has Errors</p>
+            <p className='text-xs'>
+              Nested subflows are not supported. Remove subflow blocks from inside other subflow
+              blocks.
+            </p>
+          </div>
+        )
+      }
+
+      if (!canRun && !isLoadingPermissions) {
+        return 'Read permission required to run workflows'
+      }
+
+      if (usageExceeded) {
+        return (
+          <div className='text-center'>
+            <p className='font-medium text-destructive'>Usage Limit Exceeded</p>
+            <p className='text-xs'>
+              You've used {usageData?.currentUsage?.toFixed(2) || 0}$ of{' '}
+              {usageData?.limit?.toFixed(2) || 0}$ Upgrade your plan to continue.
+            </p>
+          </div>
+        )
+      }
+
+      return 'Run'
+    }
+
+    const handleRunClick = () => {
+      openConsolePanel()
+
+      if (usageExceeded) {
+        openSubscriptionSettings()
+      } else {
+        handleRunWorkflow()
+      }
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            className={cn(
+              'gap-2 font-medium',
+              'bg-[#701FFC] hover:bg-[#6518E6]',
+              'shadow-[0_0_0_0_#701FFC] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+              'text-white transition-all duration-200',
+              isExecuting &&
+                'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
+              'disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none',
+              'h-12 rounded-[11px] px-4 py-2'
+            )}
+            onClick={handleRunClick}
+            disabled={isButtonDisabled}
+          >
+            <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
+          {getTooltipContent()}
+        </TooltipContent>
+      </Tooltip>
+    )
   }
 
   /**
@@ -461,858 +883,82 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }
 
   /**
-   * Handle deleting the current workflow
+   * Render disconnection notice
    */
-  const handleDeleteWorkflow = () => {
-    if (!activeWorkflowId || !userPermissions.canAdmin) return
+  const renderDisconnectionNotice = () => {
+    if (!userPermissions.isOfflineMode) return null
 
-    const sidebarWorkflows = getSidebarOrderedWorkflows()
-    const currentIndex = sidebarWorkflows.findIndex((w) => w.id === activeWorkflowId)
-
-    // Find next workflow: try next, then previous
-    let nextWorkflowId: string | null = null
-    if (sidebarWorkflows.length > 1) {
-      if (currentIndex < sidebarWorkflows.length - 1) {
-        nextWorkflowId = sidebarWorkflows[currentIndex + 1].id
-      } else if (currentIndex > 0) {
-        nextWorkflowId = sidebarWorkflows[currentIndex - 1].id
-      }
+    const handleRefresh = () => {
+      window.location.reload()
     }
-
-    // Navigate to next workflow or workspace home
-    if (nextWorkflowId) {
-      router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
-    } else {
-      router.push(`/workspace/${workspaceId}`)
-    }
-
-    // Remove the workflow from the registry
-    useWorkflowRegistry.getState().removeWorkflow(activeWorkflowId)
-  }
-
-  // /**
-  //  * Handle opening marketplace modal or showing published status
-  //  */
-  // const handlePublishWorkflow = async () => {
-  //   if (!activeWorkflowId) return
-
-  //   // If already published, show marketplace modal with info instead of notifications
-  //   const isPublished = isPublishedToMarketplace()
-  //   if (isPublished) {
-  //     setIsMarketplaceModalOpen(true)
-  //     return
-  //   }
-
-  //   // If not published, open the modal to start the publishing process
-  //   setIsMarketplaceModalOpen(true)
-  // }
-
-  // Helper function to open subscription settings
-  const openSubscriptionSettings = () => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('open-settings', {
-          detail: { tab: 'subscription' },
-        })
-      )
-    }
-  }
-
-  /**
-   * Handle running workflow multiple times
-   */
-  const handleMultipleRuns = async () => {
-    if (isExecuting || isMultiRunning || runCount <= 0) return
-
-    // Check if usage is exceeded before allowing execution
-    if (usageExceeded) {
-      openSubscriptionSettings()
-      return
-    }
-
-    // Switch panel tab to console
-    setActiveTab('console')
-
-    // Reset state and ref for a new batch of runs
-    setCompletedRuns(0)
-    setIsMultiRunning(true)
-    setIsCancelling(false)
-    cancelFlagRef.current = false
-    setShowRunProgress(runCount > 1)
-
-    let workflowError = null
-    let wasCancelled = false
-    let runCounter = 0
-    let shouldCheckUsage = false
-
-    try {
-      // Run the workflow multiple times sequentially
-      for (let i = 0; i < runCount; i++) {
-        // Check for cancellation before starting the next run using the ref
-        if (cancelFlagRef.current) {
-          logger.info('Multi-run cancellation requested by user.')
-          wasCancelled = true
-          break
-        }
-
-        // Run the workflow and immediately increment counter for visual feedback
-        await handleRunWorkflow()
-        runCounter = i + 1
-        setCompletedRuns(runCounter)
-
-        // Only check usage periodically to avoid excessive API calls
-        // Check on first run, every 5 runs, and on last run
-        shouldCheckUsage = i === 0 || (i + 1) % 5 === 0 || i === runCount - 1
-
-        // Check usage if needed
-        if (shouldCheckUsage && session?.user?.id) {
-          const usage = await checkUserUsage(session.user.id, i === 0)
-
-          if (usage?.isExceeded) {
-            setUsageExceeded(true)
-            setUsageData(usage)
-            // Stop execution if we've exceeded the limit during this batch
-            if (i < runCount - 1) {
-              addNotification(
-                'info',
-                `Usage limit reached after ${runCounter} runs. Execution stopped.`,
-                activeWorkflowId
-              )
-              break
-            }
-          }
-        }
-      }
-
-      // Update workflow stats only if the run wasn't cancelled and completed normally
-      if (!wasCancelled && activeWorkflowId) {
-        try {
-          // Don't block UI on stats update
-          fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCounter}`, {
-            method: 'POST',
-          }).catch((error) => {
-            logger.error(`Failed to update workflow stats: ${error.message}`)
-          })
-        } catch (error) {
-          logger.error('Error updating workflow stats:', { error })
-        }
-      }
-    } catch (error) {
-      workflowError = error
-      logger.error('Error during multiple workflow runs:', { error })
-    } finally {
-      // Always immediately update UI state
-      setIsMultiRunning(false)
-
-      // Handle progress bar visibility
-      if (runCount > 1) {
-        // Keep progress visible briefly after completion
-        setTimeout(() => setShowRunProgress(false), 1000)
-      } else {
-        // Immediately hide progress for single runs
-        setShowRunProgress(false)
-      }
-
-      setIsCancelling(false)
-      cancelFlagRef.current = false
-
-      // Show notification after state is updated
-      if (wasCancelled) {
-        addNotification('info', 'Workflow run cancelled', activeWorkflowId)
-      } else if (workflowError) {
-        addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
-      }
-    }
-  }
-
-  /**
-   * Handle duplicating the current workflow
-   */
-  const handleDuplicateWorkflow = async () => {
-    if (!activeWorkflowId || !userPermissions.canEdit) return
-
-    try {
-      const newWorkflow = await duplicateWorkflow(activeWorkflowId)
-      if (newWorkflow) {
-        router.push(`/workspace/${workspaceId}/w/${newWorkflow}`)
-      } else {
-        addNotification('error', 'Failed to duplicate workflow', activeWorkflowId)
-      }
-    } catch (error) {
-      logger.error('Error duplicating workflow:', { error })
-      addNotification('error', 'Failed to duplicate workflow', activeWorkflowId)
-    }
-  }
-
-  /**
-   * Render workflow name section (editable/non-editable)
-   */
-  const renderWorkflowName = () => {
-    const canEdit = userPermissions.canEdit
 
     return (
-      <div className='flex items-center'>
-        <div className='flex flex-col gap-[2px]'>
-          {isEditing ? (
-            <input
-              type='text'
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onBlur={handleNameSubmit}
-              onKeyDown={handleNameKeyDown}
-              className='w-[200px] border-none bg-transparent p-0 font-medium text-sm outline-none'
-            />
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <h2
-                  className={cn(
-                    'w-fit font-medium text-sm',
-                    canEdit ? 'cursor-pointer hover:text-muted-foreground' : 'cursor-default'
-                  )}
-                  onClick={canEdit ? handleNameClick : undefined}
-                >
-                  {activeWorkflowId ? workflows[activeWorkflowId]?.name : 'Workflow'}
-                </h2>
-              </TooltipTrigger>
-              {!canEdit && (
-                <TooltipContent>
-                  {userPermissions.isOfflineMode
-                    ? 'Connection lost - please refresh'
-                    : 'Edit permissions required to rename workflows'}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          )}
-          {mounted && (
-            <p className='text-muted-foreground text-xs'>
-              Saved{' '}
-              {formatDistanceToNow(lastSaved || Date.now(), {
-                addSuffix: true,
-              })}
-            </p>
-          )}
-        </div>
+      <div className='flex h-12 items-center gap-2 rounded-[11px] border border-red-500 bg-red-500 px-3 text-white shadow-xs'>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <WifiOff className='h-[18px] w-[18px] cursor-help' />
+          </TooltipTrigger>
+          <TooltipContent className='mt-3'>Connection lost - refresh</TooltipContent>
+        </Tooltip>
+        <Button
+          variant='ghost'
+          size='sm'
+          onClick={handleRefresh}
+          className='h-8 bg-white px-2 text-red-500 hover:bg-red-50'
+        >
+          <RefreshCw className='h-3 w-3' />
+        </Button>
       </div>
     )
   }
 
   /**
-   * Render delete workflow button with confirmation dialog
+   * Render control bar toggle button
    */
-  const renderDeleteButton = () => {
-    const canAdmin = userPermissions.canAdmin
-    const hasMultipleWorkflows = Object.keys(workflows).length > 1
-    const isDisabled = !canAdmin || !hasMultipleWorkflows
-
-    const getTooltipText = () => {
-      if (!canAdmin) return 'Admin permission required to delete workflows'
-      if (!hasMultipleWorkflows) return 'Cannot delete the last workflow'
-      return 'Delete Workflow'
-    }
-
-    if (isDisabled) {
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
-              <Trash2 className='h-5 w-5' />
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>{getTooltipText()}</TooltipContent>
-        </Tooltip>
-      )
-    }
-
-    return (
-      <AlertDialog>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <AlertDialogTrigger asChild>
-              <Button variant='ghost' size='icon' className='hover:text-red-600'>
-                <Trash2 className='h-5 w-5' />
-                <span className='sr-only'>Delete Workflow</span>
-              </Button>
-            </AlertDialogTrigger>
-          </TooltipTrigger>
-          <TooltipContent>{getTooltipText()}</TooltipContent>
-        </Tooltip>
-
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Workflow</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this workflow? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteWorkflow}
-              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    )
-  }
-
-  /**
-   * Render deploy button with tooltip
-   */
-  const renderDeployButton = () => (
-    <DeploymentControls
-      activeWorkflowId={activeWorkflowId}
-      needsRedeployment={changeDetected}
-      setNeedsRedeployment={setChangeDetected}
-      deployedState={deployedState}
-      isLoadingDeployedState={isLoadingDeployedState}
-      refetchDeployedState={fetchDeployedState}
-      userPermissions={userPermissions}
-    />
-  )
-
-  /**
-   * Render history dropdown
-   */
-  const renderHistoryDropdown = () => (
-    <DropdownMenu open={historyOpen} onOpenChange={setHistoryOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button variant='ghost' size='icon'>
-              <History />
-              <span className='sr-only'>Version History</span>
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        {!historyOpen && <TooltipContent>History</TooltipContent>}
-      </Tooltip>
-
-      {history.past.length === 0 && history.future.length === 0 ? (
-        <DropdownMenuContent align='end' className='w-40'>
-          <DropdownMenuItem className='text-muted-foreground text-sm'>
-            No history available
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      ) : (
-        <DropdownMenuContent align='end' className='max-h-[300px] w-60 overflow-y-auto'>
-          <>
-            {[...history.future].reverse().map((entry, index) => (
-              <HistoryDropdownItem
-                key={`future-${entry.timestamp}-${index}`}
-                action={entry.action}
-                timestamp={entry.timestamp}
-                onClick={() =>
-                  revertToHistoryState(
-                    history.past.length + 1 + (history.future.length - 1 - index)
-                  )
-                }
-                isFuture={true}
-              />
-            ))}
-            <HistoryDropdownItem
-              key={`current-${history.present.timestamp}`}
-              action={history.present.action}
-              timestamp={history.present.timestamp}
-              isCurrent={true}
-              onClick={() => {}}
-            />
-            {[...history.past].reverse().map((entry, index) => (
-              <HistoryDropdownItem
-                key={`past-${entry.timestamp}-${index}`}
-                action={entry.action}
-                timestamp={entry.timestamp}
-                onClick={() => revertToHistoryState(history.past.length - 1 - index)}
-              />
-            ))}
-          </>
-        </DropdownMenuContent>
-      )}
-    </DropdownMenu>
-  )
-
-  /**
-   * Render notifications dropdown
-   */
-  const renderNotificationsDropdown = () => {
-    const currentWorkflowNotifications = activeWorkflowId
-      ? notifications.filter((n) => n.workflowId === activeWorkflowId)
-      : []
-
-    return (
-      <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button variant='ghost' size='icon'>
-                <Bell />
-                <span className='sr-only'>Notifications</span>
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          {!notificationsOpen && <TooltipContent>Notifications</TooltipContent>}
-        </Tooltip>
-
-        {currentWorkflowNotifications.length === 0 ? (
-          <DropdownMenuContent align='end' className='w-40'>
-            <DropdownMenuItem className='text-muted-foreground text-sm'>
-              No new notifications
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        ) : (
-          <DropdownMenuContent align='end' className='max-h-[300px] w-60 overflow-y-auto'>
-            {[...currentWorkflowNotifications]
-              .sort((a, b) => b.timestamp - a.timestamp)
-              .map((notification) => (
-                <NotificationDropdownItem
-                  key={notification.id}
-                  id={notification.id}
-                  type={notification.type}
-                  message={notification.message}
-                  timestamp={notification.timestamp}
-                  options={notification.options}
-                  setDropdownOpen={setNotificationsOpen}
-                />
-              ))}
-          </DropdownMenuContent>
-        )}
-      </DropdownMenu>
-    )
-  }
-
-  /**
-   * Render publish button
-   */
-  // const renderPublishButton = () => {
-  //   const isPublished = isPublishedToMarketplace()
-
-  //   return (
-  //     <Tooltip>
-  //       <TooltipTrigger asChild>
-  //         <Button
-  //           variant="ghost"
-  //           size="icon"
-  //           onClick={handlePublishWorkflow}
-  //           disabled={isPublishing}
-  //           className={cn('hover:text-[#701FFC]', isPublished && 'text-[#701FFC]')}
-  //         >
-  //           {isPublishing ? (
-  //             <Loader2 className="h-5 w-5 animate-spin" />
-  //           ) : (
-  //             <Store className="h-5 w-5" />
-  //           )}
-  //           <span className="sr-only">Publish to Marketplace</span>
-  //         </Button>
-  //       </TooltipTrigger>
-  //       <TooltipContent>
-  //         {isPublishing
-  //           ? 'Publishing...'
-  //           : isPublished
-  //             ? 'Published to Marketplace'
-  //             : 'Publish to Marketplace'}
-  //       </TooltipContent>
-  //     </Tooltip>
-  //   )
-  // }
-
-  /**
-   * Render workflow duplicate button
-   */
-  const renderDuplicateButton = () => {
-    const canEdit = userPermissions.canEdit
-
+  const renderToggleButton = () => {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          {canEdit ? (
-            <Button
-              variant='ghost'
-              size='icon'
-              onClick={handleDuplicateWorkflow}
-              className='hover:text-primary'
-            >
-              <Copy className='h-5 w-5' />
-              <span className='sr-only'>Duplicate Workflow</span>
-            </Button>
-          ) : (
-            <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
-              <Copy className='h-5 w-5' />
-            </div>
-          )}
-        </TooltipTrigger>
-        <TooltipContent>
-          {canEdit
-            ? 'Duplicate Workflow'
-            : userPermissions.isOfflineMode
-              ? 'Connection lost - please refresh'
-              : 'Admin permission required to duplicate workflows'}
-        </TooltipContent>
-      </Tooltip>
-    )
-  }
-
-  /**
-   * Render auto-layout button
-   */
-  const renderAutoLayoutButton = () => {
-    const handleAutoLayoutClick = () => {
-      if (isExecuting || isMultiRunning || isDebugging || !userPermissions.canEdit) {
-        return
-      }
-
-      window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
-    }
-
-    const isDisabled = isExecuting || isMultiRunning || isDebugging || !userPermissions.canEdit
-
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          {isDisabled ? (
-            <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
-              <Layers className='h-5 w-5' />
-            </div>
-          ) : (
-            <Button
-              variant='ghost'
-              size='icon'
-              onClick={handleAutoLayoutClick}
-              className='hover:text-primary'
-            >
-              <Layers className='h-5 w-5' />
-              <span className='sr-only'>Auto Layout</span>
-            </Button>
-          )}
-        </TooltipTrigger>
-        <TooltipContent command='Shift+L'>
-          {!userPermissions.canEdit
-            ? userPermissions.isOfflineMode
-              ? 'Connection lost - please refresh'
-              : 'Admin permission required to use auto-layout'
-            : 'Auto Layout'}
-        </TooltipContent>
-      </Tooltip>
-    )
-  }
-
-  /**
-   * Render debug mode controls
-   */
-  const renderDebugControls = () => {
-    if (!isDebugModeEnabled || !isDebugging) return null
-
-    const pendingCount = pendingBlocks.length
-
-    return (
-      <div className='ml-2 flex items-center gap-2 rounded-md bg-muted px-2 py-1'>
-        <div className='flex flex-col'>
-          <span className='text-muted-foreground text-xs'>Debug Mode</span>
-          <span className='font-medium text-xs'>
-            {pendingCount} block{pendingCount !== 1 ? 's' : ''} pending
-          </span>
-        </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='outline'
-              size='icon'
-              onClick={handleStepDebug}
-              className='h-8 w-8 bg-background'
-              disabled={pendingCount === 0}
-            >
-              <StepForward className='h-4 w-4' />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Step Forward</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='outline'
-              size='icon'
-              onClick={handleResumeDebug}
-              className='h-8 w-8 bg-background'
-              disabled={pendingCount === 0}
-            >
-              <SkipForward className='h-4 w-4' />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Resume Until End</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='outline'
-              size='icon'
-              onClick={handleCancelDebug}
-              className='h-8 w-8 bg-background'
-            >
-              <X className='h-4 w-4' />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Cancel Debugging</TooltipContent>
-        </Tooltip>
-      </div>
-    )
-  }
-
-  /**
-   * Render debug mode toggle button
-   */
-  const renderDebugModeToggle = () => {
-    const canDebug = userPermissions.canRead // Debug mode now requires only read permissions
-    const isDisabled = isExecuting || isMultiRunning || !canDebug
-
-    const handleToggleDebugMode = () => {
-      if (!canDebug) return
-
-      if (isDebugModeEnabled) {
-        if (!isExecuting) {
-          useExecutionStore.getState().setIsDebugging(false)
-          useExecutionStore.getState().setPendingBlocks([])
-        }
-      }
-      toggleDebugMode()
-    }
-
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          {isDisabled ? (
-            <div
+          <Button
+            variant='outline'
+            onClick={() => setIsExpanded(!isExpanded)}
+            className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+          >
+            <ChevronLeft
               className={cn(
-                'inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
-                isDebugModeEnabled && 'text-amber-500'
+                'h-5 w-5 transition-transform duration-200',
+                isExpanded && 'rotate-180'
               )}
-            >
-              <Bug className='h-5 w-5' />
-            </div>
-          ) : (
-            <Button
-              variant='ghost'
-              size='icon'
-              onClick={handleToggleDebugMode}
-              className={cn(isDebugModeEnabled && 'text-amber-500')}
-            >
-              <Bug className='h-5 w-5' />
-              <span className='sr-only'>Toggle Debug Mode</span>
-            </Button>
-          )}
+            />
+            <span className='sr-only'>{isExpanded ? 'Collapse' : 'Expand'} Control Bar</span>
+          </Button>
         </TooltipTrigger>
-        <TooltipContent>
-          {!canDebug
-            ? 'Read permission required to use debug mode'
-            : isDebugModeEnabled
-              ? 'Disable Debug Mode'
-              : 'Enable Debug Mode'}
-        </TooltipContent>
+        <TooltipContent>{isExpanded ? 'Collapse' : 'Expand'} Control Bar</TooltipContent>
       </Tooltip>
-    )
-  }
-
-  /**
-   * Render run workflow button with multi-run dropdown and cancel button
-   */
-  const renderRunButton = () => {
-    const canRun = userPermissions.canRead // Running only requires read permissions
-    const isLoadingPermissions = userPermissions.isLoading
-    const isButtonDisabled = isWorkflowBlocked || (!canRun && !isLoadingPermissions)
-
-    return (
-      <div className='flex items-center'>
-        {showRunProgress && isMultiRunning && (
-          <div className='mr-3 w-28'>
-            <Progress value={(completedRuns / runCount) * 100} className='h-2 bg-muted' />
-            <p className='mt-1 text-center text-muted-foreground text-xs'>
-              {completedRuns}/{runCount} runs
-            </p>
-          </div>
-        )}
-
-        {/* Show how many blocks have been executed in debug mode if debugging */}
-        {isDebugging && (
-          <div className='mr-3 min-w-28 rounded bg-muted px-1 py-0.5'>
-            <div className='text-center text-muted-foreground text-xs'>
-              <span className='font-medium'>Debugging Mode</span>
-            </div>
-          </div>
-        )}
-
-        <div className='ml-1 flex'>
-          {/* Main Run/Debug Button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                className={cn(
-                  'gap-2 font-medium',
-                  'bg-[#701FFC] hover:bg-[#6518E6]',
-                  'shadow-[0_0_0_0_#701FFC] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                  'text-white transition-all duration-200',
-                  (isExecuting || isMultiRunning) &&
-                    !isCancelling &&
-                    'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-                  'disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none',
-                  isDebugModeEnabled || isMultiRunning
-                    ? 'h-10 rounded px-4 py-2'
-                    : 'h-10 rounded-r-none border-r border-r-[#6420cc] px-4 py-2'
-                )}
-                onClick={
-                  usageExceeded
-                    ? openSubscriptionSettings
-                    : isDebugModeEnabled
-                      ? handleRunWorkflow
-                      : handleMultipleRuns
-                }
-                disabled={isButtonDisabled}
-              >
-                {isCancelling ? (
-                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                ) : isDebugModeEnabled ? (
-                  <Bug className={cn('mr-1.5 h-3.5 w-3.5', 'fill-current stroke-current')} />
-                ) : (
-                  <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
-                )}
-                {isCancelling
-                  ? 'Cancelling...'
-                  : isMultiRunning
-                    ? `Running (${completedRuns}/${runCount})`
-                    : isExecuting
-                      ? isDebugging
-                        ? 'Debugging'
-                        : 'Running'
-                      : isDebugModeEnabled
-                        ? 'Debug'
-                        : runCount === 1
-                          ? 'Run'
-                          : `Run (${runCount})`}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
-              {hasValidationErrors ? (
-                <div className='text-center'>
-                  <p className='font-medium text-destructive'>Workflow Has Errors</p>
-                  <p className='text-xs'>
-                    Nested subflows are not supported. Remove subflow blocks from inside other
-                    subflow blocks.
-                  </p>
-                </div>
-              ) : !canRun && !isLoadingPermissions ? (
-                'Read permission required to run workflows'
-              ) : usageExceeded ? (
-                <div className='text-center'>
-                  <p className='font-medium text-destructive'>Usage Limit Exceeded</p>
-                  <p className='text-xs'>
-                    You've used {usageData?.currentUsage.toFixed(2)}$ of {usageData?.limit}$.
-                    Upgrade your plan to continue.
-                  </p>
-                </div>
-              ) : !canRun && !isLoadingPermissions ? (
-                'Read permissions required to run workflows'
-              ) : (
-                <>
-                  {isDebugModeEnabled
-                    ? 'Debug Workflow'
-                    : runCount === 1
-                      ? 'Run Workflow'
-                      : `Run Workflow ${runCount} times`}
-                </>
-              )}
-            </TooltipContent>
-          </Tooltip>
-          {renderDebugControls()}
-
-          {/* Dropdown Trigger - Only show when not in debug mode and not multi-running */}
-          {!isDebugModeEnabled && !isMultiRunning && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  className={cn(
-                    'px-2 font-medium',
-                    'bg-[#701FFC] hover:bg-[#6518E6]',
-                    'shadow-[0_0_0_0_#701FFC] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                    'text-white transition-all duration-200',
-                    (isExecuting || isMultiRunning) &&
-                      !isCancelling &&
-                      'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-                    'disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none',
-                    'h-10 rounded-l-none'
-                  )}
-                  disabled={isButtonDisabled}
-                >
-                  <ChevronDown className='h-4 w-4' />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-20'>
-                {RUN_COUNT_OPTIONS.map((count) => (
-                  <DropdownMenuItem
-                    key={count}
-                    onClick={() => setRunCount(count)}
-                    className={cn('justify-center', runCount === count && 'bg-muted')}
-                  >
-                    {count}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {/* Cancel Button - Only show when multi-running */}
-          {isMultiRunning && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant='outline'
-                  size='icon'
-                  onClick={() => {
-                    cancelFlagRef.current = true
-                    setIsCancelling(true)
-                  }}
-                  disabled={isCancelling}
-                  className='ml-2 h-10 w-10'
-                >
-                  <X className='h-4 w-4' />
-                  <span className='sr-only'>Cancel Runs</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Cancel Runs</TooltipContent>
-            </Tooltip>
-          )}
-        </div>
-      </div>
     )
   }
 
   return (
-    <div className='flex h-16 w-full items-center justify-between border-b bg-background'>
-      {/* Left Section - Workflow Info */}
-      <div className='pl-4'>{renderWorkflowName()}</div>
+    <div className='fixed top-4 right-4 z-20 flex items-center gap-1'>
+      {renderDisconnectionNotice()}
+      {renderToggleButton()}
+      {isExpanded && <ExportControls />}
+      {isExpanded && renderAutoLayoutButton()}
+      {isExpanded && renderDuplicateButton()}
+      {renderDeleteButton()}
+      {!isDebugging && renderDebugModeToggle()}
+      {renderPublishButton()}
+      {renderDeployButton()}
+      {isDebugging ? renderDebugControlsBar() : renderRunButton()}
 
-      {/* Middle Section - Connection Status */}
-      <div className='flex flex-1 justify-center'>
-        <UserAvatarStack />
-      </div>
-
-      {/* Right Section - Actions */}
-      <div className='flex items-center gap-1 pr-4'>
-        {renderDeleteButton()}
-        {renderHistoryDropdown()}
-        {renderNotificationsDropdown()}
-        {renderDuplicateButton()}
-        {renderAutoLayoutButton()}
-        {renderDebugModeToggle()}
-
-        <ExportControls disabled={!userPermissions.canRead} />
-        {/* <WorkflowTextEditorModal disabled={!userPermissions.canEdit} /> */}
-        {/* {renderPublishButton()} */}
-        {renderDeployButton()}
-        {renderRunButton()}
-
-        {/* Add the marketplace modal */}
-        <MarketplaceModal open={isMarketplaceModalOpen} onOpenChange={setIsMarketplaceModalOpen} />
-      </div>
+      {/* Template Modal */}
+      {activeWorkflowId && (
+        <TemplateModal
+          open={isTemplateModalOpen}
+          onOpenChange={setIsTemplateModalOpen}
+          workflowId={activeWorkflowId}
+        />
+      )}
     </div>
   )
 }

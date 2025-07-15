@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useNotificationStore } from '@/stores/notifications/store'
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -44,7 +43,6 @@ export function useCodeGeneration({
   const [promptInputValue, setPromptInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
-  const addNotification = useNotificationStore((state) => state.addNotification)
 
   // State for conversation history
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([])
@@ -58,7 +56,6 @@ export function useCodeGeneration({
     if (!prompt) {
       const errorMessage = 'Prompt cannot be empty.'
       setError(errorMessage)
-      addNotification('error', errorMessage, null)
       return
     }
 
@@ -92,7 +89,6 @@ export function useCodeGeneration({
 
       logger.info('Code generation successful', { generationType })
       onGeneratedContent(result.generatedContent)
-      addNotification('info', 'Content generated successfully!', null)
       setIsPromptOpen(false)
       setIsPromptVisible(false)
 
@@ -110,7 +106,6 @@ export function useCodeGeneration({
       const errorMessage = err.message || 'An unknown error occurred during generation.'
       logger.error('Code generation failed', { error: errorMessage })
       setError(errorMessage)
-      addNotification('error', `Generation failed: ${errorMessage}`, null)
     } finally {
       setIsLoading(false)
     }
@@ -121,7 +116,6 @@ export function useCodeGeneration({
     if (!prompt) {
       const errorMessage = 'Prompt cannot be empty.'
       setError(errorMessage)
-      addNotification('error', errorMessage, null)
       return
     }
 
@@ -223,7 +217,6 @@ export function useCodeGeneration({
                 if (onGenerationComplete) {
                   onGenerationComplete(currentPrompt, fullContent)
                 }
-                addNotification('info', 'Content generated successfully!', null)
                 break
               }
             } catch (jsonError: any) {
@@ -251,7 +244,6 @@ export function useCodeGeneration({
       const errorMessage = err.message || 'An unknown error occurred during streaming.'
       logger.error('Streaming code generation failed', { error: errorMessage })
       setError(errorMessage)
-      addNotification('error', `Generation failed: ${errorMessage}`, null)
     } finally {
       setIsLoading(false)
       setIsStreaming(false)

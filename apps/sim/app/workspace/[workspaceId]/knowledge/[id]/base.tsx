@@ -36,7 +36,6 @@ import { PrimaryButton } from '@/app/workspace/[workspaceId]/knowledge/component
 import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
 import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowledge-base-loading'
 import { UploadModal } from './components/upload-modal/upload-modal'
@@ -120,7 +119,6 @@ export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
 }: KnowledgeBaseProps) {
-  const { mode, isExpanded } = useSidebarStore()
   const { removeKnowledgeBase } = useKnowledgeStore()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -157,9 +155,6 @@ export function KnowledgeBase({
     limit: DOCUMENTS_PER_PAGE,
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
   })
-
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   const router = useRouter()
 
@@ -631,9 +626,7 @@ export function KnowledgeBase({
     ]
 
     return (
-      <div
-        className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-      >
+      <div className='flex h-[100vh] flex-col pl-64'>
         <KnowledgeHeader breadcrumbs={errorBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center'>
           <div className='text-center'>
@@ -651,9 +644,7 @@ export function KnowledgeBase({
   }
 
   return (
-    <div
-      className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-    >
+    <div className='flex h-[100vh] flex-col pl-64'>
       {/* Fixed Header with Breadcrumbs */}
       <KnowledgeHeader
         breadcrumbs={breadcrumbs}
@@ -711,11 +702,11 @@ export function KnowledgeBase({
                   <table className='w-full min-w-[700px] table-fixed'>
                     <colgroup>
                       <col className='w-[4%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[22%]' : 'w-[24%]'}`} />
+                      <col className='w-[24%]' />
                       <col className='w-[8%]' />
                       <col className='w-[8%]' />
                       <col className='hidden w-[8%] lg:table-column' />
-                      <col className={`${isSidebarCollapsed ? 'w-[18%]' : 'w-[16%]'}`} />
+                      <col className='w-[16%]' />
                       <col className='w-[12%]' />
                       <col className='w-[14%]' />
                     </colgroup>
@@ -764,11 +755,11 @@ export function KnowledgeBase({
                   <table className='w-full min-w-[700px] table-fixed'>
                     <colgroup>
                       <col className='w-[4%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[22%]' : 'w-[24%]'}`} />
+                      <col className='w-[24%]' />
                       <col className='w-[8%]' />
                       <col className='w-[8%]' />
                       <col className='hidden w-[8%] lg:table-column' />
-                      <col className={`${isSidebarCollapsed ? 'w-[18%]' : 'w-[16%]'}`} />
+                      <col className='w-[16%]' />
                       <col className='w-[12%]' />
                       <col className='w-[14%]' />
                     </colgroup>

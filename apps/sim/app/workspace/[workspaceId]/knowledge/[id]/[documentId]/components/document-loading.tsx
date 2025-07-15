@@ -3,7 +3,6 @@
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../../../components/knowledge-header/knowledge-header'
 import { ChunkTableSkeleton } from '../../../components/skeletons/table-skeleton'
 
@@ -18,11 +17,8 @@ export function DocumentLoading({
   knowledgeBaseName,
   documentName,
 }: DocumentLoadingProps) {
-  const { mode, isExpanded } = useSidebarStore()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   const breadcrumbs = [
     {
@@ -42,9 +38,7 @@ export function DocumentLoading({
   ]
 
   return (
-    <div
-      className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-    >
+    <div className='flex h-[100vh] flex-col pl-64'>
       {/* Header with Breadcrumbs */}
       <KnowledgeHeader breadcrumbs={breadcrumbs} />
 
@@ -78,7 +72,7 @@ export function DocumentLoading({
               </div>
 
               {/* Table container */}
-              <ChunkTableSkeleton isSidebarCollapsed={isSidebarCollapsed} rowCount={8} />
+              <ChunkTableSkeleton isSidebarCollapsed={false} rowCount={8} />
             </div>
           </div>
         </div>

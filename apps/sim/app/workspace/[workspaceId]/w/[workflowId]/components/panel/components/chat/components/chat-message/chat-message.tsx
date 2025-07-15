@@ -1,7 +1,4 @@
 import { useMemo } from 'react'
-import { formatDistanceToNow } from 'date-fns'
-import { Clock } from 'lucide-react'
-import { JSONView } from '../../../console/components/json-view/json-view'
 
 interface ChatMessageProps {
   message: {
@@ -11,7 +8,6 @@ interface ChatMessageProps {
     type: 'user' | 'workflow'
     isStreaming?: boolean
   }
-  containerWidth: number
 }
 
 // Maximum character length for a word before it's broken up
@@ -49,57 +45,42 @@ const WordWrap = ({ text }: { text: string }) => {
   )
 }
 
-export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
-  const messageDate = useMemo(() => new Date(message.timestamp), [message.timestamp])
-
-  const relativeTime = useMemo(() => {
-    return formatDistanceToNow(messageDate, { addSuffix: true })
-  }, [messageDate])
-
-  // Check if content is a JSON object
-  const isJsonObject = useMemo(() => {
-    return typeof message.content === 'object' && message.content !== null
+export function ChatMessage({ message }: ChatMessageProps) {
+  // Format message content as text
+  const formattedContent = useMemo(() => {
+    if (typeof message.content === 'object' && message.content !== null) {
+      return JSON.stringify(message.content, null, 2)
+    }
+    return String(message.content || '')
   }, [message.content])
 
-  // Format message content based on type
-  const formattedContent = useMemo(() => {
-    if (isJsonObject) {
-      return JSON.stringify(message.content) // Return stringified version for type safety
-    }
-
-    return String(message.content || '')
-  }, [message.content, isJsonObject])
-
-  return (
-    <div className='w-full space-y-4 border-border border-b p-4 transition-colors hover:bg-accent/50'>
-      {/* Header with time on left and message type on right */}
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2 text-sm'>
-          <Clock className='h-4 w-4 text-muted-foreground' />
-          <span className='text-muted-foreground'>{relativeTime}</span>
-        </div>
-        <div className='flex items-center gap-2 text-sm'>
-          {message.type !== 'user' && <span className='text-muted-foreground'>Workflow</span>}
-          {message.isStreaming && (
-            <span className='ml-2 animate-pulse text-primary' title='Streaming'>
-              •••
-            </span>
-          )}
+  // Render human messages as chat bubbles
+  if (message.type === 'user') {
+    return (
+      <div className='w-full py-2'>
+        <div className='flex justify-end'>
+          <div className='max-w-[80%]'>
+            <div className='rounded-[10px] bg-secondary px-3 py-2'>
+              <div className='whitespace-pre-wrap break-words font-normal text-foreground text-sm leading-normal'>
+                <WordWrap text={formattedContent} />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+    )
+  }
 
-      {/* Message content with proper word wrapping */}
-      <div className='overflow-wrap-anywhere relative flex-1 whitespace-normal break-normal font-mono text-sm'>
-        {isJsonObject ? (
-          <JSONView data={message.content} initiallyExpanded={false} />
-        ) : (
-          <div className='whitespace-pre-wrap break-words text-foreground'>
-            <WordWrap text={formattedContent} />
-            {message.isStreaming && (
-              <span className='ml-1 inline-block h-4 w-2 animate-pulse bg-primary' />
-            )}
-          </div>
-        )}
+  // Render agent/workflow messages as full-width text
+  return (
+    <div className='w-full py-2 pl-[2px]'>
+      <div className='overflow-wrap-anywhere relative whitespace-normal break-normal font-normal text-sm leading-normal'>
+        <div className='whitespace-pre-wrap break-words text-foreground'>
+          <WordWrap text={formattedContent} />
+          {message.isStreaming && (
+            <span className='ml-1 inline-block h-4 w-2 animate-pulse bg-primary' />
+          )}
+        </div>
       </div>
     </div>
   )
