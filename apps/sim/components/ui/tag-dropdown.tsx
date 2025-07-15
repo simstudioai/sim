@@ -258,12 +258,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
     }
 
-    // Create variable tags
-    const variableTags = workflowVariables.map(
+    // Create variable tags - filter out variables with empty names
+    const validVariables = workflowVariables.filter(
+      (variable: Variable) => variable.name.trim() !== ''
+    )
+
+    const variableTags = validVariables.map(
       (variable: Variable) => `variable.${variable.name.replace(/\s+/g, '')}`
     )
 
-    const variableInfoMap = workflowVariables.reduce(
+    const variableInfoMap = validVariables.reduce(
       (acc, variable) => {
         const tagName = `variable.${variable.name.replace(/\s+/g, '')}`
         acc[tagName] = {

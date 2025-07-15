@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react'
 import { LibraryBig, Plus } from 'lucide-react'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { BaseOverview } from './components/base-overview/base-overview'
 import { CreateModal } from './components/create-modal/create-modal'
 import { EmptyStateCard } from './components/empty-state-card/empty-state-card'
@@ -18,12 +17,8 @@ interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
 }
 
 export function Knowledge() {
-  const { mode, isExpanded } = useSidebarStore()
   const { knowledgeBases, isLoading, error, addKnowledgeBase, refreshList } =
     useKnowledgeBasesList()
-
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -56,9 +51,7 @@ export function Knowledge() {
 
   return (
     <>
-      <div
-        className={`flex h-screen flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-      >
+      <div className='flex h-screen flex-col pl-64'>
         {/* Header */}
         <KnowledgeHeader breadcrumbs={breadcrumbs} />
 

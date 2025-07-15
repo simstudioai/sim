@@ -31,7 +31,7 @@ function ModalChatMessage({ message }: ChatMessageProps) {
             <div className='max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 shadow-sm dark:bg-primary/10'>
               <div className='whitespace-pre-wrap break-words text-[#0D0D0D] text-base leading-relaxed dark:text-white'>
                 {isJsonObject ? (
-                  <JSONView data={message.content} initiallyExpanded={false} />
+                  <JSONView data={message.content} />
                 ) : (
                   <span>{message.content}</span>
                 )}
@@ -50,11 +50,7 @@ function ModalChatMessage({ message }: ChatMessageProps) {
         <div className='flex'>
           <div className='max-w-[80%]'>
             <div className='whitespace-pre-wrap break-words text-base leading-relaxed'>
-              {isJsonObject ? (
-                <JSONView data={message.content} initiallyExpanded={false} />
-              ) : (
-                <span>{message.content}</span>
-              )}
+              {isJsonObject ? <JSONView data={message.content} /> : <span>{message.content}</span>}
             </div>
           </div>
         </div>

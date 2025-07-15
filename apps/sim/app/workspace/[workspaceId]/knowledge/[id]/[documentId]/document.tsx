@@ -12,7 +12,6 @@ import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/componen
 import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../../components/knowledge-header/knowledge-header'
 import { CreateChunkModal } from './components/create-chunk-modal/create-chunk-modal'
 import { DeleteChunkModal } from './components/delete-chunk-modal/delete-chunk-modal'
@@ -45,15 +44,10 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const { mode, isExpanded } = useSidebarStore()
   const { getCachedKnowledgeBase, getCachedDocuments } = useKnowledgeStore()
   const { workspaceId } = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
-
   const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
 
   const {
@@ -247,7 +241,7 @@ export function Document({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedChunks(new Set(paginatedChunks.map((chunk) => chunk.id)))
+      setSelectedChunks(new Set(paginatedChunks.map((chunk: ChunkData) => chunk.id)))
     } else {
       setSelectedChunks(new Set())
     }
@@ -362,9 +356,7 @@ export function Document({
     ]
 
     return (
-      <div
-        className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-      >
+      <div className='flex h-[100vh] flex-col pl-64'>
         <KnowledgeHeader breadcrumbs={errorBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center'>
           <div className='text-center'>
@@ -382,9 +374,7 @@ export function Document({
   }
 
   return (
-    <div
-      className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-    >
+    <div className='flex h-[100vh] flex-col pl-64'>
       {/* Fixed Header with Breadcrumbs */}
       <KnowledgeHeader breadcrumbs={breadcrumbs} />
 
@@ -463,7 +453,7 @@ export function Document({
                     <colgroup>
                       <col className='w-[5%]' />
                       <col className='w-[8%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[57%]' : 'w-[55%]'}`} />
+                      <col className='w-[55%]' />
                       <col className='w-[10%]' />
                       <col className='w-[10%]' />
                       <col className='w-[12%]' />
@@ -509,7 +499,7 @@ export function Document({
                     <colgroup>
                       <col className='w-[5%]' />
                       <col className='w-[8%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[57%]' : 'w-[55%]'}`} />
+                      <col className='w-[55%]' />
                       <col className='w-[10%]' />
                       <col className='w-[10%]' />
                       <col className='w-[12%]' />
@@ -602,7 +592,7 @@ export function Document({
                           </tr>
                         ))
                       ) : (
-                        paginatedChunks.map((chunk) => (
+                        paginatedChunks.map((chunk: ChunkData) => (
                           <tr
                             key={chunk.id}
                             className='cursor-pointer border-b transition-colors hover:bg-accent/30'

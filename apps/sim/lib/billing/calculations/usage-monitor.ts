@@ -201,7 +201,7 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
       currentUsage: usageData.currentUsage,
       limit: usageData.limit,
       message: usageData.isExceeded
-        ? `Usage limit exceeded: ${usageData.currentUsage.toFixed(2)}$ used of ${usageData.limit}$ limit. Please upgrade your plan to continue.`
+        ? `Usage limit exceeded: ${usageData.currentUsage?.toFixed(2) || 0}$ used of ${usageData.limit?.toFixed(2) || 0}$ limit. Please upgrade your plan to continue.`
         : undefined,
     }
   } catch (error) {

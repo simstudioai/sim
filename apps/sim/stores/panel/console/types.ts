@@ -20,6 +20,7 @@ export interface ConsoleEntry {
 
 export interface ConsoleUpdate {
   content?: string
+  input?: any
   output?: Partial<NormalizedBlockOutput>
   replaceOutput?: NormalizedBlockOutput // New field for complete replacement
   error?: string
@@ -35,6 +36,7 @@ export interface ConsoleStore {
 
   addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
   clearConsole: (workflowId: string | null) => void
+  exportConsoleCSV: (workflowId: string) => void
   getWorkflowEntries: (workflowId: string) => ConsoleEntry[]
   toggleConsole: () => void
   updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void

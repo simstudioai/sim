@@ -35,7 +35,6 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/output-select/output-select'
-import { useNotificationStore } from '@/stores/notifications/store'
 import type { OutputConfig } from '@/stores/panel/chat/types'
 
 const logger = createLogger('ChatDeploy')
@@ -88,9 +87,6 @@ export function ChatDeploy({
   setShowDeleteConfirmation: externalSetShowDeleteConfirmation,
   onDeploymentComplete,
 }: ChatDeployProps) {
-  // Store hooks
-  const { addNotification } = useNotificationStore()
-
   // Form state
   const [subdomain, setSubdomain] = useState('')
   const [title, setTitle] = useState('')
@@ -748,7 +744,7 @@ export function ChatDeploy({
     } catch (error: any) {
       logger.error(`Failed to ${existingChat ? 'update' : 'deploy'} chat:`, error)
       setErrorMessage(error.message || 'An unexpected error occurred')
-      addNotification('error', `Failed to deploy chat: ${error.message}`, workflowId)
+      logger.error(`Failed to deploy chat: ${error.message}`, workflowId)
     } finally {
       setChatSubmitting(false)
       setShowEditConfirmation(false)

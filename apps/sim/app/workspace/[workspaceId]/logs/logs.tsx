@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
 import { Sidebar } from './components/sidebar/sidebar'
@@ -55,9 +54,6 @@ export default function Logs() {
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const { mode, isExpanded } = useSidebarStore()
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
@@ -291,9 +287,7 @@ export default function Logs() {
   ])
 
   return (
-    <div
-      className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-    >
+    <div className='flex h-[100vh] flex-col pl-64'>
       {/* Add the animation styles */}
       <style jsx global>
         {selectedRowAnimation}

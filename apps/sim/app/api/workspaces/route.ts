@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { permissions, workflow, workflowBlocks, workspace, workspaceMember } from '@/db/schema'
 
@@ -18,6 +19,7 @@ export async function GET() {
     .select({
       workspace: workspace,
       role: workspaceMember.role,
+      membershipId: workspaceMember.id,
     })
     .from(workspaceMember)
     .innerJoin(workspace, eq(workspaceMember.workspaceId, workspace.id))
@@ -37,13 +39,25 @@ export async function GET() {
   // If user has workspaces but might have orphaned workflows, migrate them
   await ensureWorkflowsHaveWorkspace(session.user.id, memberWorkspaces[0].workspace.id)
 
-  // Format the response
-  const workspaces = memberWorkspaces.map(({ workspace: workspaceDetails, role }) => ({
-    ...workspaceDetails,
-    role,
-  }))
+  // Get permissions for each workspace and format the response
+  const workspacesWithPermissions = await Promise.all(
+    memberWorkspaces.map(async ({ workspace: workspaceDetails, role, membershipId }) => {
+      const userPermissions = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceDetails.id
+      )
 
-  return NextResponse.json({ workspaces })
+      return {
+        ...workspaceDetails,
+        role,
+        membershipId,
+        permissions: userPermissions,
+      }
+    })
+  )
+
+  return NextResponse.json({ workspaces: workspacesWithPermissions })
 }
 
 // POST /api/workspaces - Create a new workspace

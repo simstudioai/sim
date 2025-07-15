@@ -23,7 +23,6 @@ import { cn } from '@/lib/utils'
 import { ChatDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
 import { DeployForm } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deploy-form/deploy-form'
 import { DeploymentInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/deployment-info'
-import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -77,9 +76,6 @@ export function DeployModal({
   isLoadingDeployedState,
   refetchDeployedState,
 }: DeployModalProps) {
-  // Store hooks
-  const { addNotification } = useNotificationStore()
-
   // Use registry store for deployment-related functions
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(workflowId)
@@ -161,7 +157,6 @@ export function DeployModal({
       }
     } catch (error) {
       logger.error('Error fetching API keys:', { error })
-      addNotification('error', 'Failed to fetch API keys', workflowId)
       setKeysLoaded(true)
     }
   }
@@ -243,22 +238,16 @@ export function DeployModal({
         })
       } catch (error) {
         logger.error('Error fetching deployment info:', { error })
-        addNotification('error', 'Failed to fetch deployment information', workflowId)
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchDeploymentInfo()
-  }, [open, workflowId, isDeployed, addNotification, needsRedeployment])
+  }, [open, workflowId, isDeployed, needsRedeployment])
 
   // Handle form submission for deployment
   const onDeploy = async (data: DeployFormValues) => {
-    if (!workflowId) {
-      addNotification('error', 'No active workflow to deploy', null)
-      return
-    }
-
     // Reset any previous errors
     setApiDeployError(null)
 
@@ -319,7 +308,6 @@ export function DeployModal({
       // No notification on successful deploy
     } catch (error: any) {
       logger.error('Error deploying workflow:', { error })
-      addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
     } finally {
       setIsSubmitting(false)
     }
@@ -327,11 +315,6 @@ export function DeployModal({
 
   // Handle workflow undeployment
   const handleUndeploy = async () => {
-    if (!workflowId) {
-      addNotification('error', 'No active workflow to undeploy', null)
-      return
-    }
-
     try {
       setIsUndeploying(true)
 
@@ -351,14 +334,10 @@ export function DeployModal({
       setDeployedChatUrl(null)
       setChatExists(false)
 
-      // Add a success notification
-      addNotification('info', 'Workflow successfully undeployed', workflowId)
-
       // Close the modal
       onOpenChange(false)
     } catch (error: any) {
       logger.error('Error undeploying workflow:', { error })
-      addNotification('error', `Failed to undeploy workflow: ${error.message}`, workflowId)
     } finally {
       setIsUndeploying(false)
     }
@@ -366,11 +345,6 @@ export function DeployModal({
 
   // Handle redeployment of workflow
   const handleRedeploy = async () => {
-    if (!workflowId) {
-      addNotification('error', 'No active workflow to redeploy', null)
-      return
-    }
-
     try {
       setIsSubmitting(true)
 
@@ -407,11 +381,8 @@ export function DeployModal({
 
       // Fetch the updated deployed state after redeployment
       await refetchDeployedState()
-
-      addNotification('info', 'Workflow successfully redeployed', workflowId)
     } catch (error: any) {
       logger.error('Error redeploying workflow:', { error })
-      addNotification('error', `Failed to redeploy workflow: ${error.message}`, workflowId)
     } finally {
       setIsSubmitting(false)
     }
@@ -427,11 +398,6 @@ export function DeployModal({
 
   // Add a new handler for chat undeploy
   const handleChatUndeploy = async () => {
-    if (!workflowId) {
-      addNotification('error', 'No active workflow to undeploy chat', null)
-      return
-    }
-
     try {
       setIsUndeploying(true)
 
@@ -462,15 +428,10 @@ export function DeployModal({
       // Reset chat deployment info
       setDeployedChatUrl(null)
       setChatExists(false)
-
-      // Add a success notification
-      addNotification('info', 'Chat successfully undeployed', workflowId)
-
       // Close the modal
       onOpenChange(false)
     } catch (error: any) {
       logger.error('Error undeploying chat:', { error })
-      addNotification('error', `Failed to undeploy chat: ${error.message}`, workflowId)
     } finally {
       setIsUndeploying(false)
       setShowDeleteConfirmation(false)
@@ -479,11 +440,6 @@ export function DeployModal({
 
   // Find or create appropriate method to handle chat deployment
   const handleChatSubmit = async () => {
-    if (!workflowId) {
-      addNotification('error', 'No active workflow to deploy', null)
-      return
-    }
-
     // Check if workflow is deployed
     if (!isDeployed) {
       // Deploy workflow first
@@ -518,7 +474,6 @@ export function DeployModal({
         )
       } catch (error: any) {
         logger.error('Error auto-deploying workflow for chat:', { error })
-        addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
         setChatSubmitting(false)
         return
       }

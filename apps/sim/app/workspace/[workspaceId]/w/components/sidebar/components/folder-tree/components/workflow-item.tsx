@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { createLogger } from '@/lib/logs/console-logger'
 import { useFolderStore, useIsWorkflowSelected } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { WorkflowContextMenu } from '../../workflow-context-menu/workflow-context-menu'
 
 const logger = createLogger('WorkflowItem')
 
@@ -18,6 +19,7 @@ interface WorkflowItemProps {
   isCollapsed?: boolean
   level: number
   isDragOver?: boolean
+  isFirstItem?: boolean
 }
 
 export function WorkflowItem({
@@ -27,6 +29,7 @@ export function WorkflowItem({
   isCollapsed,
   level,
   isDragOver = false,
+  isFirstItem = false,
 }: WorkflowItemProps) {
   const [isDragging, setIsDragging] = useState(false)
   const dragStartedRef = useRef(false)
@@ -81,10 +84,11 @@ export function WorkflowItem({
         <TooltipTrigger asChild>
           <Link
             href={`/workspace/${workspaceId}/w/${workflow.id}`}
+            data-workflow-id={workflow.id}
             className={clsx(
-              'mx-auto flex h-8 w-8 items-center justify-center rounded-md',
+              'mx-auto mb-1 flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
               active && !isDragOver
-                ? 'bg-accent text-accent-foreground'
+                ? 'bg-accent text-foreground'
                 : 'text-muted-foreground hover:bg-accent/50',
               isSelected && selectedWorkflows.size > 1 && !active && !isDragOver
                 ? 'bg-accent/70'
@@ -103,7 +107,7 @@ export function WorkflowItem({
           </Link>
         </TooltipTrigger>
         <TooltipContent side='right'>
-          <p>
+          <p className='max-w-[200px] break-words'>
             {workflow.name}
             {isMarketplace && ' (Preview)'}
           </p>
@@ -113,31 +117,49 @@ export function WorkflowItem({
   }
 
   return (
-    <Link
-      href={`/workspace/${workspaceId}/w/${workflow.id}`}
-      className={clsx(
-        'flex items-center rounded-md px-2 py-1.5 font-medium text-sm',
-        active && !isDragOver
-          ? 'bg-accent text-accent-foreground'
-          : 'text-muted-foreground hover:bg-accent/50',
-        isSelected && selectedWorkflows.size > 1 && !active && !isDragOver ? 'bg-accent/70' : '',
-        isDragging ? 'opacity-50' : '',
-        !isMarketplace ? 'cursor-move' : ''
-      )}
-      style={{ paddingLeft: isCollapsed ? '0px' : `${(level + 1) * 20 + 8}px` }}
-      draggable={!isMarketplace}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onClick={handleClick}
-    >
+    <div className='group mb-1'>
       <div
-        className='mr-2 h-[14px] w-[14px] flex-shrink-0 rounded'
-        style={{ backgroundColor: workflow.color }}
-      />
-      <span className='truncate'>
-        {workflow.name}
-        {isMarketplace && ' (Preview)'}
-      </span>
-    </Link>
+        className={clsx(
+          'flex h-9 items-center rounded-lg px-2 py-2 font-medium text-sm transition-colors',
+          active && !isDragOver
+            ? 'bg-accent text-foreground'
+            : 'text-muted-foreground hover:bg-accent/50',
+          isSelected && selectedWorkflows.size > 1 && !active && !isDragOver ? 'bg-accent/70' : '',
+          isDragging ? 'opacity-50' : '',
+          'cursor-pointer',
+          isFirstItem ? 'mr-[44px]' : ''
+        )}
+        style={{
+          maxWidth: isFirstItem
+            ? `${164 - (level >= 0 ? (level + 1) * 20 + 8 : 0) - (level > 0 ? 8 : 0)}px`
+            : `${206 - (level >= 0 ? (level + 1) * 20 + 8 : 0) - (level > 0 ? 8 : 0)}px`,
+        }}
+        draggable={!isMarketplace}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        data-workflow-id={workflow.id}
+      >
+        <Link
+          href={`/workspace/${workspaceId}/w/${workflow.id}`}
+          className='flex min-w-0 flex-1 items-center'
+          onClick={handleClick}
+        >
+          <div
+            className='mr-2 h-[14px] w-[14px] flex-shrink-0 rounded'
+            style={{ backgroundColor: workflow.color }}
+          />
+          <span className='flex-1 select-none truncate'>
+            {workflow.name}
+            {isMarketplace && ' (Preview)'}
+          </span>
+        </Link>
+
+        {!isMarketplace && (
+          <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
+            <WorkflowContextMenu workflow={workflow} level={level} />
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
