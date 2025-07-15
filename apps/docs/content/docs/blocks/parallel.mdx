@@ -8,7 +8,7 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 
-The Parallel block is a container block in Sim Studio that allows you to execute multiple instances of blocks concurrently. This enables faster processing of independent operations and efficient distribution of work across multiple executions.
+The Parallel block is a container block in Sim Studio that allows you to execute multiple instances of blocks concurrently.
 
 <ThemeImage
   lightSrc="/static/light/parallel-light.png"
@@ -72,27 +72,14 @@ Choose between two types of parallel execution:
   </Tab>
 </Tabs>
 
-### Configuration Parameters
-
-- **Count** (Count-based): Number of parallel instances to run (1-20)
-- **Collection** (Collection-based): Array or object to distribute across instances
-
 ## How to Use Parallel Blocks
 
 ### Creating a Parallel Block
 
 1. Drag a Parallel block from the toolbar onto your canvas
 2. Configure the parallel type and parameters
-3. Drag other blocks inside the parallel container
-4. Connect the blocks as needed
-
-### Accessing Parallel Data
-
-Inside a parallel block, you can access special variables:
-
-- **`<parallel.currentItem>`**: The item assigned to this instance (Collection-based)
-- **`<parallel.index>`**: The instance number (0-based)
-- **`<parallel.items>`**: The full collection being distributed (Collection-based)
+3. Drag a single block inside the parallel container
+4. Connect the block as needed
 
 ### Accessing Results
 
@@ -109,8 +96,7 @@ After a parallel block completes, you can access aggregated results:
   <ol className="list-decimal pl-5 text-sm">
     <li>Parallel block with collection of API endpoints</li>
     <li>Inside parallel: API block calls each endpoint</li>
-    <li>Inside parallel: Function processes each response</li>
-    <li>After parallel: Aggregate all results</li>
+    <li>After parallel: Process all responses together</li>
   </ol>
 </div>
 
@@ -120,20 +106,8 @@ After a parallel block completes, you can access aggregated results:
   <h4 className="font-medium">Scenario: Get responses from multiple AI models</h4>
   <ol className="list-decimal pl-5 text-sm">
     <li>Count-based parallel set to 3 instances</li>
-    <li>Inside parallel: Agent with different model per instance</li>
+    <li>Inside parallel: Agent configured with different model per instance</li>
     <li>After parallel: Compare and select best response</li>
-  </ol>
-</div>
-
-### Data Enrichment Pipeline
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Enrich multiple records simultaneously</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Collection-based parallel with customer records</li>
-    <li>Inside parallel: API enriches each record</li>
-    <li>Inside parallel: Agent analyzes enriched data</li>
-    <li>After parallel: Combine all enriched records</li>
   </ol>
 </div>
 
@@ -156,9 +130,20 @@ Each parallel instance runs independently:
 - No shared state between instances
 - Failures in one instance don't affect others
 
-### Performance Considerations
+### Limitations
 
 <Callout type="warning">
+  Container blocks (Loops and Parallels) cannot be nested inside each other. This means:
+  - You cannot place a Loop block inside a Parallel block
+  - You cannot place another Parallel block inside a Parallel block
+  - You cannot place any container block inside another container block
+</Callout>
+
+<Callout type="warning">
+  Parallel blocks can only contain a single block. You cannot have multiple blocks connected to each other inside a parallel - only the first block would execute in that case.
+</Callout>
+
+<Callout type="info">
   While parallel execution is faster, be mindful of:
   - API rate limits when making concurrent requests
   - Memory usage with large datasets
@@ -176,18 +161,6 @@ Understanding when to use each:
 | Order | No guaranteed order | Maintains order |
 | Use case | Independent operations | Dependent operations |
 | Resource usage | Higher | Lower |
-
-## Best Practices
-
-- **Independent operations only**: Ensure operations don't depend on each other
-- **Handle rate limits**: Add delays or throttling for API-heavy workflows
-- **Aggregate thoughtfully**: Plan how to combine results from all instances
-- **Monitor resources**: Watch execution times and costs with many instances
-- **Error handling**: Each instance should handle its own errors gracefully
-
-<Callout type="info">
-  Parallel blocks are ideal for operations that can run independently. If operations depend on previous results, use a Loop block instead.
-</Callout>
 
 ## Inputs and Outputs
 
@@ -224,18 +197,14 @@ Understanding when to use each:
         <strong>parallel.results</strong>: Array of all instance results
       </li>
       <li>
-        <strong>Structure</strong>: Results maintain instance order
-      </li>
-      <li>
         <strong>Access</strong>: Available in blocks after the parallel
       </li>
     </ul>
   </Tab>
 </Tabs>
 
-## Tips and Tricks
+## Best Practices
 
-- **Combine with loops**: Use a loop inside a parallel for multi-dimensional processing
-- **Dynamic distribution**: Generate collections from API responses or functions
-- **Partial results**: Handle scenarios where some instances might fail
-- **Progress tracking**: Monitor completion of parallel instances for long operations 
+- **Independent operations only**: Ensure operations don't depend on each other
+- **Handle rate limits**: Add delays or throttling for API-heavy workflows
+- **Error handling**: Each instance should handle its own errors gracefully 

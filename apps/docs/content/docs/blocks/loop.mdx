@@ -8,7 +8,7 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 
-The Loop block is a container block in Sim Studio that allows you to execute a group of blocks repeatedly. Loops enable iterative processing, batch operations, and progressive refinement in your workflows.
+The Loop block is a container block in Sim Studio that allows you to execute a group of blocks repeatedly. Loops enable iterative processing in your workflows.
 
 <ThemeImage
   lightSrc="/static/light/loop-light.png"
@@ -17,10 +17,6 @@ The Loop block is a container block in Sim Studio that allows you to execute a g
   width={300}
   height={175}
 />
-
-<div className="my-4">
-  <video autoPlay loop muted playsInline className="w-full rounded-lg" src="/loops.mp4"></video>
-</div>
 
 <Callout type="info">
   Loop blocks are container nodes that can hold other blocks inside them. The blocks inside a loop will execute multiple times based on your configuration.
@@ -36,12 +32,6 @@ The Loop block enables you to:
   </Step>
   <Step>
     <strong>Repeat operations</strong>: Execute blocks a fixed number of times
-  </Step>
-  <Step>
-    <strong>Build progressive workflows</strong>: Refine outputs through multiple iterations
-  </Step>
-  <Step>
-    <strong>Handle batch processing</strong>: Process large datasets efficiently
   </Step>
 </Steps>
 
@@ -76,11 +66,6 @@ Choose between two types of loops:
   </Tab>
 </Tabs>
 
-### Configuration Parameters
-
-- **Iterations** (For Loop): Number of times to execute the loop (1-50)
-- **Collection** (ForEach Loop): Array or object to iterate over
-
 ## How to Use Loops
 
 ### Creating a Loop
@@ -90,13 +75,11 @@ Choose between two types of loops:
 3. Drag other blocks inside the loop container
 4. Connect the blocks as needed
 
-### Accessing Loop Data
+### Accessing Results
 
-Inside a loop, you can access special variables:
+After a loop completes, you can access aggregated results:
 
-- **`<loop.currentItem>`**: The current item being processed (ForEach loops)
-- **`<loop.index>`**: The current iteration number (0-based)
-- **`<loop.items>`**: The full collection being iterated (ForEach loops)
+- **`<loop.results>`**: Array of results from all loop iterations
 
 ## Example Use Cases
 
@@ -124,57 +107,18 @@ Inside a loop, you can access special variables:
   </ol>
 </div>
 
-### Data Transformation Pipeline
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Transform and enrich data</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>ForEach loop over data array</li>
-    <li>Inside loop: API enriches each record</li>
-    <li>Inside loop: Function transforms data format</li>
-    <li>Inside loop: Condition filters valid records</li>
-  </ol>
-</div>
-
 ## Advanced Features
 
-### Nested Loops
-
-You can place loops inside other loops for multi-dimensional iteration:
-
-```
-Outer Loop (countries)
-  └── Inner Loop (cities in each country)
-      └── Process city data
-```
+### Limitations
 
 <Callout type="warning">
-  Be cautious with nested loops as they can significantly increase execution time. A loop of 10 items containing another loop of 10 items will execute 100 times total.
+  Container blocks (Loops and Parallels) cannot be nested inside each other. This means:
+  - You cannot place a Loop block inside another Loop block
+  - You cannot place a Parallel block inside a Loop block
+  - You cannot place any container block inside another container block
+  
+  If you need multi-dimensional iteration, consider restructuring your workflow to use sequential loops or process data in stages.
 </Callout>
-
-### Dynamic Collections
-
-The collection for a ForEach loop can be dynamically generated:
-
-- From an API response: `<api.response.data>`
-- From a function output: `<function.results>`
-- From a parsed file: `<file.content.items>`
-
-### Loop Control
-
-Loops automatically handle:
-- **Iteration management**: Tracks current position and manages state
-- **Variable scoping**: Each iteration has access to its own item
-- **Error handling**: Continues to next iteration if one fails
-- **Performance**: Executes iterations sequentially to maintain order
-
-## Best Practices
-
-- **Set reasonable limits**: Keep iteration counts reasonable to avoid long execution times
-- **Use ForEach for collections**: When processing arrays or objects, use ForEach instead of For loops
-- **Access current item**: Use `<loop.currentItem>` to access the current item in ForEach loops
-- **Track progress**: Use `<loop.index>` to track which iteration you're on
-- **Handle errors gracefully**: Consider adding error handling inside loops for robust workflows
 
 <Callout type="info">
   Loops execute sequentially, not in parallel. If you need concurrent execution, use the Parallel block instead.
@@ -182,7 +126,7 @@ Loops automatically handle:
 
 ## Inputs and Outputs
 
-<Tabs items={['Configuration', 'Variables']}>
+<Tabs items={['Configuration', 'Variables', 'Results']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
@@ -209,11 +153,23 @@ Loops automatically handle:
       </li>
     </ul>
   </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.results</strong>: Array of all iteration results
+      </li>
+      <li>
+        <strong>Structure</strong>: Results maintain iteration order
+      </li>
+      <li>
+        <strong>Access</strong>: Available in blocks after the loop
+      </li>
+    </ul>
+  </Tab>
 </Tabs>
 
-## Tips and Tricks
+## Best Practices
 
-- **Collect results**: Use a Function block after the loop to aggregate results from all iterations
-- **Early termination**: Use a Condition block with a Router to exit the loop early if needed
-- **Progress tracking**: Connect to external systems to report loop progress for long-running operations
-- **Memory management**: Be mindful of memory usage when processing large collections 
+- **Set reasonable limits**: Keep iteration counts reasonable to avoid long execution times
+- **Use ForEach for collections**: When processing arrays or objects, use ForEach instead of For loops
+- **Handle errors gracefully**: Consider adding error handling inside loops for robust workflows 
