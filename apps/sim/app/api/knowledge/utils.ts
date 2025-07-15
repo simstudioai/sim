@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { processDocument } from '@/lib/documents/document-processor'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
@@ -522,14 +522,6 @@ export async function processDocumentAsync(
               processingError: null,
             })
             .where(eq(document.id, documentId))
-
-          await tx
-            .update(knowledgeBase)
-            .set({
-              tokenCount: sql`${knowledgeBase.tokenCount} + ${processed.metadata.tokenCount}`,
-              updatedAt: now,
-            })
-            .where(eq(knowledgeBase.id, knowledgeBaseId))
         })
       })(),
       TIMEOUTS.OVERALL_PROCESSING,
