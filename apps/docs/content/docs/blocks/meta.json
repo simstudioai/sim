@@ -1,4 +1,15 @@
 {
   "title": "Blocks",
-  "pages": ["agent", "api", "condition", "function", "evaluator", "router", "response", "workflow"]
+  "pages": [
+    "agent",
+    "api",
+    "condition",
+    "function",
+    "evaluator",
+    "router",
+    "response",
+    "workflow",
+    "loop",
+    "parallel"
+  ]
 }
