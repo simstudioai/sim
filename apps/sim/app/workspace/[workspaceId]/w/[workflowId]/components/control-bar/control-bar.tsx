@@ -1,7 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Bug, Copy, Layers, Play, SkipForward, StepForward, Trash2, X } from 'lucide-react'
+import {
+  Bug,
+  ChevronLeft,
+  Copy,
+  Layers,
+  Play,
+  SkipForward,
+  StepForward,
+  Store,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   AlertDialog,
@@ -33,6 +45,7 @@ import {
 } from '../../../hooks/use-keyboard-shortcuts'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
+import { TemplateModal } from './components/template-modal/template-modal'
 
 const logger = createLogger('ControlBar')
 
@@ -85,6 +98,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   // Local state
   const [mounted, setMounted] = useState(false)
   const [, forceUpdate] = useState({})
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
 
   // Deployed state management
   const [deployedState, setDeployedState] = useState<WorkflowState | null>(null)
@@ -623,6 +638,43 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }
 
   /**
+   * Render publish template button
+   */
+  const renderPublishButton = () => {
+    const canEdit = userPermissions.canEdit
+    const isDisabled = isExecuting || isDebugging || !canEdit
+
+    const getTooltipText = () => {
+      if (!canEdit) return 'Admin permission required to publish templates'
+      if (isDebugging) return 'Cannot publish template while debugging'
+      if (isExecuting) return 'Cannot publish template while workflow is running'
+      return 'Publish as template'
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {isDisabled ? (
+            <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border bg-card font-medium text-card-foreground text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Upload className='h-5 w-5' />
+            </div>
+          ) : (
+            <Button
+              variant='outline'
+              onClick={() => setIsTemplateModalOpen(true)}
+              className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+            >
+              <Store className='h-5 w-5' />
+              <span className='sr-only'>Publish Template</span>
+            </Button>
+          )}
+        </TooltipTrigger>
+        <TooltipContent>{getTooltipText()}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  /**
    * Render debug mode toggle button
    */
   const renderDebugModeToggle = () => {
@@ -804,14 +856,51 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     return orderedWorkflows
   }
 
+  /**
+   * Render control bar toggle button
+   */
+  const renderToggleButton = () => {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant='outline'
+            onClick={() => setIsExpanded(!isExpanded)}
+            className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+          >
+            <ChevronLeft
+              className={cn(
+                'h-5 w-5 transition-transform duration-200',
+                isExpanded && 'rotate-180'
+              )}
+            />
+            <span className='sr-only'>{isExpanded ? 'Collapse' : 'Expand'} Control Bar</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{isExpanded ? 'Collapse' : 'Expand'} Control Bar</TooltipContent>
+      </Tooltip>
+    )
+  }
+
   return (
     <div className='fixed top-4 right-4 z-20 flex items-center gap-1'>
+      {renderToggleButton()}
+      {isExpanded && renderAutoLayoutButton()}
+      {isExpanded && renderPublishButton()}
       {renderDeleteButton()}
       {renderDuplicateButton()}
-      {renderAutoLayoutButton()}
       {!isDebugging && renderDebugModeToggle()}
       {renderDeployButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
+
+      {/* Template Modal */}
+      {activeWorkflowId && (
+        <TemplateModal
+          open={isTemplateModalOpen}
+          onOpenChange={setIsTemplateModalOpen}
+          workflowId={activeWorkflowId}
+        />
+      )}
     </div>
   )
 }

@@ -1,216 +1,101 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import {
-  BarChart3,
-  ChevronRight,
-  Database,
-  FileText,
-  Megaphone,
-  NotebookPen,
-  Plus,
-  Search,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronRight, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { createLogger } from '@/lib/logs/console-logger'
 import { NavigationTabs } from './components/navigation-tabs'
-import { TemplateCard } from './components/template-card'
+import { TemplateCard, TemplateCardSkeleton } from './components/template-card'
 
-// Mock data for templates
-const mockTemplates = {
-  your: [
-    {
-      id: '1',
-      title: 'Meeting Notetaker',
-      description: 'Auto-captures meeting highlights and action items no notes needed.',
-      author: 'Emir Ayaz',
-      usageCount: '9k',
-      category: 'your',
-      icon: NotebookPen,
-      iconColor: 'bg-green-500',
-      blocks: ['Mail Agent', 'Conditional 1', 'FetchInfo API'],
-    },
-  ],
-  research: [
-    {
-      id: '2',
-      title: 'Competitor Analyzer',
-      description: 'Scans websites and content to generate competitive insights.',
-      author: 'Sarah Chen',
-      usageCount: '15k',
-      category: 'research',
-      icon: BarChart3,
-      iconColor: 'bg-blue-500',
-      blocks: ['Web Scraper', 'Data Processor', 'Report Generator'],
-    },
-    {
-      id: '3',
-      title: 'Literature Summarizer',
-      description: 'Reads long papers or articles and delivers clear, structured summaries.',
-      author: 'Michael Torres',
-      usageCount: '11.8k',
-      category: 'research',
-      icon: FileText,
-      iconColor: 'bg-indigo-500',
-      blocks: ['PDF Reader', 'Text Analyzer', 'Summary Builder'],
-    },
-    {
-      id: '4',
-      title: 'Market Research Assistant',
-      description: 'Analyzes market trends and consumer behavior from multiple data sources.',
-      author: 'Jennifer Liu',
-      usageCount: '8.2k',
-      category: 'research',
-      icon: BarChart3,
-      iconColor: 'bg-teal-500',
-      blocks: ['Data Collector', 'Trend Analyzer', 'Insight Generator'],
-    },
-    {
-      id: '5',
-      title: 'Survey Data Processor',
-      description: 'Processes and analyzes survey responses with statistical insights.',
-      author: 'David Park',
-      usageCount: '5.7k',
-      category: 'research',
-      icon: Database,
-      iconColor: 'bg-cyan-500',
-      blocks: ['Survey Parser', 'Stats Calculator', 'Chart Builder'],
-    },
-  ],
-  marketing: [
-    {
-      id: '6',
-      title: 'Cold Outreach Sender',
-      description: 'Sends personalized cold emails at scale, with smart follow-ups.',
-      author: 'Liam Chen',
-      usageCount: '15k',
-      category: 'marketing',
-      icon: Megaphone,
-      iconColor: 'bg-purple-500',
-      blocks: ['Email Generator', 'Contact Finder', 'Follow-up Scheduler'],
-    },
-    {
-      id: '7',
-      title: 'Campaign Scheduler',
-      description: 'Plans, schedules, and launches multi-channel campaigns automatically.',
-      author: 'Jade Monroe',
-      usageCount: '11.8k',
-      category: 'marketing',
-      icon: Megaphone,
-      iconColor: 'bg-pink-500',
-      blocks: ['Campaign Planner', 'Schedule Manager', 'Launch Controller'],
-    },
-    {
-      id: '8',
-      title: 'Ad Copy Generator',
-      description: 'Creates high-converting ad copy tailored to your target audience.',
-      author: 'Carlos Mendez',
-      usageCount: '14.2k',
-      category: 'marketing',
-      icon: FileText,
-      iconColor: 'bg-orange-500',
-      blocks: ['Copy Writer', 'A/B Tester', 'Performance Tracker'],
-    },
-    {
-      id: '9',
-      title: 'Performance Reporter',
-      description: 'Generates weekly reports with insights and recommendations.',
-      author: 'Emily Zhao',
-      usageCount: '7.3k',
-      category: 'marketing',
-      icon: BarChart3,
-      iconColor: 'bg-red-500',
-      blocks: ['Data Collector', 'Report Builder', 'Insight Analyzer'],
-    },
-    {
-      id: '10',
-      title: 'Lead Qualifier',
-      description: 'Scores and tags incoming leads using set criteria—fast and automatic.',
-      author: 'Marcus Vega',
-      usageCount: '13.2k',
-      category: 'marketing',
-      icon: Database,
-      iconColor: 'bg-yellow-500',
-      blocks: ['Lead Scorer', 'Tag Manager', 'CRM Sync'],
-    },
-    {
-      id: '11',
-      title: 'Social Media Scheduler',
-      description: 'Automatically schedules and posts content across multiple platforms.',
-      author: 'Rachel Kim',
-      usageCount: '9.8k',
-      category: 'marketing',
-      icon: Megaphone,
-      iconColor: 'bg-violet-500',
-      blocks: ['Content Scheduler', 'Platform Manager', 'Analytics Tracker'],
-    },
-  ],
-  data: [
-    {
-      id: '12',
-      title: 'Data Pipeline Builder',
-      description: 'Creates automated data processing workflows with transformations.',
-      author: 'Alex Johnson',
-      usageCount: '6.4k',
-      category: 'data',
-      icon: Database,
-      iconColor: 'bg-emerald-500',
-      blocks: ['Data Ingester', 'Transformer', 'Output Manager'],
-    },
-    {
-      id: '13',
-      title: 'Database Sync Manager',
-      description: 'Keeps multiple databases synchronized with real-time updates.',
-      author: 'Sofia Rodriguez',
-      usageCount: '4.9k',
-      category: 'data',
-      icon: Database,
-      iconColor: 'bg-slate-500',
-      blocks: ['Sync Monitor', 'Update Handler', 'Conflict Resolver'],
-    },
-    {
-      id: '14',
-      title: 'Analytics Dashboard',
-      description: 'Builds interactive dashboards from multiple data sources.',
-      author: 'James Wilson',
-      usageCount: '8.1k',
-      category: 'data',
-      icon: BarChart3,
-      iconColor: 'bg-lime-500',
-      blocks: ['Data Connector', 'Chart Builder', 'Dashboard Manager'],
-    },
-    {
-      id: '15',
-      title: 'Data Quality Checker',
-      description: 'Automatically validates and cleans data for accuracy and completeness.',
-      author: 'Maria Garcia',
-      usageCount: '5.2k',
-      category: 'data',
-      icon: Database,
-      iconColor: 'bg-rose-500',
-      blocks: ['Validator', 'Cleaner', 'Quality Reporter'],
-    },
-  ],
+const logger = createLogger('TemplatesPage')
+
+// Shared categories definition
+export const categories = [
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'sales', label: 'Sales' },
+  { value: 'finance', label: 'Finance' },
+  { value: 'support', label: 'Support' },
+  { value: 'artificial-intelligence', label: 'Artificial Intelligence' },
+  { value: 'other', label: 'Other' },
+] as const
+
+export type CategoryValue = (typeof categories)[number]['value']
+
+// Template data structure
+interface Template {
+  id: string
+  workflowId: string
+  name: string
+  description: string
+  author: string
+  views: number
+  stars: number
+  color: string
+  icon: string
+  category: CategoryValue
+  state: {
+    blocks?: Record<string, { type: string; name?: string }>
+    edges?: any[]
+    loops?: Record<string, any>
+    parallels?: Record<string, any>
+  }
+  createdAt: string
+  updatedAt: string
+  isStarred?: boolean
 }
-
-const navigationTabs = [
-  { id: 'your', label: 'Your templates', count: mockTemplates.your.length },
-  { id: 'research', label: 'Research', count: mockTemplates.research.length },
-  { id: 'marketing', label: 'Marketing', count: mockTemplates.marketing.length },
-  { id: 'data', label: 'Data', count: mockTemplates.data.length },
-]
 
 export default function Templates() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('your')
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [loading, setLoading] = useState(true)
 
   // Refs for scrolling to sections
   const sectionRefs = {
     your: useRef<HTMLDivElement>(null),
-    research: useRef<HTMLDivElement>(null),
     marketing: useRef<HTMLDivElement>(null),
-    data: useRef<HTMLDivElement>(null),
+    sales: useRef<HTMLDivElement>(null),
+    finance: useRef<HTMLDivElement>(null),
+    support: useRef<HTMLDivElement>(null),
+    'artificial-intelligence': useRef<HTMLDivElement>(null),
+    other: useRef<HTMLDivElement>(null),
   }
+
+  // Fetch templates from API
+  const fetchTemplates = async () => {
+    try {
+      setLoading(true)
+
+      const response = await fetch('/api/templates')
+      if (!response.ok) {
+        throw new Error('Failed to fetch templates')
+      }
+
+      const data = await response.json()
+      setTemplates(data.data || [])
+    } catch (error) {
+      logger.error('Error fetching templates:', error)
+      // Just set empty array on error instead of showing error state
+      setTemplates([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load templates on component mount
+  useEffect(() => {
+    fetchTemplates()
+  }, [])
+
+  // Get starred templates count for determining if "Your templates" should be shown
+  const starredTemplatesCount = templates.filter((template) => template.isStarred === true).length
+
+  // Handle case where active tab is "your" but user has no starred templates
+  useEffect(() => {
+    if (!loading && activeTab === 'your' && starredTemplatesCount === 0) {
+      setActiveTab('marketing') // Switch to first available tab
+    }
+  }, [loading, activeTab, starredTemplatesCount])
 
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId)
@@ -233,17 +118,73 @@ export default function Templates() {
     console.log('Create new template')
   }
 
-  const filteredTemplates = (category: keyof typeof mockTemplates) => {
-    const templates = mockTemplates[category]
-    if (!searchQuery) return templates
+  const filteredTemplates = (category: CategoryValue | 'your') => {
+    let filteredByCategory = templates
 
-    return templates.filter(
+    if (category === 'your') {
+      // For "your" templates, show only starred templates
+      filteredByCategory = templates.filter((template) => template.isStarred === true)
+    } else {
+      filteredByCategory = templates.filter((template) => template.category === category)
+    }
+
+    if (!searchQuery) return filteredByCategory
+
+    return filteredByCategory.filter(
       (template) =>
-        template.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         template.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         template.author.toLowerCase().includes(searchQuery.toLowerCase())
     )
   }
+
+  // Group templates by category for display
+  const getTemplatesByCategory = (category: CategoryValue | 'your') => {
+    return filteredTemplates(category)
+  }
+
+  // Render skeleton cards for loading state
+  const renderSkeletonCards = () => {
+    return Array.from({ length: 8 }).map((_, index) => (
+      <TemplateCardSkeleton key={`skeleton-${index}`} />
+    ))
+  }
+
+  // Calculate navigation tabs with real counts or skeleton counts
+  const navigationTabs = [
+    // Only include "Your templates" tab if user has starred templates
+    ...(starredTemplatesCount > 0 || loading
+      ? [
+          {
+            id: 'your',
+            label: 'Your templates',
+            count: loading ? 8 : getTemplatesByCategory('your').length,
+          },
+        ]
+      : []),
+    {
+      id: 'marketing',
+      label: 'Marketing',
+      count: loading ? 8 : getTemplatesByCategory('marketing').length,
+    },
+    { id: 'sales', label: 'Sales', count: loading ? 8 : getTemplatesByCategory('sales').length },
+    {
+      id: 'finance',
+      label: 'Finance',
+      count: loading ? 8 : getTemplatesByCategory('finance').length,
+    },
+    {
+      id: 'support',
+      label: 'Support',
+      count: loading ? 8 : getTemplatesByCategory('support').length,
+    },
+    {
+      id: 'artificial-intelligence',
+      label: 'Artificial Intelligence',
+      count: loading ? 8 : getTemplatesByCategory('artificial-intelligence').length,
+    },
+    { id: 'other', label: 'Other', count: loading ? 8 : getTemplatesByCategory('other').length },
+  ]
 
   return (
     <div className='flex h-[100vh] flex-col pl-64'>
@@ -272,13 +213,13 @@ export default function Templates() {
                 className='flex-1 border-0 bg-transparent px-0 font-normal font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
-            <Button
+            {/* <Button
               onClick={handleCreateNew}
               className='flex h-9 items-center gap-2 rounded-lg bg-[#701FFC] px-4 py-2 font-normal font-sans text-sm text-white hover:bg-[#601EE0]'
             >
               <Plus className='h-4 w-4' />
               Create New
-            </Button>
+            </Button> */}
           </div>
 
           {/* Navigation */}
@@ -291,54 +232,31 @@ export default function Templates() {
           </div>
 
           {/* Your Templates Section */}
-          <div ref={sectionRefs.your} className='mb-8'>
-            <div className='mb-4 flex items-center gap-2'>
-              <h2 className='font-medium font-sans text-foreground text-lg'>Your templates</h2>
-              <ChevronRight className='h-4 w-4 text-muted-foreground' />
-            </div>
+          {starredTemplatesCount > 0 || loading ? (
+            <div ref={sectionRefs.your} className='mb-8'>
+              <div className='mb-4 flex items-center gap-2'>
+                <h2 className='font-medium font-sans text-foreground text-lg'>Your templates</h2>
+                <ChevronRight className='h-4 w-4 text-muted-foreground' />
+              </div>
 
-            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-              {filteredTemplates('your').map((template) => (
-                <TemplateCard
-                  key={template.id}
-                  id={template.id}
-                  title={template.title}
-                  description={template.description}
-                  author={template.author}
-                  usageCount={template.usageCount}
-                  icon={<template.icon />}
-                  iconColor={template.iconColor}
-                  blocks={template.blocks}
-                  onClick={() => handleTemplateClick(template.id)}
-                />
-              ))}
+              <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+                {loading
+                  ? renderSkeletonCards()
+                  : getTemplatesByCategory('your').map((template) => (
+                      <TemplateCard
+                        key={template.id}
+                        id={template.id}
+                        title={template.name}
+                        description={template.description}
+                        author={template.author}
+                        usageCount={template.views.toString()}
+                        state={template.state}
+                        onClick={() => handleTemplateClick(template.id)}
+                      />
+                    ))}
+              </div>
             </div>
-          </div>
-
-          {/* Research Section */}
-          <div ref={sectionRefs.research} className='mb-8'>
-            <div className='mb-4 flex items-center gap-2'>
-              <h2 className='font-medium font-sans text-foreground text-lg'>Research</h2>
-              <ChevronRight className='h-4 w-4 text-muted-foreground' />
-            </div>
-
-            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-              {filteredTemplates('research').map((template) => (
-                <TemplateCard
-                  key={template.id}
-                  id={template.id}
-                  title={template.title}
-                  description={template.description}
-                  author={template.author}
-                  usageCount={template.usageCount}
-                  icon={<template.icon />}
-                  iconColor={template.iconColor}
-                  blocks={template.blocks}
-                  onClick={() => handleTemplateClick(template.id)}
-                />
-              ))}
-            </div>
-          </div>
+          ) : null}
 
           {/* Marketing Section */}
           <div ref={sectionRefs.marketing} className='mb-8'>
@@ -348,45 +266,147 @@ export default function Templates() {
             </div>
 
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-              {filteredTemplates('marketing').map((template) => (
-                <TemplateCard
-                  key={template.id}
-                  id={template.id}
-                  title={template.title}
-                  description={template.description}
-                  author={template.author}
-                  usageCount={template.usageCount}
-                  icon={<template.icon />}
-                  iconColor={template.iconColor}
-                  blocks={template.blocks}
-                  onClick={() => handleTemplateClick(template.id)}
-                />
-              ))}
+              {loading
+                ? renderSkeletonCards()
+                : getTemplatesByCategory('marketing').map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      id={template.id}
+                      title={template.name}
+                      description={template.description}
+                      author={template.author}
+                      usageCount={template.views.toString()}
+                      state={template.state}
+                      onClick={() => handleTemplateClick(template.id)}
+                    />
+                  ))}
             </div>
           </div>
 
-          {/* Data Section */}
-          <div ref={sectionRefs.data} className='mb-8'>
+          {/* Sales Section */}
+          <div ref={sectionRefs.sales} className='mb-8'>
             <div className='mb-4 flex items-center gap-2'>
-              <h2 className='font-medium font-sans text-foreground text-lg'>Data</h2>
+              <h2 className='font-medium font-sans text-foreground text-lg'>Sales</h2>
               <ChevronRight className='h-4 w-4 text-muted-foreground' />
             </div>
 
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-              {filteredTemplates('data').map((template) => (
-                <TemplateCard
-                  key={template.id}
-                  id={template.id}
-                  title={template.title}
-                  description={template.description}
-                  author={template.author}
-                  usageCount={template.usageCount}
-                  icon={<template.icon />}
-                  iconColor={template.iconColor}
-                  blocks={template.blocks}
-                  onClick={() => handleTemplateClick(template.id)}
-                />
-              ))}
+              {loading
+                ? renderSkeletonCards()
+                : getTemplatesByCategory('sales').map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      id={template.id}
+                      title={template.name}
+                      description={template.description}
+                      author={template.author}
+                      usageCount={template.views.toString()}
+                      state={template.state}
+                      onClick={() => handleTemplateClick(template.id)}
+                    />
+                  ))}
+            </div>
+          </div>
+
+          {/* Finance Section */}
+          <div ref={sectionRefs.finance} className='mb-8'>
+            <div className='mb-4 flex items-center gap-2'>
+              <h2 className='font-medium font-sans text-foreground text-lg'>Finance</h2>
+              <ChevronRight className='h-4 w-4 text-muted-foreground' />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+              {loading
+                ? renderSkeletonCards()
+                : getTemplatesByCategory('finance').map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      id={template.id}
+                      title={template.name}
+                      description={template.description}
+                      author={template.author}
+                      usageCount={template.views.toString()}
+                      state={template.state}
+                      onClick={() => handleTemplateClick(template.id)}
+                    />
+                  ))}
+            </div>
+          </div>
+
+          {/* Support Section */}
+          <div ref={sectionRefs.support} className='mb-8'>
+            <div className='mb-4 flex items-center gap-2'>
+              <h2 className='font-medium font-sans text-foreground text-lg'>Support</h2>
+              <ChevronRight className='h-4 w-4 text-muted-foreground' />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+              {loading
+                ? renderSkeletonCards()
+                : getTemplatesByCategory('support').map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      id={template.id}
+                      title={template.name}
+                      description={template.description}
+                      author={template.author}
+                      usageCount={template.views.toString()}
+                      state={template.state}
+                      onClick={() => handleTemplateClick(template.id)}
+                    />
+                  ))}
+            </div>
+          </div>
+
+          {/* Artificial Intelligence Section */}
+          <div ref={sectionRefs['artificial-intelligence']} className='mb-8'>
+            <div className='mb-4 flex items-center gap-2'>
+              <h2 className='font-medium font-sans text-foreground text-lg'>
+                Artificial Intelligence
+              </h2>
+              <ChevronRight className='h-4 w-4 text-muted-foreground' />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+              {loading
+                ? renderSkeletonCards()
+                : getTemplatesByCategory('artificial-intelligence').map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      id={template.id}
+                      title={template.name}
+                      description={template.description}
+                      author={template.author}
+                      usageCount={template.views.toString()}
+                      state={template.state}
+                      onClick={() => handleTemplateClick(template.id)}
+                    />
+                  ))}
+            </div>
+          </div>
+
+          {/* Other Section */}
+          <div ref={sectionRefs.other} className='mb-8'>
+            <div className='mb-4 flex items-center gap-2'>
+              <h2 className='font-medium font-sans text-foreground text-lg'>Other</h2>
+              <ChevronRight className='h-4 w-4 text-muted-foreground' />
+            </div>
+
+            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+              {loading
+                ? renderSkeletonCards()
+                : getTemplatesByCategory('other').map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      id={template.id}
+                      title={template.name}
+                      description={template.description}
+                      author={template.author}
+                      usageCount={template.views.toString()}
+                      state={template.state}
+                      onClick={() => handleTemplateClick(template.id)}
+                    />
+                  ))}
             </div>
           </div>
         </div>

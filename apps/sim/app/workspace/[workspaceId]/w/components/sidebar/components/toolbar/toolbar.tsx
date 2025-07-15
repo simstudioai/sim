@@ -106,7 +106,7 @@ export function Toolbar({ userPermissions, isWorkspaceSelectorVisible = false }:
 
       {/* Content */}
       <ScrollArea className='flex-1 px-2' hideScrollbar={true}>
-        <div className='space-y-1'>
+        <div className='space-y-1 pb-2'>
           {/* Regular Blocks Section */}
           {regularBlocks.map((block) => (
             <ToolbarBlock
