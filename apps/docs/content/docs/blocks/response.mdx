@@ -8,38 +8,40 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 
-The Response block is the final component in API-enabled workflows that transforms your workflow's variables into a structured HTTP response. This block serves as the endpoint that returns data, status codes, and headers back to API callers.
+The Response block is the final step in your workflow that formats and returns data to whoever called your workflow. It's like the "return" statement for your entire workflow—it packages up results and sends them back.
 
 <ThemeImage
   lightSrc="/static/light/response-light.png"
   darkSrc="/static/dark/response-dark.png"
-  alt="Response Block"
-  width={430}
-  height={784}
+  alt="Response Block Configuration"
+  width={350}
+  height={175}
 />
 
 <Callout type="info">
-  Response blocks are terminal blocks - they mark the end of a workflow execution and cannot have further connections.
+  Response blocks are terminal blocks - they end the workflow execution and cannot connect to other blocks.
 </Callout>
 
-## Overview
+## When You Need Response Blocks
 
-The Response block serves as the final output mechanism for API workflows, enabling you to:
+**API Endpoints**: When your workflow is called via API, Response blocks format the return data
+**Webhooks**: Return confirmation or data back to the calling system
+**Testing**: See formatted results when testing your workflow
+**Data Export**: Structure data for external systems or reports
 
-<Steps>
-  <Step>
-    <strong>Return structured data</strong>: Transform workflow variables into JSON responses
-  </Step>
-  <Step>
-    <strong>Set HTTP status codes</strong>: Control the response status (200, 400, 500, etc.)
-  </Step>
-  <Step>
-    <strong>Configure headers</strong>: Add custom HTTP headers to the response
-  </Step>
-  <Step>
-    <strong>Reference variables</strong>: Use workflow variables dynamically in the response
-  </Step>
-</Steps>
+## Two Ways to Build Responses
+
+### Builder Mode (Recommended)
+Visual interface for building response structure:
+- Drag and drop fields
+- Reference workflow variables easily
+- Visual preview of response structure
+
+### Editor Mode (Advanced)
+Write JSON directly:
+- Full control over response format
+- Support for complex nested structures
+- Use `<variable.name>` syntax for dynamic values
 
 ## Configuration Options
 

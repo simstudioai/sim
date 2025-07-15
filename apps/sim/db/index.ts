@@ -11,22 +11,22 @@ const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
 /**
  * Connection Pool Allocation Strategy
  *
- * Main App: 25 connections per instance
- * Socket Server: 3 connections total
+ * Main App: 60 connections per instance
+ * Socket Server: 25 connections (operations) + 5 connections (room manager) = 30 total
  *
  * With ~3-4 Vercel serverless instances typically active:
- * - Main app: 25 × 4 = 100 connections
- * - Socket server: 3 connections
- * - Buffer: 25 connections
- * - Total: ~128 connections
- * - Supabase limit: 128 connections (16XL instance)
+ * - Main app: 60 × 4 = 240 connections
+ * - Socket server: 30 connections total
+ * - Buffer: 130 connections
+ * - Total: ~400 connections
+ * - Supabase limit: 400 connections (16XL instance direct connection pool)
  */
 
 const postgresClient = postgres(connectionString, {
   prepare: false,
   idle_timeout: 20,
   connect_timeout: 30,
-  max: 25,
+  max: 60,
   onnotice: () => {},
 })
 

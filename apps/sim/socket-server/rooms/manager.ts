@@ -13,8 +13,8 @@ const db = drizzle(
   postgres(connectionString, {
     prepare: false,
     idle_timeout: 15,
-    connect_timeout: 20, // Increase connection timeout for room operations
-    max: 1, // Minimal pool for room operations to conserve connections
+    connect_timeout: 20,
+    max: 5,
     onnotice: () => {},
   }),
   { schema }

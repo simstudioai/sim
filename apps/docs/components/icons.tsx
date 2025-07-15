@@ -270,3 +270,26 @@ export const ResponseIcon = (props: SVGProps<SVGSVGElement>) => (
     <path d='m9 17-5-5 5-5' />
   </svg>
 )
+
+export const StarterIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+    <path d='M8 5v14l11-7z' fill='currentColor' />
+  </svg>
+)
+
+export const LoopIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+    <path
+      d='M4 12a8 8 0 018-8V2.5L16 6l-4 3.5V8a6 6 0 00-6 6 6 6 0 006 6 6 6 0 006-6h2a8 8 0 01-8 8 8 8 0 01-8-8z'
+      fill='currentColor'
+    />
+  </svg>
+)
+
+export const ParallelIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+    <rect x='3' y='3' width='18' height='6' rx='1' stroke='currentColor' strokeWidth='2' />
+    <rect x='3' y='15' width='18' height='6' rx='1' stroke='currentColor' strokeWidth='2' />
+    <path d='M12 9v6' stroke='currentColor' strokeWidth='2' strokeLinecap='round' />
+  </svg>
+)

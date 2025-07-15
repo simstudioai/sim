@@ -6,35 +6,73 @@ description: Route workflow execution based on specific conditions or logic
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { ThemeImage } from '@/components/ui/theme-image'
 
-The Router block is a powerful component in Sim Studio that intelligently routes workflow execution based on content analysis, user input, or predefined conditions. It acts as a decision-making junction in your workflow, directing the flow to different paths based on various criteria.
+The Router block uses AI to intelligently decide which path your workflow should take next. Unlike Condition blocks that use simple rules, Router blocks can understand context and make smart routing decisions based on content analysis.
 
 <ThemeImage
   lightSrc="/static/light/router-light.png"
   darkSrc="/static/dark/router-dark.png"
-  alt="Router Block"
-  width={300}
+  alt="Router Block with Multiple Paths"
+  width={350}
   height={175}
 />
 
 ## Overview
 
-The Router block uses LLMs to analyze input content and determine the most appropriate next step in your workflow. This allows for:
+The Router block enables you to:
 
-- Creating dynamic, adaptable workflows
-- Implementing complex decision trees
-- Routing user requests to specialized components
-- Building conversational systems that can handle diverse inputs
+<Steps>
+  <Step>
+    <strong>Intelligent content routing</strong>: Use AI to understand intent and context
+  </Step>
+  <Step>
+    <strong>Dynamic path selection</strong>: Route workflows based on unstructured content analysis
+  </Step>
+  <Step>
+    <strong>Context-aware decisions</strong>: Make smart routing choices beyond simple rules
+  </Step>
+  <Step>
+    <strong>Multi-path management</strong>: Handle complex workflows with multiple potential destinations
+  </Step>
+</Steps>
+
+## Router vs Condition Blocks
+
+<Accordions>
+  <Accordion title="When to Use Router">
+    - AI-powered content analysis needed
+    - Unstructured or varying content types
+    - Intent-based routing (e.g., "route support tickets to departments")
+    - Context-aware decision making required
+  </Accordion>
+  <Accordion title="When to Use Condition">
+    - Simple, rule-based decisions
+    - Structured data or numeric comparisons
+    - Fast, deterministic routing needed
+    - Boolean logic sufficient
+  </Accordion>
+</Accordions>
 
 ## How It Works
 
 The Router block:
 
-1. Analyzes the input content using an LLM
-2. Evaluates the content against the available target blocks in your workflow
-3. Identifies the most appropriate destination based on the content's intent or requirements
-4. Routes the workflow execution to the selected block
+<Steps>
+  <Step>
+    <strong>Analyze content</strong>: Uses an LLM to understand input content and context
+  </Step>
+  <Step>
+    <strong>Evaluate targets</strong>: Compares content against available destination blocks
+  </Step>
+  <Step>
+    <strong>Select destination</strong>: Identifies the most appropriate path based on intent
+  </Step>
+  <Step>
+    <strong>Route execution</strong>: Directs workflow to the selected block
+  </Step>
+</Steps>
 
 ## Configuration Options
 
@@ -56,65 +94,165 @@ The possible destination blocks that the Router can select from. The Router will
 
 ### Model Selection
 
-Choose an LLM provider to power the routing decision:
+Choose an AI model to power the routing decision:
 
-- OpenAI (GPT-4o, o1, o3, o4-mini)
-- Anthropic (Claude 3.7 Sonnet)
-- Google (Gemini 2.5 Pro, Gemini 2.0 Flash)
-- Groq, Cerebras
-- Ollama Local Models
-- And more
+**OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1  \
+**Anthropic**: Claude 3.7 Sonnet \
+**Google**: Gemini 2.5 Pro, Gemini 2.0 Flash \
+**Other Providers**: Groq, Cerebras, xAI, DeepSeek \
+**Local Models**: Any model running on Ollama 
 
-Select a model with strong reasoning capabilities for more accurate routing decisions.
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/router-model-dropdown.mp4"></video>
+</div>
+
+**Recommendation**: Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for more accurate routing decisions.
 
 ### API Key
 
 Your API key for the selected LLM provider. This is securely stored and used for authentication.
 
-## Inputs and Outputs
+### Accessing Results
 
-### Inputs
+After a router makes a decision, you can access its outputs:
 
-- **Content/Prompt**: The text to analyze for routing decisions
-- **Target Blocks**: Connected blocks that are potential routing destinations
-- **Model Settings**: LLM provider and parameters
+- **`<router.content>`**: Summary of the routing decision made
+- **`<router.selected_path>`**: Details of the chosen destination block
+- **`<router.tokens>`**: Token usage statistics from the LLM
+- **`<router.model>`**: The model used for decision-making
 
-### Outputs
+## Advanced Features
 
-- **Content**: A summary of the routing decision
-- **Model**: The model used for decision-making
-- **Tokens**: Usage statistics
-- **Selected Path**: Details of the chosen routing destination, including:
-  - Block ID
-  - Block Type
-  - Block Title
+### Custom Routing Criteria
 
-## Example Usage
+Define specific criteria for each target block:
 
-Here's an example of how a Router block might be used in a customer support workflow:
-
-```yaml
-# Example Router Configuration
-prompt: |
-  Analyze the user query and route to the most appropriate department.
-  Choose ONE destination based on the query content and intent.
-
-model: OpenAI/gpt-4
+```javascript
+// Example routing descriptions
+Target Block 1: "Technical support issues, API problems, integration questions"
+Target Block 2: "Billing inquiries, subscription changes, payment issues"
+Target Block 3: "General questions, feedback, feature requests"
 ```
 
-In this example, the Router might be connected to:
+### Multi-Model Routing
 
-- A product support block
-- A billing inquiries block
-- A technical support block
-- A general inquiries block
+Use different models for different routing scenarios:
 
-Based on the user's query, the Router would analyze the content and direct it to the most appropriate specialized support block.
+```javascript
+// Fast routing for simple cases
+Model: GPT-4o-mini
+Criteria: Simple, common routing patterns
+
+// Complex routing for nuanced decisions
+Model: Claude 3.7 Sonnet
+Criteria: Complex content analysis required
+```
+
+### Fallback Handling
+
+Implement robust fallback mechanisms:
+
+```javascript
+// Router configuration
+Primary Targets: ["Support", "Sales", "Technical"]
+Fallback Target: "General" // Default when no specific match
+Confidence Threshold: 0.7 // Minimum confidence for routing
+```
+
+## Inputs and Outputs
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Content/Prompt</strong>: Text to analyze for routing decisions
+      </li>
+      <li>
+        <strong>Target Blocks</strong>: Connected blocks as potential destinations
+      </li>
+      <li>
+        <strong>Model</strong>: AI model for routing analysis
+      </li>
+      <li>
+        <strong>API Key</strong>: Authentication for selected LLM provider
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>router.content</strong>: Summary of routing decision
+      </li>
+      <li>
+        <strong>router.selected_path</strong>: Details of chosen destination
+      </li>
+      <li>
+        <strong>router.tokens</strong>: Token usage statistics
+      </li>
+      <li>
+        <strong>router.model</strong>: Model used for decision-making
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Routing Decision</strong>: Primary path selection result
+      </li>
+      <li>
+        <strong>Decision Context</strong>: Analysis summary and reasoning
+      </li>
+      <li>
+        <strong>Access</strong>: Available in blocks after the router
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Example Use Cases
+
+### Customer Support Triage
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Route support tickets to specialized departments</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>User submits support request via form</li>
+    <li>Router analyzes ticket content and context</li>
+    <li>Technical issues → Engineering support agent</li>
+    <li>Billing questions → Finance support agent</li>
+  </ol>
+</div>
+
+### Content Classification
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Classify and route user-generated content</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>User submits content or feedback</li>
+    <li>Router analyzes content type and sentiment</li>
+    <li>Feature requests → Product team workflow</li>
+    <li>Bug reports → Technical support workflow</li>
+  </ol>
+</div>
+
+### Lead Qualification
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Route leads based on qualification criteria</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Lead information captured from form</li>
+    <li>Router analyzes company size, industry, and needs</li>
+    <li>Enterprise leads → Sales team with custom pricing</li>
+    <li>SMB leads → Self-service onboarding flow</li>
+  </ol>
+</div>
+
 
 ## Best Practices
 
-- **Provide clear descriptions for target blocks**: Help the Router understand when to select each destination
-- **Use specific routing criteria**: Define clear conditions for selecting each path
-- **Consider fallback paths**: Connect a default destination for when no specific path is appropriate
-- **Test with diverse inputs**: Ensure the Router handles various input types correctly
-- **Review routing decisions**: Monitor the Router's performance and refine as needed
+- **Provide clear target descriptions**: Help the Router understand when to select each destination with specific, detailed descriptions
+- **Use specific routing criteria**: Define clear conditions and examples for each path to improve accuracy
+- **Implement fallback paths**: Connect a default destination for when no specific path is appropriate
+- **Test with diverse inputs**: Ensure the Router handles various input types, edge cases, and unexpected content
+- **Monitor routing performance**: Review routing decisions regularly and refine criteria based on actual usage patterns
+- **Choose appropriate models**: Use models with strong reasoning capabilities for complex routing decisions
