@@ -5,7 +5,7 @@
  * It is separate from the user-facing logging system in logging.ts.
  */
 import chalk from 'chalk'
-import { env } from '../env'
+import { env } from '@/lib/env'
 
 /**
  * LogLevel enum defines the severity levels for logging

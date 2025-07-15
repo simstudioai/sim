@@ -1,4 +1,4 @@
-import type { SerializedWorkflow } from '../serializer/types'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 /**
  * Shared utility for calculating block paths and accessible connections.

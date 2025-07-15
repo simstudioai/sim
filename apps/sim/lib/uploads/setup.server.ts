@@ -5,7 +5,7 @@ import {
   getStorageProvider,
   USE_BLOB_STORAGE,
   USE_S3_STORAGE,
-} from './setup'
+} from '@/lib/uploads/setup'
 
 const logger = createLogger('UploadsSetup')
 

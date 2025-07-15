@@ -1,10 +1,10 @@
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console-logger'
+import { snapshotService } from '@/lib/logs/snapshot-service'
 import { db } from '@/db'
 import { userStats, workflow, workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
-import { createLogger } from './console-logger'
-import { snapshotService } from './snapshot-service'
 import type {
   BlockExecutionLog,
   BlockInputData,

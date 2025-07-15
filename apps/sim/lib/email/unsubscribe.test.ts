@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { EmailType } from './mailer'
 import {
   generateUnsubscribeToken,
   isTransactionalEmail,
   verifyUnsubscribeToken,
-} from './unsubscribe'
+} from '@/lib/email/unsubscribe'
+import type { EmailType } from './mailer'
 
 vi.mock('../env', () => ({
   env: {

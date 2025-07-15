@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
+import { buildTraceSpans, stripCustomToolPrefix } from '@/lib/logs/trace-spans'
 import type { ExecutionResult } from '@/executor/types'
-import { buildTraceSpans, stripCustomToolPrefix } from './trace-spans'
 
 describe('buildTraceSpans', () => {
   test('should extract sequential segments from timeSegments data', () => {

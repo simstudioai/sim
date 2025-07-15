@@ -1,11 +1,11 @@
 import { type Chunk, TextChunker } from '@/lib/documents/chunker'
+import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getPresignedUrlWithConfig, getStorageProvider, uploadFile } from '@/lib/uploads'
 import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
 import { mistralParserTool } from '@/tools/mistral/parser'
-import { retryWithExponentialBackoff } from './utils'
 
 const logger = createLogger('DocumentProcessor')
 

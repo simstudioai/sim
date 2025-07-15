@@ -1,8 +1,8 @@
 import { Resend } from 'resend'
+import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/email/unsubscribe'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from '../env'
-import { getEmailDomain } from '../urls/utils'
-import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
+import { getEmailDomain } from '@/lib/urls/utils'
 
 const logger = createLogger('Mailer')
 

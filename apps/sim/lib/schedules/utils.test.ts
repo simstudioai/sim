@@ -11,7 +11,7 @@ import {
   getSubBlockValue,
   parseCronToHumanReadable,
   parseTimeString,
-} from './utils'
+} from '@/lib/schedules/utils'
 
 describe('Schedule Utilities', () => {
   describe('parseTimeString', () => {
