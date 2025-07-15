@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -210,6 +210,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const url = new URL(req.url)
     const includeDisabled = url.searchParams.get('includeDisabled') === 'true'
+    const search = url.searchParams.get('search')
+    const limit = Number.parseInt(url.searchParams.get('limit') || '50')
+    const offset = Number.parseInt(url.searchParams.get('offset') || '0')
 
     // Build where conditions
     const whereConditions = [
@@ -221,6 +224,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!includeDisabled) {
       whereConditions.push(eq(document.enabled, true))
     }
+
+    // Add search condition if provided
+    if (search) {
+      whereConditions.push(
+        // Search in filename
+        sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`
+      )
+    }
+
+    // Get total count for pagination
+    const totalResult = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(document)
+      .where(and(...whereConditions))
+
+    const total = totalResult[0]?.count || 0
+    const hasMore = offset + limit < total
 
     const documents = await db
       .select({
@@ -250,14 +270,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .from(document)
       .where(and(...whereConditions))
       .orderBy(desc(document.uploadedAt))
+      .limit(limit)
+      .offset(offset)
 
     logger.info(
-      `[${requestId}] Retrieved ${documents.length} documents for knowledge base ${knowledgeBaseId}`
+      `[${requestId}] Retrieved ${documents.length} documents (${offset}-${offset + documents.length} of ${total}) for knowledge base ${knowledgeBaseId}`
     )
 
     return NextResponse.json({
       success: true,
-      data: documents,
+      data: {
+        documents,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore,
+        },
+      },
     })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching documents`, error)
