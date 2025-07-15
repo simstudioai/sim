@@ -761,11 +761,13 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
 
       const documentsCache: DocumentsCache = {
         documents: updatedDocuments,
-        pagination: existingDocumentsCache?.pagination || {
+        pagination: {
+          ...(existingDocumentsCache?.pagination || {
+            limit: 50,
+            offset: 0,
+            hasMore: false,
+          }),
           total: updatedDocuments.length,
-          limit: 50,
-          offset: 0,
-          hasMore: false,
         },
         searchQuery: existingDocumentsCache?.searchQuery,
         lastFetchTime: Date.now(),

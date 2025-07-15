@@ -267,11 +267,6 @@ export function KnowledgeBase({
     await Promise.allSettled(markFailedPromises)
   }
 
-  // Reset page when search changes
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery])
-
   // Calculate pagination info for display
   const totalItems = pagination?.total || 0
 
