@@ -18,53 +18,62 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token for Jira',
     },
     domain: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description:
         'Jira project ID to update issues in. If not provided, all issues will be retrieved.',
     },
     issueKey: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Jira issue key to update',
     },
     summary: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'New summary for the issue',
     },
     description: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'New description for the issue',
     },
     status: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'New status for the issue',
     },
     priority: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'New priority for the issue',
     },
     assignee: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'New assignee for the issue',
     },
     cloudId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description:
         'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },

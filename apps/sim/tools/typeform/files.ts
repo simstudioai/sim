@@ -10,31 +10,37 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     formId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Typeform form ID',
     },
     responseId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Response ID containing the files',
     },
     fieldId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Unique ID of the file upload field',
     },
     filename: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Filename of the uploaded file',
     },
     inline: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Whether to request the file with inline Content-Disposition',
     },
     apiKey: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Typeform Personal Access Token',
     },
   },

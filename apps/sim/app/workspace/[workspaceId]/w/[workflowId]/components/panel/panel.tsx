@@ -14,6 +14,7 @@ import { Variables } from './components/variables/variables'
 
 export function Panel() {
   const [chatMessage, setChatMessage] = useState<string>('')
+  const [copilotMessage, setCopilotMessage] = useState<string>('')
   const [isChatModalOpen, setIsChatModalOpen] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [resizeStartX, setResizeStartX] = useState(0)

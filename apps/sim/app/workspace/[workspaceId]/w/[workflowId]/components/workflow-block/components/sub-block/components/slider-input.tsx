@@ -20,13 +20,15 @@ export function SliderInput({
   subBlockId,
   min = 0,
   max = 100,
-  defaultValue = 50,
+  defaultValue,
   step = 0.1,
   integer = false,
   isPreview = false,
   previewValue,
   disabled = false,
 }: SliderInputProps) {
+  // Smart default value: if no default provided, use midpoint or 0.7 for 0-1 ranges
+  const computedDefaultValue = defaultValue ?? (max <= 1 ? 0.7 : (min + max) / 2)
   const [storeValue, setStoreValue] = useSubBlockValue<number>(blockId, subBlockId)
 
   // Use preview value when in preview mode, otherwise use store value
@@ -34,9 +36,11 @@ export function SliderInput({
 
   // Clamp the value within bounds while preserving relative position when possible
   const normalizedValue =
-    value !== null && value !== undefined ? Math.max(min, Math.min(max, value)) : defaultValue
+    value !== null && value !== undefined
+      ? Math.max(min, Math.min(max, value))
+      : computedDefaultValue
 
-  const displayValue = normalizedValue ?? defaultValue
+  const displayValue = normalizedValue ?? computedDefaultValue
 
   // Ensure the normalized value is set if it differs from the current value
   useEffect(() => {

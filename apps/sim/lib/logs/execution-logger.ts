@@ -3,11 +3,11 @@ import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { redactApiKeys } from '@/lib/utils'
+import { stripCustomToolPrefix } from '@/lib/workflows/utils'
 import { db } from '@/db'
 import { userStats, workflow, workflowLogs } from '@/db/schema'
 import type { ExecutionResult as ExecutorResult } from '@/executor/types'
 import { calculateCost } from '@/providers/utils'
-import { stripCustomToolPrefix } from '../workflows/utils'
 
 const logger = createLogger('ExecutionLogger')
 
@@ -632,6 +632,7 @@ export async function persistExecutionLogs(
               totalChatExecutions: 0,
               totalTokensUsed: totalTokens,
               totalCost: costToStore.toString(),
+              currentPeriodCost: costToStore.toString(), // Initialize current period usage
               lastActive: new Date(),
             })
           } else {
@@ -640,6 +641,7 @@ export async function persistExecutionLogs(
               .set({
                 totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
                 totalCost: sql`total_cost + ${costToStore}`,
+                currentPeriodCost: sql`current_period_cost + ${costToStore}`, // Track current billing period usage
                 lastActive: new Date(),
               })
               .where(eq(userStats.userId, userId))

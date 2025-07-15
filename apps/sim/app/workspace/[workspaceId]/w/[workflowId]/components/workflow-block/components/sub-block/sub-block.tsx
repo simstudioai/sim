@@ -1,4 +1,5 @@
-import { Info } from 'lucide-react'
+import { useState } from 'react'
+import { AlertTriangle, Info } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getBlock } from '@/blocks/index'
@@ -48,8 +49,14 @@ export function SubBlock({
   subBlockValues,
   disabled = false,
 }: SubBlockProps) {
+  const [isValidJson, setIsValidJson] = useState(true)
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
+  }
+
+  const handleValidationChange = (isValid: boolean) => {
+    setIsValidJson(isValid)
   }
 
   const isFieldRequired = () => {
@@ -108,7 +115,7 @@ export function SubBlock({
             <Dropdown
               blockId={blockId}
               subBlockId={config.id}
-              options={config.options as string[]}
+              options={config.options as { label: string; id: string }[]}
               isPreview={isPreview}
               previewValue={previewValue}
               disabled={isDisabled}
@@ -121,7 +128,7 @@ export function SubBlock({
             <ComboBox
               blockId={blockId}
               subBlockId={config.id}
-              options={config.options as string[]}
+              options={config.options as { label: string; id: string }[]}
               placeholder={config.placeholder}
               isPreview={isPreview}
               previewValue={previewValue}
@@ -169,6 +176,7 @@ export function SubBlock({
             isPreview={isPreview}
             previewValue={previewValue}
             disabled={isDisabled}
+            onValidationChange={handleValidationChange}
           />
         )
       case 'switch':
@@ -403,6 +411,16 @@ export function SubBlock({
               </TooltipTrigger>
               <TooltipContent side='top'>
                 <p>This field is required</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {config.id === 'responseFormat' && !isValidJson && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertTriangle className='h-4 w-4 cursor-pointer text-destructive' />
+              </TooltipTrigger>
+              <TooltipContent side='top'>
+                <p>Invalid JSON</p>
               </TooltipContent>
             </Tooltip>
           )}

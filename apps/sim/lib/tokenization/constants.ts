@@ -2,7 +2,7 @@
  * Configuration constants for tokenization functionality
  */
 
-import type { ProviderTokenizationConfig } from './types'
+import type { ProviderTokenizationConfig } from '@/lib/tokenization/types'
 
 export const TOKENIZATION_CONFIG = {
   providers: {

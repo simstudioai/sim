@@ -19,9 +19,9 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Read Page', id: 'read_notion' },
-        { label: 'Append Content', id: 'write_notion' },
-        { label: 'Create Page', id: 'create_notion' },
+        { label: 'Read Page', id: 'notion_read' },
+        { label: 'Append Content', id: 'notion_write' },
+        { label: 'Create Page', id: 'notion_create_page' },
       ],
     },
     {
@@ -43,7 +43,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       placeholder: 'Enter Notion page ID',
       condition: {
         field: 'operation',
-        value: 'read_notion',
+        value: 'notion_read',
       },
     },
     {
@@ -54,7 +54,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       placeholder: 'Enter Notion page ID',
       condition: {
         field: 'operation',
-        value: 'write_notion',
+        value: 'notion_write',
       },
     },
     // Create operation fields
@@ -67,7 +67,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         { label: 'Page', id: 'page' },
         { label: 'Database', id: 'database' },
       ],
-      condition: { field: 'operation', value: 'create_notion' },
+      condition: { field: 'operation', value: 'notion_create_page' },
     },
     {
       id: 'parentId',
@@ -75,7 +75,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'ID of parent page or database',
-      condition: { field: 'operation', value: 'create_notion' },
+      condition: { field: 'operation', value: 'notion_create_page' },
     },
     {
       id: 'title',
@@ -85,7 +85,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       placeholder: 'Title for the new page',
       condition: {
         field: 'operation',
-        value: 'create_notion',
+        value: 'notion_create_page',
         and: { field: 'parentType', value: 'page' },
       },
     },
@@ -97,7 +97,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       placeholder: 'Enter page properties as JSON object',
       condition: {
         field: 'operation',
-        value: 'create_notion',
+        value: 'notion_create_page',
       },
     },
     // Content input for write/create operations
@@ -109,7 +109,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       placeholder: 'Enter content to add to the page',
       condition: {
         field: 'operation',
-        value: 'write_notion',
+        value: 'notion_write',
       },
     },
     {
@@ -120,7 +120,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       placeholder: 'Enter content to add to the page',
       condition: {
         field: 'operation',
-        value: 'create_notion',
+        value: 'notion_create_page',
       },
     },
   ],
@@ -129,11 +129,11 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     config: {
       tool: (params) => {
         switch (params.operation) {
-          case 'read_notion':
+          case 'notion_read':
             return 'notion_read'
-          case 'write_notion':
+          case 'notion_write':
             return 'notion_write'
-          case 'create_notion':
+          case 'notion_create_page':
             return 'notion_create_page'
           default:
             return 'notion_read'
@@ -144,7 +144,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
 
         // Parse properties from JSON string for create operations
         let parsedProperties
-        if (operation === 'create_notion' && properties) {
+        if (operation === 'notion_create_page' && properties) {
           try {
             parsedProperties = JSON.parse(properties)
           } catch (error) {

@@ -1,13 +1,10 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
-import { getBaseDomain } from '@/lib/urls/utils'
-import { env } from './lib/env'
+import { isDev } from './lib/environment'
+import { createLogger } from './lib/logs/console-logger'
+import { getBaseDomain } from './lib/urls/utils'
 
 const logger = createLogger('Middleware')
-
-// Environment flag to check if we're in development mode
-const isDevelopment = env.NODE_ENV === 'development'
 
 const SUSPICIOUS_UA_PATTERNS = [
   /^\s*$/, // Empty user agents
@@ -27,16 +24,46 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''
 
-  // Extract subdomain
-  const isCustomDomain =
-    hostname !== BASE_DOMAIN &&
-    !hostname.startsWith('www.') &&
-    hostname.includes(isDevelopment ? 'localhost' : 'simstudio.ai')
+  // Extract subdomain - handle nested subdomains for any domain
+  const isCustomDomain = (() => {
+    // Standard check for non-base domains
+    if (hostname === BASE_DOMAIN || hostname.startsWith('www.')) {
+      return false
+    }
+
+    // Extract root domain from BASE_DOMAIN (e.g., "simstudio.ai" from "staging.simstudio.ai")
+    const baseParts = BASE_DOMAIN.split('.')
+    const rootDomain = isDev
+      ? 'localhost'
+      : baseParts.length >= 2
+        ? baseParts
+            .slice(-2)
+            .join('.') // Last 2 parts: ["simstudio", "ai"] -> "simstudio.ai"
+        : BASE_DOMAIN
+
+    // Check if hostname is under the same root domain
+    if (!hostname.includes(rootDomain)) {
+      return false
+    }
+
+    // For nested subdomain environments: handle cases like myapp.staging.example.com
+    const hostParts = hostname.split('.')
+    const basePartCount = BASE_DOMAIN.split('.').length
+
+    // If hostname has more parts than base domain, it's a nested subdomain
+    if (hostParts.length > basePartCount) {
+      return true
+    }
+
+    // For single-level subdomains: regular subdomain logic
+    return hostname !== BASE_DOMAIN
+  })()
+
   const subdomain = isCustomDomain ? hostname.split('.')[0] : null
 
   // Handle chat subdomains
   if (subdomain && isCustomDomain) {
-    if (url.pathname.startsWith('/api/chat/')) {
+    if (url.pathname.startsWith('/api/chat/') || url.pathname.startsWith('/api/proxy/')) {
       return NextResponse.next()
     }
 
@@ -96,16 +123,6 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL(`/invite/${token}?token=${token}`, request.url))
       }
     }
-    return NextResponse.next()
-  }
-
-  // If self-hosted skip waitlist
-  if (env.DOCKER_BUILD) {
-    return NextResponse.next()
-  }
-
-  // Skip waitlist protection for development environment
-  if (isDevelopment) {
     return NextResponse.next()
   }
 

@@ -25,8 +25,7 @@
   },
   "overrides": {
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "tailwindcss": "3.4.1"
+    "react-dom": "19.1.0"
   },
   "dependencies": {
     "@linear/sdk": "40.0.0",
@@ -48,9 +47,8 @@
     "turbo": "2.5.4"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,css,scss,md}": [
-      "biome check --files-ignore-unknown=true"
-    ],
-    "!.github/*.md": []
+    "*.{js,jsx,ts,tsx,json,css,scss}": [
+      "biome check --write --files-ignore-unknown=true"
+    ]
   }
 }

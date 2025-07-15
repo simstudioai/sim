@@ -2,10 +2,10 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import type { Server } from 'socket.io'
-import * as schema from '../../db/schema'
-import { workflowBlocks, workflowEdges } from '../../db/schema'
-import { env } from '../../lib/env'
-import { createLogger } from '../../lib/logs/console-logger'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import * as schema from '@/db/schema'
+import { workflowBlocks, workflowEdges } from '@/db/schema'
 
 // Create dedicated database connection for room manager
 const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
@@ -73,11 +73,6 @@ export class RoomManager {
 
     this.socketToWorkflow.delete(socketId)
     this.userSessions.delete(socketId)
-  }
-
-  // This would be used if we implement operation queuing
-  clearPendingOperations(socketId: string) {
-    logger.debug(`Cleared pending operations for socket ${socketId}`)
   }
 
   handleWorkflowDeletion(workflowId: string) {

@@ -3,6 +3,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('GoogleProvider')
 
@@ -23,6 +24,66 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
         while (true) {
           const { done, value } = await reader.read()
           if (done) {
+            // Try to parse any remaining buffer as complete JSON
+            if (buffer.trim()) {
+              // Processing final buffer
+              try {
+                const data = JSON.parse(buffer.trim())
+                const candidate = data.candidates?.[0]
+                if (candidate?.content?.parts) {
+                  // Check if this is a function call
+                  const functionCall = extractFunctionCall(candidate)
+                  if (functionCall) {
+                    logger.debug(
+                      'Function call detected in final buffer, ending stream to execute tool',
+                      {
+                        functionName: functionCall.name,
+                      }
+                    )
+                    // Function calls should not be streamed - end the stream early
+                    controller.close()
+                    return
+                  }
+                  const content = extractTextContent(candidate)
+                  if (content) {
+                    controller.enqueue(new TextEncoder().encode(content))
+                  }
+                }
+              } catch (e) {
+                // Final buffer not valid JSON, checking if it contains JSON array
+                // Try parsing as JSON array if it starts with [
+                if (buffer.trim().startsWith('[')) {
+                  try {
+                    const dataArray = JSON.parse(buffer.trim())
+                    if (Array.isArray(dataArray)) {
+                      for (const item of dataArray) {
+                        const candidate = item.candidates?.[0]
+                        if (candidate?.content?.parts) {
+                          // Check if this is a function call
+                          const functionCall = extractFunctionCall(candidate)
+                          if (functionCall) {
+                            logger.debug(
+                              'Function call detected in array item, ending stream to execute tool',
+                              {
+                                functionName: functionCall.name,
+                              }
+                            )
+                            controller.close()
+                            return
+                          }
+                          const content = extractTextContent(candidate)
+                          if (content) {
+                            controller.enqueue(new TextEncoder().encode(content))
+                          }
+                        }
+                      }
+                    }
+                  } catch (arrayError) {
+                    // Buffer is not valid JSON array
+                  }
+                }
+              }
+            }
             controller.close()
             break
           }
@@ -30,47 +91,98 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
           const text = new TextDecoder().decode(value)
           buffer += text
 
-          try {
-            const lines = buffer.split('\n')
-            buffer = ''
+          // Try to find complete JSON objects in buffer
+          // Look for patterns like: {...}\n{...} or just a single {...}
+          let searchIndex = 0
+          while (searchIndex < buffer.length) {
+            const openBrace = buffer.indexOf('{', searchIndex)
+            if (openBrace === -1) break
 
-            for (let i = 0; i < lines.length; i++) {
-              const line = lines[i].trim()
+            // Try to find the matching closing brace
+            let braceCount = 0
+            let inString = false
+            let escaped = false
+            let closeBrace = -1
 
-              if (i === lines.length - 1 && line !== '') {
-                buffer = line
-                continue
-              }
+            for (let i = openBrace; i < buffer.length; i++) {
+              const char = buffer[i]
 
-              if (!line) continue
-
-              if (line.startsWith('data: ')) {
-                const jsonStr = line.substring(6)
-
-                if (jsonStr === '[DONE]') continue
-
-                try {
-                  const data = JSON.parse(jsonStr)
-                  const candidate = data.candidates?.[0]
-                  if (candidate?.content?.parts) {
-                    const content = extractTextContent(candidate)
-                    if (content) {
-                      controller.enqueue(new TextEncoder().encode(content))
-                    }
+              if (!inString) {
+                if (char === '"' && !escaped) {
+                  inString = true
+                } else if (char === '{') {
+                  braceCount++
+                } else if (char === '}') {
+                  braceCount--
+                  if (braceCount === 0) {
+                    closeBrace = i
+                    break
                   }
-                } catch (e) {
-                  logger.error('Error parsing Gemini SSE JSON data', {
-                    error: e instanceof Error ? e.message : String(e),
-                    data: jsonStr,
-                  })
+                }
+              } else {
+                if (char === '"' && !escaped) {
+                  inString = false
                 }
               }
+
+              escaped = char === '\\' && !escaped
             }
-          } catch (e) {
-            logger.error('Error processing Gemini SSE stream', {
-              error: e instanceof Error ? e.message : String(e),
-              chunk: text,
-            })
+
+            if (closeBrace !== -1) {
+              // Found a complete JSON object
+              const jsonStr = buffer.substring(openBrace, closeBrace + 1)
+
+              try {
+                const data = JSON.parse(jsonStr)
+                // JSON parsed successfully from stream
+
+                const candidate = data.candidates?.[0]
+
+                // Handle specific finish reasons
+                if (candidate?.finishReason === 'UNEXPECTED_TOOL_CALL') {
+                  logger.warn('Gemini returned UNEXPECTED_TOOL_CALL in streaming mode', {
+                    finishReason: candidate.finishReason,
+                    hasContent: !!candidate?.content,
+                    hasParts: !!candidate?.content?.parts,
+                  })
+                  // This indicates a configuration issue - tools might be improperly configured for streaming
+                  continue
+                }
+
+                if (candidate?.content?.parts) {
+                  // Check if this is a function call
+                  const functionCall = extractFunctionCall(candidate)
+                  if (functionCall) {
+                    logger.debug(
+                      'Function call detected in stream, ending stream to execute tool',
+                      {
+                        functionName: functionCall.name,
+                      }
+                    )
+                    // Function calls should not be streamed - we need to end the stream
+                    // and let the non-streaming tool execution flow handle this
+                    controller.close()
+                    return
+                  }
+                  const content = extractTextContent(candidate)
+                  if (content) {
+                    controller.enqueue(new TextEncoder().encode(content))
+                  }
+                }
+              } catch (e) {
+                logger.error('Error parsing JSON from stream', {
+                  error: e instanceof Error ? e.message : String(e),
+                  jsonPreview: jsonStr.substring(0, 200),
+                })
+              }
+
+              // Remove processed JSON from buffer and continue searching
+              buffer = buffer.substring(closeBrace + 1)
+              searchIndex = 0
+            } else {
+              // No complete JSON object found, wait for more data
+              break
+            }
           }
         }
       } catch (e) {
@@ -142,8 +254,8 @@ export const googleProvider: ProviderConfig = {
         payload.systemInstruction = systemInstruction
       }
 
-      // Add structured output format if requested
-      if (request.responseFormat) {
+      // Add structured output format if requested (but not when tools are present)
+      if (request.responseFormat && !tools?.length) {
         const responseFormatSchema = request.responseFormat.schema || request.responseFormat
 
         // Clean the schema using our helper function
@@ -157,30 +269,59 @@ export const googleProvider: ProviderConfig = {
           hasSchema: !!cleanSchema,
           mimeType: 'application/json',
         })
+      } else if (request.responseFormat && tools?.length) {
+        logger.warn(
+          'Gemini does not support structured output (responseFormat) with function calling (tools). Structured output will be ignored.'
+        )
       }
 
-      // Add tools if provided
-      if (tools?.length) {
-        payload.tools = [
-          {
-            functionDeclarations: tools,
-          },
-        ]
+      // Handle tools and tool usage control
+      let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
-        logger.info('Google Gemini request with tools:', {
-          toolCount: tools.length,
-          model: requestedModel,
-          tools: tools.map((t) => t.name),
-        })
+      if (tools?.length) {
+        preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'google')
+        const { tools: filteredTools, toolConfig } = preparedTools
+
+        if (filteredTools?.length) {
+          payload.tools = [
+            {
+              functionDeclarations: filteredTools,
+            },
+          ]
+
+          // Add Google-specific tool configuration
+          if (toolConfig) {
+            payload.toolConfig = toolConfig
+          }
+
+          logger.info('Google Gemini request with tools:', {
+            toolCount: filteredTools.length,
+            model: requestedModel,
+            tools: filteredTools.map((t) => t.name),
+            hasToolConfig: !!toolConfig,
+            toolConfig: toolConfig,
+          })
+        }
       }
 
       // Make the API request
       const initialCallTime = Date.now()
 
-      // For streaming requests, add the alt=sse parameter to the URL
-      const endpoint = request.stream
-        ? `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}&alt=sse`
+      // Disable streaming for initial requests when tools are present to avoid function calls in streams
+      // Only enable streaming for the final response after tool execution
+      const shouldStream = request.stream && !tools?.length
+
+      // Use streamGenerateContent for streaming requests
+      const endpoint = shouldStream
+        ? `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:streamGenerateContent?key=${request.apiKey}`
         : `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`
+
+      if (request.stream && tools?.length) {
+        logger.info('Streaming disabled for initial request due to tools presence', {
+          toolCount: tools.length,
+          willStreamAfterTools: true,
+        })
+      }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -203,7 +344,7 @@ export const googleProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       // Handle streaming response
-      if (request.stream) {
+      if (shouldStream) {
         logger.info('Handling Google Gemini streaming response')
 
         // Create a ReadableStream from the Google Gemini stream
@@ -239,11 +380,7 @@ export const googleProvider: ProviderConfig = {
                     duration: firstResponseTime,
                   },
                 ],
-                cost: {
-                  total: 0.0, // Initial estimate, updated as tokens are processed
-                  input: 0.0,
-                  output: 0.0,
-                },
+                // Cost will be calculated in logger
               },
             },
             logs: [],
@@ -287,6 +424,38 @@ export const googleProvider: ProviderConfig = {
       const toolResults = []
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
+
+      // Track forced tools and their usage (similar to OpenAI pattern)
+      const originalToolConfig = preparedTools?.toolConfig
+      const forcedTools = preparedTools?.forcedTools || []
+      let usedForcedTools: string[] = []
+      let hasUsedForcedTool = false
+      let currentToolConfig = originalToolConfig
+
+      // Helper function to check for forced tool usage in responses
+      const checkForForcedToolUsage = (functionCall: { name: string; args: any }) => {
+        if (currentToolConfig && forcedTools.length > 0) {
+          const toolCallsForTracking = [{ name: functionCall.name, arguments: functionCall.args }]
+          const result = trackForcedToolUsage(
+            toolCallsForTracking,
+            currentToolConfig,
+            logger,
+            'google',
+            forcedTools,
+            usedForcedTools
+          )
+          hasUsedForcedTool = result.hasUsedForcedTool
+          usedForcedTools = result.usedForcedTools
+
+          if (result.nextToolConfig) {
+            currentToolConfig = result.nextToolConfig
+            logger.info('Updated tool config for next iteration', {
+              hasNextToolConfig: !!currentToolConfig,
+              usedForcedTools: usedForcedTools,
+            })
+          }
+        }
+      }
 
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
@@ -343,70 +512,15 @@ export const googleProvider: ProviderConfig = {
                 break
               }
 
-              // First, identify parameters marked as requiredForToolCall
-              const requiredToolCallParams: Record<string, any> = {}
-              if (tool.params) {
-                Object.entries(tool.params).forEach(([key, value]) => {
-                  // Check if this parameter is marked as requiredForToolCall
-                  if (value?.requiredForToolCall) {
-                    requiredToolCallParams[key] = value
-                  }
-                })
-              }
-
               // Execute the tool
               const toolCallStartTime = Date.now()
 
-              // Merge arguments in the correct order of precedence:
-              // 1. Default parameters from tool.params
-              // 2. Arguments from the model's function call (toolArgs)
-              // 3. Parameters marked as requiredForToolCall (these should always be preserved)
-              // 4. Workflow context if needed
-              const mergedArgs = {
-                ...tool.params, // Default parameters defined for the tool
-                ...toolArgs, // Arguments from the model's function call
-                ...requiredToolCallParams, // Required parameters from the tool definition (take precedence)
-                ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
-                ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-              }
-
-              // For debugging only - don't log actual API keys
-              logger.debug(`Executing tool ${toolName} with parameters:`, {
-                parameterKeys: Object.keys(mergedArgs),
-                hasRequiredParams: Object.keys(requiredToolCallParams).length > 0,
-                requiredParamKeys: Object.keys(requiredToolCallParams),
-              })
-              const result = await executeTool(toolName, mergedArgs, true)
+              const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
+              const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 
-              if (!result.success) {
-                // Check for API key related errors
-                const errorMessage = result.error?.toLowerCase() || ''
-                if (
-                  errorMessage.includes('api key') ||
-                  errorMessage.includes('apikey') ||
-                  errorMessage.includes('x-api-key') ||
-                  errorMessage.includes('authentication')
-                ) {
-                  logger.error(`Tool ${toolName} failed with API key error:`, {
-                    error: result.error,
-                    toolRequiresKey: true,
-                  })
-
-                  // Add a more helpful error message for the user
-                  content = `Error: The ${toolName} tool requires a valid API key. Please ensure you've provided the correct API key for this specific service.`
-                } else {
-                  // Regular error handling
-                  logger.warn(`Tool ${toolName} execution failed`, {
-                    error: result.error,
-                    duration: toolCallDuration,
-                  })
-                }
-                break
-              }
-
-              // Add to time segments
+              // Add to time segments for both success and failure
               timeSegments.push({
                 type: 'tool',
                 name: toolName,
@@ -415,15 +529,28 @@ export const googleProvider: ProviderConfig = {
                 duration: toolCallDuration,
               })
 
-              // Track results
-              toolResults.push(result.output)
+              // Prepare result content for the LLM
+              let resultContent: any
+              if (result.success) {
+                toolResults.push(result.output)
+                resultContent = result.output
+              } else {
+                // Include error information so LLM can respond appropriately
+                resultContent = {
+                  error: true,
+                  message: result.error || 'Tool execution failed',
+                  tool: toolName,
+                }
+              }
+
               toolCalls.push({
                 name: toolName,
-                arguments: toolArgs,
+                arguments: toolParams,
                 startTime: new Date(toolCallStartTime).toISOString(),
                 endTime: new Date(toolCallEndTime).toISOString(),
                 duration: toolCallDuration,
-                result: result.output,
+                result: resultContent,
+                success: result.success,
               })
 
               // Prepare for next request with simplified messages
@@ -450,7 +577,7 @@ export const googleProvider: ProviderConfig = {
                   role: 'user',
                   parts: [
                     {
-                      text: `Function ${latestFunctionCall.name} result: ${JSON.stringify(toolResults[toolResults.length - 1])}`,
+                      text: `Function ${latestFunctionCall.name} result: ${JSON.stringify(resultContent)}`,
                     },
                   ],
                 },
@@ -459,6 +586,9 @@ export const googleProvider: ProviderConfig = {
               // Calculate tool call time
               const thisToolsTime = Date.now() - toolsStartTime
               toolsTime += thisToolsTime
+
+              // Check for forced tool usage and update configuration
+              checkForForcedToolUsage(latestFunctionCall)
 
               // Make the next request with updated messages
               const nextModelStartTime = Date.now()
@@ -470,17 +600,118 @@ export const googleProvider: ProviderConfig = {
                   const streamingPayload = {
                     ...payload,
                     contents: simplifiedMessages,
-                    tool_config: { mode: 'AUTO' }, // Always use AUTO mode for streaming after tools
                   }
 
-                  // Remove any forced tool configuration to prevent issues with streaming
-                  if ('tool_config' in streamingPayload) {
-                    streamingPayload.tool_config = { mode: 'AUTO' }
+                  // Check if we should remove tools and enable structured output for final response
+                  const allForcedToolsUsed =
+                    forcedTools.length > 0 && usedForcedTools.length === forcedTools.length
+
+                  if (allForcedToolsUsed && request.responseFormat) {
+                    // All forced tools have been used, we can now remove tools and enable structured output
+                    streamingPayload.tools = undefined
+                    streamingPayload.toolConfig = undefined
+
+                    // Add structured output format for final response
+                    const responseFormatSchema =
+                      request.responseFormat.schema || request.responseFormat
+                    const cleanSchema = cleanSchemaForGemini(responseFormatSchema)
+
+                    if (!streamingPayload.generationConfig) {
+                      streamingPayload.generationConfig = {}
+                    }
+                    streamingPayload.generationConfig.responseMimeType = 'application/json'
+                    streamingPayload.generationConfig.responseSchema = cleanSchema
+
+                    logger.info('Using structured output for final response after tool execution')
+                  } else {
+                    // Use updated tool configuration if available, otherwise default to AUTO
+                    if (currentToolConfig) {
+                      streamingPayload.toolConfig = currentToolConfig
+                    } else {
+                      streamingPayload.toolConfig = { functionCallingConfig: { mode: 'AUTO' } }
+                    }
                   }
 
-                  // Make the streaming request with alt=sse parameter
+                  // Check if we should handle this as a potential forced tool call
+                  // First make a non-streaming request to see if we get a function call
+                  const checkPayload = {
+                    ...streamingPayload,
+                    // Remove stream property to get non-streaming response
+                  }
+                  checkPayload.stream = undefined
+
+                  const checkResponse = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
+                    {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(checkPayload),
+                    }
+                  )
+
+                  if (!checkResponse.ok) {
+                    const errorBody = await checkResponse.text()
+                    logger.error('Error in Gemini check request:', {
+                      status: checkResponse.status,
+                      statusText: checkResponse.statusText,
+                      responseBody: errorBody,
+                    })
+                    throw new Error(
+                      `Gemini API check error: ${checkResponse.status} ${checkResponse.statusText}`
+                    )
+                  }
+
+                  const checkResult = await checkResponse.json()
+                  const checkCandidate = checkResult.candidates?.[0]
+                  const checkFunctionCall = extractFunctionCall(checkCandidate)
+
+                  if (checkFunctionCall) {
+                    // We have a function call - handle it in non-streaming mode
+                    logger.info(
+                      'Function call detected in follow-up, handling in non-streaming mode',
+                      {
+                        functionName: checkFunctionCall.name,
+                      }
+                    )
+
+                    // Update geminiResponse to continue the tool execution loop
+                    geminiResponse = checkResult
+
+                    // Update token counts if available
+                    if (checkResult.usageMetadata) {
+                      tokens.prompt += checkResult.usageMetadata.promptTokenCount || 0
+                      tokens.completion += checkResult.usageMetadata.candidatesTokenCount || 0
+                      tokens.total +=
+                        (checkResult.usageMetadata.promptTokenCount || 0) +
+                        (checkResult.usageMetadata.candidatesTokenCount || 0)
+                    }
+
+                    // Calculate timing for this model call
+                    const nextModelEndTime = Date.now()
+                    const thisModelTime = nextModelEndTime - nextModelStartTime
+                    modelTime += thisModelTime
+
+                    // Add to time segments
+                    timeSegments.push({
+                      type: 'model',
+                      name: `Model response (iteration ${iterationCount + 1})`,
+                      startTime: nextModelStartTime,
+                      endTime: nextModelEndTime,
+                      duration: thisModelTime,
+                    })
+
+                    // Continue the loop to handle the function call
+                    iterationCount++
+                    continue
+                  }
+                  // No function call - proceed with streaming
+                  logger.info('No function call detected, proceeding with streaming response')
+
+                  // Make the streaming request with streamGenerateContent endpoint
                   const streamingResponse = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}&alt=sse`,
+                    `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:streamGenerateContent?key=${request.apiKey}`,
                     {
                       method: 'POST',
                       headers: {
@@ -546,11 +777,7 @@ export const googleProvider: ProviderConfig = {
                           iterations: iterationCount + 1,
                           timeSegments,
                         },
-                        cost: {
-                          total: (tokens.total || 0) * 0.0001, // Estimate cost based on tokens
-                          input: (tokens.prompt || 0) * 0.0001,
-                          output: (tokens.completion || 0) * 0.0001,
-                        },
+                        // Cost will be calculated in logger
                       },
                       logs: [],
                       metadata: {
@@ -566,6 +793,41 @@ export const googleProvider: ProviderConfig = {
                 }
 
                 // Make the next request for non-streaming response
+                const nextPayload = {
+                  ...payload,
+                  contents: simplifiedMessages,
+                }
+
+                // Check if we should remove tools and enable structured output for final response
+                const allForcedToolsUsed =
+                  forcedTools.length > 0 && usedForcedTools.length === forcedTools.length
+
+                if (allForcedToolsUsed && request.responseFormat) {
+                  // All forced tools have been used, we can now remove tools and enable structured output
+                  nextPayload.tools = undefined
+                  nextPayload.toolConfig = undefined
+
+                  // Add structured output format for final response
+                  const responseFormatSchema =
+                    request.responseFormat.schema || request.responseFormat
+                  const cleanSchema = cleanSchemaForGemini(responseFormatSchema)
+
+                  if (!nextPayload.generationConfig) {
+                    nextPayload.generationConfig = {}
+                  }
+                  nextPayload.generationConfig.responseMimeType = 'application/json'
+                  nextPayload.generationConfig.responseSchema = cleanSchema
+
+                  logger.info(
+                    'Using structured output for final non-streaming response after tool execution'
+                  )
+                } else {
+                  // Add updated tool configuration if available
+                  if (currentToolConfig) {
+                    nextPayload.toolConfig = currentToolConfig
+                  }
+                }
+
                 const nextResponse = await fetch(
                   `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
                   {
@@ -573,10 +835,7 @@ export const googleProvider: ProviderConfig = {
                     headers: {
                       'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                      ...payload,
-                      contents: simplifiedMessages,
-                    }),
+                    body: JSON.stringify(nextPayload),
                   }
                 )
 
@@ -681,6 +940,7 @@ export const googleProvider: ProviderConfig = {
           iterations: iterationCount + 1,
           timeSegments: timeSegments,
         },
+        // Cost will be calculated in logger
       }
     } catch (error) {
       // Include timing information even for errors
@@ -866,7 +1126,7 @@ function convertToGeminiFormat(request: ProviderRequest): {
     // Process schema properties
     if (toolParameters.properties) {
       const properties = { ...toolParameters.properties }
-      let required = toolParameters.required ? [...toolParameters.required] : []
+      const required = toolParameters.required ? [...toolParameters.required] : []
 
       // Remove defaults and optional parameters
       for (const key in properties) {
@@ -875,10 +1135,6 @@ function convertToGeminiFormat(request: ProviderRequest): {
         if (prop.default !== undefined) {
           const { default: _, ...cleanProp } = prop
           properties[key] = cleanProp
-        }
-
-        if (tool.params?.[key]?.requiredForToolCall && required.includes(key)) {
-          required = required.filter((r) => r !== key)
         }
       }
 

@@ -1,11 +1,11 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from '../env'
 import {
   ensureUploadsDirectory,
   getStorageProvider,
   USE_BLOB_STORAGE,
   USE_S3_STORAGE,
-} from './setup'
+} from '@/lib/uploads/setup'
 
 const logger = createLogger('UploadsSetup')
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'vitest'
-import { EnhancedExecutionLogger } from './enhanced-execution-logger'
+import { EnhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
 
 describe('EnhancedExecutionLogger', () => {
   let logger: EnhancedExecutionLogger

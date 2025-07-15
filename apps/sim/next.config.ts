@@ -2,6 +2,7 @@ import path from 'path'
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/env'
+import { isDev, isProd } from './lib/environment'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -26,7 +27,7 @@ const nextConfig: NextConfig = {
     optimizeCss: true,
     turbopackSourceMaps: false,
   },
-  ...(env.NODE_ENV === 'development' && {
+  ...(isDev && {
     allowedDevOrigins: [
       ...(env.NEXT_PUBLIC_APP_URL
         ? (() => {
@@ -152,8 +153,8 @@ const sentryConfig = {
   org: env.SENTRY_ORG || '',
   project: env.SENTRY_PROJECT || '',
   authToken: env.SENTRY_AUTH_TOKEN || undefined,
-  disableSourceMapUpload: env.NODE_ENV !== 'production',
-  autoInstrumentServerFunctions: env.NODE_ENV === 'production',
+  disableSourceMapUpload: !isProd,
+  autoInstrumentServerFunctions: isProd,
   bundleSizeOptimizations: {
     excludeDebugStatements: true,
     excludePerformanceMonitoring: true,
@@ -163,6 +164,4 @@ const sentryConfig = {
   },
 }
 
-export default env.NODE_ENV === 'development'
-  ? nextConfig
-  : withSentryConfig(nextConfig, sentryConfig)
+export default isDev ? nextConfig : withSentryConfig(nextConfig, sentryConfig)

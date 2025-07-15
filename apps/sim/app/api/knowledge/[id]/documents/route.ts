@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { document } from '@/db/schema'
 import { checkKnowledgeBaseAccess, processDocumentAsync } from '../../utils'
@@ -153,6 +154,14 @@ const CreateDocumentSchema = z.object({
   fileUrl: z.string().url('File URL must be valid'),
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
+  // Document tags for filtering
+  tag1: z.string().optional(),
+  tag2: z.string().optional(),
+  tag3: z.string().optional(),
+  tag4: z.string().optional(),
+  tag5: z.string().optional(),
+  tag6: z.string().optional(),
+  tag7: z.string().optional(),
 })
 
 const BulkCreateDocumentsSchema = z.object({
@@ -229,6 +238,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         processingError: document.processingError,
         enabled: document.enabled,
         uploadedAt: document.uploadedAt,
+        // Include tags in response
+        tag1: document.tag1,
+        tag2: document.tag2,
+        tag3: document.tag3,
+        tag4: document.tag4,
+        tag5: document.tag5,
+        tag6: document.tag6,
+        tag7: document.tag7,
       })
       .from(document)
       .where(and(...whereConditions))
@@ -253,13 +270,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: knowledgeBaseId } = await params
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized document creation attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const body = await req.json()
+    const { workflowId } = body
+
+    logger.info(`[${requestId}] Knowledge base document creation request`, {
+      knowledgeBaseId,
+      workflowId,
+      hasWorkflowId: !!workflowId,
+      bodyKeys: Object.keys(body),
+    })
+
+    const userId = await getUserId(requestId, workflowId)
+
+    if (!userId) {
+      const errorMessage = workflowId ? 'Workflow not found' : 'Unauthorized'
+      const statusCode = workflowId ? 404 : 401
+      logger.warn(`[${requestId}] Authentication failed: ${errorMessage}`, {
+        workflowId,
+        hasWorkflowId: !!workflowId,
+      })
+      return NextResponse.json({ error: errorMessage }, { status: statusCode })
     }
 
-    const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
+    const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
 
     if (!accessCheck.hasAccess) {
       if ('notFound' in accessCheck && accessCheck.notFound) {
@@ -267,12 +300,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
       }
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted to create document in unauthorized knowledge base ${knowledgeBaseId}`
+        `[${requestId}] User ${userId} attempted to create document in unauthorized knowledge base ${knowledgeBaseId}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const body = await req.json()
 
     // Check if this is a bulk operation
     if (body.bulk === true) {
@@ -298,6 +329,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               processingStatus: 'pending' as const,
               enabled: true,
               uploadedAt: now,
+              // Include tags from upload
+              tag1: docData.tag1 || null,
+              tag2: docData.tag2 || null,
+              tag3: docData.tag3 || null,
+              tag4: docData.tag4 || null,
+              tag5: docData.tag5 || null,
+              tag6: docData.tag6 || null,
+              tag7: docData.tag7 || null,
             }
 
             await tx.insert(document).values(newDocument)
@@ -372,6 +411,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           characterCount: 0,
           enabled: true,
           uploadedAt: now,
+          // Include tags from upload
+          tag1: validatedData.tag1 || null,
+          tag2: validatedData.tag2 || null,
+          tag3: validatedData.tag3 || null,
+          tag4: validatedData.tag4 || null,
+          tag5: validatedData.tag5 || null,
+          tag6: validatedData.tag6 || null,
+          tag7: validatedData.tag7 || null,
         }
 
         await db.insert(document).values(newDocument)

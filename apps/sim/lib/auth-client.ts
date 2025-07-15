@@ -1,27 +1,20 @@
 import { stripeClient } from '@better-auth/stripe/client'
 import { emailOTPClient, genericOAuthClient, organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
-import { env } from './env'
-
-const clientEnv = {
-  NEXT_PUBLIC_VERCEL_URL: env.NEXT_PUBLIC_VERCEL_URL,
-  NEXT_PUBLIC_APP_URL: env.NEXT_PUBLIC_APP_URL,
-  NODE_ENV: env.NODE_ENV,
-  VERCEL_ENV: env.VERCEL_ENV || '',
-  BETTER_AUTH_URL: env.BETTER_AUTH_URL,
-}
+import { env } from '@/lib/env'
+import { isDev, isProd } from '@/lib/environment'
 
 export function getBaseURL() {
   let baseURL
 
-  if (clientEnv.VERCEL_ENV === 'preview') {
-    baseURL = `https://${clientEnv.NEXT_PUBLIC_VERCEL_URL}`
-  } else if (clientEnv.VERCEL_ENV === 'development') {
-    baseURL = `https://${clientEnv.NEXT_PUBLIC_VERCEL_URL}`
-  } else if (clientEnv.VERCEL_ENV === 'production') {
-    baseURL = clientEnv.BETTER_AUTH_URL || clientEnv.NEXT_PUBLIC_APP_URL
-  } else if (clientEnv.NODE_ENV === 'development') {
-    baseURL = clientEnv.NEXT_PUBLIC_APP_URL || clientEnv.BETTER_AUTH_URL || 'http://localhost:3000'
+  if (env.VERCEL_ENV === 'preview') {
+    baseURL = `https://${env.NEXT_PUBLIC_VERCEL_URL}`
+  } else if (env.VERCEL_ENV === 'development') {
+    baseURL = `https://${env.NEXT_PUBLIC_VERCEL_URL}`
+  } else if (env.VERCEL_ENV === 'production') {
+    baseURL = env.BETTER_AUTH_URL || env.NEXT_PUBLIC_APP_URL
+  } else if (env.NODE_ENV === 'development') {
+    baseURL = env.NEXT_PUBLIC_APP_URL || env.BETTER_AUTH_URL || 'http://localhost:3000'
   }
 
   return baseURL
@@ -33,7 +26,7 @@ export const client = createAuthClient({
     emailOTPClient(),
     genericOAuthClient(),
     // Only include Stripe client in production
-    ...(clientEnv.NODE_ENV === 'production'
+    ...(isProd
       ? [
           stripeClient({
             subscription: true, // Enable subscription management
@@ -48,7 +41,7 @@ export const { useSession, useActiveOrganization } = client
 
 export const useSubscription = () => {
   // In development, provide mock implementations
-  if (clientEnv.NODE_ENV === 'development') {
+  if (isDev) {
     return {
       list: async () => ({ data: [] }),
       upgrade: async () => ({

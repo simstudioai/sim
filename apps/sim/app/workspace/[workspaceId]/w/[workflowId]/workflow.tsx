@@ -19,7 +19,6 @@ import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/p
 import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-node'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks'
-import { useSocket } from '@/contexts/socket-context'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -108,10 +107,9 @@ const WorkflowContent = React.memo(() => {
     collaborativeRemoveEdge: removeEdge,
     collaborativeUpdateBlockPosition,
     collaborativeUpdateParentId: updateParentId,
-    isConnected,
-    currentWorkflowId,
+    collaborativeSetSubblockValue,
   } = useCollaborativeWorkflow()
-  const { emitSubblockUpdate } = useSocket()
+
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
 
   // Execution and debug mode state
@@ -487,7 +485,7 @@ const WorkflowContent = React.memo(() => {
       let autoConnectEdge
       if (isAutoConnectEnabled && type !== 'starter') {
         const closestBlock = findClosestOutput(centerPosition)
-        console.log('🎯 Closest block found:', closestBlock)
+        logger.info('🎯 Closest block found:', closestBlock)
         if (closestBlock) {
           // Get appropriate source handle
           const sourceHandle = determineSourceHandle(closestBlock)
@@ -500,7 +498,7 @@ const WorkflowContent = React.memo(() => {
             targetHandle: 'target',
             type: 'workflowEdge',
           }
-          console.log('✅ Auto-connect edge created:', autoConnectEdge)
+          logger.info('✅ Auto-connect edge created:', autoConnectEdge)
         }
       }
 
@@ -1466,11 +1464,9 @@ const WorkflowContent = React.memo(() => {
     const handleSubBlockValueUpdate = (event: CustomEvent) => {
       const { blockId, subBlockId, value } = event.detail
       if (blockId && subBlockId) {
-        // Only emit the socket update, don't update the store again
-        // The store was already updated in the setValue function
-        if (isConnected && currentWorkflowId && activeWorkflowId === currentWorkflowId) {
-          emitSubblockUpdate(blockId, subBlockId, value)
-        }
+        // Use collaborative function to go through queue system
+        // This ensures 5-second timeout and error detection work
+        collaborativeSetSubblockValue(blockId, subBlockId, value)
       }
     }
 
@@ -1482,7 +1478,7 @@ const WorkflowContent = React.memo(() => {
         handleSubBlockValueUpdate as EventListener
       )
     }
-  }, [emitSubblockUpdate, isConnected, currentWorkflowId, activeWorkflowId])
+  }, [collaborativeSetSubblockValue])
 
   // Show skeleton UI while loading, then smoothly transition to real content
   const showSkeletonUI = !isWorkflowReady

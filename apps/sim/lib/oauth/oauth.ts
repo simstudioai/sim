@@ -20,10 +20,11 @@ import {
   RedditIcon,
   SlackIcon,
   SupabaseIcon,
+  WealthboxIcon,
   xIcon,
 } from '@/components/icons'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from '../env'
 
 const logger = createLogger('OAuth')
 
@@ -41,6 +42,7 @@ export type OAuthProvider =
   | 'linear'
   | 'slack'
   | 'reddit'
+  | 'wealthbox'
   | string
 
 export type OAuthService =
@@ -64,6 +66,7 @@ export type OAuthService =
   | 'linear'
   | 'slack'
   | 'reddit'
+  | 'wealthbox'
 
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -407,6 +410,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'reddit',
   },
+  wealthbox: {
+    id: 'wealthbox',
+    name: 'Wealthbox',
+    icon: (props) => WealthboxIcon(props),
+    services: {
+      wealthbox: {
+        id: 'wealthbox',
+        name: 'Wealthbox',
+        description: 'Manage contacts, notes, and tasks in your Wealthbox CRM.',
+        providerId: 'wealthbox',
+        icon: (props) => WealthboxIcon(props),
+        baseProviderIcon: (props) => WealthboxIcon(props),
+        scopes: ['login', 'data'],
+      },
+    },
+    defaultService: 'wealthbox',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -475,6 +495,10 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'linear'
   } else if (provider === 'slack') {
     return 'slack'
+  } else if (provider === 'reddit') {
+    return 'reddit'
+  } else if (provider === 'wealthbox') {
+    return 'wealthbox'
   }
 
   return providerConfig.defaultService
@@ -727,6 +751,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         useBasicAuth: true,
       }
     }
+    case 'wealthbox': {
+      const { clientId, clientSecret } = getCredentials(
+        env.WEALTHBOX_CLIENT_ID,
+        env.WEALTHBOX_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://app.crmworkspace.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
     default:
       throw new Error(`Unsupported provider: ${provider}`)
   }
@@ -806,6 +843,7 @@ export async function refreshOAuthToken(
         error: errorText,
         parsedError: errorData,
         provider,
+        providerId,
       })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }

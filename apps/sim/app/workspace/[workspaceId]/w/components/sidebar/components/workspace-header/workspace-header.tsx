@@ -48,8 +48,6 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
   }) => {
     // External hooks
     const { data: sessionData } = useSession()
-
-    // Local state
     const [isClientLoading, setIsClientLoading] = useState(true)
     const [isEditingName, setIsEditingName] = useState(false)
     const [editingName, setEditingName] = useState('')
@@ -62,7 +60,6 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
       () => sessionData?.user?.name || sessionData?.user?.email || 'User',
       [sessionData?.user?.name, sessionData?.user?.email]
     )
-
     const workspaceUrl = useMemo(
       () => (activeWorkspace ? `/workspace/${activeWorkspace.id}/w` : '/workspace'),
       [activeWorkspace]

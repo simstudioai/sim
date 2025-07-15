@@ -654,7 +654,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </TooltipTrigger>
                 <TooltipContent side='top'>
                   {!userPermissions.canEdit
-                    ? 'Read-only mode'
+                    ? userPermissions.isOfflineMode
+                      ? 'Connection lost - please refresh'
+                      : 'Read-only mode'
                     : blockAdvancedMode
                       ? 'Switch to Basic Mode'
                       : 'Switch to Advanced Mode'}
@@ -750,7 +752,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               </TooltipTrigger>
               <TooltipContent side='top'>
                 {!userPermissions.canEdit
-                  ? 'Read-only mode'
+                  ? userPermissions.isOfflineMode
+                    ? 'Connection lost - please refresh'
+                    : 'Read-only mode'
                   : isWide
                     ? 'Narrow Block'
                     : 'Expand Block'}

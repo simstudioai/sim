@@ -17,26 +17,31 @@ export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'X OAuth access token',
     },
     text: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The text content of your tweet',
     },
     replyTo: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'ID of the tweet to reply to',
     },
     mediaIds: {
       type: 'array',
       required: false,
+      visibility: 'user-only',
       description: 'Array of media IDs to attach to the tweet',
     },
     poll: {
       type: 'object',
       required: false,
+      visibility: 'user-only',
       description: 'Poll configuration for the tweet',
     },
   },

@@ -2,6 +2,12 @@ import type { OAuthService } from '@/lib/oauth/oauth'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
+export type ParameterVisibility =
+  | 'user-or-llm' // User can provide OR LLM must generate
+  | 'user-only' // Only user can provide (required/optional determined by required field)
+  | 'llm-only' // Only LLM provides (computed values)
+  | 'hidden' // Not shown to user or LLM
+
 export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
   output: Record<string, any> // The structured output from the tool
@@ -32,8 +38,7 @@ export interface ToolConfig<P = any, R = any> {
     {
       type: string
       required?: boolean
-      requiredForToolCall?: boolean
-      optionalToolInput?: boolean
+      visibility?: ParameterVisibility
       default?: any
       description?: string
     }

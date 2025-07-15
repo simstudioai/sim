@@ -10,36 +10,39 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
   oauth: {
     required: true,
     provider: 'airtable',
-    // Define required scopes if different from default write/read
   },
 
   params: {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token',
     },
     baseId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID of the Airtable base',
     },
     tableId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID of the table',
     },
     maxRecords: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of records to return',
     },
     filterFormula: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Formula to filter records (e.g., "({Field Name} = \'Value\')")',
     },
-    // TODO: Add other list parameters like pageSize, offset, view, sort, fields, returnFieldsByFieldId, recordMetadata
   },
 
   request: {

@@ -17,31 +17,37 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'X OAuth access token',
     },
     query: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Search query (supports X search operators)',
     },
     maxResults: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of results to return (default: 10, max: 100)',
     },
     startTime: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Start time for search (ISO 8601 format)',
     },
     endTime: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'End time for search (ISO 8601 format)',
     },
     sortOrder: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Sort order for results (recency or relevancy)',
     },
   },

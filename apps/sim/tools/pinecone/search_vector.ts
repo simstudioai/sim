@@ -8,47 +8,53 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
   version: '1.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Pinecone API key',
-    },
     indexHost: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Full Pinecone index host URL',
     },
     namespace: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Namespace to search in',
     },
     vector: {
       type: 'array',
       required: true,
+      visibility: 'user-only',
       description: 'Vector to search for',
     },
     topK: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Number of results to return',
     },
     filter: {
       type: 'object',
       required: false,
+      visibility: 'user-only',
       description: 'Filter to apply to the search',
     },
     includeValues: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Include vector values in response',
     },
     includeMetadata: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Include metadata in response',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Pinecone API key',
     },
   },
 

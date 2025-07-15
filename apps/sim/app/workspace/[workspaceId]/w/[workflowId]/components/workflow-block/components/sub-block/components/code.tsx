@@ -29,6 +29,7 @@ interface CodeProps {
   isPreview?: boolean
   previewValue?: string | null
   disabled?: boolean
+  onValidationChange?: (isValid: boolean) => void
 }
 
 if (typeof document !== 'undefined') {
@@ -60,6 +61,7 @@ export function Code({
   isPreview = false,
   previewValue,
   disabled = false,
+  onValidationChange,
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
   const aiPromptPlaceholder = useMemo(() => {
@@ -73,8 +75,6 @@ export function Code({
     }
   }, [generationType])
 
-  // State management
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [code, setCode] = useState<string>('')
   const [_lineCount, setLineCount] = useState(1)
   const [showTags, setShowTags] = useState(false)
@@ -92,40 +92,40 @@ export function Code({
   const showCollapseButton =
     (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5
 
+  const isValidJson = useMemo(() => {
+    if (subBlockId !== 'responseFormat' || !code.trim()) {
+      return true
+    }
+    try {
+      JSON.parse(code)
+      return true
+    } catch {
+      return false
+    }
+  }, [subBlockId, code])
+
+  useEffect(() => {
+    if (onValidationChange && subBlockId === 'responseFormat') {
+      const timeoutId = setTimeout(() => {
+        onValidationChange(isValidJson)
+      }, 150) // Match debounce time from setStoreValue
+      return () => clearTimeout(timeoutId)
+    }
+  }, [isValidJson, onValidationChange, subBlockId])
+
   const editorRef = useRef<HTMLDivElement>(null)
 
   // Function to toggle collapsed state
   const toggleCollapsed = () => {
     setCollapsedValue(blockId, collapsedStateKey, !isCollapsed)
   }
-  // Use preview value when in preview mode, otherwise use store value or prop value
-  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+
+  // Create refs to hold the handlers
+  const handleStreamStartRef = useRef<() => void>(() => {})
+  const handleGeneratedContentRef = useRef<(generatedCode: string) => void>(() => {})
+  const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
 
   // AI Code Generation Hook
-  const handleStreamStart = () => {
-    setCode('')
-    // Optionally clear the store value too, though handleStreamChunk will update it
-    // setStoreValue('')
-  }
-
-  const handleGeneratedContent = (generatedCode: string) => {
-    setCode(generatedCode)
-    if (!isPreview && !disabled) {
-      setStoreValue(generatedCode)
-    }
-  }
-
-  // Handle streaming chunks directly into the editor
-  const handleStreamChunk = (chunk: string) => {
-    setCode((currentCode) => {
-      const newCode = currentCode + chunk
-      if (!isPreview && !disabled) {
-        setStoreValue(newCode)
-      }
-      return newCode
-    })
-  }
-
   const {
     isLoading: isAiLoading,
     isStreaming: isAiStreaming,
@@ -140,10 +140,47 @@ export function Code({
   } = useCodeGeneration({
     generationType: generationType,
     initialContext: code,
-    onGeneratedContent: handleGeneratedContent,
-    onStreamChunk: handleStreamChunk,
-    onStreamStart: handleStreamStart,
+    onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
+    onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
+    onStreamStart: () => handleStreamStartRef.current?.(),
   })
+
+  // State management - useSubBlockValue with explicit streaming control
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
+    debounceMs: 150,
+    isStreaming: isAiStreaming, // Use AI streaming state directly
+    onStreamingEnd: () => {
+      logger.debug('AI streaming ended, value persisted', { blockId, subBlockId })
+    },
+  })
+
+  // Use preview value when in preview mode, otherwise use store value or prop value
+  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+
+  // Define the handlers now that we have access to setStoreValue
+  handleStreamStartRef.current = () => {
+    setCode('')
+    // Streaming state is now controlled by isAiStreaming
+  }
+
+  handleGeneratedContentRef.current = (generatedCode: string) => {
+    setCode(generatedCode)
+    if (!isPreview && !disabled) {
+      setStoreValue(generatedCode)
+      // Final value will be persisted when isAiStreaming becomes false
+    }
+  }
+
+  handleStreamChunkRef.current = (chunk: string) => {
+    setCode((currentCode) => {
+      const newCode = currentCode + chunk
+      if (!isPreview && !disabled) {
+        // Update the value - it won't be persisted until streaming ends
+        setStoreValue(newCode)
+      }
+      return newCode
+    })
+  }
 
   // Effects
   useEffect(() => {
@@ -329,9 +366,11 @@ export function Code({
 
       <div
         className={cn(
-          'group relative min-h-[100px] rounded-md border bg-background font-mono text-sm',
-          isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
+          'group relative min-h-[100px] rounded-md border bg-background font-mono text-sm transition-colors',
+          isConnecting && 'ring-2 ring-blue-500 ring-offset-2',
+          !isValidJson && 'border-2 border-destructive bg-destructive/10'
         )}
+        title={!isValidJson ? 'Invalid JSON' : undefined}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >

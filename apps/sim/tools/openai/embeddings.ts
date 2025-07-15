@@ -8,28 +8,31 @@ export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
   version: '1.0',
 
   params: {
-    apiKey: { type: 'string', required: true, description: 'OpenAI API key' },
     input: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Text to generate embeddings for',
     },
     model: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Model to use for embeddings',
       default: 'text-embedding-3-small',
     },
-    encoding_format: {
+    encodingFormat: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'The format to return the embeddings in',
       default: 'float',
     },
-    user: {
+    apiKey: {
       type: 'string',
-      required: false,
-      description: 'A unique identifier for the end-user',
+      required: true,
+      visibility: 'user-only',
+      description: 'OpenAI API key',
     },
   },
 
@@ -43,8 +46,7 @@ export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
     body: (params) => ({
       input: params.input,
       model: params.model || 'text-embedding-3-small',
-      encoding_format: params.encoding_format || 'float',
-      user: params.user,
+      encoding_format: params.encodingFormat || 'float',
     }),
   },
 
