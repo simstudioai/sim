@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { document } from '@/db/schema'
 import { checkKnowledgeBaseAccess, processDocumentAsync } from '../../utils'
@@ -269,13 +270,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: knowledgeBaseId } = await params
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized document creation attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const body = await req.json()
+    const { workflowId } = body
+
+    logger.info(`[${requestId}] Knowledge base document creation request`, {
+      knowledgeBaseId,
+      workflowId,
+      hasWorkflowId: !!workflowId,
+      bodyKeys: Object.keys(body),
+    })
+
+    const userId = await getUserId(requestId, workflowId)
+
+    if (!userId) {
+      const errorMessage = workflowId ? 'Workflow not found' : 'Unauthorized'
+      const statusCode = workflowId ? 404 : 401
+      logger.warn(`[${requestId}] Authentication failed: ${errorMessage}`, {
+        workflowId,
+        hasWorkflowId: !!workflowId,
+      })
+      return NextResponse.json({ error: errorMessage }, { status: statusCode })
     }
 
-    const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
+    const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
 
     if (!accessCheck.hasAccess) {
       if ('notFound' in accessCheck && accessCheck.notFound) {
@@ -283,12 +300,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
       }
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted to create document in unauthorized knowledge base ${knowledgeBaseId}`
+        `[${requestId}] User ${userId} attempted to create document in unauthorized knowledge base ${knowledgeBaseId}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const body = await req.json()
 
     // Check if this is a bulk operation
     if (body.bulk === true) {

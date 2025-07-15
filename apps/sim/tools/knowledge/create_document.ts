@@ -65,6 +65,7 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       'Content-Type': 'application/json',
     }),
     body: (params) => {
+      const workflowId = params._context?.workflowId
       const textContent = params.content?.trim()
       const documentName = params.name?.trim()
 
@@ -111,7 +112,7 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
         },
       ]
 
-      return {
+      const requestBody = {
         documents: documents,
         processingOptions: {
           chunkSize: 1024,
@@ -121,7 +122,10 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
           lang: 'en',
         },
         bulk: true,
+        ...(workflowId && { workflowId }),
       }
+
+      return requestBody
     },
     isInternalRoute: true,
   },
