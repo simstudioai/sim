@@ -1,0 +1,219 @@
+---
+title: Loop
+description: Create iterative workflows with loops that execute blocks repeatedly
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { ThemeImage } from '@/components/ui/theme-image'
+
+The Loop block is a container block in Sim Studio that allows you to execute a group of blocks repeatedly. Loops enable iterative processing, batch operations, and progressive refinement in your workflows.
+
+<ThemeImage
+  lightSrc="/static/light/loop-light.png"
+  darkSrc="/static/dark/loop-dark.png"
+  alt="Loop Block"
+  width={300}
+  height={175}
+/>
+
+<div className="my-4">
+  <video autoPlay loop muted playsInline className="w-full rounded-lg" src="/loops.mp4"></video>
+</div>
+
+<Callout type="info">
+  Loop blocks are container nodes that can hold other blocks inside them. The blocks inside a loop will execute multiple times based on your configuration.
+</Callout>
+
+## Overview
+
+The Loop block enables you to:
+
+<Steps>
+  <Step>
+    <strong>Iterate over collections</strong>: Process arrays or objects one item at a time
+  </Step>
+  <Step>
+    <strong>Repeat operations</strong>: Execute blocks a fixed number of times
+  </Step>
+  <Step>
+    <strong>Build progressive workflows</strong>: Refine outputs through multiple iterations
+  </Step>
+  <Step>
+    <strong>Handle batch processing</strong>: Process large datasets efficiently
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Loop Type
+
+Choose between two types of loops:
+
+<Tabs items={['For Loop', 'ForEach Loop']}>
+  <Tab>
+    A numeric loop that executes a fixed number of times. Use this when you need to repeat an operation a specific number of times.
+    
+    ```
+    Example: Run 5 times
+    - Iteration 1
+    - Iteration 2
+    - Iteration 3
+    - Iteration 4
+    - Iteration 5
+    ```
+  </Tab>
+  <Tab>
+    A collection-based loop that iterates over each item in an array or object. Use this when you need to process a collection of items.
+    
+    ```
+    Example: Process ["apple", "banana", "orange"]
+    - Iteration 1: Process "apple"
+    - Iteration 2: Process "banana"
+    - Iteration 3: Process "orange"
+    ```
+  </Tab>
+</Tabs>
+
+### Configuration Parameters
+
+- **Iterations** (For Loop): Number of times to execute the loop (1-50)
+- **Collection** (ForEach Loop): Array or object to iterate over
+
+## How to Use Loops
+
+### Creating a Loop
+
+1. Drag a Loop block from the toolbar onto your canvas
+2. Configure the loop type and parameters
+3. Drag other blocks inside the loop container
+4. Connect the blocks as needed
+
+### Accessing Loop Data
+
+Inside a loop, you can access special variables:
+
+- **`<loop.currentItem>`**: The current item being processed (ForEach loops)
+- **`<loop.index>`**: The current iteration number (0-based)
+- **`<loop.items>`**: The full collection being iterated (ForEach loops)
+
+## Example Use Cases
+
+### Processing API Results
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Process multiple customer records</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API block fetches customer list</li>
+    <li>ForEach loop iterates over each customer</li>
+    <li>Inside loop: Agent analyzes customer data</li>
+    <li>Inside loop: Function stores analysis results</li>
+  </ol>
+</div>
+
+### Iterative Content Generation
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Generate multiple variations</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Set For loop to 5 iterations</li>
+    <li>Inside loop: Agent generates content variation</li>
+    <li>Inside loop: Evaluator scores the content</li>
+    <li>After loop: Function selects best variation</li>
+  </ol>
+</div>
+
+### Data Transformation Pipeline
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Transform and enrich data</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>ForEach loop over data array</li>
+    <li>Inside loop: API enriches each record</li>
+    <li>Inside loop: Function transforms data format</li>
+    <li>Inside loop: Condition filters valid records</li>
+  </ol>
+</div>
+
+## Advanced Features
+
+### Nested Loops
+
+You can place loops inside other loops for multi-dimensional iteration:
+
+```
+Outer Loop (countries)
+  └── Inner Loop (cities in each country)
+      └── Process city data
+```
+
+<Callout type="warning">
+  Be cautious with nested loops as they can significantly increase execution time. A loop of 10 items containing another loop of 10 items will execute 100 times total.
+</Callout>
+
+### Dynamic Collections
+
+The collection for a ForEach loop can be dynamically generated:
+
+- From an API response: `<api.response.data>`
+- From a function output: `<function.results>`
+- From a parsed file: `<file.content.items>`
+
+### Loop Control
+
+Loops automatically handle:
+- **Iteration management**: Tracks current position and manages state
+- **Variable scoping**: Each iteration has access to its own item
+- **Error handling**: Continues to next iteration if one fails
+- **Performance**: Executes iterations sequentially to maintain order
+
+## Best Practices
+
+- **Set reasonable limits**: Keep iteration counts reasonable to avoid long execution times
+- **Use ForEach for collections**: When processing arrays or objects, use ForEach instead of For loops
+- **Access current item**: Use `<loop.currentItem>` to access the current item in ForEach loops
+- **Track progress**: Use `<loop.index>` to track which iteration you're on
+- **Handle errors gracefully**: Consider adding error handling inside loops for robust workflows
+
+<Callout type="info">
+  Loops execute sequentially, not in parallel. If you need concurrent execution, use the Parallel block instead.
+</Callout>
+
+## Inputs and Outputs
+
+<Tabs items={['Configuration', 'Variables']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Loop Type</strong>: Choose between 'for' or 'forEach'
+      </li>
+      <li>
+        <strong>Iterations</strong>: Number of times to execute (for loops)
+      </li>
+      <li>
+        <strong>Collection</strong>: Array or object to iterate over (forEach loops)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.currentItem</strong>: Current item being processed
+      </li>
+      <li>
+        <strong>loop.index</strong>: Current iteration number (0-based)
+      </li>
+      <li>
+        <strong>loop.items</strong>: Full collection (forEach loops)
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Tips and Tricks
+
+- **Collect results**: Use a Function block after the loop to aggregate results from all iterations
+- **Early termination**: Use a Condition block with a Router to exit the loop early if needed
+- **Progress tracking**: Connect to external systems to report loop progress for long-running operations
+- **Memory management**: Be mindful of memory usage when processing large collections 
