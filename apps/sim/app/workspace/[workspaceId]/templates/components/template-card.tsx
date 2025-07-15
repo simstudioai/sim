@@ -120,12 +120,16 @@ interface TemplateCardProps {
   state?: {
     blocks?: Record<string, { type: string; name?: string }>
   }
+  // Add handlers for star and use actions
+  onStar?: (templateId: string, isCurrentlyStarred: boolean) => Promise<void>
+  onUse?: (templateId: string) => Promise<void>
+  isStarred?: boolean
 }
 
 // Skeleton component for loading states
 export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('rounded-[14px] border bg-card shadow-xs', 'flex h-40', className)}>
+    <div className={cn('rounded-[14px] border bg-card shadow-xs', 'flex h-38', className)}>
       {/* Left side - Info skeleton */}
       <div className='flex min-w-0 flex-1 flex-col justify-between p-4'>
         {/* Top section skeleton */}
@@ -156,7 +160,7 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
       </div>
 
       {/* Right side - Blocks skeleton */}
-      <div className='flex w-20 flex-col gap-1 rounded-r-[14px] bg-secondary p-2'>
+      <div className='flex w-16 flex-col gap-1 rounded-r-[14px] border-border border-l bg-secondary p-2'>
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className='flex items-center gap-1.5'>
             <div className='h-3 w-3 animate-pulse rounded bg-gray-200' />
@@ -175,8 +179,10 @@ const extractBlockTypesFromState = (state?: {
   if (!state?.blocks) return []
 
   // Get unique block types from the state, excluding starter blocks
-  const blockTypes = Object.values(state.blocks)
-    .map((block) => block.type)
+  // Sort the keys to ensure consistent ordering between server and client
+  const blockTypes = Object.keys(state.blocks)
+    .sort() // Sort keys to ensure consistent order
+    .map((key) => state.blocks![key].type)
     .filter((type) => type !== 'starter')
   return [...new Set(blockTypes)]
 }
@@ -219,22 +225,40 @@ export function TemplateCard({
   onClick,
   className,
   state,
+  onStar,
+  onUse,
+  isStarred = false,
 }: TemplateCardProps) {
   // Extract block types from state if provided, otherwise use the blocks prop
-  // Filter out starter blocks in both cases
+  // Filter out starter blocks in both cases and sort for consistent rendering
   const blockTypes = state
     ? extractBlockTypesFromState(state)
-    : blocks.filter((blockType) => blockType !== 'starter')
+    : blocks.filter((blockType) => blockType !== 'starter').sort()
 
   // Get the icon component
   const iconComponent = getIconComponent(icon)
 
+  // Handle star toggle
+  const handleStarClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onStar) {
+      await onStar(id, isStarred)
+    }
+  }
+
+  // Handle use template
+  const handleUseClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onUse) {
+      await onUse(id)
+    }
+  }
+
   return (
     <div
-      onClick={onClick}
       className={cn(
-        'group cursor-pointer rounded-[14px] border bg-card shadow-xs transition-all duration-200 hover:border-border/80 hover:shadow-sm',
-        'flex h-40',
+        'group rounded-[14px] border bg-card shadow-xs transition-all duration-200 hover:border-border/80 hover:shadow-sm',
+        'flex h-[142px]',
         className
       )}
     >
@@ -242,25 +266,50 @@ export function TemplateCard({
       <div className='flex min-w-0 flex-1 flex-col justify-between p-4'>
         {/* Top section */}
         <div className='space-y-3'>
-          <div className='flex min-w-0 items-center gap-2.5'>
-            {/* Icon container */}
-            <div
-              className={cn(
-                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md',
-                // Use CSS class if iconColor doesn't start with #
-                iconColor?.startsWith('#') ? '' : iconColor || 'bg-blue-500'
-              )}
-              style={{
-                // Use inline style for hex colors
-                backgroundColor: iconColor?.startsWith('#') ? iconColor : undefined,
-              }}
-            >
-              <div className='h-3 w-3 text-white [&>svg]:h-3 [&>svg]:w-3'>{iconComponent}</div>
+          <div className='flex min-w-0 items-center justify-between gap-2.5'>
+            <div className='flex min-w-0 items-center gap-2.5'>
+              {/* Icon container */}
+              <div
+                className={cn(
+                  'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md',
+                  // Use CSS class if iconColor doesn't start with #
+                  iconColor?.startsWith('#') ? '' : iconColor || 'bg-blue-500'
+                )}
+                style={{
+                  // Use inline style for hex colors
+                  backgroundColor: iconColor?.startsWith('#') ? iconColor : undefined,
+                }}
+              >
+                <div className='h-3 w-3 text-white [&>svg]:h-3 [&>svg]:w-3'>{iconComponent}</div>
+              </div>
+              {/* Template name */}
+              <h3 className='truncate font-medium font-sans text-card-foreground text-sm leading-tight'>
+                {title}
+              </h3>
             </div>
-            {/* Template name */}
-            <h3 className='truncate font-medium font-sans text-card-foreground text-sm leading-tight'>
-              {title}
-            </h3>
+
+            {/* Star and Use button */}
+            <div className='flex flex-shrink-0 items-center gap-3'>
+              <Star
+                onClick={handleStarClick}
+                className={cn(
+                  'h-4 w-4 cursor-pointer transition-colors',
+                  isStarred
+                    ? 'fill-yellow-400 text-yellow-400'
+                    : 'text-muted-foreground hover:fill-yellow-400 hover:text-yellow-400'
+                )}
+              />
+              <button
+                onClick={handleUseClick}
+                className={cn(
+                  'rounded-md px-3 py-1 font-medium font-sans text-white text-xs transition-all duration-200',
+                  'bg-[#701FFC] hover:bg-[#6518E6]',
+                  'shadow-[0_0_0_0_#701FFC] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                )}
+              >
+                Use
+              </button>
+            </div>
           </div>
 
           {/* Description */}
@@ -271,40 +320,75 @@ export function TemplateCard({
 
         {/* Bottom section */}
         <div className='flex min-w-0 items-center gap-1.5 font-sans text-muted-foreground text-xs'>
-          <span className='flex-shrink-0 truncate'>by</span>
-          <span className='truncate'>{author}</span>
+          <span className='flex-shrink-0'>by</span>
+          <span className='min-w-0 truncate'>{author}</span>
           <span className='flex-shrink-0'>•</span>
           <User className='h-3 w-3 flex-shrink-0' />
-          <span className='truncate'>{usageCount}</span>
-          <span className='flex-shrink-0'>•</span>
-          <Star className='h-3 w-3 flex-shrink-0' />
-          <span className='truncate'>{stars}</span>
+          <span className='flex-shrink-0'>{usageCount}</span>
+          {/* Stars section - hidden on smaller screens when space is constrained */}
+          <div className='hidden flex-shrink-0 items-center gap-1.5 sm:flex'>
+            <span>•</span>
+            <Star className='h-3 w-3' />
+            <span>{stars}</span>
+          </div>
         </div>
       </div>
 
       {/* Right side - Block Icons */}
-      <div className='flex w-14 flex-col items-center justify-center gap-2 rounded-r-[14px] bg-secondary p-2'>
-        {blockTypes.slice(0, 3).map((blockType, index) => {
-          const blockConfig = getBlockConfig(blockType)
-          if (!blockConfig) return null
+      <div className='flex w-16 flex-col items-center justify-center gap-2 rounded-r-[14px] border-border border-l bg-secondary p-2'>
+        {blockTypes.length > 3 ? (
+          <>
+            {/* Show first 2 blocks when there are more than 3 */}
+            {blockTypes.slice(0, 2).map((blockType, index) => {
+              const blockConfig = getBlockConfig(blockType)
+              if (!blockConfig) return null
 
-          return (
-            <div key={index} className='flex items-center justify-center'>
+              return (
+                <div key={index} className='flex items-center justify-center'>
+                  <div
+                    className='flex flex-shrink-0 items-center justify-center rounded'
+                    style={{
+                      backgroundColor: blockConfig.bgColor || 'gray',
+                      width: '30px',
+                      height: '30px',
+                    }}
+                  >
+                    <blockConfig.icon className='h-4 w-4 text-white' />
+                  </div>
+                </div>
+              )
+            })}
+            {/* Show +n block for remaining blocks */}
+            <div className='flex items-center justify-center'>
               <div
-                className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded'
-                style={{ backgroundColor: blockConfig.bgColor || 'gray' }}
+                className='flex flex-shrink-0 items-center justify-center rounded bg-muted-foreground'
+                style={{ width: '30px', height: '30px' }}
               >
-                <blockConfig.icon className='h-4 w-4 text-white' />
+                <span className='font-medium text-white text-xs'>+{blockTypes.length - 2}</span>
               </div>
             </div>
-          )
-        })}
-        {blockTypes.length > 3 && (
-          <div className='flex items-center justify-center'>
-            <div className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded bg-gray-400'>
-              <span className='font-medium text-white text-xs'>+{blockTypes.length - 3}</span>
-            </div>
-          </div>
+          </>
+        ) : (
+          /* Show all blocks when 3 or fewer */
+          blockTypes.map((blockType, index) => {
+            const blockConfig = getBlockConfig(blockType)
+            if (!blockConfig) return null
+
+            return (
+              <div key={index} className='flex items-center justify-center'>
+                <div
+                  className='flex flex-shrink-0 items-center justify-center rounded'
+                  style={{
+                    backgroundColor: blockConfig.bgColor || 'gray',
+                    width: '30px',
+                    height: '30px',
+                  }}
+                >
+                  <blockConfig.icon className='h-4 w-4 text-white' />
+                </div>
+              </div>
+            )
+          })
         )}
       </div>
     </div>

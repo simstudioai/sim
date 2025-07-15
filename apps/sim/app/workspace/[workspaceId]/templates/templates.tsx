@@ -95,6 +95,42 @@ export default function Templates({ initialTemplates, currentUserId }: Templates
     router.push(`/workspace/${params.workspaceId}/templates/${templateId}`)
   }
 
+  // Handle using a template
+  const handleUseTemplate = async (templateId: string) => {
+    try {
+      const response = await fetch(`/api/templates/${templateId}/use`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workspaceId: params.workspaceId,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        logger.info('Template use API response:', data)
+
+        if (!data.workflowId) {
+          logger.error('No workflowId returned from API:', data)
+          return
+        }
+
+        const workflowUrl = `/workspace/${params.workspaceId}/w/${data.workflowId}`
+        logger.info('Template used successfully, navigating to:', workflowUrl)
+
+        // Use window.location.href for more reliable navigation
+        window.location.href = workflowUrl
+      } else {
+        const errorText = await response.text()
+        logger.error('Failed to use template:', response.statusText, errorText)
+      }
+    } catch (error) {
+      logger.error('Error using template:', error)
+    }
+  }
+
   const handleCreateNew = () => {
     // TODO: Open create template modal or navigate to create page
     console.log('Create new template')
@@ -166,6 +202,9 @@ export default function Templates({ initialTemplates, currentUserId }: Templates
       iconColor={template.color}
       state={template.state as { blocks?: Record<string, { type: string; name?: string }> }}
       onClick={() => handleTemplateClick(template.id)}
+      onStar={handleStarToggle}
+      onUse={handleUseTemplate}
+      isStarred={template.isStarred}
     />
   )
 

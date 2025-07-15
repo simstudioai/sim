@@ -12,6 +12,43 @@ const logger = createLogger('TemplatesAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+// Function to sanitize sensitive data from workflow state
+function sanitizeWorkflowState(state: any): any {
+  const sanitizedState = JSON.parse(JSON.stringify(state)) // Deep clone
+
+  if (sanitizedState.blocks) {
+    Object.values(sanitizedState.blocks).forEach((block: any) => {
+      if (block.subBlocks) {
+        Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
+          // Clear OAuth credentials and API keys using regex patterns
+          if (
+            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key) ||
+            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(
+              subBlock.type || ''
+            ) ||
+            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(
+              subBlock.value || ''
+            )
+          ) {
+            subBlock.value = ''
+          }
+        })
+      }
+
+      // Also clear from data field if present
+      if (block.data) {
+        Object.entries(block.data).forEach(([key, value]: [string, any]) => {
+          if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {
+            block.data[key] = ''
+          }
+        })
+      }
+    })
+  }
+
+  return sanitizedState
+}
+
 // Schema for creating a template
 const CreateTemplateSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
@@ -177,6 +214,9 @@ export async function POST(request: NextRequest) {
     const templateId = uuidv4()
     const now = new Date()
 
+    // Sanitize the workflow state to remove sensitive credentials
+    const sanitizedState = sanitizeWorkflowState(data.state)
+
     const newTemplate = {
       id: templateId,
       workflowId: data.workflowId,
@@ -189,7 +229,7 @@ export async function POST(request: NextRequest) {
       color: data.color,
       icon: data.icon,
       category: data.category,
-      state: data.state,
+      state: sanitizedState,
       createdAt: now,
       updatedAt: now,
     }

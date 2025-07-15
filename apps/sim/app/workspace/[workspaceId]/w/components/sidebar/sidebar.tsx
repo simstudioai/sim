@@ -1,10 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lucide-react'
+import { HelpCircle, LibraryBig, ScrollText, Settings, Shapes } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
@@ -570,7 +569,7 @@ export function Sidebar() {
           )}
 
           {/* 3. Search */}
-          <div className='pointer-events-auto flex-shrink-0'>
+          {/* <div className='pointer-events-auto flex-shrink-0'>
             <div className='flex h-12 items-center gap-2 rounded-[14px] border bg-card pr-2 pl-3 shadow-xs'>
               <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
               <Input
@@ -586,12 +585,12 @@ export function Sidebar() {
                 </span>
               </kbd>
             </div>
-          </div>
+          </div> */}
 
           {/* 4. Workflow Selector */}
-          <div className='pointer-events-auto relative h-[212px] flex-shrink-0 rounded-[14px] border bg-card shadow-xs'>
+          <div className='pointer-events-auto relative h-[272px] flex-shrink-0 rounded-[14px] border bg-card shadow-xs'>
             <div className='px-2'>
-              <ScrollArea ref={workflowScrollAreaRef} className='h-[210px]' hideScrollbar={true}>
+              <ScrollArea ref={workflowScrollAreaRef} className='h-[270px]' hideScrollbar={true}>
                 <FolderTree
                   regularWorkflows={regularWorkflows}
                   marketplaceWorkflows={tempWorkflows}
