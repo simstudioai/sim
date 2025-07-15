@@ -87,7 +87,7 @@ export function DocumentSelector({
         throw new Error(result.error || 'Failed to fetch documents')
       }
 
-      const fetchedDocuments = result.data || []
+      const fetchedDocuments = result.data.documents || result.data || []
       setDocuments(fetchedDocuments)
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
