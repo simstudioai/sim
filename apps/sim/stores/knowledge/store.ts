@@ -88,10 +88,24 @@ export interface ChunksCache {
   lastFetchTime: number
 }
 
+export interface DocumentsPagination {
+  total: number
+  limit: number
+  offset: number
+  hasMore: boolean
+}
+
+export interface DocumentsCache {
+  documents: DocumentData[]
+  pagination: DocumentsPagination
+  searchQuery?: string
+  lastFetchTime: number
+}
+
 interface KnowledgeStore {
   // State
   knowledgeBases: Record<string, KnowledgeBaseData>
-  documents: Record<string, DocumentData[]> // knowledgeBaseId -> documents
+  documents: Record<string, DocumentsCache> // knowledgeBaseId -> documents cache
   chunks: Record<string, ChunksCache> // documentId -> chunks cache
   knowledgeBasesList: KnowledgeBaseData[]
 
@@ -104,14 +118,20 @@ interface KnowledgeStore {
 
   // Actions
   getKnowledgeBase: (id: string) => Promise<KnowledgeBaseData | null>
-  getDocuments: (knowledgeBaseId: string) => Promise<DocumentData[]>
+  getDocuments: (
+    knowledgeBaseId: string,
+    options?: { search?: string; limit?: number; offset?: number }
+  ) => Promise<DocumentData[]>
   getChunks: (
     knowledgeBaseId: string,
     documentId: string,
     options?: { search?: string; limit?: number; offset?: number }
   ) => Promise<ChunkData[]>
   getKnowledgeBasesList: () => Promise<KnowledgeBaseData[]>
-  refreshDocuments: (knowledgeBaseId: string) => Promise<DocumentData[]>
+  refreshDocuments: (
+    knowledgeBaseId: string,
+    options?: { search?: string; limit?: number; offset?: number }
+  ) => Promise<DocumentData[]>
   refreshChunks: (
     knowledgeBaseId: string,
     documentId: string,
@@ -133,7 +153,7 @@ interface KnowledgeStore {
 
   // Getters
   getCachedKnowledgeBase: (id: string) => KnowledgeBaseData | null
-  getCachedDocuments: (knowledgeBaseId: string) => DocumentData[] | null
+  getCachedDocuments: (knowledgeBaseId: string) => DocumentsCache | null
   getCachedChunks: (documentId: string, options?: { search?: string }) => ChunksCache | null
 
   // Loading state getters
@@ -235,18 +255,21 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
     }
   },
 
-  getDocuments: async (knowledgeBaseId: string) => {
+  getDocuments: async (
+    knowledgeBaseId: string,
+    options?: { search?: string; limit?: number; offset?: number }
+  ) => {
     const state = get()
 
-    // Return cached documents if they exist
+    // Return cached documents if they exist (no search-based caching since we do client-side filtering)
     const cached = state.documents[knowledgeBaseId]
-    if (cached) {
-      return cached
+    if (cached && cached.documents.length > 0) {
+      return cached.documents
     }
 
     // Return empty array if already loading to prevent duplicate requests
     if (state.loadingDocuments.has(knowledgeBaseId)) {
-      return []
+      return cached?.documents || []
     }
 
     try {
@@ -254,7 +277,14 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         loadingDocuments: new Set([...state.loadingDocuments, knowledgeBaseId]),
       }))
 
-      const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents`)
+      // Build query parameters
+      const params = new URLSearchParams()
+      if (options?.search) params.set('search', options.search)
+      if (options?.limit) params.set('limit', options.limit.toString())
+      if (options?.offset) params.set('offset', options.offset.toString())
+
+      const url = `/api/knowledge/${knowledgeBaseId}/documents${params.toString() ? `?${params.toString()}` : ''}`
+      const response = await fetch(url)
 
       if (!response.ok) {
         throw new Error(`Failed to fetch documents: ${response.statusText}`)
@@ -266,12 +296,25 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         throw new Error(result.error || 'Failed to fetch documents')
       }
 
-      const documents = result.data
+      const documents = result.data.documents || result.data // Handle both paginated and non-paginated responses
+      const pagination = result.data.pagination || {
+        total: documents.length,
+        limit: options?.limit || 50,
+        offset: options?.offset || 0,
+        hasMore: false,
+      }
+
+      const documentsCache: DocumentsCache = {
+        documents,
+        pagination,
+        searchQuery: options?.search,
+        lastFetchTime: Date.now(),
+      }
 
       set((state) => ({
         documents: {
           ...state.documents,
-          [knowledgeBaseId]: documents,
+          [knowledgeBaseId]: documentsCache,
         },
         loadingDocuments: new Set(
           [...state.loadingDocuments].filter((loadingId) => loadingId !== knowledgeBaseId)
@@ -455,12 +498,15 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
     }
   },
 
-  refreshDocuments: async (knowledgeBaseId: string) => {
+  refreshDocuments: async (
+    knowledgeBaseId: string,
+    options?: { search?: string; limit?: number; offset?: number }
+  ) => {
     const state = get()
 
     // Return empty array if already loading to prevent duplicate requests
     if (state.loadingDocuments.has(knowledgeBaseId)) {
-      return state.documents[knowledgeBaseId] || []
+      return state.documents[knowledgeBaseId]?.documents || []
     }
 
     try {
@@ -468,7 +514,14 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         loadingDocuments: new Set([...state.loadingDocuments, knowledgeBaseId]),
       }))
 
-      const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents`)
+      // Build query parameters - for refresh, always start from offset 0
+      const params = new URLSearchParams()
+      if (options?.search) params.set('search', options.search)
+      if (options?.limit) params.set('limit', options.limit.toString())
+      params.set('offset', '0') // Always start fresh on refresh
+
+      const url = `/api/knowledge/${knowledgeBaseId}/documents${params.toString() ? `?${params.toString()}` : ''}`
+      const response = await fetch(url)
 
       if (!response.ok) {
         throw new Error(`Failed to fetch documents: ${response.statusText}`)
@@ -480,10 +533,16 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         throw new Error(result.error || 'Failed to fetch documents')
       }
 
-      const serverDocuments = result.data
+      const serverDocuments = result.data.documents || result.data
+      const pagination = result.data.pagination || {
+        total: serverDocuments.length,
+        limit: options?.limit || 50,
+        offset: 0,
+        hasMore: false,
+      }
 
       set((state) => {
-        const currentDocuments = state.documents[knowledgeBaseId] || []
+        const currentDocuments = state.documents[knowledgeBaseId]?.documents || []
 
         // Create a map of server documents by filename for quick lookup
         const serverDocumentsByFilename = new Map()
@@ -535,10 +594,17 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         // Add any remaining temporary documents that don't have server equivalents
         const finalDocuments = [...mergedDocuments, ...filteredCurrentDocs]
 
+        const documentsCache: DocumentsCache = {
+          documents: finalDocuments,
+          pagination,
+          searchQuery: options?.search,
+          lastFetchTime: Date.now(),
+        }
+
         return {
           documents: {
             ...state.documents,
-            [knowledgeBaseId]: finalDocuments,
+            [knowledgeBaseId]: documentsCache,
           },
           loadingDocuments: new Set(
             [...state.loadingDocuments].filter((loadingId) => loadingId !== knowledgeBaseId)
@@ -638,17 +704,20 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
 
   updateDocument: (knowledgeBaseId: string, documentId: string, updates: Partial<DocumentData>) => {
     set((state) => {
-      const documents = state.documents[knowledgeBaseId]
-      if (!documents) return state
+      const documentsCache = state.documents[knowledgeBaseId]
+      if (!documentsCache) return state
 
-      const updatedDocuments = documents.map((doc) =>
+      const updatedDocuments = documentsCache.documents.map((doc) =>
         doc.id === documentId ? { ...doc, ...updates } : doc
       )
 
       return {
         documents: {
           ...state.documents,
-          [knowledgeBaseId]: updatedDocuments,
+          [knowledgeBaseId]: {
+            ...documentsCache,
+            documents: updatedDocuments,
+          },
         },
       }
     })
@@ -677,7 +746,8 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
 
   addPendingDocuments: (knowledgeBaseId: string, newDocuments: DocumentData[]) => {
     set((state) => {
-      const existingDocuments = state.documents[knowledgeBaseId] || []
+      const existingDocumentsCache = state.documents[knowledgeBaseId]
+      const existingDocuments = existingDocumentsCache?.documents || []
 
       const existingIds = new Set(existingDocuments.map((doc) => doc.id))
       const uniqueNewDocuments = newDocuments.filter((doc) => !existingIds.has(doc.id))
@@ -689,15 +759,29 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
 
       const updatedDocuments = [...existingDocuments, ...uniqueNewDocuments]
 
+      const documentsCache: DocumentsCache = {
+        documents: updatedDocuments,
+        pagination: {
+          ...(existingDocumentsCache?.pagination || {
+            limit: 50,
+            offset: 0,
+            hasMore: false,
+          }),
+          total: updatedDocuments.length,
+        },
+        searchQuery: existingDocumentsCache?.searchQuery,
+        lastFetchTime: Date.now(),
+      }
+
       return {
         documents: {
           ...state.documents,
-          [knowledgeBaseId]: updatedDocuments,
+          [knowledgeBaseId]: documentsCache,
         },
       }
     })
     logger.info(
-      `Added ${newDocuments.filter((doc) => !get().documents[knowledgeBaseId]?.some((existing) => existing.id === doc.id)).length} pending documents for knowledge base: ${knowledgeBaseId}`
+      `Added ${newDocuments.filter((doc) => !get().documents[knowledgeBaseId]?.documents?.some((existing) => existing.id === doc.id)).length} pending documents for knowledge base: ${knowledgeBaseId}`
     )
   },
 
@@ -731,10 +815,10 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
 
   removeDocument: (knowledgeBaseId: string, documentId: string) => {
     set((state) => {
-      const documents = state.documents[knowledgeBaseId]
-      if (!documents) return state
+      const documentsCache = state.documents[knowledgeBaseId]
+      if (!documentsCache) return state
 
-      const updatedDocuments = documents.filter((doc) => doc.id !== documentId)
+      const updatedDocuments = documentsCache.documents.filter((doc) => doc.id !== documentId)
 
       // Also clear chunks for the removed document
       const newChunks = { ...state.chunks }
@@ -743,7 +827,10 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       return {
         documents: {
           ...state.documents,
-          [knowledgeBaseId]: updatedDocuments,
+          [knowledgeBaseId]: {
+            ...documentsCache,
+            documents: updatedDocuments,
+          },
         },
         chunks: newChunks,
       }
