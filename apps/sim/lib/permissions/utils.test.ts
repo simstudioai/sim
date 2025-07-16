@@ -32,11 +32,6 @@ vi.mock('@/db/schema', () => ({
     name: 'workspace_name',
     ownerId: 'workspace_owner_id',
   },
-  workspaceMember: {
-    id: 'workspace_member_id',
-    userId: 'workspace_member_user_id',
-    workspaceId: 'workspace_member_workspace_id',
-  },
   member: {
     userId: 'member_user_id',
     organizationId: 'member_organization_id',
@@ -153,24 +148,15 @@ describe('Permission Utils', () => {
 
   describe('getUsersWithPermissions', () => {
     it('should return empty array when no users have permissions for workspace', async () => {
-      // Mock first query (users with permissions)
       const usersChain = createMockChain([])
-      // Mock second query (membership IDs)
-      const membershipChain = createMockChain([])
-
-      let callCount = 0
-      mockDb.select.mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return usersChain
-        return membershipChain
-      })
+      mockDb.select.mockReturnValue(usersChain)
 
       const result = await getUsersWithPermissions('workspace123')
 
       expect(result).toEqual([])
     })
 
-    it('should return users with their permissions and membership IDs for workspace', async () => {
+    it('should return users with their permissions for workspace', async () => {
       const mockUsersResults = [
         {
           userId: 'user1',
@@ -181,19 +167,8 @@ describe('Permission Utils', () => {
         },
       ]
 
-      const mockMembershipResults = [{ userId: 'user1', membershipId: 'member1' }]
-
-      // Mock first query (users with permissions)
       const usersChain = createMockChain(mockUsersResults)
-      // Mock second query (membership IDs)
-      const membershipChain = createMockChain(mockMembershipResults)
-
-      let callCount = 0
-      mockDb.select.mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return usersChain
-        return membershipChain
-      })
+      mockDb.select.mockReturnValue(usersChain)
 
       const result = await getUsersWithPermissions('workspace456')
 
@@ -204,46 +179,6 @@ describe('Permission Utils', () => {
           name: 'Alice Smith',
           image: 'https://example.com/alice.jpg',
           permissionType: 'admin',
-          membershipId: 'member1',
-        },
-      ])
-    })
-
-    it('should handle users without membership IDs', async () => {
-      const mockUsersResults = [
-        {
-          userId: 'user1',
-          email: 'alice@example.com',
-          name: 'Alice Smith',
-          image: 'https://example.com/alice.jpg',
-          permissionType: 'admin' as PermissionType,
-        },
-      ]
-
-      const mockMembershipResults: any[] = [] // No memberships found
-
-      // Mock first query (users with permissions)
-      const usersChain = createMockChain(mockUsersResults)
-      // Mock second query (membership IDs)
-      const membershipChain = createMockChain(mockMembershipResults)
-
-      let callCount = 0
-      mockDb.select.mockImplementation(() => {
-        callCount++
-        if (callCount === 1) return usersChain
-        return membershipChain
-      })
-
-      const result = await getUsersWithPermissions('workspace456')
-
-      expect(result).toEqual([
-        {
-          userId: 'user1',
-          email: 'alice@example.com',
-          name: 'Alice Smith',
-          image: 'https://example.com/alice.jpg',
-          permissionType: 'admin',
-          membershipId: null,
         },
       ])
     })

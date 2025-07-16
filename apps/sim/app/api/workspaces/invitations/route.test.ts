@@ -4,7 +4,6 @@ import { createMockRequest, mockAuth, mockConsoleLogger } from '@/app/api/__test
 describe('Workspace Invitations API Route', () => {
   const mockWorkspace = { id: 'workspace-1', name: 'Test Workspace' }
   const mockUser = { id: 'user-1', email: 'test@example.com' }
-  const mockMembership = { id: 'member-1' }
   const mockInvitation = { id: 'invitation-1', status: 'pending' }
 
   let mockDbResults: any[] = []
@@ -51,7 +50,12 @@ describe('Workspace Invitations API Route', () => {
     vi.doMock('@/db/schema', () => ({
       user: { id: 'user_id', email: 'user_email', name: 'user_name', image: 'user_image' },
       workspace: { id: 'workspace_id', name: 'workspace_name', ownerId: 'owner_id' },
-      workspaceMember: { workspaceId: 'workspace_id', userId: 'user_id', id: 'member_id' },
+      permissions: {
+        userId: 'user_id',
+        entityId: 'entity_id',
+        entityType: 'entity_type',
+        permissionType: 'permission_type',
+      },
       workspaceInvitation: {
         id: 'invitation_id',
         workspaceId: 'workspace_id',
@@ -205,9 +209,9 @@ describe('Workspace Invitations API Route', () => {
       })
     })
 
-    it('should return 403 when user is not a member of the workspace', async () => {
+    it('should return 403 when user does not have admin permissions', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
-      mockDbResults = [[]] // No membership found
+      mockDbResults = [[]] // No admin permissions found
 
       const { POST } = await import('./route')
       const req = createMockRequest('POST', {
@@ -218,13 +222,13 @@ describe('Workspace Invitations API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(403)
-      expect(data).toEqual({ error: 'You are not a member of this workspace' })
+      expect(data).toEqual({ error: 'You need admin permissions to invite users' })
     })
 
     it('should return 404 when workspace is not found', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
       mockDbResults = [
-        [mockMembership], // User is member
+        [{ permissionType: 'admin' }], // User has admin permissions
         [], // Workspace not found
       ]
 
@@ -240,13 +244,13 @@ describe('Workspace Invitations API Route', () => {
       expect(data).toEqual({ error: 'Workspace not found' })
     })
 
-    it('should return 400 when user is already a member', async () => {
+    it('should return 400 when user already has workspace access', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
       mockDbResults = [
-        [mockMembership], // User is member
+        [{ permissionType: 'admin' }], // User has admin permissions
         [mockWorkspace], // Workspace exists
         [mockUser], // User exists
-        [mockMembership], // User already a member
+        [{ permissionType: 'read' }], // User already has access
       ]
 
       const { POST } = await import('./route')
@@ -259,7 +263,7 @@ describe('Workspace Invitations API Route', () => {
 
       expect(response.status).toBe(400)
       expect(data).toEqual({
-        error: 'test@example.com is already a member of this workspace',
+        error: 'test@example.com already has access to this workspace',
         email: 'test@example.com',
       })
     })
@@ -267,7 +271,7 @@ describe('Workspace Invitations API Route', () => {
     it('should return 400 when invitation already exists', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
       mockDbResults = [
-        [mockMembership], // User is member
+        [{ permissionType: 'admin' }], // User has admin permissions
         [mockWorkspace], // Workspace exists
         [], // User doesn't exist
         [mockInvitation], // Invitation exists
@@ -293,7 +297,7 @@ describe('Workspace Invitations API Route', () => {
         user: { id: 'user-123', name: 'Test User', email: 'sender@example.com' },
       })
       mockDbResults = [
-        [mockMembership], // User is member
+        [{ permissionType: 'admin' }], // User has admin permissions
         [mockWorkspace], // Workspace exists
         [], // User doesn't exist
         [], // No existing invitation

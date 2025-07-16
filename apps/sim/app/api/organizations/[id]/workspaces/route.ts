@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { member, permissions, user, workspace, workspaceMember } from '@/db/schema'
+import { member, permissions, user, workspace } from '@/db/schema'
 
 const logger = createLogger('OrganizationWorkspacesAPI')
 
@@ -116,10 +116,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           id: workspace.id,
           name: workspace.name,
           ownerId: workspace.ownerId,
-          createdAt: workspace.createdAt,
           isOwner: eq(workspace.ownerId, memberId),
           permissionType: permissions.permissionType,
-          joinedAt: workspaceMember.joinedAt,
+          createdAt: permissions.createdAt,
         })
         .from(workspace)
         .leftJoin(
@@ -129,10 +128,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             eq(permissions.entityId, workspace.id),
             eq(permissions.userId, memberId)
           )
-        )
-        .leftJoin(
-          workspaceMember,
-          and(eq(workspaceMember.workspaceId, workspace.id), eq(workspaceMember.userId, memberId))
         )
         .where(
           or(
@@ -148,7 +143,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         name: workspace.name,
         isOwner: workspace.isOwner,
         permission: workspace.permissionType,
-        joinedAt: workspace.joinedAt,
+        joinedAt: workspace.createdAt,
         createdAt: workspace.createdAt,
       }))
 

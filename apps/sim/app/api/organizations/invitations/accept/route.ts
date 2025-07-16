@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { invitation, member, permissions, workspaceInvitation, workspaceMember } from '@/db/schema'
+import { invitation, member, permissions, workspaceInvitation } from '@/db/schema'
 
 const logger = createLogger('OrganizationInvitationAcceptance')
 
@@ -135,18 +135,6 @@ export async function GET(req: NextRequest) {
           wsInvitation.expiresAt &&
           new Date().toISOString() <= wsInvitation.expiresAt.toISOString()
         ) {
-          // Check if user isn't already a member of the workspace
-          const existingWorkspaceMember = await tx
-            .select()
-            .from(workspaceMember)
-            .where(
-              and(
-                eq(workspaceMember.workspaceId, wsInvitation.workspaceId),
-                eq(workspaceMember.userId, session.user.id)
-              )
-            )
-            .limit(1)
-
           // Check if user doesn't already have permissions on the workspace
           const existingPermission = await tx
             .select()
@@ -160,17 +148,7 @@ export async function GET(req: NextRequest) {
             )
             .limit(1)
 
-          if (existingWorkspaceMember.length === 0 && existingPermission.length === 0) {
-            // Add user as workspace member
-            await tx.insert(workspaceMember).values({
-              id: randomUUID(),
-              workspaceId: wsInvitation.workspaceId,
-              userId: session.user.id,
-              role: wsInvitation.role,
-              joinedAt: new Date(),
-              updatedAt: new Date(),
-            })
-
+          if (existingPermission.length === 0) {
             // Add workspace permissions
             await tx.insert(permissions).values({
               id: randomUUID(),
@@ -311,17 +289,6 @@ export async function POST(req: NextRequest) {
           wsInvitation.expiresAt &&
           new Date().toISOString() <= wsInvitation.expiresAt.toISOString()
         ) {
-          const existingWorkspaceMember = await tx
-            .select()
-            .from(workspaceMember)
-            .where(
-              and(
-                eq(workspaceMember.workspaceId, wsInvitation.workspaceId),
-                eq(workspaceMember.userId, session.user.id)
-              )
-            )
-            .limit(1)
-
           const existingPermission = await tx
             .select()
             .from(permissions)
@@ -334,16 +301,7 @@ export async function POST(req: NextRequest) {
             )
             .limit(1)
 
-          if (existingWorkspaceMember.length === 0 && existingPermission.length === 0) {
-            await tx.insert(workspaceMember).values({
-              id: randomUUID(),
-              workspaceId: wsInvitation.workspaceId,
-              userId: session.user.id,
-              role: wsInvitation.role,
-              joinedAt: new Date(),
-              updatedAt: new Date(),
-            })
-
+          if (existingPermission.length === 0) {
             await tx.insert(permissions).values({
               id: randomUUID(),
               userId: session.user.id,

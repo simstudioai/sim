@@ -13,7 +13,6 @@ export interface WorkspaceUser {
   name: string | null
   image: string | null
   permissionType: PermissionType
-  membershipId: string | null
 }
 
 export interface WorkspacePermissions {

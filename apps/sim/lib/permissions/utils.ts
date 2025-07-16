@@ -1,13 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/db'
-import {
-  member,
-  permissions,
-  type permissionTypeEnum,
-  user,
-  workspace,
-  workspaceMember,
-} from '@/db/schema'
+import { member, permissions, type permissionTypeEnum, user, workspace } from '@/db/schema'
 
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
@@ -94,17 +87,6 @@ export async function getUsersWithPermissions(workspaceId: string) {
     .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
     .orderBy(user.email)
 
-  const membershipIds = await db
-    .select({
-      userId: workspaceMember.userId,
-      membershipId: workspaceMember.id,
-    })
-    .from(workspaceMember)
-    .where(eq(workspaceMember.workspaceId, workspaceId))
-
-  // Create a map for quick lookup
-  const membershipMap = new Map(membershipIds.map((m) => [m.userId, m.membershipId]))
-
   // Since each user has only one permission, we can use the results directly
   return usersWithPermissions.map((row) => ({
     userId: row.userId,
@@ -112,7 +94,6 @@ export async function getUsersWithPermissions(workspaceId: string) {
     name: row.name,
     image: row.image,
     permissionType: row.permissionType,
-    membershipId: membershipMap.get(row.userId) || null,
   }))
 }
 

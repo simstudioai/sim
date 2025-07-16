@@ -340,12 +340,7 @@ const PermissionsTable = ({
               const currentPermission =
                 existingUserPermissionChanges[userIdentifier]?.permissionType ?? user.permissionType
               const hasChanges = originalPermission && currentPermission !== originalPermission
-              const existingUserRecord = workspacePermissions?.users?.find(
-                (eu) => eu.userId === user.userId
-              )
-              const hasValidMembershipId = existingUserRecord?.membershipId !== null
-
-              // More robust check for showing remove button - check if user is in workspace permissions directly
+              // Check if user is in workspace permissions directly
               const isWorkspaceMember = workspacePermissions?.users?.some(
                 (eu) => eu.email === user.email && eu.userId
               )
@@ -354,8 +349,7 @@ const PermissionsTable = ({
                 !isCurrentUser &&
                 !isPendingInvitation &&
                 currentUserIsAdmin &&
-                user.userId &&
-                hasValidMembershipId
+                user.userId
 
               const uniqueKey = user.userId
                 ? `existing-${user.userId}`
@@ -688,20 +682,23 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     setErrorMessage(null)
 
     try {
-      // Find the membership record for this user
-      const membershipRecord = workspacePermissions?.users?.find(
+      // Verify the user exists in workspace permissions
+      const userRecord = workspacePermissions?.users?.find(
         (user) => user.userId === memberToRemove.userId
       )
 
-      if (!membershipRecord?.membershipId) {
-        throw new Error('User is not a direct workspace member and cannot be removed')
+      if (!userRecord) {
+        throw new Error('User is not a member of this workspace')
       }
 
-      const response = await fetch(`/api/workspaces/members/${membershipRecord.membershipId}`, {
+      const response = await fetch(`/api/workspaces/members/${memberToRemove.userId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          workspaceId: workspaceId,
+        }),
       })
 
       const data = await response.json()

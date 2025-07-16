@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { workflow, workspaceMember } from '@/db/schema'
+import { workflow } from '@/db/schema'
 
 const logger = createLogger('WorkspaceByIdAPI')
 
@@ -125,9 +125,6 @@ export async function DELETE(
       // workflow_logs, workflow_execution_snapshots, workflow_execution_logs, workflow_execution_trace_spans,
       // workflow_schedule, webhook, marketplace, chat, and memory records
       await tx.delete(workflow).where(eq(workflow.workspaceId, workspaceId))
-
-      // Delete workspace members
-      await tx.delete(workspaceMember).where(eq(workspaceMember.workspaceId, workspaceId))
 
       // Delete all permissions associated with this workspace
       await tx

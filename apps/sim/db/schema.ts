@@ -628,6 +628,7 @@ export const workspace = pgTable('workspace', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// @deprecated - Use permissions table instead. This table is kept for backward compatibility during migration.
 export const workspaceMember = pgTable(
   'workspace_member',
   {
