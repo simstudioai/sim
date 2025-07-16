@@ -2,10 +2,18 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { docsSearchTool } from './docs/search'
 import { tools } from './registry'
 import type { TableRow, ToolConfig, ToolResponse } from './types'
+import { getUserWorkflowTool } from './workflow/get-yaml'
 
 const logger = createLogger('ToolsUtils')
+
+// Internal-only tools (not exposed to users in workflows)
+const internalTools: Record<string, ToolConfig> = {
+  docs_search_internal: docsSearchTool,
+  get_user_workflow: getUserWorkflowTool,
+}
 
 /**
  * Transforms a table from the store format to a key-value object
@@ -156,9 +164,9 @@ export function validateToolRequest(
   }
 
   // Ensure all required parameters for tool call are provided
-  // Note: optionalToolInput parameters are not checked here as they're optional
+  // Note: user-only parameters are not checked here as they're optional
   for (const [paramName, paramConfig] of Object.entries(tool.params)) {
-    if (paramConfig.requiredForToolCall && !(paramName in params)) {
+    if (paramConfig.visibility === 'user-or-llm' && !(paramName in params)) {
       throw new Error(`Parameter "${paramName}" is required for ${toolId} but was not provided`)
     }
   }
@@ -183,23 +191,22 @@ export function createParamSchema(customTool: any): Record<string, any> {
   if (customTool.schema.function?.parameters?.properties) {
     const properties = customTool.schema.function.parameters.properties
     const required = customTool.schema.function.parameters.required || []
-    const optionalToolInputs = customTool.schema.function.parameters.optionalToolInputs || []
 
     Object.entries(properties).forEach(([key, config]: [string, any]) => {
       const isRequired = required.includes(key)
-      const isOptionalInput = optionalToolInputs.includes(key)
 
       // Create the base parameter configuration
       const paramConfig: Record<string, any> = {
         type: config.type || 'string',
         required: isRequired,
-        requiredForToolCall: isRequired,
         description: config.description || '',
       }
 
-      // Only add optionalToolInput if it's true to maintain backward compatibility with tests
-      if (isOptionalInput) {
-        paramConfig.optionalToolInput = true
+      // Set visibility based on whether it's required
+      if (isRequired) {
+        paramConfig.visibility = 'user-or-llm'
+      } else {
+        paramConfig.visibility = 'user-only'
       }
 
       params[key] = paramConfig
@@ -269,6 +276,10 @@ export function createCustomToolRequestBody(
 
 // Get a tool by its ID
 export function getTool(toolId: string): ToolConfig | undefined {
+  // Check for internal tools first
+  const internalTool = internalTools[toolId]
+  if (internalTool) return internalTool
+
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
@@ -302,6 +313,10 @@ export async function getToolAsync(
   toolId: string,
   workflowId?: string
 ): Promise<ToolConfig | undefined> {
+  // Check for internal tools first
+  const internalTool = internalTools[toolId]
+  if (internalTool) return internalTool
+
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool

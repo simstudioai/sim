@@ -17,17 +17,19 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'X OAuth access token',
     },
     tweetId: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'ID of the tweet to read',
     },
     includeReplies: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Whether to include replies to the tweet',
     },
   },

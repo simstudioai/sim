@@ -11,7 +11,8 @@ import {
   getSubBlockValue,
   parseCronToHumanReadable,
   parseTimeString,
-} from './utils'
+  validateCronExpression,
+} from '@/lib/schedules/utils'
 
 describe('Schedule Utilities', () => {
   describe('parseTimeString', () => {
@@ -102,6 +103,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [12, 0],
         monthlyDay: 15,
         monthlyTime: [14, 30],
+        cronExpression: null,
       })
     })
 
@@ -127,6 +129,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0], // Default
         monthlyDay: 1, // Default
         monthlyTime: [9, 0], // Default
+        cronExpression: null,
       })
     })
   })
@@ -143,6 +146,7 @@ describe('Schedule Utilities', () => {
         monthlyDay: 15,
         monthlyTime: [14, 30] as [number, number],
         timezone: 'UTC',
+        cronExpression: null,
       }
 
       // Minutes (every 15 minutes)
@@ -196,6 +200,7 @@ describe('Schedule Utilities', () => {
         monthlyDay: 15,
         monthlyTime: [14, 30] as [number, number],
         timezone: 'UTC',
+        cronExpression: null,
       }
 
       expect(generateCronExpression('minutes', standardScheduleValues)).toBe('*/15 * * * *')
@@ -230,6 +235,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: null,
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
@@ -254,6 +260,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: null,
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
@@ -275,6 +282,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: null,
       }
 
       const nextRun = calculateNextRunTime('hourly', scheduleValues)
@@ -297,6 +305,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: null,
       }
 
       const nextRun = calculateNextRunTime('daily', scheduleValues)
@@ -320,6 +329,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [10, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: null,
       }
 
       const nextRun = calculateNextRunTime('weekly', scheduleValues)
@@ -342,6 +352,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 15,
         monthlyTime: [14, 30] as [number, number],
+        cronExpression: null,
       }
 
       const nextRun = calculateNextRunTime('monthly', scheduleValues)
@@ -366,6 +377,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: null,
       }
 
       // Last ran 10 minutes ago
@@ -393,6 +405,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: null,
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
@@ -413,6 +426,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: null,
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
@@ -420,6 +434,50 @@ describe('Schedule Utilities', () => {
       // Should not use the past date but calculate normally
       expect(nextRun > new Date()).toBe(true)
       expect(nextRun.getMinutes() % 10).toBe(0) // Should align with the interval
+    })
+  })
+
+  describe('validateCronExpression', () => {
+    it.concurrent('should validate correct cron expressions', () => {
+      expect(validateCronExpression('0 9 * * *')).toEqual({
+        isValid: true,
+        nextRun: expect.any(Date),
+      })
+      expect(validateCronExpression('*/15 * * * *')).toEqual({
+        isValid: true,
+        nextRun: expect.any(Date),
+      })
+      expect(validateCronExpression('30 14 15 * *')).toEqual({
+        isValid: true,
+        nextRun: expect.any(Date),
+      })
+    })
+
+    it.concurrent('should reject invalid cron expressions', () => {
+      expect(validateCronExpression('invalid')).toEqual({
+        isValid: false,
+        error: expect.stringContaining('invalid'),
+      })
+      expect(validateCronExpression('60 * * * *')).toEqual({
+        isValid: false,
+        error: expect.any(String),
+      })
+      expect(validateCronExpression('')).toEqual({
+        isValid: false,
+        error: 'Cron expression cannot be empty',
+      })
+      expect(validateCronExpression('   ')).toEqual({
+        isValid: false,
+        error: 'Cron expression cannot be empty',
+      })
+    })
+
+    it.concurrent('should detect impossible cron expressions', () => {
+      // This would be February 31st - impossible date
+      expect(validateCronExpression('0 0 31 2 *')).toEqual({
+        isValid: false,
+        error: 'Cron expression produces no future occurrences',
+      })
     })
   })
 

@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { encryptSecret } from '@/lib/utils'
@@ -71,9 +71,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Create a new result object without the password
     const { password, ...safeData } = chatInstance[0]
 
-    const isDevelopment = env.NODE_ENV === 'development'
-
-    const chatUrl = isDevelopment
+    const chatUrl = isDev
       ? `http://${chatInstance[0].subdomain}.${getBaseDomain()}`
       : `https://${chatInstance[0].subdomain}.simstudio.ai`
 
@@ -221,9 +219,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const updatedSubdomain = subdomain || existingChat[0].subdomain
 
-      const isDevelopment = env.NODE_ENV === 'development'
-
-      const chatUrl = isDevelopment
+      const chatUrl = isDev
         ? `http://${updatedSubdomain}.${getBaseDomain()}`
         : `https://${updatedSubdomain}.simstudio.ai`
 

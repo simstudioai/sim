@@ -3,28 +3,20 @@
  */
 import { env } from './env'
 
-export const getNodeEnv = () => {
-  try {
-    return env.NODE_ENV
-  } catch {
-    return process.env.NODE_ENV
-  }
-}
-
 /**
  * Is the application running in production mode
  */
-export const isProd = getNodeEnv() === 'production'
+export const isProd = env.NODE_ENV === 'production'
 
 /**
  * Is the application running in development mode
  */
-export const isDev = getNodeEnv() === 'development'
+export const isDev = env.NODE_ENV === 'development'
 
 /**
  * Is the application running in test mode
  */
-export const isTest = getNodeEnv() === 'test'
+export const isTest = env.NODE_ENV === 'test'
 
 /**
  * Is this the hosted version of the application

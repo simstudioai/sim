@@ -3,39 +3,16 @@ title: Execution
 description: Understand how workflows are executed in Sim Studio
 ---
 
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { File, Files, Folder } from 'fumadocs-ui/components/files'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import {
-  AgentIcon,
-  ApiIcon,
-  ChartBarIcon,
-  CodeIcon,
-  ConditionalIcon,
-  ConnectIcon,
-  ExaAIIcon,
-  FirecrawlIcon,
-  GmailIcon,
-  NotionIcon,
-  PerplexityIcon,
-  SlackIcon,
-} from '@/components/icons'
 
-Sim Studio provides a powerful execution engine that brings your workflows to life. Understanding how execution works will help you design more effective workflows and troubleshoot any issues that arise.
-
-<div>
-  <video autoPlay loop muted playsInline className="w-full" src="/loops.mp4"></video>
-</div>
+Sim Studio's execution engine brings your workflows to life by processing blocks in the correct order, managing data flow, and handling errors gracefully.
 
 <Callout type="info">
-  The execution engine handles everything from block execution order to data flow, error handling,
-  and loop management. It ensures your workflows run efficiently and predictably.
+  Every workflow execution follows a deterministic path based on your block connections and logic, ensuring predictable and reliable results.
 </Callout>
 
-## Execution Documentation
+## Documentation Overview
 
 <Cards>
   <Card title="Execution Basics" href="/execution/basics">
@@ -43,223 +20,109 @@ Sim Studio provides a powerful execution engine that brings your workflows to li
     workflow
   </Card>
 
-<Card title="Loops" href="/execution/loops">
-  Master the powerful loop functionality to create iterative processes and feedback mechanisms
-</Card>
-
-  <Card title="Advanced Features" href="/execution/advanced">
-    Discover advanced capabilities like error handling, environment variables, and performance
-    optimization
+  <Card title="Logging and Cost Calculation" href="/execution/advanced">
+    Understand workflow logs and how execution costs are calculated in Sim Studio
   </Card>
 </Cards>
 
-## Key Execution Concepts
+## Key Concepts
 
-- **Topological Execution** - Blocks are executed in dependency order, ensuring data flows correctly
-- **Path Tracking** - The system tracks active execution paths based on routing decisions
-- **Loop Management** - Sophisticated loop handling allows for iterative processing with safeguards
-- **Real-time Monitoring** - Watch your workflow execute with detailed logs and visual indicators
-- **Error Handling** - Robust error management keeps your workflows resilient
+### Topological Execution
+Blocks execute in dependency order, similar to how a spreadsheet recalculates cells. The execution engine automatically determines which blocks can run based on completed dependencies.
 
-Whether you're building simple automations or complex AI workflows, understanding execution is key to creating effective solutions in Sim Studio.
+### Path Tracking
+The engine actively tracks execution paths through your workflow. Router and Condition blocks dynamically update these paths, ensuring only relevant blocks execute.
 
-## Execution Flow
+### Layer-Based Processing
+Instead of executing blocks one-by-one, the engine identifies layers of blocks that can run in parallel, optimizing performance for complex workflows.
 
-When you execute a workflow in Sim Studio, the system follows a predictable pattern:
+### Execution Context
+Each workflow maintains a rich context during execution containing:
+- Block outputs and states
+- Active execution paths
+- Loop and parallel iteration tracking
+- Environment variables
+- Routing decisions
 
-<Steps>
-  <Step>
-    ### Validation The workflow is validated to ensure it has an enabled starter block and proper
-    connections. This includes checking that: - The starter block has no incoming connections - All
-    required blocks are present and properly connected - Loop configurations are valid with
-    appropriate iteration limits
-  </Step>
+## Execution Triggers
 
-<Step>
-  ### Initialization The execution context is created with environment variables and input values.
-  This context maintains the state of the workflow throughout execution, including: - Block outputs
-  and states - Execution path tracking - Routing decisions - Loop iteration counters
-</Step>
+Workflows can be executed through multiple channels:
 
-<Step>
-  ### Block Execution Blocks are executed in topological order, with each block's outputs feeding
-  into subsequent blocks. The executor: - Determines the next layer of blocks to execute based on
-  dependencies - Resolves inputs for each block from previous outputs - Dispatches execution to
-  specialized handlers for each block type
-</Step>
+- **Manual**: Test and debug directly in the editor
+- **Deploy as API**: Create an HTTP endpoint secured with API keys
+- **Deploy as Chat**: Create a conversational interface on a custom subdomain
+- **Webhooks**: Respond to external events from third-party services
+- **Scheduled**: Run on a recurring schedule using cron expressions
 
-<Step>
-  ### Path Determination Router and conditional blocks make routing decisions that determine which
-  execution paths to follow. The path tracker: - Updates the active execution path based on these
-  decisions - Ensures that only blocks on active paths are executed - Handles complex branching
-  logic in your workflow
-</Step>
+### Deploy as API
 
-  <Step>
-    ### Result Collection The final output and execution logs are collected and presented in the UI.
-    You'll see: - Complete execution logs for each block - Performance metrics and timing
-    information - Any errors that occurred during execution - The final workflow output
-  </Step>
-</Steps>
+When you deploy a workflow as an API, Sim Studio:
+- Creates a unique HTTP endpoint: `https://simstudio.ai/api/workflows/{workflowId}/execute`
+- Generates an API key for authentication
+- Accepts POST requests with JSON payloads
+- Returns workflow execution results as JSON
 
-## Block Types
+Example API call:
+```bash
+curl -X POST https://simstudio.ai/api/workflows/your-workflow-id/execute \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "your data here"}'
+```
 
-Sim Studio has two main categories of blocks in workflows:
+### Deploy as Chat
 
-<Tabs items={['Orchestration Blocks', 'Output Blocks']}>
-  <Tab value="Orchestration Blocks">
-    <Card>
-      Orchestration blocks control the flow of execution through your workflow.
-      <Files>
-        <File
-          name="Router Blocks"
-          icon={<ConnectIcon className="h-4 w-4" />}
-          annotation="Direct the workflow along specific paths based on dynamic decisions. The router evaluates inputs and selects one of multiple possible paths."
-        />
-        <File
-          name="Conditional Blocks"
-          icon={<ConditionalIcon className="h-4 w-4" />}
-          annotation="Execute different paths based on conditional logic. Conditions are evaluated to true or false, determining which path to follow."
-        />
-      </Files>
-    </Card>
-  </Tab>
+Chat deployment creates a conversational interface for your workflow:
+- Hosted on a custom subdomain: `https://your-name.simstudio.ai`
+- Optional authentication (public, password, or email-based)
+- Customizable UI with your branding
+- Streaming responses for real-time interaction
+- Perfect for AI assistants, support bots, or interactive tools
 
-  <Tab value="Output Blocks">
-    <Card>
-      Output blocks perform operations and generate results that can be used by downstream blocks.
-      <Files>
-        <File
-          name="Agent Block"
-          icon={<AgentIcon className="h-4 w-4" />}
-          annotation="Interact with AI models to generate content. Supports various LLM providers with optional tool calling capabilities."
-        />
-        <File
-          name="Function Blocks"
-          icon={<CodeIcon className="h-4 w-4" />}
-          annotation="Execute custom JavaScript/TypeScript code to process data. Runs in a secure sandbox environment with appropriate timeout limits."
-        />
-        <File
-          name="API Blocks"
-          icon={<ApiIcon className="h-4 w-4" />}
-          annotation="Make HTTP requests to external services. Configure headers, body, and authentication for REST API interactions."
-        />
-        <File
-          name="Evaluator Blocks"
-          icon={<ChartBarIcon className="h-4 w-4" />}
-          annotation="Assess outputs against defined criteria with customizable scoring logic."
-        />
-      </Files>
-    </Card>
-  </Tab>
-</Tabs>
+Each deployment method passes data to your workflow's starter block, beginning the execution flow.
 
-## Real-Time Monitoring
+## Programmatic Execution
 
-As your workflow executes, Sim Studio provides powerful real-time monitoring capabilities:
+Execute workflows from your applications using our official SDKs:
 
-<Accordions>
-  <Accordion title="Active Block Indicator">
-    The currently executing block is highlighted in the workflow editor, making it easy to follow
-    the execution flow in real-time. This visual indicator helps you understand exactly where in
-    your workflow the execution is currently happening.
-  </Accordion>
+```bash
+# TypeScript/JavaScript
+npm install simstudio-ts-sdk
 
-<Accordion title="Live Logs Panel">
-  Execution logs appear in real-time in the logs panel on the right side. These logs include
-  detailed information about each block's execution, including inputs, outputs, execution time, and
-  any errors that occur. You can use these logs to debug your workflow and understand how data flows
-  between blocks.
-</Accordion>
+# Python
+pip install simstudio-sdk
+```
 
-<Accordion title="Block States">
-  Each block's state (pending, executing, completed, or error) is visually indicated in the workflow
-  editor. This helps you quickly identify which blocks have executed successfully and which may have
-  encountered issues.
-</Accordion>
+```typescript
+// TypeScript Example
+import { SimStudioClient } from 'simstudio-ts-sdk';
 
-  <Accordion title="Performance Metrics">
-    Detailed timing information shows how long each block takes to execute, helping you identify
-    performance bottlenecks in your workflow. The execution engine tracks start time, end time, and
-    total duration for both individual blocks and the entire workflow.
-  </Accordion>
-</Accordions>
+const client = new SimStudioClient({ 
+  apiKey: 'your-api-key' 
+});
 
-## Execution Methods
+const result = await client.executeWorkflow('workflow-id', {
+  input: { message: 'Hello' }
+});
+```
 
-Sim Studio offers multiple ways to trigger workflow execution:
+## Best Practices
 
-<Cards>
-  <Card title="Manual Execution" href="#">
-    Run workflows on-demand through the Sim Studio interface. This is perfect for testing and
-    development, allowing you to iteratively refine your workflow with immediate feedback.
-  </Card>
+### Design for Reliability
+- Handle errors gracefully with appropriate fallback paths
+- Use environment variables for sensitive data
+- Add logging to Function blocks for debugging
 
-<Card title="Scheduled Execution" href="#">
-  Configure workflows to run automatically on a specified schedule using cron expressions. Ideal for
-  regular data processing, reporting tasks, or any workflow that needs to run periodically without
-  manual intervention.
-</Card>
+### Optimize Performance
+- Minimize external API calls where possible
+- Use parallel execution for independent operations
+- Cache results with Memory blocks when appropriate
 
-<Card title="API Endpoints" href="#">
-  Each workflow can be exposed as an API endpoint with authentication, allowing external systems to
-  trigger execution with custom inputs. This enables seamless integration with your existing
-  applications and services.
-</Card>
+### Monitor Executions
+- Review logs regularly to understand performance patterns
+- Track costs for AI model usage
+- Use workflow snapshots to debug issues
 
-  <Card title="Webhooks" href="#">
-    Configure workflows to execute in response to external events via webhook triggers. This allows
-    your workflows to react to events from third-party services like GitHub, Stripe, or any platform
-    that supports webhooks.
-  </Card>
-</Cards>
+## What's Next?
 
-## Advanced Execution Features
-
-### Loops
-
-Sim Studio supports sophisticated loop constructs, allowing parts of your workflow to execute repeatedly:
-
-- **Iteration Limits** - Configure maximum iterations (default: 5) to prevent infinite loops and minimum iterations to ensure the loop executes a certain number of times.
-- **Conditional Looping** - Continue looping until specific conditions are met, with the loop manager tracking iteration counts.
-- **Loop Reset** - Automatically resets block states between iterations, allowing blocks to be re-executed with updated inputs.
-- **Feedback Paths** - Create feedback loops where outputs from later blocks feed back into earlier blocks in the workflow.
-
-### Error Handling
-
-The execution engine includes built-in error handling mechanisms:
-
-- **Block-Level Errors** - Errors in one block don't necessarily stop the entire workflow execution.
-- **Detailed Error Logs** - Comprehensive error information is captured in the execution logs, including error messages, stack traces, and relevant context.
-- **Fallback Mechanisms** - For function execution, the system tries Freestyle execution first, then falls back to VM execution if needed.
-- **Recovery Options** - Configure blocks to retry on failure or implement custom error handling logic.
-
-### Environment Variables
-
-Use environment variables to securely store and access sensitive information:
-
-- **API Keys** - Store API credentials securely without hardcoding them in your workflow.
-- **Configuration Values** - Manage environment-specific configuration values.
-- **Runtime Availability** - All environment variables are available to blocks during execution.
-- **Secure Storage** - Values are encrypted at rest and only decrypted during execution.
-
-## Execution Context
-
-Each workflow execution maintains a detailed context that includes:
-
-- **Block States** - Outputs and execution status of each block, indexed by block ID.
-- **Execution Path** - The active path through the workflow based on routing decisions.
-- **Routing Decisions** - Records which paths were selected by router and conditional blocks.
-- **Loop Iterations** - Tracks current iteration count for each loop in the workflow.
-- **Environment Variables** - Configuration values available to all blocks during execution.
-- **Execution Logs** - A chronological record of block executions with timing information.
-
-## Performance Considerations
-
-- **Block Complexity** - Complex blocks with heavy computation may take longer to execute. Consider breaking complex operations into multiple blocks.
-- **External Dependencies** - Blocks that rely on external services may be affected by network latency or service availability.
-- **Execution Layers** - The executor processes blocks in layers based on dependencies, which can affect overall execution time.
-- **Code Optimization** - For function blocks, optimize your code to reduce execution time and resource usage.
-- **Timeout Limits** - Function blocks have configurable timeout limits to prevent long-running operations from blocking execution.
-
-By understanding these execution principles, you can design more efficient and effective workflows in Sim Studio.
+Start with [Execution Basics](/execution/basics) to understand how workflows run, then explore [Logging and Cost Calculation](/execution/advanced) to monitor and optimize your executions.

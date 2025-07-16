@@ -19,7 +19,6 @@ import { ApiEndpoint } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { ApiKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-key/api-key'
 import { DeployStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components/deploy-status/deploy-status'
 import { ExampleCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
-import { useNotificationStore } from '@/stores/notifications/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { DeployedWorkflowModal } from '../../../deployment-controls/components/deployed-workflow-modal'
 
@@ -50,14 +49,11 @@ export function DeploymentInfo({
   isUndeploying,
   workflowId,
   deployedState,
-  isLoadingDeployedState,
 }: DeploymentInfoProps) {
   const [isViewingDeployed, setIsViewingDeployed] = useState(false)
-  const { addNotification } = useNotificationStore()
 
   const handleViewDeployed = async () => {
     if (!workflowId) {
-      addNotification('error', 'Cannot view deployment: Workflow ID is missing', null)
       return
     }
 
@@ -65,9 +61,6 @@ export function DeploymentInfo({
     if (deployedState) {
       setIsViewingDeployed(true)
       return
-    }
-    if (!isLoadingDeployedState) {
-      addNotification('error', 'Cannot view deployment: No deployed state available', workflowId)
     }
   }
 

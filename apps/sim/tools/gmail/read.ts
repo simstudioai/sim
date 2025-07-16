@@ -12,36 +12,38 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   oauth: {
     required: true,
     provider: 'google-email',
-    additionalScopes: [
-      // 'https://www.googleapis.com/auth/gmail.readonly',
-      'https://www.googleapis.com/auth/gmail.labels',
-    ],
+    additionalScopes: ['https://www.googleapis.com/auth/gmail.labels'],
   },
 
   params: {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Gmail API',
     },
     messageId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'ID of the message to read',
     },
     folder: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Folder/label to read emails from',
     },
     unreadOnly: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Only retrieve unread messages',
     },
     maxResults: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of messages to retrieve (default: 1, max: 10)',
     },
   },

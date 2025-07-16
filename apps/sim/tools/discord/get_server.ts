@@ -19,13 +19,13 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
     botToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'The bot token for authentication',
     },
     serverId: {
       type: 'string',
       required: true,
-      optionalToolInput: true,
+      visibility: 'user-only',
       description: 'The Discord server ID (guild ID)',
     },
   },

@@ -76,10 +76,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       layout: 'full',
       provider: 'slack',
       placeholder: 'Select Slack channel',
-      condition: {
-        field: 'operation',
-        value: ['send'],
-      },
     },
     {
       id: 'text',
@@ -87,10 +83,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter your message (supports Slack mrkdwn)',
-      condition: {
-        field: 'operation',
-        value: ['send'],
-      },
     },
   ],
   tools: {

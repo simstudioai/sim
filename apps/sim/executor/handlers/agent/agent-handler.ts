@@ -128,7 +128,7 @@ export class AgentBlockHandler implements BlockHandler {
         })
         .map(async (tool) => {
           if (tool.type === 'custom-tool' && tool.schema) {
-            return this.createCustomTool(tool, context)
+            return await this.createCustomTool(tool, context)
           }
           return this.transformBlockTool(tool, context)
         })
@@ -139,26 +139,36 @@ export class AgentBlockHandler implements BlockHandler {
     )
   }
 
-  private createCustomTool(tool: ToolInput, context: ExecutionContext): any {
+  private async createCustomTool(tool: ToolInput, context: ExecutionContext): Promise<any> {
+    const userProvidedParams = tool.params || {}
+
+    // Import the utility function
+    const { filterSchemaForLLM, mergeToolParameters } = await import('../../../tools/params')
+
+    // Create schema excluding user-provided parameters
+    const filteredSchema = filterSchemaForLLM(tool.schema.function.parameters, userProvidedParams)
+
+    const toolId = `${CUSTOM_TOOL_PREFIX}${tool.title}`
     const base: any = {
-      id: `${CUSTOM_TOOL_PREFIX}${tool.title}`,
+      id: toolId,
       name: tool.schema.function.name,
       description: tool.schema.function.description || '',
-      params: tool.params || {},
+      params: userProvidedParams,
       parameters: {
+        ...filteredSchema,
         type: tool.schema.function.parameters.type,
-        properties: tool.schema.function.parameters.properties,
-        required: tool.schema.function.parameters.required || [],
       },
       usageControl: tool.usageControl || 'auto',
     }
 
     if (tool.code) {
       base.executeFunction = async (callParams: Record<string, any>) => {
+        // Merge user-provided parameters with LLM-generated parameters
+        const mergedParams = mergeToolParameters(userProvidedParams, callParams)
+
         const result = await executeTool('function_execute', {
           code: tool.code,
-          ...tool.params,
-          ...callParams,
+          ...mergedParams,
           timeout: tool.timeout ?? DEFAULT_FUNCTION_TIMEOUT,
           envVars: context.environmentVariables || {},
           isCustomTool: true,
@@ -487,6 +497,7 @@ export class AgentBlockHandler implements BlockHandler {
     const contentType = response.headers.get('Content-Type')
     if (contentType?.includes('text/event-stream')) {
       // Handle streaming response
+      logger.info('Received streaming response')
       return this.handleStreamingResponse(response, block)
     }
 
@@ -703,15 +714,31 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private processStructuredResponse(result: any, responseFormat: any): BlockOutput {
+    const content = result.content
+
     try {
-      const parsedContent = JSON.parse(result.content)
+      const extractedJson = JSON.parse(content.trim())
+      logger.info('Successfully parsed structured response content')
       return {
-        ...parsedContent,
+        ...extractedJson,
         ...this.createResponseMetadata(result),
       }
     } catch (error) {
-      logger.error('Failed to parse response content:', { error })
-      return this.processStandardResponse(result)
+      logger.info('JSON parsing failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+
+      // LLM did not adhere to structured response format
+      logger.error('LLM did not adhere to structured response format:', {
+        content: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
+        responseFormat: responseFormat,
+      })
+
+      const standardResponse = this.processStandardResponse(result)
+      return Object.assign(standardResponse, {
+        _responseFormatWarning:
+          'LLM did not adhere to the specified structured response format. Expected valid JSON but received malformed content. Falling back to standard format.',
+      })
     }
   }
 
@@ -736,13 +763,16 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private formatToolCall(tc: any) {
+    const toolName = this.stripCustomToolPrefix(tc.name)
+
     return {
       ...tc,
-      name: this.stripCustomToolPrefix(tc.name),
+      name: toolName,
       startTime: tc.startTime,
       endTime: tc.endTime,
       duration: tc.duration,
-      input: tc.arguments || tc.input,
+      arguments: tc.arguments || tc.input || {},
+      input: tc.arguments || tc.input || {}, // Keep both for backward compatibility
       output: tc.result || tc.output,
     }
   }

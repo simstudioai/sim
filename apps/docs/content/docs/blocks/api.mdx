@@ -14,7 +14,7 @@ The API block enables you to connect your workflow to external services through 
   lightSrc="/static/light/api-light.png"
   darkSrc="/static/dark/api-dark.png"
   alt="API Block"
-  width={300}
+  width={350}
   height={175}
 />
 
@@ -22,11 +22,20 @@ The API block enables you to connect your workflow to external services through 
 
 The API block enables you to:
 
-- Make HTTP requests to external services and APIs
-- Process and transform data from external sources
-- Send data to external systems
-- Integrate with third-party platforms and services
-- Create webhooks and callbacks
+<Steps>
+  <Step>
+    <strong>Connect to external services</strong>: Make HTTP requests to REST APIs and web services
+  </Step>
+  <Step>
+    <strong>Send and receive data</strong>: Process responses and transform data from external sources
+  </Step>
+  <Step>
+    <strong>Integrate third-party platforms</strong>: Connect with services like Stripe, Slack, or custom APIs
+  </Step>
+  <Step>
+    <strong>Handle authentication</strong>: Support various auth methods including Bearer tokens and API keys
+  </Step>
+</Steps>
 
 ## Configuration Options
 
@@ -82,42 +91,140 @@ For methods that support a request body (POST, PUT, PATCH), you can define the d
 - Data connected from another block's output
 - Dynamically generated during workflow execution
 
+### Accessing Results
+
+After an API request completes, you can access its outputs:
+
+- **`<api.data>`**: The response body data from the API
+- **`<api.status>`**: HTTP status code (200, 404, 500, etc.)
+- **`<api.headers>`**: Response headers from the server
+- **`<api.error>`**: Error details if the request failed
+
+## Advanced Features
+
+### Dynamic URL Construction
+
+Build URLs dynamically using variables from previous blocks:
+
+```javascript
+// In a Function block before the API
+const userId = <start.userId>;
+const apiUrl = `https://api.example.com/users/${userId}/profile`;
+```
+
+### Request Retries
+
+The API block automatically handles:
+- Network timeouts with exponential backoff
+- Rate limit responses (429 status codes)
+- Server errors (5xx status codes) with retry logic
+- Connection failures with reconnection attempts
+
+### Response Validation
+
+Validate API responses before processing:
+
+```javascript
+// In a Function block after the API
+if (<api.status> === 200) {
+  const data = <api.data>;
+  // Process successful response
+} else {
+  // Handle error response
+  console.error(`API Error: ${<api.status>}`);
+}
+```
+
 ## Inputs and Outputs
 
-### Inputs
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>URL</strong>: The endpoint to send the request to
+      </li>
+      <li>
+        <strong>Method</strong>: HTTP method (GET, POST, PUT, DELETE, PATCH)
+      </li>
+      <li>
+        <strong>Query Parameters</strong>: Key-value pairs for URL parameters
+      </li>
+      <li>
+        <strong>Headers</strong>: HTTP headers for authentication and content type
+      </li>
+      <li>
+        <strong>Body</strong>: Request payload for POST/PUT/PATCH methods
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>api.data</strong>: Response body data from the API call
+      </li>
+      <li>
+        <strong>api.status</strong>: HTTP status code returned by server
+      </li>
+      <li>
+        <strong>api.headers</strong>: Response headers from the server
+      </li>
+      <li>
+        <strong>api.error</strong>: Error details if request failed
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Response Data</strong>: Primary API response content
+      </li>
+      <li>
+        <strong>Status Information</strong>: HTTP status and error details
+      </li>
+      <li>
+        <strong>Access</strong>: Available in blocks after the API call
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
 
-- **URL**: The endpoint to send the request to
-- **Method**: The HTTP method to use
-- **Query Parameters**: Key-value pairs for URL parameters
-- **Headers**: HTTP headers for the request
-- **Body**: Data to send with the request (for applicable methods)
+## Example Use Cases
 
-### Outputs
+### Fetch User Profile Data
 
-- **Status Code**: The HTTP status code returned by the server
-- **Response Body**: The data returned by the server
-- **Headers**: Response headers from the server
-- **Error**: Any error information if the request fails
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Retrieve user information from external service</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Function block constructs user ID from input</li>
+    <li>API block calls GET /users/&#123;id&#125; endpoint</li>
+    <li>Function block processes and formats user data</li>
+    <li>Response block returns formatted profile</li>
+  </ol>
+</div>
 
-## Example Usage
+### Create Support Ticket
 
-Here's an example of how an API block might be configured to fetch weather data:
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Submit support request to ticketing system</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent analyzes user issue and generates ticket data</li>
+    <li>API block POSTs ticket to support system</li>
+    <li>Condition block checks if ticket was created successfully</li>
+    <li>Response block confirms ticket creation with ID</li>
+  </ol>
+</div>
 
-```yaml
-# Example API Configuration
-url: https://api.weatherapi.com/v1/current.json
-method: GET
-params:
-  - key: key
-    value: your_api_key_here
-  - key: q
-    value: London
-  - key: aqi
-    value: no
-headers:
-  - key: Accept
-    value: application/json
-```
+### Payment Processing
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Process payment through Stripe API</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Function block validates payment data</li>
+    <li>API block creates payment intent via Stripe</li>
+    <li>Condition block handles payment success/failure</li>
+    <li>Function block updates order status in database</li>
+  </ol>
+</div>
 
 ## Best Practices
 
@@ -125,4 +232,3 @@ headers:
 - **Handle errors gracefully**: Connect error handling logic for failed requests
 - **Validate responses**: Check status codes and response formats before processing data
 - **Respect rate limits**: Be mindful of API rate limits and implement appropriate throttling
-- **Cache responses when appropriate**: For frequently accessed data that doesn't change often

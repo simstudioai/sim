@@ -11,8 +11,18 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     provider: 'linear',
   },
   params: {
-    teamId: { type: 'string', required: true, description: 'Linear team ID' },
-    projectId: { type: 'string', required: true, description: 'Linear project ID' },
+    teamId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Linear team ID',
+    },
+    projectId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Linear project ID',
+    },
   },
   request: {
     url: 'https://api.linear.app/graphql',

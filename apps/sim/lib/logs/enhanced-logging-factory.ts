@@ -1,5 +1,5 @@
+import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from '@/lib/logs/types'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
-import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from './types'
 
 export function createTriggerObject(
   type: ExecutionTrigger['type'],
@@ -44,51 +44,6 @@ export async function loadWorkflowStateForExecution(workflowId: string): Promise
     loops: normalizedData.loops || {},
     parallels: normalizedData.parallels || {},
   }
-}
-
-export function calculateBlockStats(traceSpans: any[]): {
-  total: number
-  success: number
-  error: number
-  skipped: number
-} {
-  if (!traceSpans || traceSpans.length === 0) {
-    return { total: 0, success: 0, error: 0, skipped: 0 }
-  }
-
-  // Recursively collect all block spans from the trace span tree
-  const collectBlockSpans = (spans: any[]): any[] => {
-    const blocks: any[] = []
-
-    for (const span of spans) {
-      // Check if this span is an actual workflow block
-      if (
-        span.type &&
-        span.type !== 'workflow' &&
-        span.type !== 'provider' &&
-        span.type !== 'model' &&
-        span.blockId
-      ) {
-        blocks.push(span)
-      }
-
-      // Recursively check children
-      if (span.children && Array.isArray(span.children)) {
-        blocks.push(...collectBlockSpans(span.children))
-      }
-    }
-
-    return blocks
-  }
-
-  const blockSpans = collectBlockSpans(traceSpans)
-
-  const total = blockSpans.length
-  const success = blockSpans.filter((span) => span.status === 'success').length
-  const error = blockSpans.filter((span) => span.status === 'error').length
-  const skipped = blockSpans.filter((span) => span.status === 'skipped').length
-
-  return { total, success, error, skipped }
 }
 
 export function calculateCostSummary(traceSpans: any[]): {

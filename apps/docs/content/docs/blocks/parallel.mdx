@@ -1,0 +1,210 @@
+---
+title: Parallel
+description: Execute multiple blocks concurrently for faster workflow processing
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { ThemeImage } from '@/components/ui/theme-image'
+
+The Parallel block is a container block in Sim Studio that allows you to execute multiple instances of blocks concurrently.
+
+<ThemeImage
+  lightSrc="/static/light/parallel-light.png"
+  darkSrc="/static/dark/parallel-dark.png"
+  alt="Parallel Block"
+  width={500}
+  height={300}
+/>
+
+<Callout type="info">
+  Parallel blocks are container nodes that execute their contents multiple times simultaneously, unlike loops which execute sequentially.
+</Callout>
+
+## Overview
+
+The Parallel block enables you to:
+
+<Steps>
+  <Step>
+    <strong>Distribute work</strong>: Process multiple items concurrently
+  </Step>
+  <Step>
+    <strong>Speed up execution</strong>: Run independent operations simultaneously
+  </Step>
+  <Step>
+    <strong>Handle bulk operations</strong>: Process large datasets efficiently
+  </Step>
+  <Step>
+    <strong>Aggregate results</strong>: Collect outputs from all parallel executions
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Parallel Type
+
+Choose between two types of parallel execution:
+
+<Tabs items={['Count-based', 'Collection-based']}>
+  <Tab>
+    Execute a fixed number of parallel instances. Use this when you need to run the same operation multiple times concurrently.
+    
+    ```
+    Example: Run 5 parallel instances
+    - Instance 1 ┐
+    - Instance 2 ├─ All execute simultaneously
+    - Instance 3 │
+    - Instance 4 │
+    - Instance 5 ┘
+    ```
+  </Tab>
+  <Tab>
+    Distribute a collection across parallel instances. Each instance processes one item from the collection simultaneously.
+    
+    ```
+    Example: Process ["task1", "task2", "task3"] in parallel
+    - Instance 1: Process "task1" ┐
+    - Instance 2: Process "task2" ├─ All execute simultaneously
+    - Instance 3: Process "task3" ┘
+    ```
+  </Tab>
+</Tabs>
+
+## How to Use Parallel Blocks
+
+### Creating a Parallel Block
+
+1. Drag a Parallel block from the toolbar onto your canvas
+2. Configure the parallel type and parameters
+3. Drag a single block inside the parallel container
+4. Connect the block as needed
+
+### Accessing Results
+
+After a parallel block completes, you can access aggregated results:
+
+- **`<parallel.results>`**: Array of results from all parallel instances
+
+## Example Use Cases
+
+### Batch API Processing
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Process multiple API calls simultaneously</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Parallel block with collection of API endpoints</li>
+    <li>Inside parallel: API block calls each endpoint</li>
+    <li>After parallel: Process all responses together</li>
+  </ol>
+</div>
+
+### Multi-Model AI Processing
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Get responses from multiple AI models</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Count-based parallel set to 3 instances</li>
+    <li>Inside parallel: Agent configured with different model per instance</li>
+    <li>After parallel: Compare and select best response</li>
+  </ol>
+</div>
+
+## Advanced Features
+
+### Result Aggregation
+
+Results from all parallel instances are automatically collected:
+
+```javascript
+// In a Function block after the parallel
+const allResults = input.parallel.results;
+// Returns: [result1, result2, result3, ...]
+```
+
+### Instance Isolation
+
+Each parallel instance runs independently:
+- Separate variable scopes
+- No shared state between instances
+- Failures in one instance don't affect others
+
+### Limitations
+
+<Callout type="warning">
+  Container blocks (Loops and Parallels) cannot be nested inside each other. This means:
+  - You cannot place a Loop block inside a Parallel block
+  - You cannot place another Parallel block inside a Parallel block
+  - You cannot place any container block inside another container block
+</Callout>
+
+<Callout type="warning">
+  Parallel blocks can only contain a single block. You cannot have multiple blocks connected to each other inside a parallel - only the first block would execute in that case.
+</Callout>
+
+<Callout type="info">
+  While parallel execution is faster, be mindful of:
+  - API rate limits when making concurrent requests
+  - Memory usage with large datasets
+  - Maximum of 20 concurrent instances to prevent resource exhaustion
+</Callout>
+
+## Parallel vs Loop
+
+Understanding when to use each:
+
+| Feature | Parallel | Loop |
+|---------|----------|------|
+| Execution | Concurrent | Sequential |
+| Speed | Faster for independent operations | Slower but ordered |
+| Order | No guaranteed order | Maintains order |
+| Use case | Independent operations | Dependent operations |
+| Resource usage | Higher | Lower |
+
+## Inputs and Outputs
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Parallel Type</strong>: Choose between 'count' or 'collection'
+      </li>
+      <li>
+        <strong>Count</strong>: Number of instances to run (count-based)
+      </li>
+      <li>
+        <strong>Collection</strong>: Array or object to distribute (collection-based)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>parallel.currentItem</strong>: Item for this instance
+      </li>
+      <li>
+        <strong>parallel.index</strong>: Instance number (0-based)
+      </li>
+      <li>
+        <strong>parallel.items</strong>: Full collection (collection-based)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>parallel.results</strong>: Array of all instance results
+      </li>
+      <li>
+        <strong>Access</strong>: Available in blocks after the parallel
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+- **Independent operations only**: Ensure operations don't depend on each other
+- **Handle rate limits**: Add delays or throttling for API-heavy workflows
+- **Error handling**: Each instance should handle its own errors gracefully 

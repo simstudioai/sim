@@ -7,6 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { File, Files, Folder } from 'fumadocs-ui/components/files'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { ThemeImage } from '@/components/ui/theme-image'
 import {
   AgentIcon,
   ApiIcon,
@@ -14,44 +15,37 @@ import {
   CodeIcon,
   ConditionalIcon,
   ConnectIcon,
+  ResponseIcon,
+  StarterIcon,
+  LoopIcon,
+  ParallelIcon,
 } from '@/components/icons'
 
-When you run a workflow in Sim Studio, the execution engine follows a systematic process to ensure blocks are executed in the correct order and data flows properly between them.
+When you run a workflow in Sim Studio, the execution engine follows a systematic process to ensure blocks are executed in the correct order with proper data flow.
 
 ## Execution Flow
 
-The execution of a workflow follows these key steps:
+The execution engine runs workflows in layers, processing blocks based on their dependencies:
 
 <Steps>
   <Step>
-    ### Validation Before execution begins, the workflow is validated to ensure it has: - An enabled
-    starter block with no incoming connections - Properly connected blocks with valid configurations
-    - No circular dependencies (except in intentional loops) - Valid input and output types between
-    connected blocks
+    <strong>Validation</strong>: Ensures the workflow has a starter block with no incoming connections and all blocks are properly connected.
   </Step>
 
-<Step>
-  ### Initialization The execution context is created, which includes: - Environment variables for
-  the workflow - Input values from the starter block - Initial state for all blocks - Execution path
-  tracking - Loop iteration counters
-</Step>
-
-<Step>
-  ### Block Execution Blocks are executed in topological order (based on dependencies): - The system
-  identifies which blocks can be executed next - Inputs for each block are resolved from previous
-  block outputs - Each block is executed by its specialized handler - Outputs are stored in the
-  execution context
-</Step>
-
-<Step>
-  ### Path Determination As execution progresses, the system determines which paths to follow: -
-  Router and conditional blocks make decisions about execution paths - Only blocks on active paths
-  are executed - The path tracker maintains the current execution state
-</Step>
+  <Step>
+    <strong>Layer-based Execution</strong>: Identifies which blocks can execute next based on completed dependencies and executes them in parallel.
+  </Step>
 
   <Step>
-    ### Result Collection After all blocks have executed: - Final outputs are collected - Execution
-    logs are compiled - Performance metrics are calculated - Results are presented in the UI
+    <strong>Path Updates</strong>: Router and Condition blocks update the active execution path, determining which blocks execute next.
+  </Step>
+
+  <Step>
+    <strong>Iteration Processing</strong>: Loop and Parallel blocks manage iterations and create virtual instances for concurrent execution.
+  </Step>
+
+  <Step>
+    <strong>Result Collection</strong>: Outputs from the final blocks are collected and returned as the workflow result.
   </Step>
 </Steps>
 
@@ -66,7 +60,7 @@ Different block types have different execution behaviors:
       <Files>
         <File
           name="Starter Block"
-          icon={<ConnectIcon className="h-4 w-4" />}
+          icon={<StarterIcon className="h-4 w-4" />}
           annotation="Initiates workflow execution and provides initial input values. Every workflow must have exactly one starter block."
         />
         <File
@@ -78,6 +72,16 @@ Different block types have different execution behaviors:
           name="Condition Block"
           icon={<ConditionalIcon className="h-4 w-4" />}
           annotation="Executes different paths based on conditional logic. Evaluates JavaScript expressions to determine which path to follow."
+        />
+        <File
+          name="Loop Block"
+          icon={<LoopIcon className="h-4 w-4" />}
+          annotation="Executes blocks repeatedly for a fixed number of iterations or over a collection. Manages iteration state and provides access to current item."
+        />
+        <File
+          name="Parallel Block"
+          icon={<ParallelIcon className="h-4 w-4" />}
+          annotation="Executes blocks concurrently across multiple instances. Distributes work based on count or collection for faster processing."
         />
       </Files>
     </Card>
@@ -102,6 +106,11 @@ Different block types have different execution behaviors:
         icon={<ChartBarIcon className="h-4 w-4" />}
         annotation="Assesses outputs against defined criteria. Uses AI to evaluate content based on custom metrics."
       />
+      <File
+        name="Workflow Block"
+        icon={<ConnectIcon className="h-4 w-4" />}
+        annotation="Execute nested workflows as a single block. Allows modular workflow design by embedding one workflow inside another."
+      />
     </Files>
   </Card>
 </Tab>
@@ -114,6 +123,21 @@ Different block types have different execution behaviors:
           name="API Block"
           icon={<ApiIcon className="h-4 w-4" />}
           annotation="Makes HTTP requests to external services. Configurable with headers, body, and authentication."
+        />
+        <File
+          name="Knowledge Base Block"
+          icon={
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L3 9V20C3 20.55 3.45 21 4 21H9V14H15V21H20C20.55 21 21 20.55 21 20V9L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="2"/>
+            </svg>
+          }
+          annotation="Search and interact with knowledge bases. Performs semantic search, retrieves documents, and manages knowledge data."
+        />
+        <File
+          name="Response Block"
+          icon={<ResponseIcon className="h-4 w-4" />}
+          annotation="Format and return responses from workflows. Configure response data, status codes, and headers."
         />
         <File
           name="Tool Blocks"
@@ -137,6 +161,14 @@ Run workflows on-demand through the Sim Studio interface by clicking the "Run" b
 - One-off tasks
 - Workflows that need human supervision
 
+<ThemeImage
+  lightSrc="/static/light/manual-execution-light.png"
+  darkSrc="/static/dark/manual-execution-dark.png"
+  alt="Manual Execution"
+  width={600}
+  height={400}
+/>
+
 ### Scheduled Execution
 
 Configure workflows to run automatically on a specified schedule:
@@ -145,6 +177,14 @@ Configure workflows to run automatically on a specified schedule:
 - Define start times and frequency
 - Configure timezone settings
 - Set minimum and maximum execution intervals
+
+<ThemeImage
+  lightSrc="/static/light/scheduled-execution-light.png"
+  darkSrc="/static/dark/scheduled-execution-dark.png"
+  alt="Scheduled Execution"
+  width={600}
+  height={400}
+/>
 
 ### API Endpoints
 
@@ -155,6 +195,14 @@ Each workflow can be exposed as an API endpoint:
 - Send custom inputs via POST requests
 - Receive execution results as JSON responses
 
+<ThemeImage
+  lightSrc="/static/light/api-execution-light.png"
+  darkSrc="/static/dark/api-execution-dark.png"
+  alt="API Execution"
+  width={600}
+  height={400}
+/>
+
 ### Webhooks
 
 Configure workflows to execute in response to external events:
@@ -164,6 +212,14 @@ Configure workflows to execute in response to external events:
 - Configure webhook security settings
 - Support for specialized webhooks (GitHub, Stripe, etc.)
 
+<ThemeImage
+  lightSrc="/static/light/webhook-execution-light.png"
+  darkSrc="/static/dark/webhook-execution-dark.png"
+  alt="Webhook Execution"
+  width={600}
+  height={400}
+/>
+
 <Callout type="info">
   The execution method you choose depends on your workflow's purpose. Manual execution is great for
   development, while scheduled execution, API endpoints, and webhooks are better for production use
@@ -172,29 +228,21 @@ Configure workflows to execute in response to external events:
 
 ## Execution Context
 
-Each workflow execution maintains a detailed context that includes:
+Each workflow execution maintains a context that tracks:
 
 - **Block States**: Outputs and execution status of each block
-- **Execution Path**: The active path through the workflow
-- **Routing Decisions**: Records of which paths were selected
-- **Environment Variables**: Configuration values for the workflow
-- **Execution Logs**: Detailed records of each step in the execution
+- **Execution Path**: Active blocks based on routing decisions
+- **Loop/Parallel State**: Current iterations and distribution items
+- **Environment Variables**: Configuration values available during execution
+- **Execution Logs**: Detailed records of each block's execution
 
-This context is maintained throughout the execution and is used to:
+## Real-Time Monitoring
 
-- Resolve inputs for blocks
-- Determine which blocks to execute next
-- Track the progress of execution
-- Provide debugging information
-- Store intermediate results
+Monitor your workflow execution in real-time:
 
-## Real-Time Execution Monitoring
+- **Active Block Highlighting**: Currently executing blocks pulse with animation
+- **Live Logs**: Execution logs appear instantly in the logs panel
+- **Block States**: Visual indicators show success, error, or pending states
+- **Performance Metrics**: Execution time for each block
 
-As your workflow executes, you can monitor its progress in real-time:
-
-- **Active Block Highlighting**: The currently executing block is highlighted
-- **Live Logs**: Execution logs appear in real-time in the logs panel
-- **Block States**: Visual indicators show each block's execution state
-- **Performance Metrics**: Timing information for each block's execution
-
-These monitoring features help you understand how your workflow is executing and identify any issues that arise.
+These monitoring features help you understand workflow behavior and quickly identify any issues.

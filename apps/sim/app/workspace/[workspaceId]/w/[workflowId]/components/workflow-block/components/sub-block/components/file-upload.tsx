@@ -4,10 +4,12 @@ import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { useNotificationStore } from '@/stores/notifications/store'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('FileUpload')
 
 interface FileUploadProps {
   blockId: string
@@ -55,7 +57,6 @@ export function FileUpload({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Stores
-  const { addNotification } = useNotificationStore()
   const { activeWorkflowId } = useWorkflowRegistry()
 
   // Use preview value when in preview mode, otherwise use store value
@@ -110,8 +111,7 @@ export function FileUpload({
       const file = files[i]
       // Check if adding this file would exceed the total limit
       if (existingTotalSize + totalNewSize + file.size > maxSizeInBytes) {
-        addNotification(
-          'error',
+        logger.error(
           `Adding ${file.name} would exceed the maximum size limit of ${maxSize}MB`,
           activeWorkflowId
         )
@@ -248,14 +248,12 @@ export function FileUpload({
       if (uploadedFiles.length > 0) {
         const uploadMethod = useDirectUpload ? 'direct' : 'server'
         if (uploadedFiles.length === 1) {
-          addNotification(
-            'console',
+          logger.info(
             `${uploadedFiles[0].name} was uploaded successfully (${uploadMethod} upload)`,
             activeWorkflowId
           )
         } else {
-          addNotification(
-            'console',
+          logger.info(
             `Uploaded ${uploadedFiles.length} files successfully: ${uploadedFiles.map((f) => f.name).join(', ')} (${uploadMethod} upload)`,
             activeWorkflowId
           )
@@ -265,10 +263,9 @@ export function FileUpload({
       // Send consolidated error notification if any
       if (uploadErrors.length > 0) {
         if (uploadErrors.length === 1) {
-          addNotification('error', uploadErrors[0], activeWorkflowId)
+          logger.error(uploadErrors[0], activeWorkflowId)
         } else {
-          addNotification(
-            'error',
+          logger.error(
             `Failed to upload ${uploadErrors.length} files: ${uploadErrors.join('; ')}`,
             activeWorkflowId
           )
@@ -303,8 +300,7 @@ export function FileUpload({
         useWorkflowStore.getState().triggerUpdate()
       }
     } catch (error) {
-      addNotification(
-        'error',
+      logger.error(
         error instanceof Error ? error.message : 'Failed to upload file(s)',
         activeWorkflowId
       )
@@ -362,8 +358,7 @@ export function FileUpload({
 
       useWorkflowStore.getState().triggerUpdate()
     } catch (error) {
-      addNotification(
-        'error',
+      logger.error(
         error instanceof Error ? error.message : 'Failed to delete file from server',
         activeWorkflowId
       )
@@ -439,14 +434,9 @@ export function FileUpload({
     // Show error notification if any deletions failed
     if (deletionResults.failures.length > 0) {
       if (deletionResults.failures.length === 1) {
-        addNotification(
-          'error',
-          `Failed to delete file: ${deletionResults.failures[0]}`,
-          activeWorkflowId
-        )
+        logger.error(`Failed to delete file: ${deletionResults.failures[0]}`, activeWorkflowId)
       } else {
-        addNotification(
-          'error',
+        logger.error(
           `Failed to delete ${deletionResults.failures.length} files: ${deletionResults.failures.join('; ')}`,
           activeWorkflowId
         )

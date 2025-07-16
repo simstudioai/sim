@@ -22,18 +22,19 @@ export const discordGetMessagesTool: ToolConfig<
     botToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'The bot token for authentication',
     },
     channelId: {
       type: 'string',
       required: true,
-      optionalToolInput: true,
+      visibility: 'user-only',
       description: 'The Discord channel ID to retrieve messages from',
     },
     limit: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of messages to retrieve (default: 10, max: 100)',
     },
   },

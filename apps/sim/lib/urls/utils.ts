@@ -1,4 +1,5 @@
-import { env } from '../env'
+import { env } from '@/lib/env'
+import { isProd } from '@/lib/environment'
 
 /**
  * Returns the base URL of the application, respecting environment variables for deployment environments
@@ -15,7 +16,6 @@ export function getBaseUrl(): string {
       return baseUrl
     }
 
-    const isProd = env.NODE_ENV === 'production'
     const protocol = isProd ? 'https://' : 'http://'
     return `${protocol}${baseUrl}`
   }
@@ -36,7 +36,6 @@ export function getBaseDomain(): string {
     try {
       return new URL(fallbackUrl).host
     } catch {
-      const isProd = env.NODE_ENV === 'production'
       return isProd ? 'simstudio.ai' : 'localhost:3000'
     }
   }
@@ -51,7 +50,6 @@ export function getEmailDomain(): string {
     const baseDomain = getBaseDomain()
     return baseDomain.startsWith('www.') ? baseDomain.substring(4) : baseDomain
   } catch (_e) {
-    const isProd = env.NODE_ENV === 'production'
     return isProd ? 'simstudio.ai' : 'localhost:3000'
   }
 }

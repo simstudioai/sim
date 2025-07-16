@@ -11,24 +11,26 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
     query: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The search query to execute',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      description: 'Google API key',
-      requiredForToolCall: true,
     },
     searchEngineId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Custom Search Engine ID',
-      requiredForToolCall: true,
     },
     num: {
       type: 'string', // Treated as string for compatibility with tool interfaces
       required: false,
+      visibility: 'user-only',
       description: 'Number of results to return (default: 10, max: 10)',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Google API key',
     },
   },
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react'
+import { Folder, FolderOpen } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   AlertDialog,
@@ -29,6 +29,8 @@ interface FolderItemProps {
   onDragOver?: (e: React.DragEvent) => void
   onDragLeave?: (e: React.DragEvent) => void
   onDrop?: (e: React.DragEvent) => void
+  isFirstItem?: boolean
+  level: number
 }
 
 export function FolderItem({
@@ -39,10 +41,14 @@ export function FolderItem({
   onDragOver,
   onDragLeave,
   onDrop,
+  isFirstItem = false,
+  level,
 }: FolderItemProps) {
   const { expandedFolders, toggleExpanded, updateFolderAPI, deleteFolder } = useFolderStore()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartedRef = useRef(false)
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const isExpanded = expandedFolders.has(folder.id)
@@ -68,6 +74,39 @@ export function FolderItem({
       }
     }, 300)
   }, [folder.id, isExpanded, toggleExpanded, updateFolderAPI])
+
+  const handleDragStart = (e: React.DragEvent) => {
+    dragStartedRef.current = true
+    setIsDragging(true)
+
+    e.dataTransfer.setData('folder-id', folder.id)
+    e.dataTransfer.effectAllowed = 'move'
+
+    // Set global drag state for validation in other components
+    if (typeof window !== 'undefined') {
+      ;(window as any).currentDragFolderId = folder.id
+    }
+  }
+
+  const handleDragEnd = () => {
+    setIsDragging(false)
+    requestAnimationFrame(() => {
+      dragStartedRef.current = false
+    })
+
+    // Clear global drag state
+    if (typeof window !== 'undefined') {
+      ;(window as any).currentDragFolderId = null
+    }
+  }
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (dragStartedRef.current) {
+      e.preventDefault()
+      return
+    }
+    handleToggleExpanded()
+  }
 
   useEffect(() => {
     return () => {
@@ -107,11 +146,17 @@ export function FolderItem({
         <Tooltip>
           <TooltipTrigger asChild>
             <div
-              className='group mx-auto flex h-8 w-8 cursor-pointer items-center justify-center'
+              className={clsx(
+                'group mx-auto mb-1 flex h-9 w-9 cursor-pointer items-center justify-center',
+                isDragging ? 'opacity-50' : ''
+              )}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
-              onClick={handleToggleExpanded}
+              onClick={handleClick}
+              draggable={true}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
             >
               <div
                 className={clsx(
@@ -128,7 +173,7 @@ export function FolderItem({
             </div>
           </TooltipTrigger>
           <TooltipContent side='right'>
-            <p>{folder.name}</p>
+            <p className='max-w-[200px] break-words'>{folder.name}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -136,7 +181,13 @@ export function FolderItem({
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure you want to delete "{folder.name}"?</AlertDialogTitle>
+              <AlertDialogTitle className='break-words'>
+                Are you sure you want to delete "
+                <span className='inline-block max-w-[200px] truncate align-bottom font-semibold'>
+                  {folder.name}
+                </span>
+                "?
+              </AlertDialogTitle>
               <AlertDialogDescription>
                 This will permanently delete the folder and all its contents, including subfolders
                 and workflows. This action cannot be undone.
@@ -160,19 +211,21 @@ export function FolderItem({
 
   return (
     <>
-      <div className='group' onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      <div className='group mb-1' onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
         <div
-          className='flex cursor-pointer items-center rounded-md px-2 py-1.5 text-sm hover:bg-accent/50'
-          onClick={handleToggleExpanded}
+          className={clsx(
+            'flex h-9 cursor-pointer items-center rounded-lg px-2 py-2 text-sm transition-colors hover:bg-accent/50',
+            isDragging ? 'opacity-50' : '',
+            isFirstItem ? 'mr-[44px]' : ''
+          )}
+          style={{
+            maxWidth: isFirstItem ? `${164 - level * 20}px` : `${206 - level * 20}px`,
+          }}
+          onClick={handleClick}
+          draggable={true}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
         >
-          <div className='mr-1 flex h-4 w-4 items-center justify-center'>
-            {isExpanded ? (
-              <ChevronDown className='h-3 w-3' />
-            ) : (
-              <ChevronRight className='h-3 w-3' />
-            )}
-          </div>
-
           <div className='mr-2 flex h-4 w-4 flex-shrink-0 items-center justify-center'>
             {isExpanded ? (
               <FolderOpen className='h-4 w-4 text-foreground/70 dark:text-foreground/60' />
@@ -181,9 +234,7 @@ export function FolderItem({
             )}
           </div>
 
-          <span className='flex-1 cursor-default select-none truncate text-muted-foreground'>
-            {folder.name}
-          </span>
+          <span className='flex-1 select-none truncate text-muted-foreground'>{folder.name}</span>
 
           <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
             <FolderContextMenu
@@ -192,6 +243,7 @@ export function FolderItem({
               onCreateWorkflow={onCreateWorkflow}
               onRename={handleRename}
               onDelete={handleDelete}
+              level={level}
             />
           </div>
         </div>
@@ -201,7 +253,13 @@ export function FolderItem({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete "{folder.name}"?</AlertDialogTitle>
+            <AlertDialogTitle className='break-words'>
+              Are you sure you want to delete "
+              <span className='inline-block max-w-[200px] truncate align-bottom font-semibold'>
+                {folder.name}
+              </span>
+              "?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete the folder and all its contents, including subfolders and
               workflows. This action cannot be undone.

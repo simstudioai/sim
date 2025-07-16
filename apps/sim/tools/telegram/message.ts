@@ -1,22 +1,6 @@
 import type { ToolConfig } from '../types'
 import type { TelegramMessageParams, TelegramMessageResponse } from './types'
-
-// Helper function to convert basic markdown to HTML
-function convertMarkdownToHTML(text: string): string {
-  return (
-    text
-      // Bold: **text** or __text__ -> <b>text</b>
-      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-      .replace(/__(.*?)__/g, '<b>$1</b>')
-      // Italic: *text* or _text_ -> <i>text</i>
-      .replace(/\*(.*?)\*/g, '<i>$1</i>')
-      .replace(/_(.*?)_/g, '<i>$1</i>')
-      // Code: `text` -> <code>text</code>
-      .replace(/`(.*?)`/g, '<code>$1</code>')
-      // Links: [text](url) -> <a href="url">text</a>
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-  )
-}
+import { convertMarkdownToHTML } from './utils'
 
 export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMessageResponse> = {
   id: 'telegram_message',
@@ -29,17 +13,19 @@ export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMess
     botToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Your Telegram Bot API Token',
     },
     chatId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Target Telegram chat ID',
     },
     text: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Message text to send',
     },
   },

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { Edge } from 'reactflow'
+import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
+import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -26,17 +28,30 @@ export function useCollaborativeWorkflow() {
     onUserLeft,
     onWorkflowDeleted,
     onWorkflowReverted,
+    onOperationConfirmed,
+    onOperationFailed,
   } = useSocket()
 
   const { activeWorkflowId } = useWorkflowRegistry()
   const workflowStore = useWorkflowStore()
   const subBlockStore = useSubBlockStore()
+  const { data: session } = useSession()
 
   // Track if we're applying remote changes to avoid infinite loops
   const isApplyingRemoteChange = useRef(false)
 
   // Track last applied position timestamps to prevent out-of-order updates
   const lastPositionTimestamps = useRef<Map<string, number>>(new Map())
+
+  // Operation queue
+  const {
+    queue,
+    hasOperationError,
+    addToQueue,
+    confirmOperation,
+    failOperation,
+    cancelOperationsForBlock,
+  } = useOperationQueue()
 
   // Clear position timestamps when switching workflows
   // Note: Workflow joining is now handled automatically by socket connect event based on URL
@@ -54,22 +69,15 @@ export function useCollaborativeWorkflow() {
     }
   }, [activeWorkflowId, isConnected, currentWorkflowId])
 
-  // Log connection status changes
+  // Register emit functions with operation queue store
   useEffect(() => {
-    logger.info('Collaborative workflow connection status changed', {
-      isConnected,
-      currentWorkflowId,
-      activeWorkflowId,
-      presenceUsers: presenceUsers.length,
-    })
-  }, [isConnected, currentWorkflowId, activeWorkflowId, presenceUsers.length])
+    registerEmitFunctions(emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId)
+  }, [emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId])
 
-  // Handle incoming workflow operations from other users
   useEffect(() => {
     const handleWorkflowOperation = (data: any) => {
       const { operation, target, payload, userId } = data
 
-      // Don't apply our own operations
       if (isApplyingRemoteChange.current) return
 
       logger.info(`Received ${operation} on ${target} from user ${userId}`)
@@ -81,8 +89,6 @@ export function useCollaborativeWorkflow() {
         if (target === 'block') {
           switch (operation) {
             case 'add':
-              // Use normal addBlock - the collaborative system now sends complete data
-              // and the validation schema preserves outputs and subBlocks
               workflowStore.addBlock(
                 payload.id,
                 payload.type,
@@ -92,17 +98,13 @@ export function useCollaborativeWorkflow() {
                 payload.parentId,
                 payload.extent
               )
-              // Handle auto-connect edge if present
               if (payload.autoConnectEdge) {
                 workflowStore.addEdge(payload.autoConnectEdge)
               }
               break
             case 'update-position': {
-              // Apply position update only if it's newer than the last applied timestamp
-              // This prevents jagged movement from out-of-order position updates
               const blockId = payload.id
 
-              // Server should always provide timestamp - if missing, skip ordering check
               if (!data.timestamp) {
                 logger.warn('Position update missing timestamp, applying without ordering check', {
                   blockId,
@@ -146,12 +148,9 @@ export function useCollaborativeWorkflow() {
               workflowStore.setBlockWide(payload.id, payload.isWide)
               break
             case 'update-advanced-mode':
-              // Note: toggleBlockAdvancedMode doesn't take a parameter, it just toggles
-              // For now, we'll use the existing toggle method
               workflowStore.toggleBlockAdvancedMode(payload.id)
               break
             case 'toggle-handles': {
-              // Apply the handles toggle - we need to set the specific value to ensure consistency
               const currentBlock = workflowStore.blocks[payload.id]
               if (currentBlock && currentBlock.horizontalHandles !== payload.horizontalHandles) {
                 workflowStore.toggleBlockHandles(payload.id)
@@ -159,7 +158,6 @@ export function useCollaborativeWorkflow() {
               break
             }
             case 'duplicate':
-              // Apply the duplicate operation by adding the new block
               workflowStore.addBlock(
                 payload.id,
                 payload.type,
@@ -330,6 +328,19 @@ export function useCollaborativeWorkflow() {
       }
     }
 
+    const handleOperationConfirmed = (data: any) => {
+      const { operationId } = data
+      logger.debug('Operation confirmed', { operationId })
+      confirmOperation(operationId)
+    }
+
+    const handleOperationFailed = (data: any) => {
+      const { operationId, error, retryable } = data
+      logger.warn('Operation failed', { operationId, error, retryable })
+
+      failOperation(operationId, retryable)
+    }
+
     // Register event handlers
     onWorkflowOperation(handleWorkflowOperation)
     onSubblockUpdate(handleSubblockUpdate)
@@ -337,6 +348,8 @@ export function useCollaborativeWorkflow() {
     onUserLeft(handleUserLeft)
     onWorkflowDeleted(handleWorkflowDeleted)
     onWorkflowReverted(handleWorkflowReverted)
+    onOperationConfirmed(handleOperationConfirmed)
+    onOperationFailed(handleOperationFailed)
 
     return () => {
       // Cleanup handled by socket context
@@ -348,12 +361,52 @@ export function useCollaborativeWorkflow() {
     onUserLeft,
     onWorkflowDeleted,
     onWorkflowReverted,
+    onOperationConfirmed,
+    onOperationFailed,
     workflowStore,
     subBlockStore,
     activeWorkflowId,
+    confirmOperation,
+    failOperation,
+    emitWorkflowOperation,
+    queue,
   ])
 
-  // Collaborative workflow operations
+  const executeQueuedOperation = useCallback(
+    (operation: string, target: string, payload: any, localAction: () => void) => {
+      if (isApplyingRemoteChange.current) {
+        return
+      }
+
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation,
+          target,
+          payload,
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      localAction()
+    },
+    [addToQueue, session?.user?.id]
+  )
+
+  const executeQueuedDebouncedOperation = useCallback(
+    (operation: string, target: string, payload: any, localAction: () => void) => {
+      if (isApplyingRemoteChange.current) return
+
+      localAction()
+
+      emitWorkflowOperation(operation, target, payload)
+    },
+    [emitWorkflowOperation]
+  )
+
   const collaborativeAddBlock = useCallback(
     (
       id: string,
@@ -365,7 +418,6 @@ export function useCollaborativeWorkflow() {
       extent?: 'parent',
       autoConnectEdge?: Edge
     ) => {
-      // Create complete block data upfront using the same logic as the store
       const blockConfig = getBlock(type)
 
       // Handle loop/parallel blocks that don't use BlockConfig
@@ -388,16 +440,36 @@ export function useCollaborativeWorkflow() {
           autoConnectEdge, // Include edge data for atomic operation
         }
 
-        // Apply locally first
+        // Skip if applying remote changes
+        if (isApplyingRemoteChange.current) {
+          workflowStore.addBlock(id, type, name, position, data, parentId, extent)
+          if (autoConnectEdge) {
+            workflowStore.addEdge(autoConnectEdge)
+          }
+          return
+        }
+
+        // Generate operation ID for queue tracking
+        const operationId = crypto.randomUUID()
+
+        // Add to queue for retry mechanism
+        addToQueue({
+          id: operationId,
+          operation: {
+            operation: 'add',
+            target: 'block',
+            payload: completeBlockData,
+          },
+          workflowId: activeWorkflowId || '',
+          userId: session?.user?.id || 'unknown',
+        })
+
+        // Apply locally first (immediate UI feedback)
         workflowStore.addBlock(id, type, name, position, data, parentId, extent)
         if (autoConnectEdge) {
           workflowStore.addEdge(autoConnectEdge)
         }
 
-        // Then broadcast to other clients with complete block data
-        if (!isApplyingRemoteChange.current) {
-          emitWorkflowOperation('add', 'block', completeBlockData)
-        }
         return
       }
 
@@ -420,7 +492,6 @@ export function useCollaborativeWorkflow() {
         })
       }
 
-      // Generate outputs using the same logic as the store
       const outputs = resolveOutputType(blockConfig.outputs)
 
       const completeBlockData = {
@@ -440,96 +511,109 @@ export function useCollaborativeWorkflow() {
         autoConnectEdge, // Include edge data for atomic operation
       }
 
-      // Apply locally first
+      // Skip if applying remote changes
+      if (isApplyingRemoteChange.current) return
+
+      // Generate operation ID
+      const operationId = crypto.randomUUID()
+
+      // Add to queue
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'add',
+          target: 'block',
+          payload: completeBlockData,
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      // Apply locally
       workflowStore.addBlock(id, type, name, position, data, parentId, extent)
       if (autoConnectEdge) {
         workflowStore.addEdge(autoConnectEdge)
       }
-
-      // Then broadcast to other clients with complete block data
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('add', 'block', completeBlockData)
-      }
     },
-    [workflowStore, emitWorkflowOperation]
+    [workflowStore, emitWorkflowOperation, addToQueue, session?.user?.id]
   )
 
   const collaborativeRemoveBlock = useCallback(
     (id: string) => {
-      // Apply locally first
-      workflowStore.removeBlock(id)
+      cancelOperationsForBlock(id)
 
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('remove', 'block', { id })
-      }
+      executeQueuedOperation('remove', 'block', { id }, () => workflowStore.removeBlock(id))
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore, cancelOperationsForBlock]
   )
 
   const collaborativeUpdateBlockPosition = useCallback(
     (id: string, position: Position) => {
-      // Apply locally first
-      workflowStore.updateBlockPosition(id, position)
-
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('update-position', 'block', { id, position })
-      }
+      executeQueuedDebouncedOperation('update-position', 'block', { id, position }, () =>
+        workflowStore.updateBlockPosition(id, position)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedDebouncedOperation, workflowStore]
   )
 
   const collaborativeUpdateBlockName = useCallback(
     (id: string, name: string) => {
-      // Apply locally first
-      workflowStore.updateBlockName(id, name)
+      executeQueuedOperation('update-name', 'block', { id, name }, () => {
+        workflowStore.updateBlockName(id, name)
 
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('update-name', 'block', { id, name })
-
-        // Check for pending subblock updates from the store
+        // Handle pending subblock updates
         const globalWindow = window as any
         const pendingUpdates = globalWindow.__pendingSubblockUpdates
         if (pendingUpdates && Array.isArray(pendingUpdates)) {
-          // Emit collaborative subblock updates for each changed subblock
+          // Queue each subblock update individually
           for (const update of pendingUpdates) {
             const { blockId, subBlockId, newValue } = update
-            emitSubblockUpdate(blockId, subBlockId, newValue)
+            const operationId = crypto.randomUUID()
+
+            addToQueue({
+              id: operationId,
+              operation: {
+                operation: 'subblock-update',
+                target: 'subblock',
+                payload: { blockId, subblockId: subBlockId, value: newValue },
+              },
+              workflowId: activeWorkflowId || '',
+              userId: session?.user?.id || 'unknown',
+            })
+
+            subBlockStore.setValue(blockId, subBlockId, newValue)
           }
           // Clear the pending updates
           globalWindow.__pendingSubblockUpdates = undefined
         }
-      }
+      })
     },
-    [workflowStore, emitWorkflowOperation, emitSubblockUpdate]
+    [
+      executeQueuedOperation,
+      workflowStore,
+      addToQueue,
+      subBlockStore,
+      activeWorkflowId,
+      session?.user?.id,
+    ]
   )
 
   const collaborativeToggleBlockEnabled = useCallback(
     (id: string) => {
-      // Apply locally first
-      workflowStore.toggleBlockEnabled(id)
-
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('toggle-enabled', 'block', { id })
-      }
+      executeQueuedOperation('toggle-enabled', 'block', { id }, () =>
+        workflowStore.toggleBlockEnabled(id)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeUpdateParentId = useCallback(
     (id: string, parentId: string, extent: 'parent') => {
-      // Apply locally first
-      workflowStore.updateParentId(id, parentId, extent)
-
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('update-parent', 'block', { id, parentId, extent })
-      }
+      executeQueuedOperation('update-parent', 'block', { id, parentId, extent }, () =>
+        workflowStore.updateParentId(id, parentId, extent)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeToggleBlockWide = useCallback(
@@ -541,61 +625,45 @@ export function useCollaborativeWorkflow() {
       // Calculate the new isWide value
       const newIsWide = !currentBlock.isWide
 
-      // Apply locally first
-      workflowStore.toggleBlockWide(id)
-
-      // Emit with the calculated new value (don't rely on async state update)
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('update-wide', 'block', { id, isWide: newIsWide })
-      }
+      executeQueuedOperation('update-wide', 'block', { id, isWide: newIsWide }, () =>
+        workflowStore.toggleBlockWide(id)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeToggleBlockAdvancedMode = useCallback(
     (id: string) => {
-      // Get the current state before toggling
       const currentBlock = workflowStore.blocks[id]
       if (!currentBlock) return
 
-      // Calculate the new advancedMode value
       const newAdvancedMode = !currentBlock.advancedMode
 
-      // Apply locally first
-      workflowStore.toggleBlockAdvancedMode(id)
-
-      // Emit with the calculated new value (don't rely on async state update)
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('update-advanced-mode', 'block', {
-          id,
-          advancedMode: newAdvancedMode,
-        })
-      }
+      executeQueuedOperation(
+        'update-advanced-mode',
+        'block',
+        { id, advancedMode: newAdvancedMode },
+        () => workflowStore.toggleBlockAdvancedMode(id)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeToggleBlockHandles = useCallback(
     (id: string) => {
-      // Get the current state before toggling
       const currentBlock = workflowStore.blocks[id]
       if (!currentBlock) return
 
-      // Calculate the new horizontalHandles value
       const newHorizontalHandles = !currentBlock.horizontalHandles
 
-      // Apply locally first
-      workflowStore.toggleBlockHandles(id)
-
-      // Emit with the calculated new value (don't rely on async state update)
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('toggle-handles', 'block', {
-          id,
-          horizontalHandles: newHorizontalHandles,
-        })
-      }
+      executeQueuedOperation(
+        'toggle-handles',
+        'block',
+        { id, horizontalHandles: newHorizontalHandles },
+        () => workflowStore.toggleBlockHandles(id)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeDuplicateBlock = useCallback(
@@ -610,7 +678,6 @@ export function useCollaborativeWorkflow() {
         y: sourceBlock.position.y + 20,
       }
 
-      // Generate new name with numbering
       const match = sourceBlock.name.match(/(.*?)(\d+)?$/)
       const newName = match?.[2]
         ? `${match[1]}${Number.parseInt(match[2]) + 1}`
@@ -634,7 +701,6 @@ export function useCollaborativeWorkflow() {
         height: sourceBlock.height || 0,
       }
 
-      // Apply locally first using addBlock to ensure consistent IDs
       workflowStore.addBlock(
         newId,
         sourceBlock.type,
@@ -645,7 +711,6 @@ export function useCollaborativeWorkflow() {
         sourceBlock.data?.extent
       )
 
-      // Copy subblock values to the new block
       const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
       if (activeWorkflowId) {
         const subBlockValues =
@@ -661,67 +726,84 @@ export function useCollaborativeWorkflow() {
         }))
       }
 
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('duplicate', 'block', duplicatedBlockData)
-      }
+      executeQueuedOperation('duplicate', 'block', duplicatedBlockData, () => {
+        workflowStore.addBlock(
+          newId,
+          sourceBlock.type,
+          newName,
+          offsetPosition,
+          sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {}
+        )
+
+        const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId]
+        if (subBlockValues && activeWorkflowId) {
+          Object.entries(subBlockValues).forEach(([subblockId, value]) => {
+            subBlockStore.setValue(newId, subblockId, value)
+          })
+        }
+      })
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore, subBlockStore, activeWorkflowId]
   )
 
   const collaborativeAddEdge = useCallback(
     (edge: Edge) => {
-      // Apply locally first
-      workflowStore.addEdge(edge)
-
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('add', 'edge', edge)
-      }
+      executeQueuedOperation('add', 'edge', edge, () => workflowStore.addEdge(edge))
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeRemoveEdge = useCallback(
     (edgeId: string) => {
-      // Apply locally first
-      workflowStore.removeEdge(edgeId)
-
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('remove', 'edge', { id: edgeId })
-      }
+      executeQueuedOperation('remove', 'edge', { id: edgeId }, () =>
+        workflowStore.removeEdge(edgeId)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeSetSubblockValue = useCallback(
     (blockId: string, subblockId: string, value: any) => {
-      // Apply locally first - the store automatically uses the active workflow ID
-      subBlockStore.setValue(blockId, subblockId, value)
+      if (isApplyingRemoteChange.current) return
 
-      // Then broadcast to other clients, but only if we have a valid workflow connection
-      if (
-        !isApplyingRemoteChange.current &&
-        isConnected &&
-        currentWorkflowId &&
-        activeWorkflowId === currentWorkflowId
-      ) {
-        emitSubblockUpdate(blockId, subblockId, value)
-      } else if (!isConnected || !currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
-        logger.debug('Skipping subblock update broadcast', {
-          isConnected,
+      if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
+        logger.debug('Skipping subblock update - not in active workflow', {
           currentWorkflowId,
           activeWorkflowId,
           blockId,
           subblockId,
         })
+        return
       }
+
+      // Generate operation ID for queue tracking
+      const operationId = crypto.randomUUID()
+
+      // Add to queue for retry mechanism
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'subblock-update',
+          target: 'subblock',
+          payload: { blockId, subblockId, value },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      // Apply locally first (immediate UI feedback)
+      subBlockStore.setValue(blockId, subblockId, value)
     },
-    [subBlockStore, emitSubblockUpdate, isConnected, currentWorkflowId, activeWorkflowId]
+    [
+      subBlockStore,
+      emitSubblockUpdate,
+      currentWorkflowId,
+      activeWorkflowId,
+      addToQueue,
+      session?.user?.id,
+    ]
   )
 
-  // Collaborative loop/parallel configuration updates
   const collaborativeUpdateLoopCount = useCallback(
     (loopId: string, count: number) => {
       // Get current state BEFORE making changes
@@ -737,228 +819,174 @@ export function useCollaborativeWorkflow() {
       const currentLoopType = currentBlock.data?.loopType || 'for'
       const currentCollection = currentBlock.data?.collection || ''
 
-      // Apply local change
-      workflowStore.updateLoopCount(loopId, count)
-
-      // Emit subflow update operation with calculated values
-      if (!isApplyingRemoteChange.current) {
-        const config = {
-          id: loopId,
-          nodes: childNodes,
-          iterations: count,
-          loopType: currentLoopType,
-          forEachItems: currentCollection,
-        }
-
-        emitWorkflowOperation('update', 'subflow', {
-          id: loopId,
-          type: 'loop',
-          config,
-        })
+      const config = {
+        id: loopId,
+        nodes: childNodes,
+        iterations: count,
+        loopType: currentLoopType,
+        forEachItems: currentCollection,
       }
+
+      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () =>
+        workflowStore.updateLoopCount(loopId, count)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeUpdateLoopType = useCallback(
     (loopId: string, loopType: 'for' | 'forEach') => {
-      // Get current state BEFORE making changes
       const currentBlock = workflowStore.blocks[loopId]
       if (!currentBlock || currentBlock.type !== 'loop') return
 
-      // Find child nodes before state changes
       const childNodes = Object.values(workflowStore.blocks)
         .filter((b) => b.data?.parentId === loopId)
         .map((b) => b.id)
 
-      // Get current values to preserve them
       const currentIterations = currentBlock.data?.count || 5
       const currentCollection = currentBlock.data?.collection || ''
 
-      // Apply local change
-      workflowStore.updateLoopType(loopId, loopType)
-
-      // Emit subflow update operation with calculated values
-      if (!isApplyingRemoteChange.current) {
-        const config = {
-          id: loopId,
-          nodes: childNodes,
-          iterations: currentIterations,
-          loopType,
-          forEachItems: currentCollection,
-        }
-
-        emitWorkflowOperation('update', 'subflow', {
-          id: loopId,
-          type: 'loop',
-          config,
-        })
+      const config = {
+        id: loopId,
+        nodes: childNodes,
+        iterations: currentIterations,
+        loopType,
+        forEachItems: currentCollection,
       }
+
+      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () =>
+        workflowStore.updateLoopType(loopId, loopType)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeUpdateLoopCollection = useCallback(
     (loopId: string, collection: string) => {
-      // Get current state BEFORE making changes
       const currentBlock = workflowStore.blocks[loopId]
       if (!currentBlock || currentBlock.type !== 'loop') return
 
-      // Find child nodes before state changes
       const childNodes = Object.values(workflowStore.blocks)
         .filter((b) => b.data?.parentId === loopId)
         .map((b) => b.id)
 
-      // Get current values to preserve them
       const currentIterations = currentBlock.data?.count || 5
       const currentLoopType = currentBlock.data?.loopType || 'for'
 
-      // Apply local change
-      workflowStore.updateLoopCollection(loopId, collection)
-
-      // Emit subflow update operation with calculated values
-      if (!isApplyingRemoteChange.current) {
-        const config = {
-          id: loopId,
-          nodes: childNodes,
-          iterations: currentIterations,
-          loopType: currentLoopType,
-          forEachItems: collection,
-        }
-
-        emitWorkflowOperation('update', 'subflow', {
-          id: loopId,
-          type: 'loop',
-          config,
-        })
+      const config = {
+        id: loopId,
+        nodes: childNodes,
+        iterations: currentIterations,
+        loopType: currentLoopType,
+        forEachItems: collection,
       }
+
+      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () =>
+        workflowStore.updateLoopCollection(loopId, collection)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeUpdateParallelCount = useCallback(
     (parallelId: string, count: number) => {
-      // Get current state BEFORE making changes
       const currentBlock = workflowStore.blocks[parallelId]
       if (!currentBlock || currentBlock.type !== 'parallel') return
 
-      // Find child nodes before state changes
       const childNodes = Object.values(workflowStore.blocks)
         .filter((b) => b.data?.parentId === parallelId)
         .map((b) => b.id)
 
-      // Get current values to preserve them
       const currentDistribution = currentBlock.data?.collection || ''
       const currentParallelType = currentBlock.data?.parallelType || 'collection'
 
-      // Apply local change
-      workflowStore.updateParallelCount(parallelId, count)
-
-      // Emit subflow update operation with calculated values
-      if (!isApplyingRemoteChange.current) {
-        const config = {
-          id: parallelId,
-          nodes: childNodes,
-          count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
-          distribution: currentDistribution,
-          parallelType: currentParallelType,
-        }
-
-        emitWorkflowOperation('update', 'subflow', {
-          id: parallelId,
-          type: 'parallel',
-          config,
-        })
+      const config = {
+        id: parallelId,
+        nodes: childNodes,
+        count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
+        distribution: currentDistribution,
+        parallelType: currentParallelType,
       }
+
+      executeQueuedOperation(
+        'update',
+        'subflow',
+        { id: parallelId, type: 'parallel', config },
+        () => workflowStore.updateParallelCount(parallelId, count)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeUpdateParallelCollection = useCallback(
     (parallelId: string, collection: string) => {
-      // Get current state BEFORE making changes
       const currentBlock = workflowStore.blocks[parallelId]
       if (!currentBlock || currentBlock.type !== 'parallel') return
 
-      // Find child nodes before state changes
       const childNodes = Object.values(workflowStore.blocks)
         .filter((b) => b.data?.parentId === parallelId)
         .map((b) => b.id)
 
-      // Get current values to preserve them
       const currentCount = currentBlock.data?.count || 5
       const currentParallelType = currentBlock.data?.parallelType || 'collection'
 
-      // Apply local change
-      workflowStore.updateParallelCollection(parallelId, collection)
-
-      // Emit subflow update operation with calculated values
-      if (!isApplyingRemoteChange.current) {
-        const config = {
-          id: parallelId,
-          nodes: childNodes,
-          count: currentCount,
-          distribution: collection,
-          parallelType: currentParallelType,
-        }
-
-        emitWorkflowOperation('update', 'subflow', {
-          id: parallelId,
-          type: 'parallel',
-          config,
-        })
+      const config = {
+        id: parallelId,
+        nodes: childNodes,
+        count: currentCount,
+        distribution: collection,
+        parallelType: currentParallelType,
       }
+
+      executeQueuedOperation(
+        'update',
+        'subflow',
+        { id: parallelId, type: 'parallel', config },
+        () => workflowStore.updateParallelCollection(parallelId, collection)
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   const collaborativeUpdateParallelType = useCallback(
     (parallelId: string, parallelType: 'count' | 'collection') => {
-      // Get current state BEFORE making changes
       const currentBlock = workflowStore.blocks[parallelId]
       if (!currentBlock || currentBlock.type !== 'parallel') return
 
-      // Find child nodes before state changes
       const childNodes = Object.values(workflowStore.blocks)
         .filter((b) => b.data?.parentId === parallelId)
         .map((b) => b.id)
 
-      // Calculate new values based on type change
       let newCount = currentBlock.data?.count || 5
       let newDistribution = currentBlock.data?.collection || ''
 
-      // Reset values based on type (same logic as the UI)
       if (parallelType === 'count') {
         newDistribution = ''
-        // Keep existing count
       } else {
         newCount = 1
         newDistribution = newDistribution || ''
       }
 
-      // Apply all changes locally first
-      workflowStore.updateParallelType(parallelId, parallelType)
-      workflowStore.updateParallelCount(parallelId, newCount)
-      workflowStore.updateParallelCollection(parallelId, newDistribution)
-
-      // Emit single subflow update with all changes
-      if (!isApplyingRemoteChange.current) {
-        const config = {
-          id: parallelId,
-          nodes: childNodes,
-          count: newCount,
-          distribution: newDistribution,
-          parallelType,
-        }
-
-        emitWorkflowOperation('update', 'subflow', {
-          id: parallelId,
-          type: 'parallel',
-          config,
-        })
+      const config = {
+        id: parallelId,
+        nodes: childNodes,
+        count: newCount,
+        distribution: newDistribution,
+        parallelType,
       }
+
+      executeQueuedOperation(
+        'update',
+        'subflow',
+        { id: parallelId, type: 'parallel', config },
+        () => {
+          workflowStore.updateParallelType(parallelId, parallelType)
+          workflowStore.updateParallelCount(parallelId, newCount)
+          workflowStore.updateParallelCollection(parallelId, newDistribution)
+        }
+      )
     },
-    [workflowStore, emitWorkflowOperation]
+    [executeQueuedOperation, workflowStore]
   )
 
   return {
@@ -966,6 +994,7 @@ export function useCollaborativeWorkflow() {
     isConnected,
     currentWorkflowId,
     presenceUsers,
+    hasOperationError,
 
     // Workflow management
     joinWorkflow,

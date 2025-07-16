@@ -8,47 +8,40 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 
-The Agent block is a fundamental component in Sim Studio that allows you to create powerful AI agents using various LLM providers. These agents can process inputs based on customizable system prompts and utilize integrated tools to enhance their capabilities.
+The Agent block serves as the interface between your workflow and Large Language Models (LLMs). It executes inference requests against various AI providers, processes natural language inputs according to defined instructions, and generates structured or unstructured outputs for downstream consumption.
 
 <ThemeImage
   lightSrc="/static/light/agent-light.png"
   darkSrc="/static/dark/agent-dark.png"
-  alt="Agent Block"
-  width={300}
+  alt="Agent Block Configuration"
+  width={350}
   height={175}
 />
 
-<Callout type="info">
-  Agent blocks serve as interfaces to Large Language Models, enabling your workflow to leverage
-  state-of-the-art AI capabilities.
-</Callout>
-
 ## Overview
 
-The Agent block serves as an interface to Large Language Models (LLMs), enabling you to create agents that can:
+The Agent block enables you to:
 
 <Steps>
   <Step>
-    <strong>Respond to user inputs</strong>: Generate natural language responses based on provided
-    inputs
+    <strong>Process natural language</strong>: Analyze user input and generate contextual responses
   </Step>
   <Step>
-    <strong>Follow instructions</strong>: Adhere to specific instructions defined in the system
-    prompt
+    <strong>Execute AI-powered tasks</strong>: Perform content analysis, generation, and decision-making
   </Step>
   <Step>
-    <strong>Use specialized tools</strong>: Interact with integrated tools to extend capabilities
+    <strong>Call external tools</strong>: Access APIs, databases, and services during processing
   </Step>
   <Step>
-    <strong>Structure output</strong>: Generate responses in structured formats when needed
+    <strong>Generate structured output</strong>: Return JSON data that matches your schema requirements
   </Step>
-</Steps>
+</Steps> 
 
 ## Configuration Options
 
 ### System Prompt
 
-The system prompt defines the agent's behavior, capabilities, and limitations. It's the primary way to instruct the agent on how to respond to inputs.
+The system prompt establishes the agent's operational parameters and behavioral constraints. This configuration defines the agent's role, response methodology, and processing boundaries for all incoming requests.
 
 ```markdown
 You are a helpful assistant that specializes in financial analysis.
@@ -58,22 +51,25 @@ When responding to questions about investments, include risk disclaimers.
 
 ### User Prompt
 
-The user prompt or context is the specific input or question that the agent should respond to. This can be:
+The user prompt represents the primary input data for inference processing. This parameter accepts natural language text or structured data that the agent will analyze and respond to. Input sources include:
 
-- Directly provided in the block configuration
-- Connected from another block's output
-- Dynamically generated during workflow execution
+- **Static Configuration**: Direct text input specified in the block configuration
+- **Dynamic Input**: Data passed from upstream blocks through connection interfaces
+- **Runtime Generation**: Programmatically generated content during workflow execution
 
 ### Model Selection
 
-Choose from a variety of LLM providers:
+The Agent block supports multiple LLM providers through a unified inference interface. Available models include:
 
-- OpenAI (GPT-4o, o1, o3, o4-mini, gpt-4.1)
-- Anthropic (Claude 3.7 Sonnet)
-- Google (Gemini 2.5 Pro, Gemini 2.0 Flash)
-- Groq, Cerebras
-- Ollama Local Models
-- And more
+**OpenAI Models**: GPT-4o, o1, o3, o4-mini, gpt-4.1 (API-based inference)
+**Anthropic Models**: Claude 3.7 Sonnet (API-based inference)
+**Google Models**: Gemini 2.5 Pro, Gemini 2.0 Flash (API-based inference)
+**Alternative Providers**: Groq, Cerebras, xAI, DeepSeek (API-based inference)
+**Local Deployment**: Ollama-compatible models (self-hosted inference)
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/models.mp4"></video>
+</div>
 
 ### Temperature
 
@@ -81,22 +77,16 @@ Control the creativity and randomness of responses:
 
 <Tabs items={['Low (0-0.3)', 'Medium (0.3-0.7)', 'High (0.7-2.0)']}>
   <Tab>
-    <p>
-      More deterministic, focused responses. Best for factual tasks, customer support, and
-      situations where accuracy is critical.
-    </p>
+    More deterministic, focused responses. Best for factual tasks, customer support, and
+    situations where accuracy is critical.
   </Tab>
   <Tab>
-    <p>
-      Balanced creativity and focus. Suitable for general purpose applications that require both
-      accuracy and some creativity.
-    </p>
+    Balanced creativity and focus. Suitable for general purpose applications that require both
+    accuracy and some creativity.
   </Tab>
   <Tab>
-    <p>
-      More creative, varied responses. Ideal for creative writing, brainstorming, and generating
-      diverse ideas.
-    </p>
+    More creative, varied responses. Ideal for creative writing, brainstorming, and generating
+    diverse ideas.
   </Tab>
 </Tabs>
 
@@ -110,103 +100,204 @@ Your API key for the selected LLM provider. This is securely stored and used for
 
 ### Tools
 
-Integrate specialized tools to enhance the agent's capabilities. You can add tools to your agent by:
+Tools extend the agent's capabilities through external API integrations and service connections. The tool system enables function calling, allowing the agent to execute operations beyond text generation.
 
-1. Clicking the Tools section in the Agent configuration
-2. Selecting from the tools dropdown menu
-3. Choosing an existing tool or creating a new one
+**Tool Integration Process**:
+1. Access the Tools configuration section within the Agent block
+2. Select from 60+ pre-built integrations or define custom functions
+3. Configure authentication parameters and operational constraints
 
-<ThemeImage
-  lightSrc="/static/light/tooldropdown-light.png"
-  darkSrc="/static/dark/tooldropdown-dark.png"
-  alt="Tools Dropdown"
-  width={150}
-  height={125}
-/>
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/tools.mp4"></video>
+</div>
 
-Available tools include:
+**Available Tool Categories**:
+- **Communication**: Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
+- **Data Sources**: Notion, Google Sheets, Airtable, Supabase, Pinecone
+- **Web Services**: Firecrawl, Google Search, Exa AI, browser automation
+- **Development**: GitHub, Jira, Linear repository and issue management
+- **AI Services**: OpenAI, Perplexity, Hugging Face, ElevenLabs
 
-- **Confluence**: Access and query Confluence knowledge bases
-- **Evaluator**: Use evaluation metrics to assess content
-- **GitHub**: Interact with GitHub repositories and issues
-- **Gmail**: Process and respond to emails
-- **Firecrawl**: Web search and content retrieval
-- And many, many more pre-built integrations
+**Tool Execution Control**:
+- **Auto**: Model determines tool invocation based on context and necessity
+- **Required**: Tool must be called during every inference request
+- **None**: Tool definition available but excluded from model context
 
-You can also create custom tools to meet specific requirements for your agent's capabilities.
-
-<Callout type="info">
-  Tools significantly expand what your agent can do, allowing it to access external systems,
-  retrieve information, and take actions beyond simple text generation.
-</Callout>
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/granular-tool-control.mp4"></video>
+</div>
 
 ### Response Format
 
-Define a structured format for the agent's response when needed, using JSON or other formats.
+The Response Format parameter enforces structured output generation through JSON Schema validation. This ensures consistent, machine-readable responses that conform to predefined data structures:
+
+```json
+{
+  "name": "user_analysis",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": {
+        "type": "string",
+        "enum": ["positive", "negative", "neutral"]
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": ["sentiment", "confidence"]
+  }
+}
+```
+
+This configuration constrains the model's output to comply with the specified schema, preventing free-form text responses and ensuring structured data generation.
+
+### Accessing Results
+
+After an agent completes, you can access its outputs:
+
+- **`<agent.content>`**: The agent's response text or structured data
+- **`<agent.tokens>`**: Token usage statistics (prompt, completion, total)
+- **`<agent.tool_calls>`**: Details of any tools the agent used during execution
+- **`<agent.cost>`**: Estimated cost of the API call (if available)
+
+## Advanced Features
+
+### Memory Integration
+
+Agents can maintain context across interactions using the memory system:
+
+```javascript
+// In a Function block before the agent
+const memory = {
+  conversation_history: previousMessages,
+  user_preferences: userProfile,
+  session_data: currentSession
+};
+```
+
+### Structured Output Validation
+
+Use JSON Schema to ensure consistent, machine-readable responses:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "analysis": {"type": "string"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "categories": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["analysis", "confidence"]
+}
+```
+
+### Error Handling
+
+Agents automatically handle common errors:
+- API rate limits with exponential backoff
+- Invalid tool calls with retry logic
+- Network failures with connection recovery
+- Schema validation errors with fallback responses
 
 ## Inputs and Outputs
 
-<Tabs items={['Inputs', 'Outputs']}>
+<Tabs items={['Configuration', 'Variables', 'Results']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>User Prompt</strong>: The user's query or context for the agent
+        <strong>System Prompt</strong>: Instructions defining agent behavior and role
       </li>
       <li>
-        <strong>System Prompt</strong>: Instructions for the agent (optional)
+        <strong>User Prompt</strong>: Input text or data to process
       </li>
       <li>
-        <strong>Tools</strong>: Optional tool connections that the agent can use
+        <strong>Model</strong>: AI model selection (OpenAI, Anthropic, Google, etc.)
+      </li>
+      <li>
+        <strong>Temperature</strong>: Response randomness control (0-2)
+      </li>
+      <li>
+        <strong>Tools</strong>: Array of available tools for function calling
+      </li>
+      <li>
+        <strong>Response Format</strong>: JSON Schema for structured output
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Content</strong>: The agent's response text
+        <strong>agent.content</strong>: Agent's response text or structured data
       </li>
       <li>
-        <strong>Model</strong>: The model used for generation
+        <strong>agent.tokens</strong>: Token usage statistics object
       </li>
       <li>
-        <strong>Tokens</strong>: Usage statistics (prompt, completion, total)
+        <strong>agent.tool_calls</strong>: Array of tool execution details
       </li>
       <li>
-        <strong>Tool Calls</strong>: Details of any tools used during processing
+        <strong>agent.cost</strong>: Estimated API call cost (if available)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Content</strong>: Primary response output from the agent
       </li>
       <li>
-        <strong>Cost</strong>: Cost of the response
+        <strong>Metadata</strong>: Usage statistics and execution details
       </li>
       <li>
-        <strong>Usage</strong>: Usage statistics (prompt, completion, total)
+        <strong>Access</strong>: Available in blocks after the agent
       </li>
     </ul>
   </Tab>
 </Tabs>
 
-## Example Usage
+## Example Use Cases
 
-Here's an example of how an Agent block might be configured for a customer support workflow:
+### Customer Support Automation
 
-```yaml
-# Example Agent Configuration
-systemPrompt: |
-  You are a customer support agent for TechCorp.
-  Always maintain a professional, friendly tone.
-  If you don't know an answer, direct the customer to email support@techcorp.com.
-  Never make up information about products or policies.
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Handle customer inquiries with database access</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>User submits support ticket via API block</li>
+    <li>Agent processes inquiry with product database tools</li>
+    <li>Agent generates response and creates follow-up ticket</li>
+    <li>Response block sends reply to customer</li>
+  </ol>
+</div>
 
-model: OpenAI/gpt-4
-temperature: 0.2
-tools:
-  - ProductDatabase
-  - OrderHistory
-  - SupportTicketCreator
-```
+### Multi-Model Content Analysis
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Analyze content with different AI models</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Function block processes uploaded document</li>
+    <li>Agent with GPT-4o performs technical analysis</li>
+    <li>Agent with Claude analyzes sentiment and tone</li>
+    <li>Function block combines results for final report</li>
+  </ol>
+</div>
+
+### Tool-Powered Research Assistant
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Research assistant with web search and document access</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>User query received via input</li>
+    <li>Agent searches web using Google Search tool</li>
+    <li>Agent accesses Notion database for internal docs</li>
+    <li>Agent compiles comprehensive research report</li>
+  </ol>
+</div>
 
 ## Best Practices
 
 - **Be specific in system prompts**: Clearly define the agent's role, tone, and limitations. The more specific your instructions are, the better the agent will be able to fulfill its intended purpose.
 - **Choose the right temperature setting**: Use lower temperature settings (0-0.3) when accuracy is important, or increase temperature (0.7-2.0) for more creative or varied responses
-- **Combine with Evaluator blocks**: Use Evaluator blocks to assess agent responses and ensure quality. This allows you to create feedback loops and implement quality control measures.
-- **Leverage tools effectively**: Integrate tools that complement the agent's purpose and enhance its capabilities. Be selective about which tools you provide to avoid overwhelming the agent.
+- **Leverage tools effectively**: Integrate tools that complement the agent's purpose and enhance its capabilities. Be selective about which tools you provide to avoid overwhelming the agent. For tasks with little overlap, use another Agent block for the best results.

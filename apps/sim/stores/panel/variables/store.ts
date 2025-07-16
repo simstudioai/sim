@@ -220,10 +220,14 @@ export const useVariablesStore = create<VariablesStore>()(
               let uniqueName = update.name
               let nameIndex = 1
 
-              // Check if name already exists in this workflow
-              while (workflowVariables.some((v) => v.name === uniqueName)) {
-                uniqueName = `${update.name} (${nameIndex})`
-                nameIndex++
+              // Only check uniqueness for non-empty names
+              // Empty names don't need to be unique as they're temporary states
+              if (uniqueName.trim() !== '') {
+                // Check if name already exists in this workflow
+                while (workflowVariables.some((v) => v.name === uniqueName)) {
+                  uniqueName = `${update.name} (${nameIndex})`
+                  nameIndex++
+                }
               }
 
               // Always update references in subblocks when name changes, even if empty
@@ -475,11 +479,6 @@ export const useVariablesStore = create<VariablesStore>()(
               ) {
                 protectedVariableIds.add(id)
               }
-
-              // Also protect variables that are currently being edited (have pending changes)
-              if (saveTimers.has(workflowId)) {
-                protectedVariableIds.add(id)
-              }
             })
 
             // Handle 404 workflow not found gracefully
@@ -641,12 +640,6 @@ export const useVariablesStore = create<VariablesStore>()(
             const workflowVariables = Object.values(get().variables).filter(
               (variable) => variable.workflowId === workflowId
             )
-
-            // Record the last save attempt timestamp for each variable to track sync state
-            workflowVariables.forEach((variable) => {
-              // Mark save attempt time for all variables being saved
-              recentlyAddedVariables.set(variable.id, Date.now())
-            })
 
             // Send to DB
             const response = await fetch(`${API_ENDPOINTS.WORKFLOWS}/${workflowId}/variables`, {

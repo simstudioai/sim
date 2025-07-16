@@ -1,7 +1,48 @@
+import { Cron } from 'croner'
 import { createLogger } from '@/lib/logs/console-logger'
 import { formatDateTime } from '@/lib/utils'
 
 const logger = createLogger('ScheduleUtils')
+
+/**
+ * Validates a cron expression and returns validation results
+ * @param cronExpression - The cron expression to validate
+ * @returns Validation result with isValid flag, error message, and next run date
+ */
+export function validateCronExpression(cronExpression: string): {
+  isValid: boolean
+  error?: string
+  nextRun?: Date
+} {
+  if (!cronExpression?.trim()) {
+    return {
+      isValid: false,
+      error: 'Cron expression cannot be empty',
+    }
+  }
+
+  try {
+    const cron = new Cron(cronExpression)
+    const nextRun = cron.nextRun()
+
+    if (!nextRun) {
+      return {
+        isValid: false,
+        error: 'Cron expression produces no future occurrences',
+      }
+    }
+
+    return {
+      isValid: true,
+      nextRun,
+    }
+  } catch (error) {
+    return {
+      isValid: false,
+      error: error instanceof Error ? error.message : 'Invalid cron expression syntax',
+    }
+  }
+}
 
 export interface SubBlockValue {
   value: string
@@ -60,6 +101,7 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
   weeklyTime: [number, number]
   monthlyDay: number
   monthlyTime: [number, number]
+  cronExpression: string | null
   timezone: string
 } {
   // Extract schedule time (common field that can override others)
@@ -92,6 +134,16 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
   const monthlyDay = Number.parseInt(monthlyDayStr) || 1
   const monthlyTime = parseTimeString(getSubBlockValue(starterBlock, 'monthlyTime'))
 
+  const cronExpression = getSubBlockValue(starterBlock, 'cronExpression') || null
+
+  // Validate cron expression if provided
+  if (cronExpression) {
+    const validation = validateCronExpression(cronExpression)
+    if (!validation.isValid) {
+      throw new Error(`Invalid cron expression: ${validation.error}`)
+    }
+  }
+
   return {
     scheduleTime,
     scheduleStartAt,
@@ -103,6 +155,7 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
     weeklyTime,
     monthlyDay,
     monthlyTime,
+    cronExpression,
   }
 }
 
@@ -242,14 +295,10 @@ export function generateCronExpression(
     }
 
     case 'custom': {
-      const cronExpression = getSubBlockValue(
-        scheduleValues as unknown as BlockState,
-        'cronExpression'
-      )
-      if (!cronExpression) {
-        throw new Error('No cron expression provided for custom schedule')
+      if (!scheduleValues.cronExpression?.trim()) {
+        throw new Error('Custom schedule requires a valid cron expression')
       }
-      return cronExpression
+      return scheduleValues.cronExpression
     }
 
     default:
@@ -573,11 +622,29 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
         'November',
         'December',
       ]
+
       if (month.includes(',')) {
         const monthNames = month.split(',').map((m) => months[Number.parseInt(m, 10) - 1])
         description += `on day ${dayOfMonth} of ${monthNames.join(', ')}`
+      } else if (month.includes('/')) {
+        // Handle interval patterns like */3, 1/3, etc.
+        const interval = month.split('/')[1]
+        description += `on day ${dayOfMonth} every ${interval} months`
+      } else if (month.includes('-')) {
+        // Handle range patterns like 1-6
+        const [start, end] = month.split('-').map((m) => Number.parseInt(m, 10))
+        const startMonth = months[start - 1]
+        const endMonth = months[end - 1]
+        description += `on day ${dayOfMonth} from ${startMonth} to ${endMonth}`
       } else {
-        description += `on day ${dayOfMonth} of ${months[Number.parseInt(month, 10) - 1]}`
+        // Handle specific month numbers
+        const monthIndex = Number.parseInt(month, 10) - 1
+        const monthName = months[monthIndex]
+        if (monthName) {
+          description += `on day ${dayOfMonth} of ${monthName}`
+        } else {
+          description += `on day ${dayOfMonth} of month ${month}`
+        }
       }
     } else if (dayOfWeek !== '*') {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']

@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { env } from '@/lib/env'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
@@ -20,7 +20,6 @@ declare global {
 }
 
 const logger = createLogger('ChatAuthUtils')
-const isDevelopment = env.NODE_ENV === 'development'
 
 export const encryptAuthToken = (subdomainId: string, type: string): string => {
   return Buffer.from(`${subdomainId}:${type}:${Date.now()}`).toString('base64')
@@ -63,11 +62,11 @@ export const setChatAuthCookie = (
     name: `chat_auth_${subdomainId}`,
     value: token,
     httpOnly: true,
-    secure: !isDevelopment,
+    secure: !isDev,
     sameSite: 'lax',
     path: '/',
     // Using subdomain for the domain in production
-    domain: isDevelopment ? undefined : '.simstudio.ai',
+    domain: isDev ? undefined : '.simstudio.ai',
     maxAge: 60 * 60 * 24, // 24 hours
   })
 }
@@ -78,7 +77,7 @@ export function addCorsHeaders(response: NextResponse, request: NextRequest) {
   const origin = request.headers.get('origin') || ''
 
   // In development, allow any localhost subdomain
-  if (isDevelopment && origin.includes('localhost')) {
+  if (isDev && origin.includes('localhost')) {
     response.headers.set('Access-Control-Allow-Origin', origin)
     response.headers.set('Access-Control-Allow-Credentials', 'true')
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')

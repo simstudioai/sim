@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
-:root {
+
+@theme {
   --color-fd-primary: #802fff; /* Purple from control-bar component */
 }
 
@@ -15,4 +16,9 @@
   color: var(--color-fd-primary);
 }
 
+/* Tailwind v4 content sources */
+@source '../app/**/*.{js,ts,jsx,tsx,mdx}';
+@source '../components/**/*.{js,ts,jsx,tsx,mdx}';
+@source '../content/**/*.{js,ts,jsx,tsx,mdx}';
+@source '../mdx-components.tsx';
 @source '../node_modules/fumadocs-ui/dist/**/*.js';

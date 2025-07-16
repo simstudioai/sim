@@ -12,27 +12,36 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     provider: 'reddit',
     additionalScopes: ['read'],
   },
-
   params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Access token for Reddit API',
+    },
     postId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the Reddit post to fetch comments from',
     },
     subreddit: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The subreddit where the post is located (without the r/ prefix)',
     },
     sort: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description:
         'Sort method for comments: "confidence", "top", "new", "controversial", "old", "random", "qa" (default: "confidence")',
     },
     limit: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of comments to return (default: 50, max: 100)',
     },
   },

@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
-import { extractMessageAttachments } from './attachment-utils'
 import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
+import { extractMessageAttachments } from './utils'
 
 const logger = createLogger('MicrosoftTeamsReadChannel')
 
@@ -18,16 +18,19 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Microsoft Teams API',
     },
     teamId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the team to read from',
     },
     channelId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the channel to read from',
     },
   },

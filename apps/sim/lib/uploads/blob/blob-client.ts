@@ -4,7 +4,7 @@ import {
   generateBlobSASQueryParameters,
   StorageSharedKeyCredential,
 } from '@azure/storage-blob'
-import { BLOB_CONFIG } from '../setup'
+import { BLOB_CONFIG } from '@/lib/uploads/setup'
 
 // Lazily create a single Blob service client instance.
 let _blobServiceClient: BlobServiceClient | null = null

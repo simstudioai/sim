@@ -2,10 +2,10 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import type { Server } from 'socket.io'
-import * as schema from '../../db/schema'
-import { workflowBlocks, workflowEdges } from '../../db/schema'
-import { env } from '../../lib/env'
-import { createLogger } from '../../lib/logs/console-logger'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import * as schema from '@/db/schema'
+import { workflowBlocks, workflowEdges } from '@/db/schema'
 
 // Create dedicated database connection for room manager
 const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
@@ -13,8 +13,8 @@ const db = drizzle(
   postgres(connectionString, {
     prepare: false,
     idle_timeout: 15,
-    connect_timeout: 20, // Increase connection timeout for room operations
-    max: 1, // Minimal pool for room operations to conserve connections
+    connect_timeout: 20,
+    max: 5,
     onnotice: () => {},
   }),
   { schema }

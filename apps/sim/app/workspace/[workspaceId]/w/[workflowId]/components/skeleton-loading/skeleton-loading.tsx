@@ -1,81 +1,64 @@
 'use client'
 
-import { Bell, Bug, ChevronDown, Copy, History, Layers, Play, Rocket, Trash2 } from 'lucide-react'
+import { Bug, Copy, Layers, Play, Rocket, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useSidebarStore } from '@/stores/sidebar/store'
 
 const SkeletonControlBar = () => {
   return (
-    <div className='flex h-16 w-full items-center justify-between border-b bg-background'>
-      {/* Left Section - Workflow Name Skeleton */}
-      <div className='flex flex-col gap-[2px] pl-4'>
-        {/* Workflow name skeleton */}
-        <Skeleton className='h-[20px] w-32' />
-        {/* "Saved X time ago" skeleton */}
-        <Skeleton className='h-3 w-24' />
-      </div>
+    <div className='fixed top-4 right-4 z-20 flex items-center gap-1'>
+      {/* Delete Button */}
+      <Button
+        variant='outline'
+        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))]'
+        disabled
+      >
+        <Trash2 className='h-5 w-5' />
+      </Button>
 
-      {/* Middle Section */}
-      <div className='flex-1' />
+      {/* Duplicate Button */}
+      <Button
+        variant='outline'
+        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
+        disabled
+      >
+        <Copy className='h-5 w-5' />
+      </Button>
 
-      {/* Right Section - Action Buttons with Real Icons */}
-      <div className='flex items-center gap-1 pr-4'>
-        {/* Delete Button */}
-        <Button variant='ghost' size='icon' disabled className='opacity-60'>
-          <Trash2 className='h-5 w-5' />
-        </Button>
+      {/* Auto Layout Button */}
+      <Button
+        variant='outline'
+        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
+        disabled
+      >
+        <Layers className='h-5 w-5' />
+      </Button>
 
-        {/* History Button */}
-        <Button variant='ghost' size='icon' disabled className='opacity-60'>
-          <History className='h-5 w-5' />
-        </Button>
+      {/* Debug Mode Button */}
+      <Button
+        variant='outline'
+        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
+        disabled
+      >
+        <Bug className='h-5 w-5' />
+      </Button>
 
-        {/* Notifications Button */}
-        <Button variant='ghost' size='icon' disabled className='opacity-60'>
-          <Bell className='h-5 w-5' />
-        </Button>
+      {/* Deploy Button */}
+      <Button
+        variant='outline'
+        className='h-12 w-12 cursor-not-allowed rounded-[11px] border-[hsl(var(--card-border))] bg-[hsl(var(--card-background))] text-[hsl(var(--card-text))] opacity-50 shadow-xs hover:border-[hsl(var(--card-border))] hover:bg-[hsl(var(--card-background))] hover:bg-gray-100'
+        disabled
+      >
+        <Rocket className='h-5 w-5' />
+      </Button>
 
-        {/* Duplicate Button */}
-        <Button variant='ghost' size='icon' disabled className='opacity-60'>
-          <Copy className='h-5 w-5' />
-        </Button>
-
-        {/* Auto Layout Button */}
-        <Button variant='ghost' size='icon' disabled className='opacity-60'>
-          <Layers className='h-5 w-5' />
-        </Button>
-
-        {/* Debug Mode Button */}
-        <Button variant='ghost' size='icon' disabled className='opacity-60'>
-          <Bug className='h-5 w-5' />
-        </Button>
-
-        {/* Deploy Button */}
-        <Button variant='ghost' size='icon' disabled className='opacity-60'>
-          <Rocket className='h-5 w-5' />
-        </Button>
-
-        {/* Run Button with Dropdown */}
-        <div className='ml-1 flex'>
-          {/* Main Run Button */}
-          <Button
-            disabled
-            className='h-10 gap-2 rounded-r-none border-r border-r-[#6420cc] bg-[#701FFC] px-4 py-2 font-medium text-white opacity-60'
-          >
-            <Play className='h-3.5 w-3.5 fill-current stroke-current' />
-            Run
-          </Button>
-
-          {/* Dropdown Trigger */}
-          <Button
-            disabled
-            className='h-10 rounded-l-none bg-[#701FFC] px-2 font-medium text-white opacity-60'
-          >
-            <ChevronDown className='h-4 w-4' />
-          </Button>
-        </div>
-      </div>
+      {/* Run Button */}
+      <Button
+        className='h-12 cursor-not-allowed gap-2 rounded-[11px] bg-[#701FFC] px-4 py-2 font-medium text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none'
+        disabled
+      >
+        <Play className='h-3.5 w-3.5 fill-current stroke-current' />
+      </Button>
     </div>
   )
 }
@@ -163,26 +146,22 @@ export function SkeletonLoading({
   isSidebarCollapsed,
   children,
 }: SkeletonLoadingProps) {
-  const { mode, isExpanded } = useSidebarStore()
-
   return (
-    <div className='flex h-screen w-full flex-col overflow-hidden'>
-      <div className={`transition-all duration-200 ${isSidebarCollapsed ? 'ml-14' : 'ml-60'}`}>
-        {/* Skeleton Control Bar */}
-        <div
-          className={`transition-opacity duration-500 ${showSkeleton ? 'opacity-100' : 'pointer-events-none absolute opacity-0'}`}
-          style={{ zIndex: showSkeleton ? 10 : -1 }}
-        >
-          <SkeletonControlBar />
-        </div>
+    <div className='flex h-screen w-full flex-col overflow-hidden pl-64'>
+      {/* Skeleton Control Bar */}
+      <div
+        className={`transition-opacity duration-500 ${showSkeleton ? 'opacity-100' : 'pointer-events-none absolute opacity-0'}`}
+        style={{ zIndex: showSkeleton ? 10 : -1 }}
+      >
+        <SkeletonControlBar />
+      </div>
 
-        {/* Real Control Bar */}
-        <div
-          className={`transition-opacity duration-500 ${showSkeleton ? 'pointer-events-none absolute opacity-0' : 'opacity-100'}`}
-          style={{ zIndex: showSkeleton ? -1 : 10 }}
-        >
-          {children}
-        </div>
+      {/* Real Control Bar */}
+      <div
+        className={`transition-opacity duration-500 ${showSkeleton ? 'pointer-events-none absolute opacity-0' : 'opacity-100'}`}
+        style={{ zIndex: showSkeleton ? -1 : 10 }}
+      >
+        {children}
       </div>
 
       {/* Real content will be rendered by children - sidebar will show its own loading state */}

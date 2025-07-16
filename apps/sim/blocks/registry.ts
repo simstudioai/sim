@@ -6,7 +6,6 @@
 import { AgentBlock } from './blocks/agent'
 import { AirtableBlock } from './blocks/airtable'
 import { ApiBlock } from './blocks/api'
-// import { AutoblocksBlock } from './blocks/autoblocks'
 import { BrowserUseBlock } from './blocks/browser_use'
 import { ClayBlock } from './blocks/clay'
 import { ConditionBlock } from './blocks/condition'
@@ -26,7 +25,6 @@ import { GoogleDocsBlock } from './blocks/google_docs'
 import { GoogleDriveBlock } from './blocks/google_drive'
 import { GoogleSheetsBlock } from './blocks/google_sheets'
 import { HuggingFaceBlock } from './blocks/huggingface'
-// import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image_generator'
 import { JinaBlock } from './blocks/jina'
 import { JiraBlock } from './blocks/jira'
@@ -34,7 +32,6 @@ import { KnowledgeBlock } from './blocks/knowledge'
 import { LinearBlock } from './blocks/linear'
 import { LinkupBlock } from './blocks/linkup'
 import { Mem0Block } from './blocks/mem0'
-// import { GuestyBlock } from './blocks/guesty'
 import { MemoryBlock } from './blocks/memory'
 import { MicrosoftExcelBlock } from './blocks/microsoft_excel'
 import { MicrosoftTeamsBlock } from './blocks/microsoft_teams'
@@ -62,6 +59,7 @@ import { TranslateBlock } from './blocks/translate'
 import { TwilioSMSBlock } from './blocks/twilio'
 import { TypeformBlock } from './blocks/typeform'
 import { VisionBlock } from './blocks/vision'
+import { WealthboxBlock } from './blocks/wealthbox'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { WorkflowBlock } from './blocks/workflow'
 import { XBlock } from './blocks/x'
@@ -73,7 +71,6 @@ export const registry: Record<string, BlockConfig> = {
   agent: AgentBlock,
   airtable: AirtableBlock,
   api: ApiBlock,
-  // autoblocks: AutoblocksBlock,
   browser_use: BrowserUseBlock,
   clay: ClayBlock,
   condition: ConditionBlock,
@@ -92,15 +89,16 @@ export const registry: Record<string, BlockConfig> = {
   google_drive: GoogleDriveBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
-  microsoft_excel: MicrosoftExcelBlock,
-  microsoft_teams: MicrosoftTeamsBlock,
-  // guesty: GuestyBlock,
+  huggingface: HuggingFaceBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   jira: JiraBlock,
+  knowledge: KnowledgeBlock,
   linear: LinearBlock,
   linkup: LinkupBlock,
   mem0: Mem0Block,
+  microsoft_excel: MicrosoftExcelBlock,
+  microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
@@ -110,6 +108,7 @@ export const registry: Record<string, BlockConfig> = {
   qdrant: QdrantBlock,
   memory: MemoryBlock,
   reddit: RedditBlock,
+  response: ResponseBlock,
   router: RouterBlock,
   s3: S3Block,
   serper: SerperBlock,
@@ -117,7 +116,6 @@ export const registry: Record<string, BlockConfig> = {
   stagehand_agent: StagehandAgentBlock,
   slack: SlackBlock,
   starter: StarterBlock,
-  knowledge: KnowledgeBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
@@ -126,12 +124,11 @@ export const registry: Record<string, BlockConfig> = {
   twilio_sms: TwilioSMSBlock,
   typeform: TypeformBlock,
   vision: VisionBlock,
+  wealthbox: WealthboxBlock,
   whatsapp: WhatsAppBlock,
   workflow: WorkflowBlock,
   x: XBlock,
   youtube: YouTubeBlock,
-  huggingface: HuggingFaceBlock,
-  response: ResponseBlock,
 }
 
 // Helper functions to access the registry

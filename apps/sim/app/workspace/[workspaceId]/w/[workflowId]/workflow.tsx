@@ -15,21 +15,15 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-node/loop-node'
-import { NotificationList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/notifications/notifications'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
 import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-node'
-import { SkeletonLoading } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/skeleton-loading/skeleton-loading'
-import { Toolbar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/toolbar/toolbar'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks'
-import { useSocket } from '@/contexts/socket-context'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
-import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
@@ -71,13 +65,6 @@ interface BlockData {
 const WorkflowContent = React.memo(() => {
   // State
   const [isWorkflowReady, setIsWorkflowReady] = useState(false)
-  const { mode, isExpanded } = useSidebarStore()
-
-  // In hover mode, act as if sidebar is always collapsed for layout purposes
-  const isSidebarCollapsed = useMemo(
-    () => (mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'),
-    [mode, isExpanded]
-  )
 
   // State for tracking node dragging
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
@@ -120,11 +107,9 @@ const WorkflowContent = React.memo(() => {
     collaborativeRemoveEdge: removeEdge,
     collaborativeUpdateBlockPosition,
     collaborativeUpdateParentId: updateParentId,
-    isConnected,
-    currentWorkflowId,
+    collaborativeSetSubblockValue,
   } = useCollaborativeWorkflow()
-  const { emitSubblockUpdate } = useSocket()
-  const { markAllAsRead } = useNotificationStore()
+
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
 
   // Execution and debug mode state
@@ -267,7 +252,6 @@ const WorkflowContent = React.memo(() => {
         ...orientationConfig,
         alignByLayer: true,
         animationDuration: 500, // Smooth 500ms animation
-        isSidebarCollapsed,
         handleOrientation: detectedOrientation, // Explicitly set the detected orientation
         onComplete: (finalPositions) => {
           // Emit collaborative updates for final positions after animation completes
@@ -293,7 +277,6 @@ const WorkflowContent = React.memo(() => {
     storeUpdateBlockPosition,
     collaborativeUpdateBlockPosition,
     fitView,
-    isSidebarCollapsed,
     resizeLoopNodesWrapper,
     getOrientationConfig,
   ])
@@ -502,7 +485,7 @@ const WorkflowContent = React.memo(() => {
       let autoConnectEdge
       if (isAutoConnectEnabled && type !== 'starter') {
         const closestBlock = findClosestOutput(centerPosition)
-        console.log('🎯 Closest block found:', closestBlock)
+        logger.info('🎯 Closest block found:', closestBlock)
         if (closestBlock) {
           // Get appropriate source handle
           const sourceHandle = determineSourceHandle(closestBlock)
@@ -515,7 +498,7 @@ const WorkflowContent = React.memo(() => {
             targetHandle: 'target',
             type: 'workflowEdge',
           }
-          console.log('✅ Auto-connect edge created:', autoConnectEdge)
+          logger.info('✅ Auto-connect edge created:', autoConnectEdge)
         }
       }
 
@@ -906,8 +889,6 @@ const WorkflowContent = React.memo(() => {
         // Don't reset variables cache if we're not actually switching workflows
         setActiveWorkflow(currentId)
       }
-
-      markAllAsRead(currentId)
     }
 
     validateAndNavigate()
@@ -918,7 +899,6 @@ const WorkflowContent = React.memo(() => {
     setActiveWorkflow,
     createWorkflow,
     router,
-    markAllAsRead,
     resetVariablesLoaded,
   ])
 
@@ -1484,11 +1464,9 @@ const WorkflowContent = React.memo(() => {
     const handleSubBlockValueUpdate = (event: CustomEvent) => {
       const { blockId, subBlockId, value } = event.detail
       if (blockId && subBlockId) {
-        // Only emit the socket update, don't update the store again
-        // The store was already updated in the setValue function
-        if (isConnected && currentWorkflowId && activeWorkflowId === currentWorkflowId) {
-          emitSubblockUpdate(blockId, subBlockId, value)
-        }
+        // Use collaborative function to go through queue system
+        // This ensures 5-second timeout and error detection work
+        collaborativeSetSubblockValue(blockId, subBlockId, value)
       }
     }
 
@@ -1500,7 +1478,7 @@ const WorkflowContent = React.memo(() => {
         handleSubBlockValueUpdate as EventListener
       )
     }
-  }, [emitSubblockUpdate, isConnected, currentWorkflowId, activeWorkflowId])
+  }, [collaborativeSetSubblockValue])
 
   // Show skeleton UI while loading, then smoothly transition to real content
   const showSkeletonUI = !isWorkflowReady
@@ -1508,19 +1486,18 @@ const WorkflowContent = React.memo(() => {
   if (showSkeletonUI) {
     return (
       <div className='flex h-screen w-full flex-col overflow-hidden'>
-        <SkeletonLoading showSkeleton={true} isSidebarCollapsed={isSidebarCollapsed}>
-          <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
-        </SkeletonLoading>
-        <Toolbar />
-        <div
-          className={`${isSidebarCollapsed ? 'pl-14' : 'pl-60'} relative h-full w-full flex-1 transition-all duration-200`}
-        >
+        <div className='relative h-full w-full flex-1 transition-all duration-200'>
           <div className='fixed top-0 right-0 z-10'>
             <Panel />
-            <NotificationList />
           </div>
+          <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
           <div className='workflow-container h-full'>
-            <Background />
+            <Background
+              color='hsl(var(--workflow-dots))'
+              size={4}
+              gap={40}
+              style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
+            />
           </div>
         </div>
       </div>
@@ -1529,17 +1506,13 @@ const WorkflowContent = React.memo(() => {
 
   return (
     <div className='flex h-screen w-full flex-col overflow-hidden'>
-      <div className={`${isSidebarCollapsed ? 'ml-14' : 'ml-60'} transition-all duration-200`}>
-        <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
-      </div>
-      <Toolbar />
-      <div
-        className={`${isSidebarCollapsed ? 'pl-14' : 'pl-60'} relative h-full w-full flex-1 transition-all duration-200`}
-      >
+      <div className='relative h-full w-full flex-1 transition-all duration-200'>
         <div className='fixed top-0 right-0 z-10'>
           <Panel />
-          <NotificationList />
         </div>
+
+        {/* Floating Control Bar */}
+        <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
 
         <ReactFlow
           nodes={nodes}
@@ -1587,7 +1560,12 @@ const WorkflowContent = React.memo(() => {
           autoPanOnConnect={userPermissions.canEdit}
           autoPanOnNodeDrag={userPermissions.canEdit}
         >
-          <Background />
+          <Background
+            color='hsl(var(--workflow-dots))'
+            size={4}
+            gap={40}
+            style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
+          />
         </ReactFlow>
       </div>
     </div>

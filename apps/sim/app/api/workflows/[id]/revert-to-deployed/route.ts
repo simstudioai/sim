@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Notify socket server about the revert operation for real-time sync
     try {
-      const socketServerUrl = process.env.SOCKET_SERVER_URL || 'http://localhost:3002'
+      const socketServerUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
       await fetch(`${socketServerUrl}/api/workflow-reverted`, {
         method: 'POST',
         headers: {

@@ -9,7 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -27,6 +26,7 @@ interface FolderContextMenuProps {
   onCreateWorkflow: (folderId: string) => void
   onRename?: (folderId: string, newName: string) => void
   onDelete?: (folderId: string) => void
+  level: number
 }
 
 export function FolderContextMenu({
@@ -35,6 +35,7 @@ export function FolderContextMenu({
   onCreateWorkflow,
   onRename,
   onDelete,
+  level,
 }: FolderContextMenuProps) {
   const [showSubfolderDialog, setShowSubfolderDialog] = useState(false)
   const [showRenameDialog, setShowRenameDialog] = useState(false)
@@ -131,33 +132,50 @@ export function FolderContextMenu({
           <Button
             variant='ghost'
             size='icon'
-            className='h-4 w-4 p-0 opacity-0 transition-opacity group-hover:opacity-100'
+            className='h-4 w-4 p-0 opacity-0 transition-opacity hover:bg-transparent focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 group-hover:opacity-100'
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className='h-3 w-3' />
             <span className='sr-only'>Folder options</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuContent
+          align='end'
+          onClick={(e) => e.stopPropagation()}
+          className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+        >
           {userPermissions.canEdit && (
             <>
-              <DropdownMenuItem onClick={handleCreateWorkflow}>
+              <DropdownMenuItem
+                onClick={handleCreateWorkflow}
+                className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+              >
                 <File className='mr-2 h-4 w-4' />
                 New Workflow
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleCreateSubfolder}>
-                <Folder className='mr-2 h-4 w-4' />
-                New Subfolder
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleRename}>
+              {level === 0 && (
+                <DropdownMenuItem
+                  onClick={handleCreateSubfolder}
+                  className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                >
+                  <Folder className='mr-2 h-4 w-4' />
+                  New Subfolder
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={handleRename}
+                className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+              >
                 <Pencil className='mr-2 h-4 w-4' />
                 Rename
               </DropdownMenuItem>
             </>
           )}
           {userPermissions.canAdmin ? (
-            <DropdownMenuItem onClick={handleDelete} className='text-destructive'>
+            <DropdownMenuItem
+              onClick={handleDelete}
+              className='cursor-pointer rounded-md px-3 py-2 font-[380] text-destructive text-sm hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive'
+            >
               <Trash2 className='mr-2 h-4 w-4' />
               Delete
             </DropdownMenuItem>
@@ -166,7 +184,7 @@ export function FolderContextMenu({
               <TooltipTrigger asChild>
                 <div>
                   <DropdownMenuItem
-                    className='cursor-not-allowed text-muted-foreground opacity-50'
+                    className='cursor-not-allowed rounded-md px-3 py-2 font-[380] text-muted-foreground text-sm opacity-50'
                     onClick={(e) => e.preventDefault()}
                   >
                     <Trash2 className='mr-2 h-4 w-4' />
@@ -196,6 +214,7 @@ export function FolderContextMenu({
                 value={subfolderName}
                 onChange={(e) => setSubfolderName(e.target.value)}
                 placeholder='Enter folder name...'
+                maxLength={50}
                 autoFocus
                 required
               />
@@ -226,6 +245,7 @@ export function FolderContextMenu({
                 value={renameName}
                 onChange={(e) => setRenameName(e.target.value)}
                 placeholder='Enter folder name...'
+                maxLength={50}
                 autoFocus
                 required
               />

@@ -10,11 +10,11 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
 import {
+  permissions,
   type permissionTypeEnum,
   user,
   workspace,
   workspaceInvitation,
-  workspaceMember,
 } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
@@ -33,15 +33,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Get all workspaces where the user is a member (any role)
+    // Get all workspaces where the user has permissions
     const userWorkspaces = await db
       .select({ id: workspace.id })
       .from(workspace)
       .innerJoin(
-        workspaceMember,
+        permissions,
         and(
-          eq(workspaceMember.workspaceId, workspace.id),
-          eq(workspaceMember.userId, session.user.id)
+          eq(permissions.entityId, workspace.id),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.userId, session.user.id)
         )
       )
 
@@ -89,20 +90,25 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check if user is authorized to invite to this workspace (must be owner)
-    const membership = await db
+    // Check if user has admin permissions for this workspace
+    const userPermission = await db
       .select()
-      .from(workspaceMember)
+      .from(permissions)
       .where(
         and(
-          eq(workspaceMember.workspaceId, workspaceId),
-          eq(workspaceMember.userId, session.user.id)
+          eq(permissions.entityId, workspaceId),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.userId, session.user.id),
+          eq(permissions.permissionType, 'admin')
         )
       )
       .then((rows) => rows[0])
 
-    if (!membership) {
-      return NextResponse.json({ error: 'You are not a member of this workspace' }, { status: 403 })
+    if (!userPermission) {
+      return NextResponse.json(
+        { error: 'You need admin permissions to invite users' },
+        { status: 403 }
+      )
     }
 
     // Get the workspace details for the email
@@ -125,22 +131,23 @@ export async function POST(req: NextRequest) {
       .then((rows) => rows[0])
 
     if (existingUser) {
-      // Check if the user is already a member of this workspace
-      const existingMembership = await db
+      // Check if the user already has permissions for this workspace
+      const existingPermission = await db
         .select()
-        .from(workspaceMember)
+        .from(permissions)
         .where(
           and(
-            eq(workspaceMember.workspaceId, workspaceId),
-            eq(workspaceMember.userId, existingUser.id)
+            eq(permissions.entityId, workspaceId),
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.userId, existingUser.id)
           )
         )
         .then((rows) => rows[0])
 
-      if (existingMembership) {
+      if (existingPermission) {
         return NextResponse.json(
           {
-            error: `${email} is already a member of this workspace`,
+            error: `${email} already has access to this workspace`,
             email,
           },
           { status: 400 }
@@ -245,14 +252,19 @@ async function sendInvitationEmail({
       )
     }
 
-    await resend.emails.send({
-      from: `noreply@${getEmailDomain()}`,
+    const emailDomain = env.EMAIL_DOMAIN || getEmailDomain()
+    const fromAddress = `noreply@${emailDomain}`
+
+    logger.info(`Attempting to send email from ${fromAddress} to ${to}`)
+
+    const result = await resend.emails.send({
+      from: fromAddress,
       to,
       subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
       html: emailHtml,
     })
 
-    logger.info(`Invitation email sent to ${to}`)
+    logger.info(`Invitation email sent successfully to ${to}`, { result })
   } catch (error) {
     logger.error('Error sending invitation email:', error)
     // Continue even if email fails - the invitation is still created

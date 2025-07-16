@@ -38,8 +38,18 @@ interface SocketContextType {
   presenceUsers: PresenceUser[]
   joinWorkflow: (workflowId: string) => void
   leaveWorkflow: () => void
-  emitWorkflowOperation: (operation: string, target: string, payload: any) => void
-  emitSubblockUpdate: (blockId: string, subblockId: string, value: any) => void
+  emitWorkflowOperation: (
+    operation: string,
+    target: string,
+    payload: any,
+    operationId?: string
+  ) => void
+  emitSubblockUpdate: (
+    blockId: string,
+    subblockId: string,
+    value: any,
+    operationId?: string
+  ) => void
   emitCursorUpdate: (cursor: { x: number; y: number }) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
   // Event handlers for receiving real-time updates
@@ -51,6 +61,8 @@ interface SocketContextType {
   onUserLeft: (handler: (data: any) => void) => void
   onWorkflowDeleted: (handler: (data: any) => void) => void
   onWorkflowReverted: (handler: (data: any) => void) => void
+  onOperationConfirmed: (handler: (data: any) => void) => void
+  onOperationFailed: (handler: (data: any) => void) => void
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -73,6 +85,8 @@ const SocketContext = createContext<SocketContextType>({
   onUserLeft: () => {},
   onWorkflowDeleted: () => {},
   onWorkflowReverted: () => {},
+  onOperationConfirmed: () => {},
+  onOperationFailed: () => {},
 })
 
 export const useSocket = () => useContext(SocketContext)
@@ -103,6 +117,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     userLeft?: (data: any) => void
     workflowDeleted?: (data: any) => void
     workflowReverted?: (data: any) => void
+    operationConfirmed?: (data: any) => void
+    operationFailed?: (data: any) => void
   }>({})
 
   // Helper function to generate a fresh socket token
@@ -290,6 +306,18 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           eventHandlers.current.workflowReverted?.(data)
         })
 
+        // Operation confirmation events
+        socketInstance.on('operation-confirmed', (data) => {
+          logger.debug('Operation confirmed', { operationId: data.operationId })
+          eventHandlers.current.operationConfirmed?.(data)
+        })
+
+        // Operation failure events
+        socketInstance.on('operation-failed', (data) => {
+          logger.warn('Operation failed', { operationId: data.operationId, error: data.error })
+          eventHandlers.current.operationFailed?.(data)
+        })
+
         // Cursor update events
         socketInstance.on('cursor-update', (data) => {
           setPresenceUsers((prev) =>
@@ -444,8 +472,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   // Emit workflow operations (blocks, edges, subflows)
   const emitWorkflowOperation = useCallback(
-    (operation: string, target: string, payload: any) => {
-      if (!socket || !currentWorkflowId) return
+    (operation: string, target: string, payload: any, operationId?: string) => {
+      if (!socket || !currentWorkflowId) {
+        return
+      }
 
       // Apply light throttling only to position updates for smooth collaborative experience
       const isPositionUpdate = operation === 'update-position' && target === 'block'
@@ -459,6 +489,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           target,
           payload,
           timestamp: Date.now(),
+          operationId, // Include operation ID for queue tracking
         })
 
         // Check if we already have a pending timeout for this block
@@ -482,6 +513,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           target,
           payload,
           timestamp: Date.now(),
+          operationId, // Include operation ID for queue tracking
         })
       }
     },
@@ -490,7 +522,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   // Emit subblock value updates
   const emitSubblockUpdate = useCallback(
-    (blockId: string, subblockId: string, value: any) => {
+    (blockId: string, subblockId: string, value: any, operationId?: string) => {
       // Only emit if socket is connected and we're in a valid workflow room
       if (socket && currentWorkflowId) {
         socket.emit('subblock-update', {
@@ -498,6 +530,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           subblockId,
           value,
           timestamp: Date.now(),
+          operationId, // Include operation ID for queue tracking
         })
       } else {
         logger.warn('Cannot emit subblock update: no socket connection or workflow room', {
@@ -570,6 +603,14 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowReverted = handler
   }, [])
 
+  const onOperationConfirmed = useCallback((handler: (data: any) => void) => {
+    eventHandlers.current.operationConfirmed = handler
+  }, [])
+
+  const onOperationFailed = useCallback((handler: (data: any) => void) => {
+    eventHandlers.current.operationFailed = handler
+  }, [])
+
   return (
     <SocketContext.Provider
       value={{
@@ -592,6 +633,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         onUserLeft,
         onWorkflowDeleted,
         onWorkflowReverted,
+        onOperationConfirmed,
+        onOperationFailed,
       }}
     >
       {children}

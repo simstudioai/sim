@@ -21,26 +21,34 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   },
 
   params: {
+    authMethod: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Authentication method: oauth or bot_token',
+    },
     botToken: {
       type: 'string',
       required: false,
-      optionalToolInput: true,
+      visibility: 'user-only',
       description: 'Bot token for Custom Bot',
     },
     accessToken: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'OAuth access token or bot token for Slack API',
     },
     channel: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Target Slack channel (e.g., #general)',
-      optionalToolInput: true,
     },
     text: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Message text to send (supports Slack mrkdwn formatting)',
     },
   },

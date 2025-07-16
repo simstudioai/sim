@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { client } from '@/lib/auth-client'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useNotificationStore } from '@/stores/notifications/store'
 
 const logger = createLogger('useVerification')
 
@@ -35,7 +34,6 @@ export function useVerification({
 }: UseVerificationParams): UseVerificationReturn {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { addNotification } = useNotificationStore()
   const [otp, setOtp] = useState('')
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -45,13 +43,6 @@ export function useVerification({
   const [errorMessage, setErrorMessage] = useState('')
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null)
   const [isInviteFlow, setIsInviteFlow] = useState(false)
-
-  // Debug notification store
-  useEffect(() => {
-    logger.info('Notification store state:', {
-      addNotification: !!addNotification,
-    })
-  }, [addNotification])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

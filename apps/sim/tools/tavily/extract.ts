@@ -12,18 +12,20 @@ export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse>
     urls: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'URL or array of URLs to extract content from',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      description: 'Tavily API Key',
-      requiredForToolCall: true,
     },
     extract_depth: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'The depth of extraction (basic=1 credit/5 URLs, advanced=2 credits/5 URLs)',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Tavily API Key',
     },
   },
 

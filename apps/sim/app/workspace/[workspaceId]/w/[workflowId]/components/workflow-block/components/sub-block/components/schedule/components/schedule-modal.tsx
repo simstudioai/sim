@@ -436,6 +436,9 @@ export function ScheduleModal({
                   type='number'
                   min='1'
                   className='h-10'
+                  autoComplete='off'
+                  data-form-type='other'
+                  name='minutes-interval'
                 />
               </div>
             )}
@@ -455,6 +458,9 @@ export function ScheduleModal({
                   min='0'
                   max='59'
                   className='h-10'
+                  autoComplete='off'
+                  data-form-type='other'
+                  name='hourly-minute'
                 />
                 <p className='text-muted-foreground text-xs'>
                   Specify which minute of each hour the workflow should run (0-59)
@@ -530,6 +536,9 @@ export function ScheduleModal({
                     min='1'
                     max='31'
                     className='h-10'
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='monthly-day'
                   />
                   <p className='text-muted-foreground text-xs'>
                     Specify which day of the month the workflow should run (1-31)

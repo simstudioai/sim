@@ -22,6 +22,8 @@ import type { MicrosoftFileInfo } from './components/microsoft-file-selector'
 import { MicrosoftFileSelector } from './components/microsoft-file-selector'
 import type { TeamsMessageInfo } from './components/teams-message-selector'
 import { TeamsMessageSelector } from './components/teams-message-selector'
+import type { WealthboxItemInfo } from './components/wealthbox-file-selector'
+import { WealthboxFileSelector } from './components/wealthbox-file-selector'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -54,6 +56,8 @@ export function FileSelectorInput({
   const [messageInfo, setMessageInfo] = useState<TeamsMessageInfo | null>(null)
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>('')
   const [calendarInfo, setCalendarInfo] = useState<GoogleCalendarInfo | null>(null)
+  const [selectedWealthboxItemId, setSelectedWealthboxItemId] = useState<string>('')
+  const [wealthboxItemInfo, setWealthboxItemInfo] = useState<WealthboxItemInfo | null>(null)
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
@@ -63,6 +67,7 @@ export function FileSelectorInput({
   const isMicrosoftTeams = provider === 'microsoft-teams'
   const isMicrosoftExcel = provider === 'microsoft-excel'
   const isGoogleCalendar = subBlock.provider === 'google-calendar'
+  const isWealthbox = provider === 'wealthbox'
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
   // For Discord, we need the bot token and server ID
@@ -85,6 +90,8 @@ export function FileSelectorInput({
           setSelectedMessageId(value)
         } else if (isGoogleCalendar) {
           setSelectedCalendarId(value)
+        } else if (isWealthbox) {
+          setSelectedWealthboxItemId(value)
         } else {
           setSelectedFileId(value)
         }
@@ -100,6 +107,8 @@ export function FileSelectorInput({
           setSelectedMessageId(value)
         } else if (isGoogleCalendar) {
           setSelectedCalendarId(value)
+        } else if (isWealthbox) {
+          setSelectedWealthboxItemId(value)
         } else {
           setSelectedFileId(value)
         }
@@ -113,6 +122,7 @@ export function FileSelectorInput({
     isDiscord,
     isMicrosoftTeams,
     isGoogleCalendar,
+    isWealthbox,
     isPreview,
     previewValue,
   ])
@@ -149,6 +159,13 @@ export function FileSelectorInput({
     setSelectedCalendarId(calendarId)
     setCalendarInfo(info || null)
     setStoreValue(calendarId)
+  }
+
+  // Handle Wealthbox item selection
+  const handleWealthboxItemChange = (itemId: string, info?: WealthboxItemInfo) => {
+    setSelectedWealthboxItemId(itemId)
+    setWealthboxItemInfo(info || null)
+    setStoreValue(itemId)
   }
 
   // For Google Drive
@@ -367,6 +384,47 @@ export function FileSelectorInput({
         </Tooltip>
       </TooltipProvider>
     )
+  }
+
+  // Render Wealthbox selector
+  if (isWealthbox) {
+    // Get credential using the same pattern as other tools
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
+    // Only handle contacts now - both notes and tasks use short-input
+    if (subBlock.id === 'contactId') {
+      const itemType = 'contact'
+
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className='w-full'>
+                <WealthboxFileSelector
+                  value={selectedWealthboxItemId}
+                  onChange={handleWealthboxItemChange}
+                  provider='wealthbox'
+                  requiredScopes={subBlock.requiredScopes || []}
+                  serviceId={subBlock.serviceId}
+                  label={subBlock.placeholder || `Select ${itemType}`}
+                  disabled={disabled || !credential}
+                  showPreview={true}
+                  onFileInfoChange={setWealthboxItemInfo}
+                  itemType={itemType}
+                />
+              </div>
+            </TooltipTrigger>
+            {!credential && (
+              <TooltipContent side='top'>
+                <p>Please select Wealthbox credentials first</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      )
+    }
+    // If it's noteId or taskId, we should not render the file selector since they now use short-input
+    return null
   }
 
   // Default to Google Drive picker

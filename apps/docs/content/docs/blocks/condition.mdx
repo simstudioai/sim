@@ -4,9 +4,9 @@ description: Create conditional logic and branching in your workflows
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { File, Files, Folder } from 'fumadocs-ui/components/files'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { ThemeImage } from '@/components/ui/theme-image'
 
 The Condition block allows you to branch your workflow execution path based on boolean expressions. It evaluates conditions and routes the workflow accordingly, enabling you to create dynamic, responsive workflows with different execution paths.
@@ -15,7 +15,7 @@ The Condition block allows you to branch your workflow execution path based on b
   lightSrc="/static/light/condition-light.png"
   darkSrc="/static/dark/condition-dark.png"
   alt="Condition Block"
-  width={300}
+  width={350}
   height={175}
 />
 
@@ -26,56 +26,31 @@ The Condition block allows you to branch your workflow execution path based on b
 
 ## Overview
 
-The Condition block serves as a decision point in your workflow, enabling:
-
-<div className="my-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-    <h3 className="mb-2 text-lg font-medium">Branching Logic</h3>
-    <div className="text-sm text-gray-600 dark:text-gray-400">
-      Create different execution paths based on specific conditions
-    </div>
-  </div>
-
-  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-    <h3 className="mb-2 text-lg font-medium">Rule-Based Routing</h3>
-    <div className="text-sm text-gray-600 dark:text-gray-400">
-      Route workflows deterministically without needing an LLM
-    </div>
-  </div>
-
-  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-    <h3 className="mb-2 text-lg font-medium">Data-Driven Decisions</h3>
-    <div className="text-sm text-gray-600 dark:text-gray-400">
-      Create workflow paths based on structured data values
-    </div>
-  </div>
-
-  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-    <h3 className="mb-2 text-lg font-medium">If-Then-Else Logic</h3>
-    <div className="text-sm text-gray-600 dark:text-gray-400">
-      Implement conditional programming paradigms in your workflows
-    </div>
-  </div>
-</div>
-
-## How It Works
-
-The Condition block:
+The Condition block enables you to:
 
 <Steps>
   <Step>
-    <strong>Evaluate Expression</strong>: Evaluates a boolean expression or condition
+    <strong>Create branching logic</strong>: Route workflows based on boolean expressions
   </Step>
   <Step>
-    <strong>Determine Result</strong>: Determines whether the condition evaluates to true or false
+    <strong>Make data-driven decisions</strong>: Evaluate conditions using previous block outputs
   </Step>
   <Step>
-    <strong>Route Workflow</strong>: Routes the workflow to the appropriate path based on the result
+    <strong>Handle multiple scenarios</strong>: Define multiple conditions with different paths
   </Step>
   <Step>
-    <strong>Provide Context</strong>: Provides context about the decision made
+    <strong>Provide deterministic routing</strong>: Make decisions without requiring an LLM
   </Step>
 </Steps>
+
+## How It Works
+
+The Condition block operates through a sequential evaluation process:
+
+1. **Evaluate Expression** - Processes the JavaScript/TypeScript boolean expression using current workflow data
+2. **Determine Result** - Returns true or false based on the expression evaluation
+3. **Route Workflow** - Directs execution to the appropriate destination block based on the result  
+4. **Provide Context** - Generates metadata about the decision for debugging and monitoring
 
 ## Configuration Options
 
@@ -97,95 +72,165 @@ Conditions use JavaScript syntax and can reference input values from previous bl
   <Tab>
     ```javascript
     // Check if a score is above a threshold
-    input.score > 75
+    <agent.score> > 75
     ```
   </Tab>
   <Tab>
     ```javascript
     // Check if a text contains specific keywords
-    input.text.includes('urgent') || input.text.includes('emergency')
+    <agent.text>.includes('urgent') || <agent.text>.includes('emergency')
     ```
   </Tab>
   <Tab>
     ```javascript
     // Check multiple conditions
-    input.age >= 18 && input.country === 'US'
+    <agent.age> >= 18 && <agent.country> === 'US'
     ```
   </Tab>
 </Tabs>
 
+
+### Accessing Results
+
+After a condition evaluates, you can access its outputs:
+
+- **`<condition.result>`**: Boolean result of the condition evaluation
+- **`<condition.matched_condition>`**: ID of the condition that was matched
+- **`<condition.content>`**: Description of the evaluation result
+- **`<condition.path>`**: Details of the chosen routing destination
+
+## Advanced Features
+
+### Complex Expressions
+
+Use JavaScript operators and functions in conditions:
+
+```javascript
+// String operations
+<user.email>.endsWith('@company.com')
+
+// Array operations
+<api.tags>.includes('urgent')
+
+// Mathematical operations
+<agent.confidence> * 100 > 85
+
+// Date comparisons
+new Date(<api.created_at>) > new Date('2024-01-01')
+```
+
+### Multiple Condition Evaluation
+
+Conditions are evaluated in order until one matches:
+
+```javascript
+// Condition 1: Check for high priority
+<ticket.priority> === 'high'
+
+// Condition 2: Check for urgent keywords
+<ticket.subject>.toLowerCase().includes('urgent')
+
+// Condition 3: Default fallback
+true
+```
+
+### Error Handling
+
+Conditions automatically handle:
+- Undefined or null values with safe evaluation
+- Type mismatches with appropriate fallbacks
+- Invalid expressions with error logging
+- Missing variables with default values
+
 ## Inputs and Outputs
 
-<Tabs items={['Inputs', 'Outputs']}>
+<Tabs items={['Configuration', 'Variables', 'Results']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Variables</strong>: Values from previous blocks that can be referenced in conditions
+        <strong>Conditions</strong>: Array of boolean expressions to evaluate
       </li>
       <li>
-        <strong>Conditions</strong>: Boolean expressions to evaluate
+        <strong>Expressions</strong>: JavaScript/TypeScript conditions using block outputs
+      </li>
+      <li>
+        <strong>Routing Paths</strong>: Destination blocks for each condition result
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Content</strong>: A description of the evaluation result
+        <strong>condition.result</strong>: Boolean result of condition evaluation
       </li>
       <li>
-        <strong>Condition Result</strong>: The boolean result of the condition evaluation
+        <strong>condition.matched_condition</strong>: ID of the matched condition
       </li>
       <li>
-        <strong>Selected Path</strong>: Details of the chosen routing destination
+        <strong>condition.content</strong>: Description of evaluation result
       </li>
       <li>
-        <strong>Selected Condition ID</strong>: Identifier of the condition that was matched
+        <strong>condition.path</strong>: Details of chosen routing destination
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Boolean Result</strong>: Primary condition evaluation outcome
+      </li>
+      <li>
+        <strong>Routing Information</strong>: Path selection and condition details
+      </li>
+      <li>
+        <strong>Access</strong>: Available in blocks after the condition
       </li>
     </ul>
   </Tab>
 </Tabs>
 
-## Example Usage
+## Example Use Cases
 
-Here's an example of how a Condition block might be used in a customer satisfaction workflow:
+### Customer Support Routing
 
-```yaml
-# Example Condition Configuration
-conditions:
-  - id: 'high_satisfaction'
-    expression: 'input.satisfactionScore >= 8'
-    description: 'Customer is highly satisfied'
-    path: 'positive_feedback_block'
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Route support tickets based on priority</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API block fetches support ticket data</li>
+    <li>Condition checks if `<api.priority>` equals 'high'</li>
+    <li>High priority tickets → Agent with escalation tools</li>
+    <li>Normal priority tickets → Standard support agent</li>
+  </ol>
+</div>
 
-  - id: 'medium_satisfaction'
-    expression: 'input.satisfactionScore >= 5'
-    description: 'Customer is moderately satisfied'
-    path: 'neutral_feedback_block'
+### Content Moderation
 
-  - id: 'default'
-    expression: 'true'
-    description: 'Customer is not satisfied'
-    path: 'improvement_feedback_block'
-```
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Filter content based on analysis results</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent analyzes user-generated content</li>
+    <li>Condition checks if `<agent.toxicity_score>` > 0.7</li>
+    <li>Toxic content → Moderation workflow</li>
+    <li>Clean content → Publishing workflow</li>
+  </ol>
+</div>
+
+### User Onboarding Flow
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Personalize onboarding based on user type</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Function block processes user registration data</li>
+    <li>Condition checks if `<user.account_type>` === 'enterprise'</li>
+    <li>Enterprise users → Advanced setup workflow</li>
+    <li>Individual users → Simple onboarding workflow</li>
+  </ol>
+</div>
 
 ## Best Practices
 
-### Order conditions correctly
-
-Conditions are evaluated in order, so place more specific conditions before general ones. This ensures that more specific logic takes precedence over general fallbacks.
-
-### Include a default condition
-
-Add a catch-all condition (e.g., `true`) as the last condition to handle cases when no other conditions match. This prevents workflow execution from getting stuck.
-
-### Keep expressions simple
-
-Use clear, straightforward boolean expressions for better readability. Complex expressions can be difficult to debug and maintain.
-
-### Document your conditions
-
-Add descriptions to explain the purpose of each condition. This helps other team members understand the logic and makes maintenance easier.
-
-### Test edge cases
-
-Ensure your conditions handle boundary values correctly. Test with values at the edges of your condition ranges to verify correct behavior.
+- **Order conditions correctly**: Place more specific conditions before general ones to ensure specific logic takes precedence over fallbacks
+- **Include a default condition**: Add a catch-all condition (`true`) as the last condition to handle unmatched cases and prevent workflow execution from getting stuck
+- **Keep expressions simple**: Use clear, straightforward boolean expressions for better readability and easier debugging
+- **Document your conditions**: Add descriptions to explain the purpose of each condition for better team collaboration and maintenance
+- **Test edge cases**: Verify conditions handle boundary values correctly by testing with values at the edges of your condition ranges

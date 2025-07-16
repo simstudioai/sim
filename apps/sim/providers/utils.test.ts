@@ -208,7 +208,14 @@ describe('Model Capabilities', () => {
 
   describe('supportsToolUsageControl', () => {
     it.concurrent('should return true for providers that support tool usage control', () => {
-      const supportedProviders = ['openai', 'azure-openai', 'anthropic', 'deepseek', 'xai']
+      const supportedProviders = [
+        'openai',
+        'azure-openai',
+        'anthropic',
+        'deepseek',
+        'xai',
+        'google',
+      ]
 
       for (const provider of supportedProviders) {
         expect(supportsToolUsageControl(provider)).toBe(true)
@@ -218,13 +225,7 @@ describe('Model Capabilities', () => {
     it.concurrent(
       'should return false for providers that do not support tool usage control',
       () => {
-        const unsupportedProviders = [
-          'google',
-          'ollama',
-          'cerebras',
-          'groq',
-          'non-existent-provider',
-        ]
+        const unsupportedProviders = ['ollama', 'cerebras', 'groq', 'non-existent-provider']
 
         for (const provider of unsupportedProviders) {
           expect(supportsToolUsageControl(provider)).toBe(false)
@@ -251,7 +252,7 @@ describe('Model Capabilities', () => {
       expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('openai')
       expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('anthropic')
       expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('deepseek')
-      expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).not.toContain('google')
+      expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('google')
       expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).not.toContain('ollama')
     })
 
@@ -709,8 +710,10 @@ describe('Tool Management', () => {
       const result = prepareToolsWithUsageControl(tools, providerTools, mockLogger, 'google')
 
       expect(result.toolConfig).toEqual({
-        mode: 'ANY',
-        allowed_function_names: ['forcedTool'],
+        functionCallingConfig: {
+          mode: 'ANY',
+          allowedFunctionNames: ['forcedTool'],
+        },
       })
     })
 

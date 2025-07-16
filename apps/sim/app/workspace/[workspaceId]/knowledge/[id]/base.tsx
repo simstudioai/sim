@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { format, formatDistanceToNow } from 'date-fns'
+import { useCallback, useEffect, useState } from 'react'
+import { format } from 'date-fns'
 import {
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   CircleOff,
   FileText,
@@ -11,7 +13,6 @@ import {
   Plus,
   RotateCcw,
   Trash2,
-  X,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -26,6 +27,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
@@ -34,12 +36,14 @@ import { PrimaryButton } from '@/app/workspace/[workspaceId]/knowledge/component
 import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
-import { useKnowledgeUpload } from '../hooks/use-knowledge-upload'
 import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowledge-base-loading'
+import { UploadModal } from './components/upload-modal/upload-modal'
 
 const logger = createLogger('KnowledgeBase')
+
+// Constants
+const DOCUMENTS_PER_PAGE = 50
 
 interface KnowledgeBaseProps {
   id: string
@@ -115,10 +119,25 @@ export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
 }: KnowledgeBaseProps) {
-  const { mode, isExpanded } = useSidebarStore()
   const { removeKnowledgeBase } = useKnowledgeStore()
   const params = useParams()
   const workspaceId = params.workspaceId as string
+
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Memoize the search query setter to prevent unnecessary re-renders
+  const handleSearchChange = useCallback((newQuery: string) => {
+    setSearchQuery(newQuery)
+    setCurrentPage(1) // Reset to page 1 when searching
+  }, [])
+
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isBulkOperating, setIsBulkOperating] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+
   const {
     knowledgeBase,
     isLoading: isLoadingKnowledgeBase,
@@ -126,51 +145,48 @@ export function KnowledgeBase({
   } = useKnowledgeBase(id)
   const {
     documents,
+    pagination,
     isLoading: isLoadingDocuments,
     error: documentsError,
     updateDocument,
     refreshDocuments,
-  } = useKnowledgeBaseDocuments(id)
-
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
-
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isBulkOperating, setIsBulkOperating] = useState(false)
-
-  const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
-    onUploadComplete: async (uploadedFiles) => {
-      const pendingDocuments: DocumentData[] = uploadedFiles.map((file, index) => ({
-        id: `temp-${Date.now()}-${index}`,
-        knowledgeBaseId: id,
-        filename: file.filename,
-        fileUrl: file.fileUrl,
-        fileSize: file.fileSize,
-        mimeType: file.mimeType,
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-        processingStatus: 'pending' as const,
-        processingStartedAt: null,
-        processingCompletedAt: null,
-        processingError: null,
-        enabled: true,
-        uploadedAt: new Date().toISOString(),
-      }))
-
-      useKnowledgeStore.getState().addPendingDocuments(id, pendingDocuments)
-
-      await refreshDocuments()
-    },
+  } = useKnowledgeBaseDocuments(id, {
+    search: searchQuery || undefined,
+    limit: DOCUMENTS_PER_PAGE,
+    offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
   })
+
   const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
   const error = knowledgeBaseError || documentsError
+
+  // Pagination calculations
+  const totalPages = Math.ceil(pagination.total / pagination.limit)
+  const hasNextPage = currentPage < totalPages
+  const hasPrevPage = currentPage > 1
+
+  // Navigation functions
+  const goToPage = useCallback(
+    (page: number) => {
+      if (page >= 1 && page <= totalPages) {
+        setCurrentPage(page)
+      }
+    },
+    [totalPages]
+  )
+
+  const nextPage = useCallback(() => {
+    if (hasNextPage) {
+      setCurrentPage((prev) => prev + 1)
+    }
+  }, [hasNextPage])
+
+  const prevPage = useCallback(() => {
+    if (hasPrevPage) {
+      setCurrentPage((prev) => prev - 1)
+    }
+  }, [hasPrevPage])
 
   // Auto-refresh documents when there are processing documents
   useEffect(() => {
@@ -183,7 +199,7 @@ export function KnowledgeBase({
     const refreshInterval = setInterval(async () => {
       try {
         // Only refresh if we're not in the middle of other operations
-        if (!isUploading && !isDeleting) {
+        if (!isDeleting) {
           // Check for dead processes before refreshing
           await checkForDeadProcesses()
           await refreshDocuments()
@@ -194,7 +210,7 @@ export function KnowledgeBase({
     }, 3000) // Refresh every 3 seconds
 
     return () => clearInterval(refreshInterval)
-  }, [documents, refreshDocuments, isUploading, isDeleting])
+  }, [documents, refreshDocuments, isDeleting])
 
   // Check for documents stuck in processing due to dead processes
   const checkForDeadProcesses = async () => {
@@ -246,20 +262,8 @@ export function KnowledgeBase({
     await Promise.allSettled(markFailedPromises)
   }
 
-  // Auto-dismiss upload error after 8 seconds
-  useEffect(() => {
-    if (uploadError) {
-      const timer = setTimeout(() => {
-        clearError()
-      }, 8000)
-      return () => clearTimeout(timer)
-    }
-  }, [uploadError, clearError])
-
-  // Filter documents based on search query
-  const filteredDocuments = documents.filter((doc) =>
-    doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  // Calculate pagination info for display
+  const totalItems = pagination?.total || 0
 
   const handleToggleEnabled = async (docId: string) => {
     const document = documents.find((doc) => doc.id === docId)
@@ -402,14 +406,13 @@ export function KnowledgeBase({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedDocuments(new Set(filteredDocuments.map((doc) => doc.id)))
+      setSelectedDocuments(new Set(documents.map((doc) => doc.id)))
     } else {
       setSelectedDocuments(new Set())
     }
   }
 
-  const isAllSelected =
-    filteredDocuments.length > 0 && selectedDocuments.size === filteredDocuments.length
+  const isAllSelected = documents.length > 0 && selectedDocuments.size === documents.length
 
   const handleDocumentClick = (docId: string) => {
     // Find the document to get its filename
@@ -451,30 +454,7 @@ export function KnowledgeBase({
   }
 
   const handleAddDocuments = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
-    try {
-      const chunkingConfig = knowledgeBase?.chunkingConfig
-      await uploadFiles(Array.from(files), id, {
-        chunkSize: chunkingConfig?.maxSize || 1024,
-        minCharactersPerChunk: chunkingConfig?.minSize || 100,
-        chunkOverlap: chunkingConfig?.overlap || 200,
-        recipe: 'default',
-      })
-    } catch (error) {
-      logger.error('Error uploading files:', error)
-      // Error handling is managed by the upload hook
-    } finally {
-      // Reset the file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
+    setShowUploadModal(true)
   }
 
   const handleBulkEnable = async () => {
@@ -646,9 +626,7 @@ export function KnowledgeBase({
     ]
 
     return (
-      <div
-        className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-      >
+      <div className='flex h-[100vh] flex-col pl-64'>
         <KnowledgeHeader breadcrumbs={errorBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center'>
           <div className='text-center'>
@@ -666,9 +644,7 @@ export function KnowledgeBase({
   }
 
   return (
-    <div
-      className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-    >
+    <div className='flex h-[100vh] flex-col pl-64'>
       {/* Fixed Header with Breadcrumbs */}
       <KnowledgeHeader
         breadcrumbs={breadcrumbs}
@@ -680,38 +656,35 @@ export function KnowledgeBase({
           {/* Main Content */}
           <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
-              {/* Hidden file input for document upload */}
-              <input
-                ref={fileInputRef}
-                type='file'
-                accept='.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx'
-                onChange={handleFileUpload}
-                className='hidden'
-                multiple
-              />
+              {/* Search and Filters Section */}
+              <div className='mb-4 space-y-3 pt-1'>
+                <div className='flex items-center justify-between'>
+                  <SearchInput
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    placeholder='Search documents...'
+                  />
 
-              {/* Search and Create Section */}
-              <div className='mb-4 flex items-center justify-between pt-1'>
-                <SearchInput
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  placeholder='Search documents...'
-                />
+                  <div className='flex items-center gap-3'>
+                    {/* Clear Search Button */}
+                    {searchQuery && (
+                      <button
+                        onClick={() => {
+                          setSearchQuery('')
+                          setCurrentPage(1)
+                        }}
+                        className='text-muted-foreground text-sm hover:text-foreground'
+                      >
+                        Clear search
+                      </button>
+                    )}
 
-                <div className='flex items-center gap-3'>
-                  {/* Add Documents Button */}
-                  <PrimaryButton onClick={handleAddDocuments} disabled={isUploading}>
-                    <Plus className='h-3.5 w-3.5' />
-                    {isUploading
-                      ? uploadProgress.stage === 'uploading'
-                        ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
-                        : uploadProgress.stage === 'processing'
-                          ? 'Processing...'
-                          : uploadProgress.stage === 'completing'
-                            ? 'Completing...'
-                            : 'Uploading...'
-                      : 'Add Documents'}
-                  </PrimaryButton>
+                    {/* Add Documents Button */}
+                    <PrimaryButton onClick={handleAddDocuments}>
+                      <Plus className='h-3.5 w-3.5' />
+                      Add Documents
+                    </PrimaryButton>
+                  </div>
                 </div>
               </div>
 
@@ -729,11 +702,11 @@ export function KnowledgeBase({
                   <table className='w-full min-w-[700px] table-fixed'>
                     <colgroup>
                       <col className='w-[4%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[22%]' : 'w-[24%]'}`} />
+                      <col className='w-[24%]' />
                       <col className='w-[8%]' />
                       <col className='w-[8%]' />
                       <col className='hidden w-[8%] lg:table-column' />
-                      <col className={`${isSidebarCollapsed ? 'w-[18%]' : 'w-[16%]'}`} />
+                      <col className='w-[16%]' />
                       <col className='w-[12%]' />
                       <col className='w-[14%]' />
                     </colgroup>
@@ -782,16 +755,16 @@ export function KnowledgeBase({
                   <table className='w-full min-w-[700px] table-fixed'>
                     <colgroup>
                       <col className='w-[4%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[22%]' : 'w-[24%]'}`} />
+                      <col className='w-[24%]' />
                       <col className='w-[8%]' />
                       <col className='w-[8%]' />
                       <col className='hidden w-[8%] lg:table-column' />
-                      <col className={`${isSidebarCollapsed ? 'w-[18%]' : 'w-[16%]'}`} />
+                      <col className='w-[16%]' />
                       <col className='w-[12%]' />
                       <col className='w-[14%]' />
                     </colgroup>
                     <tbody>
-                      {filteredDocuments.length === 0 && !isLoadingDocuments ? (
+                      {documents.length === 0 && !isLoadingDocuments ? (
                         <tr className='border-b transition-colors hover:bg-accent/30'>
                           {/* Select column */}
                           <td className='px-4 py-3'>
@@ -803,7 +776,7 @@ export function KnowledgeBase({
                             <div className='flex items-center gap-2'>
                               <FileText className='h-6 w-5 text-muted-foreground' />
                               <span className='text-muted-foreground text-sm italic'>
-                                {documents.length === 0
+                                {totalItems === 0
                                   ? 'No documents yet'
                                   : 'No documents match your search'}
                               </span>
@@ -870,7 +843,7 @@ export function KnowledgeBase({
                           </tr>
                         ))
                       ) : (
-                        filteredDocuments.map((doc) => {
+                        documents.map((doc) => {
                           const isSelected = selectedDocuments.has(doc.id)
                           const statusDisplay = getStatusDisplay(doc)
                           // const processingTime = getProcessingTime(doc)
@@ -911,7 +884,10 @@ export function KnowledgeBase({
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className='block truncate text-sm' title={doc.filename}>
-                                        {doc.filename}
+                                        <SearchHighlight
+                                          text={doc.filename}
+                                          searchQuery={searchQuery}
+                                        />
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent side='top'>{doc.filename}</TooltipContent>
@@ -1075,6 +1051,64 @@ export function KnowledgeBase({
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
+                    <div className='flex items-center gap-1'>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={prevPage}
+                        disabled={!hasPrevPage || isLoadingDocuments}
+                        className='h-8 w-8 p-0'
+                      >
+                        <ChevronLeft className='h-4 w-4' />
+                      </Button>
+
+                      {/* Page numbers - show a few around current page */}
+                      <div className='mx-4 flex items-center gap-6'>
+                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                          let page: number
+                          if (totalPages <= 5) {
+                            page = i + 1
+                          } else if (currentPage <= 3) {
+                            page = i + 1
+                          } else if (currentPage >= totalPages - 2) {
+                            page = totalPages - 4 + i
+                          } else {
+                            page = currentPage - 2 + i
+                          }
+
+                          if (page < 1 || page > totalPages) return null
+
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => goToPage(page)}
+                              disabled={isLoadingDocuments}
+                              className={`font-medium text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 ${
+                                page === currentPage ? 'text-foreground' : 'text-muted-foreground'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={nextPage}
+                        disabled={!hasNextPage || isLoadingDocuments}
+                        className='h-8 w-8 p-0'
+                      >
+                        <ChevronRight className='h-4 w-4' />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1088,8 +1122,8 @@ export function KnowledgeBase({
             <AlertDialogTitle>Delete Knowledge Base</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{knowledgeBaseName}"? This will permanently delete
-              the knowledge base and all {documents.length} document
-              {documents.length === 1 ? '' : 's'} within it. This action cannot be undone.
+              the knowledge base and all {totalItems} document
+              {totalItems === 1 ? '' : 's'} within it. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1105,38 +1139,14 @@ export function KnowledgeBase({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Toast Notification */}
-      {uploadError && (
-        <div className='slide-in-from-bottom-2 fixed right-4 bottom-4 z-50 max-w-md animate-in duration-300'>
-          <div className='flex cursor-pointer items-start gap-3 rounded-lg border bg-background p-4 shadow-lg'>
-            <div className='flex-shrink-0'>
-              <AlertCircle className='h-4 w-4 text-destructive' />
-            </div>
-            <div className='flex min-w-0 flex-1 flex-col gap-1'>
-              <div className='flex items-center gap-2'>
-                <span className='font-medium text-xs'>Error</span>
-                <span className='text-muted-foreground text-xs'>
-                  {formatDistanceToNow(uploadError.timestamp, { addSuffix: true }).replace(
-                    'less than a minute ago',
-                    '<1 minute ago'
-                  )}
-                </span>
-              </div>
-              <p className='overflow-wrap-anywhere hyphens-auto whitespace-normal break-normal text-foreground text-sm'>
-                {uploadError.message.length > 100
-                  ? `${uploadError.message.slice(0, 60)}...`
-                  : uploadError.message}
-              </p>
-            </div>
-            <button
-              onClick={() => clearError()}
-              className='flex-shrink-0 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring'
-            >
-              <X className='h-4 w-4' />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Upload Modal */}
+      <UploadModal
+        open={showUploadModal}
+        onOpenChange={setShowUploadModal}
+        knowledgeBaseId={id}
+        chunkingConfig={knowledgeBase?.chunkingConfig}
+        onUploadComplete={refreshDocuments}
+      />
 
       {/* Bulk Action Bar */}
       <ActionBar

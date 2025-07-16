@@ -10,7 +10,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
     'Linkup Search allows you to search and retrieve up-to-date information from the web with source attribution.',
   docsLink: 'https://docs.simstudio.ai/tools/linkup',
   category: 'tools',
-  bgColor: '#EAEADC',
+  bgColor: '#D6D3C7',
   icon: LinkupIcon,
 
   subBlocks: [

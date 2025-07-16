@@ -5,7 +5,7 @@
  * It is separate from the user-facing logging system in logging.ts.
  */
 import chalk from 'chalk'
-import { env } from '../env'
+import { env } from '@/lib/env'
 
 /**
  * LogLevel enum defines the severity levels for logging
@@ -44,8 +44,8 @@ const LOG_CONFIG = {
     colorize: true,
   },
   production: {
-    enabled: true,
-    minLevel: LogLevel.INFO, // Only show INFO and above in production
+    enabled: false, // Disable all console logs in production
+    minLevel: LogLevel.ERROR,
     colorize: false,
   },
   test: {

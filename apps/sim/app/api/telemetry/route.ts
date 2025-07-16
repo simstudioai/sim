@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/env'
+import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('TelemetryAPI')
@@ -101,7 +102,7 @@ async function forwardToCollector(data: any): Promise<boolean> {
       },
       {
         key: 'deployment.environment',
-        value: { stringValue: env.NODE_ENV || 'production' },
+        value: { stringValue: isProd ? 'production' : 'development' },
       },
     ]
 

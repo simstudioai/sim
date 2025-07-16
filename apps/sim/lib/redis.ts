@@ -1,6 +1,6 @@
 import Redis from 'ioredis'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from './env'
 
 const logger = createLogger('Redis')
 

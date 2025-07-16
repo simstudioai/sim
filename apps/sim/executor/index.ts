@@ -84,6 +84,7 @@ export class Executor {
             selectedOutputIds?: string[]
             edges?: Array<{ source: string; target: string }>
             onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+            executionId?: string
           }
         },
     private initialBlockStates: Record<string, BlockOutput> = {},
@@ -1346,6 +1347,7 @@ export class Executor {
         // For streaming blocks, we'll add the console entry after stream processing
         if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
           addConsole({
+            input: blockLog.input,
             output: blockLog.output,
             success: true,
             durationMs: blockLog.durationMs,
@@ -1353,6 +1355,7 @@ export class Executor {
             endedAt: blockLog.endedAt,
             workflowId: context.workflowId,
             blockId: parallelInfo ? blockId : block.id,
+            executionId: this.contextExtensions.executionId,
             blockName: parallelInfo
               ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
                   parallelInfo.iterationIndex + 1
@@ -1414,6 +1417,7 @@ export class Executor {
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
         addConsole({
+          input: blockLog.input,
           output: blockLog.output,
           success: true,
           durationMs: blockLog.durationMs,
@@ -1421,6 +1425,7 @@ export class Executor {
           endedAt: blockLog.endedAt,
           workflowId: context.workflowId,
           blockId: parallelInfo ? blockId : block.id,
+          executionId: this.contextExtensions.executionId,
           blockName: parallelInfo
             ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${
                 parallelInfo.iterationIndex + 1
@@ -1480,6 +1485,7 @@ export class Executor {
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
         addConsole({
+          input: blockLog.input,
           output: {},
           success: false,
           error:
@@ -1490,6 +1496,7 @@ export class Executor {
           endedAt: blockLog.endedAt,
           workflowId: context.workflowId,
           blockId: parallelInfo ? blockId : block.id,
+          executionId: this.contextExtensions.executionId,
           blockName: parallelInfo
             ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1})`
             : block.metadata?.name || 'Unnamed Block',

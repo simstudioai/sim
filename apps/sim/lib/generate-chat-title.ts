@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { env } from './env'
+import { env } from '@/lib/env'
 
 /**
  * Generates a short title for a chat based on the first message

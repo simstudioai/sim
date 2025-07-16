@@ -11,22 +11,25 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     owner: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Repository owner (user or organization)',
     },
     repo: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Repository name',
     },
     branch: {
       type: 'string',
       required: false,
+      visibility: 'user-or-llm',
       description: "Branch name (defaults to the repository's default branch)",
     },
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'GitHub API token',
     },
   },

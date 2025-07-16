@@ -315,7 +315,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   return (
     <div className='flex h-full flex-col'>
       {/* Output Source Dropdown */}
-      <div className='flex-none border-b px-4 py-2'>
+      <div className='flex-none py-2'>
         <OutputSelect
           workflowId={activeWorkflowId}
           selectedOutputs={selectedOutputs}
@@ -329,38 +329,38 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
       <div className='flex flex-1 flex-col overflow-hidden'>
         {/* Chat messages section - Scrollable area */}
         <div className='flex-1 overflow-hidden'>
-          <ScrollArea className='h-full'>
-            <div>
-              {workflowMessages.length === 0 ? (
-                <div className='flex h-32 items-center justify-center text-muted-foreground text-sm'>
-                  No messages yet
-                </div>
-              ) : (
-                workflowMessages.map((message) => (
-                  <ChatMessage key={message.id} message={message} containerWidth={panelWidth} />
-                ))
-              )}
-              <div ref={messagesEndRef} />
+          {workflowMessages.length === 0 ? (
+            <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
+              No messages yet
             </div>
-          </ScrollArea>
+          ) : (
+            <ScrollArea className='h-full pb-2' hideScrollbar={true}>
+              <div>
+                {workflowMessages.map((message) => (
+                  <ChatMessage key={message.id} message={message} />
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+          )}
         </div>
 
         {/* Input section - Fixed height */}
-        <div className='-mt-[1px] relative flex-none border-t bg-background px-4 pt-4 pb-4'>
+        <div className='-mt-[1px] relative flex-nonept-3 pb-4'>
           <div className='flex gap-2'>
             <Input
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder='Type a message...'
-              className='h-10 flex-1 focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-9 flex-1 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground shadow-xs focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-[#414141] dark:bg-[#202020]'
               disabled={!activeWorkflowId || isExecuting}
             />
             <Button
               onClick={handleSendMessage}
               size='icon'
               disabled={!chatMessage.trim() || !activeWorkflowId || isExecuting}
-              className='h-10 w-10 bg-[#802FFF] text-white hover:bg-[#7028E6]'
+              className='h-9 w-9 rounded-lg bg-[#802FFF] text-white shadow-[0_0_0_0_#802FFF] transition-all duration-200 hover:bg-[#7028E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
             >
               <ArrowUp className='h-4 w-4' />
             </Button>
