@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { SerializedBlock, SerializedConnection, SerializedWorkflow } from '@/serializer/types'
+import { RoutingStrategy } from './routing-strategy'
 import type { BlockState, ExecutionContext } from './types'
 
 const logger = createLogger('PathTracker')
@@ -79,14 +80,15 @@ export class PathTracker {
     const sourceBlock = this.getBlock(connection.source)
     if (!sourceBlock) return false
 
-    const blockType = sourceBlock.metadata?.id
+    const blockType = sourceBlock.metadata?.id || ''
+    const category = RoutingStrategy.getCategory(blockType)
 
-    // Use strategy pattern for different block types
-    switch (blockType) {
-      case 'router':
-        return this.isRouterConnectionActive(connection, context)
-      case 'condition':
-        return this.isConditionConnectionActive(connection, context)
+    // Use routing strategy to determine connection checking method
+    switch (category) {
+      case 'routing':
+        return blockType === 'router'
+          ? this.isRouterConnectionActive(connection, context)
+          : this.isConditionConnectionActive(connection, context)
       default:
         return this.isRegularConnectionActive(connection, context)
     }
@@ -137,17 +139,24 @@ export class PathTracker {
    * Update paths for a specific block based on its type
    */
   private updatePathForBlock(block: SerializedBlock, context: ExecutionContext): void {
-    const blockType = block.metadata?.id
+    const blockType = block.metadata?.id || ''
+    const category = RoutingStrategy.getCategory(blockType)
 
-    switch (blockType) {
-      case 'router':
-        this.updateRouterPaths(block, context)
+    switch (category) {
+      case 'routing':
+        if (blockType === 'router') {
+          this.updateRouterPaths(block, context)
+        } else {
+          this.updateConditionPaths(block, context)
+        }
         break
-      case 'condition':
-        this.updateConditionPaths(block, context)
-        break
-      case 'loop':
-        this.updateLoopPaths(block, context)
+      case 'flow-control':
+        if (blockType === 'loop') {
+          this.updateLoopPaths(block, context)
+        } else {
+          // For parallel blocks, they're handled by their own handler
+          this.updateRegularBlockPaths(block, context)
+        }
         break
       default:
         this.updateRegularBlockPaths(block, context)
@@ -166,13 +175,15 @@ export class PathTracker {
       context.decisions.router.set(block.id, selectedPath)
       context.activeExecutionPath.add(selectedPath)
 
-      // Check if the selected target is itself a routing block
+      // Check if the selected target should activate downstream paths
       const selectedBlock = this.getBlock(selectedPath)
-      const selectedBlockType = selectedBlock?.metadata?.id
+      const selectedBlockType = selectedBlock?.metadata?.id || ''
+      const selectedCategory = RoutingStrategy.getCategory(selectedBlockType)
 
-      // Only activate downstream paths if the selected target is NOT a routing block
-      // This prevents parallel/loop blocks from being activated when they're not selected by subsequent routing
-      if (selectedBlockType !== 'router' && selectedBlockType !== 'condition') {
+      // Only activate downstream paths for regular blocks
+      // Routing blocks make their own routing decisions when they execute
+      // Flow control blocks manage their own path activation
+      if (selectedCategory === 'regular') {
         this.activateDownstreamPathsSelectively(selectedPath, context)
       }
 
@@ -181,23 +192,8 @@ export class PathTracker {
   }
 
   /**
-   * Recursively activate downstream paths from a block
-   */
-  private activateDownstreamPaths(blockId: string, context: ExecutionContext): void {
-    const outgoingConnections = this.getOutgoingConnections(blockId)
-
-    for (const conn of outgoingConnections) {
-      if (!context.activeExecutionPath.has(conn.target)) {
-        context.activeExecutionPath.add(conn.target)
-
-        this.activateDownstreamPaths(conn.target, context)
-      }
-    }
-  }
-
-  /**
-   * Selectively activate downstream paths, excluding parallel and loop blocks
-   * This prevents parallel/loop blocks from being activated when they should be controlled by routing
+   * Selectively activate downstream paths, respecting block routing behavior
+   * This prevents flow control blocks from being activated when they should be controlled by routing
    */
   private activateDownstreamPathsSelectively(blockId: string, context: ExecutionContext): void {
     const outgoingConnections = this.getOutgoingConnections(blockId)
@@ -207,50 +203,13 @@ export class PathTracker {
         const targetBlock = this.getBlock(conn.target)
         const targetBlockType = targetBlock?.metadata?.id
 
-        // Skip parallel and loop blocks - they should only be activated by explicit routing decisions
-        if (targetBlockType !== 'parallel' && targetBlockType !== 'loop') {
-          // Also skip parallel-specific and loop-specific connections
-          // These should only be activated when the parallel/loop block itself executes
-          if (
-            conn.sourceHandle !== 'parallel-start-source' &&
-            conn.sourceHandle !== 'parallel-end-source' &&
-            conn.sourceHandle !== 'loop-start-source' &&
-            conn.sourceHandle !== 'loop-end-source'
-          ) {
-            context.activeExecutionPath.add(conn.target)
+        // Use routing strategy to determine if this connection should be activated
+        if (!RoutingStrategy.shouldSkipConnection(conn.sourceHandle, targetBlockType || '')) {
+          context.activeExecutionPath.add(conn.target)
 
-            // Don't recursively activate downstream paths from routing blocks
-            // They should make their own routing decisions when they execute
-            if (targetBlockType !== 'router' && targetBlockType !== 'condition') {
-              this.activateDownstreamPathsSelectively(conn.target, context)
-            }
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Activate only immediate downstream blocks that are not routing blocks
-   * This prevents recursive activation that bypasses routing decisions
-   */
-  private activateImmediateDownstreamPaths(blockId: string, context: ExecutionContext): void {
-    const outgoingConnections = this.getOutgoingConnections(blockId)
-
-    for (const conn of outgoingConnections) {
-      if (!context.activeExecutionPath.has(conn.target)) {
-        const targetBlock = this.getBlock(conn.target)
-        if (targetBlock) {
-          const targetBlockType = targetBlock.metadata?.id
-
-          // Only activate non-routing blocks immediately
-          // Router and condition blocks will activate their own paths when they execute
-          if (targetBlockType !== 'router' && targetBlockType !== 'condition') {
-            context.activeExecutionPath.add(conn.target)
-            // Don't recursively activate - let each block handle its own downstream activation
-          } else {
-            // For routing blocks, just add them to active path but don't activate their downstream
-            context.activeExecutionPath.add(conn.target)
+          // Recursively activate downstream paths if the target block should activate downstream
+          if (RoutingStrategy.shouldActivateDownstream(targetBlockType || '')) {
+            this.activateDownstreamPathsSelectively(conn.target, context)
           }
         }
       }
@@ -311,19 +270,8 @@ export class PathTracker {
         const targetBlock = this.getBlock(conn.target)
         const targetBlockType = targetBlock?.metadata?.id
 
-        // Apply selective activation logic for parallel and loop blocks
-        if (targetBlockType === 'parallel' || targetBlockType === 'loop') {
-          // Skip parallel and loop blocks - they should only be activated by explicit routing decisions
-          continue
-        }
-
-        // Also skip parallel-specific and loop-specific connections
-        if (
-          conn.sourceHandle === 'parallel-start-source' ||
-          conn.sourceHandle === 'parallel-end-source' ||
-          conn.sourceHandle === 'loop-start-source' ||
-          conn.sourceHandle === 'loop-end-source'
-        ) {
+        // Use routing strategy to determine if this connection should be activated
+        if (RoutingStrategy.shouldSkipConnection(conn.sourceHandle, targetBlockType || '')) {
           continue
         }
 

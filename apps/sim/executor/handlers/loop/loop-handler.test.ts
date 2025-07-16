@@ -1,3 +1,4 @@
+import { vi } from 'vitest'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ExecutionContext } from '../../types'
 import { LoopBlockHandler } from './loop-handler'
@@ -6,6 +7,10 @@ describe('LoopBlockHandler', () => {
   let handler: LoopBlockHandler
   let mockContext: ExecutionContext
   let mockBlock: SerializedBlock
+
+  const mockPathTracker = {
+    isInActivePath: vi.fn(),
+  }
 
   beforeEach(() => {
     handler = new LoopBlockHandler()
@@ -210,6 +215,48 @@ describe('LoopBlockHandler', () => {
       await expect(handler.execute(mockBlock, {}, mockContext)).rejects.toThrow(
         'forEach loop "loop-1" collection is empty or invalid'
       )
+    })
+  })
+
+  describe('PathTracker integration', () => {
+    it('should activate children when in active path', async () => {
+      const handlerWithPathTracker = new LoopBlockHandler(undefined, mockPathTracker as any)
+
+      // Mock PathTracker to return true (block is in active path)
+      mockPathTracker.isInActivePath.mockReturnValue(true)
+
+      await handlerWithPathTracker.execute(mockBlock, {}, mockContext)
+
+      // Should activate children when in active path
+      expect(mockContext.activeExecutionPath.has('inner-block')).toBe(true)
+      expect(mockPathTracker.isInActivePath).toHaveBeenCalledWith('loop-1', mockContext)
+    })
+
+    it('should not activate children when not in active path', async () => {
+      const handlerWithPathTracker = new LoopBlockHandler(undefined, mockPathTracker as any)
+
+      // Mock PathTracker to return false (block is not in active path)
+      mockPathTracker.isInActivePath.mockReturnValue(false)
+
+      await handlerWithPathTracker.execute(mockBlock, {}, mockContext)
+
+      // Should not activate children when not in active path
+      expect(mockContext.activeExecutionPath.has('inner-block')).toBe(false)
+      expect(mockPathTracker.isInActivePath).toHaveBeenCalledWith('loop-1', mockContext)
+    })
+
+    it('should handle PathTracker errors gracefully', async () => {
+      const handlerWithPathTracker = new LoopBlockHandler(undefined, mockPathTracker as any)
+
+      // Mock PathTracker to throw error
+      mockPathTracker.isInActivePath.mockImplementation(() => {
+        throw new Error('PathTracker error')
+      })
+
+      await handlerWithPathTracker.execute(mockBlock, {}, mockContext)
+
+      // Should default to activating children when PathTracker fails
+      expect(mockContext.activeExecutionPath.has('inner-block')).toBe(true)
     })
   })
 })

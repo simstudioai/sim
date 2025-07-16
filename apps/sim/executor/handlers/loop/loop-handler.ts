@@ -3,6 +3,7 @@ import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
 import type { PathTracker } from '../../path'
 import type { InputResolver } from '../../resolver'
+import { RoutingStrategy } from '../../routing-strategy'
 import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('LoopBlockHandler')
@@ -130,34 +131,31 @@ export class LoopBlockHandler implements BlockHandler {
       `Loop ${block.id} - Incremented counter for next iteration: ${currentIteration + 1}`
     )
 
-    // Check if this loop block is in the active execution path
-    let isInActivePath = true
-    if (this.pathTracker) {
-      try {
-        isInActivePath = this.pathTracker.isInActivePath(block.id, context)
-      } catch (error) {
-        logger.warn(`PathTracker check failed for loop block ${block.id}:`, error)
-        // Default to true to maintain existing behavior if PathTracker fails
-        isInActivePath = true
+    // Use routing strategy to determine if this block requires active path checking
+    const blockType = block.metadata?.id
+    if (RoutingStrategy.requiresActivePathCheck(blockType || '')) {
+      let isInActivePath = true
+      if (this.pathTracker) {
+        try {
+          isInActivePath = this.pathTracker.isInActivePath(block.id, context)
+        } catch (error) {
+          logger.warn(`PathTracker check failed for ${blockType} block ${block.id}:`, error)
+          // Default to true to maintain existing behavior if PathTracker fails
+          isInActivePath = true
+        }
       }
-    }
 
-    // Only activate child nodes if this loop block is in the active execution path
-    if (isInActivePath) {
-      // Loop is still active, activate the loop-start-source connection
-      const loopStartConnections =
-        context.workflow?.connections.filter(
-          (conn) => conn.source === block.id && conn.sourceHandle === 'loop-start-source'
-        ) || []
-
-      for (const conn of loopStartConnections) {
-        context.activeExecutionPath.add(conn.target)
-        logger.info(`Activated loop start path to ${conn.target} for iteration ${currentIteration}`)
+      // Only activate child nodes if this block is in the active execution path
+      if (isInActivePath) {
+        this.activateChildNodes(block, context, currentIteration)
+      } else {
+        logger.info(
+          `${blockType} block ${block.id} is not in active execution path, skipping child activation`
+        )
       }
     } else {
-      logger.info(
-        `Loop block ${block.id} is not in active execution path, skipping child activation`
-      )
+      // Regular blocks always activate their children
+      this.activateChildNodes(block, context, currentIteration)
     }
 
     return {
@@ -168,6 +166,26 @@ export class LoopBlockHandler implements BlockHandler {
       completed: false,
       message: `Starting iteration ${currentIteration + 1} of ${maxIterations}`,
     } as Record<string, any>
+  }
+
+  /**
+   * Activate child nodes for loop execution
+   */
+  private activateChildNodes(
+    block: SerializedBlock,
+    context: ExecutionContext,
+    currentIteration: number
+  ): void {
+    // Loop is still active, activate the loop-start-source connection
+    const loopStartConnections =
+      context.workflow?.connections.filter(
+        (conn) => conn.source === block.id && conn.sourceHandle === 'loop-start-source'
+      ) || []
+
+    for (const conn of loopStartConnections) {
+      context.activeExecutionPath.add(conn.target)
+      logger.info(`Activated loop start path to ${conn.target} for iteration ${currentIteration}`)
+    }
   }
 
   /**
