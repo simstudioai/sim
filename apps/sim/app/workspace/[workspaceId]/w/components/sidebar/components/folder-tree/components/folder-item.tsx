@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
@@ -48,14 +49,33 @@ export function FolderItem({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(folder.name)
+  const [isRenaming, setIsRenaming] = useState(false)
   const dragStartedRef = useRef(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const isExpanded = expandedFolders.has(folder.id)
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pendingStateRef = useRef<boolean | null>(null)
 
+  // Update editValue when folder name changes
+  useEffect(() => {
+    setEditValue(folder.name)
+  }, [folder.name])
+
+  // Focus input when entering edit mode
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
   const handleToggleExpanded = useCallback(() => {
+    if (isEditing) return // Don't toggle when editing
+
     const newExpandedState = !isExpanded
     toggleExpanded(folder.id)
     pendingStateRef.current = newExpandedState
@@ -73,9 +93,11 @@ export function FolderItem({
           })
       }
     }, 300)
-  }, [folder.id, isExpanded, toggleExpanded, updateFolderAPI])
+  }, [folder.id, isExpanded, toggleExpanded, updateFolderAPI, isEditing])
 
   const handleDragStart = (e: React.DragEvent) => {
+    if (isEditing) return
+
     dragStartedRef.current = true
     setIsDragging(true)
 
@@ -101,7 +123,7 @@ export function FolderItem({
   }
 
   const handleClick = (e: React.MouseEvent) => {
-    if (dragStartedRef.current) {
+    if (dragStartedRef.current || isEditing) {
       e.preventDefault()
       return
     }
@@ -116,15 +138,57 @@ export function FolderItem({
     }
   }, [])
 
-  const handleRename = async (folderId: string, newName: string) => {
+  const handleStartEdit = () => {
+    setIsEditing(true)
+    setEditValue(folder.name)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editValue.trim() || editValue.trim() === folder.name) {
+      setIsEditing(false)
+      setEditValue(folder.name)
+      return
+    }
+
+    setIsRenaming(true)
     try {
-      await updateFolderAPI(folderId, { name: newName })
+      await updateFolderAPI(folder.id, { name: editValue.trim() })
+      logger.info(`Successfully renamed folder from "${folder.name}" to "${editValue.trim()}"`)
+      setIsEditing(false)
     } catch (error) {
-      logger.error('Failed to rename folder:', { error })
+      logger.error('Failed to rename folder:', {
+        error,
+        folderId: folder.id,
+        oldName: folder.name,
+        newName: editValue.trim(),
+      })
+      // Reset to original name on error
+      setEditValue(folder.name)
+    } finally {
+      setIsRenaming(false)
     }
   }
 
-  const handleDelete = async (folderId: string) => {
+  const handleCancelEdit = () => {
+    setIsEditing(false)
+    setEditValue(folder.name)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSaveEdit()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancelEdit()
+    }
+  }
+
+  const handleInputBlur = () => {
+    handleSaveEdit()
+  }
+
+  const handleDelete = async () => {
     setShowDeleteDialog(true)
   }
 
@@ -154,7 +218,7 @@ export function FolderItem({
               onDragLeave={onDragLeave}
               onDrop={onDrop}
               onClick={handleClick}
-              draggable={true}
+              draggable={!isEditing}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
@@ -222,7 +286,7 @@ export function FolderItem({
             maxWidth: isFirstItem ? `${164 - level * 20}px` : `${206 - level * 20}px`,
           }}
           onClick={handleClick}
-          draggable={true}
+          draggable={!isEditing}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
@@ -234,18 +298,34 @@ export function FolderItem({
             )}
           </div>
 
-          <span className='flex-1 select-none truncate text-muted-foreground'>{folder.name}</span>
-
-          <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
-            <FolderContextMenu
-              folderId={folder.id}
-              folderName={folder.name}
-              onCreateWorkflow={onCreateWorkflow}
-              onRename={handleRename}
-              onDelete={handleDelete}
-              level={level}
+          {isEditing ? (
+            <Input
+              ref={inputRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleInputBlur}
+              className='h-6 flex-1 border-0 bg-transparent p-0 text-muted-foreground text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              maxLength={50}
+              disabled={isRenaming}
+              onClick={(e) => e.stopPropagation()} // Prevent folder toggle when clicking input
             />
-          </div>
+          ) : (
+            <span className='flex-1 select-none truncate text-muted-foreground'>{folder.name}</span>
+          )}
+
+          {!isEditing && (
+            <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
+              <FolderContextMenu
+                folderId={folder.id}
+                folderName={folder.name}
+                onCreateWorkflow={onCreateWorkflow}
+                onDelete={handleDelete}
+                onStartEdit={handleStartEdit}
+                level={level}
+              />
+            </div>
+          )}
         </div>
       </div>
 
