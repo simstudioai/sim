@@ -3,12 +3,11 @@ import { Executor } from '@/executor'
 import { BlockType } from '@/executor/consts'
 import type { SerializedWorkflow } from '@/serializer/types'
 
-describe('Debug Production Issue - Full Executor Test', () => {
+describe('Full Executor Test', () => {
   let workflow: SerializedWorkflow
   let executor: Executor
 
   beforeEach(() => {
-    // Exact production workflow structure
     workflow = {
       version: '2.0',
       blocks: [

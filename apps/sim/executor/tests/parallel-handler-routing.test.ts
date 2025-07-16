@@ -162,9 +162,7 @@ describe('Parallel Handler Integration with PathTracker', () => {
     expect(mockContext.activeExecutionPath.has('agent-2')).toBe(true)
   })
 
-  it('should test the exact scenario from production', async () => {
-    // Simulate the exact production scenario
-
+  it('should test the routing failure scenario with parallel block', async () => {
     // Step 1: Condition 1 selects Function 2 (if path)
     mockContext.blockStates.set('condition-1', {
       output: {

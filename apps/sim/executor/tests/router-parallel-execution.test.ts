@@ -4,13 +4,12 @@ import { PathTracker } from '@/executor/path/path'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
 
-describe('Production Bug Reproduction - Exact Scenario', () => {
+describe('Router and Condition Block Path Selection in Complex Workflows', () => {
   let workflow: SerializedWorkflow
   let pathTracker: PathTracker
   let mockContext: ExecutionContext
 
   beforeEach(() => {
-    // Recreate the exact workflow structure from production database
     workflow = {
       version: '2.0',
       blocks: [
@@ -180,7 +179,7 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
     mockContext.activeExecutionPath.add('f29a40b7-125a-45a7-a670-af14a1498f94') // Router 1
   })
 
-  it('should reproduce the exact production bug scenario', () => {
+  it('should reproduce the exact router and condition block path selection scenario', () => {
     // Step 1: Router 1 executes and selects Function 1 (not Parallel 1)
     mockContext.blockStates.set('f29a40b7-125a-45a7-a670-af14a1498f94', {
       output: {
