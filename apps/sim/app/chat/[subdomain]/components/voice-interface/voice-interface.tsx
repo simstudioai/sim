@@ -514,7 +514,7 @@ export function VoiceInterface({
   const getButtonContent = () => {
     if (state === 'agent_speaking') {
       return (
-        <svg className='w-6 h-6' viewBox='0 0 24 24' fill='currentColor'>
+        <svg className='h-6 w-6' viewBox='0 0 24 24' fill='currentColor'>
           <rect x='6' y='6' width='12' height='12' rx='2' />
         </svg>
       )
@@ -534,15 +534,15 @@ export function VoiceInterface({
             isPlayingAudio={state === 'agent_speaking'}
             isStreaming={isStreaming}
             isMuted={isMuted}
-            className='w-80 h-80 md:w-96 md:h-96'
+            className='h-80 w-80 md:h-96 md:w-96'
           />
         </div>
 
         {/* Live transcript - subtitle style */}
-        <div className='mb-16 h-24 flex items-center justify-center'>
+        <div className='mb-16 flex h-24 items-center justify-center'>
           {currentTranscript && (
             <div className='max-w-2xl px-8'>
-              <p className='text-xl text-gray-700 text-center leading-relaxed overflow-hidden'>
+              <p className='overflow-hidden text-center text-gray-700 text-xl leading-relaxed'>
                 {currentTranscript}
               </p>
             </div>
@@ -550,7 +550,7 @@ export function VoiceInterface({
         </div>
 
         {/* Status */}
-        <p className='text-lg text-gray-600 mb-8 text-center'>
+        <p className='mb-8 text-center text-gray-600 text-lg'>
           {getStatusText()}
           {isMuted && <span className='ml-2 text-gray-400 text-sm'>(Muted)</span>}
         </p>
