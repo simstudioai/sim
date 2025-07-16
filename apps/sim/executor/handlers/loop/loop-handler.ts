@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
+import type { PathTracker } from '../../path'
 import type { InputResolver } from '../../resolver'
 import type { BlockHandler, ExecutionContext } from '../../types'
 
@@ -13,7 +14,10 @@ const DEFAULT_MAX_ITERATIONS = 5
  * Loop blocks don't execute logic themselves but control the flow of blocks within them.
  */
 export class LoopBlockHandler implements BlockHandler {
-  constructor(private resolver?: InputResolver) {}
+  constructor(
+    private resolver?: InputResolver,
+    private pathTracker?: PathTracker
+  ) {}
 
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === 'loop'
@@ -126,15 +130,34 @@ export class LoopBlockHandler implements BlockHandler {
       `Loop ${block.id} - Incremented counter for next iteration: ${currentIteration + 1}`
     )
 
-    // Loop is still active, activate the loop-start-source connection
-    const loopStartConnections =
-      context.workflow?.connections.filter(
-        (conn) => conn.source === block.id && conn.sourceHandle === 'loop-start-source'
-      ) || []
+    // Check if this loop block is in the active execution path
+    let isInActivePath = true
+    if (this.pathTracker) {
+      try {
+        isInActivePath = this.pathTracker.isInActivePath(block.id, context)
+      } catch (error) {
+        logger.warn(`PathTracker check failed for loop block ${block.id}:`, error)
+        // Default to true to maintain existing behavior if PathTracker fails
+        isInActivePath = true
+      }
+    }
 
-    for (const conn of loopStartConnections) {
-      context.activeExecutionPath.add(conn.target)
-      logger.info(`Activated loop start path to ${conn.target} for iteration ${currentIteration}`)
+    // Only activate child nodes if this loop block is in the active execution path
+    if (isInActivePath) {
+      // Loop is still active, activate the loop-start-source connection
+      const loopStartConnections =
+        context.workflow?.connections.filter(
+          (conn) => conn.source === block.id && conn.sourceHandle === 'loop-start-source'
+        ) || []
+
+      for (const conn of loopStartConnections) {
+        context.activeExecutionPath.add(conn.target)
+        logger.info(`Activated loop start path to ${conn.target} for iteration ${currentIteration}`)
+      }
+    } else {
+      logger.info(
+        `Loop block ${block.id} is not in active execution path, skipping child activation`
+      )
     }
 
     return {

@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
+import type { PathTracker } from '../../path'
 import type { InputResolver } from '../../resolver'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
 
@@ -12,7 +13,10 @@ const logger = createLogger('ParallelBlockHandler')
  * create virtual instances for true parallel execution.
  */
 export class ParallelBlockHandler implements BlockHandler {
-  constructor(private resolver?: InputResolver) {}
+  constructor(
+    private resolver?: InputResolver,
+    private pathTracker?: PathTracker
+  ) {}
 
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === 'parallel'
@@ -185,15 +189,34 @@ export class ParallelBlockHandler implements BlockHandler {
       }
       // Note: For simple count-based parallels without distribution, we don't store items
 
-      // Activate all child nodes (the executor will handle creating virtual instances)
-      const parallelStartConnections =
-        context.workflow?.connections.filter(
-          (conn) => conn.source === block.id && conn.sourceHandle === 'parallel-start-source'
-        ) || []
+      // Check if this parallel block is in the active execution path
+      let isInActivePath = true
+      if (this.pathTracker) {
+        try {
+          isInActivePath = this.pathTracker.isInActivePath(block.id, context)
+        } catch (error) {
+          logger.warn(`PathTracker check failed for parallel block ${block.id}:`, error)
+          // Default to true to maintain existing behavior if PathTracker fails
+          isInActivePath = true
+        }
+      }
 
-      for (const conn of parallelStartConnections) {
-        context.activeExecutionPath.add(conn.target)
-        logger.info(`Activated parallel path to ${conn.target}`)
+      // Only activate child nodes if this parallel block is in the active execution path
+      if (isInActivePath) {
+        // Activate all child nodes (the executor will handle creating virtual instances)
+        const parallelStartConnections =
+          context.workflow?.connections.filter(
+            (conn) => conn.source === block.id && conn.sourceHandle === 'parallel-start-source'
+          ) || []
+
+        for (const conn of parallelStartConnections) {
+          context.activeExecutionPath.add(conn.target)
+          logger.info(`Activated parallel path to ${conn.target}`)
+        }
+      } else {
+        logger.info(
+          `Parallel block ${block.id} is not in active execution path, skipping child activation`
+        )
       }
 
       return {
