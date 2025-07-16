@@ -1,7 +1,48 @@
+import { Cron } from 'croner'
 import { createLogger } from '@/lib/logs/console-logger'
 import { formatDateTime } from '@/lib/utils'
 
 const logger = createLogger('ScheduleUtils')
+
+/**
+ * Validates a cron expression and returns validation results
+ * @param cronExpression - The cron expression to validate
+ * @returns Validation result with isValid flag, error message, and next run date
+ */
+export function validateCronExpression(cronExpression: string): {
+  isValid: boolean
+  error?: string
+  nextRun?: Date
+} {
+  if (!cronExpression?.trim()) {
+    return {
+      isValid: false,
+      error: 'Cron expression cannot be empty',
+    }
+  }
+
+  try {
+    const cron = new Cron(cronExpression)
+    const nextRun = cron.nextRun()
+
+    if (!nextRun) {
+      return {
+        isValid: false,
+        error: 'Cron expression produces no future occurrences',
+      }
+    }
+
+    return {
+      isValid: true,
+      nextRun,
+    }
+  } catch (error) {
+    return {
+      isValid: false,
+      error: error instanceof Error ? error.message : 'Invalid cron expression syntax',
+    }
+  }
+}
 
 export interface SubBlockValue {
   value: string
@@ -60,7 +101,7 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
   weeklyTime: [number, number]
   monthlyDay: number
   monthlyTime: [number, number]
-  cronExpression: string
+  cronExpression: string | null
   timezone: string
 } {
   // Extract schedule time (common field that can override others)
@@ -93,7 +134,15 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
   const monthlyDay = Number.parseInt(monthlyDayStr) || 1
   const monthlyTime = parseTimeString(getSubBlockValue(starterBlock, 'monthlyTime'))
 
-  const cronExpression = getSubBlockValue(starterBlock, 'cronExpression') || ''
+  const cronExpression = getSubBlockValue(starterBlock, 'cronExpression') || null
+
+  // Validate cron expression if provided
+  if (cronExpression) {
+    const validation = validateCronExpression(cronExpression)
+    if (!validation.isValid) {
+      throw new Error(`Invalid cron expression: ${validation.error}`)
+    }
+  }
 
   return {
     scheduleTime,
@@ -246,8 +295,8 @@ export function generateCronExpression(
     }
 
     case 'custom': {
-      if (!scheduleValues.cronExpression) {
-        throw new Error('No cron expression provided for custom schedule')
+      if (!scheduleValues.cronExpression?.trim()) {
+        throw new Error('Custom schedule requires a valid cron expression')
       }
       return scheduleValues.cronExpression
     }

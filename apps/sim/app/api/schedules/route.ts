@@ -10,6 +10,7 @@ import {
   generateCronExpression,
   getScheduleTimeValues,
   getSubBlockValue,
+  validateCronExpression,
 } from '@/lib/schedules/utils'
 import { db } from '@/db'
 import { workflowSchedule } from '@/db/schema'
@@ -191,6 +192,18 @@ export async function POST(req: NextRequest) {
       })
 
       cronExpression = generateCronExpression(defaultScheduleType, scheduleValues)
+
+      // Additional validation for custom cron expressions
+      if (defaultScheduleType === 'custom' && cronExpression) {
+        const validation = validateCronExpression(cronExpression)
+        if (!validation.isValid) {
+          logger.error(`[${requestId}] Invalid cron expression: ${validation.error}`)
+          return NextResponse.json(
+            { error: `Invalid cron expression: ${validation.error}` },
+            { status: 400 }
+          )
+        }
+      }
 
       nextRunAt = calculateNextRunTime(defaultScheduleType, scheduleValues)
 
