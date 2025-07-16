@@ -29,6 +29,7 @@ interface WorkspaceHeaderProps {
   onCreateWorkflow: () => void
   isWorkspaceSelectorVisible: boolean
   onToggleWorkspaceSelector: () => void
+  onToggleSidebar: () => void
   activeWorkspace: Workspace | null
   isWorkspacesLoading: boolean
   updateWorkspaceName: (workspaceId: string, newName: string) => Promise<boolean>
@@ -42,6 +43,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
     onCreateWorkflow,
     isWorkspaceSelectorVisible,
     onToggleWorkspaceSelector,
+    onToggleSidebar,
     activeWorkspace,
     isWorkspacesLoading,
     updateWorkspaceName,
@@ -82,12 +84,6 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
         editInputRef.current.select()
       }
     }, [isEditingName])
-
-    // Handle toggle sidebar
-    const handleToggleSidebar = useCallback(() => {
-      // This will be implemented when needed - placeholder for now
-      logger.info('Toggle sidebar clicked')
-    }, [])
 
     // Handle workspace name click
     const handleWorkspaceNameClick = useCallback(() => {
@@ -248,7 +244,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
               <Button
                 variant='ghost'
                 size='icon'
-                onClick={handleToggleSidebar}
+                onClick={onToggleSidebar}
                 className='h-6 w-6 text-muted-foreground hover:bg-secondary'
               >
                 <PanelLeft className='h-4 w-4' />

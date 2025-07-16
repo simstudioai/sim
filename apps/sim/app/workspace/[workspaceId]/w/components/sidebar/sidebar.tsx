@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { HelpCircle, LibraryBig, ScrollText, Settings, Shapes } from 'lucide-react'
+import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
@@ -67,6 +68,8 @@ export function Sidebar() {
 
   // Add state to prevent multiple simultaneous workflow creations
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
+  // Add sidebar collapsed state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
@@ -456,6 +459,15 @@ export function Sidebar() {
     setIsWorkspaceSelectorVisible((prev) => !prev)
   }
 
+  // Toggle sidebar collapsed state
+  const toggleSidebarCollapsed = () => {
+    setIsSidebarCollapsed((prev) => !prev)
+    // Hide workspace selector when collapsing sidebar
+    if (!isSidebarCollapsed) {
+      setIsWorkspaceSelectorVisible(false)
+    }
+  }
+
   // Calculate dynamic positions for floating elements
   const calculateFloatingPositions = useCallback(() => {
     const { CONTAINER_PADDING, WORKSPACE_HEADER, SEARCH, WORKFLOW_SELECTOR, WORKSPACE_SELECTOR } =
@@ -467,13 +479,15 @@ export function Sidebar() {
     // Add workspace header
     currentTop += WORKSPACE_HEADER + SIDEBAR_GAP
 
-    // Add workspace selector if visible
-    if (isWorkspaceSelectorVisible) {
+    // Add workspace selector if visible and not collapsed
+    if (isWorkspaceSelectorVisible && !isSidebarCollapsed) {
       currentTop += WORKSPACE_SELECTOR + SIDEBAR_GAP
     }
 
-    // Add search
-    currentTop += SEARCH + SIDEBAR_GAP
+    // Add search (if not collapsed)
+    if (!isSidebarCollapsed) {
+      currentTop += SEARCH + SIDEBAR_GAP
+    }
 
     // Add workflow selector
     currentTop += WORKFLOW_SELECTOR - 4
@@ -488,7 +502,7 @@ export function Sidebar() {
       toolbarTop,
       navigationBottom,
     }
-  }, [isWorkspaceSelectorVisible])
+  }, [isWorkspaceSelectorVisible, isSidebarCollapsed])
 
   const { toolbarTop, navigationBottom } = calculateFloatingPositions()
 
@@ -546,6 +560,7 @@ export function Sidebar() {
               onCreateWorkflow={handleCreateWorkflow}
               isWorkspaceSelectorVisible={isWorkspaceSelectorVisible}
               onToggleWorkspaceSelector={toggleWorkspaceSelector}
+              onToggleSidebar={toggleSidebarCollapsed}
               activeWorkspace={activeWorkspace}
               isWorkspacesLoading={isWorkspacesLoading}
               updateWorkspaceName={updateWorkspaceName}
@@ -553,23 +568,27 @@ export function Sidebar() {
           </div>
 
           {/* 2. Workspace Selector - Conditionally rendered */}
-          {isWorkspaceSelectorVisible && (
-            <div className='pointer-events-auto flex-shrink-0'>
-              <WorkspaceSelector
-                workspaces={workspaces}
-                activeWorkspace={activeWorkspace}
-                isWorkspacesLoading={isWorkspacesLoading}
-                onWorkspaceUpdate={refreshWorkspaceList}
-                onSwitchWorkspace={switchWorkspace}
-                onCreateWorkspace={handleCreateWorkspace}
-                onDeleteWorkspace={confirmDeleteWorkspace}
-                isDeleting={isDeleting}
-              />
-            </div>
-          )}
+          <div
+            className={`pointer-events-auto flex-shrink-0 ${
+              !isWorkspaceSelectorVisible || isSidebarCollapsed ? 'hidden' : ''
+            }`}
+          >
+            <WorkspaceSelector
+              workspaces={workspaces}
+              activeWorkspace={activeWorkspace}
+              isWorkspacesLoading={isWorkspacesLoading}
+              onWorkspaceUpdate={refreshWorkspaceList}
+              onSwitchWorkspace={switchWorkspace}
+              onCreateWorkspace={handleCreateWorkspace}
+              onDeleteWorkspace={confirmDeleteWorkspace}
+              isDeleting={isDeleting}
+            />
+          </div>
 
           {/* 3. Search */}
-          {/* <div className='pointer-events-auto flex-shrink-0'>
+          <div
+            className={`pointer-events-auto flex-shrink-0 ${isSidebarCollapsed ? 'hidden' : ''}`}
+          >
             <div className='flex h-12 items-center gap-2 rounded-[14px] border bg-card pr-2 pl-3 shadow-xs'>
               <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
               <Input
@@ -585,12 +604,16 @@ export function Sidebar() {
                 </span>
               </kbd>
             </div>
-          </div> */}
+          </div>
 
           {/* 4. Workflow Selector */}
-          <div className='pointer-events-auto relative h-[272px] flex-shrink-0 rounded-[14px] border bg-card shadow-xs'>
+          <div
+            className={`pointer-events-auto relative h-[212px] flex-shrink-0 rounded-[14px] border bg-card shadow-xs ${
+              isSidebarCollapsed ? 'hidden' : ''
+            }`}
+          >
             <div className='px-2'>
-              <ScrollArea ref={workflowScrollAreaRef} className='h-[270px]' hideScrollbar={true}>
+              <ScrollArea ref={workflowScrollAreaRef} className='h-[212px]' hideScrollbar={true}>
                 <FolderTree
                   regularWorkflows={regularWorkflows}
                   marketplaceWorkflows={tempWorkflows}
@@ -614,20 +637,20 @@ export function Sidebar() {
       </aside>
 
       {/* Floating Toolbar - Only on workflow pages */}
-      {isOnWorkflowPage && (
-        <div
-          className='pointer-events-auto fixed left-4 z-50 w-56 rounded-[14px] border bg-card shadow-xs'
-          style={{
-            top: `${toolbarTop}px`,
-            bottom: `${navigationBottom + 42 + 12}px`, // Navigation height + gap
-          }}
-        >
-          <Toolbar
-            userPermissions={userPermissions}
-            isWorkspaceSelectorVisible={isWorkspaceSelectorVisible}
-          />
-        </div>
-      )}
+      <div
+        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[14px] border bg-card shadow-xs ${
+          !isOnWorkflowPage || isSidebarCollapsed ? 'hidden' : ''
+        }`}
+        style={{
+          top: `${toolbarTop}px`,
+          bottom: `${navigationBottom + 42 + 12}px`, // Navigation height + gap
+        }}
+      >
+        <Toolbar
+          userPermissions={userPermissions}
+          isWorkspaceSelectorVisible={isWorkspaceSelectorVisible}
+        />
+      </div>
 
       {/* Floating Navigation - Always visible */}
       <div
