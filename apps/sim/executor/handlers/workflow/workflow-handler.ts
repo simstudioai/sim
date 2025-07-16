@@ -2,11 +2,12 @@ import { generateInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
+import { Executor } from '@/executor'
+import { BlockType } from '@/executor/consts'
+import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { Executor } from '../../index'
-import type { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
 
 const logger = createLogger('WorkflowBlockHandler')
 
@@ -22,7 +23,7 @@ export class WorkflowBlockHandler implements BlockHandler {
   private static executionStack = new Set<string>()
 
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'workflow'
+    return block.metadata?.id === BlockType.WORKFLOW
   }
 
   async execute(

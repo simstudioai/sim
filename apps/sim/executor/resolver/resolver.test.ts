@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { InputResolver } from '@/executor/resolver/resolver'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { InputResolver } from './resolver'
-import type { ExecutionContext } from './types'
 
 // Mock logger
 vi.mock('@/lib/logs/console-logger', () => ({
@@ -27,36 +28,36 @@ describe('InputResolver', () => {
       blocks: [
         {
           id: 'starter-block',
-          metadata: { id: 'starter', name: 'Start' },
+          metadata: { id: BlockType.STARTER, name: 'Start' },
           position: { x: 100, y: 100 },
-          config: { tool: 'starter', params: {} },
+          config: { tool: BlockType.STARTER, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
         },
         {
           id: 'function-block',
-          metadata: { id: 'function', name: 'Function' },
+          metadata: { id: BlockType.FUNCTION, name: 'Function' },
           position: { x: 300, y: 100 },
-          config: { tool: 'function', params: {} },
+          config: { tool: BlockType.FUNCTION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
         },
         {
           id: 'condition-block',
-          metadata: { id: 'condition', name: 'Condition' },
+          metadata: { id: BlockType.CONDITION, name: 'Condition' },
           position: { x: 500, y: 100 },
-          config: { tool: 'condition', params: {} },
+          config: { tool: BlockType.CONDITION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
         },
         {
           id: 'api-block',
-          metadata: { id: 'api', name: 'API' },
+          metadata: { id: BlockType.API, name: 'API' },
           position: { x: 700, y: 100 },
-          config: { tool: 'api', params: {} },
+          config: { tool: BlockType.API, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -429,7 +430,7 @@ describe('InputResolver', () => {
     it('should resolve environment variables in API key contexts', () => {
       const block: SerializedBlock = {
         id: 'test-block',
-        metadata: { id: 'api', name: 'Test API Block' }, // API block type
+        metadata: { id: BlockType.API, name: 'Test API Block' }, // API block type
         position: { x: 0, y: 0 },
         config: {
           tool: 'api',
@@ -626,10 +627,10 @@ describe('InputResolver', () => {
     it('should handle code input for function blocks', () => {
       const block: SerializedBlock = {
         id: 'code-block',
-        metadata: { id: 'function', name: 'Code Block' },
+        metadata: { id: BlockType.FUNCTION, name: 'Code Block' },
         position: { x: 0, y: 0 },
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             code: 'const name = "<variable.stringVar>";\nconst num = <variable.numberVar>;\nreturn { name, num };',
           },
@@ -652,7 +653,7 @@ describe('InputResolver', () => {
     it('should handle body input for API blocks', () => {
       const block: SerializedBlock = {
         id: 'api-block',
-        metadata: { id: 'api', name: 'API Block' },
+        metadata: { id: BlockType.API, name: 'API Block' },
         position: { x: 0, y: 0 },
         config: {
           tool: 'api',
@@ -679,7 +680,7 @@ describe('InputResolver', () => {
     it('should handle conditions parameter for condition blocks', () => {
       const block: SerializedBlock = {
         id: 'condition-block',
-        metadata: { id: 'condition', name: 'Condition Block' },
+        metadata: { id: BlockType.CONDITION, name: 'Condition Block' },
         position: { x: 0, y: 0 },
         config: {
           tool: 'condition',
@@ -734,10 +735,10 @@ describe('InputResolver', () => {
       const loopBlock: SerializedBlock = {
         id: 'loop-1',
         position: { x: 0, y: 0 },
-        config: { tool: 'loop', params: {} },
+        config: { tool: BlockType.LOOP, params: {} },
         inputs: {},
         outputs: {},
-        metadata: { id: 'loop', name: 'Test Loop' },
+        metadata: { id: BlockType.LOOP, name: 'Test Loop' },
         enabled: true,
       }
 
@@ -745,14 +746,14 @@ describe('InputResolver', () => {
         id: 'function-1',
         position: { x: 0, y: 0 },
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             item: '<loop.currentItem>', // Direct reference, not wrapped in quotes
           },
         },
         inputs: {},
         outputs: {},
-        metadata: { id: 'function', name: 'Process Item' },
+        metadata: { id: BlockType.FUNCTION, name: 'Process Item' },
         enabled: true,
       }
 
@@ -796,10 +797,10 @@ describe('InputResolver', () => {
       const loopBlock: SerializedBlock = {
         id: 'loop-1',
         position: { x: 0, y: 0 },
-        config: { tool: 'loop', params: {} },
+        config: { tool: BlockType.LOOP, params: {} },
         inputs: {},
         outputs: {},
-        metadata: { id: 'loop', name: 'Test Loop' },
+        metadata: { id: BlockType.LOOP, name: 'Test Loop' },
         enabled: true,
       }
 
@@ -807,14 +808,14 @@ describe('InputResolver', () => {
         id: 'function-1',
         position: { x: 0, y: 0 },
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             index: '<loop.index>', // Direct reference, not wrapped in quotes
           },
         },
         inputs: {},
         outputs: {},
-        metadata: { id: 'function', name: 'Process Index' },
+        metadata: { id: BlockType.FUNCTION, name: 'Process Index' },
         enabled: true,
       }
 
@@ -857,10 +858,10 @@ describe('InputResolver', () => {
       const loopBlock: SerializedBlock = {
         id: 'loop-1',
         position: { x: 0, y: 0 },
-        config: { tool: 'loop', params: {} },
+        config: { tool: BlockType.LOOP, params: {} },
         inputs: {},
         outputs: {},
-        metadata: { id: 'loop', name: 'Test Loop' },
+        metadata: { id: BlockType.LOOP, name: 'Test Loop' },
         enabled: true,
       }
 
@@ -868,14 +869,14 @@ describe('InputResolver', () => {
         id: 'function-1',
         position: { x: 0, y: 0 },
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             allItems: '<loop.items>', // Direct reference to all items
           },
         },
         inputs: {},
         outputs: {},
-        metadata: { id: 'function', name: 'Process All Items' },
+        metadata: { id: BlockType.FUNCTION, name: 'Process All Items' },
         enabled: true,
       }
 
@@ -924,10 +925,10 @@ describe('InputResolver', () => {
       const loopBlock: SerializedBlock = {
         id: 'loop-1',
         position: { x: 0, y: 0 },
-        config: { tool: 'loop', params: {} },
+        config: { tool: BlockType.LOOP, params: {} },
         inputs: {},
         outputs: {},
-        metadata: { id: 'loop', name: 'Test Loop' },
+        metadata: { id: BlockType.LOOP, name: 'Test Loop' },
         enabled: true,
       }
 
@@ -935,14 +936,14 @@ describe('InputResolver', () => {
         id: 'function-1',
         position: { x: 0, y: 0 },
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             allItems: '<loop.items>', // Direct reference to all items
           },
         },
         inputs: {},
         outputs: {},
-        metadata: { id: 'function', name: 'Process All Items' },
+        metadata: { id: BlockType.FUNCTION, name: 'Process All Items' },
         enabled: true,
       }
 
@@ -997,19 +998,19 @@ describe('InputResolver', () => {
           {
             id: 'parallel-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'parallel', params: {} },
+            config: { tool: BlockType.PARALLEL, params: {} },
             inputs: {},
             outputs: {},
-            metadata: { id: 'parallel', name: 'Parallel 1' },
+            metadata: { id: BlockType.PARALLEL, name: 'Parallel 1' },
             enabled: true,
           },
           {
             id: 'function-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'function', params: { code: '<parallel.currentItem>' } },
+            config: { tool: BlockType.FUNCTION, params: { code: '<parallel.currentItem>' } },
             inputs: {},
             outputs: {},
-            metadata: { id: 'function', name: 'Function 1' },
+            metadata: { id: BlockType.FUNCTION, name: 'Function 1' },
             enabled: true,
           },
         ],
@@ -1053,28 +1054,28 @@ describe('InputResolver', () => {
           {
             id: 'parallel-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'parallel', params: {} },
+            config: { tool: BlockType.PARALLEL, params: {} },
             inputs: {},
             outputs: {},
-            metadata: { id: 'parallel', name: 'Parallel 1' },
+            metadata: { id: BlockType.PARALLEL, name: 'Parallel 1' },
             enabled: true,
           },
           {
             id: 'parallel-2',
             position: { x: 0, y: 0 },
-            config: { tool: 'parallel', params: {} },
+            config: { tool: BlockType.PARALLEL, params: {} },
             inputs: {},
             outputs: {},
-            metadata: { id: 'parallel', name: 'Parallel 2' },
+            metadata: { id: BlockType.PARALLEL, name: 'Parallel 2' },
             enabled: true,
           },
           {
             id: 'function-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'function', params: { code: '<Parallel1.results>' } },
+            config: { tool: BlockType.FUNCTION, params: { code: '<Parallel1.results>' } },
             inputs: {},
             outputs: {},
-            metadata: { id: 'function', name: 'Function 1' },
+            metadata: { id: BlockType.FUNCTION, name: 'Function 1' },
             enabled: true,
           },
         ],
@@ -1156,19 +1157,19 @@ describe('InputResolver', () => {
           {
             id: 'parallel-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'parallel', params: {} },
+            config: { tool: BlockType.PARALLEL, params: {} },
             inputs: {},
             outputs: {},
-            metadata: { id: 'parallel', name: 'Parallel 1' },
+            metadata: { id: BlockType.PARALLEL, name: 'Parallel 1' },
             enabled: true,
           },
           {
             id: 'function-1',
             position: { x: 0, y: 0 },
-            config: { tool: 'function', params: { code: '<parallel-1.results>' } },
+            config: { tool: BlockType.FUNCTION, params: { code: '<parallel-1.results>' } },
             inputs: {},
             outputs: {},
-            metadata: { id: 'function', name: 'Function 1' },
+            metadata: { id: BlockType.FUNCTION, name: 'Function 1' },
             enabled: true,
           },
         ],
@@ -1244,36 +1245,36 @@ describe('InputResolver', () => {
         blocks: [
           {
             id: 'starter-1',
-            metadata: { id: 'starter', name: 'Start' },
+            metadata: { id: BlockType.STARTER, name: 'Start' },
             position: { x: 0, y: 0 },
-            config: { tool: 'starter', params: {} },
+            config: { tool: BlockType.STARTER, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'agent-1',
-            metadata: { id: 'agent', name: 'Agent Block' },
+            metadata: { id: BlockType.AGENT, name: 'Agent Block' },
             position: { x: 100, y: 100 },
-            config: { tool: 'agent', params: {} },
+            config: { tool: BlockType.AGENT, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'function-1',
-            metadata: { id: 'function', name: 'Function Block' },
+            metadata: { id: BlockType.FUNCTION, name: 'Function Block' },
             position: { x: 200, y: 200 },
-            config: { tool: 'function', params: {} },
+            config: { tool: BlockType.FUNCTION, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'isolated-block',
-            metadata: { id: 'agent', name: 'Isolated Block' },
+            metadata: { id: BlockType.AGENT, name: 'Isolated Block' },
             position: { x: 300, y: 300 },
-            config: { tool: 'agent', params: {} },
+            config: { tool: BlockType.AGENT, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
@@ -1301,7 +1302,7 @@ describe('InputResolver', () => {
         })
         // Always allow starter block access
         const starterBlock = workflowWithConnections.blocks.find(
-          (b) => b.metadata?.id === 'starter'
+          (b) => b.metadata?.id === BlockType.STARTER
         )
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
@@ -1323,7 +1324,7 @@ describe('InputResolver', () => {
         })
         // Always allow starter block access
         const starterBlock = workflowWithConnections.blocks.find(
-          (b) => b.metadata?.id === 'starter'
+          (b) => b.metadata?.id === BlockType.STARTER
         )
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
@@ -1370,7 +1371,7 @@ describe('InputResolver', () => {
       const testBlock: SerializedBlock = {
         ...functionBlock,
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             code: 'return <agent-1.content>', // function-1 can reference agent-1 (connected)
           },
@@ -1385,9 +1386,9 @@ describe('InputResolver', () => {
       // Create a new block that is added to the workflow but not connected to isolated-block
       workflowWithConnections.blocks.push({
         id: 'test-block',
-        metadata: { id: 'function', name: 'Test Block' },
+        metadata: { id: BlockType.FUNCTION, name: 'Test Block' },
         position: { x: 500, y: 500 },
-        config: { tool: 'function', params: {} },
+        config: { tool: BlockType.FUNCTION, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -1404,7 +1405,9 @@ describe('InputResolver', () => {
         }
       })
       // Always allow starter block access
-      const starterBlock = workflowWithConnections.blocks.find((b) => b.metadata?.id === 'starter')
+      const starterBlock = workflowWithConnections.blocks.find(
+        (b) => b.metadata?.id === BlockType.STARTER
+      )
       if (starterBlock) {
         testBlockAccessible.add(starterBlock.id)
       }
@@ -1412,10 +1415,10 @@ describe('InputResolver', () => {
 
       const testBlock: SerializedBlock = {
         id: 'test-block',
-        metadata: { id: 'function', name: 'Test Block' },
+        metadata: { id: BlockType.FUNCTION, name: 'Test Block' },
         position: { x: 500, y: 500 },
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             code: 'return <isolated-block.content>', // test-block cannot reference isolated-block (not connected)
           },
@@ -1435,7 +1438,7 @@ describe('InputResolver', () => {
       const testBlock: SerializedBlock = {
         ...functionBlock,
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             code: 'return <start.input>', // Any block can reference start
           },
@@ -1450,9 +1453,9 @@ describe('InputResolver', () => {
       // Create a test block in the workflow first
       workflowWithConnections.blocks.push({
         id: 'test-block-2',
-        metadata: { id: 'function', name: 'Test Block 2' },
+        metadata: { id: BlockType.FUNCTION, name: 'Test Block 2' },
         position: { x: 600, y: 600 },
-        config: { tool: 'function', params: {} },
+        config: { tool: BlockType.FUNCTION, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -1469,7 +1472,9 @@ describe('InputResolver', () => {
         }
       })
       // Always allow starter block access
-      const starterBlock = workflowWithConnections.blocks.find((b) => b.metadata?.id === 'starter')
+      const starterBlock = workflowWithConnections.blocks.find(
+        (b) => b.metadata?.id === BlockType.STARTER
+      )
       if (starterBlock) {
         testBlock2Accessible.add(starterBlock.id)
       }
@@ -1477,10 +1482,10 @@ describe('InputResolver', () => {
 
       const testBlock: SerializedBlock = {
         id: 'test-block-2',
-        metadata: { id: 'function', name: 'Test Block 2' },
+        metadata: { id: BlockType.FUNCTION, name: 'Test Block 2' },
         position: { x: 600, y: 600 },
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             code: 'return <nonexistent.value>',
           },
@@ -1500,7 +1505,7 @@ describe('InputResolver', () => {
       const testBlock: SerializedBlock = {
         ...functionBlock,
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             nameRef: '<Agent Block.content>', // Reference by actual name
             normalizedRef: '<agentblock.content>', // Reference by normalized name
@@ -1523,9 +1528,9 @@ describe('InputResolver', () => {
           ...workflowWithConnections.blocks,
           {
             id: 'response-1',
-            metadata: { id: 'response', name: 'Response Block' },
+            metadata: { id: BlockType.RESPONSE, name: 'Response Block' },
             position: { x: 400, y: 400 },
-            config: { tool: 'response', params: {} },
+            config: { tool: BlockType.RESPONSE, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
@@ -1555,7 +1560,9 @@ describe('InputResolver', () => {
           }
         })
         // Always allow starter block access
-        const starterBlock = extendedWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
+        const starterBlock = extendedWorkflow.blocks.find(
+          (b) => b.metadata?.id === BlockType.STARTER
+        )
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
@@ -1572,7 +1579,9 @@ describe('InputResolver', () => {
           }
         })
         // Always allow starter block access
-        const starterBlock = extendedWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
+        const starterBlock = extendedWorkflow.blocks.find(
+          (b) => b.metadata?.id === BlockType.STARTER
+        )
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
@@ -1590,7 +1599,7 @@ describe('InputResolver', () => {
       const testBlock: SerializedBlock = {
         ...responseBlock,
         config: {
-          tool: 'response',
+          tool: BlockType.RESPONSE,
           params: {
             canReferenceFunction: '<function-1.result>', // Can reference directly connected function-1
             cannotReferenceAgent: '<agent-1.content>', // Cannot reference agent-1 (not directly connected)
@@ -1614,7 +1623,7 @@ describe('InputResolver', () => {
       expect(() => {
         const block1 = {
           ...testBlock,
-          config: { tool: 'response', params: { test: '<function-1.result>' } },
+          config: { tool: BlockType.RESPONSE, params: { test: '<function-1.result>' } },
         }
         extendedResolver.resolveInputs(block1, extendedContext)
       }).not.toThrow()
@@ -1624,9 +1633,9 @@ describe('InputResolver', () => {
         // Add the response block to the workflow so it can be validated properly
         extendedWorkflow.blocks.push({
           id: 'test-response-block',
-          metadata: { id: 'response', name: 'Test Response Block' },
+          metadata: { id: BlockType.RESPONSE, name: 'Test Response Block' },
           position: { x: 500, y: 500 },
-          config: { tool: 'response', params: {} },
+          config: { tool: BlockType.RESPONSE, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -1635,9 +1644,9 @@ describe('InputResolver', () => {
 
         const block2 = {
           id: 'test-response-block',
-          metadata: { id: 'response', name: 'Test Response Block' },
+          metadata: { id: BlockType.RESPONSE, name: 'Test Response Block' },
           position: { x: 500, y: 500 },
-          config: { tool: 'response', params: { test: '<agent-1.content>' } },
+          config: { tool: BlockType.RESPONSE, params: { test: '<agent-1.content>' } },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -1652,16 +1661,16 @@ describe('InputResolver', () => {
         blocks: [
           {
             id: 'starter-1',
-            metadata: { id: 'starter', name: 'Start' },
+            metadata: { id: BlockType.STARTER, name: 'Start' },
             position: { x: 0, y: 0 },
-            config: { tool: 'starter', params: {} },
+            config: { tool: BlockType.STARTER, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'loop-1',
-            metadata: { id: 'loop', name: 'Loop' },
+            metadata: { id: BlockType.LOOP, name: 'Loop' },
             position: { x: 100, y: 100 },
             config: { tool: '', params: {} },
             inputs: {},
@@ -1670,18 +1679,18 @@ describe('InputResolver', () => {
           },
           {
             id: 'function-1',
-            metadata: { id: 'function', name: 'Function 1' },
+            metadata: { id: BlockType.FUNCTION, name: 'Function 1' },
             position: { x: 200, y: 200 },
-            config: { tool: 'function', params: {} },
+            config: { tool: BlockType.FUNCTION, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'function-2',
-            metadata: { id: 'function', name: 'Function 2' },
+            metadata: { id: BlockType.FUNCTION, name: 'Function 2' },
             position: { x: 300, y: 300 },
-            config: { tool: 'function', params: {} },
+            config: { tool: BlockType.FUNCTION, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
@@ -1711,7 +1720,7 @@ describe('InputResolver', () => {
           }
         })
         // Always allow starter block access
-        const starterBlock = loopWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
+        const starterBlock = loopWorkflow.blocks.find((b) => b.metadata?.id === BlockType.STARTER)
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
@@ -1735,7 +1744,7 @@ describe('InputResolver', () => {
           }
         })
         // Always allow starter block access
-        const starterBlock = loopWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
+        const starterBlock = loopWorkflow.blocks.find((b) => b.metadata?.id === BlockType.STARTER)
         if (starterBlock) {
           accessibleBlocks.add(starterBlock.id)
         }
@@ -1746,7 +1755,7 @@ describe('InputResolver', () => {
       const testBlock: SerializedBlock = {
         ...loopWorkflow.blocks[2],
         config: {
-          tool: 'function',
+          tool: BlockType.FUNCTION,
           params: {
             code: 'return <function-2.result>', // function-1 can reference function-2 (same loop)
           },

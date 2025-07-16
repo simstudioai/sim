@@ -1,9 +1,10 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { BlockOutput } from '@/blocks/types'
+import { BlockType } from '@/executor/consts'
+import type { PathTracker } from '@/executor/path/path'
+import type { InputResolver } from '@/executor/resolver/resolver'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
-import type { PathTracker } from '../../path'
-import type { InputResolver } from '../../resolver'
-import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('ConditionBlockHandler')
 
@@ -21,7 +22,7 @@ export class ConditionBlockHandler implements BlockHandler {
   ) {}
 
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'condition'
+    return block.metadata?.id === BlockType.CONDITION
   }
 
   async execute(

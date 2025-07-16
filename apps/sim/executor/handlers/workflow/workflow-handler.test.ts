@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
-import type { ExecutionContext } from '../../types'
-import { WorkflowBlockHandler } from './workflow-handler'
 
 // Mock fetch globally
 global.fetch = vi.fn()
@@ -18,9 +19,9 @@ describe('WorkflowBlockHandler', () => {
 
     mockBlock = {
       id: 'workflow-block-1',
-      metadata: { id: 'workflow', name: 'Test Workflow Block' },
+      metadata: { id: BlockType.WORKFLOW, name: 'Test Workflow Block' },
       position: { x: 0, y: 0 },
-      config: { tool: 'workflow', params: {} },
+      config: { tool: BlockType.WORKFLOW, params: {} },
       inputs: { workflowId: 'string' },
       outputs: {},
       enabled: true,
@@ -64,9 +65,9 @@ describe('WorkflowBlockHandler', () => {
               blocks: [
                 {
                   id: 'starter',
-                  metadata: { id: 'starter', name: 'Starter' },
+                  metadata: { id: BlockType.STARTER, name: 'Starter' },
                   position: { x: 0, y: 0 },
-                  config: { tool: 'starter', params: {} },
+                  config: { tool: BlockType.STARTER, params: {} },
                   inputs: {},
                   outputs: {},
                   enabled: true,
@@ -87,7 +88,7 @@ describe('WorkflowBlockHandler', () => {
     })
 
     it('should not handle non-workflow blocks', () => {
-      const nonWorkflowBlock = { ...mockBlock, metadata: { id: 'function' } }
+      const nonWorkflowBlock = { ...mockBlock, metadata: { id: BlockType.FUNCTION } }
       expect(handler.canHandle(nonWorkflowBlock)).toBe(false)
     })
   })

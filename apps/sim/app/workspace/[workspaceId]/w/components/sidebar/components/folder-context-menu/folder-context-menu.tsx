@@ -24,8 +24,8 @@ interface FolderContextMenuProps {
   folderId: string
   folderName: string
   onCreateWorkflow: (folderId: string) => void
-  onRename?: (folderId: string, newName: string) => void
   onDelete?: (folderId: string) => void
+  onStartEdit?: () => void
   level: number
 }
 
@@ -33,23 +33,20 @@ export function FolderContextMenu({
   folderId,
   folderName,
   onCreateWorkflow,
-  onRename,
   onDelete,
+  onStartEdit,
   level,
 }: FolderContextMenuProps) {
   const [showSubfolderDialog, setShowSubfolderDialog] = useState(false)
-  const [showRenameDialog, setShowRenameDialog] = useState(false)
   const [subfolderName, setSubfolderName] = useState('')
-  const [renameName, setRenameName] = useState(folderName)
   const [isCreating, setIsCreating] = useState(false)
-  const [isRenaming, setIsRenaming] = useState(false)
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
   // Get user permissions for the workspace
   const userPermissions = useUserPermissionsContext()
 
-  const { createFolder, updateFolder, deleteFolder } = useFolderStore()
+  const { createFolder, deleteFolder } = useFolderStore()
 
   const handleCreateWorkflow = () => {
     onCreateWorkflow(folderId)
@@ -60,8 +57,9 @@ export function FolderContextMenu({
   }
 
   const handleRename = () => {
-    setRenameName(folderName)
-    setShowRenameDialog(true)
+    if (onStartEdit) {
+      onStartEdit()
+    }
   }
 
   const handleDelete = async () => {
@@ -98,31 +96,9 @@ export function FolderContextMenu({
     }
   }
 
-  const handleRenameSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!renameName.trim()) return
-
-    setIsRenaming(true)
-    try {
-      if (onRename) {
-        onRename(folderId, renameName.trim())
-      } else {
-        // Default rename behavior
-        await updateFolder(folderId, { name: renameName.trim() })
-      }
-      setShowRenameDialog(false)
-    } catch (error) {
-      console.error('Failed to rename folder:', error)
-    } finally {
-      setIsRenaming(false)
-    }
-  }
-
   const handleCancel = () => {
     setSubfolderName('')
     setShowSubfolderDialog(false)
-    setRenameName(folderName)
-    setShowRenameDialog(false)
   }
 
   return (
@@ -225,37 +201,6 @@ export function FolderContextMenu({
               </Button>
               <Button type='submit' disabled={!subfolderName.trim() || isCreating}>
                 {isCreating ? 'Creating...' : 'Create Folder'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename dialog */}
-      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
-        <DialogContent className='sm:max-w-[425px]' onClick={(e) => e.stopPropagation()}>
-          <DialogHeader>
-            <DialogTitle>Rename Folder</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleRenameSubmit} className='space-y-4'>
-            <div className='space-y-2'>
-              <Label htmlFor='rename-folder'>Folder Name</Label>
-              <Input
-                id='rename-folder'
-                value={renameName}
-                onChange={(e) => setRenameName(e.target.value)}
-                placeholder='Enter folder name...'
-                maxLength={50}
-                autoFocus
-                required
-              />
-            </div>
-            <div className='flex justify-end space-x-2'>
-              <Button type='button' variant='outline' onClick={handleCancel}>
-                Cancel
-              </Button>
-              <Button type='submit' disabled={!renameName.trim() || isRenaming}>
-                {isRenaming ? 'Renaming...' : 'Rename'}
               </Button>
             </div>
           </form>
