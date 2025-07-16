@@ -43,6 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         name: templates.name,
         description: templates.description,
         state: templates.state,
+        color: templates.color,
       })
       .from(templates)
       .where(eq(templates.id, id))
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           name: `${templateData.name} (copy)`,
           description: templateData.description,
           state: templateData.state,
+          color: templateData.color,
           userId: session.user.id,
           createdAt: now,
           updatedAt: now,

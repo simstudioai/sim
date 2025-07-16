@@ -90,75 +90,18 @@ export default function Templates({ initialTemplates, currentUserId }: Templates
     }
   }
 
-  const handleTemplateClick = (templateId: string) => {
-    // Navigate to template detail page
-    router.push(`/workspace/${params.workspaceId}/templates/${templateId}`)
-  }
-
-  // Handle using a template
-  const handleUseTemplate = async (templateId: string) => {
-    try {
-      const response = await fetch(`/api/templates/${templateId}/use`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          workspaceId: params.workspaceId,
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        logger.info('Template use API response:', data)
-
-        if (!data.workflowId) {
-          logger.error('No workflowId returned from API:', data)
-          return
-        }
-
-        const workflowUrl = `/workspace/${params.workspaceId}/w/${data.workflowId}`
-        logger.info('Template used successfully, navigating to:', workflowUrl)
-
-        // Use window.location.href for more reliable navigation
-        window.location.href = workflowUrl
-      } else {
-        const errorText = await response.text()
-        logger.error('Failed to use template:', response.statusText, errorText)
-      }
-    } catch (error) {
-      logger.error('Error using template:', error)
-    }
-  }
-
   const handleCreateNew = () => {
     // TODO: Open create template modal or navigate to create page
     console.log('Create new template')
   }
 
-  // Handle starring/unstarring templates (client-side for interactivity)
-  const handleStarToggle = async (templateId: string, isCurrentlyStarred: boolean) => {
-    try {
-      const method = isCurrentlyStarred ? 'DELETE' : 'POST'
-      const response = await fetch(`/api/templates/${templateId}/star`, { method })
-
-      if (response.ok) {
-        // Update local state optimistically
-        setTemplates((prev) =>
-          prev.map((template) =>
-            template.id === templateId
-              ? {
-                  ...template,
-                  isStarred: !isCurrentlyStarred,
-                  stars: isCurrentlyStarred ? template.stars - 1 : template.stars + 1,
-                }
-              : template
-          )
-        )
-      }
-    } catch (error) {
-      logger.error('Error toggling star:', error)
-    }
+  // Handle star change callback from template card
+  const handleStarChange = (templateId: string, isStarred: boolean, newStarCount: number) => {
+    setTemplates((prevTemplates) =>
+      prevTemplates.map((template) =>
+        template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
+      )
+    )
   }
 
   const filteredTemplates = (category: CategoryValue | 'your' | 'recent') => {
@@ -201,10 +144,8 @@ export default function Templates({ initialTemplates, currentUserId }: Templates
       icon={template.icon}
       iconColor={template.color}
       state={template.state as { blocks?: Record<string, { type: string; name?: string }> }}
-      onClick={() => handleTemplateClick(template.id)}
-      onStar={handleStarToggle}
-      onUse={handleUseTemplate}
       isStarred={template.isStarred}
+      onStarChange={handleStarChange}
     />
   )
 
