@@ -245,14 +245,19 @@ async function sendInvitationEmail({
       )
     }
 
-    await resend.emails.send({
-      from: `noreply@${getEmailDomain()}`,
+    const emailDomain = env.EMAIL_DOMAIN || getEmailDomain()
+    const fromAddress = `noreply@${emailDomain}`
+
+    logger.info(`Attempting to send email from ${fromAddress} to ${to}`)
+
+    const result = await resend.emails.send({
+      from: fromAddress,
       to,
       subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
       html: emailHtml,
     })
 
-    logger.info(`Invitation email sent to ${to}`)
+    logger.info(`Invitation email sent successfully to ${to}`, { result })
   } catch (error) {
     logger.error('Error sending invitation email:', error)
     // Continue even if email fails - the invitation is still created
