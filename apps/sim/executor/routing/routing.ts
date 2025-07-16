@@ -79,12 +79,7 @@ export class Routing {
    * Checks if a connection should be skipped during selective activation
    */
   static shouldSkipConnection(sourceHandle: string | undefined, targetBlockType: string): boolean {
-    // Skip flow control blocks
-    if (Routing.shouldSkipInSelectiveActivation(targetBlockType)) {
-      return true
-    }
-
-    // Skip flow control specific connections
+    // Skip flow control specific connections (internal flow control handles)
     const flowControlHandles = [
       'parallel-start-source',
       'parallel-end-source',
@@ -92,6 +87,19 @@ export class Routing {
       'loop-end-source',
     ]
 
-    return flowControlHandles.includes(sourceHandle || '')
+    if (flowControlHandles.includes(sourceHandle || '')) {
+      return true
+    }
+
+    // Skip condition-specific connections during selective activation
+    // These should only be activated when the condition makes a specific decision
+    if (sourceHandle?.startsWith('condition-')) {
+      return true
+    }
+
+    // For regular connections (no special source handle), allow activation of flow control blocks
+    // This enables regular blocks (like agents) to activate parallel/loop blocks
+    // The flow control blocks themselves will handle active path checking
+    return false
   }
 }
