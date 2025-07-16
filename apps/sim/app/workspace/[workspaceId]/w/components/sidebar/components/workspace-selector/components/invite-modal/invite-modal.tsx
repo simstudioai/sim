@@ -205,11 +205,9 @@ const PermissionsTable = ({
   pendingInvitations,
   isPendingInvitationsLoading,
 }: PermissionsTableProps) => {
-  // Always call hooks first - before any conditional returns
   const { data: session } = useSession()
   const userPerms = useUserPermissionsContext()
 
-  // All useMemo hooks must be called before any conditional returns
   const existingUsers: UserPermissions[] = useMemo(
     () =>
       workspacePermissions?.users?.map((user) => {
@@ -264,7 +262,6 @@ const PermissionsTable = ({
     ]
   }, [currentUser, filteredExistingUsers, userPermissions, pendingInvitations])
 
-  // Now we can safely have conditional returns after all hooks are called
   if (permissionsLoading || userPerms.isLoading || isPendingInvitationsLoading) {
     return <PermissionsTableSkeleton />
   }

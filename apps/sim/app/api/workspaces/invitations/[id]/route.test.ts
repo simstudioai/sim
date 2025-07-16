@@ -6,7 +6,6 @@ import { db } from '@/db'
 import { workspaceInvitation } from '@/db/schema'
 import { DELETE } from './route'
 
-// Mock dependencies
 vi.mock('@/lib/auth', () => ({
   getSession: vi.fn(),
 }))

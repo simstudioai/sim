@@ -94,7 +94,6 @@ export async function getUsersWithPermissions(workspaceId: string) {
     .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
     .orderBy(user.email)
 
-  // Get membership IDs for all users in one query
   const membershipIds = await db
     .select({
       userId: workspaceMember.userId,
