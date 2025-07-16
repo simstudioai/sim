@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { HelpCircle, LibraryBig, ScrollText, Settings, Shapes } from 'lucide-react'
+import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -16,6 +16,7 @@ import {
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useUserPermissionsContext } from '../providers/workspace-permissions-provider'
+import { SearchModal } from '../search-modal/search-modal'
 import { CreateMenu } from './components/create-menu/create-menu'
 import { FolderTree } from './components/folder-tree/folder-tree'
 import { HelpModal } from './components/help-modal/help-modal'
@@ -51,6 +52,24 @@ interface Workspace {
   permissions?: 'admin' | 'write' | 'read' | null
 }
 
+/**
+ * Template data interface for search modal
+ */
+interface TemplateData {
+  id: string
+  title: string
+  description: string
+  author: string
+  usageCount: string
+  stars: number
+  icon: string
+  iconColor: string
+  state?: {
+    blocks?: Record<string, { type: string; name?: string }>
+  }
+  isStarred?: boolean
+}
+
 export function Sidebar() {
   useGlobalShortcuts()
 
@@ -67,11 +86,17 @@ export function Sidebar() {
 
   // Add state to prevent multiple simultaneous workflow creations
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
+  // Add sidebar collapsed state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
   const pathname = usePathname()
   const router = useRouter()
+
+  // Template data for search modal
+  const [templates, setTemplates] = useState<TemplateData[]>([])
+  const [isTemplatesLoading, setIsTemplatesLoading] = useState(false)
 
   // Refs
   const workflowScrollAreaRef = useRef<HTMLDivElement>(null)
@@ -348,6 +373,60 @@ export function Sidebar() {
     }
   }, [])
 
+  /**
+   * Fetch popular templates for search modal
+   */
+  const fetchTemplates = useCallback(async () => {
+    setIsTemplatesLoading(true)
+    try {
+      // Fetch templates from API, ordered by views (most popular first)
+      const response = await fetch('/api/templates?limit=8&offset=0')
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch templates: ${response.status}`)
+      }
+
+      const apiResponse = await response.json()
+
+      // Map API response to TemplateData format
+      const fetchedTemplates: TemplateData[] =
+        apiResponse.data?.map((template: any) => ({
+          id: template.id,
+          title: template.name,
+          description: template.description || '',
+          author: template.author,
+          usageCount: formatUsageCount(template.views || 0),
+          stars: template.stars || 0,
+          icon: template.icon || 'FileText',
+          iconColor: template.color || '#6B7280',
+          state: template.state,
+          isStarred: template.isStarred || false,
+        })) || []
+
+      setTemplates(fetchedTemplates)
+      logger.info(`Templates loaded successfully: ${fetchedTemplates.length} templates`)
+    } catch (error) {
+      logger.error('Error fetching templates:', error)
+      // Set empty array on error
+      setTemplates([])
+    } finally {
+      setIsTemplatesLoading(false)
+    }
+  }, [])
+
+  /**
+   * Format usage count for display (e.g., 1500 -> "1.5k")
+   */
+  const formatUsageCount = (count: number): string => {
+    if (count >= 1000000) {
+      return `${(count / 1000000).toFixed(1)}m`
+    }
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1)}k`
+    }
+    return count.toString()
+  }
+
   // Load workflows for the current workspace when workspaceId changes
   useEffect(() => {
     if (workspaceId) {
@@ -368,6 +447,7 @@ export function Sidebar() {
     if (sessionData?.user?.id && !isInitializedRef.current) {
       isInitializedRef.current = true
       fetchWorkspaces()
+      fetchTemplates()
     }
   }, [sessionData?.user?.id]) // Removed fetchWorkspaces dependency
 
@@ -391,7 +471,7 @@ export function Sidebar() {
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showInviteMembers, setShowInviteMembers] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [showSearchModal, setShowSearchModal] = useState(false)
 
   // Separate regular workflows from temporary marketplace workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
@@ -456,6 +536,15 @@ export function Sidebar() {
     setIsWorkspaceSelectorVisible((prev) => !prev)
   }
 
+  // Toggle sidebar collapsed state
+  const toggleSidebarCollapsed = () => {
+    setIsSidebarCollapsed((prev) => !prev)
+    // Hide workspace selector when collapsing sidebar
+    if (!isSidebarCollapsed) {
+      setIsWorkspaceSelectorVisible(false)
+    }
+  }
+
   // Calculate dynamic positions for floating elements
   const calculateFloatingPositions = useCallback(() => {
     const { CONTAINER_PADDING, WORKSPACE_HEADER, SEARCH, WORKFLOW_SELECTOR, WORKSPACE_SELECTOR } =
@@ -467,13 +556,15 @@ export function Sidebar() {
     // Add workspace header
     currentTop += WORKSPACE_HEADER + SIDEBAR_GAP
 
-    // Add workspace selector if visible
-    if (isWorkspaceSelectorVisible) {
+    // Add workspace selector if visible and not collapsed
+    if (isWorkspaceSelectorVisible && !isSidebarCollapsed) {
       currentTop += WORKSPACE_SELECTOR + SIDEBAR_GAP
     }
 
-    // Add search
-    currentTop += SEARCH + SIDEBAR_GAP
+    // Add search (if not collapsed)
+    if (!isSidebarCollapsed) {
+      currentTop += SEARCH + SIDEBAR_GAP
+    }
 
     // Add workflow selector
     currentTop += WORKFLOW_SELECTOR - 4
@@ -488,9 +579,40 @@ export function Sidebar() {
       toolbarTop,
       navigationBottom,
     }
-  }, [isWorkspaceSelectorVisible])
+  }, [isWorkspaceSelectorVisible, isSidebarCollapsed])
 
   const { toolbarTop, navigationBottom } = calculateFloatingPositions()
+
+  // Add keyboard shortcut for search modal (Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input, textarea, or contenteditable element
+      const activeElement = document.activeElement
+      const isEditableElement =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.hasAttribute('contenteditable')
+
+      if (isEditableElement) return
+
+      // Cmd/Ctrl + K - Open search modal
+      if (
+        event.key.toLowerCase() === 'k' &&
+        ((event.metaKey &&
+          typeof navigator !== 'undefined' &&
+          navigator.platform.toUpperCase().indexOf('MAC') >= 0) ||
+          (event.ctrlKey &&
+            (typeof navigator === 'undefined' ||
+              navigator.platform.toUpperCase().indexOf('MAC') < 0)))
+      ) {
+        event.preventDefault()
+        setShowSearchModal(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // Navigation items with their respective actions
   const navigationItems = [
@@ -527,7 +649,6 @@ export function Sidebar() {
       icon: Shapes,
       href: `/workspace/${workspaceId}/templates`,
       tooltip: 'Templates',
-      shortcut: getKeyboardShortcutText('T', true, true),
       active: pathname === `/workspace/${workspaceId}/templates`,
     },
   ]
@@ -546,6 +667,7 @@ export function Sidebar() {
               onCreateWorkflow={handleCreateWorkflow}
               isWorkspaceSelectorVisible={isWorkspaceSelectorVisible}
               onToggleWorkspaceSelector={toggleWorkspaceSelector}
+              onToggleSidebar={toggleSidebarCollapsed}
               activeWorkspace={activeWorkspace}
               isWorkspacesLoading={isWorkspacesLoading}
               updateWorkspaceName={updateWorkspaceName}
@@ -553,44 +675,52 @@ export function Sidebar() {
           </div>
 
           {/* 2. Workspace Selector - Conditionally rendered */}
-          {isWorkspaceSelectorVisible && (
-            <div className='pointer-events-auto flex-shrink-0'>
-              <WorkspaceSelector
-                workspaces={workspaces}
-                activeWorkspace={activeWorkspace}
-                isWorkspacesLoading={isWorkspacesLoading}
-                onWorkspaceUpdate={refreshWorkspaceList}
-                onSwitchWorkspace={switchWorkspace}
-                onCreateWorkspace={handleCreateWorkspace}
-                onDeleteWorkspace={confirmDeleteWorkspace}
-                isDeleting={isDeleting}
-              />
-            </div>
-          )}
+          <div
+            className={`pointer-events-auto flex-shrink-0 ${
+              !isWorkspaceSelectorVisible || isSidebarCollapsed ? 'hidden' : ''
+            }`}
+          >
+            <WorkspaceSelector
+              workspaces={workspaces}
+              activeWorkspace={activeWorkspace}
+              isWorkspacesLoading={isWorkspacesLoading}
+              onWorkspaceUpdate={refreshWorkspaceList}
+              onSwitchWorkspace={switchWorkspace}
+              onCreateWorkspace={handleCreateWorkspace}
+              onDeleteWorkspace={confirmDeleteWorkspace}
+              isDeleting={isDeleting}
+            />
+          </div>
 
           {/* 3. Search */}
-          {/* <div className='pointer-events-auto flex-shrink-0'>
-            <div className='flex h-12 items-center gap-2 rounded-[14px] border bg-card pr-2 pl-3 shadow-xs'>
+          <div
+            className={`pointer-events-auto flex-shrink-0 ${isSidebarCollapsed ? 'hidden' : ''}`}
+          >
+            <button
+              onClick={() => setShowSearchModal(true)}
+              className='flex h-12 w-full cursor-pointer items-center gap-2 rounded-[14px] border bg-card pr-[10px] pl-3 shadow-xs transition-colors hover:bg-muted/50'
+            >
               <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
-              <Input
-                placeholder='Search anything'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className='h-8 flex-1 border-0 bg-transparent px-0 font-normal text-base text-muted-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
+              <span className='flex h-8 flex-1 items-center px-0 font-[350] text-muted-foreground text-sm leading-none'>
+                Search anything
+              </span>
               <kbd className='flex h-6 w-8 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]'>
                 <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
                   <span className='text-lg'>⌘</span>
                   <span className='text-xs'>K</span>
                 </span>
               </kbd>
-            </div>
-          </div> */}
+            </button>
+          </div>
 
           {/* 4. Workflow Selector */}
-          <div className='pointer-events-auto relative h-[272px] flex-shrink-0 rounded-[14px] border bg-card shadow-xs'>
+          <div
+            className={`pointer-events-auto relative h-[212px] flex-shrink-0 rounded-[14px] border bg-card shadow-xs ${
+              isSidebarCollapsed ? 'hidden' : ''
+            }`}
+          >
             <div className='px-2'>
-              <ScrollArea ref={workflowScrollAreaRef} className='h-[270px]' hideScrollbar={true}>
+              <ScrollArea ref={workflowScrollAreaRef} className='h-[212px]' hideScrollbar={true}>
                 <FolderTree
                   regularWorkflows={regularWorkflows}
                   marketplaceWorkflows={tempWorkflows}
@@ -614,20 +744,20 @@ export function Sidebar() {
       </aside>
 
       {/* Floating Toolbar - Only on workflow pages */}
-      {isOnWorkflowPage && (
-        <div
-          className='pointer-events-auto fixed left-4 z-50 w-56 rounded-[14px] border bg-card shadow-xs'
-          style={{
-            top: `${toolbarTop}px`,
-            bottom: `${navigationBottom + 42 + 12}px`, // Navigation height + gap
-          }}
-        >
-          <Toolbar
-            userPermissions={userPermissions}
-            isWorkspaceSelectorVisible={isWorkspaceSelectorVisible}
-          />
-        </div>
-      )}
+      <div
+        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[14px] border bg-card shadow-xs ${
+          !isOnWorkflowPage || isSidebarCollapsed ? 'hidden' : ''
+        }`}
+        style={{
+          top: `${toolbarTop}px`,
+          bottom: `${navigationBottom + 42 + 12}px`, // Navigation height + gap
+        }}
+      >
+        <Toolbar
+          userPermissions={userPermissions}
+          isWorkspaceSelectorVisible={isWorkspaceSelectorVisible}
+        />
+      </div>
 
       {/* Floating Navigation - Always visible */}
       <div
@@ -645,6 +775,7 @@ export function Sidebar() {
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
       <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
+      <SearchModal open={showSearchModal} onOpenChange={setShowSearchModal} templates={templates} />
     </>
   )
 }
