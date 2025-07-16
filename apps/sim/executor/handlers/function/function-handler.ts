@@ -1,7 +1,8 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { BlockType } from '@/executor/consts'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
-import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('FunctionBlockHandler')
 
@@ -10,7 +11,7 @@ const logger = createLogger('FunctionBlockHandler')
  */
 export class FunctionBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'function'
+    return block.metadata?.id === BlockType.FUNCTION
   }
 
   async execute(

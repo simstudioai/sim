@@ -1,9 +1,9 @@
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console-logger'
 import { VariableManager } from '@/lib/variables/variable-manager'
+import type { LoopManager } from '@/executor/loops/loops'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import type { LoopManager } from './loops'
-import type { ExecutionContext } from './types'
 
 const logger = createLogger('InputResolver')
 

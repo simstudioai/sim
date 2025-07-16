@@ -125,9 +125,16 @@ export function setupSubblocksHandlers(
             serverTimestamp: Date.now(),
           })
         }
-      }
 
-      logger.debug(`Subblock update in workflow ${workflowId}: ${blockId}.${subblockId}`)
+        logger.debug(`Subblock update in workflow ${workflowId}: ${blockId}.${subblockId}`)
+      } else if (operationId) {
+        // Block was deleted - notify client that operation completed (but didn't update anything)
+        socket.emit('operation-failed', {
+          operationId,
+          error: 'Block no longer exists',
+          retryable: false, // No point retrying for deleted blocks
+        })
+      }
     } catch (error) {
       logger.error('Error handling subblock update:', error)
 

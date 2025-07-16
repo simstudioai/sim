@@ -1,8 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { BlockType } from '@/executor/consts'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
-import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('ApiBlockHandler')
 
@@ -11,7 +12,7 @@ const logger = createLogger('ApiBlockHandler')
  */
 export class ApiBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'api'
+    return block.metadata?.id === BlockType.API
   }
 
   async execute(

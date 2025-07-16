@@ -1,12 +1,13 @@
 import '../../__test-utils__/mock-dependencies'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
-import type { ExecutionContext } from '../../types'
-import { GenericBlockHandler } from './generic-handler'
 
 const mockGetTool = vi.mocked(getTool)
 const mockExecuteTool = executeTool as Mock
@@ -74,7 +75,7 @@ describe('GenericBlockHandler', () => {
   })
 
   it.concurrent('should always handle any block type', () => {
-    const agentBlock: SerializedBlock = { ...mockBlock, metadata: { id: 'agent' } }
+    const agentBlock: SerializedBlock = { ...mockBlock, metadata: { id: BlockType.AGENT } }
     expect(handler.canHandle(agentBlock)).toBe(true)
     expect(handler.canHandle(mockBlock)).toBe(true)
     const noMetaIdBlock: SerializedBlock = { ...mockBlock, metadata: undefined }

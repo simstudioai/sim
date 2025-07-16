@@ -2,9 +2,8 @@ import crypto from 'crypto'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { permissions, workflow, workflowBlocks, workspace, workspaceMember } from '@/db/schema'
+import { permissions, workflow, workflowBlocks, workspace } from '@/db/schema'
 
 // Get all workspaces for the current user
 export async function GET() {
@@ -14,19 +13,18 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get all workspaces where the user is a member with a single join query
-  const memberWorkspaces = await db
+  // Get all workspaces where the user has permissions
+  const userWorkspaces = await db
     .select({
       workspace: workspace,
-      role: workspaceMember.role,
-      membershipId: workspaceMember.id,
+      permissionType: permissions.permissionType,
     })
-    .from(workspaceMember)
-    .innerJoin(workspace, eq(workspaceMember.workspaceId, workspace.id))
-    .where(eq(workspaceMember.userId, session.user.id))
-    .orderBy(desc(workspaceMember.joinedAt))
+    .from(permissions)
+    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+    .where(and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace')))
+    .orderBy(desc(workspace.createdAt))
 
-  if (memberWorkspaces.length === 0) {
+  if (userWorkspaces.length === 0) {
     // Create a default workspace for the user
     const defaultWorkspace = await createDefaultWorkspace(session.user.id, session.user.name)
 
@@ -37,23 +35,14 @@ export async function GET() {
   }
 
   // If user has workspaces but might have orphaned workflows, migrate them
-  await ensureWorkflowsHaveWorkspace(session.user.id, memberWorkspaces[0].workspace.id)
+  await ensureWorkflowsHaveWorkspace(session.user.id, userWorkspaces[0].workspace.id)
 
-  // Get permissions for each workspace and format the response
-  const workspacesWithPermissions = await Promise.all(
-    memberWorkspaces.map(async ({ workspace: workspaceDetails, role, membershipId }) => {
-      const userPermissions = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceDetails.id
-      )
-
-      return {
-        ...workspaceDetails,
-        role,
-        membershipId,
-        permissions: userPermissions,
-      }
+  // Format the response with permission information
+  const workspacesWithPermissions = userWorkspaces.map(
+    ({ workspace: workspaceDetails, permissionType }) => ({
+      ...workspaceDetails,
+      role: permissionType === 'admin' ? 'owner' : 'member', // Map admin to owner for compatibility
+      permissions: permissionType,
     })
   )
 
@@ -108,13 +97,14 @@ async function createWorkspace(userId: string, name: string) {
         updatedAt: now,
       })
 
-      // Add the user as a member with owner role
-      await tx.insert(workspaceMember).values({
+      // Create admin permissions for the workspace owner
+      await tx.insert(permissions).values({
         id: crypto.randomUUID(),
-        workspaceId,
-        userId,
-        role: 'owner',
-        joinedAt: now,
+        entityType: 'workspace' as const,
+        entityId: workspaceId,
+        userId: userId,
+        permissionType: 'admin' as const,
+        createdAt: now,
         updatedAt: now,
       })
 
@@ -262,17 +252,6 @@ async function createWorkspace(userId: string, name: string) {
     console.error(`❌ Failed to create workspace ${workspaceId} with initial workflow:`, error)
     throw error
   }
-
-  // Create default permissions for the workspace owner
-  await db.insert(permissions).values({
-    id: crypto.randomUUID(),
-    entityType: 'workspace' as const,
-    entityId: workspaceId,
-    userId: userId,
-    permissionType: 'admin' as const,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })
 
   // Return the workspace data directly instead of querying again
   return {

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { PathTracker } from '@/executor/path/path'
+import { Routing } from '@/executor/routing/routing'
+import type { BlockState, ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { PathTracker } from './path'
-import type { BlockState, ExecutionContext } from './types'
 
 describe('PathTracker', () => {
   let pathTracker: PathTracker
@@ -32,27 +34,27 @@ describe('PathTracker', () => {
         },
         {
           id: 'router1',
-          metadata: { id: 'router' },
+          metadata: { id: BlockType.ROUTER },
           position: { x: 0, y: 0 },
-          config: { tool: 'router', params: {} },
+          config: { tool: BlockType.ROUTER, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
         },
         {
           id: 'condition1',
-          metadata: { id: 'condition' },
+          metadata: { id: BlockType.CONDITION },
           position: { x: 0, y: 0 },
-          config: { tool: 'condition', params: {} },
+          config: { tool: BlockType.CONDITION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
         },
         {
           id: 'loop1',
-          metadata: { id: 'loop' },
+          metadata: { id: BlockType.LOOP },
           position: { x: 0, y: 0 },
-          config: { tool: 'loop', params: {} },
+          config: { tool: BlockType.LOOP, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -75,6 +77,7 @@ describe('PathTracker', () => {
           loopType: 'for',
         },
       },
+      parallels: {},
     }
 
     mockContext = {
@@ -417,36 +420,36 @@ describe('PathTracker', () => {
         blocks: [
           {
             id: 'router1',
-            metadata: { id: 'router', name: 'Router' },
+            metadata: { id: BlockType.ROUTER, name: 'Router' },
             position: { x: 0, y: 0 },
-            config: { tool: 'router', params: {} },
+            config: { tool: BlockType.ROUTER, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'api1',
-            metadata: { id: 'api', name: 'API 1' },
+            metadata: { id: BlockType.API, name: 'API 1' },
             position: { x: 0, y: 0 },
-            config: { tool: 'api', params: {} },
+            config: { tool: BlockType.API, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'api2',
-            metadata: { id: 'api', name: 'API 2' },
+            metadata: { id: BlockType.API, name: 'API 2' },
             position: { x: 0, y: 0 },
-            config: { tool: 'api', params: {} },
+            config: { tool: BlockType.API, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'agent1',
-            metadata: { id: 'agent', name: 'Agent' },
+            metadata: { id: BlockType.AGENT, name: 'Agent' },
             position: { x: 0, y: 0 },
-            config: { tool: 'agent', params: {} },
+            config: { tool: BlockType.AGENT, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
@@ -485,7 +488,7 @@ describe('PathTracker', () => {
         output: {
           selectedPath: {
             blockId: 'api1',
-            blockType: 'api',
+            blockType: BlockType.API,
             blockTitle: 'API 1',
           },
         },
@@ -508,9 +511,9 @@ describe('PathTracker', () => {
       // Add another level to test deep activation
       mockWorkflow.blocks.push({
         id: 'finalStep',
-        metadata: { id: 'api', name: 'Final Step' },
+        metadata: { id: BlockType.API, name: 'Final Step' },
         position: { x: 0, y: 0 },
-        config: { tool: 'api', params: {} },
+        config: { tool: BlockType.API, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -524,7 +527,7 @@ describe('PathTracker', () => {
         output: {
           selectedPath: {
             blockId: 'api1',
-            blockType: 'api',
+            blockType: BlockType.API,
             blockTitle: 'API 1',
           },
         },
@@ -552,7 +555,7 @@ describe('PathTracker', () => {
         output: {
           selectedPath: {
             blockId: 'api1',
-            blockType: 'api',
+            blockType: BlockType.API,
             blockTitle: 'API 1',
           },
         },
@@ -586,7 +589,7 @@ describe('PathTracker', () => {
         output: {
           selectedPath: {
             blockId: 'api1',
-            blockType: 'api',
+            blockType: BlockType.API,
             blockTitle: 'API 1',
           },
         },
@@ -600,6 +603,160 @@ describe('PathTracker', () => {
       expect(mockContext.activeExecutionPath.has('api1')).toBe(true)
       expect(mockContext.activeExecutionPath.has('api2')).toBe(false)
       expect(mockContext.activeExecutionPath.has('agent1')).toBe(false)
+    })
+  })
+
+  describe('RoutingStrategy integration', () => {
+    beforeEach(() => {
+      // Add more block types to test the new routing strategy
+      mockWorkflow.blocks.push(
+        {
+          id: 'parallel1',
+          metadata: { id: BlockType.PARALLEL },
+          position: { x: 0, y: 0 },
+          config: { tool: BlockType.PARALLEL, params: {} },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+        },
+        {
+          id: 'function1',
+          metadata: { id: BlockType.FUNCTION },
+          position: { x: 0, y: 0 },
+          config: { tool: BlockType.FUNCTION, params: {} },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+        },
+        {
+          id: 'agent1',
+          metadata: { id: BlockType.AGENT },
+          position: { x: 0, y: 0 },
+          config: { tool: BlockType.AGENT, params: {} },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+        }
+      )
+
+      mockWorkflow.connections.push(
+        { source: 'parallel1', target: 'function1', sourceHandle: 'parallel-start-source' },
+        { source: 'parallel1', target: 'agent1', sourceHandle: 'parallel-end-source' }
+      )
+
+      mockWorkflow.parallels = {
+        parallel1: {
+          id: 'parallel1',
+          nodes: ['function1'],
+          distribution: ['item1', 'item2'],
+        },
+      }
+
+      pathTracker = new PathTracker(mockWorkflow)
+    })
+
+    it('should correctly categorize different block types', () => {
+      // Test that our refactored code properly uses RoutingStrategy
+      expect(Routing.getCategory(BlockType.ROUTER)).toBe('routing')
+      expect(Routing.getCategory(BlockType.CONDITION)).toBe('routing')
+      expect(Routing.getCategory(BlockType.PARALLEL)).toBe('flow-control')
+      expect(Routing.getCategory(BlockType.LOOP)).toBe('flow-control')
+      expect(Routing.getCategory(BlockType.FUNCTION)).toBe('regular')
+      expect(Routing.getCategory(BlockType.AGENT)).toBe('regular')
+    })
+
+    it('should handle flow control blocks correctly in path checking', () => {
+      // Test that parallel blocks are handled correctly
+      mockContext.executedBlocks.add('parallel1')
+      mockContext.activeExecutionPath.add('parallel1')
+
+      // Function1 should be reachable from parallel1 via parallel-start-source
+      expect(pathTracker.isInActivePath('function1', mockContext)).toBe(true)
+
+      // Agent1 should be reachable from parallel1 via parallel-end-source
+      expect(pathTracker.isInActivePath('agent1', mockContext)).toBe(true)
+    })
+
+    it('should handle router selecting routing blocks correctly', () => {
+      // Test the refactored logic where router selects another routing block
+      const blockState: BlockState = {
+        output: { selectedPath: { blockId: 'condition1' } },
+        executed: true,
+        executionTime: 100,
+      }
+      mockContext.blockStates.set('router1', blockState)
+
+      pathTracker.updateExecutionPaths(['router1'], mockContext)
+
+      // Condition1 should be activated but not its downstream paths
+      // (since routing blocks make their own decisions)
+      expect(mockContext.activeExecutionPath.has('condition1')).toBe(true)
+      expect(mockContext.decisions.router.get('router1')).toBe('condition1')
+    })
+
+    it('should handle router selecting flow control blocks correctly', () => {
+      // Test the refactored logic where router selects a flow control block
+      const blockState: BlockState = {
+        output: { selectedPath: { blockId: 'parallel1' } },
+        executed: true,
+        executionTime: 100,
+      }
+      mockContext.blockStates.set('router1', blockState)
+
+      pathTracker.updateExecutionPaths(['router1'], mockContext)
+
+      // Parallel1 should be activated but not its downstream paths
+      // (since flow control blocks don't activate downstream automatically)
+      expect(mockContext.activeExecutionPath.has('parallel1')).toBe(true)
+      expect(mockContext.decisions.router.get('router1')).toBe('parallel1')
+      // Children should NOT be activated automatically
+      expect(mockContext.activeExecutionPath.has('function1')).toBe(false)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(false)
+    })
+
+    it('should handle router selecting regular blocks correctly', () => {
+      // Test that regular blocks still activate downstream paths
+      const blockState: BlockState = {
+        output: { selectedPath: { blockId: 'function1' } },
+        executed: true,
+        executionTime: 100,
+      }
+      mockContext.blockStates.set('router1', blockState)
+
+      pathTracker.updateExecutionPaths(['router1'], mockContext)
+
+      // Function1 should be activated and can activate downstream paths
+      expect(mockContext.activeExecutionPath.has('function1')).toBe(true)
+      expect(mockContext.decisions.router.get('router1')).toBe('function1')
+    })
+
+    it('should use category-based logic for updatePathForBlock', () => {
+      // Test that the refactored switch statement works correctly
+
+      // Test routing block (condition)
+      const conditionState: BlockState = {
+        output: { selectedConditionId: 'if' },
+        executed: true,
+        executionTime: 100,
+      }
+      mockContext.blockStates.set('condition1', conditionState)
+      pathTracker.updateExecutionPaths(['condition1'], mockContext)
+      expect(mockContext.decisions.condition.get('condition1')).toBe('if')
+
+      // Test flow control block (loop)
+      pathTracker.updateExecutionPaths(['loop1'], mockContext)
+      expect(mockContext.activeExecutionPath.has('block1')).toBe(true) // loop-start-source
+
+      // Test regular block
+      const functionState: BlockState = {
+        output: { result: 'success' },
+        executed: true,
+        executionTime: 100,
+      }
+      mockContext.blockStates.set('function1', functionState)
+      mockContext.executedBlocks.add('function1')
+      pathTracker.updateExecutionPaths(['function1'], mockContext)
+      // Should activate downstream connections (handled by regular block logic)
     })
   })
 })

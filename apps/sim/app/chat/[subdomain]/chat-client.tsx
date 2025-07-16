@@ -269,6 +269,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     const messageToSend = messageParam ?? inputValue
     if (!messageToSend.trim() || isLoading) return
 
+    logger.info('Sending message:', { messageToSend, isVoiceInput, conversationId })
+
     // Reset userHasScrolled when sending a new message
     setUserHasScrolled(false)
 
@@ -305,6 +307,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         conversationId,
       }
 
+      logger.info('API payload:', payload)
+
       const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
         headers: {
@@ -321,6 +325,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       if (!response.ok) {
         const errorData = await response.json()
+        logger.error('API error response:', errorData)
         throw new Error(errorData.error || 'Failed to get response')
       }
 
@@ -333,6 +338,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       const audioHandler = shouldPlayAudio
         ? createAudioStreamHandler(streamTextToAudio, DEFAULT_VOICE_SETTINGS.voiceId)
         : undefined
+
+      logger.info('Starting to handle streamed response:', { shouldPlayAudio })
 
       await handleStreamedResponse(
         response,
@@ -405,6 +412,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Handle voice transcript from voice-first interface
   const handleVoiceTranscript = useCallback(
     (transcript: string) => {
+      logger.info('Received voice transcript:', transcript)
       handleSendMessage(transcript, true)
     },
     [handleSendMessage]
