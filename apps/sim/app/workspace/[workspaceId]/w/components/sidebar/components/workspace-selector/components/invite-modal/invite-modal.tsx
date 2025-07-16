@@ -1,7 +1,7 @@
 'use client'
 
 import React, { type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { HelpCircle, Loader2, X } from 'lucide-react'
+import { HelpCircle, Loader2, Trash2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -41,11 +41,14 @@ interface UserPermissions {
   permissionType: PermissionType
   isCurrentUser?: boolean
   isPendingInvitation?: boolean
+  invitationId?: string
 }
 
 interface PermissionsTableProps {
   userPermissions: UserPermissions[]
   onPermissionChange: (userId: string, permissionType: PermissionType) => void
+  onRemoveMember?: (userId: string, email: string) => void
+  onRemoveInvitation?: (invitationId: string, email: string) => void
   disabled?: boolean
   existingUserPermissionChanges: Record<string, Partial<UserPermissions>>
   isSaving?: boolean
@@ -189,198 +192,244 @@ const getStatusBadgeStyles = (status: 'sent' | 'member' | 'modified'): string =>
   }
 }
 
-const PermissionsTable = React.memo<PermissionsTableProps>(
-  ({
-    userPermissions,
-    onPermissionChange,
-    disabled,
-    existingUserPermissionChanges,
-    isSaving,
-    workspacePermissions,
-    permissionsLoading,
-    pendingInvitations,
-    isPendingInvitationsLoading,
-  }) => {
-    // Always call hooks first - before any conditional returns
-    const { data: session } = useSession()
-    const userPerms = useUserPermissionsContext()
+const PermissionsTable = ({
+  userPermissions,
+  onPermissionChange,
+  onRemoveMember,
+  onRemoveInvitation,
+  disabled,
+  existingUserPermissionChanges,
+  isSaving,
+  workspacePermissions,
+  permissionsLoading,
+  pendingInvitations,
+  isPendingInvitationsLoading,
+}: PermissionsTableProps) => {
+  const { data: session } = useSession()
+  const userPerms = useUserPermissionsContext()
 
-    // All useMemo hooks must be called before any conditional returns
-    const existingUsers: UserPermissions[] = useMemo(
-      () =>
-        workspacePermissions?.users?.map((user) => {
-          const changes = existingUserPermissionChanges[user.userId] || {}
-          const permissionType = user.permissionType || 'read'
+  const existingUsers: UserPermissions[] = useMemo(
+    () =>
+      workspacePermissions?.users?.map((user) => {
+        const changes = existingUserPermissionChanges[user.userId] || {}
+        const permissionType = user.permissionType || 'read'
 
-          return {
-            userId: user.userId,
-            email: user.email,
-            permissionType:
-              changes.permissionType !== undefined ? changes.permissionType : permissionType,
-            isCurrentUser: user.email === session?.user?.email,
+        return {
+          userId: user.userId,
+          email: user.email,
+          permissionType:
+            changes.permissionType !== undefined ? changes.permissionType : permissionType,
+          isCurrentUser: user.email === session?.user?.email,
+        }
+      }) || [],
+    [workspacePermissions?.users, existingUserPermissionChanges, session?.user?.email]
+  )
+
+  const currentUser: UserPermissions | null = useMemo(
+    () =>
+      session?.user?.email
+        ? existingUsers.find((user) => user.isCurrentUser) || {
+            email: session.user.email,
+            permissionType: 'admin',
+            isCurrentUser: true,
           }
-        }) || [],
-      [workspacePermissions?.users, existingUserPermissionChanges, session?.user?.email]
+        : null,
+    [session?.user?.email, existingUsers]
+  )
+
+  const filteredExistingUsers = useMemo(
+    () => existingUsers.filter((user) => !user.isCurrentUser),
+    [existingUsers]
+  )
+
+  const allUsers: UserPermissions[] = useMemo(() => {
+    // Get emails of existing users to filter out duplicate invitations
+    const existingUserEmails = new Set([
+      ...(currentUser ? [currentUser.email] : []),
+      ...filteredExistingUsers.map((user) => user.email),
+    ])
+
+    // Filter out pending invitations for users who are already members
+    const filteredPendingInvitations = pendingInvitations.filter(
+      (invitation) => !existingUserEmails.has(invitation.email)
     )
 
-    const currentUser: UserPermissions | null = useMemo(
-      () =>
-        session?.user?.email
-          ? existingUsers.find((user) => user.isCurrentUser) || {
-              email: session.user.email,
-              permissionType: 'admin',
-              isCurrentUser: true,
-            }
-          : null,
-      [session?.user?.email, existingUsers]
-    )
+    return [
+      ...(currentUser ? [currentUser] : []),
+      ...filteredExistingUsers,
+      ...userPermissions,
+      ...filteredPendingInvitations,
+    ]
+  }, [currentUser, filteredExistingUsers, userPermissions, pendingInvitations])
 
-    const filteredExistingUsers = useMemo(
-      () => existingUsers.filter((user) => !user.isCurrentUser),
-      [existingUsers]
-    )
+  if (permissionsLoading || userPerms.isLoading || isPendingInvitationsLoading) {
+    return <PermissionsTableSkeleton />
+  }
 
-    const allUsers: UserPermissions[] = useMemo(
-      () => [
-        ...(currentUser ? [currentUser] : []),
-        ...filteredExistingUsers,
-        ...userPermissions,
-        ...pendingInvitations,
-      ],
-      [currentUser, filteredExistingUsers, userPermissions, pendingInvitations]
-    )
+  if (userPermissions.length === 0 && !session?.user?.email && !workspacePermissions?.users?.length)
+    return null
 
-    // Now we can safely have conditional returns after all hooks are called
-    if (permissionsLoading || userPerms.isLoading || isPendingInvitationsLoading) {
-      return <PermissionsTableSkeleton />
-    }
-
-    if (
-      userPermissions.length === 0 &&
-      !session?.user?.email &&
-      !workspacePermissions?.users?.length
-    )
-      return null
-
-    if (isSaving) {
-      return (
-        <div className='space-y-4'>
-          <h3 className='font-medium text-sm'>Member Permissions</h3>
-          <div className='rounded-md border bg-card'>
-            <div className='flex items-center justify-center py-12'>
-              <div className='flex items-center space-x-2 text-muted-foreground'>
-                <Loader2 className='h-5 w-5 animate-spin' />
-                <span className='font-medium text-sm'>Saving permission changes...</span>
-              </div>
-            </div>
-          </div>
-          <div className='flex min-h-[2rem] items-start'>
-            <p className='text-muted-foreground text-xs'>
-              Please wait while we update the permissions.
-            </p>
-          </div>
-        </div>
-      )
-    }
-
-    const currentUserIsAdmin = userPerms.canAdmin
-
+  if (isSaving) {
     return (
       <div className='space-y-4'>
-        <div className='flex items-center gap-2'>
-          <h3 className='font-medium text-sm'>Member Permissions</h3>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-5 w-5 p-0 text-muted-foreground hover:text-foreground'
-                type='button'
-              >
-                <HelpCircle className='h-4 w-4' />
-                <span className='sr-only'>Member permissions help</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side='top' className='max-w-[320px]'>
-              <div className='space-y-2'>
-                {userPerms.isLoading || permissionsLoading ? (
-                  <p className='text-sm'>Loading permissions...</p>
-                ) : !currentUserIsAdmin ? (
-                  <p className='text-sm'>
-                    Only administrators can invite new members and modify permissions.
-                  </p>
-                ) : (
-                  <div className='space-y-1'>
-                    <p className='text-sm'>Admin grants all permissions automatically.</p>
-                  </div>
-                )}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-        <div className='rounded-md border'>
-          {allUsers.length > 0 && (
-            <div className='divide-y'>
-              {allUsers.map((user) => {
-                const isCurrentUser = user.isCurrentUser === true
-                const isExistingUser = filteredExistingUsers.some((eu) => eu.email === user.email)
-                const isPendingInvitation = user.isPendingInvitation === true
-                const userIdentifier = user.userId || user.email
-                const hasChanges = existingUserPermissionChanges[userIdentifier] !== undefined
-
-                const uniqueKey = user.userId
-                  ? `existing-${user.userId}`
-                  : isPendingInvitation
-                    ? `pending-${user.email}`
-                    : `new-${user.email}`
-
-                return (
-                  <div key={uniqueKey} className='flex items-center justify-between p-4'>
-                    <div className='min-w-0 flex-1'>
-                      <div className='flex items-center gap-2'>
-                        <span className='font-medium text-card-foreground text-sm'>
-                          {user.email}
-                        </span>
-                        {isPendingInvitation && (
-                          <span className={getStatusBadgeStyles('sent')}>Sent</span>
-                        )}
-                      </div>
-                      <div className='mt-1 flex items-center gap-2'>
-                        {isExistingUser && !isCurrentUser && (
-                          <span className={getStatusBadgeStyles('member')}>Member</span>
-                        )}
-                        {hasChanges && (
-                          <span className={getStatusBadgeStyles('modified')}>Modified</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className='flex-shrink-0'>
-                      <PermissionSelector
-                        value={user.permissionType}
-                        onChange={(newPermission) =>
-                          onPermissionChange(userIdentifier, newPermission)
-                        }
-                        disabled={
-                          disabled ||
-                          !currentUserIsAdmin ||
-                          isPendingInvitation ||
-                          (isCurrentUser && user.permissionType === 'admin')
-                        }
-                        className='w-auto'
-                      />
-                    </div>
-                  </div>
-                )
-              })}
+        <h3 className='font-medium text-sm'>Member Permissions</h3>
+        <div className='rounded-md border bg-card'>
+          <div className='flex items-center justify-center py-12'>
+            <div className='flex items-center space-x-2 text-muted-foreground'>
+              <Loader2 className='h-5 w-5 animate-spin' />
+              <span className='font-medium text-sm'>Saving permission changes...</span>
             </div>
-          )}
+          </div>
+        </div>
+        <div className='flex min-h-[2rem] items-start'>
+          <p className='text-muted-foreground text-xs'>
+            Please wait while we update the permissions.
+          </p>
         </div>
       </div>
     )
   }
-)
 
-PermissionsTable.displayName = 'PermissionsTable'
+  const currentUserIsAdmin = userPerms.canAdmin
+
+  return (
+    <div className='space-y-4'>
+      <div className='flex items-center gap-2'>
+        <h3 className='font-medium text-sm'>Member Permissions</h3>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-5 w-5 p-0 text-muted-foreground hover:text-foreground'
+              type='button'
+            >
+              <HelpCircle className='h-4 w-4' />
+              <span className='sr-only'>Member permissions help</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side='top' className='max-w-[320px]'>
+            <div className='space-y-2'>
+              {userPerms.isLoading || permissionsLoading ? (
+                <p className='text-sm'>Loading permissions...</p>
+              ) : !currentUserIsAdmin ? (
+                <p className='text-sm'>
+                  Only administrators can invite new members and modify permissions.
+                </p>
+              ) : (
+                <div className='space-y-1'>
+                  <p className='text-sm'>Admin grants all permissions automatically.</p>
+                </div>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+      <div className='rounded-md border'>
+        {allUsers.length > 0 && (
+          <div className='divide-y'>
+            {allUsers.map((user) => {
+              const isCurrentUser = user.isCurrentUser === true
+              const isExistingUser = filteredExistingUsers.some((eu) => eu.email === user.email)
+              const isPendingInvitation = user.isPendingInvitation === true
+              const userIdentifier = user.userId || user.email
+              // Check if current permission is different from original permission
+              const originalPermission = workspacePermissions?.users?.find(
+                (eu) => eu.userId === user.userId
+              )?.permissionType
+              const currentPermission =
+                existingUserPermissionChanges[userIdentifier]?.permissionType ?? user.permissionType
+              const hasChanges = originalPermission && currentPermission !== originalPermission
+              // Check if user is in workspace permissions directly
+              const isWorkspaceMember = workspacePermissions?.users?.some(
+                (eu) => eu.email === user.email && eu.userId
+              )
+              const canShowRemoveButton =
+                isWorkspaceMember &&
+                !isCurrentUser &&
+                !isPendingInvitation &&
+                currentUserIsAdmin &&
+                user.userId
+
+              const uniqueKey = user.userId
+                ? `existing-${user.userId}`
+                : isPendingInvitation
+                  ? `pending-${user.email}`
+                  : `new-${user.email}`
+
+              return (
+                <div key={uniqueKey} className='flex items-center justify-between p-4'>
+                  <div className='min-w-0 flex-1'>
+                    <div className='flex items-center gap-2'>
+                      <span className='font-medium text-card-foreground text-sm'>{user.email}</span>
+                      {isPendingInvitation && (
+                        <span className={getStatusBadgeStyles('sent')}>Sent</span>
+                      )}
+                      {/* Show remove button for existing workspace members (not current user, not pending) */}
+                      {canShowRemoveButton && onRemoveMember && (
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => onRemoveMember(user.userId!, user.email)}
+                          disabled={disabled || isSaving}
+                          className='h-6 w-6 rounded-md p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+                          title={`Remove ${user.email} from workspace`}
+                        >
+                          <Trash2 className='h-3.5 w-3.5' />
+                          <span className='sr-only'>Remove {user.email}</span>
+                        </Button>
+                      )}
+                      {/* Show remove button for pending invitations */}
+                      {isPendingInvitation &&
+                        currentUserIsAdmin &&
+                        user.invitationId &&
+                        onRemoveInvitation && (
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => onRemoveInvitation(user.invitationId!, user.email)}
+                            disabled={disabled || isSaving}
+                            className='h-6 w-6 rounded-md p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+                            title={`Cancel invitation for ${user.email}`}
+                          >
+                            <Trash2 className='h-3.5 w-3.5' />
+                            <span className='sr-only'>Cancel invitation for {user.email}</span>
+                          </Button>
+                        )}
+                    </div>
+                    <div className='mt-1 flex items-center gap-2'>
+                      {isExistingUser && !isCurrentUser && (
+                        <span className={getStatusBadgeStyles('member')}>Member</span>
+                      )}
+                      {hasChanges && (
+                        <span className={getStatusBadgeStyles('modified')}>Modified</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className='flex-shrink-0'>
+                    <PermissionSelector
+                      value={user.permissionType}
+                      onChange={(newPermission) =>
+                        onPermissionChange(userIdentifier, newPermission)
+                      }
+                      disabled={
+                        disabled ||
+                        !currentUserIsAdmin ||
+                        isPendingInvitation ||
+                        (isCurrentUser && user.permissionType === 'admin')
+                      }
+                      className='w-auto'
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const [inputValue, setInputValue] = useState('')
@@ -397,6 +446,15 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const [showSent, setShowSent] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [memberToRemove, setMemberToRemove] = useState<{ userId: string; email: string } | null>(
+    null
+  )
+  const [isRemovingMember, setIsRemovingMember] = useState(false)
+  const [invitationToRemove, setInvitationToRemove] = useState<{
+    invitationId: string
+    email: string
+  } | null>(null)
+  const [isRemovingInvitation, setIsRemovingInvitation] = useState(false)
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -429,6 +487,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
               email: inv.email,
               permissionType: inv.permissions,
               isPendingInvitation: true,
+              invitationId: inv.id,
             })) || []
 
         setPendingInvitations(workspacePendingInvitations)
@@ -444,11 +503,15 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     if (open && workspaceId) {
       fetchPendingInvitations()
     }
-  }, [open, fetchPendingInvitations])
+  }, [open, workspaceId, fetchPendingInvitations])
 
+  // Clear errors when modal opens
   useEffect(() => {
-    setErrorMessage(null)
-  }, [pendingInvitations, workspacePermissions])
+    if (open) {
+      setErrorMessage(null)
+      setSuccessMessage(null)
+    }
+  }, [open])
 
   const addEmail = useCallback(
     (email: string) => {
@@ -523,10 +586,19 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       const existingUser = workspacePermissions?.users?.find((user) => user.userId === identifier)
 
       if (existingUser) {
-        setExistingUserPermissionChanges((prev) => ({
-          ...prev,
-          [identifier]: { permissionType },
-        }))
+        setExistingUserPermissionChanges((prev) => {
+          const newChanges = { ...prev }
+
+          // If the new permission matches the original, remove the change entry
+          if (existingUser.permissionType === permissionType) {
+            delete newChanges[identifier]
+          } else {
+            // Otherwise, track the change
+            newChanges[identifier] = { permissionType }
+          }
+
+          return newChanges
+        })
       } else {
         setUserPermissions((prev) =>
           prev.map((user) => (user.email === identifier ? { ...user, permissionType } : user))
@@ -599,6 +671,126 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     setTimeout(() => setSuccessMessage(null), 3000)
   }, [userPerms.canAdmin, hasPendingChanges])
 
+  const handleRemoveMemberClick = useCallback((userId: string, email: string) => {
+    setMemberToRemove({ userId, email })
+  }, [])
+
+  const handleRemoveMemberConfirm = useCallback(async () => {
+    if (!memberToRemove || !workspaceId || !userPerms.canAdmin) return
+
+    setIsRemovingMember(true)
+    setErrorMessage(null)
+
+    try {
+      // Verify the user exists in workspace permissions
+      const userRecord = workspacePermissions?.users?.find(
+        (user) => user.userId === memberToRemove.userId
+      )
+
+      if (!userRecord) {
+        throw new Error('User is not a member of this workspace')
+      }
+
+      const response = await fetch(`/api/workspaces/members/${memberToRemove.userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workspaceId: workspaceId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to remove member')
+      }
+
+      // Update the workspace permissions to remove the user
+      if (workspacePermissions) {
+        const updatedUsers = workspacePermissions.users.filter(
+          (user) => user.userId !== memberToRemove.userId
+        )
+        updatePermissions({
+          users: updatedUsers,
+          total: workspacePermissions.total - 1,
+        })
+      }
+
+      // Clear any pending changes for this user
+      setExistingUserPermissionChanges((prev) => {
+        const updated = { ...prev }
+        delete updated[memberToRemove.userId]
+        return updated
+      })
+
+      setSuccessMessage(`${memberToRemove.email} has been removed from the workspace`)
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      logger.error('Error removing member:', error)
+      const errorMsg =
+        error instanceof Error ? error.message : 'Failed to remove member. Please try again.'
+      setErrorMessage(errorMsg)
+    } finally {
+      setIsRemovingMember(false)
+      setMemberToRemove(null)
+    }
+  }, [memberToRemove, workspaceId, userPerms.canAdmin, workspacePermissions, updatePermissions])
+
+  const handleRemoveMemberCancel = useCallback(() => {
+    setMemberToRemove(null)
+  }, [])
+
+  const handleRemoveInvitationClick = useCallback((invitationId: string, email: string) => {
+    setInvitationToRemove({ invitationId, email })
+  }, [])
+
+  const handleRemoveInvitationConfirm = useCallback(async () => {
+    if (!invitationToRemove || !workspaceId || !userPerms.canAdmin) return
+
+    setIsRemovingInvitation(true)
+    setErrorMessage(null)
+
+    try {
+      const response = await fetch(
+        `/api/workspaces/invitations/${invitationToRemove.invitationId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel invitation')
+      }
+
+      // Remove the invitation from the pending invitations list
+      setPendingInvitations((prev) =>
+        prev.filter((inv) => inv.invitationId !== invitationToRemove.invitationId)
+      )
+
+      setSuccessMessage(`Invitation for ${invitationToRemove.email} has been cancelled`)
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      logger.error('Error cancelling invitation:', error)
+      const errorMsg =
+        error instanceof Error ? error.message : 'Failed to cancel invitation. Please try again.'
+      setErrorMessage(errorMsg)
+    } finally {
+      setIsRemovingInvitation(false)
+      setInvitationToRemove(null)
+    }
+  }, [invitationToRemove, workspaceId, userPerms.canAdmin])
+
+  const handleRemoveInvitationCancel = useCallback(() => {
+    setInvitationToRemove(null)
+  }, [])
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (['Enter', ',', ' '].includes(e.key) && inputValue.trim()) {
@@ -645,6 +837,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         addEmail(inputValue)
       }
 
+      // Clear messages at start of submission
       setErrorMessage(null)
       setSuccessMessage(null)
 
@@ -732,7 +925,9 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         }
       } catch (err) {
         logger.error('Error inviting members:', err)
-        setErrorMessage('An unexpected error occurred. Please try again.')
+        const errorMessage =
+          err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.'
+        setErrorMessage(errorMessage)
       } finally {
         setIsSubmitting(false)
       }
@@ -750,6 +945,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   )
 
   const resetState = useCallback(() => {
+    // Batch state updates using React's automatic batching in React 18+
     setInputValue('')
     setEmails([])
     setInvalidEmails([])
@@ -762,6 +958,10 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     setShowSent(false)
     setErrorMessage(null)
     setSuccessMessage(null)
+    setMemberToRemove(null)
+    setIsRemovingMember(false)
+    setInvitationToRemove(null)
+    setIsRemovingInvitation(false)
   }, [])
 
   return (
@@ -880,7 +1080,9 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
               <PermissionsTable
                 userPermissions={userPermissions}
                 onPermissionChange={handlePermissionChange}
-                disabled={isSubmitting || isSaving}
+                onRemoveMember={handleRemoveMemberClick}
+                onRemoveInvitation={handleRemoveInvitationClick}
+                disabled={isSubmitting || isSaving || isRemovingMember || isRemovingInvitation}
                 existingUserPermissionChanges={existingUserPermissionChanges}
                 isSaving={isSaving}
                 workspacePermissions={workspacePermissions}
@@ -946,6 +1148,74 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
           </form>
         </div>
       </DialogContent>
+
+      {/* Remove Member Confirmation Dialog */}
+      <Dialog open={!!memberToRemove} onOpenChange={handleRemoveMemberCancel}>
+        <DialogContent className='sm:max-w-[425px]'>
+          <DialogHeader>
+            <DialogTitle>Remove Member</DialogTitle>
+          </DialogHeader>
+          <div className='py-4'>
+            <p className='text-muted-foreground text-sm'>
+              Are you sure you want to remove{' '}
+              <span className='font-medium text-foreground'>{memberToRemove?.email}</span> from this
+              workspace? This action cannot be undone.
+            </p>
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button
+              variant='outline'
+              onClick={handleRemoveMemberCancel}
+              disabled={isRemovingMember}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={handleRemoveMemberConfirm}
+              disabled={isRemovingMember}
+              className='gap-2'
+            >
+              {isRemovingMember && <Loader2 className='h-4 w-4 animate-spin' />}
+              Remove Member
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Invitation Confirmation Dialog */}
+      <Dialog open={!!invitationToRemove} onOpenChange={handleRemoveInvitationCancel}>
+        <DialogContent className='sm:max-w-[425px]'>
+          <DialogHeader>
+            <DialogTitle>Cancel Invitation</DialogTitle>
+          </DialogHeader>
+          <div className='py-4'>
+            <p className='text-muted-foreground text-sm'>
+              Are you sure you want to cancel the invitation for{' '}
+              <span className='font-medium text-foreground'>{invitationToRemove?.email}</span>? This
+              action cannot be undone.
+            </p>
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button
+              variant='outline'
+              onClick={handleRemoveInvitationCancel}
+              disabled={isRemovingInvitation}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={handleRemoveInvitationConfirm}
+              disabled={isRemovingInvitation}
+              className='gap-2'
+            >
+              {isRemovingInvitation && <Loader2 className='h-4 w-4 animate-spin' />}
+              Cancel Invitation
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

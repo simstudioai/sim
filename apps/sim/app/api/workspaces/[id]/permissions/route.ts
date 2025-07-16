@@ -1,9 +1,10 @@
+import crypto from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getUsersWithPermissions, hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { permissions, type permissionTypeEnum, workspaceMember } from '@/db/schema'
+import { permissions, type permissionTypeEnum } from '@/db/schema'
 
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
@@ -33,18 +34,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Verify the current user has access to this workspace
-    const userMembership = await db
+    const userPermission = await db
       .select()
-      .from(workspaceMember)
+      .from(permissions)
       .where(
         and(
-          eq(workspaceMember.workspaceId, workspaceId),
-          eq(workspaceMember.userId, session.user.id)
+          eq(permissions.entityId, workspaceId),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.userId, session.user.id)
         )
       )
       .limit(1)
 
-    if (userMembership.length === 0) {
+    if (userPermission.length === 0) {
       return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
     }
 

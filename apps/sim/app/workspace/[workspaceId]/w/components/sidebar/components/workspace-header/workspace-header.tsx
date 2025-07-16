@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 
 const logger = createLogger('WorkspaceHeader')
 
@@ -50,6 +51,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
   }) => {
     // External hooks
     const { data: sessionData } = useSession()
+    const userPermissions = useUserPermissionsContext()
     const [isClientLoading, setIsClientLoading] = useState(true)
     const [isEditingName, setIsEditingName] = useState(false)
     const [editingName, setEditingName] = useState('')
@@ -87,9 +89,13 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
 
     // Handle workspace name click
     const handleWorkspaceNameClick = useCallback(() => {
+      // Only allow admins to rename workspace
+      if (!userPermissions.canAdmin) {
+        return
+      }
       setEditingName(displayName)
       setIsEditingName(true)
-    }, [displayName])
+    }, [displayName, userPermissions.canAdmin])
 
     // Handle workspace name editing actions
     const handleEditingAction = useCallback(
@@ -207,16 +213,29 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
                 }}
               />
             ) : (
-              <div
-                onClick={handleWorkspaceNameClick}
-                className='cursor-pointer truncate font-medium text-sm leading-none transition-all hover:brightness-75 dark:hover:brightness-125'
-                style={{
-                  minHeight: '1rem',
-                  lineHeight: '1rem',
-                }}
-              >
-                {displayName}
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    onClick={handleWorkspaceNameClick}
+                    className={`truncate font-medium text-sm leading-none transition-all ${
+                      userPermissions.canAdmin
+                        ? 'cursor-pointer hover:brightness-75 dark:hover:brightness-125'
+                        : 'cursor-default'
+                    }`}
+                    style={{
+                      minHeight: '1rem',
+                      lineHeight: '1rem',
+                    }}
+                  >
+                    {displayName}
+                  </div>
+                </TooltipTrigger>
+                {!userPermissions.canAdmin && (
+                  <TooltipContent side='bottom'>
+                    Admin permissions required to rename workspace
+                  </TooltipContent>
+                )}
+              </Tooltip>
             )}
           </div>
 
