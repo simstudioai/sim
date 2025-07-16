@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { createMockContext } from '@/executor/__test-utils__/executor-mocks'
+import { BlockType } from '@/executor/consts'
+import { LoopManager } from '@/executor/loops/loops'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedLoop, SerializedWorkflow } from '@/serializer/types'
-import { createMockContext } from './__test-utils__/executor-mocks'
-import { LoopManager } from './loops'
-import type { ExecutionContext } from './types'
 
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: () => ({
@@ -40,8 +41,8 @@ describe('LoopManager', () => {
       {
         id: 'starter',
         position: { x: 0, y: 0 },
-        metadata: { id: 'starter', name: 'Start' },
-        config: { tool: 'starter', params: {} },
+        metadata: { id: BlockType.STARTER, name: 'Start' },
+        config: { tool: BlockType.STARTER, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -49,8 +50,8 @@ describe('LoopManager', () => {
       {
         id: 'loop-1',
         position: { x: 100, y: 0 },
-        metadata: { id: 'loop', name: 'Test Loop' },
-        config: { tool: 'loop', params: {} },
+        metadata: { id: BlockType.LOOP, name: 'Test Loop' },
+        config: { tool: BlockType.LOOP, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -58,8 +59,8 @@ describe('LoopManager', () => {
       {
         id: 'block-1',
         position: { x: 200, y: 0 },
-        metadata: { id: 'function', name: 'Block 1' },
-        config: { tool: 'function', params: {} },
+        metadata: { id: BlockType.FUNCTION, name: 'Block 1' },
+        config: { tool: BlockType.FUNCTION, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -67,8 +68,8 @@ describe('LoopManager', () => {
       {
         id: 'block-2',
         position: { x: 300, y: 0 },
-        metadata: { id: 'function', name: 'Block 2' },
-        config: { tool: 'function', params: {} },
+        metadata: { id: BlockType.FUNCTION, name: 'Block 2' },
+        config: { tool: BlockType.FUNCTION, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -76,8 +77,8 @@ describe('LoopManager', () => {
       {
         id: 'after-loop',
         position: { x: 400, y: 0 },
-        metadata: { id: 'function', name: 'After Loop' },
-        config: { tool: 'function', params: {} },
+        metadata: { id: BlockType.FUNCTION, name: 'After Loop' },
+        config: { tool: BlockType.FUNCTION, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -409,7 +410,7 @@ describe('LoopManager', () => {
     test('should handle router blocks with selected paths', async () => {
       // Create a workflow with a router block inside the loop
       const workflow = createWorkflowWithLoop(createBasicLoop())
-      workflow.blocks[2].metadata!.id = 'router' // Make block-1 a router
+      workflow.blocks[2].metadata!.id = BlockType.ROUTER // Make block-1 a router
       workflow.connections = [
         { source: 'starter', target: 'loop-1' },
         { source: 'loop-1', target: 'block-1', sourceHandle: 'loop-start-source' },
@@ -435,7 +436,7 @@ describe('LoopManager', () => {
     test('should handle condition blocks with selected paths', async () => {
       // Create a workflow with a condition block inside the loop
       const workflow = createWorkflowWithLoop(createBasicLoop())
-      workflow.blocks[2].metadata!.id = 'condition' // Make block-1 a condition
+      workflow.blocks[2].metadata!.id = BlockType.CONDITION // Make block-1 a condition
       workflow.connections = [
         { source: 'starter', target: 'loop-1' },
         { source: 'loop-1', target: 'block-1', sourceHandle: 'loop-start-source' },
@@ -496,8 +497,8 @@ describe('LoopManager', () => {
       workflow.blocks.push({
         id: 'error-handler',
         position: { x: 350, y: 100 },
-        metadata: { id: 'function', name: 'Error Handler' },
-        config: { tool: 'function', params: {} },
+        metadata: { id: BlockType.FUNCTION, name: 'Error Handler' },
+        config: { tool: BlockType.FUNCTION, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,

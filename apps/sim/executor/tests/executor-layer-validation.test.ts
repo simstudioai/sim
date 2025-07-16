@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { Executor } from '@/executor'
+import { BlockType } from '@/executor/consts'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { Executor } from '../index'
 
 describe('Debug Production Issue - Full Executor Test', () => {
   let workflow: SerializedWorkflow
@@ -14,8 +15,8 @@ describe('Debug Production Issue - Full Executor Test', () => {
         {
           id: 'bd9f4f7d-8aed-4860-a3be-8bebd1931b19',
           position: { x: 0, y: 0 },
-          metadata: { id: 'starter', name: 'Start' },
-          config: { tool: 'starter', params: {} },
+          metadata: { id: BlockType.STARTER, name: 'Start' },
+          config: { tool: BlockType.STARTER, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -23,9 +24,9 @@ describe('Debug Production Issue - Full Executor Test', () => {
         {
           id: 'f29a40b7-125a-45a7-a670-af14a1498f94',
           position: { x: 100, y: 0 },
-          metadata: { id: 'router', name: 'Router 1' },
+          metadata: { id: BlockType.ROUTER, name: 'Router 1' },
           config: {
-            tool: 'router',
+            tool: BlockType.ROUTER,
             params: {
               prompt: 'if x then function 1\nif y then parallel\n\ninput: x',
               model: 'gpt-4o',
@@ -38,8 +39,8 @@ describe('Debug Production Issue - Full Executor Test', () => {
         {
           id: 'd09b0a90-2c59-4a2c-af15-c30321e36d9b',
           position: { x: 200, y: -50 },
-          metadata: { id: 'function', name: 'Function 1' },
-          config: { tool: 'function', params: { code: "return 'one'" } },
+          metadata: { id: BlockType.FUNCTION, name: 'Function 1' },
+          config: { tool: BlockType.FUNCTION, params: { code: "return 'one'" } },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -47,8 +48,8 @@ describe('Debug Production Issue - Full Executor Test', () => {
         {
           id: 'a62902db-fd8d-4851-aa88-acd5e7667497',
           position: { x: 200, y: 50 },
-          metadata: { id: 'parallel', name: 'Parallel 1' },
-          config: { tool: 'parallel', params: {} },
+          metadata: { id: BlockType.PARALLEL, name: 'Parallel 1' },
+          config: { tool: BlockType.PARALLEL, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -65,8 +66,8 @@ describe('Debug Production Issue - Full Executor Test', () => {
         {
           id: '033ea142-3002-4a68-9e12-092b10b8c9c8',
           position: { x: 400, y: -100 },
-          metadata: { id: 'function', name: 'Function 2' },
-          config: { tool: 'function', params: { code: "return 'two'" } },
+          metadata: { id: BlockType.FUNCTION, name: 'Function 2' },
+          config: { tool: BlockType.FUNCTION, params: { code: "return 'two'" } },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -74,8 +75,8 @@ describe('Debug Production Issue - Full Executor Test', () => {
         {
           id: '037140a8-fda3-44e2-896c-6adea53ea30f',
           position: { x: 400, y: 0 },
-          metadata: { id: 'parallel', name: 'Parallel 2' },
-          config: { tool: 'parallel', params: {} },
+          metadata: { id: BlockType.PARALLEL, name: 'Parallel 2' },
+          config: { tool: BlockType.PARALLEL, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,

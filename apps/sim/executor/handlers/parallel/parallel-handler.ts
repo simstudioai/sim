@@ -1,10 +1,11 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { BlockOutput } from '@/blocks/types'
+import { BlockType } from '@/executor/consts'
+import type { PathTracker } from '@/executor/path/path'
+import type { InputResolver } from '@/executor/resolver/resolver'
+import { Routing } from '@/executor/routing/routing'
+import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
-import type { PathTracker } from '../../path'
-import type { InputResolver } from '../../resolver'
-import { RoutingStrategy } from '../../routing-strategy'
-import type { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
 
 const logger = createLogger('ParallelBlockHandler')
 
@@ -20,7 +21,7 @@ export class ParallelBlockHandler implements BlockHandler {
   ) {}
 
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'parallel'
+    return block.metadata?.id === BlockType.PARALLEL
   }
 
   async execute(
@@ -192,7 +193,7 @@ export class ParallelBlockHandler implements BlockHandler {
 
       // Use routing strategy to determine if this block requires active path checking
       const blockType = block.metadata?.id
-      if (RoutingStrategy.requiresActivePathCheck(blockType || '')) {
+      if (Routing.requiresActivePathCheck(blockType || '')) {
         let isInActivePath = true
         if (this.pathTracker) {
           try {

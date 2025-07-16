@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { PathTracker } from '@/executor/path/path'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { PathTracker } from '../path'
-import type { ExecutionContext } from '../types'
 
 describe('Nested Routing Fix - Router → Condition → Target', () => {
   let workflow: SerializedWorkflow
@@ -16,8 +17,8 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         {
           id: 'starter',
           position: { x: 0, y: 0 },
-          metadata: { id: 'starter', name: 'Start' },
-          config: { tool: 'starter', params: {} },
+          metadata: { id: BlockType.STARTER, name: 'Start' },
+          config: { tool: BlockType.STARTER, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -25,8 +26,8 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         {
           id: 'router-1',
           position: { x: 100, y: 0 },
-          metadata: { id: 'router', name: 'Router 1' },
-          config: { tool: 'router', params: {} },
+          metadata: { id: BlockType.ROUTER, name: 'Router 1' },
+          config: { tool: BlockType.ROUTER, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -34,8 +35,8 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         {
           id: 'function-2',
           position: { x: 200, y: -100 },
-          metadata: { id: 'function', name: 'Function 2' },
-          config: { tool: 'function', params: {} },
+          metadata: { id: BlockType.FUNCTION, name: 'Function 2' },
+          config: { tool: BlockType.FUNCTION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -43,8 +44,8 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         {
           id: 'condition-1',
           position: { x: 200, y: 100 },
-          metadata: { id: 'condition', name: 'Condition 1' },
-          config: { tool: 'condition', params: {} },
+          metadata: { id: BlockType.CONDITION, name: 'Condition 1' },
+          config: { tool: BlockType.CONDITION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -52,8 +53,8 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         {
           id: 'function-4',
           position: { x: 350, y: 50 },
-          metadata: { id: 'function', name: 'Function 4' },
-          config: { tool: 'function', params: {} },
+          metadata: { id: BlockType.FUNCTION, name: 'Function 4' },
+          config: { tool: BlockType.FUNCTION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -61,8 +62,8 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         {
           id: 'parallel-block',
           position: { x: 350, y: 150 },
-          metadata: { id: 'parallel', name: 'Parallel Block' },
-          config: { tool: 'parallel', params: {} },
+          metadata: { id: BlockType.PARALLEL, name: 'Parallel Block' },
+          config: { tool: BlockType.PARALLEL, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -70,8 +71,8 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         {
           id: 'agent-inside-parallel',
           position: { x: 450, y: 150 },
-          metadata: { id: 'agent', name: 'Agent Inside Parallel' },
-          config: { tool: 'agent', params: {} },
+          metadata: { id: BlockType.AGENT, name: 'Agent Inside Parallel' },
+          config: { tool: BlockType.AGENT, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -136,7 +137,7 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
       output: {
         selectedPath: {
           blockId: 'condition-1',
-          blockType: 'condition',
+          blockType: BlockType.CONDITION,
           blockTitle: 'Condition 1',
         },
       },
@@ -167,7 +168,7 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         conditionResult: true,
         selectedPath: {
           blockId: 'function-4',
-          blockType: 'function',
+          blockType: BlockType.FUNCTION,
           blockTitle: 'Function 4',
         },
         selectedConditionId: 'b8f0a33c-a57f-4a36-ac7a-dc9f2b5e6c07-if',
@@ -199,7 +200,7 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
       output: {
         selectedPath: {
           blockId: 'condition-1',
-          blockType: 'condition',
+          blockType: BlockType.CONDITION,
           blockTitle: 'Condition 1',
         },
       },
@@ -218,7 +219,7 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         conditionResult: false,
         selectedPath: {
           blockId: 'parallel-block',
-          blockType: 'parallel',
+          blockType: BlockType.PARALLEL,
           blockTitle: 'Parallel Block',
         },
         selectedConditionId: 'b8f0a33c-a57f-4a36-ac7a-dc9f2b5e6c07-else',
@@ -254,7 +255,7 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
       output: {
         selectedPath: {
           blockId: 'condition-1',
-          blockType: 'condition',
+          blockType: BlockType.CONDITION,
           blockTitle: 'Condition 1',
         },
       },
@@ -272,7 +273,7 @@ describe('Nested Routing Fix - Router → Condition → Target', () => {
         conditionResult: true,
         selectedPath: {
           blockId: 'function-4',
-          blockType: 'function',
+          blockType: BlockType.FUNCTION,
           blockTitle: 'Function 4',
         },
         selectedConditionId: 'b8f0a33c-a57f-4a36-ac7a-dc9f2b5e6c07-if',

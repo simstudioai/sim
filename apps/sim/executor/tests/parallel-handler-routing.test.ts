@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { ParallelBlockHandler } from '@/executor/handlers/parallel/parallel-handler'
+import { PathTracker } from '@/executor/path/path'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { ParallelBlockHandler } from '../handlers/parallel/parallel-handler'
-import { PathTracker } from '../path'
-import type { ExecutionContext } from '../types'
 
 describe('Parallel Handler Integration with PathTracker', () => {
   let workflow: SerializedWorkflow
@@ -18,8 +19,8 @@ describe('Parallel Handler Integration with PathTracker', () => {
         {
           id: 'condition-1',
           position: { x: 0, y: 0 },
-          metadata: { id: 'condition', name: 'Condition 1' },
-          config: { tool: 'condition', params: {} },
+          metadata: { id: BlockType.CONDITION, name: 'Condition 1' },
+          config: { tool: BlockType.CONDITION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -27,8 +28,8 @@ describe('Parallel Handler Integration with PathTracker', () => {
         {
           id: 'function-2',
           position: { x: 100, y: -50 },
-          metadata: { id: 'function', name: 'Function 2' },
-          config: { tool: 'function', params: {} },
+          metadata: { id: BlockType.FUNCTION, name: 'Function 2' },
+          config: { tool: BlockType.FUNCTION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -36,8 +37,8 @@ describe('Parallel Handler Integration with PathTracker', () => {
         {
           id: 'parallel-2',
           position: { x: 100, y: 50 },
-          metadata: { id: 'parallel', name: 'Parallel 2' },
-          config: { tool: 'parallel', params: {} },
+          metadata: { id: BlockType.PARALLEL, name: 'Parallel 2' },
+          config: { tool: BlockType.PARALLEL, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -45,8 +46,8 @@ describe('Parallel Handler Integration with PathTracker', () => {
         {
           id: 'agent-2',
           position: { x: 200, y: 50 },
-          metadata: { id: 'agent', name: 'Agent 2' },
-          config: { tool: 'agent', params: {} },
+          metadata: { id: BlockType.AGENT, name: 'Agent 2' },
+          config: { tool: BlockType.AGENT, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,

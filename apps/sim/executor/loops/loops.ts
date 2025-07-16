@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { BlockType } from '@/executor/consts'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedConnection, SerializedLoop } from '@/serializer/types'
-import type { ExecutionContext } from './types'
 
 const logger = createLogger('LoopManager')
 
@@ -366,13 +367,13 @@ export class LoopManager {
       const outgoing = blockOutgoingConnections.get(currentBlockId) || []
 
       // Handle routing blocks specially
-      if (block.metadata?.id === 'router') {
+      if (block.metadata?.id === BlockType.ROUTER) {
         // For router blocks, only follow the selected path
         const selectedTarget = context.decisions.router.get(currentBlockId)
         if (selectedTarget && nodeIds.includes(selectedTarget)) {
           toVisit.push(selectedTarget)
         }
-      } else if (block.metadata?.id === 'condition') {
+      } else if (block.metadata?.id === BlockType.CONDITION) {
         // For condition blocks, only follow the selected condition path
         const selectedConditionId = context.decisions.condition.get(currentBlockId)
         if (selectedConditionId) {

@@ -8,6 +8,7 @@
  * resolving inputs and dependencies, and managing errors.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { Executor } from '@/executor'
 import {
   createMinimalWorkflow,
   createMockContext,
@@ -15,8 +16,8 @@ import {
   createWorkflowWithErrorPath,
   createWorkflowWithLoop,
   setupAllMocks,
-} from './__test-utils__/executor-mocks'
-import { Executor } from './index'
+} from '@/executor/__test-utils__/executor-mocks'
+import { BlockType } from '@/executor/consts'
 
 vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
@@ -155,14 +156,14 @@ describe('Executor', () => {
 
     test('should throw error for workflow without starter block', () => {
       const workflow = createMinimalWorkflow()
-      workflow.blocks = workflow.blocks.filter((block) => block.metadata?.id !== 'starter')
+      workflow.blocks = workflow.blocks.filter((block) => block.metadata?.id !== BlockType.STARTER)
 
       expect(() => new Executor(workflow)).toThrow('Workflow must have an enabled starter block')
     })
 
     test('should throw error for workflow with disabled starter block', () => {
       const workflow = createMinimalWorkflow()
-      workflow.blocks.find((block) => block.metadata?.id === 'starter')!.enabled = false
+      workflow.blocks.find((block) => block.metadata?.id === BlockType.STARTER)!.enabled = false
 
       expect(() => new Executor(workflow)).toThrow('Workflow must have an enabled starter block')
     })
@@ -459,7 +460,7 @@ describe('Executor', () => {
         inputs: {},
         outputs: {},
         enabled: true,
-        metadata: { id: 'condition', name: 'Condition Block' },
+        metadata: { id: BlockType.CONDITION, name: 'Condition Block' },
       })
 
       // Mock context
@@ -641,7 +642,7 @@ describe('Executor', () => {
           {
             id: 'start',
             position: { x: 0, y: 0 },
-            metadata: { id: 'starter', name: 'Start' },
+            metadata: { id: BlockType.STARTER, name: 'Start' },
             config: { tool: 'test-tool', params: {} },
             inputs: {},
             outputs: {},
@@ -650,7 +651,7 @@ describe('Executor', () => {
           {
             id: 'router',
             position: { x: 100, y: 0 },
-            metadata: { id: 'router', name: 'Router' },
+            metadata: { id: BlockType.ROUTER, name: 'Router' },
             config: { tool: 'test-tool', params: { prompt: 'test', model: 'gpt-4' } },
             inputs: {},
             outputs: {},
@@ -659,7 +660,7 @@ describe('Executor', () => {
           {
             id: 'api1',
             position: { x: 200, y: -50 },
-            metadata: { id: 'api', name: 'API 1' },
+            metadata: { id: BlockType.API, name: 'API 1' },
             config: { tool: 'test-tool', params: { url: 'http://api1.com', method: 'GET' } },
             inputs: {},
             outputs: {},
@@ -668,7 +669,7 @@ describe('Executor', () => {
           {
             id: 'api2',
             position: { x: 200, y: 50 },
-            metadata: { id: 'api', name: 'API 2' },
+            metadata: { id: BlockType.API, name: 'API 2' },
             config: { tool: 'test-tool', params: { url: 'http://api2.com', method: 'GET' } },
             inputs: {},
             outputs: {},
@@ -677,7 +678,7 @@ describe('Executor', () => {
           {
             id: 'agent',
             position: { x: 300, y: 0 },
-            metadata: { id: 'agent', name: 'Agent' },
+            metadata: { id: BlockType.AGENT, name: 'Agent' },
             config: { tool: 'test-tool', params: { model: 'gpt-4', userPrompt: 'test' } },
             inputs: {},
             outputs: {},
@@ -771,7 +772,7 @@ describe('Executor', () => {
       workflow.blocks.push({
         id: 'router1',
         position: { x: 200, y: 0 },
-        metadata: { id: 'router', name: 'Router' },
+        metadata: { id: BlockType.ROUTER, name: 'Router' },
         config: { tool: 'test-tool', params: {} },
         inputs: {},
         outputs: {},

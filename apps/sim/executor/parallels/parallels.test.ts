@@ -1,8 +1,9 @@
 import { describe, expect, test, vi } from 'vitest'
+import { createParallelExecutionState } from '@/executor/__test-utils__/executor-mocks'
+import { BlockType } from '@/executor/consts'
+import { ParallelManager } from '@/executor/parallels/parallels'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { createParallelExecutionState } from './__test-utils__/executor-mocks'
-import { ParallelManager } from './parallels'
-import type { ExecutionContext } from './types'
 
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: () => ({
@@ -154,7 +155,7 @@ describe('ParallelManager', () => {
       const block = {
         id: 'func-1',
         position: { x: 0, y: 0 },
-        config: { tool: 'function', params: {} },
+        config: { tool: BlockType.FUNCTION, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -185,7 +186,7 @@ describe('ParallelManager', () => {
       const block = {
         id: 'func-1',
         position: { x: 0, y: 0 },
-        config: { tool: 'function', params: {} },
+        config: { tool: BlockType.FUNCTION, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,

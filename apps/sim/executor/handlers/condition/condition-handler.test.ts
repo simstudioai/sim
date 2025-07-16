@@ -1,11 +1,12 @@
 import '../../__test-utils__/mock-dependencies'
 
 import { beforeEach, describe, expect, it, type Mocked, type MockedClass, vi } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
+import { PathTracker } from '@/executor/path/path'
+import { InputResolver } from '@/executor/resolver/resolver'
+import type { BlockState, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { PathTracker } from '../../path'
-import { InputResolver } from '../../resolver'
-import type { BlockState, ExecutionContext } from '../../types'
-import { ConditionBlockHandler } from './condition-handler'
 
 const MockPathTracker = PathTracker as MockedClass<typeof PathTracker>
 const MockInputResolver = InputResolver as MockedClass<typeof InputResolver>
@@ -34,9 +35,9 @@ describe('ConditionBlockHandler', () => {
     }
     mockBlock = {
       id: 'cond-block-1',
-      metadata: { id: 'condition', name: 'Test Condition' },
+      metadata: { id: BlockType.CONDITION, name: 'Test Condition' },
       position: { x: 50, y: 50 },
-      config: { tool: 'condition', params: {} },
+      config: { tool: BlockType.CONDITION, params: {} },
       inputs: { conditions: 'json' }, // Corrected based on previous step
       outputs: {},
       enabled: true,

@@ -1,7 +1,8 @@
 import { vi } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { LoopBlockHandler } from '@/executor/handlers/loop/loop-handler'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
-import type { ExecutionContext } from '../../types'
-import { LoopBlockHandler } from './loop-handler'
 
 describe('LoopBlockHandler', () => {
   let handler: LoopBlockHandler
@@ -18,10 +19,10 @@ describe('LoopBlockHandler', () => {
     mockBlock = {
       id: 'loop-1',
       position: { x: 0, y: 0 },
-      config: { tool: 'loop', params: {} },
+      config: { tool: BlockType.LOOP, params: {} },
       inputs: {},
       outputs: {},
-      metadata: { id: 'loop', name: 'Test Loop' },
+      metadata: { id: BlockType.LOOP, name: 'Test Loop' },
       enabled: true,
     }
 
@@ -71,7 +72,7 @@ describe('LoopBlockHandler', () => {
 
     it('should not handle non-loop blocks', () => {
       if (mockBlock.metadata) {
-        mockBlock.metadata.id = 'function'
+        mockBlock.metadata.id = BlockType.FUNCTION
       }
       expect(handler.canHandle(mockBlock)).toBe(false)
     })

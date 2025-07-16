@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { PathTracker } from '@/executor/path/path'
+import { Routing } from '@/executor/routing/routing'
+import type { BlockState, ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { PathTracker } from './path'
-import { RoutingStrategy } from './routing-strategy'
-import type { BlockState, ExecutionContext } from './types'
 
 describe('PathTracker', () => {
   let pathTracker: PathTracker
@@ -33,27 +34,27 @@ describe('PathTracker', () => {
         },
         {
           id: 'router1',
-          metadata: { id: 'router' },
+          metadata: { id: BlockType.ROUTER },
           position: { x: 0, y: 0 },
-          config: { tool: 'router', params: {} },
+          config: { tool: BlockType.ROUTER, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
         },
         {
           id: 'condition1',
-          metadata: { id: 'condition' },
+          metadata: { id: BlockType.CONDITION },
           position: { x: 0, y: 0 },
-          config: { tool: 'condition', params: {} },
+          config: { tool: BlockType.CONDITION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
         },
         {
           id: 'loop1',
-          metadata: { id: 'loop' },
+          metadata: { id: BlockType.LOOP },
           position: { x: 0, y: 0 },
-          config: { tool: 'loop', params: {} },
+          config: { tool: BlockType.LOOP, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -419,36 +420,36 @@ describe('PathTracker', () => {
         blocks: [
           {
             id: 'router1',
-            metadata: { id: 'router', name: 'Router' },
+            metadata: { id: BlockType.ROUTER, name: 'Router' },
             position: { x: 0, y: 0 },
-            config: { tool: 'router', params: {} },
+            config: { tool: BlockType.ROUTER, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'api1',
-            metadata: { id: 'api', name: 'API 1' },
+            metadata: { id: BlockType.API, name: 'API 1' },
             position: { x: 0, y: 0 },
-            config: { tool: 'api', params: {} },
+            config: { tool: BlockType.API, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'api2',
-            metadata: { id: 'api', name: 'API 2' },
+            metadata: { id: BlockType.API, name: 'API 2' },
             position: { x: 0, y: 0 },
-            config: { tool: 'api', params: {} },
+            config: { tool: BlockType.API, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
           },
           {
             id: 'agent1',
-            metadata: { id: 'agent', name: 'Agent' },
+            metadata: { id: BlockType.AGENT, name: 'Agent' },
             position: { x: 0, y: 0 },
-            config: { tool: 'agent', params: {} },
+            config: { tool: BlockType.AGENT, params: {} },
             inputs: {},
             outputs: {},
             enabled: true,
@@ -487,7 +488,7 @@ describe('PathTracker', () => {
         output: {
           selectedPath: {
             blockId: 'api1',
-            blockType: 'api',
+            blockType: BlockType.API,
             blockTitle: 'API 1',
           },
         },
@@ -510,9 +511,9 @@ describe('PathTracker', () => {
       // Add another level to test deep activation
       mockWorkflow.blocks.push({
         id: 'finalStep',
-        metadata: { id: 'api', name: 'Final Step' },
+        metadata: { id: BlockType.API, name: 'Final Step' },
         position: { x: 0, y: 0 },
-        config: { tool: 'api', params: {} },
+        config: { tool: BlockType.API, params: {} },
         inputs: {},
         outputs: {},
         enabled: true,
@@ -526,7 +527,7 @@ describe('PathTracker', () => {
         output: {
           selectedPath: {
             blockId: 'api1',
-            blockType: 'api',
+            blockType: BlockType.API,
             blockTitle: 'API 1',
           },
         },
@@ -554,7 +555,7 @@ describe('PathTracker', () => {
         output: {
           selectedPath: {
             blockId: 'api1',
-            blockType: 'api',
+            blockType: BlockType.API,
             blockTitle: 'API 1',
           },
         },
@@ -588,7 +589,7 @@ describe('PathTracker', () => {
         output: {
           selectedPath: {
             blockId: 'api1',
-            blockType: 'api',
+            blockType: BlockType.API,
             blockTitle: 'API 1',
           },
         },
@@ -611,27 +612,27 @@ describe('PathTracker', () => {
       mockWorkflow.blocks.push(
         {
           id: 'parallel1',
-          metadata: { id: 'parallel' },
+          metadata: { id: BlockType.PARALLEL },
           position: { x: 0, y: 0 },
-          config: { tool: 'parallel', params: {} },
+          config: { tool: BlockType.PARALLEL, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
         },
         {
           id: 'function1',
-          metadata: { id: 'function' },
+          metadata: { id: BlockType.FUNCTION },
           position: { x: 0, y: 0 },
-          config: { tool: 'function', params: {} },
+          config: { tool: BlockType.FUNCTION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
         },
         {
           id: 'agent1',
-          metadata: { id: 'agent' },
+          metadata: { id: BlockType.AGENT },
           position: { x: 0, y: 0 },
-          config: { tool: 'agent', params: {} },
+          config: { tool: BlockType.AGENT, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -656,12 +657,12 @@ describe('PathTracker', () => {
 
     it('should correctly categorize different block types', () => {
       // Test that our refactored code properly uses RoutingStrategy
-      expect(RoutingStrategy.getCategory('router')).toBe('routing')
-      expect(RoutingStrategy.getCategory('condition')).toBe('routing')
-      expect(RoutingStrategy.getCategory('parallel')).toBe('flow-control')
-      expect(RoutingStrategy.getCategory('loop')).toBe('flow-control')
-      expect(RoutingStrategy.getCategory('function')).toBe('regular')
-      expect(RoutingStrategy.getCategory('agent')).toBe('regular')
+      expect(Routing.getCategory(BlockType.ROUTER)).toBe('routing')
+      expect(Routing.getCategory(BlockType.CONDITION)).toBe('routing')
+      expect(Routing.getCategory(BlockType.PARALLEL)).toBe('flow-control')
+      expect(Routing.getCategory(BlockType.LOOP)).toBe('flow-control')
+      expect(Routing.getCategory(BlockType.FUNCTION)).toBe('regular')
+      expect(Routing.getCategory(BlockType.AGENT)).toBe('regular')
     })
 
     it('should handle flow control blocks correctly in path checking', () => {

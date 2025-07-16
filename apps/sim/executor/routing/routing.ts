@@ -1,3 +1,5 @@
+import { BlockType } from '@/executor/consts'
+
 export enum BlockCategory {
   ROUTING_BLOCK = 'routing', // router, condition - make routing decisions
   FLOW_CONTROL = 'flow-control', // parallel, loop - control execution flow
@@ -14,7 +16,7 @@ export interface RoutingBehavior {
  * Centralized routing strategy that defines how different block types
  * should behave in the execution path system.
  */
-export class RoutingStrategy {
+export class Routing {
   private static readonly BEHAVIOR_MAP: Record<BlockCategory, RoutingBehavior> = {
     [BlockCategory.ROUTING_BLOCK]: {
       shouldActivateDownstream: true,
@@ -35,42 +37,42 @@ export class RoutingStrategy {
 
   private static readonly BLOCK_TYPE_TO_CATEGORY: Record<string, BlockCategory> = {
     // Flow control blocks
-    parallel: BlockCategory.FLOW_CONTROL,
-    loop: BlockCategory.FLOW_CONTROL,
+    [BlockType.PARALLEL]: BlockCategory.FLOW_CONTROL,
+    [BlockType.LOOP]: BlockCategory.FLOW_CONTROL,
 
     // Routing blocks
-    router: BlockCategory.ROUTING_BLOCK,
-    condition: BlockCategory.ROUTING_BLOCK,
+    [BlockType.ROUTER]: BlockCategory.ROUTING_BLOCK,
+    [BlockType.CONDITION]: BlockCategory.ROUTING_BLOCK,
 
     // Regular blocks (default category)
-    function: BlockCategory.REGULAR_BLOCK,
-    agent: BlockCategory.REGULAR_BLOCK,
-    api: BlockCategory.REGULAR_BLOCK,
-    evaluator: BlockCategory.REGULAR_BLOCK,
-    response: BlockCategory.REGULAR_BLOCK,
-    workflow: BlockCategory.REGULAR_BLOCK,
-    starter: BlockCategory.REGULAR_BLOCK,
+    [BlockType.FUNCTION]: BlockCategory.REGULAR_BLOCK,
+    [BlockType.AGENT]: BlockCategory.REGULAR_BLOCK,
+    [BlockType.API]: BlockCategory.REGULAR_BLOCK,
+    [BlockType.EVALUATOR]: BlockCategory.REGULAR_BLOCK,
+    [BlockType.RESPONSE]: BlockCategory.REGULAR_BLOCK,
+    [BlockType.WORKFLOW]: BlockCategory.REGULAR_BLOCK,
+    [BlockType.STARTER]: BlockCategory.REGULAR_BLOCK,
   }
 
   static getCategory(blockType: string): BlockCategory {
-    return RoutingStrategy.BLOCK_TYPE_TO_CATEGORY[blockType] || BlockCategory.REGULAR_BLOCK
+    return Routing.BLOCK_TYPE_TO_CATEGORY[blockType] || BlockCategory.REGULAR_BLOCK
   }
 
   static getBehavior(blockType: string): RoutingBehavior {
-    const category = RoutingStrategy.getCategory(blockType)
-    return RoutingStrategy.BEHAVIOR_MAP[category]
+    const category = Routing.getCategory(blockType)
+    return Routing.BEHAVIOR_MAP[category]
   }
 
   static shouldActivateDownstream(blockType: string): boolean {
-    return RoutingStrategy.getBehavior(blockType).shouldActivateDownstream
+    return Routing.getBehavior(blockType).shouldActivateDownstream
   }
 
   static requiresActivePathCheck(blockType: string): boolean {
-    return RoutingStrategy.getBehavior(blockType).requiresActivePathCheck
+    return Routing.getBehavior(blockType).requiresActivePathCheck
   }
 
   static shouldSkipInSelectiveActivation(blockType: string): boolean {
-    return RoutingStrategy.getBehavior(blockType).skipInSelectiveActivation
+    return Routing.getBehavior(blockType).skipInSelectiveActivation
   }
 
   /**
@@ -78,7 +80,7 @@ export class RoutingStrategy {
    */
   static shouldSkipConnection(sourceHandle: string | undefined, targetBlockType: string): boolean {
     // Skip flow control blocks
-    if (RoutingStrategy.shouldSkipInSelectiveActivation(targetBlockType)) {
+    if (Routing.shouldSkipInSelectiveActivation(targetBlockType)) {
       return true
     }
 

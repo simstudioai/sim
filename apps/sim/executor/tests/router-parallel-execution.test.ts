@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { PathTracker } from '@/executor/path/path'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
-import { PathTracker } from '../path'
-import type { ExecutionContext } from '../types'
 
 describe('Production Bug Reproduction - Exact Scenario', () => {
   let workflow: SerializedWorkflow
@@ -16,8 +17,8 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         {
           id: 'bd9f4f7d-8aed-4860-a3be-8bebd1931b19',
           position: { x: 0, y: 0 },
-          metadata: { id: 'starter', name: 'Start' },
-          config: { tool: 'starter', params: {} },
+          metadata: { id: BlockType.STARTER, name: 'Start' },
+          config: { tool: BlockType.STARTER, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -25,8 +26,8 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         {
           id: 'f29a40b7-125a-45a7-a670-af14a1498f94',
           position: { x: 100, y: 0 },
-          metadata: { id: 'router', name: 'Router 1' },
-          config: { tool: 'router', params: {} },
+          metadata: { id: BlockType.ROUTER, name: 'Router 1' },
+          config: { tool: BlockType.ROUTER, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -34,8 +35,8 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         {
           id: 'd09b0a90-2c59-4a2c-af15-c30321e36d9b',
           position: { x: 200, y: -50 },
-          metadata: { id: 'function', name: 'Function 1' },
-          config: { tool: 'function', params: {} },
+          metadata: { id: BlockType.FUNCTION, name: 'Function 1' },
+          config: { tool: BlockType.FUNCTION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -43,8 +44,8 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         {
           id: 'a62902db-fd8d-4851-aa88-acd5e7667497',
           position: { x: 200, y: 50 },
-          metadata: { id: 'parallel', name: 'Parallel 1' },
-          config: { tool: 'parallel', params: {} },
+          metadata: { id: BlockType.PARALLEL, name: 'Parallel 1' },
+          config: { tool: BlockType.PARALLEL, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -52,8 +53,8 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         {
           id: '0494cf56-2520-4e29-98ad-313ea55cf142',
           position: { x: 300, y: -50 },
-          metadata: { id: 'condition', name: 'Condition 1' },
-          config: { tool: 'condition', params: {} },
+          metadata: { id: BlockType.CONDITION, name: 'Condition 1' },
+          config: { tool: BlockType.CONDITION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -61,8 +62,8 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         {
           id: '033ea142-3002-4a68-9e12-092b10b8c9c8',
           position: { x: 400, y: -100 },
-          metadata: { id: 'function', name: 'Function 2' },
-          config: { tool: 'function', params: {} },
+          metadata: { id: BlockType.FUNCTION, name: 'Function 2' },
+          config: { tool: BlockType.FUNCTION, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -70,8 +71,8 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         {
           id: '037140a8-fda3-44e2-896c-6adea53ea30f',
           position: { x: 400, y: 0 },
-          metadata: { id: 'parallel', name: 'Parallel 2' },
-          config: { tool: 'parallel', params: {} },
+          metadata: { id: BlockType.PARALLEL, name: 'Parallel 2' },
+          config: { tool: BlockType.PARALLEL, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -79,8 +80,8 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         {
           id: 'a91e3a02-b884-4823-8197-30ae498ac94c',
           position: { x: 300, y: 100 },
-          metadata: { id: 'agent', name: 'Agent 1' },
-          config: { tool: 'agent', params: {} },
+          metadata: { id: BlockType.AGENT, name: 'Agent 1' },
+          config: { tool: BlockType.AGENT, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -88,8 +89,8 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         {
           id: '97974a42-cdf4-4810-9caa-b5e339f42ab0',
           position: { x: 500, y: 0 },
-          metadata: { id: 'agent', name: 'Agent 2' },
-          config: { tool: 'agent', params: {} },
+          metadata: { id: BlockType.AGENT, name: 'Agent 2' },
+          config: { tool: BlockType.AGENT, params: {} },
           inputs: {},
           outputs: {},
           enabled: true,
@@ -185,7 +186,7 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
       output: {
         selectedPath: {
           blockId: 'd09b0a90-2c59-4a2c-af15-c30321e36d9b',
-          blockType: 'function',
+          blockType: BlockType.FUNCTION,
           blockTitle: 'Function 1',
         },
       },
@@ -234,7 +235,7 @@ describe('Production Bug Reproduction - Exact Scenario', () => {
         conditionResult: true,
         selectedPath: {
           blockId: '033ea142-3002-4a68-9e12-092b10b8c9c8',
-          blockType: 'function',
+          blockType: BlockType.FUNCTION,
           blockTitle: 'Function 2',
         },
         selectedConditionId: '0494cf56-2520-4e29-98ad-313ea55cf142-if',

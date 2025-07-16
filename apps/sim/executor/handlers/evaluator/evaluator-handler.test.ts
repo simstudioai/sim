@@ -1,10 +1,11 @@
 import '../../__test-utils__/mock-dependencies'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-handler'
+import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import type { ExecutionContext } from '../../types'
-import { EvaluatorBlockHandler } from './evaluator-handler'
 
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockFetch = global.fetch as unknown as Mock
@@ -19,9 +20,9 @@ describe('EvaluatorBlockHandler', () => {
 
     mockBlock = {
       id: 'eval-block-1',
-      metadata: { id: 'evaluator', name: 'Test Evaluator' },
+      metadata: { id: BlockType.EVALUATOR, name: 'Test Evaluator' },
       position: { x: 20, y: 20 },
-      config: { tool: 'evaluator', params: {} },
+      config: { tool: BlockType.EVALUATOR, params: {} },
       inputs: {
         content: 'string',
         metrics: 'json',

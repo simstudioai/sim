@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createParallelExecutionState } from '@/executor/__test-utils__/executor-mocks'
+import { BlockType } from '@/executor/consts'
+import { ParallelBlockHandler } from '@/executor/handlers/parallel/parallel-handler'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedParallel } from '@/serializer/types'
-import { createParallelExecutionState } from '../../__test-utils__/executor-mocks'
-import type { ExecutionContext } from '../../types'
-import { ParallelBlockHandler } from './parallel-handler'
 
 describe('ParallelBlockHandler', () => {
   const mockResolver = {
@@ -19,7 +20,7 @@ describe('ParallelBlockHandler', () => {
     config: { tool: '', params: {} },
     inputs: {},
     outputs: {},
-    metadata: { id: 'parallel', name: 'Test Parallel' },
+    metadata: { id: BlockType.PARALLEL, name: 'Test Parallel' },
     enabled: true,
   })
 
@@ -50,7 +51,7 @@ describe('ParallelBlockHandler', () => {
 
     expect(handler.canHandle(block)).toBe(true)
 
-    const nonParallelBlock = { ...block, metadata: { id: 'agent' } }
+    const nonParallelBlock = { ...block, metadata: { id: BlockType.AGENT } }
     expect(handler.canHandle(nonParallelBlock)).toBe(false)
   })
 
@@ -398,24 +399,24 @@ describe('ParallelBlockHandler', () => {
             {
               id: 'agent-1',
               position: { x: 0, y: 0 },
-              config: { tool: 'agent', params: {} },
+              config: { tool: BlockType.AGENT, params: {} },
               inputs: {},
               outputs: {},
-              metadata: { id: 'agent', name: 'Agent 1' },
+              metadata: { id: BlockType.AGENT, name: 'Agent 1' },
               enabled: true,
             },
             {
               id: 'function-1',
               position: { x: 0, y: 0 },
               config: {
-                tool: 'function',
+                tool: BlockType.FUNCTION,
                 params: {
                   code: 'return <parallel.results>;',
                 },
               },
               inputs: {},
               outputs: {},
-              metadata: { id: 'function', name: 'Function 1' },
+              metadata: { id: BlockType.FUNCTION, name: 'Function 1' },
               enabled: true,
             },
           ],
