@@ -89,9 +89,9 @@ describe('Routing', () => {
   })
 
   describe('shouldSkipConnection', () => {
-    it.concurrent('should skip flow control blocks', () => {
-      expect(Routing.shouldSkipConnection(undefined, BlockType.PARALLEL)).toBe(true)
-      expect(Routing.shouldSkipConnection('source', BlockType.LOOP)).toBe(true)
+    it.concurrent('should allow regular connections to flow control blocks', () => {
+      expect(Routing.shouldSkipConnection(undefined, BlockType.PARALLEL)).toBe(false)
+      expect(Routing.shouldSkipConnection('source', BlockType.LOOP)).toBe(false)
     })
 
     it.concurrent('should skip flow control specific connections', () => {
@@ -107,9 +107,9 @@ describe('Routing', () => {
       expect(Routing.shouldSkipConnection(undefined, BlockType.API)).toBe(false)
     })
 
-    it.concurrent('should not skip routing connections', () => {
-      expect(Routing.shouldSkipConnection('condition-test-if', BlockType.FUNCTION)).toBe(false)
-      expect(Routing.shouldSkipConnection('condition-test-else', BlockType.AGENT)).toBe(false)
+    it.concurrent('should skip condition-specific connections during selective activation', () => {
+      expect(Routing.shouldSkipConnection('condition-test-if', BlockType.FUNCTION)).toBe(true)
+      expect(Routing.shouldSkipConnection('condition-test-else', BlockType.AGENT)).toBe(true)
     })
 
     it.concurrent('should handle empty/undefined types', () => {
