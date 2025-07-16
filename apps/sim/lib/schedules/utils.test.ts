@@ -102,6 +102,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [12, 0],
         monthlyDay: 15,
         monthlyTime: [14, 30],
+        cronExpression: '',
       })
     })
 
@@ -127,6 +128,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0], // Default
         monthlyDay: 1, // Default
         monthlyTime: [9, 0], // Default
+        cronExpression: '',
       })
     })
   })
@@ -143,6 +145,7 @@ describe('Schedule Utilities', () => {
         monthlyDay: 15,
         monthlyTime: [14, 30] as [number, number],
         timezone: 'UTC',
+        cronExpression: '',
       }
 
       // Minutes (every 15 minutes)
@@ -196,6 +199,7 @@ describe('Schedule Utilities', () => {
         monthlyDay: 15,
         monthlyTime: [14, 30] as [number, number],
         timezone: 'UTC',
+        cronExpression: '',
       }
 
       expect(generateCronExpression('minutes', standardScheduleValues)).toBe('*/15 * * * *')
@@ -230,6 +234,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: '',
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
@@ -254,6 +259,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: '',
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
@@ -275,6 +281,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: '',
       }
 
       const nextRun = calculateNextRunTime('hourly', scheduleValues)
@@ -297,6 +304,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: '',
       }
 
       const nextRun = calculateNextRunTime('daily', scheduleValues)
@@ -320,6 +328,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [10, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: '',
       }
 
       const nextRun = calculateNextRunTime('weekly', scheduleValues)
@@ -342,6 +351,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 15,
         monthlyTime: [14, 30] as [number, number],
+        cronExpression: '',
       }
 
       const nextRun = calculateNextRunTime('monthly', scheduleValues)
@@ -366,6 +376,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: '',
       }
 
       // Last ran 10 minutes ago
@@ -393,6 +404,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: '',
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
@@ -413,6 +425,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [9, 0] as [number, number],
         monthlyDay: 1,
         monthlyTime: [9, 0] as [number, number],
+        cronExpression: '',
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
