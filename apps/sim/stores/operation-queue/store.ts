@@ -24,9 +24,10 @@ interface OperationQueueState {
 
   addToQueue: (operation: Omit<QueuedOperation, 'timestamp' | 'retryCount' | 'status'>) => void
   confirmOperation: (operationId: string) => void
-  failOperation: (operationId: string) => void
+  failOperation: (operationId: string, retryable?: boolean) => void
   handleOperationTimeout: (operationId: string) => void
   processNextOperation: () => void
+  cancelOperationsForBlock: (blockId: string) => void
 
   triggerOfflineMode: () => void
   clearError: () => void
@@ -211,7 +212,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     get().processNextOperation()
   },
 
-  failOperation: (operationId: string) => {
+  failOperation: (operationId: string, retryable = true) => {
     const state = get()
     const operation = state.operations.find((op) => op.id === operationId)
     if (!operation) {
@@ -237,6 +238,18 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         clearTimeout(debounceTimeout)
         subblockDebounceTimeouts.delete(debounceKey)
       }
+    }
+
+    if (!retryable) {
+      logger.debug('Operation marked as non-retryable, removing from queue', { operationId })
+
+      set((state) => ({
+        operations: state.operations.filter((op) => op.id !== operationId),
+        isProcessing: false,
+      }))
+
+      get().processNextOperation()
+      return
     }
 
     if (operation.retryCount < 3) {
@@ -338,6 +351,66 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     operationTimeouts.set(nextOperation.id, timeoutId)
   },
 
+  cancelOperationsForBlock: (blockId: string) => {
+    logger.debug('Canceling all operations for block', { blockId })
+
+    // Cancel all debounce timeouts for this block's subblocks
+    const keysToDelete: string[] = []
+    for (const [key, timeout] of subblockDebounceTimeouts.entries()) {
+      if (key.startsWith(`${blockId}-`)) {
+        clearTimeout(timeout)
+        keysToDelete.push(key)
+      }
+    }
+    keysToDelete.forEach((key) => subblockDebounceTimeouts.delete(key))
+
+    // Find and cancel operation timeouts for operations related to this block
+    const state = get()
+    const operationsToCancel = state.operations.filter(
+      (op) =>
+        (op.operation.target === 'block' && op.operation.payload?.id === blockId) ||
+        (op.operation.target === 'subblock' && op.operation.payload?.blockId === blockId)
+    )
+
+    // Cancel timeouts for these operations
+    operationsToCancel.forEach((op) => {
+      const operationTimeout = operationTimeouts.get(op.id)
+      if (operationTimeout) {
+        clearTimeout(operationTimeout)
+        operationTimeouts.delete(op.id)
+      }
+
+      const retryTimeout = retryTimeouts.get(op.id)
+      if (retryTimeout) {
+        clearTimeout(retryTimeout)
+        retryTimeouts.delete(op.id)
+      }
+    })
+
+    // Remove all operations for this block (both pending and processing)
+    const newOperations = state.operations.filter(
+      (op) =>
+        !(
+          (op.operation.target === 'block' && op.operation.payload?.id === blockId) ||
+          (op.operation.target === 'subblock' && op.operation.payload?.blockId === blockId)
+        )
+    )
+
+    set({
+      operations: newOperations,
+      isProcessing: false, // Reset processing state in case we removed the current operation
+    })
+
+    logger.debug('Cancelled operations for block', {
+      blockId,
+      cancelledDebounceTimeouts: keysToDelete.length,
+      cancelledOperations: operationsToCancel.length,
+    })
+
+    // Process next operation if there are any remaining
+    get().processNextOperation()
+  },
+
   triggerOfflineMode: () => {
     logger.error('Operation failed after retries - triggering offline mode')
 
@@ -369,6 +442,7 @@ export function useOperationQueue() {
     confirmOperation: store.confirmOperation,
     failOperation: store.failOperation,
     processNextOperation: store.processNextOperation,
+    cancelOperationsForBlock: store.cancelOperationsForBlock,
     triggerOfflineMode: store.triggerOfflineMode,
     clearError: store.clearError,
   }

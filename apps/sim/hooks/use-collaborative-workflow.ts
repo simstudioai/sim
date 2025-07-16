@@ -44,8 +44,14 @@ export function useCollaborativeWorkflow() {
   const lastPositionTimestamps = useRef<Map<string, number>>(new Map())
 
   // Operation queue
-  const { queue, hasOperationError, addToQueue, confirmOperation, failOperation } =
-    useOperationQueue()
+  const {
+    queue,
+    hasOperationError,
+    addToQueue,
+    confirmOperation,
+    failOperation,
+    cancelOperationsForBlock,
+  } = useOperationQueue()
 
   // Clear position timestamps when switching workflows
   // Note: Workflow joining is now handled automatically by socket connect event based on URL
@@ -332,7 +338,7 @@ export function useCollaborativeWorkflow() {
       const { operationId, error, retryable } = data
       logger.warn('Operation failed', { operationId, error, retryable })
 
-      failOperation(operationId)
+      failOperation(operationId, retryable)
     }
 
     // Register event handlers
@@ -534,9 +540,11 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeRemoveBlock = useCallback(
     (id: string) => {
+      cancelOperationsForBlock(id)
+
       executeQueuedOperation('remove', 'block', { id }, () => workflowStore.removeBlock(id))
     },
-    [executeQueuedOperation, workflowStore]
+    [executeQueuedOperation, workflowStore, cancelOperationsForBlock]
   )
 
   const collaborativeUpdateBlockPosition = useCallback(
