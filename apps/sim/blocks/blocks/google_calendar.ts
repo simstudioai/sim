@@ -21,7 +21,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   description: 'Manage Google Calendar events',
   longDescription:
     "Integrate Google Calendar functionality to create, read, update, and list calendar events within your workflow. Automate scheduling, check availability, and manage events using OAuth authentication. Email invitations are sent asynchronously and delivery depends on recipients' Google Calendar settings.",
-  docsLink: 'https://docs.simstudio.ai/tools/google-calendar',
+  docsLink: 'https://docs.simstudio.ai/tools/google_calendar',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GoogleCalendarIcon,
