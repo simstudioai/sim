@@ -28,8 +28,6 @@ function sanitizeWorkflowState(state: any): any {
             subBlock.type || ''
           )
 
-          // 🔧 FIX: Only sanitize values for credential-related field NAMES, not content
-          // This prevents systemPrompt content that mentions "API" from being sanitized
           const shouldSanitizeBasedOnFieldName =
             /^(credential|oauth|apikey|api_key|token|secret|auth|password|bearer)$/i.test(key)
           const valueTest =
@@ -40,12 +38,6 @@ function sanitizeWorkflowState(state: any): any {
 
           // Clear OAuth credentials and API keys using refined logic
           if (keyTest || typeTest || valueTest) {
-            if (key === 'systemPrompt') {
-              logger.warn(`🚨 SANITIZING systemPrompt!`, {
-                reason: keyTest ? 'key' : typeTest ? 'type' : 'value',
-                originalValue: subBlock.value,
-              })
-            }
             subBlock.value = ''
           }
         })
@@ -55,7 +47,6 @@ function sanitizeWorkflowState(state: any): any {
       if (block.data) {
         Object.entries(block.data).forEach(([key, value]: [string, any]) => {
           if (/credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key)) {
-            logger.info(`🔐 Sanitizing credential in data field: ${key}`)
             block.data[key] = ''
           }
         })
@@ -63,20 +54,6 @@ function sanitizeWorkflowState(state: any): any {
     })
   }
 
-  // 🔍 LOG AFTER SANITIZATION
-  if (sanitizedState.blocks) {
-    Object.entries(sanitizedState.blocks).forEach(([blockId, block]: [string, any]) => {
-      if (block.type === 'agent' && block.subBlocks?.systemPrompt) {
-        logger.info(`🤖 AFTER sanitization - Agent block ${blockId}:`, {
-          blockName: block.name,
-          hasSystemPrompt: !!block.subBlocks?.systemPrompt?.value,
-          systemPromptValue: block.subBlocks?.systemPrompt?.value || 'EMPTY AFTER SANITIZATION',
-        })
-      }
-    })
-  }
-
-  logger.info('🧹 Sanitization completed')
   return sanitizedState
 }
 
