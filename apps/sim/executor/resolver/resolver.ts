@@ -439,6 +439,10 @@ export class InputResolver {
                 else if (blockType === 'condition') {
                   formattedValue = this.stringifyForCondition(replacementValue)
                 }
+                // For response blocks, preserve object structure as-is for proper JSON response
+                else if (blockType === 'response') {
+                  formattedValue = replacementValue
+                }
                 // For all other blocks, stringify objects
                 else {
                   // Preserve full JSON structure for objects
@@ -450,10 +454,22 @@ export class InputResolver {
               }
             } else {
               // Standard handling for non-input references
-              formattedValue =
-                typeof replacementValue === 'object'
-                  ? JSON.stringify(replacementValue)
-                  : String(replacementValue)
+              const blockType = currentBlock.metadata?.id
+
+              if (blockType === 'response') {
+                // For response blocks, properly quote string values for JSON context
+                if (typeof replacementValue === 'string') {
+                  // Properly escape and quote the string for JSON
+                  formattedValue = JSON.stringify(replacementValue)
+                } else {
+                  formattedValue = replacementValue
+                }
+              } else {
+                formattedValue =
+                  typeof replacementValue === 'object'
+                    ? JSON.stringify(replacementValue)
+                    : String(replacementValue)
+              }
             }
 
             resolvedValue = resolvedValue.replace(match, formattedValue)
@@ -574,6 +590,8 @@ export class InputResolver {
         }
       }
 
+      const blockType = currentBlock.metadata?.id
+
       let formattedValue: string
 
       if (currentBlock.metadata?.id === 'condition') {
@@ -589,12 +607,22 @@ export class InputResolver {
           value.includes('}') &&
           value.includes('`')
 
-        // For code blocks, use our formatter
-        formattedValue = this.formatValueForCodeContext(
-          replacementValue,
-          currentBlock,
-          isInTemplateLiteral
-        )
+        // For response blocks, properly quote string values for JSON context
+        if (currentBlock.metadata?.id === 'response') {
+          if (typeof replacementValue === 'string') {
+            // Properly escape and quote the string for JSON
+            formattedValue = JSON.stringify(replacementValue)
+          } else {
+            formattedValue = replacementValue
+          }
+        } else {
+          // For code blocks, use our formatter
+          formattedValue = this.formatValueForCodeContext(
+            replacementValue,
+            currentBlock,
+            isInTemplateLiteral
+          )
+        }
       } else {
         // The function execution API will handle variable resolution within code strings
         formattedValue =

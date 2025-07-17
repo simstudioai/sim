@@ -182,8 +182,26 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (Object.keys(blockConfig.outputs).length === 0) {
-        // Handle blocks with no outputs (like starter) - show as just <blockname>
-        blockTags = [normalizedBlockName]
+        // Handle blocks with no outputs (like starter) - check for custom input fields
+        if (sourceBlock.type === 'starter') {
+          // Check for custom input format fields
+          const inputFormatValue = useSubBlockStore
+            .getState()
+            .getValue(activeSourceBlockId, 'inputFormat')
+
+          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
+            // Use custom input fields if they exist
+            blockTags = inputFormatValue
+              .filter((field: any) => field.name && field.name.trim() !== '')
+              .map((field: any) => `${normalizedBlockName}.${field.name}`)
+          } else {
+            // Fallback to just the block name
+            blockTags = [normalizedBlockName]
+          }
+        } else {
+          // Other blocks with no outputs - show as just <blockname>
+          blockTags = [normalizedBlockName]
+        }
       } else {
         // Use default block outputs
         const outputPaths = generateOutputPaths(blockConfig.outputs)
@@ -409,8 +427,26 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (Object.keys(blockConfig.outputs).length === 0) {
-        // Handle blocks with no outputs (like starter) - show as just <blockname>
-        blockTags = [normalizedBlockName]
+        // Handle blocks with no outputs (like starter) - check for custom input fields
+        if (accessibleBlock.type === 'starter') {
+          // Check for custom input format fields
+          const inputFormatValue = useSubBlockStore
+            .getState()
+            .getValue(accessibleBlockId, 'inputFormat')
+
+          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
+            // Use custom input fields if they exist
+            blockTags = inputFormatValue
+              .filter((field: any) => field.name && field.name.trim() !== '')
+              .map((field: any) => `${normalizedBlockName}.${field.name}`)
+          } else {
+            // Fallback to just the block name
+            blockTags = [normalizedBlockName]
+          }
+        } else {
+          // Other blocks with no outputs - show as just <blockname>
+          blockTags = [normalizedBlockName]
+        }
       } else {
         // Use default block outputs
         const outputPaths = generateOutputPaths(blockConfig.outputs)
