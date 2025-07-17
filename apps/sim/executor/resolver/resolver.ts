@@ -439,6 +439,10 @@ export class InputResolver {
                 else if (blockType === 'condition') {
                   formattedValue = this.stringifyForCondition(replacementValue)
                 }
+                // For response blocks, preserve object structure as-is for proper JSON response
+                else if (blockType === 'response') {
+                  formattedValue = replacementValue
+                }
                 // For all other blocks, stringify objects
                 else {
                   // Preserve full JSON structure for objects

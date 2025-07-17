@@ -370,6 +370,8 @@ export function SubBlock({
             isPreview={isPreview}
             previewValue={previewValue}
             disabled={isDisabled}
+            isConnecting={isConnecting}
+            config={config}
           />
         )
       }
@@ -380,6 +382,9 @@ export function SubBlock({
             subBlockId={config.id}
             isPreview={isPreview}
             previewValue={previewValue}
+            isConnecting={isConnecting}
+            config={config}
+            disabled={isDisabled}
           />
         )
       case 'channel-selector':
