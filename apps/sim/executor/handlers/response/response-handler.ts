@@ -8,7 +8,7 @@ const logger = createLogger('ResponseBlockHandler')
 
 interface JSONProperty {
   id: string
-  key: string
+  name: string
   type: 'string' | 'number' | 'boolean' | 'object' | 'array'
   value: any
   collapsed?: boolean
@@ -92,12 +92,12 @@ export class ResponseBlockHandler implements BlockHandler {
     const result: any = {}
 
     for (const prop of builderData) {
-      if (!prop.key.trim()) {
-        return
+      if (!prop.name || !prop.name.trim()) {
+        continue
       }
 
       const value = this.convertPropertyValue(prop)
-      result[prop.key] = value
+      result[prop.name] = value
     }
 
     return result
