@@ -139,14 +139,18 @@ export function WorkspaceSelector({
             <div className='flex h-full min-w-0 flex-1 items-center text-left'>
               <span
                 className={cn(
-                  'truncate font-medium text-sm',
+                  'flex-1 truncate font-medium text-sm',
                   activeWorkspace?.id === workspace.id ? 'text-foreground' : 'text-muted-foreground'
                 )}
+                style={{ maxWidth: '168px' }}
               >
                 {workspace.name}
               </span>
             </div>
-            <div className='flex h-full w-6 flex-shrink-0 items-center justify-center'>
+            <div
+              className='flex h-full items-center justify-center'
+              onClick={(e) => e.stopPropagation()}
+            >
               {hoveredWorkspaceId === workspace.id && (
                 <>
                   {/* Leave Workspace - for non-admin users */}
