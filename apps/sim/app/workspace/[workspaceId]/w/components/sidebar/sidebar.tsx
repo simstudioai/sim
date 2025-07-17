@@ -117,6 +117,7 @@ export function Sidebar() {
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
   const [isWorkspacesLoading, setIsWorkspacesLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isLeaving, setIsLeaving] = useState(false)
 
   // Update activeWorkspace ref when state changes
   activeWorkspaceRef.current = activeWorkspace
@@ -359,6 +360,66 @@ export function Sidebar() {
       }
     },
     [fetchWorkspaces, refreshWorkspaceList, workspaces, switchWorkspace]
+  )
+
+  /**
+   * Handle leave workspace
+   */
+  const handleLeaveWorkspace = useCallback(
+    async (workspaceToLeave: Workspace) => {
+      setIsLeaving(true)
+      try {
+        logger.info('Leaving workspace:', workspaceToLeave.id)
+
+        // Use the existing member removal API with current user's ID
+        const response = await fetch(`/api/workspaces/members/${sessionData?.user?.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            workspaceId: workspaceToLeave.id,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to leave workspace')
+        }
+
+        logger.info('Left workspace successfully:', workspaceToLeave.id)
+
+        // Check if we're leaving the current workspace (either active or in URL)
+        const isLeavingCurrentWorkspace =
+          workspaceIdRef.current === workspaceToLeave.id ||
+          activeWorkspaceRef.current?.id === workspaceToLeave.id
+
+        if (isLeavingCurrentWorkspace) {
+          // For current workspace leaving, use full fetchWorkspaces with URL validation
+          logger.info(
+            'Leaving current workspace - using full workspace refresh with URL validation'
+          )
+          await fetchWorkspaces()
+
+          // If we left the active workspace, switch to the first available workspace
+          if (activeWorkspaceRef.current?.id === workspaceToLeave.id) {
+            const remainingWorkspaces = workspaces.filter((w) => w.id !== workspaceToLeave.id)
+            if (remainingWorkspaces.length > 0) {
+              await switchWorkspace(remainingWorkspaces[0])
+            }
+          }
+        } else {
+          // For non-current workspace leaving, just refresh the list without URL validation
+          logger.info('Leaving non-current workspace - using simple list refresh')
+          await refreshWorkspaceList()
+        }
+      } catch (error) {
+        logger.error('Error leaving workspace:', error)
+      } finally {
+        setIsLeaving(false)
+      }
+    },
+    [fetchWorkspaces, refreshWorkspaceList, workspaces, switchWorkspace, sessionData?.user?.id]
   )
 
   /**
@@ -688,7 +749,9 @@ export function Sidebar() {
               onSwitchWorkspace={switchWorkspace}
               onCreateWorkspace={handleCreateWorkspace}
               onDeleteWorkspace={confirmDeleteWorkspace}
+              onLeaveWorkspace={handleLeaveWorkspace}
               isDeleting={isDeleting}
+              isLeaving={isLeaving}
             />
           </div>
 
