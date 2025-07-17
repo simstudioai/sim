@@ -358,7 +358,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return createHttpResponseFromBlock(result)
     }
 
-    return createSuccessResponse(result)
+    // Filter out logs and workflowConnections from the API response
+    const filteredResult = {
+      ...result,
+      logs: undefined,
+      metadata: result.metadata
+        ? {
+            ...result.metadata,
+            workflowConnections: undefined,
+          }
+        : undefined,
+    }
+
+    return createSuccessResponse(filteredResult)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
 
@@ -418,7 +430,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createHttpResponseFromBlock(result)
     }
 
-    return createSuccessResponse(result)
+    // Filter out logs and workflowConnections from the API response
+    const filteredResult = {
+      ...result,
+      logs: undefined,
+      metadata: result.metadata
+        ? {
+            ...result.metadata,
+            workflowConnections: undefined,
+          }
+        : undefined,
+    }
+
+    return createSuccessResponse(filteredResult)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
 
