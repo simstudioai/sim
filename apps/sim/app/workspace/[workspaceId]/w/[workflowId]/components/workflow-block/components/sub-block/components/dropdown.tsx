@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DropdownProps {
@@ -33,6 +34,10 @@ export function Dropdown({
 }: DropdownProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const [storeInitialized, setStoreInitialized] = useState(false)
+
+  // For response dataMode conversion - get builderData and data sub-blocks
+  const [builderData] = useSubBlockValue<any[]>(blockId, 'builderData')
+  const [, setData] = useSubBlockValue<string>(blockId, 'data')
 
   // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -108,6 +113,20 @@ export function Dropdown({
       onValueChange={(newValue) => {
         // Only update store when not in preview mode and not disabled
         if (!isPreview && !disabled) {
+          // Handle conversion when switching from Builder to Editor mode in response blocks
+          if (
+            subBlockId === 'dataMode' &&
+            storeValue === 'structured' &&
+            newValue === 'json' &&
+            builderData &&
+            Array.isArray(builderData) &&
+            builderData.length > 0
+          ) {
+            // Convert builderData to JSON string for editor mode
+            const jsonString = ResponseBlockHandler.convertBuilderDataToJsonString(builderData)
+            setData(jsonString)
+          }
+
           setStoreValue(newValue)
         }
       }}

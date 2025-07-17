@@ -45,7 +45,7 @@ const DEFAULT_FIELD: Field = {
   name: '',
   type: 'string',
   value: '',
-  collapsed: true,
+  collapsed: false,
 }
 
 export function FieldFormat({
