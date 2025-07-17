@@ -1,6 +1,5 @@
 import { ResponseFormat as SharedResponseFormat } from '../starter/input-format'
 
-// Compatibility interface for old JSONProperty usage
 export interface JSONProperty {
   id: string
   key: string
