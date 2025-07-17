@@ -392,10 +392,10 @@ export const settings = pgTable('settings', {
 
   // General settings
   theme: text('theme').notNull().default('system'),
-  debugMode: boolean('debug_mode').notNull().default(false),
   autoConnect: boolean('auto_connect').notNull().default(true),
   autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true),
   autoPan: boolean('auto_pan').notNull().default(true),
+  consoleExpandedByDefault: boolean('console_expanded_by_default').notNull().default(true),
 
   // Privacy settings
   telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),

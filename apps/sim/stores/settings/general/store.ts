@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { GeneralStore } from './types'
+import type { General, GeneralStore, UserSettings } from './types'
 
 const logger = createLogger('GeneralStore')
 
@@ -15,50 +15,115 @@ export const useGeneralStore = create<GeneralStore>()(
         let lastLoadTime = 0
         let errorRetryCount = 0
 
-        return {
+        const store: General = {
           isAutoConnectEnabled: true,
-          isDebugModeEnabled: false,
           isAutoFillEnvVarsEnabled: true,
           isAutoPanEnabled: true,
-          theme: 'system',
+          isConsoleExpandedByDefault: true,
+          isDebugModeEnabled: false,
+          theme: 'system' as const,
           telemetryEnabled: true,
           telemetryNotifiedUser: false,
           isLoading: false,
           error: null,
+          // Individual loading states
+          isAutoConnectLoading: false,
+          isAutoFillEnvVarsLoading: false,
+          isAutoPanLoading: false,
+          isConsoleExpandedByDefaultLoading: false,
+          isThemeLoading: false,
+          isTelemetryLoading: false,
+        }
 
-          // Basic Actions
-          toggleAutoConnect: () => {
+        // Optimistic update helper
+        const updateSettingOptimistic = async <K extends keyof UserSettings>(
+          key: K,
+          value: UserSettings[K],
+          loadingKey: keyof General,
+          stateKey: keyof General
+        ) => {
+          // Prevent multiple simultaneous updates
+          if ((get() as any)[loadingKey]) return
+
+          const originalValue = (get() as any)[stateKey]
+
+          // Optimistic update
+          set({ [stateKey]: value, [loadingKey]: true } as any)
+
+          try {
+            await get().updateSetting(key, value)
+            set({ [loadingKey]: false } as any)
+          } catch (error) {
+            // Rollback on error
+            set({ [stateKey]: originalValue, [loadingKey]: false } as any)
+            logger.error(`Failed to update ${String(key)}, rolled back:`, error)
+          }
+        }
+
+        return {
+          ...store,
+          // Basic Actions with optimistic updates
+          toggleAutoConnect: async () => {
+            if (get().isAutoConnectLoading) return
             const newValue = !get().isAutoConnectEnabled
-            set({ isAutoConnectEnabled: newValue })
-            get().updateSetting('autoConnect', newValue)
+            await updateSettingOptimistic(
+              'autoConnect',
+              newValue,
+              'isAutoConnectLoading',
+              'isAutoConnectEnabled'
+            )
+          },
+
+          toggleAutoFillEnvVars: async () => {
+            if (get().isAutoFillEnvVarsLoading) return
+            const newValue = !get().isAutoFillEnvVarsEnabled
+            await updateSettingOptimistic(
+              'autoFillEnvVars',
+              newValue,
+              'isAutoFillEnvVarsLoading',
+              'isAutoFillEnvVarsEnabled'
+            )
+          },
+
+          toggleAutoPan: async () => {
+            if (get().isAutoPanLoading) return
+            const newValue = !get().isAutoPanEnabled
+            await updateSettingOptimistic(
+              'autoPan',
+              newValue,
+              'isAutoPanLoading',
+              'isAutoPanEnabled'
+            )
+          },
+
+          toggleConsoleExpandedByDefault: async () => {
+            if (get().isConsoleExpandedByDefaultLoading) return
+            const newValue = !get().isConsoleExpandedByDefault
+            await updateSettingOptimistic(
+              'consoleExpandedByDefault',
+              newValue,
+              'isConsoleExpandedByDefaultLoading',
+              'isConsoleExpandedByDefault'
+            )
           },
 
           toggleDebugMode: () => {
-            const newValue = !get().isDebugModeEnabled
-            set({ isDebugModeEnabled: newValue })
-            get().updateSetting('debugMode', newValue)
+            set({ isDebugModeEnabled: !get().isDebugModeEnabled })
           },
 
-          toggleAutoFillEnvVars: () => {
-            const newValue = !get().isAutoFillEnvVarsEnabled
-            set({ isAutoFillEnvVarsEnabled: newValue })
-            get().updateSetting('autoFillEnvVars', newValue)
+          setTheme: async (theme) => {
+            if (get().isThemeLoading) return
+            await updateSettingOptimistic('theme', theme, 'isThemeLoading', 'theme')
           },
 
-          toggleAutoPan: () => {
-            const newValue = !get().isAutoPanEnabled
-            set({ isAutoPanEnabled: newValue })
-            get().updateSetting('autoPan', newValue)
-          },
-
-          setTheme: (theme) => {
-            set({ theme })
-            get().updateSetting('theme', theme)
-          },
-
-          setTelemetryEnabled: (enabled) => {
-            set({ telemetryEnabled: enabled })
-            get().updateSetting('telemetryEnabled', enabled)
+          setTelemetryEnabled: async (enabled) => {
+            if (get().isTelemetryLoading) return
+            await updateSettingOptimistic(
+              'telemetryEnabled',
+              enabled,
+              'isTelemetryLoading',
+              'telemetryEnabled'
+            )
           },
 
           setTelemetryNotifiedUser: (notified) => {
@@ -101,9 +166,9 @@ export const useGeneralStore = create<GeneralStore>()(
 
               set({
                 isAutoConnectEnabled: data.autoConnect,
-                isDebugModeEnabled: data.debugMode,
                 isAutoFillEnvVarsEnabled: data.autoFillEnvVars,
                 isAutoPanEnabled: data.autoPan ?? true, // Default to true if undefined
+                isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true, // Default to true if undefined
                 theme: data.theme,
                 telemetryEnabled: data.telemetryEnabled,
                 telemetryNotifiedUser: data.telemetryNotifiedUser,
@@ -146,22 +211,14 @@ export const useGeneralStore = create<GeneralStore>()(
               }
 
               set({ error: null })
-
               lastLoadTime = Date.now()
               errorRetryCount = 0
             } catch (error) {
               logger.error(`Error updating setting ${key}:`, error)
               set({ error: error instanceof Error ? error.message : 'Unknown error' })
 
-              if (errorRetryCount < MAX_ERROR_RETRIES) {
-                errorRetryCount++
-                logger.debug(`Retry attempt ${errorRetryCount} after error`)
-                get().loadSettings(true)
-              } else {
-                logger.warn(
-                  `Max retries (${MAX_ERROR_RETRIES}) exceeded, skipping automatic loadSettings`
-                )
-              }
+              // Don't auto-retry on individual setting updates to avoid conflicts
+              throw error
             }
           },
         }
