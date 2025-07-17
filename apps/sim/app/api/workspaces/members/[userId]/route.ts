@@ -5,9 +5,12 @@ import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { permissions } from '@/db/schema'
 
-// DELETE /api/workspaces/members/[id] - Remove a member from a workspace
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: userId } = await params
+// DELETE /api/workspaces/members/[userId] - Remove a member from a workspace
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ userId: string }> }
+) {
+  const { userId } = await params
   const session = await getSession()
 
   if (!session?.user?.id) {
