@@ -33,6 +33,20 @@ const EnvVarsSchema = z.record(z.string())
 // Use a combination of workflow ID and request ID to allow concurrent executions with different inputs
 const runningExecutions = new Set<string>()
 
+// Utility function to filter out logs and workflowConnections from API response
+function createFilteredResult(result: any) {
+  return {
+    ...result,
+    logs: undefined,
+    metadata: result.metadata
+      ? {
+          ...result.metadata,
+          workflowConnections: undefined,
+        }
+      : undefined,
+  }
+}
+
 // Custom error class for usage limit exceeded
 class UsageLimitError extends Error {
   statusCode: number
@@ -359,16 +373,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Filter out logs and workflowConnections from the API response
-    const filteredResult = {
-      ...result,
-      logs: undefined,
-      metadata: result.metadata
-        ? {
-            ...result.metadata,
-            workflowConnections: undefined,
-          }
-        : undefined,
-    }
+    const filteredResult = createFilteredResult(result)
 
     return createSuccessResponse(filteredResult)
   } catch (error: any) {
@@ -431,16 +436,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Filter out logs and workflowConnections from the API response
-    const filteredResult = {
-      ...result,
-      logs: undefined,
-      metadata: result.metadata
-        ? {
-            ...result.metadata,
-            workflowConnections: undefined,
-          }
-        : undefined,
-    }
+    const filteredResult = createFilteredResult(result)
 
     return createSuccessResponse(filteredResult)
   } catch (error: any) {
