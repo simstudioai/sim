@@ -1,18 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/index'
 import { BlockType } from '@/executor/consts'
 import { InputResolver } from '@/executor/resolver/resolver'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-
-// Mock logger
-vi.mock('@/lib/logs/console-logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
 
 describe('InputResolver', () => {
   let sampleWorkflow: SerializedWorkflow
@@ -1896,6 +1887,504 @@ describe('InputResolver', () => {
       }
 
       expect(() => loopResolver.resolveInputs(testBlock, loopContext)).not.toThrow()
+    })
+  })
+
+  describe('Conditional Input Filtering', () => {
+    const mockGetBlock = getBlock as ReturnType<typeof vi.fn>
+
+    afterEach(() => {
+      mockGetBlock.mockReset()
+    })
+
+    it('should filter inputs based on operation conditions for Knowledge block', () => {
+      // Mock the Knowledge block configuration
+      mockGetBlock.mockReturnValue({
+        type: 'knowledge',
+        subBlocks: [
+          {
+            id: 'operation',
+            type: 'dropdown',
+            options: [
+              { label: 'Search', id: 'search' },
+              { label: 'Upload Chunk', id: 'upload_chunk' },
+            ],
+          },
+          {
+            id: 'query',
+            type: 'short-input',
+            condition: { field: 'operation', value: 'search' },
+          },
+          {
+            id: 'knowledgeBaseIds',
+            type: 'knowledge-base-selector',
+            condition: { field: 'operation', value: 'search' },
+          },
+          {
+            id: 'documentId',
+            type: 'document-selector',
+            condition: { field: 'operation', value: 'upload_chunk' },
+          },
+          {
+            id: 'content',
+            type: 'long-input',
+            condition: { field: 'operation', value: 'upload_chunk' },
+          },
+        ],
+      })
+
+      // Create a Knowledge block with upload_chunk operation
+      const knowledgeBlock: SerializedBlock = {
+        id: 'knowledge-block',
+        metadata: { id: 'knowledge', name: 'Knowledge Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'knowledge',
+          params: {
+            operation: 'upload_chunk',
+            query: '<start.docName>', // This should be filtered out
+            knowledgeBaseIds: 'kb-1', // This should be filtered out
+            documentId: 'doc-1', // This should be included
+            content: 'chunk content', // This should be included
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(knowledgeBlock, mockContext)
+
+      // Should only include inputs for upload_chunk operation
+      expect(result).toHaveProperty('operation', 'upload_chunk')
+      expect(result).toHaveProperty('documentId', 'doc-1')
+      expect(result).toHaveProperty('content', 'chunk content')
+
+      // Should NOT include inputs for search operation
+      expect(result).not.toHaveProperty('query')
+      expect(result).not.toHaveProperty('knowledgeBaseIds')
+    })
+
+    it('should filter inputs based on operation conditions for Knowledge block search operation', () => {
+      // Mock the Knowledge block configuration
+      mockGetBlock.mockReturnValue({
+        type: 'knowledge',
+        subBlocks: [
+          {
+            id: 'operation',
+            type: 'dropdown',
+            options: [
+              { label: 'Search', id: 'search' },
+              { label: 'Upload Chunk', id: 'upload_chunk' },
+            ],
+          },
+          {
+            id: 'query',
+            type: 'short-input',
+            condition: { field: 'operation', value: 'search' },
+          },
+          {
+            id: 'knowledgeBaseIds',
+            type: 'knowledge-base-selector',
+            condition: { field: 'operation', value: 'search' },
+          },
+          {
+            id: 'documentId',
+            type: 'document-selector',
+            condition: { field: 'operation', value: 'upload_chunk' },
+          },
+          {
+            id: 'content',
+            type: 'long-input',
+            condition: { field: 'operation', value: 'upload_chunk' },
+          },
+        ],
+      })
+
+      // Create a Knowledge block with search operation
+      const knowledgeBlock: SerializedBlock = {
+        id: 'knowledge-block',
+        metadata: { id: 'knowledge', name: 'Knowledge Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'knowledge',
+          params: {
+            operation: 'search',
+            query: 'search query',
+            knowledgeBaseIds: 'kb-1',
+            documentId: 'doc-1', // This should be filtered out
+            content: 'chunk content', // This should be filtered out
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(knowledgeBlock, mockContext)
+
+      // Should only include inputs for search operation
+      expect(result).toHaveProperty('operation', 'search')
+      expect(result).toHaveProperty('query', 'search query')
+      expect(result).toHaveProperty('knowledgeBaseIds', 'kb-1')
+
+      // Should NOT include inputs for upload_chunk operation
+      expect(result).not.toHaveProperty('documentId')
+      expect(result).not.toHaveProperty('content')
+    })
+
+    it('should handle array conditions correctly', () => {
+      // Mock a block with array condition
+      mockGetBlock.mockReturnValue({
+        type: 'test-block',
+        subBlocks: [
+          {
+            id: 'operation',
+            type: 'dropdown',
+            options: [
+              { label: 'Create', id: 'create' },
+              { label: 'Update', id: 'update' },
+              { label: 'Delete', id: 'delete' },
+            ],
+          },
+          {
+            id: 'data',
+            type: 'long-input',
+            condition: { field: 'operation', value: ['create', 'update'] },
+          },
+          {
+            id: 'id',
+            type: 'short-input',
+            condition: { field: 'operation', value: ['update', 'delete'] },
+          },
+        ],
+      })
+
+      const testBlock: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'test-block', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'test-block',
+          params: {
+            operation: 'update',
+            data: 'some data',
+            id: 'item-1',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(testBlock, mockContext)
+
+      // Should include inputs for update operation (both data and id)
+      expect(result).toHaveProperty('operation', 'update')
+      expect(result).toHaveProperty('data', 'some data')
+      expect(result).toHaveProperty('id', 'item-1')
+    })
+
+    it('should include all inputs when no conditions are present', () => {
+      // Mock a block with no conditions
+      mockGetBlock.mockReturnValue({
+        type: 'simple-block',
+        subBlocks: [
+          {
+            id: 'param1',
+            type: 'short-input',
+          },
+          {
+            id: 'param2',
+            type: 'long-input',
+          },
+        ],
+      })
+
+      const simpleBlock: SerializedBlock = {
+        id: 'simple-block',
+        metadata: { id: 'simple-block', name: 'Simple Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'simple-block',
+          params: {
+            param1: 'value1',
+            param2: 'value2',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(simpleBlock, mockContext)
+
+      // Should include all inputs
+      expect(result).toHaveProperty('param1', 'value1')
+      expect(result).toHaveProperty('param2', 'value2')
+    })
+
+    it('should return all inputs when block config is not found', () => {
+      // Mock getBlock to return undefined
+      mockGetBlock.mockReturnValue(undefined)
+
+      const unknownBlock: SerializedBlock = {
+        id: 'unknown-block',
+        metadata: { id: 'unknown-type', name: 'Unknown Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'unknown-type',
+          params: {
+            param1: 'value1',
+            param2: 'value2',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(unknownBlock, mockContext)
+
+      // Should include all inputs when block config is not found
+      expect(result).toHaveProperty('param1', 'value1')
+      expect(result).toHaveProperty('param2', 'value2')
+    })
+
+    it('should handle negated conditions correctly', () => {
+      // Mock a block with negated condition
+      mockGetBlock.mockReturnValue({
+        type: 'test-block',
+        subBlocks: [
+          {
+            id: 'operation',
+            type: 'dropdown',
+            options: [
+              { label: 'Create', id: 'create' },
+              { label: 'Delete', id: 'delete' },
+            ],
+          },
+          {
+            id: 'confirmationField',
+            type: 'short-input',
+            condition: { field: 'operation', value: 'create', not: true },
+          },
+        ],
+      })
+
+      const testBlock: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'test-block', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'test-block',
+          params: {
+            operation: 'delete',
+            confirmationField: 'confirmed',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(testBlock, mockContext)
+
+      // Should include confirmationField because operation is NOT 'create'
+      expect(result).toHaveProperty('operation', 'delete')
+      expect(result).toHaveProperty('confirmationField', 'confirmed')
+    })
+
+    it('should handle compound AND conditions correctly', () => {
+      // Mock a block with compound AND condition
+      mockGetBlock.mockReturnValue({
+        type: 'test-block',
+        subBlocks: [
+          {
+            id: 'operation',
+            type: 'dropdown',
+            options: [
+              { label: 'Create', id: 'create' },
+              { label: 'Update', id: 'update' },
+            ],
+          },
+          {
+            id: 'enabled',
+            type: 'switch',
+          },
+          {
+            id: 'specialField',
+            type: 'short-input',
+            condition: {
+              field: 'operation',
+              value: 'update',
+              and: { field: 'enabled', value: true },
+            },
+          },
+        ],
+      })
+
+      const testBlock: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'test-block', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'test-block',
+          params: {
+            operation: 'update',
+            enabled: true,
+            specialField: 'special value',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(testBlock, mockContext)
+
+      // Should include specialField because operation is 'update' AND enabled is true
+      expect(result).toHaveProperty('operation', 'update')
+      expect(result).toHaveProperty('enabled', true)
+      expect(result).toHaveProperty('specialField', 'special value')
+    })
+
+    it('should always include inputs without conditions', () => {
+      // Mock a block with mixed conditions
+      mockGetBlock.mockReturnValue({
+        type: 'test-block',
+        subBlocks: [
+          {
+            id: 'operation',
+            type: 'dropdown',
+            // No condition - should always be included
+          },
+          {
+            id: 'alwaysVisible',
+            type: 'short-input',
+            // No condition - should always be included
+          },
+          {
+            id: 'conditionalField',
+            type: 'short-input',
+            condition: { field: 'operation', value: 'search' },
+          },
+        ],
+      })
+
+      const testBlock: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'test-block', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'test-block',
+          params: {
+            operation: 'upload',
+            alwaysVisible: 'always here',
+            conditionalField: 'should be filtered out',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(testBlock, mockContext)
+
+      // Should include inputs without conditions
+      expect(result).toHaveProperty('operation', 'upload')
+      expect(result).toHaveProperty('alwaysVisible', 'always here')
+
+      // Should NOT include conditional field that doesn't match
+      expect(result).not.toHaveProperty('conditionalField')
+    })
+
+    it('should handle duplicate field names with different conditions (Knowledge block case)', () => {
+      // Mock Knowledge block with duplicate content fields
+      mockGetBlock.mockReturnValue({
+        type: 'knowledge',
+        subBlocks: [
+          {
+            id: 'operation',
+            type: 'dropdown',
+          },
+          {
+            id: 'content',
+            title: 'Chunk Content',
+            type: 'long-input',
+            condition: { field: 'operation', value: 'upload_chunk' },
+          },
+          {
+            id: 'content',
+            title: 'Document Content',
+            type: 'long-input',
+            condition: { field: 'operation', value: 'create_document' },
+          },
+        ],
+      })
+
+      // Test upload_chunk operation
+      const uploadChunkBlock: SerializedBlock = {
+        id: 'knowledge-block',
+        metadata: { id: 'knowledge', name: 'Knowledge Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'knowledge',
+          params: {
+            operation: 'upload_chunk',
+            content: 'chunk content here',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result1 = resolver.resolveInputs(uploadChunkBlock, mockContext)
+      expect(result1).toHaveProperty('operation', 'upload_chunk')
+      expect(result1).toHaveProperty('content', 'chunk content here')
+
+      // Test create_document operation
+      const createDocBlock: SerializedBlock = {
+        id: 'knowledge-block',
+        metadata: { id: 'knowledge', name: 'Knowledge Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'knowledge',
+          params: {
+            operation: 'create_document',
+            content: 'document content here',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result2 = resolver.resolveInputs(createDocBlock, mockContext)
+      expect(result2).toHaveProperty('operation', 'create_document')
+      expect(result2).toHaveProperty('content', 'document content here')
+
+      // Test search operation (should NOT include content)
+      const searchBlock: SerializedBlock = {
+        id: 'knowledge-block',
+        metadata: { id: 'knowledge', name: 'Knowledge Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'knowledge',
+          params: {
+            operation: 'search',
+            content: 'should be filtered out',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const result3 = resolver.resolveInputs(searchBlock, mockContext)
+      expect(result3).toHaveProperty('operation', 'search')
+      expect(result3).not.toHaveProperty('content')
     })
   })
 })
