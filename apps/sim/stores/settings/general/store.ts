@@ -20,6 +20,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isAutoFillEnvVarsEnabled: true,
           isAutoPanEnabled: true,
           isConsoleExpandedByDefault: true,
+          isDebugModeEnabled: false,
           theme: 'system' as const,
           telemetryEnabled: true,
           telemetryNotifiedUser: false,
@@ -104,6 +105,10 @@ export const useGeneralStore = create<GeneralStore>()(
               'isConsoleExpandedByDefaultLoading',
               'isConsoleExpandedByDefault'
             )
+          },
+
+          toggleDebugMode: () => {
+            set({ isDebugModeEnabled: !get().isDebugModeEnabled })
           },
 
           setTheme: async (theme) => {

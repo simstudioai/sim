@@ -3,6 +3,7 @@ export interface General {
   isAutoFillEnvVarsEnabled: boolean
   isAutoPanEnabled: boolean
   isConsoleExpandedByDefault: boolean
+  isDebugModeEnabled: boolean
   theme: 'system' | 'light' | 'dark'
   telemetryEnabled: boolean
   telemetryNotifiedUser: boolean
@@ -22,6 +23,7 @@ export interface GeneralActions {
   toggleAutoFillEnvVars: () => Promise<void>
   toggleAutoPan: () => Promise<void>
   toggleConsoleExpandedByDefault: () => Promise<void>
+  toggleDebugMode: () => void
   setTheme: (theme: 'system' | 'light' | 'dark') => Promise<void>
   setTelemetryEnabled: (enabled: boolean) => Promise<void>
   setTelemetryNotifiedUser: (notified: boolean) => void
