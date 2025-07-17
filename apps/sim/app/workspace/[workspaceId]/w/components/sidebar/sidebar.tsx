@@ -764,7 +764,7 @@ export function Sidebar() {
               className='flex h-12 w-full cursor-pointer items-center gap-2 rounded-[14px] border bg-card pr-[10px] pl-3 shadow-xs transition-colors hover:bg-muted/50'
             >
               <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
-              <span className='flex h-8 flex-1 items-center px-0 font-[350] text-muted-foreground text-sm leading-none'>
+              <span className='flex h-8 flex-1 items-center px-0 text-muted-foreground text-sm leading-none'>
                 Search anything
               </span>
               <kbd className='flex h-6 w-8 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]'>
