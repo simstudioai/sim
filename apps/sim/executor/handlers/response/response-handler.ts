@@ -8,7 +8,7 @@ const logger = createLogger('ResponseBlockHandler')
 
 interface JSONProperty {
   id: string
-  key: string
+  name: string
   type: 'string' | 'number' | 'boolean' | 'object' | 'array'
   value: any
   collapsed?: boolean
@@ -92,15 +92,42 @@ export class ResponseBlockHandler implements BlockHandler {
     const result: any = {}
 
     for (const prop of builderData) {
-      if (!prop.key.trim()) {
-        return
+      if (!prop.name || !prop.name.trim()) {
+        continue
       }
 
       const value = this.convertPropertyValue(prop)
-      result[prop.key] = value
+      result[prop.name] = value
     }
 
     return result
+  }
+
+  // Static method for UI conversion from Builder to Editor mode
+  static convertBuilderDataToJsonString(builderData: JSONProperty[]): string {
+    if (!Array.isArray(builderData) || builderData.length === 0) {
+      return '{\n  \n}'
+    }
+
+    const result: any = {}
+
+    for (const prop of builderData) {
+      if (!prop.name || !prop.name.trim()) {
+        continue
+      }
+
+      // For UI display, keep variable references as-is without processing
+      result[prop.name] = prop.value
+    }
+
+    // Convert to JSON string, then replace quoted variable references with unquoted ones
+    let jsonString = JSON.stringify(result, null, 2)
+
+    // Replace quoted variable references with unquoted ones
+    // Pattern: "<variable.name>" -> <variable.name>
+    jsonString = jsonString.replace(/"(<[^>]+>)"/g, '$1')
+
+    return jsonString
   }
 
   private convertPropertyValue(prop: JSONProperty): any {
