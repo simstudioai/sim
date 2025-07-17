@@ -76,7 +76,7 @@ export const OutlookBlock: BlockConfig<
       placeholder: 'Email content',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
     },
-    // Read Email Fields - Add folder selector
+    // Read Email Fields - Add folder selector (basic mode)
     {
       id: 'folder',
       title: 'Folder',
@@ -86,6 +86,17 @@ export const OutlookBlock: BlockConfig<
       serviceId: 'outlook',
       requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
       placeholder: 'Select Outlook folder',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'read_outlook' },
+    },
+    // Manual folder input (advanced mode)
+    {
+      id: 'manualFolder',
+      title: 'Folder',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Outlook folder name (e.g., INBOX, SENT, or custom folder)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'read_outlook' },
     },
     {
@@ -114,11 +125,14 @@ export const OutlookBlock: BlockConfig<
       },
       params: (params) => {
         // Pass the credential directly from the credential field
-        const { credential, ...rest } = params
+        const { credential, folder, manualFolder, ...rest } = params
+
+        // Handle folder input (selector or manual)
+        const effectiveFolder = (folder || manualFolder || '').trim()
 
         // Set default folder to INBOX if not specified
-        if (rest.operation === 'read_outlook' && !rest.folder) {
-          rest.folder = 'INBOX'
+        if (rest.operation === 'read_outlook') {
+          rest.folder = effectiveFolder || 'INBOX'
         }
 
         return {
@@ -137,6 +151,7 @@ export const OutlookBlock: BlockConfig<
     body: { type: 'string', required: false },
     // Read operation inputs
     folder: { type: 'string', required: false },
+    manualFolder: { type: 'string', required: false },
     maxResults: { type: 'number', required: false },
   },
   outputs: {

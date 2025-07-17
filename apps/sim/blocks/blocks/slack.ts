@@ -76,6 +76,16 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       layout: 'full',
       provider: 'slack',
       placeholder: 'Select Slack channel',
+      mode: 'basic',
+    },
+    // Manual channel ID input (advanced mode)
+    {
+      id: 'manualChannel',
+      title: 'Channel ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Slack channel ID (e.g., C1234567890)',
+      mode: 'advanced',
     },
     {
       id: 'text',
@@ -97,10 +107,21 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         }
       },
       params: (params) => {
-        const { credential, authMethod, botToken, operation, ...rest } = params
+        const { credential, authMethod, botToken, operation, channel, manualChannel, ...rest } =
+          params
+
+        // Handle channel input (selector or manual)
+        const effectiveChannel = (channel || manualChannel || '').trim()
+
+        if (!effectiveChannel) {
+          throw new Error(
+            'Channel is required. Please select a channel or enter a channel ID manually.'
+          )
+        }
 
         const baseParams = {
           ...rest,
+          channel: effectiveChannel,
         }
 
         // Handle authentication based on method
@@ -126,7 +147,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     authMethod: { type: 'string', required: true },
     credential: { type: 'string', required: false },
     botToken: { type: 'string', required: false },
-    channel: { type: 'string', required: true },
+    channel: { type: 'string', required: false },
+    manualChannel: { type: 'string', required: false },
     text: { type: 'string', required: true },
   },
   outputs: {

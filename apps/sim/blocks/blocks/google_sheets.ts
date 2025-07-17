@@ -59,15 +59,16 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.spreadsheet',
       placeholder: 'Select a spreadsheet',
+      mode: 'basic',
     },
-    // Manual Spreadsheet ID (hidden by default)
+    // Manual Spreadsheet ID (advanced mode)
     {
       id: 'manualSpreadsheetId',
-      title: 'Or Enter Spreadsheet ID Manually',
+      title: 'Spreadsheet ID',
       type: 'short-input',
       layout: 'full',
       placeholder: 'ID of the spreadsheet (from URL)',
-      condition: { field: 'spreadsheetId', value: '' },
+      mode: 'advanced',
     },
     // Range
     {

@@ -48,7 +48,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       ],
       placeholder: 'Select Confluence account',
     },
-    // Use file-selector component for page selection
+    // Page selector (basic mode)
     {
       id: 'pageId',
       title: 'Select Page',
@@ -57,6 +57,16 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       provider: 'confluence',
       serviceId: 'confluence',
       placeholder: 'Select Confluence page',
+      mode: 'basic',
+    },
+    // Manual page ID input (advanced mode)
+    {
+      id: 'manualPageId',
+      title: 'Page ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Confluence page ID',
+      mode: 'advanced',
     },
     // Update page fields
     {
@@ -90,10 +100,18 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         }
       },
       params: (params) => {
-        const { credential, ...rest } = params
+        const { credential, pageId, manualPageId, ...rest } = params
+
+        // Use the selected page ID or the manually entered one
+        const effectivePageId = (pageId || manualPageId || '').trim()
+
+        if (!effectivePageId) {
+          throw new Error('Page ID is required. Please select a page or enter a page ID manually.')
+        }
 
         return {
           accessToken: credential,
+          pageId: effectivePageId,
           ...rest,
         }
       },
@@ -103,7 +121,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     operation: { type: 'string', required: true },
     domain: { type: 'string', required: true },
     credential: { type: 'string', required: true },
-    pageId: { type: 'string', required: true },
+    pageId: { type: 'string', required: false },
+    manualPageId: { type: 'string', required: false },
     // Update operation inputs
     title: { type: 'string', required: false },
     content: { type: 'string', required: false },

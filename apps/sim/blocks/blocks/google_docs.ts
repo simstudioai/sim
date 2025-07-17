@@ -45,7 +45,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
       placeholder: 'Select Google account',
     },
-    // Document Selector for read operation
+    // Document selector (basic mode)
     {
       id: 'documentId',
       title: 'Select Document',
@@ -56,38 +56,18 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.document',
       placeholder: 'Select a document',
-      condition: { field: 'operation', value: 'read' },
+      mode: 'basic',
+      condition: { field: 'operation', value: ['read', 'write'] },
     },
-    // Document Selector for write operation
-    {
-      id: 'documentId',
-      title: 'Select Document',
-      type: 'file-selector',
-      layout: 'full',
-      provider: 'google-drive',
-      serviceId: 'google-drive',
-      requiredScopes: [],
-      mimeType: 'application/vnd.google-apps.document',
-      placeholder: 'Select a document',
-      condition: { field: 'operation', value: 'write' },
-    },
-    // Manual Document ID for read operation
+    // Manual document ID input (advanced mode)
     {
       id: 'manualDocumentId',
-      title: 'Or Enter Document ID Manually',
+      title: 'Document ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the document',
-      condition: { field: 'operation', value: 'read' },
-    },
-    // Manual Document ID for write operation
-    {
-      id: 'manualDocumentId',
-      title: 'Or Enter Document ID Manually',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'ID of the document',
-      condition: { field: 'operation', value: 'write' },
+      placeholder: 'Enter document ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['read', 'write'] },
     },
     // Create-specific Fields
     {
@@ -98,7 +78,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       placeholder: 'Enter title for the new document',
       condition: { field: 'operation', value: 'create' },
     },
-    // Folder Selector for create operation
+    // Folder selector (basic mode)
     {
       id: 'folderSelector',
       title: 'Select Parent Folder',
@@ -109,15 +89,17 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',
+      mode: 'basic',
       condition: { field: 'operation', value: 'create' },
     },
-    // Manual Folder ID for create operation
+    // Manual folder ID input (advanced mode)
     {
       id: 'folderId',
-      title: 'Or Enter Parent Folder ID Manually',
+      title: 'Parent Folder ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the parent folder (leave empty for root folder)',
+      placeholder: 'Enter parent folder ID (leave empty for root folder)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'create' },
     },
     // Content Field for write operation
