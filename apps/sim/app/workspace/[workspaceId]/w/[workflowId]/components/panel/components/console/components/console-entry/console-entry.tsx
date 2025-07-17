@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import { CodeDisplay } from '../code-display/code-display'
 import { JSONView } from '../json-view/json-view'
 
@@ -164,7 +165,8 @@ const ImagePreview = ({
 }
 
 export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
-  const [isExpanded, setIsExpanded] = useState(true) // Default expanded
+  const isConsoleExpandedByDefault = useGeneralStore((state) => state.isConsoleExpandedByDefault)
+  const [isExpanded, setIsExpanded] = useState(isConsoleExpandedByDefault)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false) // State for input/output toggle
   const [isPlaying, setIsPlaying] = useState(false)

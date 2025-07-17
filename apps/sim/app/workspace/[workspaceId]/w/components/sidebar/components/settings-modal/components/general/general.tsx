@@ -16,10 +16,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useGeneralStore } from '@/stores/settings/general/store'
 
 const TOOLTIPS = {
-  debugMode: 'Enable visual debugging information during execution.',
   autoConnect: 'Automatically connect nodes.',
   autoFillEnvVars: 'Automatically fill API keys.',
   autoPan: 'Automatically pan to active blocks during workflow execution.',
+  consoleExpandedByDefault:
+    'Show console entries expanded by default. When disabled, entries will be collapsed by default.',
 }
 
 export function General() {
@@ -29,15 +30,26 @@ export function General() {
   const error = useGeneralStore((state) => state.error)
   const theme = useGeneralStore((state) => state.theme)
   const isAutoConnectEnabled = useGeneralStore((state) => state.isAutoConnectEnabled)
-  const isDebugModeEnabled = useGeneralStore((state) => state.isDebugModeEnabled)
   const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
   const isAutoPanEnabled = useGeneralStore((state) => state.isAutoPanEnabled)
+  const isConsoleExpandedByDefault = useGeneralStore((state) => state.isConsoleExpandedByDefault)
+
+  // Loading states
+  const isAutoConnectLoading = useGeneralStore((state) => state.isAutoConnectLoading)
+  const isAutoFillEnvVarsLoading = useGeneralStore((state) => state.isAutoFillEnvVarsLoading)
+  const isAutoPanLoading = useGeneralStore((state) => state.isAutoPanLoading)
+  const isConsoleExpandedByDefaultLoading = useGeneralStore(
+    (state) => state.isConsoleExpandedByDefaultLoading
+  )
+  const isThemeLoading = useGeneralStore((state) => state.isThemeLoading)
 
   const setTheme = useGeneralStore((state) => state.setTheme)
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
-  const toggleDebugMode = useGeneralStore((state) => state.toggleDebugMode)
   const toggleAutoFillEnvVars = useGeneralStore((state) => state.toggleAutoFillEnvVars)
   const toggleAutoPan = useGeneralStore((state) => state.toggleAutoPan)
+  const toggleConsoleExpandedByDefault = useGeneralStore(
+    (state) => state.toggleConsoleExpandedByDefault
+  )
   const loadSettings = useGeneralStore((state) => state.loadSettings)
 
   useEffect(() => {
@@ -47,31 +59,31 @@ export function General() {
     loadData()
   }, [loadSettings, retryCount])
 
-  const handleThemeChange = (value: 'system' | 'light' | 'dark') => {
-    setTheme(value)
+  const handleThemeChange = async (value: 'system' | 'light' | 'dark') => {
+    await setTheme(value)
   }
 
-  const handleDebugModeChange = (checked: boolean) => {
-    if (checked !== isDebugModeEnabled) {
-      toggleDebugMode()
+  const handleAutoConnectChange = async (checked: boolean) => {
+    if (checked !== isAutoConnectEnabled && !isAutoConnectLoading) {
+      await toggleAutoConnect()
     }
   }
 
-  const handleAutoConnectChange = (checked: boolean) => {
-    if (checked !== isAutoConnectEnabled) {
-      toggleAutoConnect()
+  const handleAutoFillEnvVarsChange = async (checked: boolean) => {
+    if (checked !== isAutoFillEnvVarsEnabled && !isAutoFillEnvVarsLoading) {
+      await toggleAutoFillEnvVars()
     }
   }
 
-  const handleAutoFillEnvVarsChange = (checked: boolean) => {
-    if (checked !== isAutoFillEnvVarsEnabled) {
-      toggleAutoFillEnvVars()
+  const handleAutoPanChange = async (checked: boolean) => {
+    if (checked !== isAutoPanEnabled && !isAutoPanLoading) {
+      await toggleAutoPan()
     }
   }
 
-  const handleAutoPanChange = (checked: boolean) => {
-    if (checked !== isAutoPanEnabled) {
-      toggleAutoPan()
+  const handleConsoleExpandedByDefaultChange = async (checked: boolean) => {
+    if (checked !== isConsoleExpandedByDefault && !isConsoleExpandedByDefaultLoading) {
+      await toggleConsoleExpandedByDefault()
     }
   }
 
@@ -111,7 +123,11 @@ export function General() {
                     Theme
                   </Label>
                 </div>
-                <Select value={theme} onValueChange={handleThemeChange} disabled={isLoading}>
+                <Select
+                  value={theme}
+                  onValueChange={handleThemeChange}
+                  disabled={isLoading || isThemeLoading}
+                >
                   <SelectTrigger id='theme-select' className='w-[180px]'>
                     <SelectValue placeholder='Select theme' />
                   </SelectTrigger>
@@ -121,35 +137,6 @@ export function General() {
                     <SelectItem value='dark'>Dark</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className='flex items-center justify-between py-1'>
-                <div className='flex items-center gap-2'>
-                  <Label htmlFor='debug-mode' className='font-medium'>
-                    Debug mode
-                  </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-7 p-1 text-gray-500'
-                        aria-label='Learn more about debug mode'
-                        disabled={isLoading}
-                      >
-                        <Info className='h-5 w-5' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-[300px] p-3'>
-                      <p className='text-sm'>{TOOLTIPS.debugMode}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <Switch
-                  id='debug-mode'
-                  checked={isDebugModeEnabled}
-                  onCheckedChange={handleDebugModeChange}
-                  disabled={isLoading}
-                />
               </div>
               <div className='flex items-center justify-between py-1'>
                 <div className='flex items-center gap-2'>
@@ -163,7 +150,7 @@ export function General() {
                         size='sm'
                         className='h-7 p-1 text-gray-500'
                         aria-label='Learn more about auto-connect feature'
-                        disabled={isLoading}
+                        disabled={isLoading || isAutoConnectLoading}
                       >
                         <Info className='h-5 w-5' />
                       </Button>
@@ -177,7 +164,7 @@ export function General() {
                   id='auto-connect'
                   checked={isAutoConnectEnabled}
                   onCheckedChange={handleAutoConnectChange}
-                  disabled={isLoading}
+                  disabled={isLoading || isAutoConnectLoading}
                 />
               </div>
               <div className='flex items-center justify-between py-1'>
@@ -192,7 +179,7 @@ export function General() {
                         size='sm'
                         className='h-7 p-1 text-gray-500'
                         aria-label='Learn more about auto-fill environment variables'
-                        disabled={isLoading}
+                        disabled={isLoading || isAutoFillEnvVarsLoading}
                       >
                         <Info className='h-5 w-5' />
                       </Button>
@@ -206,13 +193,13 @@ export function General() {
                   id='auto-fill-env-vars'
                   checked={isAutoFillEnvVarsEnabled}
                   onCheckedChange={handleAutoFillEnvVarsChange}
-                  disabled={isLoading}
+                  disabled={isLoading || isAutoFillEnvVarsLoading}
                 />
               </div>
-              {/* <div className='flex items-center justify-between py-1'>
+              <div className='flex items-center justify-between py-1'>
                 <div className='flex items-center gap-2'>
-                  <Label htmlFor='auto-pan' className='font-medium'>
-                    Auto-pan during execution
+                  <Label htmlFor='console-expanded-by-default' className='font-medium'>
+                    Console expanded by default
                   </Label>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -220,24 +207,24 @@ export function General() {
                         variant='ghost'
                         size='sm'
                         className='h-7 p-1 text-gray-500'
-                        aria-label='Learn more about auto-pan feature'
-                        disabled={isLoading}
+                        aria-label='Learn more about console expanded by default'
+                        disabled={isLoading || isConsoleExpandedByDefaultLoading}
                       >
                         <Info className='h-5 w-5' />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side='top' className='max-w-[300px] p-3'>
-                      <p className='text-sm'>{TOOLTIPS.autoPan}</p>
+                      <p className='text-sm'>{TOOLTIPS.consoleExpandedByDefault}</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
                 <Switch
-                  id='auto-pan'
-                  checked={isAutoPanEnabled}
-                  onCheckedChange={handleAutoPanChange}
-                  disabled={isLoading}
+                  id='console-expanded-by-default'
+                  checked={isConsoleExpandedByDefault}
+                  onCheckedChange={handleConsoleExpandedByDefaultChange}
+                  disabled={isLoading || isConsoleExpandedByDefaultLoading}
                 />
-              </div> */}
+              </div>
             </>
           )}
         </div>
