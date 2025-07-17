@@ -64,9 +64,22 @@ export function InputFormat({
     setStoreValue(fields.filter((field: InputField) => field.id !== id))
   }
 
+  // Validate field name for API safety
+  const validateFieldName = (name: string): string => {
+    // Remove only truly problematic characters for JSON/API usage
+    // Allow most characters but remove control characters, quotes, and backslashes
+    return name.replace(/[\x00-\x1F"\\]/g, '').trim()
+  }
+
   // Update handlers
   const updateField = (id: string, field: keyof InputField, value: any) => {
     if (isPreview || disabled) return
+
+    // Validate field name if it's being updated
+    if (field === 'name' && typeof value === 'string') {
+      value = validateFieldName(value)
+    }
+
     setStoreValue(fields.map((f: InputField) => (f.id === id ? { ...f, [field]: value } : f)))
   }
 
