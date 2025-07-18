@@ -33,6 +33,6 @@ export interface BrowserUseResponse extends ToolResponse {
     id: string
     success: boolean
     output: any
-    steps: any[]
+    steps: BrowserUseTaskStep[]
   }
 }

@@ -24,21 +24,3 @@ export interface GoogleSearchResponse extends ToolResponse {
     }
   }
 }
-
-export interface GoogleSearchResponse extends ToolResponse {
-  output: {
-    items: Array<{
-      title: string
-      link: string
-      snippet: string
-      displayLink?: string
-      pagemap?: Record<string, any>
-    }>
-    searchInformation: {
-      totalResults: string
-      searchTime: number
-      formattedSearchTime: string
-      formattedTotalResults: string
-    }
-  }
-}

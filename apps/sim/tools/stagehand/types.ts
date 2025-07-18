@@ -101,19 +101,3 @@ export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
       return z.any()
   }
 }
-
-export interface StagehandAgentResponse extends ToolResponse {
-  output: {
-    agentResult: {
-      success: boolean
-      completed: boolean
-      message: string
-      actions: Array<{
-        type: string
-        params: Record<string, any>
-        result: Record<string, any>
-      }>
-    }
-    structuredOutput?: Record<string, any>
-  }
-}

@@ -107,6 +107,12 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         }
 
         if (params.operation === 'write') {
+          if (!params.title?.trim()) {
+            throw new Error('Title is required for creating issues.')
+          }
+          if (!params.description?.trim()) {
+            throw new Error('Description is required for creating issues.')
+          }
           return {
             credential: params.credential,
             teamId: effectiveTeamId,

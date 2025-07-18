@@ -283,3 +283,4 @@ export type GoogleCalendarResponse =
   | GoogleCalendarGetResponse
   | GoogleCalendarQuickAddResponse
   | GoogleCalendarInviteResponse
+  | GoogleCalendarUpdateResponse
