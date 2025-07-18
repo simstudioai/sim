@@ -105,8 +105,6 @@ async function initializeSentry() {
   if (!isProd) return
 
   try {
-    const Sentry = await import('@sentry/nextjs')
-
     // Skip initialization if Sentry appears to be already configured
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore accessing internal API
@@ -120,7 +118,7 @@ async function initializeSentry() {
       enabled: true,
       environment: env.NODE_ENV || 'development',
       tracesSampleRate: 0.2,
-      beforeSend(event) {
+      beforeSend(event: any) {
         if (event.request && typeof event.request === 'object') {
           ;(event.request as any).ip = null
         }

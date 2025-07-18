@@ -1275,8 +1275,6 @@ export async function fetchAndProcessAirtablePayloads(
           }
         )
 
-        // Execute using the original requestId as the executionId
-        // This is the exact point in the old code where execution happens - we're matching it exactly
         await executeWorkflowFromPayload(workflowData, input, requestId, requestId)
 
         // COMPLETION LOG - This will only appear if execution succeeds
@@ -1373,7 +1371,7 @@ export async function processWebhook(
     logger.info(
       `[${requestId}] Executing workflow ${foundWorkflow.id} for webhook ${foundWebhook.id} (Execution: ${executionId})`
     )
-    // Call the refactored execution function
+
     await executeWorkflowFromPayload(foundWorkflow, input, executionId, requestId)
 
     // Since executeWorkflowFromPayload handles logging and errors internally,
