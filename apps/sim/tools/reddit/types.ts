@@ -74,3 +74,5 @@ export interface RedditCommentsResponse extends ToolResponse {
     comments: RedditComment[]
   }
 }
+
+export type RedditResponse = RedditHotPostsResponse | RedditPostsResponse | RedditCommentsResponse

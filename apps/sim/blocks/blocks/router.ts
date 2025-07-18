@@ -1,10 +1,10 @@
 import { ConnectIcon } from '@/components/icons'
 import { isHosted } from '@/lib/environment'
+import type { BlockConfig } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
 import { getAllModelProviders, getBaseModelProviders, getHostedModels } from '@/providers/utils'
 import { useOllamaStore } from '@/stores/ollama/store'
 import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
 
 interface RouterResponse extends ToolResponse {
   output: {

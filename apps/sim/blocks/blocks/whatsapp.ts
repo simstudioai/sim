@@ -1,16 +1,8 @@
 import { WhatsAppIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
+import type { BlockConfig } from '@/blocks/types'
+import type { WhatsAppResponse } from '@/tools/whatsapp/types'
 
-interface WhatsAppBlockOutput extends ToolResponse {
-  output: {
-    success: boolean
-    messageId?: string
-    error?: string
-  }
-}
-
-export const WhatsAppBlock: BlockConfig<WhatsAppBlockOutput> = {
+export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   type: 'whatsapp',
   name: 'WhatsApp',
   description: 'Send WhatsApp messages',

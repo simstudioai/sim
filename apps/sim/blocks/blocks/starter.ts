@@ -1,5 +1,5 @@
 import { StartIcon } from '@/components/icons'
-import type { BlockConfig } from '../types'
+import type { BlockConfig } from '@/blocks/types'
 
 export const StarterBlock: BlockConfig = {
   type: 'starter',

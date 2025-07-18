@@ -140,3 +140,5 @@ export interface WealthboxWriteParams {
   category?: number
   priority?: 'Low' | 'Medium' | 'High'
 }
+
+export type WealthboxResponse = WealthboxReadResponse | WealthboxWriteResponse

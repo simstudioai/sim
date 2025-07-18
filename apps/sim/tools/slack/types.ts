@@ -18,3 +18,5 @@ export interface SlackMessageResponse extends ToolResponse {
     channel: string
   }
 }
+
+export type SlackResponse = SlackMessageResponse

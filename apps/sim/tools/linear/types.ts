@@ -34,3 +34,5 @@ export interface LinearCreateIssueResponse extends ToolResponse {
     issue: LinearIssue
   }
 }
+
+export type LinearResponse = LinearReadIssuesResponse | LinearCreateIssueResponse

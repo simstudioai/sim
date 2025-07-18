@@ -1,6 +1,7 @@
 import { AgentIcon } from '@/components/icons'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
+import type { BlockConfig } from '@/blocks/types'
 import {
   getAllModelProviders,
   getBaseModelProviders,
@@ -13,7 +14,6 @@ import {
 } from '@/providers/utils'
 import { useOllamaStore } from '@/stores/ollama/store'
 import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
 
 const logger = createLogger('AgentBlock')
 

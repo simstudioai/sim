@@ -13,18 +13,16 @@ export interface SupabaseInsertParams {
   data: any
 }
 
-export interface SupabaseQueryResponse extends ToolResponse {
-  error?: string
+export interface SupabaseBaseResponse extends ToolResponse {
   output: {
     message: string
     results: any
   }
+  error?: string
 }
 
-export interface SupabaseInsertResponse extends ToolResponse {
-  error?: string
-  output: {
-    message: string
-    results: any
-  }
-}
+export interface SupabaseQueryResponse extends SupabaseBaseResponse {}
+
+export interface SupabaseInsertResponse extends SupabaseBaseResponse {}
+
+export interface SupabaseResponse extends SupabaseBaseResponse {}

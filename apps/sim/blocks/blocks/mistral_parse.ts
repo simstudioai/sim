@@ -1,7 +1,7 @@
 import { MistralIcon } from '@/components/icons'
 import { isProd } from '@/lib/environment'
+import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
 import type { MistralParserOutput } from '@/tools/mistral/types'
-import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
 
 const shouldEnableFileUpload = isProd
 

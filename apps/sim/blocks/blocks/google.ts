@@ -1,24 +1,6 @@
 import { GoogleIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
-
-interface GoogleSearchResponse extends ToolResponse {
-  output: {
-    items: Array<{
-      title: string
-      link: string
-      snippet: string
-      displayLink?: string
-      pagemap?: Record<string, any>
-    }>
-    searchInformation: {
-      totalResults: string
-      searchTime: number
-      formattedSearchTime: string
-      formattedTotalResults: string
-    }
-  }
-}
+import type { BlockConfig } from '@/blocks/types'
+import type { GoogleSearchResponse } from '@/tools/google/types'
 
 export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   type: 'google_search',

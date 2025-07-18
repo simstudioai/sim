@@ -1,6 +1,6 @@
 import { ClayIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { ClayPopulateResponse } from '@/tools/clay/types'
-import type { BlockConfig } from '../types'
 
 export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   type: 'clay',

@@ -1,8 +1,8 @@
 import { StagehandIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
 
-interface StagehandExtractResponse extends ToolResponse {
+export interface StagehandExtractResponse extends ToolResponse {
   output: {
     data: Record<string, any>
   }

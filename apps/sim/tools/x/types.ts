@@ -105,3 +105,5 @@ export interface XUserResponse extends ToolResponse {
     recentTweets?: XTweet[]
   }
 }
+
+export type XResponse = XWriteResponse | XReadResponse | XSearchResponse | XUserResponse

@@ -103,3 +103,10 @@ export interface TypeformResponsesResponse extends ToolResponse {
     }>
   }
 }
+
+export interface TypeformResponse extends ToolResponse {
+  output:
+    | TypeformResponsesResponse['output']
+    | TypeformFilesResponse['output']
+    | TypeformInsightsData
+}

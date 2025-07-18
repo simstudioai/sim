@@ -127,3 +127,5 @@ export interface CleanedOutlookMessage {
   isRead?: boolean
   importance?: string
 }
+
+export type OutlookResponse = OutlookReadResponse | OutlookSendResponse | OutlookDraftResponse

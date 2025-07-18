@@ -1,17 +1,6 @@
 import { ExaAIIcon } from '@/components/icons'
-import type {
-  ExaAnswerResponse,
-  ExaFindSimilarLinksResponse,
-  ExaGetContentsResponse,
-  ExaSearchResponse,
-} from '@/tools/exa/types'
-import type { BlockConfig } from '../types'
-
-type ExaResponse =
-  | ExaSearchResponse
-  | ExaGetContentsResponse
-  | ExaFindSimilarLinksResponse
-  | ExaAnswerResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { ExaResponse } from '@/tools/exa/types'
 
 export const ExaBlock: BlockConfig<ExaResponse> = {
   type: 'exa',

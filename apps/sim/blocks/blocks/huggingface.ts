@@ -1,6 +1,6 @@
 import { HuggingFaceIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { HuggingFaceChatResponse } from '@/tools/huggingface/types'
-import type { BlockConfig } from '../types'
 
 export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
   type: 'huggingface',

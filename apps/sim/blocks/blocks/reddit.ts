@@ -1,14 +1,8 @@
 import { RedditIcon } from '@/components/icons'
-import type {
-  RedditCommentsResponse,
-  RedditHotPostsResponse,
-  RedditPostsResponse,
-} from '@/tools/reddit/types'
-import type { BlockConfig } from '../types'
+import type { BlockConfig } from '@/blocks/types'
+import type { RedditResponse } from '@/tools/reddit/types'
 
-export const RedditBlock: BlockConfig<
-  RedditHotPostsResponse | RedditPostsResponse | RedditCommentsResponse
-> = {
+export const RedditBlock: BlockConfig<RedditResponse> = {
   type: 'reddit',
   name: 'Reddit',
   description: 'Access Reddit data and content',

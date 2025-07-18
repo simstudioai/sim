@@ -1,6 +1,6 @@
 import { GmailIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { GmailToolResponse } from '@/tools/gmail/types'
-import type { BlockConfig } from '../types'
 
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
   type: 'gmail',
@@ -67,7 +67,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       placeholder: 'Email content',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
     },
-    // Read Email Fields - Add folder selector
+    // Label/folder selector (basic mode)
     {
       id: 'folder',
       title: 'Label',
@@ -80,6 +80,17 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail label/folder',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'read_gmail' },
+    },
+    // Manual label/folder input (advanced mode)
+    {
+      id: 'manualFolder',
+      title: 'Label/Folder',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Gmail label name (e.g., INBOX, SENT, or custom label)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'read_gmail' },
     },
     {
@@ -141,11 +152,14 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       },
       params: (params) => {
         // Pass the credential directly from the credential field
-        const { credential, ...rest } = params
+        const { credential, folder, manualFolder, ...rest } = params
+
+        // Handle folder input (selector or manual)
+        const effectiveFolder = (folder || manualFolder || '').trim()
 
         // Ensure folder is always provided for read_gmail operation
         if (rest.operation === 'read_gmail') {
-          rest.folder = rest.folder || 'INBOX'
+          rest.folder = effectiveFolder || 'INBOX'
         }
 
         return {
@@ -164,6 +178,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     body: { type: 'string', required: false },
     // Read operation inputs
     folder: { type: 'string', required: false },
+    manualFolder: { type: 'string', required: false },
     messageId: { type: 'string', required: false },
     unreadOnly: { type: 'boolean', required: false },
     // Search operation inputs

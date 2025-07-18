@@ -147,3 +147,9 @@ export interface RepoInfoResponse extends ToolResponse {
     metadata: RepoMetadata
   }
 }
+
+export type GitHubResponse =
+  | PullRequestResponse
+  | CreateCommentResponse
+  | LatestCommitResponse
+  | RepoInfoResponse
