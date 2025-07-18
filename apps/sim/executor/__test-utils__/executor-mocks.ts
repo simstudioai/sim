@@ -110,6 +110,8 @@ export const setupExecutorCoreMocks = () => {
     InputResolver: vi.fn().mockImplementation(() => ({
       resolveInputs: vi.fn().mockReturnValue({}),
       resolveBlockReferences: vi.fn().mockImplementation((value) => value),
+      resolveVariableReferences: vi.fn().mockImplementation((value) => value),
+      resolveEnvVariables: vi.fn().mockImplementation((value) => value),
     })),
   }))
 

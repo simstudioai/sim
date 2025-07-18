@@ -85,8 +85,10 @@ describe('ConditionBlockHandler', () => {
       {}
     ) as Mocked<InputResolver>
 
-    // Ensure the method exists as a mock function on the instance
+    // Ensure the methods exist as mock functions on the instance
     mockResolver.resolveBlockReferences = vi.fn()
+    mockResolver.resolveVariableReferences = vi.fn()
+    mockResolver.resolveEnvVariables = vi.fn()
 
     handler = new ConditionBlockHandler(mockPathTracker, mockResolver)
 
@@ -147,16 +149,23 @@ describe('ConditionBlockHandler', () => {
       selectedConditionId: 'cond1',
     }
 
-    // Mock directly in the test
+    // Mock the full resolution pipeline
+    mockResolver.resolveVariableReferences.mockReturnValue('context.value > 5')
     mockResolver.resolveBlockReferences.mockReturnValue('context.value > 5')
+    mockResolver.resolveEnvVariables.mockReturnValue('context.value > 5')
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
+    expect(mockResolver.resolveVariableReferences).toHaveBeenCalledWith(
+      'context.value > 5',
+      mockBlock
+    )
     expect(mockResolver.resolveBlockReferences).toHaveBeenCalledWith(
       'context.value > 5',
       mockContext,
       mockBlock
     )
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('context.value > 5', true)
     expect(result).toEqual(expectedOutput)
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
   })
@@ -180,16 +189,23 @@ describe('ConditionBlockHandler', () => {
       selectedConditionId: 'else1',
     }
 
-    // Mock directly in the test
+    // Mock the full resolution pipeline
+    mockResolver.resolveVariableReferences.mockReturnValue('context.value < 0')
     mockResolver.resolveBlockReferences.mockReturnValue('context.value < 0')
+    mockResolver.resolveEnvVariables.mockReturnValue('context.value < 0')
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
+    expect(mockResolver.resolveVariableReferences).toHaveBeenCalledWith(
+      'context.value < 0',
+      mockBlock
+    )
     expect(mockResolver.resolveBlockReferences).toHaveBeenCalledWith(
       'context.value < 0',
       mockContext,
       mockBlock
     )
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('context.value < 0', true)
     expect(result).toEqual(expectedOutput)
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
   })
@@ -209,16 +225,77 @@ describe('ConditionBlockHandler', () => {
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    // Mock directly in the test
+    // Mock the full resolution pipeline
+    mockResolver.resolveVariableReferences.mockReturnValue('{{source-block-1.value}} > 5')
     mockResolver.resolveBlockReferences.mockReturnValue('10 > 5')
+    mockResolver.resolveEnvVariables.mockReturnValue('10 > 5')
 
-    const _result = await handler.execute(mockBlock, inputs, mockContext)
+    await handler.execute(mockBlock, inputs, mockContext)
 
+    expect(mockResolver.resolveVariableReferences).toHaveBeenCalledWith(
+      '{{source-block-1.value}} > 5',
+      mockBlock
+    )
     expect(mockResolver.resolveBlockReferences).toHaveBeenCalledWith(
       '{{source-block-1.value}} > 5',
       mockContext,
       mockBlock
     )
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('10 > 5', true)
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
+  })
+
+  it('should resolve variable references in conditions', async () => {
+    const conditions = [
+      { id: 'cond1', title: 'if', value: '<variable.userName> !== null' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+    const inputs = { conditions: JSON.stringify(conditions) }
+
+    // Mock the full resolution pipeline for variable resolution
+    mockResolver.resolveVariableReferences.mockReturnValue('"john" !== null')
+    mockResolver.resolveBlockReferences.mockReturnValue('"john" !== null')
+    mockResolver.resolveEnvVariables.mockReturnValue('"john" !== null')
+
+    await handler.execute(mockBlock, inputs, mockContext)
+
+    expect(mockResolver.resolveVariableReferences).toHaveBeenCalledWith(
+      '<variable.userName> !== null',
+      mockBlock
+    )
+    expect(mockResolver.resolveBlockReferences).toHaveBeenCalledWith(
+      '"john" !== null',
+      mockContext,
+      mockBlock
+    )
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('"john" !== null', true)
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
+  })
+
+  it('should resolve environment variables in conditions', async () => {
+    const conditions = [
+      { id: 'cond1', title: 'if', value: '{{POOP}} === "hi"' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+    const inputs = { conditions: JSON.stringify(conditions) }
+
+    // Mock the full resolution pipeline for env variable resolution
+    mockResolver.resolveVariableReferences.mockReturnValue('{{POOP}} === "hi"')
+    mockResolver.resolveBlockReferences.mockReturnValue('{{POOP}} === "hi"')
+    mockResolver.resolveEnvVariables.mockReturnValue('"hi" === "hi"')
+
+    await handler.execute(mockBlock, inputs, mockContext)
+
+    expect(mockResolver.resolveVariableReferences).toHaveBeenCalledWith(
+      '{{POOP}} === "hi"',
+      mockBlock
+    )
+    expect(mockResolver.resolveBlockReferences).toHaveBeenCalledWith(
+      '{{POOP}} === "hi"',
+      mockContext,
+      mockBlock
+    )
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('{{POOP}} === "hi"', true)
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
   })
 
@@ -230,8 +307,8 @@ describe('ConditionBlockHandler', () => {
     const inputs = { conditions: JSON.stringify(conditions) }
 
     const resolutionError = new Error('Could not resolve reference: invalid-ref')
-    // Mock directly in the test
-    mockResolver.resolveBlockReferences.mockImplementation(() => {
+    // Mock the pipeline to throw at the variable resolution stage
+    mockResolver.resolveVariableReferences.mockImplementation(() => {
       throw resolutionError
     })
 
@@ -247,8 +324,12 @@ describe('ConditionBlockHandler', () => {
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    // Mock directly in the test
+    // Mock the full resolution pipeline
+    mockResolver.resolveVariableReferences.mockReturnValue(
+      'context.nonExistentProperty.doSomething()'
+    )
     mockResolver.resolveBlockReferences.mockReturnValue('context.nonExistentProperty.doSomething()')
+    mockResolver.resolveEnvVariables.mockReturnValue('context.nonExistentProperty.doSomething()')
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
       /^Evaluation error in condition "if": Cannot read properties of undefined \(reading 'doSomething'\)\. \(Resolved: context\.nonExistentProperty\.doSomething\(\)\)$/
@@ -271,8 +352,10 @@ describe('ConditionBlockHandler', () => {
 
     mockContext.workflow!.blocks = [mockSourceBlock, mockBlock, mockTargetBlock2]
 
-    // Mock directly in the test
+    // Mock the full resolution pipeline
+    mockResolver.resolveVariableReferences.mockReturnValue('true')
     mockResolver.resolveBlockReferences.mockReturnValue('true')
+    mockResolver.resolveEnvVariables.mockReturnValue('true')
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
       `Target block ${mockTargetBlock1.id} not found`
@@ -295,8 +378,14 @@ describe('ConditionBlockHandler', () => {
       },
     ]
 
-    // Mock directly in the test
+    // Mock the full resolution pipeline
+    mockResolver.resolveVariableReferences
+      .mockReturnValueOnce('false')
+      .mockReturnValueOnce('context.value === 99')
     mockResolver.resolveBlockReferences
+      .mockReturnValueOnce('false')
+      .mockReturnValueOnce('context.value === 99')
+    mockResolver.resolveEnvVariables
       .mockReturnValueOnce('false')
       .mockReturnValueOnce('context.value === 99')
 
@@ -314,8 +403,10 @@ describe('ConditionBlockHandler', () => {
 
     mockContext.loopItems.set(mockBlock.id, { item: 'apple' })
 
-    // Mock directly in the test
+    // Mock the full resolution pipeline
+    mockResolver.resolveVariableReferences.mockReturnValue('context.item === "apple"')
     mockResolver.resolveBlockReferences.mockReturnValue('context.item === "apple"')
+    mockResolver.resolveEnvVariables.mockReturnValue('context.item === "apple"')
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 

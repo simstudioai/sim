@@ -1446,7 +1446,130 @@ describe('InputResolver', () => {
       }
 
       const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
-      expect(result.code).toBe('return Hello World') // Should not be quoted for function blocks
+      expect(result.code).toBe('return "Hello World"') // Should be quoted for function blocks
+    })
+
+    it('should format start.input properly for different block types', () => {
+      // Test function block - should quote strings
+      const functionBlock: SerializedBlock = {
+        id: 'test-function',
+        metadata: { id: BlockType.FUNCTION, name: 'Test Function' },
+        position: { x: 100, y: 100 },
+        config: {
+          tool: BlockType.FUNCTION,
+          params: {
+            code: 'return <start.input>',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      // Test condition block - should quote strings
+      const conditionBlock: SerializedBlock = {
+        id: 'test-condition',
+        metadata: { id: BlockType.CONDITION, name: 'Test Condition' },
+        position: { x: 200, y: 100 },
+        config: {
+          tool: BlockType.CONDITION,
+          params: {
+            conditions: JSON.stringify([
+              { id: 'cond1', title: 'if', value: '<start.input> === "Hello World"' },
+            ]),
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      // Test response block - should use raw string
+      const responseBlock: SerializedBlock = {
+        id: 'test-response',
+        metadata: { id: BlockType.RESPONSE, name: 'Test Response' },
+        position: { x: 300, y: 100 },
+        config: {
+          tool: BlockType.RESPONSE,
+          params: {
+            content: '<start.input>',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const functionResult = connectionResolver.resolveInputs(functionBlock, contextWithConnections)
+      expect(functionResult.code).toBe('return "Hello World"') // Quoted for function
+
+      const conditionResult = connectionResolver.resolveInputs(
+        conditionBlock,
+        contextWithConnections
+      )
+      expect(conditionResult.conditions).toBe(
+        '[{"id":"cond1","title":"if","value":"<start.input> === \\"Hello World\\""}]'
+      ) // Conditions not resolved at input level
+
+      const responseResult = connectionResolver.resolveInputs(responseBlock, contextWithConnections)
+      expect(responseResult.content).toBe('Hello World') // Raw string for response
+    })
+
+    it('should properly format start.input when resolved directly via resolveBlockReferences', () => {
+      // Test that start.input gets proper formatting for different block types
+      const functionBlock: SerializedBlock = {
+        id: 'test-function',
+        metadata: { id: BlockType.FUNCTION, name: 'Test Function' },
+        position: { x: 100, y: 100 },
+        config: { tool: BlockType.FUNCTION, params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const conditionBlock: SerializedBlock = {
+        id: 'test-condition',
+        metadata: { id: BlockType.CONDITION, name: 'Test Condition' },
+        position: { x: 200, y: 100 },
+        config: { tool: BlockType.CONDITION, params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      // Test function block - should quote strings
+      const functionResult = connectionResolver.resolveBlockReferences(
+        'return <start.input>',
+        contextWithConnections,
+        functionBlock
+      )
+      expect(functionResult).toBe('return "Hello World"')
+
+      // Test condition block - should quote strings
+      const conditionResult = connectionResolver.resolveBlockReferences(
+        '<start.input> === "test"',
+        contextWithConnections,
+        conditionBlock
+      )
+      expect(conditionResult).toBe('"Hello World" === "test"')
+
+      // Test other block types - should use raw string
+      const otherBlock: SerializedBlock = {
+        id: 'test-other',
+        metadata: { id: 'other', name: 'Other Block' },
+        position: { x: 300, y: 100 },
+        config: { tool: 'other', params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const otherResult = connectionResolver.resolveBlockReferences(
+        'content: <start.input>',
+        contextWithConnections,
+        otherBlock
+      )
+      expect(otherResult).toBe('content: Hello World')
     })
 
     it('should provide helpful error messages for unconnected blocks', () => {
