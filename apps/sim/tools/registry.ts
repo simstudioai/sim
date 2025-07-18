@@ -14,7 +14,13 @@ import {
   discordSendMessageTool,
 } from './discord'
 import { elevenLabsTtsTool } from './elevenlabs'
-import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
+import {
+  exaAnswerTool,
+  exaFindSimilarLinksTool,
+  exaGetContentsTool,
+  exaResearchTool,
+  exaSearchTool,
+} from './exa'
 import { fileParseTool } from './file'
 import { scrapeTool, searchTool } from './firecrawl'
 import { functionExecuteTool } from './function'
@@ -161,6 +167,7 @@ export const tools: Record<string, ToolConfig> = {
   exa_get_contents: exaGetContentsTool,
   exa_find_similar_links: exaFindSimilarLinksTool,
   exa_answer: exaAnswerTool,
+  exa_research: exaResearchTool,
   reddit_hot_posts: redditHotPostsTool,
   reddit_get_posts: redditGetPostsTool,
   reddit_get_comments: redditGetCommentsTool,
