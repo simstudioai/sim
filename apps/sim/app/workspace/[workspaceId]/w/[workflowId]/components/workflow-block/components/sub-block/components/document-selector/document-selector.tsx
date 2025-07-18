@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, ChevronDown, FileText } from 'lucide-react'
+import { Check, ChevronDown, FileText, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -54,6 +54,7 @@ export function DocumentSelector({
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<DocumentData | null>(null)
+  const [loading, setLoading] = useState(false)
 
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
@@ -72,6 +73,7 @@ export function DocumentSelector({
       return
     }
 
+    setLoading(true)
     setError(null)
 
     try {
@@ -93,6 +95,8 @@ export function DocumentSelector({
       if ((err as Error).name === 'AbortError') return
       setError((err as Error).message)
       setDocuments([])
+    } finally {
+      setLoading(false)
     }
   }, [knowledgeBaseId])
 
@@ -192,7 +196,12 @@ export function DocumentSelector({
             <CommandInput placeholder='Search documents...' />
             <CommandList>
               <CommandEmpty>
-                {error ? (
+                {loading ? (
+                  <div className='flex items-center justify-center p-4'>
+                    <RefreshCw className='h-4 w-4 animate-spin' />
+                    <span className='ml-2'>Loading documents...</span>
+                  </div>
+                ) : error ? (
                   <div className='p-4 text-center'>
                     <p className='text-destructive text-sm'>{error}</p>
                   </div>
