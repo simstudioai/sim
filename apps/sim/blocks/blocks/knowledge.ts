@@ -26,6 +26,25 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_search'
         }
       },
+      params: (params) => {
+        // Validate required fields for each operation
+        if (params.operation === 'search' && !params.knowledgeBaseIds) {
+          throw new Error('Knowledge base IDs are required for search operation')
+        }
+        if (
+          (params.operation === 'upload_chunk' || params.operation === 'create_document') &&
+          !params.knowledgeBaseId
+        ) {
+          throw new Error(
+            'Knowledge base ID is required for upload_chunk and create_document operations'
+          )
+        }
+        if (params.operation === 'upload_chunk' && !params.documentId) {
+          throw new Error('Document ID is required for upload_chunk operation')
+        }
+
+        return params
+      },
     },
   },
   inputs: {
