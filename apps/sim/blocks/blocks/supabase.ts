@@ -1,14 +1,6 @@
 import { SupabaseIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
-
-interface SupabaseResponse extends ToolResponse {
-  output: {
-    message: string
-    results: any
-  }
-  error?: string
-}
+import type { BlockConfig } from '@/blocks/types'
+import type { SupabaseResponse } from '@/tools/supabase/types'
 
 export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   type: 'supabase',
@@ -21,7 +13,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   bgColor: '#1C1C1C',
   icon: SupabaseIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -32,7 +23,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Insert Rows', id: 'insert' },
       ],
     },
-    // Common Fields
     {
       id: 'projectId',
       title: 'Project ID',
@@ -55,7 +45,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       placeholder: 'Your Supabase client anon key',
       password: true,
     },
-    // Insert-specific Fields
     {
       id: 'data',
       title: 'Data',

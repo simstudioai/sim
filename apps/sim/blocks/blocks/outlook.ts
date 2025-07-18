@@ -1,14 +1,8 @@
 import { OutlookIcon } from '@/components/icons'
-import type {
-  OutlookDraftResponse,
-  OutlookReadResponse,
-  OutlookSendResponse,
-} from '@/tools/outlook/types'
-import type { BlockConfig } from '../types'
+import type { BlockConfig } from '@/blocks/types'
+import type { OutlookResponse } from '@/tools/outlook/types'
 
-export const OutlookBlock: BlockConfig<
-  OutlookReadResponse | OutlookSendResponse | OutlookDraftResponse
-> = {
+export const OutlookBlock: BlockConfig<OutlookResponse> = {
   type: 'outlook',
   name: 'Outlook',
   description: 'Access Outlook',
@@ -19,7 +13,6 @@ export const OutlookBlock: BlockConfig<
   bgColor: '#E0E0E0',
   icon: OutlookIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -31,7 +24,6 @@ export const OutlookBlock: BlockConfig<
         { label: 'Read Email', id: 'read_outlook' },
       ],
     },
-    // Gmail Credentials
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -51,7 +43,6 @@ export const OutlookBlock: BlockConfig<
       ],
       placeholder: 'Select Microsoft account',
     },
-    // Send Email Fields
     {
       id: 'to',
       title: 'To',

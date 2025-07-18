@@ -1,17 +1,6 @@
 import { GoogleSheetsIcon } from '@/components/icons'
-import type {
-  GoogleSheetsAppendResponse,
-  GoogleSheetsReadResponse,
-  GoogleSheetsUpdateResponse,
-  GoogleSheetsWriteResponse,
-} from '@/tools/google_sheets/types'
-import type { BlockConfig } from '../types'
-
-type GoogleSheetsResponse =
-  | GoogleSheetsReadResponse
-  | GoogleSheetsWriteResponse
-  | GoogleSheetsUpdateResponse
-  | GoogleSheetsAppendResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { GoogleSheetsResponse } from '@/tools/google_sheets/types'
 
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   type: 'google_sheets',

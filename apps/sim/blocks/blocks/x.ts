@@ -1,8 +1,6 @@
 import { xIcon } from '@/components/icons'
-import type { XReadResponse, XSearchResponse, XUserResponse, XWriteResponse } from '@/tools/x/types'
-import type { BlockConfig } from '../types'
-
-type XResponse = XWriteResponse | XReadResponse | XSearchResponse | XUserResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { XResponse } from '@/tools/x/types'
 
 export const XBlock: BlockConfig<XResponse> = {
   type: 'x',
@@ -15,7 +13,6 @@ export const XBlock: BlockConfig<XResponse> = {
   bgColor: '#000000', // X's black color
   icon: xIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -29,7 +26,6 @@ export const XBlock: BlockConfig<XResponse> = {
       ],
       value: () => 'x_write',
     },
-    // X OAuth Authentication
     {
       id: 'credential',
       title: 'X Account',
@@ -40,7 +36,6 @@ export const XBlock: BlockConfig<XResponse> = {
       requiredScopes: ['tweet.read', 'tweet.write', 'users.read'],
       placeholder: 'Select X account',
     },
-    // Write operation inputs
     {
       id: 'text',
       title: 'Tweet Text',
@@ -65,7 +60,6 @@ export const XBlock: BlockConfig<XResponse> = {
       placeholder: 'Enter comma-separated media IDs',
       condition: { field: 'operation', value: 'x_write' },
     },
-    // Read operation inputs
     {
       id: 'tweetId',
       title: 'Tweet ID',
@@ -86,7 +80,6 @@ export const XBlock: BlockConfig<XResponse> = {
       value: () => 'false',
       condition: { field: 'operation', value: 'x_read' },
     },
-    // Search operation inputs
     {
       id: 'query',
       title: 'Search Query',
@@ -131,7 +124,6 @@ export const XBlock: BlockConfig<XResponse> = {
       placeholder: 'YYYY-MM-DDTHH:mm:ssZ',
       condition: { field: 'operation', value: 'x_search' },
     },
-    // User operation inputs
     {
       id: 'username',
       title: 'Username',
@@ -198,21 +190,17 @@ export const XBlock: BlockConfig<XResponse> = {
   inputs: {
     operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
-    // Write operation
     text: { type: 'string', required: false },
     replyTo: { type: 'string', required: false },
     mediaIds: { type: 'string', required: false },
     poll: { type: 'json', required: false },
-    // Read operation
     tweetId: { type: 'string', required: false },
     includeReplies: { type: 'boolean', required: false },
-    // Search operation
     query: { type: 'string', required: false },
     maxResults: { type: 'number', required: false },
     startTime: { type: 'string', required: false },
     endTime: { type: 'string', required: false },
     sortOrder: { type: 'string', required: false },
-    // User operation
     username: { type: 'string', required: false },
     includeRecentTweets: { type: 'boolean', required: false },
   },

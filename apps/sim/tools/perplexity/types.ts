@@ -25,3 +25,15 @@ export interface PerplexityChatResponse extends ToolResponse {
     }
   }
 }
+
+export interface PerplexityChatResponse extends ToolResponse {
+  output: {
+    content: string
+    model: string
+    usage: {
+      prompt_tokens: number
+      completion_tokens: number
+      total_tokens: number
+    }
+  }
+}

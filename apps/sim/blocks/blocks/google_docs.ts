@@ -1,15 +1,6 @@
 import { GoogleDocsIcon } from '@/components/icons'
-import type {
-  GoogleDocsCreateResponse,
-  GoogleDocsReadResponse,
-  GoogleDocsWriteResponse,
-} from '@/tools/google_docs/types'
-import type { BlockConfig } from '../types'
-
-type GoogleDocsResponse =
-  | GoogleDocsReadResponse
-  | GoogleDocsWriteResponse
-  | GoogleDocsCreateResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { GoogleDocsResponse } from '@/tools/google_docs/types'
 
 export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   type: 'google_docs',

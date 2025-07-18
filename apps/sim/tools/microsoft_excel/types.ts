@@ -67,3 +67,8 @@ export interface MicrosoftExcelTableToolParams {
   values: ExcelCellValue[][]
   rowIndex?: number
 }
+
+export type MicrosoftExcelResponse =
+  | MicrosoftExcelReadResponse
+  | MicrosoftExcelWriteResponse
+  | MicrosoftExcelTableAddResponse

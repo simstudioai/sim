@@ -104,3 +104,9 @@ export interface JiraCloudResource {
   scopes: string[]
   avatarUrl: string
 }
+
+export type JiraResponse =
+  | JiraRetrieveResponse
+  | JiraUpdateResponse
+  | JiraWriteResponse
+  | JiraRetrieveResponseBulk

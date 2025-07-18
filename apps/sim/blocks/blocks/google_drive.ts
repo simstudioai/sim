@@ -1,15 +1,6 @@
 import { GoogleDriveIcon } from '@/components/icons'
-import type {
-  GoogleDriveGetContentResponse,
-  GoogleDriveListResponse,
-  GoogleDriveUploadResponse,
-} from '@/tools/google_drive/types'
-import type { BlockConfig } from '../types'
-
-type GoogleDriveResponse =
-  | GoogleDriveUploadResponse
-  | GoogleDriveGetContentResponse
-  | GoogleDriveListResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { GoogleDriveResponse } from '@/tools/google_drive/types'
 
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   type: 'google_drive',

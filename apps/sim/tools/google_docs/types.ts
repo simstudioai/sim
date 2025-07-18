@@ -38,3 +38,8 @@ export interface GoogleDocsToolParams {
   folderId?: string
   folderSelector?: string
 }
+
+export type GoogleDocsResponse =
+  | GoogleDocsReadResponse
+  | GoogleDocsWriteResponse
+  | GoogleDocsCreateResponse

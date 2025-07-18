@@ -1,12 +1,6 @@
 import { BrainIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
-
-interface ThinkingToolResponse extends ToolResponse {
-  output: {
-    acknowledgedThought: string
-  }
-}
+import type { BlockConfig } from '@/blocks/types'
+import type { ThinkingToolResponse } from '@/tools/thinking/types'
 
 export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   type: 'thinking',

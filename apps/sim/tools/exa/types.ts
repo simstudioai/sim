@@ -88,3 +88,9 @@ export interface ExaAnswerResponse extends ToolResponse {
     }[]
   }
 }
+
+export type ExaResponse =
+  | ExaSearchResponse
+  | ExaGetContentsResponse
+  | ExaFindSimilarLinksResponse
+  | ExaAnswerResponse

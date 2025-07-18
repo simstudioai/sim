@@ -5,8 +5,8 @@ import {
   getBlocksByCategory,
   isValidBlockType,
   registry,
-} from './registry'
+} from '@/blocks/registry'
 
 export { registry, getBlock, getBlocksByCategory, getAllBlockTypes, isValidBlockType, getAllBlocks }
 
-export type { BlockConfig } from './types'
+export type { BlockConfig } from '@/blocks/types'

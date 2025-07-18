@@ -1,6 +1,6 @@
 import type { ToolResponse } from '../types'
 
-export interface WhatsAppToolResponse extends ToolResponse {
+export interface WhatsAppResponse extends ToolResponse {
   output: {
     success: boolean
     messageId?: string

@@ -57,3 +57,5 @@ export interface MicrosoftTeamsToolParams {
   teamId?: string
   content?: string
 }
+
+export type MicrosoftTeamsResponse = MicrosoftTeamsReadResponse | MicrosoftTeamsWriteResponse

@@ -1,8 +1,6 @@
 import { LinearIcon } from '@/components/icons'
-import type { LinearCreateIssueResponse, LinearReadIssuesResponse } from '@/tools/linear/types'
-import type { BlockConfig } from '../types'
-
-type LinearResponse = LinearReadIssuesResponse | LinearCreateIssueResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { LinearResponse } from '@/tools/linear/types'
 
 export const LinearBlock: BlockConfig<LinearResponse> = {
   type: 'linear',

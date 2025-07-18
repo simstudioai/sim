@@ -87,3 +87,10 @@ export interface AirtableUpdateMultipleResponse extends ToolResponse {
     }
   }
 }
+
+export type AirtableResponse =
+  | AirtableListResponse
+  | AirtableGetResponse
+  | AirtableCreateResponse
+  | AirtableUpdateResponse
+  | AirtableUpdateMultipleResponse

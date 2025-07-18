@@ -1,11 +1,6 @@
 import { MicrosoftTeamsIcon } from '@/components/icons'
-import type {
-  MicrosoftTeamsReadResponse,
-  MicrosoftTeamsWriteResponse,
-} from '@/tools/microsoft_teams/types'
-import type { BlockConfig } from '../types'
-
-type MicrosoftTeamsResponse = MicrosoftTeamsReadResponse | MicrosoftTeamsWriteResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
 
 export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   type: 'microsoft_teams',

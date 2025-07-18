@@ -42,3 +42,5 @@ export interface ConfluenceUpdateResponse extends ToolResponse {
     success: boolean
   }
 }
+
+export type ConfluenceResponse = ConfluenceRetrieveResponse | ConfluenceUpdateResponse

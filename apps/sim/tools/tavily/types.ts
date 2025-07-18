@@ -70,3 +70,5 @@ export interface SearchResponse extends ToolResponse {
     response_time: number
   }
 }
+
+export type TavilyResponse = TavilySearchResponse | TavilyExtractResponse

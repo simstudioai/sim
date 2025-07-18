@@ -58,3 +58,5 @@ export interface SearchResponse extends ToolResponse {
     warning?: string
   }
 }
+
+export type FirecrawlResponse = ScrapeResponse | SearchResponse

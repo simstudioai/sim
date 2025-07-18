@@ -1,8 +1,6 @@
 import { SlackIcon } from '@/components/icons'
-import type { SlackMessageResponse } from '@/tools/slack/types'
-import type { BlockConfig } from '../types'
-
-type SlackResponse = SlackMessageResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { SlackResponse } from '@/tools/slack/types'
 
 export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
@@ -119,7 +117,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           )
         }
 
-        const baseParams = {
+        const baseParams: Record<string, any> = {
           ...rest,
           channel: effectiveChannel,
         }

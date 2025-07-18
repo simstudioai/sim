@@ -1,8 +1,6 @@
 import { WealthboxIcon } from '@/components/icons'
-import type { WealthboxReadResponse, WealthboxWriteResponse } from '@/tools/wealthbox/types'
-import type { BlockConfig } from '../types'
-
-type WealthboxResponse = WealthboxReadResponse | WealthboxWriteResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { WealthboxResponse } from '@/tools/wealthbox/types'
 
 export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
   type: 'wealthbox',

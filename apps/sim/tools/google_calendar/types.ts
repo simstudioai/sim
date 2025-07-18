@@ -276,3 +276,10 @@ export interface GoogleCalendarApiListResponse {
   nextSyncToken?: string
   items: GoogleCalendarApiEventResponse[]
 }
+
+export type GoogleCalendarResponse =
+  | GoogleCalendarCreateResponse
+  | GoogleCalendarListResponse
+  | GoogleCalendarGetResponse
+  | GoogleCalendarQuickAddResponse
+  | GoogleCalendarInviteResponse

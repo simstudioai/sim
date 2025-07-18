@@ -28,3 +28,11 @@ export interface SupabaseInsertResponse extends ToolResponse {
     results: any
   }
 }
+
+export interface SupabaseResponse extends ToolResponse {
+  output: {
+    message: string
+    results: any
+  }
+  error?: string
+}

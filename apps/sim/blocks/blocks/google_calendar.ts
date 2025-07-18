@@ -1,19 +1,6 @@
 import { GoogleCalendarIcon } from '@/components/icons'
-import type {
-  GoogleCalendarCreateResponse,
-  GoogleCalendarGetResponse,
-  GoogleCalendarInviteResponse,
-  GoogleCalendarListResponse,
-  GoogleCalendarQuickAddResponse,
-} from '@/tools/google_calendar/types'
-import type { BlockConfig } from '../types'
-
-type GoogleCalendarResponse =
-  | GoogleCalendarCreateResponse
-  | GoogleCalendarListResponse
-  | GoogleCalendarGetResponse
-  | GoogleCalendarQuickAddResponse
-  | GoogleCalendarInviteResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
 
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   type: 'google_calendar',
@@ -244,7 +231,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         // Handle calendar ID (selector or manual)
         const effectiveCalendarId = (calendarId || manualCalendarId || '').trim()
 
-        const processedParams = {
+        const processedParams: Record<string, any> = {
           ...rest,
           calendarId: effectiveCalendarId || 'primary',
         }

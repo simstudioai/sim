@@ -45,3 +45,8 @@ export interface GoogleDriveToolParams {
   pageToken?: string
   exportMimeType?: string
 }
+
+export type GoogleDriveResponse =
+  | GoogleDriveUploadResponse
+  | GoogleDriveGetContentResponse
+  | GoogleDriveListResponse

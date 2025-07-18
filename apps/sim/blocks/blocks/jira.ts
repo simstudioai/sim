@@ -1,17 +1,6 @@
 import { JiraIcon } from '@/components/icons'
-import type {
-  JiraRetrieveResponse,
-  JiraRetrieveResponseBulk,
-  JiraUpdateResponse,
-  JiraWriteResponse,
-} from '@/tools/jira/types'
-import type { BlockConfig } from '../types'
-
-type JiraResponse =
-  | JiraRetrieveResponse
-  | JiraUpdateResponse
-  | JiraWriteResponse
-  | JiraRetrieveResponseBulk
+import type { BlockConfig } from '@/blocks/types'
+import type { JiraResponse } from '@/tools/jira/types'
 
 export const JiraBlock: BlockConfig<JiraResponse> = {
   type: 'jira',
@@ -24,7 +13,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
   bgColor: '#E0E0E0',
   icon: JiraIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',

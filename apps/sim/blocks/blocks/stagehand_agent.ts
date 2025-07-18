@@ -1,22 +1,6 @@
 import { StagehandIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
-
-interface StagehandAgentResponse extends ToolResponse {
-  output: {
-    agentResult: {
-      success: boolean
-      completed: boolean
-      message: string
-      actions: Array<{
-        type: string
-        params: Record<string, any>
-        result: Record<string, any>
-      }>
-    }
-    structuredOutput?: Record<string, any>
-  }
-}
+import type { BlockConfig } from '@/blocks/types'
+import type { StagehandAgentResponse } from '@/tools/stagehand/types'
 
 export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
   type: 'stagehand_agent',

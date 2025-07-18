@@ -69,3 +69,9 @@ export interface GoogleSheetsToolParams {
   responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
   majorDimension?: 'ROWS' | 'COLUMNS'
 }
+
+export type GoogleSheetsResponse =
+  | GoogleSheetsReadResponse
+  | GoogleSheetsWriteResponse
+  | GoogleSheetsUpdateResponse
+  | GoogleSheetsAppendResponse
