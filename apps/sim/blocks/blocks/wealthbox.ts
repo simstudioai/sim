@@ -71,12 +71,22 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
     {
       id: 'taskId',
       title: 'Select Task',
-      type: 'short-input',
+      type: 'file-selector',
       provider: 'wealthbox',
       serviceId: 'wealthbox',
       requiredScopes: ['login', 'data'],
       layout: 'full',
       placeholder: 'Enter Task ID',
+      mode: 'basic',
+      condition: { field: 'operation', value: ['read_task'] },
+    },
+    {
+      id: 'manualTaskId',
+      title: 'Task ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Task ID',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['read_task'] },
     },
     {
@@ -165,10 +175,14 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         }
       },
       params: (params) => {
-        const { credential, operation, contactId, manualContactId, ...rest } = params
+        const { credential, operation, contactId, manualContactId, taskId, manualTaskId, ...rest } =
+          params
 
         // Handle contact ID input (selector or manual)
         const effectiveContactId = (contactId || manualContactId || '').trim()
+
+        // Handle task ID input (selector or manual)
+        const effectiveTaskId = (taskId || manualTaskId || '').trim()
 
         // Build the parameters based on operation type
         const baseParams = {
@@ -198,9 +212,12 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
 
         // For task operations, we need taskId
         if (operation === 'read_task') {
+          if (!effectiveTaskId) {
+            throw new Error('Task ID is required for task operations')
+          }
           return {
             ...baseParams,
-            taskId: params.taskId,
+            taskId: effectiveTaskId,
           }
         }
 
@@ -226,6 +243,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
     contactId: { type: 'string', required: false },
     manualContactId: { type: 'string', required: false },
     taskId: { type: 'string', required: false },
+    manualTaskId: { type: 'string', required: false },
     content: { type: 'string', required: false },
     firstName: { type: 'string', required: false },
     lastName: { type: 'string', required: false },
