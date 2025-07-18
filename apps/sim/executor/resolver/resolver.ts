@@ -449,8 +449,18 @@ export class InputResolver {
                   formattedValue = JSON.stringify(replacementValue)
                 }
               } else {
-                // For primitive values
-                formattedValue = String(replacementValue)
+                // For primitive values, format based on target block type
+                if (blockType === 'function') {
+                  formattedValue = this.formatValueForCodeContext(
+                    replacementValue,
+                    currentBlock,
+                    isInTemplateLiteral
+                  )
+                } else if (blockType === 'condition') {
+                  formattedValue = this.stringifyForCondition(replacementValue)
+                } else {
+                  formattedValue = String(replacementValue)
+                }
               }
             } else {
               // Standard handling for non-input references
