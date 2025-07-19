@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ExaAnswerParams, ExaAnswerResponse } from './types'
+import type { ExaAnswerParams, ExaAnswerResponse } from '@/tools/exa/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
   id: 'exa_answer',

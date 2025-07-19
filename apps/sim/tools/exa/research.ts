@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type { ExaResearchParams, ExaResearchResponse } from './types'
+import type { ExaResearchParams, ExaResearchResponse } from '@/tools/exa/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ExaResearchTool')
 

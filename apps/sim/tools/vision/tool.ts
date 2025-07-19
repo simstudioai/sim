@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { VisionParams, VisionResponse } from './types'
+import type { ToolConfig } from '@/tools/types'
+import type { VisionParams, VisionResponse } from '@/tools/vision/types'
 
 export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
   id: 'vision_tool',

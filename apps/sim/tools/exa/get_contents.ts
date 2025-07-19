@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ExaGetContentsParams, ExaGetContentsResponse } from './types'
+import type { ExaGetContentsParams, ExaGetContentsResponse } from '@/tools/exa/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsResponse> = {
   id: 'exa_get_contents',

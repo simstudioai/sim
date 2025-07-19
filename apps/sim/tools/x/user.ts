@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type { XUser, XUserParams, XUserResponse } from './types'
+import type { ToolConfig } from '@/tools/types'
+import type { XUser, XUserParams, XUserResponse } from '@/tools/x/types'
 
 const logger = createLogger('XUserTool')
 

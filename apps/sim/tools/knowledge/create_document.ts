@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { KnowledgeCreateDocumentResponse } from './types'
+import type { KnowledgeCreateDocumentResponse } from '@/tools/knowledge/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumentResponse> = {
   id: 'knowledge_create_document',

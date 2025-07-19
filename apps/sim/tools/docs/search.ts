@@ -1,4 +1,4 @@
-import type { ToolConfig, ToolResponse } from '../types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface DocsSearchParams {
   query: string

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ClayPopulateParams, ClayPopulateResponse } from './types'
+import type { ClayPopulateParams, ClayPopulateResponse } from '@/tools/clay/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateResponse> = {
   id: 'clay_populate',

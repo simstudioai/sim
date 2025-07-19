@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { LatestCommitParams, LatestCommitResponse } from './types'
+import type { LatestCommitParams, LatestCommitResponse } from '@/tools/github/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitResponse> = {
   id: 'github_latest_commit',

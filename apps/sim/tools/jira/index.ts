@@ -1,7 +1,7 @@
-import { jiraBulkRetrieveTool } from './bulk_read'
-import { jiraRetrieveTool } from './retrieve'
-import { jiraUpdateTool } from './update'
-import { jiraWriteTool } from './write'
+import { jiraBulkRetrieveTool } from '@/tools/jira/bulk_read'
+import { jiraRetrieveTool } from '@/tools/jira/retrieve'
+import { jiraUpdateTool } from '@/tools/jira/update'
+import { jiraWriteTool } from '@/tools/jira/write'
 
 export { jiraRetrieveTool }
 export { jiraUpdateTool }

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { RedditHotPostsResponse, RedditPost } from './types'
+import type { RedditHotPostsResponse, RedditPost } from '@/tools/reddit/types'
+import type { ToolConfig } from '@/tools/types'
 
 interface HotPostsParams {
   subreddit: string

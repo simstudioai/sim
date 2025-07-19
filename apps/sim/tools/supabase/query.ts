@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { SupabaseQueryParams, SupabaseQueryResponse } from './types'
+import type { SupabaseQueryParams, SupabaseQueryResponse } from '@/tools/supabase/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> = {
   id: 'supabase_query',

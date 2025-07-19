@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type { GoogleDocsCreateResponse, GoogleDocsToolParams } from './types'
+import type { GoogleDocsCreateResponse, GoogleDocsToolParams } from '@/tools/google_docs/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleDocsCreateTool')
 

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ReadUrlParams, ReadUrlResponse } from './types'
+import type { ReadUrlParams, ReadUrlResponse } from '@/tools/jina/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
   id: 'jina_read_url',

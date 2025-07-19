@@ -1,3 +1,3 @@
-import { mistralParserTool } from './parser'
+import { mistralParserTool } from '@/tools/mistral/parser'
 
 export { mistralParserTool }

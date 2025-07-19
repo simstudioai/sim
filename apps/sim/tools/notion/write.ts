@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { NotionResponse, NotionWriteParams } from './types'
+import type { NotionResponse, NotionWriteParams } from '@/tools/notion/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
   id: 'notion_write',

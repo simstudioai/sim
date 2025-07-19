@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface NotionReadParams {
   pageId: string
@@ -13,6 +13,14 @@ export interface NotionResponse extends ToolResponse {
       lastEditedTime?: string
       createdTime?: string
       url?: string
+      // Additional metadata for query/search operations
+      totalResults?: number
+      hasMore?: boolean
+      nextCursor?: string | null
+      results?: any[]
+      // Additional metadata for create operations
+      id?: string
+      properties?: Record<string, any>
     }
   }
 }
@@ -35,5 +43,28 @@ export interface NotionCreatePageParams {
 export interface NotionUpdatePageParams {
   pageId: string
   properties: Record<string, any>
+  accessToken: string
+}
+
+export interface NotionQueryDatabaseParams {
+  databaseId: string
+  filter?: string
+  sorts?: string
+  pageSize?: number
+  accessToken: string
+}
+
+export interface NotionSearchParams {
+  query?: string
+  filterType?: string
+  sortDirection?: string
+  pageSize?: number
+  accessToken: string
+}
+
+export interface NotionCreateDatabaseParams {
+  parentId: string
+  title: string
+  properties: string
   accessToken: string
 }

@@ -1,7 +1,7 @@
-import { xReadTool } from './read'
-import { xSearchTool } from './search'
-import { xUserTool } from './user'
-import { xWriteTool } from './write'
+import { xReadTool } from '@/tools/x/read'
+import { xSearchTool } from '@/tools/x/search'
+import { xUserTool } from '@/tools/x/user'
+import { xWriteTool } from '@/tools/x/write'
 
 export { xReadTool }
 export { xWriteTool }

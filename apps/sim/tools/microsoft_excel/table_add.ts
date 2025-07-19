@@ -1,5 +1,8 @@
-import type { ToolConfig } from '../types'
-import type { MicrosoftExcelTableAddResponse, MicrosoftExcelTableToolParams } from './types'
+import type {
+  MicrosoftExcelTableAddResponse,
+  MicrosoftExcelTableToolParams,
+} from '@/tools/microsoft_excel/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const tableAddTool: ToolConfig<
   MicrosoftExcelTableToolParams,

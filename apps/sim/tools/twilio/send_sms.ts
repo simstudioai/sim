@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type { TwilioSendSMSParams, TwilioSMSBlockOutput } from './types'
+import type { TwilioSendSMSParams, TwilioSMSBlockOutput } from '@/tools/twilio/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('Twilio Send SMS Tool')
 

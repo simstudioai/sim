@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from './types'
+import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from '@/tools/browser_use/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('BrowserUseTool')
 

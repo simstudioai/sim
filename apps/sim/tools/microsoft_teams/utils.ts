@@ -1,4 +1,4 @@
-import type { MicrosoftTeamsAttachment } from './types'
+import type { MicrosoftTeamsAttachment } from '@/tools/microsoft_teams/types'
 
 /**
  * Transform raw attachment data from Microsoft Graph API

@@ -1,3 +1,3 @@
-import { sendSMSTool } from './send_sms'
+import { sendSMSTool } from '@/tools/twilio/send_sms'
 
 export { sendSMSTool }

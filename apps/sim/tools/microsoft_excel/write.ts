@@ -1,5 +1,8 @@
-import type { ToolConfig } from '../types'
-import type { MicrosoftExcelToolParams, MicrosoftExcelWriteResponse } from './types'
+import type {
+  MicrosoftExcelToolParams,
+  MicrosoftExcelWriteResponse,
+} from '@/tools/microsoft_excel/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWriteResponse> = {
   id: 'microsoft_excel_write',

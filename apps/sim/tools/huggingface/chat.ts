@@ -1,10 +1,10 @@
-import type { ToolConfig } from '../types'
 import type {
   HuggingFaceChatParams,
   HuggingFaceChatResponse,
   HuggingFaceMessage,
   HuggingFaceRequestBody,
-} from './types'
+} from '@/tools/huggingface/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse> = {
   id: 'huggingface_chat',

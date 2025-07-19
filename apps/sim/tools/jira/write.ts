@@ -1,6 +1,6 @@
-import type { ToolConfig } from '../types'
-import type { JiraWriteParams, JiraWriteResponse } from './types'
-import { getJiraCloudId } from './utils'
+import type { JiraWriteParams, JiraWriteResponse } from '@/tools/jira/types'
+import { getJiraCloudId } from '@/tools/jira/utils'
+import type { ToolConfig } from '@/tools/types'
 
 export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
   id: 'jira_write',

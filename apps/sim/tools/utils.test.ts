@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ToolConfig } from './types'
+import type { ToolConfig } from '@/tools/types'
 import {
   createCustomToolRequestBody,
   createParamSchema,
@@ -8,7 +8,7 @@ import {
   getClientEnvVars,
   transformTable,
   validateToolRequest,
-} from './utils'
+} from '@/tools/utils'
 
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: vi.fn().mockReturnValue({

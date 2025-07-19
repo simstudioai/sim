@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { NotionResponse, NotionUpdatePageParams } from './types'
+import type { NotionResponse, NotionUpdatePageParams } from '@/tools/notion/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResponse> = {
   id: 'notion_update_page',

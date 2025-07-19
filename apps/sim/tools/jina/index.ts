@@ -1,3 +1,3 @@
-import { readUrlTool } from './read_url'
+import { readUrlTool } from '@/tools/jina/read_url'
 
 export { readUrlTool }

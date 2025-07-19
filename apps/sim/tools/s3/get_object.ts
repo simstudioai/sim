@@ -1,6 +1,11 @@
 import crypto from 'crypto'
-import type { ToolConfig } from '../types'
-import { encodeS3PathComponent, generatePresignedUrl, getSignatureKey, parseS3Uri } from './utils'
+import {
+  encodeS3PathComponent,
+  generatePresignedUrl,
+  getSignatureKey,
+  parseS3Uri,
+} from '@/tools/s3/utils'
+import type { ToolConfig } from '@/tools/types'
 
 export const s3GetObjectTool: ToolConfig = {
   id: 's3_get_object',

@@ -1,5 +1,8 @@
-import type { ToolConfig } from '../types'
-import type { GoogleSheetsAppendResponse, GoogleSheetsToolParams } from './types'
+import type {
+  GoogleSheetsAppendResponse,
+  GoogleSheetsToolParams,
+} from '@/tools/google_sheets/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendResponse> = {
   id: 'google_sheets_append',
