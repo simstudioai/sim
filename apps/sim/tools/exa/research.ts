@@ -14,12 +14,6 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
     'Perform comprehensive research using AI to generate detailed reports with citations',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Exa AI API Key',
-    },
     query: {
       type: 'string',
       required: true,
@@ -29,8 +23,14 @@ export const researchTool: ToolConfig<ExaResearchParams, ExaResearchResponse> = 
     includeText: {
       type: 'boolean',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Include full text content in results',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Exa AI API Key',
     },
   },
   request: {

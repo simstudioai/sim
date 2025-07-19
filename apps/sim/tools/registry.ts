@@ -22,7 +22,7 @@ import {
   exaSearchTool,
 } from './exa'
 import { fileParseTool } from './file'
-import { scrapeTool, searchTool } from './firecrawl'
+import { crawlTool, scrapeTool, searchTool } from './firecrawl'
 import { functionExecuteTool } from './function'
 import {
   githubCommentTool,
@@ -125,6 +125,7 @@ export const tools: Record<string, ToolConfig> = {
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
   firecrawl_search: searchTool,
+  firecrawl_crawl: crawlTool,
   google_search: googleSearchTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,

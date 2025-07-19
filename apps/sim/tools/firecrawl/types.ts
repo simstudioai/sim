@@ -14,6 +14,13 @@ export interface SearchParams {
   query: string
 }
 
+export interface FirecrawlCrawlParams {
+  apiKey: string
+  url: string
+  limit?: number
+  onlyMainContent?: boolean
+}
+
 export interface ScrapeResponse extends ToolResponse {
   output: {
     markdown: string
@@ -59,4 +66,23 @@ export interface SearchResponse extends ToolResponse {
   }
 }
 
-export type FirecrawlResponse = ScrapeResponse | SearchResponse
+export interface FirecrawlCrawlResponse extends ToolResponse {
+  output: {
+    jobId?: string
+    pages: Array<{
+      markdown: string
+      html?: string
+      metadata: {
+        title: string
+        description: string
+        language: string
+        sourceURL: string
+        statusCode: number
+      }
+    }>
+    total: number
+    creditsUsed: number
+  }
+}
+
+export type FirecrawlResponse = ScrapeResponse | SearchResponse | FirecrawlCrawlResponse
