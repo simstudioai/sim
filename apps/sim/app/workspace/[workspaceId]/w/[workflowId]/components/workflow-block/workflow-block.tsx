@@ -13,6 +13,7 @@ import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ActionBar } from './components/action-bar/action-bar'
@@ -67,7 +68,17 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   )
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
-  const hasActiveWebhook = useWorkflowStore((state) => state.hasActiveWebhook ?? false)
+  // Get per-block webhook status by checking if webhook is configured
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+
+  const hasWebhookProvider = useSubBlockStore(
+    (state) => state.workflowValues[activeWorkflowId || '']?.[id]?.webhookProvider
+  )
+  const hasWebhookPath = useSubBlockStore(
+    (state) => state.workflowValues[activeWorkflowId || '']?.[id]?.webhookPath
+  )
+  const blockWebhookStatus = !!(hasWebhookProvider && hasWebhookPath)
+
   const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
 
   // Collaborative workflow actions
@@ -200,33 +211,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
   // Get webhook information for the tooltip
   useEffect(() => {
-    if (type === 'starter' && hasActiveWebhook) {
-      const fetchWebhookInfo = async () => {
-        try {
-          const workflowId = useWorkflowRegistry.getState().activeWorkflowId
-          if (!workflowId) return
-
-          const response = await fetch(`/api/webhooks?workflowId=${workflowId}`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.webhooks?.[0]?.webhook) {
-              const webhook = data.webhooks[0].webhook
-              setWebhookInfo({
-                webhookPath: webhook.path || '',
-                provider: webhook.provider || 'generic',
-              })
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching webhook info:', error)
-        }
-      }
-
-      fetchWebhookInfo()
-    } else if (!hasActiveWebhook) {
+    if (!blockWebhookStatus) {
       setWebhookInfo(null)
     }
-  }, [type, hasActiveWebhook])
+  }, [blockWebhookStatus])
 
   // Update node internals when handles change
   useEffect(() => {
@@ -404,9 +392,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  // Check if this is a starter block and has active schedule or webhook
+  // Check if this is a starter block or webhook trigger block and has active webhook
   const isStarterBlock = type === 'starter'
-  const showWebhookIndicator = isStarterBlock && hasActiveWebhook
+  const isWebhookTriggerBlock = type === 'webhook_trigger'
+  const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && blockWebhookStatus
 
   const getProviderName = (providerId: string): string => {
     const providers: Record<string, string> = {
@@ -454,8 +443,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           horizontalHandles={horizontalHandles}
         />
 
-        {/* Input Handle - Don't show for starter blocks */}
-        {type !== 'starter' && (
+        {/* Input Handle - Don't show for starter blocks or webhook trigger blocks */}
+        {type !== 'starter' && type !== 'webhook_trigger' && (
           <Handle
             type='target'
             position={horizontalHandles ? Position.Left : Position.Top}
@@ -825,8 +814,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               isValidConnection={(connection) => connection.target !== id}
             />
 
-            {/* Error Handle - Don't show for starter blocks */}
-            {type !== 'starter' && (
+            {/* Error Handle - Don't show for starter blocks or webhook trigger blocks */}
+            {type !== 'starter' && type !== 'webhook_trigger' && (
               <Handle
                 type='source'
                 position={horizontalHandles ? Position.Right : Position.Bottom}
