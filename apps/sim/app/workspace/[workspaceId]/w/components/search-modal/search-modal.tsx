@@ -18,6 +18,7 @@ interface SearchModalProps {
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
   loading?: boolean
+  isOnWorkflowPage?: boolean
 }
 
 interface TemplateData {
@@ -88,8 +89,10 @@ export function SearchModal({
   workflows = [],
   workspaces = [],
   loading = false,
+  isOnWorkflowPage = false,
 }: SearchModalProps) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedIndex, setSelectedIndex] = useState(0)
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -133,8 +136,10 @@ export function SearchModal({
     }
   }, [])
 
-  // Get all available blocks
+  // Get all available blocks - only when on workflow page
   const blocks = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+
     const allBlocks = getAllBlocks()
     return allBlocks
       .filter(
@@ -150,10 +155,12 @@ export function SearchModal({
         })
       )
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [])
+  }, [isOnWorkflowPage])
 
-  // Get all available tools
+  // Get all available tools - only when on workflow page
   const tools = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+
     const allBlocks = getAllBlocks()
     return allBlocks
       .filter((block) => block.category === 'tools')
@@ -167,7 +174,7 @@ export function SearchModal({
         })
       )
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [])
+  }, [isOnWorkflowPage])
 
   // Define pages
   const pages = useMemo(
@@ -271,6 +278,42 @@ export function SearchModal({
     const query = searchQuery.toLowerCase()
     return docs.filter((doc) => doc.name.toLowerCase().includes(query))
   }, [docs, searchQuery])
+
+  // Create flattened list of navigatable items for keyboard navigation
+  const navigatableItems = useMemo(() => {
+    const items: Array<{
+      type: 'workspace' | 'workflow' | 'page' | 'doc'
+      data: any
+      section: string
+    }> = []
+
+    // Add workspaces
+    filteredWorkspaces.forEach((workspace) => {
+      items.push({ type: 'workspace', data: workspace, section: 'Workspaces' })
+    })
+
+    // Add workflows
+    filteredWorkflows.forEach((workflow) => {
+      items.push({ type: 'workflow', data: workflow, section: 'Workflows' })
+    })
+
+    // Add pages
+    filteredPages.forEach((page) => {
+      items.push({ type: 'page', data: page, section: 'Pages' })
+    })
+
+    // Add docs
+    filteredDocs.forEach((doc) => {
+      items.push({ type: 'doc', data: doc, section: 'Docs' })
+    })
+
+    return items
+  }, [filteredWorkspaces, filteredWorkflows, filteredPages, filteredDocs])
+
+  // Reset selected index when items change or modal opens
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [navigatableItems, open])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -398,6 +441,89 @@ export function SearchModal({
     },
     []
   )
+
+  // Handle item selection based on type
+  const handleItemSelection = useCallback(
+    (item: (typeof navigatableItems)[0]) => {
+      switch (item.type) {
+        case 'workspace':
+          if (item.data.isCurrent) {
+            onOpenChange(false)
+          } else {
+            handleNavigationClick(item.data.href)
+          }
+          break
+        case 'workflow':
+          if (item.data.isCurrent) {
+            onOpenChange(false)
+          } else {
+            handleNavigationClick(item.data.href)
+          }
+          break
+        case 'page':
+          handlePageClick(item.data.href)
+          break
+        case 'doc':
+          handleDocsClick(item.data.href)
+          break
+      }
+    },
+    [handleNavigationClick, handlePageClick, handleDocsClick, onOpenChange]
+  )
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    if (!open) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          setSelectedIndex((prev) => Math.min(prev + 1, navigatableItems.length - 1))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          setSelectedIndex((prev) => Math.max(prev - 1, 0))
+          break
+        case 'Enter':
+          e.preventDefault()
+          if (navigatableItems.length > 0 && selectedIndex < navigatableItems.length) {
+            const selectedItem = navigatableItems[selectedIndex]
+            handleItemSelection(selectedItem)
+          }
+          break
+        case 'Escape':
+          onOpenChange(false)
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, selectedIndex, navigatableItems, onOpenChange, handleItemSelection])
+
+  // Helper function to check if an item is selected
+  const isItemSelected = useCallback(
+    (item: any, itemType: string) => {
+      if (navigatableItems.length === 0 || selectedIndex >= navigatableItems.length) return false
+      const selectedItem = navigatableItems[selectedIndex]
+      return selectedItem.type === itemType && selectedItem.data.id === item.id
+    },
+    [navigatableItems, selectedIndex]
+  )
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedIndex >= 0 && navigatableItems.length > 0) {
+      const selectedItem = navigatableItems[selectedIndex]
+      const itemElement = document.querySelector(
+        `[data-search-item="${selectedItem.type}-${selectedItem.data.id}"]`
+      )
+      if (itemElement) {
+        itemElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedIndex, navigatableItems])
 
   // Render skeleton cards for loading state
   const renderSkeletonCards = () => {
@@ -614,7 +740,12 @@ export function SearchModal({
                             ? onOpenChange(false)
                             : handleNavigationClick(workspace.href)
                         }
-                        className='flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent/60 focus:bg-accent/60 focus:outline-none'
+                        data-search-item={`workspace-${workspace.id}`}
+                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected(workspace, 'workspace')
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
                       >
                         <div className='flex h-5 w-5 items-center justify-center'>
                           <Building2 className='h-4 w-4 text-muted-foreground' />
@@ -644,7 +775,12 @@ export function SearchModal({
                             ? onOpenChange(false)
                             : handleNavigationClick(workflow.href)
                         }
-                        className='flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent/60 focus:bg-accent/60 focus:outline-none'
+                        data-search-item={`workflow-${workflow.id}`}
+                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected(workflow, 'workflow')
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
                       >
                         <div className='flex h-5 w-5 items-center justify-center'>
                           <Workflow className='h-4 w-4 text-muted-foreground' />
@@ -670,7 +806,12 @@ export function SearchModal({
                       <button
                         key={page.id}
                         onClick={() => handlePageClick(page.href)}
-                        className='flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent/60 focus:bg-accent/60 focus:outline-none'
+                        data-search-item={`page-${page.id}`}
+                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected(page, 'page')
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
                       >
                         <div className='flex h-5 w-5 items-center justify-center'>
                           <page.icon className='h-4 w-4 text-muted-foreground' />
@@ -704,7 +845,12 @@ export function SearchModal({
                       <button
                         key={doc.id}
                         onClick={() => handleDocsClick(doc.href)}
-                        className='flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent/60 focus:bg-accent/60 focus:outline-none'
+                        data-search-item={`doc-${doc.id}`}
+                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected(doc, 'doc')
+                            ? 'bg-accent text-accent-foreground'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
                       >
                         <div className='flex h-5 w-5 items-center justify-center'>
                           <doc.icon className='h-4 w-4 text-muted-foreground' />
@@ -721,13 +867,13 @@ export function SearchModal({
               {/* Empty state */}
               {searchQuery &&
                 !loading &&
-                filteredBlocks.length === 0 &&
-                filteredTools.length === 0 &&
-                filteredTemplates.length === 0 &&
                 filteredWorkflows.length === 0 &&
                 filteredWorkspaces.length === 0 &&
                 filteredPages.length === 0 &&
-                filteredDocs.length === 0 && (
+                filteredDocs.length === 0 &&
+                filteredBlocks.length === 0 &&
+                filteredTools.length === 0 &&
+                filteredTemplates.length === 0 && (
                   <div className='ml-6 py-12 text-center'>
                     <p className='text-muted-foreground'>No results found for "{searchQuery}"</p>
                   </div>

@@ -159,7 +159,7 @@ export const workflowBlocks = pgTable(
     data: jsonb('data').default('{}'),
 
     parentId: text('parent_id'),
-    extent: text('extent'), // 'parent' or null
+    extent: text('extent'), // 'parent' or null or 'subflow'
 
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

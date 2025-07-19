@@ -878,6 +878,8 @@ export function Sidebar() {
         templates={templates}
         workflows={searchWorkflows}
         workspaces={searchWorkspaces}
+        loading={isTemplatesLoading}
+        isOnWorkflowPage={isOnWorkflowPage}
       />
     </>
   )
