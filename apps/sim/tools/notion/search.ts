@@ -30,12 +30,6 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
       visibility: 'user-only',
       description: 'Filter by object type: page, database, or leave empty for all',
     },
-    sortDirection: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Sort direction: ascending or descending (default: descending)',
-    },
     pageSize: {
       type: 'number',
       required: false,
@@ -66,19 +60,15 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
         body.query = params.query.trim()
       }
 
-      // Add filter if provided
-      if (params.filterType && ['page', 'database'].includes(params.filterType)) {
+      // Add filter if provided (skip 'all' as it means no filter)
+      if (
+        params.filterType &&
+        params.filterType !== 'all' &&
+        ['page', 'database'].includes(params.filterType)
+      ) {
         body.filter = {
           value: params.filterType,
           property: 'object',
-        }
-      }
-
-      // Add sort if provided
-      if (params.sortDirection && ['ascending', 'descending'].includes(params.sortDirection)) {
-        body.sort = {
-          direction: params.sortDirection,
-          timestamp: 'last_edited_time',
         }
       }
 

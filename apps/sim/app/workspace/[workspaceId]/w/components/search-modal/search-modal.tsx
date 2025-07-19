@@ -72,6 +72,7 @@ export function SearchModal({
   loading = false,
 }: SearchModalProps) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedIndex, setSelectedIndex] = useState(0)
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -242,26 +243,48 @@ export function SearchModal({
     return docs.filter((doc) => doc.name.toLowerCase().includes(query))
   }, [docs, searchQuery])
 
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && open) {
-        onOpenChange(false)
-      }
-    }
+  // Get all selectable items in order for keyboard navigation
+  const allSelectableItems = useMemo(() => {
+    const items: Array<{
+      type: 'block' | 'tool' | 'template' | 'page' | 'doc'
+      item: BlockItem | ToolItem | TemplateData | PageItem | DocItem
+      index: number
+    }> = []
 
-    if (open) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [open, onOpenChange])
+    let index = 0
 
-  // Clear search when modal closes
+    // Add blocks
+    filteredBlocks.forEach((block) => {
+      items.push({ type: 'block', item: block, index: index++ })
+    })
+
+    // Add tools
+    filteredTools.forEach((tool) => {
+      items.push({ type: 'tool', item: tool, index: index++ })
+    })
+
+    // Add templates
+    filteredTemplates.forEach((template) => {
+      items.push({ type: 'template', item: template, index: index++ })
+    })
+
+    // Add pages
+    filteredPages.forEach((page) => {
+      items.push({ type: 'page', item: page, index: index++ })
+    })
+
+    // Add docs
+    filteredDocs.forEach((doc) => {
+      items.push({ type: 'doc', item: doc, index: index++ })
+    })
+
+    return items
+  }, [filteredBlocks, filteredTools, filteredTemplates, filteredPages, filteredDocs])
+
+  // Reset selected index when search results change
   useEffect(() => {
-    if (!open) {
-      setSearchQuery('')
-    }
-  }, [open])
+    setSelectedIndex(0)
+  }, [allSelectableItems])
 
   // Handle block/tool click (same as toolbar interaction)
   const handleBlockClick = useCallback(
@@ -305,6 +328,98 @@ export function SearchModal({
     },
     [router, onOpenChange]
   )
+
+  // Handle item selection with Enter key
+  const handleSelectItem = useCallback(
+    (index: number) => {
+      const selectedItem = allSelectableItems[index]
+      if (!selectedItem) return
+
+      switch (selectedItem.type) {
+        case 'block':
+        case 'tool':
+          handleBlockClick((selectedItem.item as BlockItem | ToolItem).type)
+          break
+        case 'template': {
+          // For templates, we can trigger a click on the template card
+          const templateElement = document.querySelector(
+            `[data-template-id="${(selectedItem.item as TemplateData).id}"]`
+          )
+          if (templateElement) {
+            ;(templateElement as HTMLElement).click()
+          }
+          break
+        }
+        case 'page':
+          handlePageClick((selectedItem.item as PageItem).href)
+          break
+        case 'doc':
+          handleDocsClick((selectedItem.item as DocItem).href)
+          break
+      }
+    },
+    [allSelectableItems, handleBlockClick, handlePageClick, handleDocsClick]
+  )
+
+  // Handle keyboard shortcuts and navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) {
+        onOpenChange(false)
+        return
+      }
+
+      // Only handle arrow keys and Enter when modal is open and not focused on input
+      if (!open) return
+
+      const activeElement = document.activeElement
+      const isEditableElement =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.hasAttribute('contenteditable')
+
+      // Handle arrow key navigation (works even when input is focused)
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        const maxIndex = allSelectableItems.length - 1
+
+        if (e.key === 'ArrowDown') {
+          setSelectedIndex((prev) => (prev >= maxIndex ? 0 : prev + 1))
+        } else {
+          setSelectedIndex((prev) => (prev <= 0 ? maxIndex : prev - 1))
+        }
+        return
+      }
+
+      // Handle Enter key selection (only when not in input or when input is focused but an item is selected)
+      if (e.key === 'Enter') {
+        // If we're in the input field and there are selectable items, select the highlighted one
+        if (isEditableElement && allSelectableItems.length > 0) {
+          e.preventDefault()
+          handleSelectItem(selectedIndex)
+          return
+        }
+        // If we're not in an input field, also allow selection
+        if (!isEditableElement) {
+          e.preventDefault()
+          handleSelectItem(selectedIndex)
+          return
+        }
+      }
+    }
+
+    if (open) {
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open, onOpenChange, allSelectableItems, selectedIndex, handleSelectItem])
+
+  // Clear search when modal closes
+  useEffect(() => {
+    if (!open) {
+      setSearchQuery('')
+    }
+  }, [open])
 
   // Handle page navigation shortcuts
   useEffect(() => {
@@ -358,6 +473,33 @@ export function SearchModal({
       )
     },
     []
+  )
+
+  // Helper function to check if an item is selected
+  const isItemSelected = useCallback(
+    (type: string, itemId: string) => {
+      const selectedItem = allSelectableItems[selectedIndex]
+      if (!selectedItem) return false
+
+      switch (type) {
+        case 'block':
+        case 'tool':
+          return (
+            selectedItem.type === type && (selectedItem.item as BlockItem | ToolItem).id === itemId
+          )
+        case 'template':
+          return (
+            selectedItem.type === 'template' && (selectedItem.item as TemplateData).id === itemId
+          )
+        case 'page':
+          return selectedItem.type === 'page' && (selectedItem.item as PageItem).id === itemId
+        case 'doc':
+          return selectedItem.type === 'doc' && (selectedItem.item as DocItem).id === itemId
+        default:
+          return false
+      }
+    },
+    [allSelectableItems, selectedIndex]
   )
 
   // Render skeleton cards for loading state
@@ -418,7 +560,11 @@ export function SearchModal({
                           <button
                             key={block.id}
                             onClick={() => handleBlockClick(block.type)}
-                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                            className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-colors ${
+                              isItemSelected('block', block.id)
+                                ? 'bg-accent'
+                                : 'bg-secondary hover:bg-secondary/80'
+                            }`}
                           >
                             <div
                               className='flex h-5 w-5 items-center justify-center rounded-md'
@@ -444,7 +590,11 @@ export function SearchModal({
                           <button
                             key={block.id}
                             onClick={() => handleBlockClick(block.type)}
-                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                            className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-colors ${
+                              isItemSelected('block', block.id)
+                                ? 'bg-accent'
+                                : 'bg-secondary hover:bg-secondary/80'
+                            }`}
                           >
                             <div
                               className='flex h-5 w-5 items-center justify-center rounded-md'
@@ -481,7 +631,11 @@ export function SearchModal({
                         <button
                           key={tool.id}
                           onClick={() => handleBlockClick(tool.type)}
-                          className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                          className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-colors ${
+                            isItemSelected('tool', tool.id)
+                              ? 'bg-accent'
+                              : 'bg-secondary hover:bg-secondary/80'
+                          }`}
                         >
                           <div
                             className='flex h-5 w-5 items-center justify-center rounded-md'
@@ -507,7 +661,11 @@ export function SearchModal({
                           <button
                             key={tool.id}
                             onClick={() => handleBlockClick(tool.type)}
-                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                            className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-colors ${
+                              isItemSelected('tool', tool.id)
+                                ? 'bg-accent'
+                                : 'bg-secondary hover:bg-secondary/80'
+                            }`}
                           >
                             <div
                               className='flex h-5 w-5 items-center justify-center rounded-md'
@@ -539,7 +697,15 @@ export function SearchModal({
                     {loading
                       ? renderSkeletonCards()
                       : filteredTemplates.map((template) => (
-                          <div key={template.id} className='w-80 flex-shrink-0'>
+                          <div
+                            key={template.id}
+                            className={`w-80 flex-shrink-0 ${
+                              isItemSelected('template', template.id)
+                                ? 'rounded-lg ring-2 ring-accent'
+                                : ''
+                            }`}
+                            data-template-id={template.id}
+                          >
                             <TemplateCard
                               id={template.id}
                               title={template.title}
@@ -571,7 +737,11 @@ export function SearchModal({
                       <button
                         key={page.id}
                         onClick={() => handlePageClick(page.href)}
-                        className='flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent/60 focus:bg-accent/60 focus:outline-none'
+                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected('page', page.id)
+                            ? 'bg-accent'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
                       >
                         <div className='flex h-5 w-5 items-center justify-center'>
                           <page.icon className='h-4 w-4 text-muted-foreground' />
@@ -605,7 +775,11 @@ export function SearchModal({
                       <button
                         key={doc.id}
                         onClick={() => handleDocsClick(doc.href)}
-                        className='flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent/60 focus:bg-accent/60 focus:outline-none'
+                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                          isItemSelected('doc', doc.id)
+                            ? 'bg-accent'
+                            : 'hover:bg-accent/60 focus:bg-accent/60'
+                        }`}
                       >
                         <div className='flex h-5 w-5 items-center justify-center'>
                           <doc.icon className='h-4 w-4 text-muted-foreground' />

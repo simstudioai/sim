@@ -19,12 +19,17 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
+        // Read Operations
         { label: 'Read Page', id: 'notion_read' },
-        { label: 'Append Content', id: 'notion_write' },
+        { label: 'Read Database', id: 'notion_read_database' },
+        // Create Operations
         { label: 'Create Page', id: 'notion_create_page' },
+        { label: 'Create Database', id: 'notion_create_database' },
+        // Write Operations
+        { label: 'Append Content', id: 'notion_write' },
+        // Query & Search Operations
         { label: 'Query Database', id: 'notion_query_database' },
         { label: 'Search Workspace', id: 'notion_search' },
-        { label: 'Create Database', id: 'notion_create_database' },
       ],
     },
     {
@@ -50,6 +55,17 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       },
     },
     {
+      id: 'databaseId',
+      title: 'Database ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Notion database ID',
+      condition: {
+        field: 'operation',
+        value: 'notion_read_database',
+      },
+    },
+    {
       id: 'pageId',
       title: 'Page ID',
       type: 'short-input',
@@ -62,22 +78,11 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     },
     // Create operation fields
     {
-      id: 'parentType',
-      title: 'Parent Type',
-      type: 'dropdown',
-      layout: 'full',
-      options: [
-        { label: 'Page', id: 'page' },
-        { label: 'Database', id: 'database' },
-      ],
-      condition: { field: 'operation', value: 'notion_create_page' },
-    },
-    {
       id: 'parentId',
-      title: 'Parent ID',
+      title: 'Parent Page ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of parent page or database',
+      placeholder: 'ID of parent page',
       condition: { field: 'operation', value: 'notion_create_page' },
     },
     {
@@ -86,18 +91,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Title for the new page',
-      condition: {
-        field: 'operation',
-        value: 'notion_create_page',
-        and: { field: 'parentType', value: 'page' },
-      },
-    },
-    {
-      id: 'properties',
-      title: 'Page Properties (JSON)',
-      type: 'long-input',
-      layout: 'full',
-      placeholder: 'Enter page properties as JSON object',
       condition: {
         field: 'operation',
         value: 'notion_create_page',
@@ -174,20 +167,9 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'All', id: '' },
+        { label: 'All', id: 'all' },
         { label: 'Pages Only', id: 'page' },
         { label: 'Databases Only', id: 'database' },
-      ],
-      condition: { field: 'operation', value: 'notion_search' },
-    },
-    {
-      id: 'sortDirection',
-      title: 'Sort Direction',
-      type: 'dropdown',
-      layout: 'full',
-      options: [
-        { label: 'Descending (newest first)', id: 'descending' },
-        { label: 'Ascending (oldest first)', id: 'ascending' },
       ],
       condition: { field: 'operation', value: 'notion_search' },
     },
@@ -220,6 +202,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   tools: {
     access: [
       'notion_read',
+      'notion_read_database',
       'notion_write',
       'notion_create_page',
       'notion_query_database',
@@ -231,6 +214,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         switch (params.operation) {
           case 'notion_read':
             return 'notion_read'
+          case 'notion_read_database':
+            return 'notion_read_database'
           case 'notion_write':
             return 'notion_write'
           case 'notion_create_page':
@@ -303,10 +288,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     pageId: { type: 'string', required: false },
     content: { type: 'string', required: false },
     // Create page inputs
-    parentType: { type: 'string', required: false },
     parentId: { type: 'string', required: false },
     title: { type: 'string', required: false },
-    properties: { type: 'string', required: false },
     // Query database inputs
     databaseId: { type: 'string', required: false },
     filter: { type: 'string', required: false },
@@ -315,7 +298,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     // Search inputs
     query: { type: 'string', required: false },
     filterType: { type: 'string', required: false },
-    sortDirection: { type: 'string', required: false },
   },
   outputs: {
     content: 'string',

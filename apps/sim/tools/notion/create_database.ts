@@ -32,10 +32,10 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
     },
     properties: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Database properties as JSON object (e.g., {"Name": {"title": {}}, "Status": {"select": {"options": [{"name": "Todo", "color": "red"}]}}})',
+        'Database properties as JSON object (optional, will create a default "Name" property if empty)',
     },
   },
 
@@ -55,12 +55,23 @@ export const notionCreateDatabaseTool: ToolConfig<NotionCreateDatabaseParams, No
     },
     body: (params: NotionCreateDatabaseParams) => {
       let parsedProperties
-      try {
-        parsedProperties = JSON.parse(params.properties)
-      } catch (error) {
-        throw new Error(
-          `Invalid properties JSON: ${error instanceof Error ? error.message : String(error)}`
-        )
+
+      // Handle properties - use provided JSON or default to Name property
+      if (params.properties?.trim()) {
+        try {
+          parsedProperties = JSON.parse(params.properties)
+        } catch (error) {
+          throw new Error(
+            `Invalid properties JSON: ${error instanceof Error ? error.message : String(error)}`
+          )
+        }
+      } else {
+        // Default properties with a Name column
+        parsedProperties = {
+          Name: {
+            title: {},
+          },
+        }
       }
 
       // Format parent ID

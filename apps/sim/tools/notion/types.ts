@@ -32,10 +32,8 @@ export interface NotionWriteParams {
 }
 
 export interface NotionCreatePageParams {
-  parentType: 'page' | 'database'
   parentId: string
   title?: string
-  properties?: Record<string, any>
   content?: string
   accessToken: string
 }
@@ -57,7 +55,6 @@ export interface NotionQueryDatabaseParams {
 export interface NotionSearchParams {
   query?: string
   filterType?: string
-  sortDirection?: string
   pageSize?: number
   accessToken: string
 }
@@ -65,6 +62,11 @@ export interface NotionSearchParams {
 export interface NotionCreateDatabaseParams {
   parentId: string
   title: string
-  properties: string
+  properties?: string
+  accessToken: string
+}
+
+export interface NotionReadDatabaseParams {
+  databaseId: string
   accessToken: string
 }
