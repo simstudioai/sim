@@ -1652,7 +1652,7 @@ export function ToolInput({
                                 {param.required && param.visibility === 'user-only' && (
                                   <span className='ml-1 text-red-500'>*</span>
                                 )}
-                                {!param.required && (
+                                {(!param.required || param.visibility !== 'user-only') && (
                                   <span className='ml-1 text-muted-foreground/60 text-xs'>
                                     (Optional)
                                   </span>
