@@ -7,6 +7,38 @@ import type { NextResponse } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/env'
 
+// Mock all the problematic imports that cause timeouts
+vi.mock('@/db', () => ({
+  db: {
+    select: vi.fn(),
+    update: vi.fn(),
+  },
+}))
+
+vi.mock('@/lib/utils', () => ({
+  decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'test-secret' }),
+}))
+
+vi.mock('@/lib/logs/enhanced-logging-session', () => ({
+  EnhancedLoggingSession: vi.fn().mockImplementation(() => ({
+    safeStart: vi.fn().mockResolvedValue(undefined),
+    safeComplete: vi.fn().mockResolvedValue(undefined),
+    safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+  })),
+}))
+
+vi.mock('@/executor', () => ({
+  Executor: vi.fn(),
+}))
+
+vi.mock('@/serializer', () => ({
+  Serializer: vi.fn(),
+}))
+
+vi.mock('@/stores/workflows/server-utils', () => ({
+  mergeSubblockState: vi.fn().mockReturnValue({}),
+}))
+
 describe('Chat API Utils', () => {
   beforeEach(() => {
     vi.resetModules()

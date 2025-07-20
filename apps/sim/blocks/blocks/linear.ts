@@ -1,8 +1,6 @@
 import { LinearIcon } from '@/components/icons'
-import type { LinearCreateIssueResponse, LinearReadIssuesResponse } from '@/tools/linear/types'
-import type { BlockConfig } from '../types'
-
-type LinearResponse = LinearReadIssuesResponse | LinearCreateIssueResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { LinearResponse } from '@/tools/linear/types'
 
 export const LinearBlock: BlockConfig<LinearResponse> = {
   type: 'linear',
@@ -42,6 +40,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       provider: 'linear',
       serviceId: 'linear',
       placeholder: 'Select a team',
+      mode: 'basic',
     },
     {
       id: 'projectId',
@@ -51,6 +50,25 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       provider: 'linear',
       serviceId: 'linear',
       placeholder: 'Select a project',
+      mode: 'basic',
+    },
+    // Manual team ID input (advanced mode)
+    {
+      id: 'manualTeamId',
+      title: 'Team ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Linear team ID',
+      mode: 'advanced',
+    },
+    // Manual project ID input (advanced mode)
+    {
+      id: 'manualProjectId',
+      title: 'Project ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Linear project ID',
+      mode: 'advanced',
     },
     {
       id: 'title',
@@ -73,19 +91,40 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       tool: (params) =>
         params.operation === 'write' ? 'linear_create_issue' : 'linear_read_issues',
       params: (params) => {
+        // Handle team ID (selector or manual)
+        const effectiveTeamId = (params.teamId || params.manualTeamId || '').trim()
+
+        // Handle project ID (selector or manual)
+        const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
+
+        if (!effectiveTeamId) {
+          throw new Error('Team ID is required. Please select a team or enter a team ID manually.')
+        }
+        if (!effectiveProjectId) {
+          throw new Error(
+            'Project ID is required. Please select a project or enter a project ID manually.'
+          )
+        }
+
         if (params.operation === 'write') {
+          if (!params.title?.trim()) {
+            throw new Error('Title is required for creating issues.')
+          }
+          if (!params.description?.trim()) {
+            throw new Error('Description is required for creating issues.')
+          }
           return {
             credential: params.credential,
-            teamId: params.teamId,
-            projectId: params.projectId,
+            teamId: effectiveTeamId,
+            projectId: effectiveProjectId,
             title: params.title,
             description: params.description,
           }
         }
         return {
           credential: params.credential,
-          teamId: params.teamId,
-          projectId: params.projectId,
+          teamId: effectiveTeamId,
+          projectId: effectiveProjectId,
         }
       },
     },
@@ -93,8 +132,10 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   inputs: {
     operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
-    teamId: { type: 'string', required: true },
-    projectId: { type: 'string', required: true },
+    teamId: { type: 'string', required: false },
+    projectId: { type: 'string', required: false },
+    manualTeamId: { type: 'string', required: false },
+    manualProjectId: { type: 'string', required: false },
     title: { type: 'string', required: false },
     description: { type: 'string', required: false },
   },

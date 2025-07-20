@@ -1,5 +1,5 @@
 import { BrainIcon } from '@/components/icons'
-import type { BlockConfig } from '../types'
+import type { BlockConfig } from '@/blocks/types'
 
 export const MemoryBlock: BlockConfig = {
   type: 'memory',

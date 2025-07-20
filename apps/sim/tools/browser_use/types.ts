@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface BrowserUseRunTaskParams {
   task: string
@@ -26,4 +26,13 @@ export interface BrowserUseTaskOutput {
 
 export interface BrowserUseRunTaskResponse extends ToolResponse {
   output: BrowserUseTaskOutput
+}
+
+export interface BrowserUseResponse extends ToolResponse {
+  output: {
+    id: string
+    success: boolean
+    output: any
+    steps: BrowserUseTaskStep[]
+  }
 }

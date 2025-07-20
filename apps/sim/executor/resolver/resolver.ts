@@ -1,6 +1,7 @@
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console-logger'
 import { VariableManager } from '@/lib/variables/variable-manager'
+import { getBlock } from '@/blocks/index'
 import type { LoopManager } from '@/executor/loops/loops'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -56,6 +57,102 @@ export class InputResolver {
   }
 
   /**
+   * Evaluates if a sub-block should be active based on its condition
+   * @param condition - The condition to evaluate
+   * @param currentValues - Current values of all inputs
+   * @returns True if the sub-block should be active
+   */
+  private evaluateSubBlockCondition(
+    condition:
+      | {
+          field: string
+          value: any
+          not?: boolean
+          and?: { field: string; value: any; not?: boolean }
+        }
+      | undefined,
+    currentValues: Record<string, any>
+  ): boolean {
+    if (!condition) return true
+
+    // Get the field value
+    const fieldValue = currentValues[condition.field]
+
+    // Check if the condition value is an array
+    const isValueMatch = Array.isArray(condition.value)
+      ? fieldValue != null &&
+        (condition.not
+          ? !condition.value.includes(fieldValue)
+          : condition.value.includes(fieldValue))
+      : condition.not
+        ? fieldValue !== condition.value
+        : fieldValue === condition.value
+
+    // Check both conditions if 'and' is present
+    const isAndValueMatch =
+      !condition.and ||
+      (() => {
+        const andFieldValue = currentValues[condition.and!.field]
+        return Array.isArray(condition.and!.value)
+          ? andFieldValue != null &&
+              (condition.and!.not
+                ? !condition.and!.value.includes(andFieldValue)
+                : condition.and!.value.includes(andFieldValue))
+          : condition.and!.not
+            ? andFieldValue !== condition.and!.value
+            : andFieldValue === condition.and!.value
+      })()
+
+    return isValueMatch && isAndValueMatch
+  }
+
+  /**
+   * Filters inputs based on sub-block conditions
+   * @param block - Block to filter inputs for
+   * @param inputs - All input parameters
+   * @returns Filtered input parameters that should be processed
+   */
+  private filterInputsByConditions(
+    block: SerializedBlock,
+    inputs: Record<string, any>
+  ): Record<string, any> {
+    const blockType = block.metadata?.id
+    if (!blockType) return inputs
+
+    const blockConfig = getBlock(blockType)
+    if (!blockConfig || !blockConfig.subBlocks) return inputs
+
+    // Filter inputs based on conditions
+    const filteredInputs: Record<string, any> = {}
+    for (const [key, value] of Object.entries(inputs)) {
+      // Check if this input should be included based on subBlock conditions
+      let shouldInclude = false
+
+      // Find all subBlocks with this ID
+      const matchingSubBlocks = blockConfig.subBlocks.filter((sb) => sb.id === key)
+
+      if (matchingSubBlocks.length === 0) {
+        // No subBlock config found for this input - include it
+        shouldInclude = true
+      } else {
+        // Check if any of the matching subBlocks should be active
+        for (const subBlock of matchingSubBlocks) {
+          if (!subBlock.condition || this.evaluateSubBlockCondition(subBlock.condition, inputs)) {
+            shouldInclude = true
+            break
+          }
+        }
+      }
+
+      if (shouldInclude) {
+        filteredInputs[key] = value
+      }
+    }
+
+    return filteredInputs
+  }
+
+  /**
    * Resolves all inputs for a block based on current context.
    * Handles block references, environment variables, and JSON parsing.
    *
@@ -64,7 +161,9 @@ export class InputResolver {
    * @returns Resolved input parameters
    */
   resolveInputs(block: SerializedBlock, context: ExecutionContext): Record<string, any> {
-    const inputs = { ...block.config.params }
+    const allInputs = { ...block.config.params }
+    // Filter inputs based on sub-block conditions to only process active fields
+    const inputs = this.filterInputsByConditions(block, allInputs)
     const result: Record<string, any> = {}
     // Process each input parameter
     for (const [key, value] of Object.entries(inputs)) {

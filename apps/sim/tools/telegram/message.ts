@@ -1,6 +1,6 @@
-import type { ToolConfig } from '../types'
-import type { TelegramMessageParams, TelegramMessageResponse } from './types'
-import { convertMarkdownToHTML } from './utils'
+import type { TelegramMessageParams, TelegramMessageResponse } from '@/tools/telegram/types'
+import { convertMarkdownToHTML } from '@/tools/telegram/utils'
+import type { ToolConfig } from '@/tools/types'
 
 export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMessageResponse> = {
   id: 'telegram_message',

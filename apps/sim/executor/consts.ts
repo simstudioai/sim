@@ -14,6 +14,8 @@ export enum BlockType {
   RESPONSE = 'response',
   WORKFLOW = 'workflow',
   STARTER = 'starter',
+  SCHEDULE = 'schedule',
+  WEBHOOK_TRIGGER = 'webhook_trigger',
 }
 
 /**

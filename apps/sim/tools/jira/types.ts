@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface JiraRetrieveParams {
   accessToken: string
@@ -104,3 +104,9 @@ export interface JiraCloudResource {
   scopes: string[]
   avatarUrl: string
 }
+
+export type JiraResponse =
+  | JiraRetrieveResponse
+  | JiraUpdateResponse
+  | JiraWriteResponse
+  | JiraRetrieveResponseBulk

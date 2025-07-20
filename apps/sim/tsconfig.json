@@ -47,7 +47,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "../next-env.d.ts",
-    "telemetry.config.js"
+    "telemetry.config.js",
+    "trigger.config.ts"
   ],
   "exclude": ["node_modules"]
 }

@@ -1,19 +1,6 @@
 import { GoogleCalendarIcon } from '@/components/icons'
-import type {
-  GoogleCalendarCreateResponse,
-  GoogleCalendarGetResponse,
-  GoogleCalendarInviteResponse,
-  GoogleCalendarListResponse,
-  GoogleCalendarQuickAddResponse,
-} from '@/tools/google_calendar/types'
-import type { BlockConfig } from '../types'
-
-type GoogleCalendarResponse =
-  | GoogleCalendarCreateResponse
-  | GoogleCalendarListResponse
-  | GoogleCalendarGetResponse
-  | GoogleCalendarQuickAddResponse
-  | GoogleCalendarInviteResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
 
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   type: 'google_calendar',
@@ -49,6 +36,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
       placeholder: 'Select Google Calendar account',
     },
+    // Calendar selector (basic mode)
     {
       id: 'calendarId',
       title: 'Calendar',
@@ -58,6 +46,16 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       serviceId: 'google-calendar',
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
       placeholder: 'Select calendar',
+      mode: 'basic',
+    },
+    // Manual calendar ID input (advanced mode)
+    {
+      id: 'manualCalendarId',
+      title: 'Calendar ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter calendar ID (e.g., primary or calendar@gmail.com)',
+      mode: 'advanced',
     },
 
     // Create Event Fields
@@ -220,9 +218,23 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         }
       },
       params: (params) => {
-        const { credential, operation, attendees, replaceExisting, ...rest } = params
+        const {
+          credential,
+          operation,
+          attendees,
+          replaceExisting,
+          calendarId,
+          manualCalendarId,
+          ...rest
+        } = params
 
-        const processedParams = { ...rest }
+        // Handle calendar ID (selector or manual)
+        const effectiveCalendarId = (calendarId || manualCalendarId || '').trim()
+
+        const processedParams: Record<string, any> = {
+          ...rest,
+          calendarId: effectiveCalendarId || 'primary',
+        }
 
         // Convert comma-separated attendees string to array, only if it has content
         if (attendees && typeof attendees === 'string' && attendees.trim().length > 0) {
@@ -258,6 +270,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
     operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
     calendarId: { type: 'string', required: false },
+    manualCalendarId: { type: 'string', required: false },
 
     // Create operation inputs
     summary: { type: 'string', required: false },

@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface GoogleDriveFile {
   id: string
@@ -45,3 +45,8 @@ export interface GoogleDriveToolParams {
   pageToken?: string
   exportMimeType?: string
 }
+
+export type GoogleDriveResponse =
+  | GoogleDriveUploadResponse
+  | GoogleDriveGetContentResponse
+  | GoogleDriveListResponse

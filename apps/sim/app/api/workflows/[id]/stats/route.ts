@@ -61,7 +61,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           totalChatExecutions: 0,
           totalTokensUsed: 0,
           totalCost: '0.00',
-          lastActive: new Date(),
+          lastActive: sql`now()`,
         })
       } else {
         // Update existing record

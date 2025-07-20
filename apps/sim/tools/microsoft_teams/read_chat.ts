@@ -1,6 +1,9 @@
-import type { ToolConfig } from '../types'
-import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
-import { extractMessageAttachments } from './utils'
+import type {
+  MicrosoftTeamsReadResponse,
+  MicrosoftTeamsToolParams,
+} from '@/tools/microsoft_teams/types'
+import { extractMessageAttachments } from '@/tools/microsoft_teams/utils'
+import type { ToolConfig } from '@/tools/types'
 
 export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_chat',

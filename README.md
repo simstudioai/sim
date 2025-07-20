@@ -147,6 +147,7 @@ bun run dev:sockets
 - **Docs**: [Fumadocs](https://fumadocs.vercel.app/)
 - **Monorepo**: [Turborepo](https://turborepo.org/)
 - **Realtime**: [Socket.io](https://socket.io/)
+- **Background Jobs**: [Trigger.dev](https://trigger.dev/)
 
 ## Contributing
 

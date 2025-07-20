@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 // Common types
 export interface AirtableRecord {
@@ -87,3 +87,10 @@ export interface AirtableUpdateMultipleResponse extends ToolResponse {
     }
   }
 }
+
+export type AirtableResponse =
+  | AirtableListResponse
+  | AirtableGetResponse
+  | AirtableCreateResponse
+  | AirtableUpdateResponse
+  | AirtableUpdateMultipleResponse

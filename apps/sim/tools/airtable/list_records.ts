@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { AirtableListParams, AirtableListResponse } from './types'
+import type { AirtableListParams, AirtableListResponse } from '@/tools/airtable/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableListResponse> = {
   id: 'airtable_list_records',

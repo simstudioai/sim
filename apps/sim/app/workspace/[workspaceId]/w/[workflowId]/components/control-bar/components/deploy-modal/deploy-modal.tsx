@@ -583,6 +583,7 @@ export function DeployModal({
                       workflowId={workflowId}
                       deployedState={deployedState}
                       isLoadingDeployedState={isLoadingDeployedState}
+                      getInputFormatExample={getInputFormatExample}
                     />
                   ) : (
                     <>

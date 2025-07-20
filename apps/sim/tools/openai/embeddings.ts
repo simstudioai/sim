@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { OpenAIEmbeddingsParams } from './types'
+import type { OpenAIEmbeddingsParams } from '@/tools/openai/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
   id: 'openai_embeddings',

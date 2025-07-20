@@ -159,7 +159,7 @@ export const workflowBlocks = pgTable(
     data: jsonb('data').default('{}'),
 
     parentId: text('parent_id'),
-    extent: text('extent'), // 'parent' or null
+    extent: text('extent'), // 'parent' or null or 'subflow'
 
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -393,7 +393,7 @@ export const settings = pgTable('settings', {
   // General settings
   theme: text('theme').notNull().default('system'),
   autoConnect: boolean('auto_connect').notNull().default(true),
-  autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true),
+  autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true), // DEPRECATED: autofill feature removed
   autoPan: boolean('auto_pan').notNull().default(true),
   consoleExpandedByDefault: boolean('console_expanded_by_default').notNull().default(true),
 
@@ -410,23 +410,34 @@ export const settings = pgTable('settings', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const workflowSchedule = pgTable('workflow_schedule', {
-  id: text('id').primaryKey(),
-  workflowId: text('workflow_id')
-    .notNull()
-    .references(() => workflow.id, { onDelete: 'cascade' })
-    .unique(),
-  cronExpression: text('cron_expression'),
-  nextRunAt: timestamp('next_run_at'),
-  lastRanAt: timestamp('last_ran_at'),
-  triggerType: text('trigger_type').notNull(), // "manual", "webhook", "schedule"
-  timezone: text('timezone').notNull().default('UTC'),
-  failedCount: integer('failed_count').notNull().default(0), // Track consecutive failures
-  status: text('status').notNull().default('active'), // 'active' or 'disabled'
-  lastFailedAt: timestamp('last_failed_at'), // When the schedule last failed
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+export const workflowSchedule = pgTable(
+  'workflow_schedule',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    blockId: text('block_id').references(() => workflowBlocks.id, { onDelete: 'cascade' }),
+    cronExpression: text('cron_expression'),
+    nextRunAt: timestamp('next_run_at'),
+    lastRanAt: timestamp('last_ran_at'),
+    triggerType: text('trigger_type').notNull(), // "manual", "webhook", "schedule"
+    timezone: text('timezone').notNull().default('UTC'),
+    failedCount: integer('failed_count').notNull().default(0), // Track consecutive failures
+    status: text('status').notNull().default('active'), // 'active' or 'disabled'
+    lastFailedAt: timestamp('last_failed_at'), // When the schedule last failed
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      workflowBlockUnique: uniqueIndex('workflow_schedule_workflow_block_unique').on(
+        table.workflowId,
+        table.blockId
+      ),
+    }
+  }
+)
 
 export const webhook = pgTable(
   'webhook',
@@ -435,6 +446,7 @@ export const webhook = pgTable(
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
+    blockId: text('block_id').references(() => workflowBlocks.id, { onDelete: 'cascade' }), // ID of the webhook trigger block (nullable for legacy starter block webhooks)
     path: text('path').notNull(),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
     providerConfig: json('provider_config'), // Store provider-specific configuration
@@ -545,6 +557,18 @@ export const subscription = pgTable(
     ),
   })
 )
+
+export const userRateLimits = pgTable('user_rate_limits', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  syncApiRequests: integer('sync_api_requests').notNull().default(0), // Sync API requests counter
+  asyncApiRequests: integer('async_api_requests').notNull().default(0), // Async API requests counter
+  windowStart: timestamp('window_start').notNull().defaultNow(),
+  lastRequestAt: timestamp('last_request_at').notNull().defaultNow(),
+  isRateLimited: boolean('is_rate_limited').notNull().default(false),
+  rateLimitResetAt: timestamp('rate_limit_reset_at'),
+})
 
 export const chat = pgTable(
   'chat',

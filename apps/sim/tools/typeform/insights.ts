@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { TypeformInsightsParams, TypeformInsightsResponse } from './types'
+import type { TypeformInsightsParams, TypeformInsightsResponse } from '@/tools/typeform/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsResponse> = {
   id: 'typeform_insights',

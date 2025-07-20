@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -19,6 +19,7 @@ const logger = createLogger('ScheduledAPI')
 
 const ScheduleRequestSchema = z.object({
   workflowId: z.string(),
+  blockId: z.string().optional(),
   state: z.object({
     blocks: z.record(z.any()),
     edges: z.array(z.any()),
@@ -66,6 +67,7 @@ export async function GET(req: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const url = new URL(req.url)
   const workflowId = url.searchParams.get('workflowId')
+  const blockId = url.searchParams.get('blockId')
   const mode = url.searchParams.get('mode')
 
   if (mode && mode !== 'schedule') {
@@ -92,10 +94,16 @@ export async function GET(req: NextRequest) {
       recentRequests.set(workflowId, now)
     }
 
+    // Build query conditions
+    const conditions = [eq(workflowSchedule.workflowId, workflowId)]
+    if (blockId) {
+      conditions.push(eq(workflowSchedule.blockId, blockId))
+    }
+
     const schedule = await db
       .select()
       .from(workflowSchedule)
-      .where(eq(workflowSchedule.workflowId, workflowId))
+      .where(conditions.length > 1 ? and(...conditions) : conditions[0])
       .limit(1)
 
     const headers = new Headers()
@@ -138,36 +146,81 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { workflowId, state } = ScheduleRequestSchema.parse(body)
+    const { workflowId, blockId, state } = ScheduleRequestSchema.parse(body)
 
     logger.info(`[${requestId}] Processing schedule update for workflow ${workflowId}`)
 
-    const starterBlock = Object.values(state.blocks).find(
-      (block: any) => block.type === 'starter'
-    ) as BlockState | undefined
-
-    if (!starterBlock) {
-      logger.warn(`[${requestId}] No starter block found in workflow ${workflowId}`)
-      return NextResponse.json({ error: 'No starter block found in workflow' }, { status: 400 })
+    // Find the target block - prioritize the specific blockId if provided
+    let targetBlock: BlockState | undefined
+    if (blockId) {
+      // If blockId is provided, find that specific block
+      targetBlock = Object.values(state.blocks).find((block: any) => block.id === blockId) as
+        | BlockState
+        | undefined
+    } else {
+      // Fallback: find either starter block or schedule trigger block
+      targetBlock = Object.values(state.blocks).find(
+        (block: any) => block.type === 'starter' || block.type === 'schedule'
+      ) as BlockState | undefined
     }
 
-    const startWorkflow = getSubBlockValue(starterBlock, 'startWorkflow')
-    const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
+    if (!targetBlock) {
+      logger.warn(`[${requestId}] No starter or schedule block found in workflow ${workflowId}`)
+      return NextResponse.json(
+        { error: 'No starter or schedule block found in workflow' },
+        { status: 400 }
+      )
+    }
 
-    const scheduleValues = getScheduleTimeValues(starterBlock)
+    const startWorkflow = getSubBlockValue(targetBlock, 'startWorkflow')
+    const scheduleType = getSubBlockValue(targetBlock, 'scheduleType')
 
-    const hasScheduleConfig = hasValidScheduleConfig(scheduleType, scheduleValues, starterBlock)
+    const scheduleValues = getScheduleTimeValues(targetBlock)
 
-    if (startWorkflow !== 'schedule' && !hasScheduleConfig) {
+    const hasScheduleConfig = hasValidScheduleConfig(scheduleType, scheduleValues, targetBlock)
+
+    // For schedule trigger blocks, we always have valid configuration
+    // For starter blocks, check if schedule is selected and has valid config
+    const isScheduleBlock = targetBlock.type === 'schedule'
+    const hasValidConfig = isScheduleBlock || (startWorkflow === 'schedule' && hasScheduleConfig)
+
+    // Debug logging to understand why validation fails
+    logger.info(`[${requestId}] Schedule validation debug:`, {
+      workflowId,
+      blockId,
+      blockType: targetBlock.type,
+      isScheduleBlock,
+      startWorkflow,
+      scheduleType,
+      hasScheduleConfig,
+      hasValidConfig,
+      scheduleValues: {
+        minutesInterval: scheduleValues.minutesInterval,
+        dailyTime: scheduleValues.dailyTime,
+        cronExpression: scheduleValues.cronExpression,
+      },
+    })
+
+    if (!hasValidConfig) {
       logger.info(
         `[${requestId}] Removing schedule for workflow ${workflowId} - no valid configuration found`
       )
-      await db.delete(workflowSchedule).where(eq(workflowSchedule.workflowId, workflowId))
+      // Build delete conditions
+      const deleteConditions = [eq(workflowSchedule.workflowId, workflowId)]
+      if (blockId) {
+        deleteConditions.push(eq(workflowSchedule.blockId, blockId))
+      }
+
+      await db
+        .delete(workflowSchedule)
+        .where(deleteConditions.length > 1 ? and(...deleteConditions) : deleteConditions[0])
 
       return NextResponse.json({ message: 'Schedule removed' })
     }
 
-    if (startWorkflow !== 'schedule') {
+    if (isScheduleBlock) {
+      logger.info(`[${requestId}] Processing schedule trigger block for workflow ${workflowId}`)
+    } else if (startWorkflow !== 'schedule') {
       logger.info(
         `[${requestId}] Setting workflow to scheduled mode based on schedule configuration`
       )
@@ -177,12 +230,12 @@ export async function POST(req: NextRequest) {
 
     let cronExpression: string | null = null
     let nextRunAt: Date | undefined
-    const timezone = getSubBlockValue(starterBlock, 'timezone') || 'UTC'
+    const timezone = getSubBlockValue(targetBlock, 'timezone') || 'UTC'
 
     try {
       const defaultScheduleType = scheduleType || 'daily'
-      const scheduleStartAt = getSubBlockValue(starterBlock, 'scheduleStartAt')
-      const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+      const scheduleStartAt = getSubBlockValue(targetBlock, 'scheduleStartAt')
+      const scheduleTime = getSubBlockValue(targetBlock, 'scheduleTime')
 
       logger.debug(`[${requestId}] Schedule configuration:`, {
         type: defaultScheduleType,
@@ -218,6 +271,7 @@ export async function POST(req: NextRequest) {
     const values = {
       id: crypto.randomUUID(),
       workflowId,
+      blockId,
       cronExpression,
       triggerType: 'schedule',
       createdAt: new Date(),
@@ -229,6 +283,7 @@ export async function POST(req: NextRequest) {
     }
 
     const setValues = {
+      blockId,
       cronExpression,
       updatedAt: new Date(),
       nextRunAt,
@@ -241,7 +296,7 @@ export async function POST(req: NextRequest) {
       .insert(workflowSchedule)
       .values(values)
       .onConflictDoUpdate({
-        target: [workflowSchedule.workflowId],
+        target: [workflowSchedule.workflowId, workflowSchedule.blockId],
         set: setValues,
       })
 

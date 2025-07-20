@@ -1,93 +1,74 @@
 // Available workflow colors
 export const WORKFLOW_COLORS = [
-  // Original colors
-  '#3972F6', // Blue
-  '#F639DD', // Pink/Magenta
-  '#F6B539', // Orange/Yellow
-  '#8139F6', // Purple
-  '#39B54A', // Green
-  '#39B5AB', // Teal
-  '#F66839', // Red/Orange
+  // Blues - vibrant blue tones
+  '#3972F6', // Blue (original)
+  '#2E5BF5', // Deeper Blue
+  '#1E4BF4', // Royal Blue
+  '#0D3BF3', // Deep Royal Blue
 
-  // Additional vibrant blues
-  '#2E5BFF', // Bright Blue
-  '#4A90FF', // Sky Blue
-  '#1E40AF', // Deep Blue
-  '#0EA5E9', // Cyan Blue
-  '#3B82F6', // Royal Blue
-  '#6366F1', // Indigo
-  '#1D4ED8', // Electric Blue
+  // Pinks/Magentas - vibrant pink and magenta tones
+  '#F639DD', // Pink/Magenta (original)
+  '#F529CF', // Deep Magenta
+  '#F749E7', // Light Magenta
+  '#F419C1', // Hot Pink
 
-  // Additional vibrant purples
-  '#A855F7', // Bright Purple
-  '#C084FC', // Light Purple
-  '#7C3AED', // Deep Purple
-  '#9333EA', // Violet
-  '#8B5CF6', // Medium Purple
-  '#6D28D9', // Dark Purple
-  '#5B21B6', // Deep Violet
+  // Oranges/Yellows - vibrant orange and yellow tones
+  '#F6B539', // Orange/Yellow (original)
+  '#F5A529', // Deep Orange
+  '#F49519', // Burnt Orange
+  '#F38509', // Deep Burnt Orange
 
-  // Additional vibrant pinks/magentas
-  '#EC4899', // Hot Pink
-  '#F97316', // Pink Orange
-  '#E11D48', // Rose
-  '#BE185D', // Deep Pink
-  '#DB2777', // Pink Red
-  '#F472B6', // Light Pink
-  '#F59E0B', // Amber Pink
+  // Purples - vibrant purple tones
+  '#8139F6', // Purple (original)
+  '#7129F5', // Deep Purple
+  '#6119F4', // Royal Purple
+  '#5109F3', // Deep Royal Purple
 
-  // Additional vibrant greens
-  '#10B981', // Emerald
-  '#059669', // Green Teal
-  '#16A34A', // Forest Green
-  '#22C55E', // Lime Green
-  '#84CC16', // Yellow Green
-  '#65A30D', // Olive Green
-  '#15803D', // Dark Green
+  // Greens - vibrant green tones
+  '#39B54A', // Green (original)
+  '#29A53A', // Deep Green
+  '#19952A', // Forest Green
+  '#09851A', // Deep Forest Green
 
-  // Additional vibrant teals/cyans
-  '#06B6D4', // Cyan
-  '#0891B2', // Dark Cyan
-  '#0E7490', // Teal Blue
-  '#14B8A6', // Turquoise
-  '#0D9488', // Dark Teal
-  '#047857', // Sea Green
-  '#059669', // Mint Green
+  // Teals/Cyans - vibrant teal and cyan tones
+  '#39B5AB', // Teal (original)
+  '#29A59B', // Deep Teal
+  '#19958B', // Dark Teal
+  '#09857B', // Deep Dark Teal
 
-  // Additional vibrant oranges/reds
-  '#EA580C', // Bright Orange
-  '#DC2626', // Red
-  '#B91C1C', // Dark Red
-  '#EF4444', // Light Red
-  '#F97316', // Orange
-  '#FB923C', // Light Orange
-  '#FDBA74', // Peach
+  // Reds/Red-Oranges - vibrant red and red-orange tones
+  '#F66839', // Red/Orange (original)
+  '#F55829', // Deep Red-Orange
+  '#F44819', // Burnt Red
+  '#F33809', // Deep Burnt Red
 
-  // Additional vibrant yellows/golds
-  '#FBBF24', // Gold
-  '#F59E0B', // Amber
-  '#D97706', // Dark Amber
-  '#92400E', // Bronze
-  '#EAB308', // Yellow
-  '#CA8A04', // Dark Yellow
-  '#A16207', // Mustard
+  // Additional vibrant colors for variety
+  // Corals - warm coral tones
+  '#F6397A', // Coral
+  '#F5296A', // Deep Coral
+  '#F7498A', // Light Coral
 
-  // Additional unique vibrant colors
-  '#FF6B6B', // Coral
-  '#4ECDC4', // Mint
-  '#45B7D1', // Light Blue
-  '#96CEB4', // Sage
-  '#FFEAA7', // Cream
-  '#DDA0DD', // Plum
-  '#98D8C8', // Seafoam
-  '#F7DC6F', // Banana
-  '#BB8FCE', // Lavender
-  '#85C1E9', // Baby Blue
-  '#F8C471', // Peach
-  '#82E0AA', // Light Green
-  '#F1948A', // Salmon
-  '#D7BDE2', // Lilac
-  '#D7BDE2', // Lilac
+  // Crimsons - deep red tones
+  '#DC143C', // Crimson
+  '#CC042C', // Deep Crimson
+  '#EC243C', // Light Crimson
+  '#BC003C', // Dark Crimson
+  '#FC343C', // Bright Crimson
+
+  // Mint - fresh green tones
+  '#00FF7F', // Mint Green
+  '#00EF6F', // Deep Mint
+  '#00DF5F', // Dark Mint
+
+  // Slate - blue-gray tones
+  '#6A5ACD', // Slate Blue
+  '#5A4ABD', // Deep Slate
+  '#4A3AAD', // Dark Slate
+
+  // Amber - warm orange-yellow tones
+  '#FFBF00', // Amber
+  '#EFAF00', // Deep Amber
+  '#DF9F00', // Dark Amber
 ]
 
 // Random adjectives and nouns for generating creative workflow names

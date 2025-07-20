@@ -1,6 +1,6 @@
 import { Mem0Icon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { Mem0Response } from '@/tools/mem0/types'
-import type { BlockConfig } from '../types'
 
 export const Mem0Block: BlockConfig<Mem0Response> = {
   type: 'mem0',

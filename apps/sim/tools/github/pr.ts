@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { PROperationParams, PullRequestResponse } from './types'
+import type { PROperationParams, PullRequestResponse } from '@/tools/github/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
   id: 'github_pr',

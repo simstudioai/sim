@@ -1,5 +1,5 @@
 // Common types for Exa AI tools
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 // Common parameters for all Exa AI tools
 export interface ExaBaseParams {
@@ -88,3 +88,31 @@ export interface ExaAnswerResponse extends ToolResponse {
     }[]
   }
 }
+
+// Research tool types
+export interface ExaResearchParams extends ExaBaseParams {
+  query: string
+  includeText?: boolean
+}
+
+export interface ExaResearchResponse extends ToolResponse {
+  output: {
+    taskId?: string
+    research: {
+      title: string
+      url: string
+      summary: string
+      text?: string
+      publishedDate?: string
+      author?: string
+      score: number
+    }[]
+  }
+}
+
+export type ExaResponse =
+  | ExaSearchResponse
+  | ExaGetContentsResponse
+  | ExaFindSimilarLinksResponse
+  | ExaAnswerResponse
+  | ExaResearchResponse

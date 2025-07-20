@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleDocsReadResponse, GoogleDocsToolParams } from './types'
+import type { GoogleDocsReadResponse, GoogleDocsToolParams } from '@/tools/google_docs/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> = {
   id: 'google_docs_read',

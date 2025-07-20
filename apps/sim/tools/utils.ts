@@ -1,11 +1,11 @@
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { docsSearchTool } from './docs/search'
-import { tools } from './registry'
-import type { TableRow, ToolConfig, ToolResponse } from './types'
-import { getUserWorkflowTool } from './workflow/get-yaml'
+import { docsSearchTool } from '@/tools/docs/search'
+import { tools } from '@/tools/registry'
+import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
+import { getUserWorkflowTool } from '@/tools/workflow/get-yaml'
 
 const logger = createLogger('ToolsUtils')
 
@@ -166,7 +166,11 @@ export function validateToolRequest(
   // Ensure all required parameters for tool call are provided
   // Note: user-only parameters are not checked here as they're optional
   for (const [paramName, paramConfig] of Object.entries(tool.params)) {
-    if (paramConfig.visibility === 'user-or-llm' && !(paramName in params)) {
+    if (
+      paramConfig.visibility === 'user-or-llm' &&
+      paramConfig.required &&
+      !(paramName in params)
+    ) {
       throw new Error(`Parameter "${paramName}" is required for ${toolId} but was not provided`)
     }
   }
@@ -453,7 +457,7 @@ async function getCustomTool(
   const identifier = customToolId.replace('custom_', '')
 
   try {
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
+    const baseUrl = getBaseUrl()
     const url = new URL('/api/tools/custom', baseUrl)
 
     // Add workflowId as a query parameter if available

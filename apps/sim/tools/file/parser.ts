@@ -1,11 +1,11 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
 import type {
   FileParseResult,
   FileParserInput,
   FileParserOutput,
   FileParserOutputData,
-} from './types'
+} from '@/tools/file/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FileParserTool')
 

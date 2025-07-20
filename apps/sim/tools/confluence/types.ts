@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface ConfluenceRetrieveParams {
   accessToken: string
@@ -42,3 +42,5 @@ export interface ConfluenceUpdateResponse extends ToolResponse {
     success: boolean
   }
 }
+
+export type ConfluenceResponse = ConfluenceRetrieveResponse | ConfluenceUpdateResponse

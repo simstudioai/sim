@@ -1,1 +1,1 @@
-export { workflowExecutorTool } from './executor'
+export { workflowExecutorTool } from '@/tools/workflow/executor'

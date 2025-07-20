@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { XSearchParams, XSearchResponse, XTweet, XUser } from './types'
+import type { ToolConfig } from '@/tools/types'
+import type { XSearchParams, XSearchResponse, XTweet, XUser } from '@/tools/x/types'
 
 export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   id: 'x_search',

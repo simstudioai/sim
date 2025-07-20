@@ -184,19 +184,33 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       } else if (Object.keys(blockConfig.outputs).length === 0) {
         // Handle blocks with no outputs (like starter) - check for custom input fields
         if (sourceBlock.type === 'starter') {
-          // Check for custom input format fields
-          const inputFormatValue = useSubBlockStore
+          // Check what start workflow mode is selected
+          const startWorkflowValue = useSubBlockStore
             .getState()
-            .getValue(activeSourceBlockId, 'inputFormat')
+            .getValue(activeSourceBlockId, 'startWorkflow')
 
-          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
-            // Use custom input fields if they exist
-            blockTags = inputFormatValue
-              .filter((field: any) => field.name && field.name.trim() !== '')
-              .map((field: any) => `${normalizedBlockName}.${field.name}`)
+          if (startWorkflowValue === 'chat') {
+            // For chat mode, provide input and conversationId
+            blockTags = [`${normalizedBlockName}.input`, `${normalizedBlockName}.conversationId`]
           } else {
-            // Fallback to just the block name
-            blockTags = [normalizedBlockName]
+            // Check for custom input format fields (for manual mode)
+            const inputFormatValue = useSubBlockStore
+              .getState()
+              .getValue(activeSourceBlockId, 'inputFormat')
+
+            if (
+              inputFormatValue &&
+              Array.isArray(inputFormatValue) &&
+              inputFormatValue.length > 0
+            ) {
+              // Use custom input fields if they exist
+              blockTags = inputFormatValue
+                .filter((field: any) => field.name && field.name.trim() !== '')
+                .map((field: any) => `${normalizedBlockName}.${field.name}`)
+            } else {
+              // Fallback to just the block name
+              blockTags = [normalizedBlockName]
+            }
           }
         } else {
           // Other blocks with no outputs - show as just <blockname>
@@ -429,19 +443,33 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       } else if (Object.keys(blockConfig.outputs).length === 0) {
         // Handle blocks with no outputs (like starter) - check for custom input fields
         if (accessibleBlock.type === 'starter') {
-          // Check for custom input format fields
-          const inputFormatValue = useSubBlockStore
+          // Check what start workflow mode is selected
+          const startWorkflowValue = useSubBlockStore
             .getState()
-            .getValue(accessibleBlockId, 'inputFormat')
+            .getValue(accessibleBlockId, 'startWorkflow')
 
-          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
-            // Use custom input fields if they exist
-            blockTags = inputFormatValue
-              .filter((field: any) => field.name && field.name.trim() !== '')
-              .map((field: any) => `${normalizedBlockName}.${field.name}`)
+          if (startWorkflowValue === 'chat') {
+            // For chat mode, provide input and conversationId
+            blockTags = [`${normalizedBlockName}.input`, `${normalizedBlockName}.conversationId`]
           } else {
-            // Fallback to just the block name
-            blockTags = [normalizedBlockName]
+            // Check for custom input format fields (for manual mode)
+            const inputFormatValue = useSubBlockStore
+              .getState()
+              .getValue(accessibleBlockId, 'inputFormat')
+
+            if (
+              inputFormatValue &&
+              Array.isArray(inputFormatValue) &&
+              inputFormatValue.length > 0
+            ) {
+              // Use custom input fields if they exist
+              blockTags = inputFormatValue
+                .filter((field: any) => field.name && field.name.trim() !== '')
+                .map((field: any) => `${normalizedBlockName}.${field.name}`)
+            } else {
+              // Fallback to just the block name
+              blockTags = [normalizedBlockName]
+            }
           }
         } else {
           // Other blocks with no outputs - show as just <blockname>

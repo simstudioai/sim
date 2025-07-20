@@ -1,6 +1,6 @@
 import { YouTubeIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { YouTubeSearchResponse } from '@/tools/youtube/types'
-import type { BlockConfig } from '../types'
 
 export const YouTubeBlock: BlockConfig<YouTubeSearchResponse> = {
   type: 'youtube',

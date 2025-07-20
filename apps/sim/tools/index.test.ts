@@ -7,10 +7,10 @@
  * which are the central pieces of infrastructure for executing tools.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { mockEnvironmentVariables } from './__test-utils__/test-tools'
-import { executeTool } from './index'
-import { tools } from './registry'
-import { getTool } from './utils'
+import { mockEnvironmentVariables } from '@/tools/__test-utils__/test-tools'
+import { executeTool } from '@/tools/index'
+import { tools } from '@/tools/registry'
+import { getTool } from '@/tools/utils'
 
 describe('Tools Registry', () => {
   test('should include all expected built-in tools', () => {

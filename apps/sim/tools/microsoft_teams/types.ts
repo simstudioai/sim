@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface MicrosoftTeamsAttachment {
   id: string
@@ -57,3 +57,5 @@ export interface MicrosoftTeamsToolParams {
   teamId?: string
   content?: string
 }
+
+export type MicrosoftTeamsResponse = MicrosoftTeamsReadResponse | MicrosoftTeamsWriteResponse

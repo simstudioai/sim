@@ -1,3 +1,3 @@
-import { runTaskTool } from './run_task'
+import { runTaskTool } from '@/tools/browser_use/run_task'
 
 export const browserUseRunTaskTool = runTaskTool

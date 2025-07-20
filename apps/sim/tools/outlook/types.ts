@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface OutlookSendParams {
   accessToken: string
@@ -127,3 +127,5 @@ export interface CleanedOutlookMessage {
   isRead?: boolean
   importance?: string
 }
+
+export type OutlookResponse = OutlookReadResponse | OutlookSendResponse | OutlookDraftResponse

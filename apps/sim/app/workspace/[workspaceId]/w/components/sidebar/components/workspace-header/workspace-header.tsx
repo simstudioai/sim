@@ -104,8 +104,9 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
           case 'save': {
             // Exit edit mode immediately, save in background
             setIsEditingName(false)
-            if (activeWorkspace && editingName.trim() !== '') {
-              updateWorkspaceName(activeWorkspace.id, editingName.trim()).catch((error) => {
+            const trimmedName = editingName.trim()
+            if (activeWorkspace && trimmedName !== '' && trimmedName !== activeWorkspace.name) {
+              updateWorkspaceName(activeWorkspace.id, trimmedName).catch((error) => {
                 logger.error('Failed to update workspace name:', error)
               })
             }

@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 // Base Pinecone params shared across all operations
 export interface PineconeBaseParams {

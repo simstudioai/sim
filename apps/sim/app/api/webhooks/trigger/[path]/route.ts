@@ -14,7 +14,9 @@ import {
 } from '@/lib/webhooks/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
-import { webhook, workflow } from '@/db/schema'
+import { subscription, webhook, workflow } from '@/db/schema'
+import { RateLimiter } from '@/services/queue'
+import type { SubscriptionPlan } from '@/services/queue/types'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -383,6 +385,42 @@ export async function POST(
         if (genericDuplicateResponse) {
           return genericDuplicateResponse
         }
+      }
+
+      // Check rate limits for webhook execution
+      const [subscriptionRecord] = await db
+        .select({ plan: subscription.plan })
+        .from(subscription)
+        .where(eq(subscription.referenceId, foundWorkflow.userId))
+        .limit(1)
+
+      const subscriptionPlan = (subscriptionRecord?.plan || 'free') as SubscriptionPlan
+
+      const rateLimiter = new RateLimiter()
+      const rateLimitCheck = await rateLimiter.checkRateLimit(
+        foundWorkflow.userId,
+        subscriptionPlan,
+        'webhook',
+        false // webhooks are always sync
+      )
+
+      if (!rateLimitCheck.allowed) {
+        logger.warn(`[${requestId}] Rate limit exceeded for webhook user ${foundWorkflow.userId}`, {
+          remaining: rateLimitCheck.remaining,
+          resetAt: rateLimitCheck.resetAt,
+        })
+
+        // Return 200 to prevent webhook retries but indicate rate limit in response
+        return new NextResponse(
+          JSON.stringify({
+            status: 'error',
+            message: `Rate limit exceeded. You have ${rateLimitCheck.remaining} requests remaining. Resets at ${rateLimitCheck.resetAt.toISOString()}`,
+          }),
+          {
+            status: 200, // Use 200 to prevent webhook provider retries
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
       }
 
       // Check if the user has exceeded their usage limits

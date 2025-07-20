@@ -167,9 +167,13 @@ export class Executor {
    * Executes the workflow and returns the result.
    *
    * @param workflowId - Unique identifier for the workflow execution
+   * @param startBlockId - Optional block ID to start execution from (for webhook or schedule triggers)
    * @returns Execution result containing output, logs, and metadata, or a stream, or combined execution and stream
    */
-  async execute(workflowId: string): Promise<ExecutionResult | StreamingExecution> {
+  async execute(
+    workflowId: string,
+    startBlockId?: string
+  ): Promise<ExecutionResult | StreamingExecution> {
     const { setIsExecuting, setIsDebugging, setPendingBlocks, reset } = useExecutionStore.getState()
     const startTime = new Date()
     let finalOutput: NormalizedBlockOutput = {}
@@ -182,9 +186,9 @@ export class Executor {
       startTime: startTime.toISOString(),
     })
 
-    this.validateWorkflow()
+    this.validateWorkflow(startBlockId)
 
-    const context = this.createExecutionContext(workflowId, startTime)
+    const context = this.createExecutionContext(workflowId, startTime, startBlockId)
 
     try {
       setIsExecuting(true)
@@ -543,30 +547,46 @@ export class Executor {
 
   /**
    * Validates that the workflow meets requirements for execution.
-   * Checks for starter block, connections, and loop configurations.
+   * Checks for starter block, webhook trigger block, or schedule trigger block, connections, and loop configurations.
    *
+   * @param startBlockId - Optional specific block to start from
    * @throws Error if workflow validation fails
    */
-  private validateWorkflow(): void {
-    const starterBlock = this.actualWorkflow.blocks.find(
-      (block) => block.metadata?.id === BlockType.STARTER
-    )
-    if (!starterBlock || !starterBlock.enabled) {
-      throw new Error('Workflow must have an enabled starter block')
-    }
+  private validateWorkflow(startBlockId?: string): void {
+    let validationBlock: SerializedBlock | undefined
 
-    const incomingToStarter = this.actualWorkflow.connections.filter(
-      (conn) => conn.target === starterBlock.id
-    )
-    if (incomingToStarter.length > 0) {
-      throw new Error('Starter block cannot have incoming connections')
-    }
+    if (startBlockId) {
+      // If starting from a specific block (webhook trigger or schedule trigger), validate that block exists
+      const startBlock = this.actualWorkflow.blocks.find((block) => block.id === startBlockId)
+      if (!startBlock || !startBlock.enabled) {
+        throw new Error(`Start block ${startBlockId} not found or disabled`)
+      }
+      validationBlock = startBlock
+      // Trigger blocks (webhook and schedule) can have incoming connections, so no need to check that
+    } else {
+      // Default validation for starter block
+      const starterBlock = this.actualWorkflow.blocks.find(
+        (block) => block.metadata?.id === BlockType.STARTER
+      )
+      if (!starterBlock || !starterBlock.enabled) {
+        throw new Error('Workflow must have an enabled starter block')
+      }
+      validationBlock = starterBlock
 
-    const outgoingFromStarter = this.actualWorkflow.connections.filter(
-      (conn) => conn.source === starterBlock.id
-    )
-    if (outgoingFromStarter.length === 0) {
-      throw new Error('Starter block must have at least one outgoing connection')
+      const incomingToStarter = this.actualWorkflow.connections.filter(
+        (conn) => conn.target === starterBlock.id
+      )
+      if (incomingToStarter.length > 0) {
+        throw new Error('Starter block cannot have incoming connections')
+      }
+
+      // Only check outgoing connections for starter blocks, not trigger blocks
+      const outgoingFromStarter = this.actualWorkflow.connections.filter(
+        (conn) => conn.source === starterBlock.id
+      )
+      if (outgoingFromStarter.length === 0) {
+        throw new Error('Starter block must have at least one outgoing connection')
+      }
     }
 
     const blockIds = new Set(this.actualWorkflow.blocks.map((block) => block.id))
@@ -603,13 +623,18 @@ export class Executor {
 
   /**
    * Creates the initial execution context with predefined states.
-   * Sets up the starter block and its connections in the active execution path.
+   * Sets up the starter block, webhook trigger block, or schedule trigger block and its connections in the active execution path.
    *
    * @param workflowId - Unique identifier for the workflow execution
    * @param startTime - Execution start time
+   * @param startBlockId - Optional specific block to start from
    * @returns Initialized execution context
    */
-  private createExecutionContext(workflowId: string, startTime: Date): ExecutionContext {
+  private createExecutionContext(
+    workflowId: string,
+    startTime: Date,
+    startBlockId?: string
+  ): ExecutionContext {
     const context: ExecutionContext = {
       workflowId,
       blockStates: new Map(),
@@ -652,13 +677,22 @@ export class Executor {
       }
     }
 
-    const starterBlock = this.actualWorkflow.blocks.find(
-      (block) => block.metadata?.id === BlockType.STARTER
-    )
-    if (starterBlock) {
-      // Initialize the starter block with the workflow input
+    // Determine which block to initialize as the starting point
+    let initBlock: SerializedBlock | undefined
+    if (startBlockId) {
+      // Starting from a specific block (webhook trigger or schedule trigger)
+      initBlock = this.actualWorkflow.blocks.find((block) => block.id === startBlockId)
+    } else {
+      // Default to starter block
+      initBlock = this.actualWorkflow.blocks.find(
+        (block) => block.metadata?.id === BlockType.STARTER
+      )
+    }
+
+    if (initBlock) {
+      // Initialize the starting block with the workflow input
       try {
-        const blockParams = starterBlock.config.params
+        const blockParams = initBlock.config.params
         const inputFormat = blockParams?.inputFormat
 
         // If input format is defined, structure the input according to the schema
@@ -718,17 +752,17 @@ export class Executor {
           // Use the structured input if we processed fields, otherwise use raw input
           const finalInput = hasProcessedFields ? structuredInput : rawInputData
 
-          // Initialize the starter block with structured input (flattened)
-          const starterOutput = {
+          // Initialize the starting block with structured input (flattened)
+          const blockOutput = {
             input: finalInput,
             conversationId: this.workflowInput?.conversationId, // Add conversationId to root
             ...finalInput, // Add input fields directly at top level
           }
 
-          logger.info(`[Executor] Starter output:`, JSON.stringify(starterOutput, null, 2))
+          logger.info(`[Executor] Starting block output:`, JSON.stringify(blockOutput, null, 2))
 
-          context.blockStates.set(starterBlock.id, {
-            output: starterOutput,
+          context.blockStates.set(initBlock.id, {
+            output: blockOutput,
             executed: true,
             executionTime: 0,
           })
@@ -746,7 +780,7 @@ export class Executor {
                 conversationId: this.workflowInput.conversationId,
               }
 
-              context.blockStates.set(starterBlock.id, {
+              context.blockStates.set(initBlock.id, {
                 output: starterOutput,
                 executed: true,
                 executionTime: 0,
@@ -755,7 +789,7 @@ export class Executor {
               // API workflow: spread the raw data directly (no wrapping)
               const starterOutput = { ...this.workflowInput }
 
-              context.blockStates.set(starterBlock.id, {
+              context.blockStates.set(initBlock.id, {
                 output: starterOutput,
                 executed: true,
                 executionTime: 0,
@@ -767,7 +801,7 @@ export class Executor {
               input: this.workflowInput,
             }
 
-            context.blockStates.set(starterBlock.id, {
+            context.blockStates.set(initBlock.id, {
               output: starterOutput,
               executed: true,
               executionTime: 0,
@@ -778,7 +812,7 @@ export class Executor {
         logger.warn('Error processing starter block input format:', e)
 
         // Error handler fallback - use appropriate structure
-        let starterOutput: any
+        let blockOutput: any
         if (this.workflowInput && typeof this.workflowInput === 'object') {
           // Check if this is a chat workflow input (has both input and conversationId)
           if (
@@ -786,40 +820,43 @@ export class Executor {
             Object.hasOwn(this.workflowInput, 'conversationId')
           ) {
             // Chat workflow: extract input and conversationId to root level
-            starterOutput = {
+            blockOutput = {
               input: this.workflowInput.input,
               conversationId: this.workflowInput.conversationId,
             }
           } else {
             // API workflow: spread the raw data directly (no wrapping)
-            starterOutput = { ...this.workflowInput }
+            blockOutput = { ...this.workflowInput }
           }
         } else {
           // Primitive input
-          starterOutput = {
+          blockOutput = {
             input: this.workflowInput,
           }
         }
 
-        logger.info('[Executor] Fallback starter output:', JSON.stringify(starterOutput, null, 2))
+        logger.info(
+          '[Executor] Fallback starting block output:',
+          JSON.stringify(blockOutput, null, 2)
+        )
 
-        context.blockStates.set(starterBlock.id, {
-          output: starterOutput,
+        context.blockStates.set(initBlock.id, {
+          output: blockOutput,
           executed: true,
           executionTime: 0,
         })
       }
-      // Ensure the starter block is in the active execution path
-      context.activeExecutionPath.add(starterBlock.id)
-      // Mark the starter block as executed
-      context.executedBlocks.add(starterBlock.id)
+      // Ensure the starting block is in the active execution path
+      context.activeExecutionPath.add(initBlock.id)
+      // Mark the starting block as executed
+      context.executedBlocks.add(initBlock.id)
 
-      // Add all blocks connected to the starter to the active execution path
-      const connectedToStarter = this.actualWorkflow.connections
-        .filter((conn) => conn.source === starterBlock.id)
+      // Add all blocks connected to the starting block to the active execution path
+      const connectedToStartBlock = this.actualWorkflow.connections
+        .filter((conn) => conn.source === initBlock.id)
         .map((conn) => conn.target)
 
-      connectedToStarter.forEach((blockId) => {
+      connectedToStartBlock.forEach((blockId) => {
         context.activeExecutionPath.add(blockId)
       })
     }

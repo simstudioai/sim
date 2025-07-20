@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleSheetsReadResponse, GoogleSheetsToolParams } from './types'
+import type { GoogleSheetsReadResponse, GoogleSheetsToolParams } from '@/tools/google_sheets/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadResponse> = {
   id: 'google_sheets_read',

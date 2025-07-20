@@ -1,7 +1,7 @@
 import { TranslateIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
 import { getBaseModelProviders } from '@/providers/utils'
-import type { BlockConfig } from '../types'
 
 const getTranslationPrompt = (
   targetLanguage: string

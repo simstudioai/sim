@@ -17,7 +17,6 @@ export const useGeneralStore = create<GeneralStore>()(
 
         const store: General = {
           isAutoConnectEnabled: true,
-          isAutoFillEnvVarsEnabled: true,
           isAutoPanEnabled: true,
           isConsoleExpandedByDefault: true,
           isDebugModeEnabled: false,
@@ -28,7 +27,6 @@ export const useGeneralStore = create<GeneralStore>()(
           error: null,
           // Individual loading states
           isAutoConnectLoading: false,
-          isAutoFillEnvVarsLoading: false,
           isAutoPanLoading: false,
           isConsoleExpandedByDefaultLoading: false,
           isThemeLoading: false,
@@ -71,17 +69,6 @@ export const useGeneralStore = create<GeneralStore>()(
               newValue,
               'isAutoConnectLoading',
               'isAutoConnectEnabled'
-            )
-          },
-
-          toggleAutoFillEnvVars: async () => {
-            if (get().isAutoFillEnvVarsLoading) return
-            const newValue = !get().isAutoFillEnvVarsEnabled
-            await updateSettingOptimistic(
-              'autoFillEnvVars',
-              newValue,
-              'isAutoFillEnvVarsLoading',
-              'isAutoFillEnvVarsEnabled'
             )
           },
 
@@ -166,7 +153,6 @@ export const useGeneralStore = create<GeneralStore>()(
 
               set({
                 isAutoConnectEnabled: data.autoConnect,
-                isAutoFillEnvVarsEnabled: data.autoFillEnvVars,
                 isAutoPanEnabled: data.autoPan ?? true, // Default to true if undefined
                 isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true, // Default to true if undefined
                 theme: data.theme,

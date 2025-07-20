@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface ScrapeParams {
   apiKey: string
@@ -12,6 +12,13 @@ export interface ScrapeParams {
 export interface SearchParams {
   apiKey: string
   query: string
+}
+
+export interface FirecrawlCrawlParams {
+  apiKey: string
+  url: string
+  limit?: number
+  onlyMainContent?: boolean
 }
 
 export interface ScrapeResponse extends ToolResponse {
@@ -58,3 +65,24 @@ export interface SearchResponse extends ToolResponse {
     warning?: string
   }
 }
+
+export interface FirecrawlCrawlResponse extends ToolResponse {
+  output: {
+    jobId?: string
+    pages: Array<{
+      markdown: string
+      html?: string
+      metadata: {
+        title: string
+        description: string
+        language: string
+        sourceURL: string
+        statusCode: number
+      }
+    }>
+    total: number
+    creditsUsed: number
+  }
+}
+
+export type FirecrawlResponse = ScrapeResponse | SearchResponse | FirecrawlCrawlResponse

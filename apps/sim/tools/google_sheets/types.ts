@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface GoogleSheetsRange {
   sheetId?: number
@@ -69,3 +69,9 @@ export interface GoogleSheetsToolParams {
   responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
   majorDimension?: 'ROWS' | 'COLUMNS'
 }
+
+export type GoogleSheetsResponse =
+  | GoogleSheetsReadResponse
+  | GoogleSheetsWriteResponse
+  | GoogleSheetsUpdateResponse
+  | GoogleSheetsAppendResponse

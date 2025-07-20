@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { NotionCreatePageParams, NotionResponse } from './types'
+import type { NotionCreatePageParams, NotionResponse } from '@/tools/notion/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResponse> = {
   id: 'notion_create_page',
@@ -18,29 +18,17 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
       visibility: 'hidden',
       description: 'Notion OAuth access token',
     },
-    parentType: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Type of parent: "page" or "database"',
-    },
     parentId: {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'ID of the parent page or database',
+      description: 'ID of the parent page',
     },
     title: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Title of the page (required for parent pages, not for databases)',
-    },
-    properties: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'JSON object of properties for database pages',
+      description: 'Title of the new page',
     },
     content: {
       type: 'string',
@@ -71,16 +59,16 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
         '$1-$2-$3-$4-$5'
       )
 
-      // Prepare the body based on parent type
+      // Prepare the body for page parent
       const body: any = {
         parent: {
-          type: params.parentType === 'page' ? 'page_id' : 'database_id',
-          [params.parentType === 'page' ? 'page_id' : 'database_id']: formattedParentId,
+          type: 'page_id',
+          page_id: formattedParentId,
         },
       }
 
-      // For child pages, properties only have title
-      if (params.parentType === 'page' && params.title) {
+      // Add title if provided
+      if (params.title) {
         body.properties = {
           title: {
             type: 'title',
@@ -94,13 +82,7 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
             ],
           },
         }
-      }
-      // For database pages, use the provided properties
-      else if (params.parentType === 'database' && params.properties) {
-        body.properties = params.properties
-      }
-      // If neither, add an empty properties object
-      else {
+      } else {
         body.properties = {}
       }
 

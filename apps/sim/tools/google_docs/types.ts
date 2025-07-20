@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface GoogleDocsMetadata {
   documentId: string
@@ -38,3 +38,8 @@ export interface GoogleDocsToolParams {
   folderId?: string
   folderSelector?: string
 }
+
+export type GoogleDocsResponse =
+  | GoogleDocsReadResponse
+  | GoogleDocsWriteResponse
+  | GoogleDocsCreateResponse

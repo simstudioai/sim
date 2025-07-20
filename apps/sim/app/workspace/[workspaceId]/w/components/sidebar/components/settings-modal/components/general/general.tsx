@@ -17,7 +17,6 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 
 const TOOLTIPS = {
   autoConnect: 'Automatically connect nodes.',
-  autoFillEnvVars: 'Automatically fill API keys.',
   autoPan: 'Automatically pan to active blocks during workflow execution.',
   consoleExpandedByDefault:
     'Show console entries expanded by default. When disabled, entries will be collapsed by default.',
@@ -30,13 +29,13 @@ export function General() {
   const error = useGeneralStore((state) => state.error)
   const theme = useGeneralStore((state) => state.theme)
   const isAutoConnectEnabled = useGeneralStore((state) => state.isAutoConnectEnabled)
-  const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
+
   const isAutoPanEnabled = useGeneralStore((state) => state.isAutoPanEnabled)
   const isConsoleExpandedByDefault = useGeneralStore((state) => state.isConsoleExpandedByDefault)
 
   // Loading states
   const isAutoConnectLoading = useGeneralStore((state) => state.isAutoConnectLoading)
-  const isAutoFillEnvVarsLoading = useGeneralStore((state) => state.isAutoFillEnvVarsLoading)
+
   const isAutoPanLoading = useGeneralStore((state) => state.isAutoPanLoading)
   const isConsoleExpandedByDefaultLoading = useGeneralStore(
     (state) => state.isConsoleExpandedByDefaultLoading
@@ -45,7 +44,7 @@ export function General() {
 
   const setTheme = useGeneralStore((state) => state.setTheme)
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
-  const toggleAutoFillEnvVars = useGeneralStore((state) => state.toggleAutoFillEnvVars)
+
   const toggleAutoPan = useGeneralStore((state) => state.toggleAutoPan)
   const toggleConsoleExpandedByDefault = useGeneralStore(
     (state) => state.toggleConsoleExpandedByDefault
@@ -66,12 +65,6 @@ export function General() {
   const handleAutoConnectChange = async (checked: boolean) => {
     if (checked !== isAutoConnectEnabled && !isAutoConnectLoading) {
       await toggleAutoConnect()
-    }
-  }
-
-  const handleAutoFillEnvVarsChange = async (checked: boolean) => {
-    if (checked !== isAutoFillEnvVarsEnabled && !isAutoFillEnvVarsLoading) {
-      await toggleAutoFillEnvVars()
     }
   }
 
@@ -167,35 +160,7 @@ export function General() {
                   disabled={isLoading || isAutoConnectLoading}
                 />
               </div>
-              <div className='flex items-center justify-between py-1'>
-                <div className='flex items-center gap-2'>
-                  <Label htmlFor='auto-fill-env-vars' className='font-medium'>
-                    Auto-fill environment variables
-                  </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-7 p-1 text-gray-500'
-                        aria-label='Learn more about auto-fill environment variables'
-                        disabled={isLoading || isAutoFillEnvVarsLoading}
-                      >
-                        <Info className='h-5 w-5' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-[300px] p-3'>
-                      <p className='text-sm'>{TOOLTIPS.autoFillEnvVars}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <Switch
-                  id='auto-fill-env-vars'
-                  checked={isAutoFillEnvVarsEnabled}
-                  onCheckedChange={handleAutoFillEnvVarsChange}
-                  disabled={isLoading || isAutoFillEnvVarsLoading}
-                />
-              </div>
+
               <div className='flex items-center justify-between py-1'>
                 <div className='flex items-center gap-2'>
                   <Label htmlFor='console-expanded-by-default' className='font-medium'>

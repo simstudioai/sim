@@ -1,19 +1,6 @@
 import { AirtableIcon } from '@/components/icons'
-import type {
-  AirtableCreateResponse,
-  AirtableGetResponse,
-  AirtableListResponse,
-  AirtableUpdateMultipleResponse,
-  AirtableUpdateResponse,
-} from '@/tools/airtable/types'
-import type { BlockConfig } from '../types'
-
-type AirtableResponse =
-  | AirtableListResponse
-  | AirtableGetResponse
-  | AirtableCreateResponse
-  | AirtableUpdateResponse
-  | AirtableUpdateMultipleResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { AirtableResponse } from '@/tools/airtable/types'
 
 export const AirtableBlock: BlockConfig<AirtableResponse> = {
   type: 'airtable',

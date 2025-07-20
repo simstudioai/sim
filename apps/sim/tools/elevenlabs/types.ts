@@ -12,3 +12,9 @@ export interface ElevenLabsTtsResponse extends ToolResponse {
     audioUrl: string
   }
 }
+
+export interface ElevenLabsBlockResponse extends ToolResponse {
+  output: {
+    audioUrl: string
+  }
+}

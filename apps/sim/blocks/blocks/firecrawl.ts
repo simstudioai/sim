@@ -1,8 +1,6 @@
 import { FirecrawlIcon } from '@/components/icons'
-import type { ScrapeResponse, SearchResponse } from '@/tools/firecrawl/types'
-import type { BlockConfig } from '../types'
-
-type FirecrawlResponse = ScrapeResponse | SearchResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { FirecrawlResponse } from '@/tools/firecrawl/types'
 
 export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   type: 'firecrawl',
@@ -23,6 +21,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       options: [
         { label: 'Scrape', id: 'scrape' },
         { label: 'Search', id: 'search' },
+        { label: 'Crawl', id: 'crawl' },
       ],
       value: () => 'scrape',
     },
@@ -31,10 +30,10 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       title: 'Website URL',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter the webpage URL to scrape',
+      placeholder: 'Enter the website URL',
       condition: {
         field: 'operation',
-        value: 'scrape',
+        value: ['scrape', 'crawl'],
       },
     },
     {
@@ -45,6 +44,17 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       condition: {
         field: 'operation',
         value: 'scrape',
+      },
+    },
+    {
+      id: 'limit',
+      title: 'Page Limit',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '100',
+      condition: {
+        field: 'operation',
+        value: 'crawl',
       },
     },
     {
@@ -68,7 +78,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
     },
   ],
   tools: {
-    access: ['firecrawl_scrape', 'firecrawl_search'],
+    access: ['firecrawl_scrape', 'firecrawl_search', 'firecrawl_crawl'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -76,8 +86,23 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
             return 'firecrawl_scrape'
           case 'search':
             return 'firecrawl_search'
+          case 'crawl':
+            return 'firecrawl_crawl'
           default:
             return 'firecrawl_scrape'
+        }
+      },
+      params: (params) => {
+        const { operation, limit, ...rest } = params
+
+        switch (operation) {
+          case 'crawl':
+            return {
+              ...rest,
+              limit: limit ? Number.parseInt(limit) : undefined,
+            }
+          default:
+            return rest
         }
       },
     },
@@ -86,6 +111,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
     apiKey: { type: 'string', required: true },
     operation: { type: 'string', required: true },
     url: { type: 'string', required: false },
+    limit: { type: 'string', required: false },
     query: { type: 'string', required: false },
     scrapeOptions: { type: 'json', required: false },
   },
@@ -97,5 +123,9 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
     // Search output
     data: 'json',
     warning: 'any',
+    // Crawl output
+    pages: 'json',
+    total: 'number',
+    creditsUsed: 'number',
   },
 }
