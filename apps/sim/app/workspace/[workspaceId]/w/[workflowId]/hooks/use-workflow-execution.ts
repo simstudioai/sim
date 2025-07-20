@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
+import { getBlock } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -419,7 +420,23 @@ export function useWorkflowExecution() {
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use the mergeSubblockState utility to get all block states
     const mergedStates = mergeSubblockState(blocks)
-    const currentBlockStates = Object.entries(mergedStates).reduce(
+
+    // Filter out trigger blocks for manual execution
+    const filteredStates = Object.entries(mergedStates).reduce(
+      (acc, [id, block]) => {
+        const blockConfig = getBlock(block.type)
+        const isTriggerBlock = blockConfig?.category === 'triggers'
+
+        // Skip trigger blocks during manual execution
+        if (!isTriggerBlock) {
+          acc[id] = block
+        }
+        return acc
+      },
+      {} as typeof mergedStates
+    )
+
+    const currentBlockStates = Object.entries(filteredStates).reduce(
       (acc, [id, block]) => {
         acc[id] = Object.entries(block.subBlocks).reduce(
           (subAcc, [key, subBlock]) => {
@@ -453,8 +470,23 @@ export function useWorkflowExecution() {
       {} as Record<string, any>
     )
 
-    // Create serialized workflow
-    const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops, parallels)
+    // Filter edges to exclude connections to/from trigger blocks
+    const triggerBlockIds = Object.keys(mergedStates).filter((id) => {
+      const blockConfig = getBlock(mergedStates[id].type)
+      return blockConfig?.category === 'triggers'
+    })
+
+    const filteredEdges = edges.filter(
+      (edge) => !triggerBlockIds.includes(edge.source) && !triggerBlockIds.includes(edge.target)
+    )
+
+    // Create serialized workflow with filtered blocks and edges
+    const workflow = new Serializer().serializeWorkflow(
+      filteredStates,
+      filteredEdges,
+      loops,
+      parallels
+    )
 
     // Determine if this is a chat execution
     const isChatExecution =

@@ -14,7 +14,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ToolCredentialSelector } from '../tool-input/components/tool-credential-selector'
 import { WebhookModal } from './components/webhook-modal'
@@ -314,14 +313,16 @@ export function WebhookConfig({
   const [isLoading, setIsLoading] = useState(false)
   const [gmailCredentialId, setGmailCredentialId] = useState<string>('')
 
-  // Get workflow store function to update webhook status
-  const setWebhookStatus = useWorkflowStore((state) => state.setWebhookStatus)
+  // No need to manage webhook status separately - it's determined by having provider + path
 
   // Get the webhook provider from the block state
   const [storeWebhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
 
   // Store the webhook path
   const [storeWebhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
+
+  // Don't auto-generate webhook paths - only create them when user actually configures a webhook
+  // This prevents the "Active Webhook" badge from showing on unconfigured blocks
 
   // Store provider-specific configuration
   const [storeProviderConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
@@ -331,16 +332,132 @@ export function WebhookConfig({
   const webhookPath = propValue?.webhookPath ?? storeWebhookPath
   const providerConfig = propValue?.providerConfig ?? storeProviderConfig
 
-  // Reset provider config when provider changes
+  // Store the actual provider from the database
+  const [actualProvider, setActualProvider] = useState<string | null>(null)
+
+  // Track the previous provider to detect changes
+  const [previousProvider, setPreviousProvider] = useState<string | null>(null)
+
+  // Handle provider changes - clear webhook data when switching providers
+  useEffect(() => {
+    // Skip on initial load or if no provider is set
+    if (!webhookProvider || !previousProvider) {
+      setPreviousProvider(webhookProvider)
+      return
+    }
+
+    // If the provider has changed, clear all webhook-related data
+    if (webhookProvider !== previousProvider) {
+      // IMPORTANT: Store the current webhook ID BEFORE clearing it
+      const currentWebhookId = webhookId
+
+      logger.info('Webhook provider changed, clearing webhook data', {
+        from: previousProvider,
+        to: webhookProvider,
+        blockId,
+        webhookId: currentWebhookId,
+      })
+
+      // If there's an existing webhook, delete it from the database
+      const deleteExistingWebhook = async () => {
+        if (currentWebhookId && !isPreview) {
+          try {
+            logger.info('Deleting existing webhook due to provider change', {
+              webhookId: currentWebhookId,
+              oldProvider: previousProvider,
+              newProvider: webhookProvider,
+            })
+
+            const response = await fetch(`/api/webhooks/${currentWebhookId}`, {
+              method: 'DELETE',
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json()
+              logger.error('Failed to delete existing webhook', {
+                webhookId: currentWebhookId,
+                error: errorData.error,
+              })
+            } else {
+              logger.info('Successfully deleted existing webhook', { webhookId: currentWebhookId })
+
+              const store = useSubBlockStore.getState()
+              const workflowValues = store.workflowValues[workflowId] || {}
+              const blockValues = { ...workflowValues[blockId] }
+
+              // Clear webhook-related fields
+              blockValues.webhookPath = undefined
+              blockValues.providerConfig = undefined
+
+              // Update the store with the cleaned block values
+              useSubBlockStore.setState({
+                workflowValues: {
+                  ...workflowValues,
+                  [workflowId]: {
+                    ...workflowValues,
+                    [blockId]: blockValues,
+                  },
+                },
+              })
+
+              logger.info('Cleared webhook data from store after successful deletion', { blockId })
+            }
+          } catch (error: any) {
+            logger.error('Error deleting existing webhook', {
+              webhookId: currentWebhookId,
+              error: error.message,
+            })
+          }
+        }
+      }
+
+      // Clear webhook fields FIRST to make badge disappear immediately
+      // Then delete from database to prevent the webhook check useEffect from restoring the path
+
+      // IMPORTANT: Clear webhook connection data FIRST
+      // This prevents the webhook check useEffect from finding and restoring the webhook
+      setWebhookId(null)
+      setActualProvider(null)
+
+      // Clear provider config
+      setProviderConfig({})
+
+      // Clear component state
+      setError(null)
+      setGmailCredentialId('')
+
+      // Note: Store will be cleared AFTER successful database deletion
+      // This ensures store and database stay perfectly in sync
+
+      // Update previous provider to the new provider
+      setPreviousProvider(webhookProvider)
+
+      // Delete existing webhook AFTER clearing the path to prevent race condition
+      // The webhook check useEffect won't restore the path if we clear it first
+      // Execute deletion asynchronously but don't block the UI
+
+      ;(async () => {
+        await deleteExistingWebhook()
+      })()
+    }
+  }, [webhookProvider, previousProvider, blockId, webhookId, isPreview])
+
+  // Reset provider config when provider changes (legacy effect - keeping for safety)
   useEffect(() => {
     if (webhookProvider) {
       // Reset the provider config when the provider changes
       setProviderConfig({})
-    }
-  }, [webhookProvider, setProviderConfig])
 
-  // Store the actual provider from the database
-  const [actualProvider, setActualProvider] = useState<string | null>(null)
+      // Clear webhook ID and actual provider when switching providers
+      // This ensures the webhook status is properly reset
+      if (webhookProvider !== actualProvider) {
+        setWebhookId(null)
+        setActualProvider(null)
+      }
+
+      // Provider config is reset - webhook status will be determined by provider + path existence
+    }
+  }, [webhookProvider, webhookId, actualProvider])
 
   // Check if webhook exists in the database
   useEffect(() => {
@@ -353,18 +470,17 @@ export function WebhookConfig({
     const checkWebhook = async () => {
       setIsLoading(true)
       try {
-        // Check if there's a webhook for this workflow
-        const response = await fetch(`/api/webhooks?workflowId=${workflowId}`)
+        // Check if there's a webhook for this specific block
+        // Always include blockId - every webhook should be associated with a specific block
+        const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`)
         if (response.ok) {
           const data = await response.json()
           if (data.webhooks && data.webhooks.length > 0) {
             const webhook = data.webhooks[0].webhook
             setWebhookId(webhook.id)
 
-            // Update the provider in the block state if it's different
-            if (webhook.provider && webhook.provider !== webhookProvider) {
-              setWebhookProvider(webhook.provider)
-            }
+            // Don't automatically update the provider - let user control it
+            // The user should be able to change providers even when a webhook exists
 
             // Store the actual provider from the database
             setActualProvider(webhook.provider)
@@ -374,14 +490,22 @@ export function WebhookConfig({
               setWebhookPath(webhook.path)
             }
 
-            // Set active webhook flag to true since we found an active webhook
-            setWebhookStatus(true)
+            // Webhook found - status will be determined by provider + path existence
           } else {
             setWebhookId(null)
             setActualProvider(null)
 
-            // Set active webhook flag to false since no webhook was found
-            setWebhookStatus(false)
+            // IMPORTANT: Clear stale webhook data from store when no webhook found in database
+            // This ensures the reactive badge status updates correctly on page refresh
+            if (webhookPath) {
+              setWebhookPath('')
+              logger.info('Cleared stale webhook path on page refresh - no webhook in database', {
+                blockId,
+                clearedPath: webhookPath,
+              })
+            }
+
+            // No webhook found - reactive blockWebhookStatus will now be false
           }
         }
       } catch (error) {
@@ -392,15 +516,7 @@ export function WebhookConfig({
     }
 
     checkWebhook()
-  }, [
-    webhookPath,
-    webhookProvider,
-    workflowId,
-    setWebhookPath,
-    setWebhookProvider,
-    setWebhookStatus,
-    isPreview,
-  ])
+  }, [workflowId, blockId, isPreview]) // Removed webhookPath dependency to prevent race condition with provider changes
 
   const handleOpenModal = () => {
     if (isPreview || disabled) return
@@ -443,6 +559,7 @@ export function WebhookConfig({
         },
         body: JSON.stringify({
           workflowId,
+          blockId,
           path,
           provider: webhookProvider || 'generic',
           providerConfig: finalConfig,
@@ -459,13 +576,20 @@ export function WebhookConfig({
       }
 
       const data = await response.json()
-      setWebhookId(data.webhook.id)
+      const savedWebhookId = data.webhook.id
+      setWebhookId(savedWebhookId)
+
+      logger.info('Webhook saved successfully', {
+        webhookId: savedWebhookId,
+        provider: webhookProvider,
+        path,
+        blockId,
+      })
 
       // Update the actual provider after saving
       setActualProvider(webhookProvider || 'generic')
 
-      // Set active webhook flag to true after successfully saving
-      setWebhookStatus(true)
+      // Webhook saved successfully - status will be determined by provider + path existence
 
       return true
     } catch (error: any) {
@@ -504,7 +628,7 @@ export function WebhookConfig({
       // Remove webhook-related fields
       blockValues.webhookProvider = undefined
       blockValues.providerConfig = undefined
-      blockValues.webhookPath = ''
+      blockValues.webhookPath = undefined
 
       // Update the store with the cleaned block values
       store.setValue(blockId, 'startWorkflow', 'manual')
@@ -522,8 +646,7 @@ export function WebhookConfig({
       setWebhookId(null)
       setActualProvider(null)
 
-      // Set active webhook flag to false
-      setWebhookStatus(false)
+      // Webhook deleted - status will be determined by provider + path existence
       handleCloseModal()
 
       return true

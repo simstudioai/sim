@@ -45,6 +45,7 @@ import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RouterBlock } from '@/blocks/blocks/router'
 import { S3Block } from '@/blocks/blocks/s3'
+import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { SlackBlock } from '@/blocks/blocks/slack'
 import { StagehandBlock } from '@/blocks/blocks/stagehand'
@@ -59,6 +60,7 @@ import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VisionBlock } from '@/blocks/blocks/vision'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
+import { WebhookBlock } from '@/blocks/blocks/webhook'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { XBlock } from '@/blocks/blocks/x'
@@ -108,6 +110,7 @@ export const registry: Record<string, BlockConfig> = {
   reddit: RedditBlock,
   response: ResponseBlock,
   router: RouterBlock,
+  schedule: ScheduleBlock,
   s3: S3Block,
   serper: SerperBlock,
   stagehand: StagehandBlock,
@@ -123,6 +126,7 @@ export const registry: Record<string, BlockConfig> = {
   typeform: TypeformBlock,
   vision: VisionBlock,
   wealthbox: WealthboxBlock,
+  webhook: WebhookBlock,
   whatsapp: WhatsAppBlock,
   workflow: WorkflowBlock,
   x: XBlock,
@@ -132,7 +136,7 @@ export const registry: Record<string, BlockConfig> = {
 // Helper functions to access the registry
 export const getBlock = (type: string): BlockConfig | undefined => registry[type]
 
-export const getBlocksByCategory = (category: 'blocks' | 'tools'): BlockConfig[] =>
+export const getBlocksByCategory = (category: 'blocks' | 'tools' | 'triggers'): BlockConfig[] =>
   Object.values(registry).filter((block) => block.category === category)
 
 export const getAllBlockTypes = (): string[] => Object.keys(registry)

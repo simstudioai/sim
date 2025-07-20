@@ -143,7 +143,10 @@ export function SearchModal({
     const allBlocks = getAllBlocks()
     return allBlocks
       .filter(
-        (block) => block.type !== 'starter' && !block.hideFromToolbar && block.category === 'blocks'
+        (block) =>
+          block.type !== 'starter' &&
+          !block.hideFromToolbar &&
+          (block.category === 'blocks' || block.category === 'triggers')
       )
       .map(
         (block): BlockItem => ({
@@ -222,7 +225,7 @@ export function SearchModal({
           name: block.name,
           icon: block.icon,
           href: block.docsLink,
-          type: block.category === 'blocks' ? 'block' : 'tool',
+          type: block.category === 'blocks' || block.category === 'triggers' ? 'block' : 'tool',
         })
       }
     })

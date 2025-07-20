@@ -207,7 +207,6 @@ const mockWorkflowState: WorkflowState = {
   lastSaved: Date.now(),
   isDeployed: false,
   deploymentStatuses: {},
-  hasActiveSchedule: false,
   hasActiveWebhook: false,
 }
 
@@ -463,7 +462,6 @@ describe('Database Helpers', () => {
         lastSaved: Date.now(),
         isDeployed: false,
         deploymentStatuses: {},
-        hasActiveSchedule: false,
         hasActiveWebhook: false,
       }
 
@@ -643,7 +641,6 @@ describe('Database Helpers', () => {
       lastSaved: Date.now(),
       isDeployed: false,
       deploymentStatuses: {},
-      hasActiveSchedule: false,
       hasActiveWebhook: false,
     }
 
@@ -731,7 +728,6 @@ describe('Database Helpers', () => {
         lastSaved: Date.now(),
         isDeployed: false,
         deploymentStatuses: {},
-        hasActiveSchedule: false,
         hasActiveWebhook: false,
       }
 

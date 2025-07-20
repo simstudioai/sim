@@ -25,7 +25,7 @@ interface BlockItem {
 export function Toolbar({ userPermissions, isWorkspaceSelectorVisible = false }: ToolbarProps) {
   const [searchQuery, setSearchQuery] = useState('')
 
-  const { regularBlocks, specialBlocks, tools } = useMemo(() => {
+  const { regularBlocks, specialBlocks, tools, triggers } = useMemo(() => {
     const allBlocks = getAllBlocks()
 
     // Filter blocks based on search query
@@ -39,9 +39,10 @@ export function Toolbar({ userPermissions, isWorkspaceSelectorVisible = false }:
       )
     })
 
-    // Separate regular blocks (category: 'blocks') and tools (category: 'tools')
+    // Separate blocks by category: 'blocks', 'tools', and 'triggers'
     const regularBlockConfigs = filteredBlocks.filter((block) => block.category === 'blocks')
     const toolConfigs = filteredBlocks.filter((block) => block.category === 'tools')
+    const triggerConfigs = filteredBlocks.filter((block) => block.category === 'triggers')
 
     // Create regular block items and sort alphabetically
     const regularBlockItems: BlockItem[] = regularBlockConfigs
@@ -75,6 +76,16 @@ export function Toolbar({ userPermissions, isWorkspaceSelectorVisible = false }:
     // Sort special blocks alphabetically
     specialBlockItems.sort((a, b) => a.name.localeCompare(b.name))
 
+    // Create trigger block items and sort alphabetically
+    const triggerBlockItems: BlockItem[] = triggerConfigs
+      .map((block) => ({
+        name: block.name,
+        type: block.type,
+        config: block,
+        isCustom: false,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+
     // Sort tools alphabetically
     toolConfigs.sort((a, b) => a.name.localeCompare(b.name))
 
@@ -82,6 +93,7 @@ export function Toolbar({ userPermissions, isWorkspaceSelectorVisible = false }:
       regularBlocks: regularBlockItems,
       specialBlocks: specialBlockItems,
       tools: toolConfigs,
+      triggers: triggerBlockItems,
     }
   }, [searchQuery])
 
@@ -126,6 +138,15 @@ export function Toolbar({ userPermissions, isWorkspaceSelectorVisible = false }:
             }
             return null
           })}
+
+          {/* Triggers Section */}
+          {triggers.map((trigger) => (
+            <ToolbarBlock
+              key={trigger.type}
+              config={trigger.config}
+              disabled={!userPermissions.canEdit}
+            />
+          ))}
 
           {/* Tools Section */}
           {tools.map((tool) => (

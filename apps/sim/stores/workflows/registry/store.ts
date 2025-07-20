@@ -188,7 +188,6 @@ function resetWorkflowStores() {
     isDeployed: false,
     deployedAt: undefined,
     deploymentStatuses: {}, // Reset deployment statuses map
-    hasActiveSchedule: false,
     history: {
       past: [],
       present: {
@@ -441,7 +440,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             lastSaved: Date.now(),
             marketplaceData: workflowData.marketplaceData || null,
             deploymentStatuses: {},
-            hasActiveSchedule: false,
             history: {
               past: [],
               present: {
@@ -490,7 +488,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             isDeployed: false,
             deployedAt: undefined,
             deploymentStatuses: {},
-            hasActiveSchedule: false,
             history: {
               past: [],
               present: {
@@ -1253,7 +1250,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               parallels: {},
               isDeployed: false,
               deployedAt: undefined,
-              hasActiveSchedule: false,
               history: {
                 past: [],
                 present: {

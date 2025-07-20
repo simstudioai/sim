@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBlock } from '@/blocks'
 
 const logger = createLogger('WorkflowUtils')
 
@@ -549,14 +550,25 @@ export const analyzeWorkflowGraph = (
     const outDegreeValue = (adjacencyList.get(blockId) || []).length
     const block = blocks[blockId]
 
-    if (inDegreeValue === 0 && outDegreeValue === 0 && block.type !== 'starter') {
+    const blockConfig = getBlock(block.type)
+    const isTriggerBlock = blockConfig?.category === 'triggers'
+
+    if (
+      inDegreeValue === 0 &&
+      outDegreeValue === 0 &&
+      block.type !== 'starter' &&
+      !isTriggerBlock
+    ) {
       orphanedBlocks.add(blockId)
     }
   })
 
   const queue: string[] = []
   inDegree.forEach((degree, blockId) => {
-    if (degree === 0 || blocks[blockId].type === 'starter') {
+    const blockConfig = getBlock(blocks[blockId].type)
+    const isTriggerBlock = blockConfig?.category === 'triggers'
+
+    if (degree === 0 || blocks[blockId].type === 'starter' || isTriggerBlock) {
       queue.push(blockId)
       blockLayers.set(blockId, 0)
     }

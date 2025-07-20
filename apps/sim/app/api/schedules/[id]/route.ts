@@ -141,6 +141,29 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       })
     }
 
+    if (action === 'disable' || (body.status && body.status === 'disabled')) {
+      if (schedule.status === 'disabled') {
+        return NextResponse.json({ message: 'Schedule is already disabled' }, { status: 200 })
+      }
+
+      const now = new Date()
+
+      await db
+        .update(workflowSchedule)
+        .set({
+          status: 'disabled',
+          updatedAt: now,
+          nextRunAt: null, // Clear next run time when disabled
+        })
+        .where(eq(workflowSchedule.id, scheduleId))
+
+      logger.info(`[${requestId}] Disabled schedule: ${scheduleId}`)
+
+      return NextResponse.json({
+        message: 'Schedule disabled successfully',
+      })
+    }
+
     logger.warn(`[${requestId}] Unsupported update action for schedule: ${scheduleId}`)
     return NextResponse.json({ error: 'Unsupported update action' }, { status: 400 })
   } catch (error) {

@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
-import { cn, formatDateTime, validateName } from '@/lib/utils'
+import { cn, validateName } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ActionBar } from './components/action-bar/action-bar'
@@ -67,7 +68,17 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   )
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
-  const hasActiveWebhook = useWorkflowStore((state) => state.hasActiveWebhook ?? false)
+  // Get per-block webhook status by checking if webhook is configured
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+
+  const hasWebhookProvider = useSubBlockStore(
+    (state) => state.workflowValues[activeWorkflowId || '']?.[id]?.webhookProvider
+  )
+  const hasWebhookPath = useSubBlockStore(
+    (state) => state.workflowValues[activeWorkflowId || '']?.[id]?.webhookPath
+  )
+  const blockWebhookStatus = !!(hasWebhookProvider && hasWebhookPath)
+
   const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
 
   // Collaborative workflow actions
@@ -88,6 +99,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   // This prevents race conditions when switching workflows rapidly
   const params = useParams()
   const currentWorkflowId = params.workflowId as string
+
+  // Check if this is a starter block or trigger block
+  const isStarterBlock = type === 'starter'
+  const isTriggerBlock = config.category === 'triggers'
+  const isWebhookTriggerBlock = type === 'webhook'
 
   const reactivateSchedule = async (scheduleId: string) => {
     try {
@@ -112,13 +128,42 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
+  const disableSchedule = async (scheduleId: string) => {
+    try {
+      const response = await fetch(`/api/schedules/${scheduleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'disable' }),
+      })
+
+      if (response.ok) {
+        // Refresh schedule info to show updated status
+        if (currentWorkflowId) {
+          fetchScheduleInfo(currentWorkflowId)
+        }
+      } else {
+        console.error('Failed to disable schedule')
+      }
+    } catch (error) {
+      console.error('Error disabling schedule:', error)
+    }
+  }
+
   const fetchScheduleInfo = async (workflowId: string) => {
     if (!workflowId) return
 
     try {
       setIsLoadingScheduleInfo(true)
 
-      const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
+      // For schedule trigger blocks, always include the blockId parameter
+      const url = new URL('/api/schedules', window.location.origin)
+      url.searchParams.set('workflowId', workflowId)
+      url.searchParams.set('mode', 'schedule')
+      url.searchParams.set('blockId', id) // Always include blockId for schedule blocks
+
+      const response = await fetch(url.toString(), {
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache',
@@ -185,48 +230,25 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }
 
   useEffect(() => {
-    if (type === 'starter' && currentWorkflowId) {
+    if (type === 'schedule' && currentWorkflowId) {
       fetchScheduleInfo(currentWorkflowId)
     } else {
       setScheduleInfo(null)
-      setIsLoadingScheduleInfo(false) // Reset loading state when not a starter block
+      setIsLoadingScheduleInfo(false) // Reset loading state when not a schedule block
     }
 
     // Cleanup function to reset loading state when component unmounts or workflow changes
     return () => {
       setIsLoadingScheduleInfo(false)
     }
-  }, [type, currentWorkflowId])
+  }, [isStarterBlock, isTriggerBlock, type, currentWorkflowId, lastUpdate])
 
   // Get webhook information for the tooltip
   useEffect(() => {
-    if (type === 'starter' && hasActiveWebhook) {
-      const fetchWebhookInfo = async () => {
-        try {
-          const workflowId = useWorkflowRegistry.getState().activeWorkflowId
-          if (!workflowId) return
-
-          const response = await fetch(`/api/webhooks?workflowId=${workflowId}`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.webhooks?.[0]?.webhook) {
-              const webhook = data.webhooks[0].webhook
-              setWebhookInfo({
-                webhookPath: webhook.path || '',
-                provider: webhook.provider || 'generic',
-              })
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching webhook info:', error)
-        }
-      }
-
-      fetchWebhookInfo()
-    } else if (!hasActiveWebhook) {
+    if (!blockWebhookStatus) {
       setWebhookInfo(null)
     }
-  }, [type, hasActiveWebhook])
+  }, [blockWebhookStatus])
 
   // Update node internals when handles change
   useEffect(() => {
@@ -404,9 +426,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  // Check if this is a starter block and has active schedule or webhook
-  const isStarterBlock = type === 'starter'
-  const showWebhookIndicator = isStarterBlock && hasActiveWebhook
+  // Check webhook indicator
+  const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && blockWebhookStatus
 
   const getProviderName = (providerId: string): string => {
     const providers: Record<string, string> = {
@@ -422,7 +443,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     return providers[providerId] || 'Webhook'
   }
 
-  const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
+  const shouldShowScheduleBadge =
+    type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
   const userPermissions = useUserPermissionsContext()
 
   return (
@@ -447,15 +469,18 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
-        <ConnectionBlocks
-          blockId={id}
-          setIsConnecting={setIsConnecting}
-          isDisabled={!userPermissions.canEdit}
-          horizontalHandles={horizontalHandles}
-        />
+        {/* Connection Blocks - Don't show for trigger blocks or starter blocks */}
+        {config.category !== 'triggers' && type !== 'starter' && (
+          <ConnectionBlocks
+            blockId={id}
+            setIsConnecting={setIsConnecting}
+            isDisabled={!userPermissions.canEdit}
+            horizontalHandles={horizontalHandles}
+          />
+        )}
 
-        {/* Input Handle - Don't show for starter blocks */}
-        {type !== 'starter' && (
+        {/* Input Handle - Don't show for trigger blocks or starter blocks */}
+        {config.category !== 'triggers' && type !== 'starter' && (
           <Handle
             type='target'
             position={horizontalHandles ? Position.Left : Position.Top}
@@ -541,14 +566,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   <Badge
                     variant='outline'
                     className={cn(
-                      'flex items-center gap-1 font-normal text-xs',
+                      'flex cursor-pointer items-center gap-1 font-normal text-xs',
                       scheduleInfo?.isDisabled
-                        ? 'cursor-pointer border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400'
-                        : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
+                        ? 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400'
+                        : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400'
                     )}
                     onClick={
-                      scheduleInfo?.isDisabled && scheduleInfo?.id
-                        ? () => reactivateSchedule(scheduleInfo.id!)
+                      scheduleInfo?.id
+                        ? scheduleInfo.isDisabled
+                          ? () => reactivateSchedule(scheduleInfo.id!)
+                          : () => disableSchedule(scheduleInfo.id!)
                         : undefined
                     }
                   >
@@ -570,32 +597,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side='top' className='max-w-[300px] p-4'>
-                  {scheduleInfo ? (
-                    <>
-                      <p className='text-sm'>{scheduleInfo.scheduleTiming}</p>
-                      {scheduleInfo.isDisabled && (
-                        <p className='mt-1 font-medium text-amber-600 text-sm'>
-                          This schedule is currently disabled due to consecutive failures. Click the
-                          badge to reactivate it.
-                        </p>
-                      )}
-                      {scheduleInfo.nextRunAt && !scheduleInfo.isDisabled && (
-                        <p className='mt-1 text-muted-foreground text-xs'>
-                          Next run:{' '}
-                          {formatDateTime(new Date(scheduleInfo.nextRunAt), scheduleInfo.timezone)}
-                        </p>
-                      )}
-                      {scheduleInfo.lastRanAt && (
-                        <p className='text-muted-foreground text-xs'>
-                          Last run:{' '}
-                          {formatDateTime(new Date(scheduleInfo.lastRanAt), scheduleInfo.timezone)}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className='text-muted-foreground text-sm'>
-                      This workflow is running on a schedule.
+                  {scheduleInfo?.isDisabled ? (
+                    <p className='text-sm'>
+                      This schedule is currently disabled. Click the badge to reactivate it.
                     </p>
+                  ) : (
+                    <p className='text-sm'>Click the badge to disable this schedule.</p>
                   )}
                 </TooltipContent>
               </Tooltip>
@@ -825,8 +832,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               isValidConnection={(connection) => connection.target !== id}
             />
 
-            {/* Error Handle - Don't show for starter blocks */}
-            {type !== 'starter' && (
+            {/* Error Handle - Don't show for trigger blocks or starter blocks */}
+            {config.category !== 'triggers' && type !== 'starter' && (
               <Handle
                 type='source'
                 position={horizontalHandles ? Position.Right : Position.Bottom}

@@ -46,10 +46,13 @@ function calculateNextRunTime(
   schedule: typeof workflowSchedule.$inferSelect,
   blocks: Record<string, BlockState>
 ): Date {
-  const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
-  if (!starterBlock) throw new Error('No starter block found')
-  const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
-  const scheduleValues = getScheduleTimeValues(starterBlock)
+  // Look for either starter block or schedule trigger block
+  const scheduleBlock = Object.values(blocks).find(
+    (block) => block.type === 'starter' || block.type === 'schedule'
+  )
+  if (!scheduleBlock) throw new Error('No starter or schedule block found')
+  const scheduleType = getSubBlockValue(scheduleBlock, 'scheduleType')
+  const scheduleValues = getScheduleTimeValues(scheduleBlock)
 
   if (schedule.cronExpression) {
     const cron = new Cron(schedule.cronExpression)
@@ -401,7 +404,10 @@ export async function GET() {
             // Set up enhanced logging on the executor
             loggingSession.setupExecutor(executor)
 
-            const result = await executor.execute(schedule.workflowId)
+            const result = await executor.execute(
+              schedule.workflowId,
+              schedule.blockId || undefined
+            )
 
             const executionResult =
               'stream' in result && 'execution' in result ? result.execution : result

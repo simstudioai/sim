@@ -64,7 +64,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       isDeployed: workflowData.isDeployed,
       deployedAt: workflowData.deployedAt,
       deploymentStatuses: deployedState.deploymentStatuses || {},
-      hasActiveSchedule: deployedState.hasActiveSchedule || false,
       hasActiveWebhook: deployedState.hasActiveWebhook || false,
     })
 

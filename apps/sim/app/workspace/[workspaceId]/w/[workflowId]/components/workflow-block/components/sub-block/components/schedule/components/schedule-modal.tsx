@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { format } from 'date-fns'
 import { Trash2, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -13,10 +12,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Calendar as CalendarComponent } from '@/components/ui/calendar'
 import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -54,8 +51,6 @@ export function ScheduleModal({
 }: ScheduleModalProps) {
   // States for schedule configuration
   const [scheduleType, setScheduleType] = useSubBlockValue(blockId, 'scheduleType')
-  const [scheduleStartAt, setScheduleStartAt] = useSubBlockValue(blockId, 'scheduleStartAt')
-  const [scheduleTime, setScheduleTime] = useSubBlockValue(blockId, 'scheduleTime')
   const [minutesInterval, setMinutesInterval] = useSubBlockValue(blockId, 'minutesInterval')
   const [hourlyMinute, setHourlyMinute] = useSubBlockValue(blockId, 'hourlyMinute')
   const [dailyTime, setDailyTime] = useSubBlockValue(blockId, 'dailyTime')
@@ -86,8 +81,6 @@ export function ScheduleModal({
       // Capture all current values when modal opens
       const currentValues = {
         scheduleType: scheduleType || 'daily',
-        scheduleStartAt: scheduleStartAt || '',
-        scheduleTime: scheduleTime || '',
         minutesInterval: minutesInterval || '',
         hourlyMinute: hourlyMinute || '',
         dailyTime: dailyTime || '',
@@ -111,8 +104,6 @@ export function ScheduleModal({
 
     const currentValues = {
       scheduleType: scheduleType || 'daily',
-      scheduleStartAt: scheduleStartAt || '',
-      scheduleTime: scheduleTime || '',
       minutesInterval: minutesInterval || '',
       hourlyMinute: hourlyMinute || '',
       dailyTime: dailyTime || '',
@@ -160,8 +151,6 @@ export function ScheduleModal({
     isOpen,
     scheduleId,
     scheduleType,
-    scheduleStartAt,
-    scheduleTime,
     minutesInterval,
     hourlyMinute,
     dailyTime,
@@ -188,8 +177,6 @@ export function ScheduleModal({
     // Revert form values to initial values
     if (hasChanges) {
       setScheduleType(initialValues.scheduleType)
-      setScheduleStartAt(initialValues.scheduleStartAt)
-      setScheduleTime(initialValues.scheduleTime)
       setMinutesInterval(initialValues.minutesInterval)
       setHourlyMinute(initialValues.hourlyMinute)
       setDailyTime(initialValues.dailyTime)
@@ -279,8 +266,6 @@ export function ScheduleModal({
         // Update initial values to match current state
         const updatedValues = {
           scheduleType: scheduleType || 'daily',
-          scheduleStartAt: scheduleStartAt || '',
-          scheduleTime: scheduleTime || '',
           minutesInterval: minutesInterval || '',
           hourlyMinute: hourlyMinute || '',
           dailyTime: dailyTime || '',
@@ -329,15 +314,6 @@ export function ScheduleModal({
     setShowDeleteConfirm(true)
   }
 
-  // Helper to format a date for display
-  const formatDate = (date: string) => {
-    try {
-      return date ? format(new Date(date), 'PPP') : 'Select date'
-    } catch (_e) {
-      return 'Select date'
-    }
-  }
-
   return (
     <>
       <DialogContent className='flex flex-col gap-0 p-0 sm:max-w-[600px]' hideCloseButton>
@@ -359,46 +335,6 @@ export function ScheduleModal({
           )}
 
           <div className='space-y-6'>
-            {/* Common date and time fields */}
-            <div className='grid grid-cols-2 gap-4'>
-              <div className='space-y-1'>
-                <label htmlFor='scheduleStartAt' className='font-medium text-sm'>
-                  Start At
-                </label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id='scheduleStartAt'
-                      variant='outline'
-                      className='h-10 w-full justify-start text-left font-normal'
-                    >
-                      {formatDate(scheduleStartAt || '')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className='w-auto p-0' align='start'>
-                    <CalendarComponent
-                      mode='single'
-                      selected={scheduleStartAt ? new Date(scheduleStartAt) : undefined}
-                      onSelect={(date) => setScheduleStartAt(date ? date.toISOString() : '')}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className='space-y-1'>
-                <label htmlFor='scheduleTime' className='font-medium text-sm'>
-                  Time
-                </label>
-                <TimeInput
-                  blockId={blockId}
-                  subBlockId='scheduleTime'
-                  placeholder='Select time'
-                  className='h-10'
-                />
-              </div>
-            </div>
-
             {/* Frequency selector */}
             <div className='space-y-1'>
               <label htmlFor='scheduleType' className='font-medium text-sm'>
@@ -469,7 +405,7 @@ export function ScheduleModal({
             )}
 
             {/* Daily schedule options */}
-            {scheduleType === 'daily' && (
+            {(scheduleType === 'daily' || !scheduleType) && (
               <div className='space-y-1'>
                 <label htmlFor='dailyTime' className='font-medium text-sm'>
                   Time of Day
@@ -578,29 +514,31 @@ export function ScheduleModal({
               </div>
             )}
 
-            {/* Timezone configuration */}
-            <div className='space-y-1'>
-              <label htmlFor='timezone' className='font-medium text-sm'>
-                Timezone
-              </label>
-              <Select value={timezone || 'UTC'} onValueChange={(value) => setTimezone(value)}>
-                <SelectTrigger className='h-10'>
-                  <SelectValue placeholder='Select timezone' />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='UTC'>UTC</SelectItem>
-                  <SelectItem value='America/New_York'>US Eastern (UTC-4)</SelectItem>
-                  <SelectItem value='America/Chicago'>US Central (UTC-5)</SelectItem>
-                  <SelectItem value='America/Denver'>US Mountain (UTC-6)</SelectItem>
-                  <SelectItem value='America/Los_Angeles'>US Pacific (UTC-7)</SelectItem>
-                  <SelectItem value='Europe/London'>London (UTC+1)</SelectItem>
-                  <SelectItem value='Europe/Paris'>Paris (UTC+2)</SelectItem>
-                  <SelectItem value='Asia/Singapore'>Singapore (UTC+8)</SelectItem>
-                  <SelectItem value='Asia/Tokyo'>Tokyo (UTC+9)</SelectItem>
-                  <SelectItem value='Australia/Sydney'>Sydney (UTC+10)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Timezone configuration - only show for time-specific schedules */}
+            {scheduleType !== 'minutes' && scheduleType !== 'hourly' && (
+              <div className='space-y-1'>
+                <label htmlFor='timezone' className='font-medium text-sm'>
+                  Timezone
+                </label>
+                <Select value={timezone || 'UTC'} onValueChange={(value) => setTimezone(value)}>
+                  <SelectTrigger className='h-10'>
+                    <SelectValue placeholder='Select timezone' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='UTC'>UTC</SelectItem>
+                    <SelectItem value='America/New_York'>US Eastern (UTC-4)</SelectItem>
+                    <SelectItem value='America/Chicago'>US Central (UTC-5)</SelectItem>
+                    <SelectItem value='America/Denver'>US Mountain (UTC-6)</SelectItem>
+                    <SelectItem value='America/Los_Angeles'>US Pacific (UTC-7)</SelectItem>
+                    <SelectItem value='Europe/London'>London (UTC+1)</SelectItem>
+                    <SelectItem value='Europe/Paris'>Paris (UTC+2)</SelectItem>
+                    <SelectItem value='Asia/Singapore'>Singapore (UTC+8)</SelectItem>
+                    <SelectItem value='Asia/Tokyo'>Tokyo (UTC+9)</SelectItem>
+                    <SelectItem value='Australia/Sydney'>Sydney (UTC+10)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
 

@@ -4,12 +4,13 @@
     "agent",
     "api",
     "condition",
-    "function",
     "evaluator",
-    "router",
-    "response",
-    "workflow",
+    "function",
     "loop",
-    "parallel"
+    "parallel",
+    "response",
+    "router",
+    "webhook_trigger",
+    "workflow"
   ]
 }
