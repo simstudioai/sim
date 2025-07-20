@@ -4,11 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useFilterStore } from '../../../../stores/logs/filters/store'
+import type { LogsResponse, WorkflowLog } from '../../../../stores/logs/filters/types'
 import { ControlBar } from './components/control-bar/control-bar'
-import { Filters } from './components/filters/filters'
 import { Sidebar } from './components/sidebar/sidebar'
-import { useFilterStore } from './stores/store'
-import type { LogsResponse, WorkflowLog } from './stores/types'
 import { formatDate } from './utils/format-date'
 
 const logger = createLogger('Logs')
@@ -45,6 +44,7 @@ export default function Logs() {
     isFetchingMore,
     setIsFetchingMore,
     buildQueryParams,
+    initializeFromURL,
     timeRange,
     level,
     workflowIds,
@@ -64,6 +64,7 @@ export default function Logs() {
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const isInitialized = useRef<boolean>(false)
 
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
@@ -140,15 +141,35 @@ export default function Logs() {
     [setLogs, setLoading, setError, setHasMore, setIsFetchingMore, buildQueryParams]
   )
 
+  // Initialize filters from URL on mount
   useEffect(() => {
-    fetchLogs(1)
+    if (!isInitialized.current) {
+      isInitialized.current = true
+      initializeFromURL()
+    }
+  }, [initializeFromURL])
+
+  // Handle browser navigation events (back/forward)
+  useEffect(() => {
+    const handlePopState = () => {
+      initializeFromURL()
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [initializeFromURL])
+
+  useEffect(() => {
+    // Only fetch logs after initialization
+    if (isInitialized.current) {
+      fetchLogs(1)
+    }
   }, [fetchLogs])
 
   // Refetch when filters change (but not on initial load)
-  const isInitialMount = useRef(true)
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false
+    // Only fetch when initialized and filters change
+    if (!isInitialized.current) {
       return
     }
 
@@ -305,7 +326,6 @@ export default function Logs() {
 
       <ControlBar />
       <div className='flex flex-1 overflow-hidden'>
-        <Filters />
         <div className='flex flex-1 flex-col overflow-hidden'>
           {/* Table container */}
           <div className='flex flex-1 flex-col overflow-hidden'>

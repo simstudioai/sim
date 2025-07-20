@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useDebounce } from '@/hooks/use-debounce'
-import { useFilterStore } from '../../stores/store'
-import type { LogsResponse } from '../../stores/types'
+import { useFilterStore } from '../../../../../../stores/logs/filters/store'
+import type { LogsResponse } from '../../../../../../stores/logs/filters/types'
 
 const logger = createLogger('ControlBar')
 
@@ -17,21 +17,31 @@ const logger = createLogger('ControlBar')
  */
 export function ControlBar() {
   const [isLive, setIsLive] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const liveIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const {
     setSearchQuery: setStoreSearchQuery,
     setLogs,
     setError,
     buildQueryParams,
+    searchQuery: storeSearchQuery,
   } = useFilterStore()
+
+  const [searchQuery, setSearchQuery] = useState(storeSearchQuery)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  // Sync local search query with store search query
+  useEffect(() => {
+    setSearchQuery(storeSearchQuery)
+  }, [storeSearchQuery])
 
   // Update store when debounced search query changes
   useEffect(() => {
-    setStoreSearchQuery(debouncedSearchQuery)
-  }, [debouncedSearchQuery, setStoreSearchQuery])
+    // Only update store if the value is different to avoid loops
+    if (debouncedSearchQuery !== storeSearchQuery) {
+      setStoreSearchQuery(debouncedSearchQuery)
+    }
+  }, [debouncedSearchQuery, storeSearchQuery, setStoreSearchQuery])
 
   const fetchLogs = async () => {
     try {

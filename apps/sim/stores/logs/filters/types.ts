@@ -140,6 +140,9 @@ export interface FilterState {
   hasMore: boolean
   isFetchingMore: boolean
 
+  // Internal state
+  _isInitializing: boolean
+
   // Actions
   setLogs: (logs: WorkflowLog[], append?: boolean) => void
   setWorkspaceId: (workspaceId: string) => void
@@ -158,6 +161,10 @@ export interface FilterState {
   setHasMore: (hasMore: boolean) => void
   setIsFetchingMore: (isFetchingMore: boolean) => void
   resetPagination: () => void
+
+  // URL synchronization methods
+  initializeFromURL: () => void
+  syncWithURL: () => void
 
   // Build query parameters for server-side filtering
   buildQueryParams: (page: number, limit: number) => string
