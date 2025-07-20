@@ -1,12 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { AlertCircle, Info, Loader2, Play, RefreshCw, Search, Square } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '../../../../stores/logs/filters/store'
 import type { LogsResponse, WorkflowLog } from '../../../../stores/logs/filters/types'
-import { ControlBar } from './components/control-bar/control-bar'
 import { Sidebar } from './components/sidebar/sidebar'
 import { formatDate } from './utils/format-date'
 
@@ -49,7 +52,8 @@ export default function Logs() {
     level,
     workflowIds,
     folderIds,
-    searchQuery,
+    searchQuery: storeSearchQuery,
+    setSearchQuery: setStoreSearchQuery,
     triggers,
   } = useFilterStore()
 
@@ -65,6 +69,27 @@ export default function Logs() {
   const loaderRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isInitialized = useRef<boolean>(false)
+
+  // Local search state with debouncing for the header
+  const [searchQuery, setSearchQuery] = useState(storeSearchQuery)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  // Live and refresh state
+  const [isLive, setIsLive] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const liveIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Sync local search query with store search query
+  useEffect(() => {
+    setSearchQuery(storeSearchQuery)
+  }, [storeSearchQuery])
+
+  // Update store when debounced search query changes
+  useEffect(() => {
+    if (debouncedSearchQuery !== storeSearchQuery) {
+      setStoreSearchQuery(debouncedSearchQuery)
+    }
+  }, [debouncedSearchQuery, storeSearchQuery, setStoreSearchQuery])
 
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
@@ -140,6 +165,51 @@ export default function Logs() {
     },
     [setLogs, setLoading, setError, setHasMore, setIsFetchingMore, buildQueryParams]
   )
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return
+
+    setIsRefreshing(true)
+
+    const minLoadingTime = new Promise((resolve) => setTimeout(resolve, 1000))
+
+    try {
+      const logsResponse = await fetchLogs(1)
+      await minLoadingTime
+      setError(null)
+    } catch (err) {
+      await minLoadingTime
+      setError(err instanceof Error ? err.message : 'An unknown error occurred')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  // Setup or clear the live refresh interval when isLive changes
+  useEffect(() => {
+    if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current)
+      liveIntervalRef.current = null
+    }
+
+    if (isLive) {
+      handleRefresh()
+      liveIntervalRef.current = setInterval(() => {
+        handleRefresh()
+      }, 5000)
+    }
+
+    return () => {
+      if (liveIntervalRef.current) {
+        clearInterval(liveIntervalRef.current)
+        liveIntervalRef.current = null
+      }
+    }
+  }, [isLive])
+
+  const toggleLive = () => {
+    setIsLive(!isLive)
+  }
 
   // Initialize filters from URL on mount
   useEffect(() => {
@@ -324,9 +394,64 @@ export default function Logs() {
         {selectedRowAnimation}
       </style>
 
-      <ControlBar />
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-hidden'>
+        <div className='flex flex-1 flex-col overflow-auto p-6'>
+          {/* Header */}
+          <div className='mb-6'>
+            <h1 className='font-sans font-semibold text-3xl text-foreground tracking-[0.01em]'>
+              Logs
+            </h1>
+          </div>
+
+          {/* Search and Controls */}
+          <div className='mb-6 flex items-center justify-between'>
+            <div className='flex h-9 w-[460px] items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
+              <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
+              <Input
+                placeholder='Search logs...'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className='flex-1 border-0 bg-transparent px-0 font-normal font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+              />
+            </div>
+
+            <div className='flex items-center gap-3'>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    onClick={handleRefresh}
+                    className='h-9 rounded-[11px] hover:bg-secondary'
+                    disabled={isRefreshing}
+                  >
+                    {isRefreshing ? (
+                      <Loader2 className='h-5 w-5 animate-spin' />
+                    ) : (
+                      <RefreshCw className='h-5 w-5' />
+                    )}
+                    <span className='sr-only'>Refresh</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{isRefreshing ? 'Refreshing...' : 'Refresh'}</TooltipContent>
+              </Tooltip>
+
+              <Button
+                className={`group h-9 gap-2 rounded-[11px] border bg-card text-card-foreground shadow-xs transition-all duration-200 hover:border-[#701FFC] hover:bg-[#701FFC] hover:text-white ${
+                  isLive ? 'border-[#701FFC] bg-[#701FFC] text-white' : 'border-border'
+                }`}
+                onClick={toggleLive}
+              >
+                {isLive ? (
+                  <Square className='!h-3.5 !w-3.5 fill-current' />
+                ) : (
+                  <Play className='!h-3.5 !w-3.5 group-hover:fill-current' />
+                )}
+                <span>Live</span>
+              </Button>
+            </div>
+          </div>
+
           {/* Table container */}
           <div className='flex flex-1 flex-col overflow-hidden'>
             {/* Table with fixed layout */}
