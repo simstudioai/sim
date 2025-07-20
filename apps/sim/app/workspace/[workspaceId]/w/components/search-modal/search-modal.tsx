@@ -394,18 +394,27 @@ export function SearchModal({
       // Only handle shortcuts when modal is open
       if (!open) return
 
-      // Don't trigger if user is typing in the search input
-      const activeElement = document.activeElement
-      const isEditableElement =
-        activeElement instanceof HTMLInputElement ||
-        activeElement instanceof HTMLTextAreaElement ||
-        activeElement?.hasAttribute('contenteditable')
-
-      if (isEditableElement) return
-
       const isMac =
         typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
       const isModifierPressed = isMac ? e.metaKey : e.ctrlKey
+
+      // Check if this is one of our specific shortcuts
+      const isOurShortcut =
+        isModifierPressed &&
+        e.shiftKey &&
+        (e.key.toLowerCase() === 'l' || e.key.toLowerCase() === 'k')
+
+      // Don't trigger other shortcuts if user is typing in the search input
+      // But allow our specific shortcuts to pass through
+      if (!isOurShortcut) {
+        const activeElement = document.activeElement
+        const isEditableElement =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement?.hasAttribute('contenteditable')
+
+        if (isEditableElement) return
+      }
 
       if (isModifierPressed && e.shiftKey) {
         // Command+Shift+L - Navigate to Logs
@@ -541,7 +550,7 @@ export function SearchModal({
           className='bg-white/50 dark:bg-black/50'
           style={{ backdropFilter: 'blur(4.8px)' }}
         />
-        <DialogPrimitive.Content className='data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 flex h-[580px] w-[700px] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-background p-0 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=open]:animate-in'>
+        <DialogPrimitive.Content className='data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 flex h-[580px] w-[700px] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-background p-0 shadow-lg duration-200 focus:outline-none focus-visible:outline-none data-[state=closed]:animate-out data-[state=open]:animate-in'>
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
           </VisuallyHidden.Root>
