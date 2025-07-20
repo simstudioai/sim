@@ -12,7 +12,7 @@ const logger = createLogger('UserSettingsAPI')
 const SettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']).optional(),
   autoConnect: z.boolean().optional(),
-  autoFillEnvVars: z.boolean().optional(),
+  autoFillEnvVars: z.boolean().optional(), // DEPRECATED: kept for backwards compatibility
   autoPan: z.boolean().optional(),
   consoleExpandedByDefault: z.boolean().optional(),
   telemetryEnabled: z.boolean().optional(),
@@ -31,7 +31,7 @@ const SettingsSchema = z.object({
 const defaultSettings = {
   theme: 'system',
   autoConnect: true,
-  autoFillEnvVars: true,
+  autoFillEnvVars: true, // DEPRECATED: kept for backwards compatibility, always true
   autoPan: true,
   consoleExpandedByDefault: true,
   telemetryEnabled: true,
@@ -65,7 +65,7 @@ export async function GET() {
         data: {
           theme: userSettings.theme,
           autoConnect: userSettings.autoConnect,
-          autoFillEnvVars: userSettings.autoFillEnvVars,
+          autoFillEnvVars: userSettings.autoFillEnvVars, // DEPRECATED: kept for backwards compatibility
           autoPan: userSettings.autoPan,
           consoleExpandedByDefault: userSettings.consoleExpandedByDefault,
           telemetryEnabled: userSettings.telemetryEnabled,

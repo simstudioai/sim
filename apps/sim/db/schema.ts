@@ -393,7 +393,7 @@ export const settings = pgTable('settings', {
   // General settings
   theme: text('theme').notNull().default('system'),
   autoConnect: boolean('auto_connect').notNull().default(true),
-  autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true),
+  autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true), // DEPRECATED: autofill feature removed
   autoPan: boolean('auto_pan').notNull().default(true),
   consoleExpandedByDefault: boolean('console_expanded_by_default').notNull().default(true),
 

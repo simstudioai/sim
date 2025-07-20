@@ -212,7 +212,6 @@ function resetWorkflowStores() {
   // Reset the subblock store
   useSubBlockStore.setState({
     workflowValues: {},
-    toolParams: {},
   })
 }
 

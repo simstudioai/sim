@@ -1,6 +1,5 @@
 export interface General {
   isAutoConnectEnabled: boolean
-  isAutoFillEnvVarsEnabled: boolean
   isAutoPanEnabled: boolean
   isConsoleExpandedByDefault: boolean
   isDebugModeEnabled: boolean
@@ -11,7 +10,6 @@ export interface General {
   error: string | null
   // Individual loading states for optimistic updates
   isAutoConnectLoading: boolean
-  isAutoFillEnvVarsLoading: boolean
   isAutoPanLoading: boolean
   isConsoleExpandedByDefaultLoading: boolean
   isThemeLoading: boolean
@@ -20,7 +18,7 @@ export interface General {
 
 export interface GeneralActions {
   toggleAutoConnect: () => Promise<void>
-  toggleAutoFillEnvVars: () => Promise<void>
+
   toggleAutoPan: () => Promise<void>
   toggleConsoleExpandedByDefault: () => Promise<void>
   toggleDebugMode: () => void
@@ -36,7 +34,6 @@ export type GeneralStore = General & GeneralActions
 export type UserSettings = {
   theme: 'system' | 'light' | 'dark'
   autoConnect: boolean
-  autoFillEnvVars: boolean
   autoPan: boolean
   consoleExpandedByDefault: boolean
   telemetryEnabled: boolean

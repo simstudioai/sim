@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
@@ -400,7 +399,6 @@ export function ToolInput({
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
   const subBlockStore = useSubBlockStore()
-  const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
 
   // Get the current model from the 'model' subblock
   const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
@@ -507,26 +505,13 @@ export function ToolInput({
     return block.tools.access[0]
   }
 
-  // Initialize tool parameters with auto-fill if enabled
+  // Initialize tool parameters - no autofill, just return empty params
   const initializeToolParams = (
     toolId: string,
     params: ToolParameterConfig[],
     instanceId?: string
   ): Record<string, string> => {
-    const initialParams: Record<string, string> = {}
-
-    // Only auto-fill parameters if the setting is enabled
-    if (isAutoFillEnvVarsEnabled) {
-      // For each parameter, check if we have a stored/resolved value
-      params.forEach((param) => {
-        const resolvedValue = subBlockStore.resolveToolParamValue(toolId, param.id, instanceId)
-        if (resolvedValue) {
-          initialParams[param.id] = resolvedValue
-        }
-      })
-    }
-
-    return initialParams
+    return {}
   }
 
   const handleSelectTool = (toolBlock: (typeof toolBlocks)[0]) => {
@@ -681,11 +666,6 @@ export function ToolInput({
     if (isPreview || disabled) return
 
     const tool = selectedTools[toolIndex]
-
-    // Store the value in the tool params store for future use
-    if (paramValue.trim()) {
-      subBlockStore.setToolParam(tool.toolId, paramId, paramValue)
-    }
 
     // Update the value in the workflow
     setStoreValue(
