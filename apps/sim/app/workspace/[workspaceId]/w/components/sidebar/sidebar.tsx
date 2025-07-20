@@ -735,7 +735,6 @@ export function Sidebar() {
       icon: LibraryBig,
       href: `/workspace/${workspaceId}/knowledge`,
       tooltip: 'Knowledge',
-      shortcut: getKeyboardShortcutText('K', true, true),
       active: pathname === `/workspace/${workspaceId}/knowledge`,
     },
     {
