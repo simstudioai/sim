@@ -1006,9 +1006,9 @@ export function ToolInput({
       case 'channel-selector':
         return (
           <ChannelSelectorInput
-            blockId={uniqueBlockId}
+            blockId={blockId}
             subBlock={{
-              id: param.id,
+              id: `tool-${toolIndex || 0}-${param.id}`,
               type: 'channel-selector' as const,
               title: param.id,
               provider: uiComponent.provider || 'slack',
@@ -1023,9 +1023,9 @@ export function ToolInput({
       case 'project-selector':
         return (
           <ProjectSelectorInput
-            blockId={uniqueBlockId}
+            blockId={blockId}
             subBlock={{
-              id: param.id,
+              id: `tool-${toolIndex || 0}-${param.id}`,
               type: 'project-selector' as const,
               title: param.id,
               provider: uiComponent.provider || 'jira',
@@ -1632,7 +1632,7 @@ export function ToolInput({
                                 {param.required && param.visibility === 'user-only' && (
                                   <span className='ml-1 text-red-500'>*</span>
                                 )}
-                                {!param.required && (
+                                {(!param.required || param.visibility !== 'user-only') && (
                                   <span className='ml-1 text-muted-foreground/60 text-xs'>
                                     (Optional)
                                   </span>

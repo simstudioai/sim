@@ -1,5 +1,5 @@
-import { outlookDraftTool } from './draft'
-import { outlookReadTool } from './read'
-import { outlookSendTool } from './send'
+import { outlookDraftTool } from '@/tools/outlook/draft'
+import { outlookReadTool } from '@/tools/outlook/read'
+import { outlookSendTool } from '@/tools/outlook/send'
 
 export { outlookDraftTool, outlookReadTool, outlookSendTool }

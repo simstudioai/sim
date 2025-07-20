@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
 

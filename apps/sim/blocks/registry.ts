@@ -2,7 +2,7 @@
  * Blocks Registry
  *
  */
-// Import all blocks directly here
+
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { ApiBlock } from '@/blocks/blocks/api'
@@ -133,7 +133,6 @@ export const registry: Record<string, BlockConfig> = {
   youtube: YouTubeBlock,
 }
 
-// Helper functions to access the registry
 export const getBlock = (type: string): BlockConfig | undefined => registry[type]
 
 export const getBlocksByCategory = (category: 'blocks' | 'tools' | 'triggers'): BlockConfig[] =>

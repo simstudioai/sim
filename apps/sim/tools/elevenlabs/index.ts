@@ -1,3 +1,3 @@
-import { elevenLabsTtsTool } from './tts'
+import { elevenLabsTtsTool } from '@/tools/elevenlabs/tts'
 
 export { elevenLabsTtsTool }

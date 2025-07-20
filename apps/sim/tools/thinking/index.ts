@@ -1,3 +1,3 @@
-import { thinkingTool } from './tool'
+import { thinkingTool } from '@/tools/thinking/tool'
 
 export { thinkingTool }

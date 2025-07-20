@@ -7,7 +7,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   name: 'Slack',
   description: 'Send messages to Slack',
   longDescription:
-    "Comprehensive Slack integration with OAuth authentication. Send formatted messages using Slack's mrkdwn syntax or Block Kit.",
+    "Comprehensive Slack integration with OAuth authentication. Send formatted messages using Slack's mrkdwn syntax.",
   docsLink: 'https://docs.simstudio.ai/tools/slack',
   category: 'tools',
   bgColor: '#611f69',
@@ -18,7 +18,11 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      options: [{ label: 'Send Message', id: 'send' }],
+      options: [
+        { label: 'Send Message', id: 'send' },
+        { label: 'Create Canvas', id: 'canvas' },
+        { label: 'Read Messages', id: 'read' },
+      ],
       value: () => 'send',
     },
     {
@@ -41,13 +45,14 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       serviceId: 'slack',
       requiredScopes: [
         'channels:read',
+        'channels:history',
         'groups:read',
+        'groups:history',
         'chat:write',
         'chat:write.public',
         'users:read',
-        'files:read',
-        'links:read',
-        'links:write',
+        'files:write',
+        'canvases:write',
       ],
       placeholder: 'Select Slack workspace',
       condition: {
@@ -91,22 +96,87 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter your message (supports Slack mrkdwn)',
+      condition: {
+        field: 'operation',
+        value: 'send',
+      },
+    },
+    // Canvas specific fields
+    {
+      id: 'title',
+      title: 'Canvas Title',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter canvas title',
+      condition: {
+        field: 'operation',
+        value: 'canvas',
+      },
+    },
+    {
+      id: 'content',
+      title: 'Canvas Content',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter canvas content (markdown supported)',
+      condition: {
+        field: 'operation',
+        value: 'canvas',
+      },
+    },
+    // Message Reader specific fields
+    {
+      id: 'limit',
+      title: 'Message Limit',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '50',
+      condition: {
+        field: 'operation',
+        value: 'read',
+      },
+    },
+    {
+      id: 'oldest',
+      title: 'Oldest Timestamp',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'ISO 8601 timestamp',
+      condition: {
+        field: 'operation',
+        value: 'read',
+      },
     },
   ],
   tools: {
-    access: ['slack_message'],
+    access: ['slack_message', 'slack_canvas', 'slack_message_reader'],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'send':
             return 'slack_message'
+          case 'canvas':
+            return 'slack_canvas'
+          case 'read':
+            return 'slack_message_reader'
           default:
             throw new Error(`Invalid Slack operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, authMethod, botToken, operation, channel, manualChannel, ...rest } =
-          params
+        const {
+          credential,
+          authMethod,
+          botToken,
+          operation,
+          channel,
+          manualChannel,
+          title,
+          content,
+          limit,
+          oldest,
+          ...rest
+        } = params
 
         // Handle channel input (selector or manual)
         const effectiveChannel = (channel || manualChannel || '').trim()
@@ -118,7 +188,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         }
 
         const baseParams: Record<string, any> = {
-          ...rest,
           channel: effectiveChannel,
         }
 
@@ -136,6 +205,36 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           baseParams.credential = credential
         }
 
+        // Handle operation-specific params
+        switch (operation) {
+          case 'send':
+            if (!rest.text) {
+              throw new Error('Message text is required for send operation')
+            }
+            baseParams.text = rest.text
+            break
+
+          case 'canvas':
+            if (!title || !content) {
+              throw new Error('Title and content are required for canvas operation')
+            }
+            baseParams.title = title
+            baseParams.content = content
+            break
+
+          case 'read':
+            if (limit) {
+              const parsedLimit = Number.parseInt(limit, 10)
+              baseParams.limit = !Number.isNaN(parsedLimit) ? parsedLimit : 10
+            } else {
+              baseParams.limit = 10
+            }
+            if (oldest) {
+              baseParams.oldest = oldest
+            }
+            break
+        }
+
         return baseParams
       },
     },
@@ -147,10 +246,17 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     botToken: { type: 'string', required: false },
     channel: { type: 'string', required: false },
     manualChannel: { type: 'string', required: false },
-    text: { type: 'string', required: true },
+    text: { type: 'string', required: false },
+    title: { type: 'string', required: false },
+    content: { type: 'string', required: false },
+    limit: { type: 'string', required: false },
+    oldest: { type: 'string', required: false },
   },
   outputs: {
     ts: 'string',
     channel: 'string',
+    canvas_id: 'string',
+    title: 'string',
+    messages: 'json',
   },
 }

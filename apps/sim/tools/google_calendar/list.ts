@@ -1,11 +1,11 @@
-import type { ToolConfig } from '../types'
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarApiEventResponse,
   type GoogleCalendarApiListResponse,
   type GoogleCalendarListParams,
   type GoogleCalendarListResponse,
-} from './types'
+} from '@/tools/google_calendar/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListResponse> = {
   id: 'google_calendar_list',

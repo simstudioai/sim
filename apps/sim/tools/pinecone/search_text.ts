@@ -1,5 +1,9 @@
-import type { ToolConfig } from '../types'
-import type { PineconeResponse, PineconeSearchHit, PineconeSearchTextParams } from './types'
+import type {
+  PineconeResponse,
+  PineconeSearchHit,
+  PineconeSearchTextParams,
+} from '@/tools/pinecone/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeResponse> = {
   id: 'pinecone_search_text',

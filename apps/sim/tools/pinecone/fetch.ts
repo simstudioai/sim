@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { PineconeFetchParams, PineconeResponse, PineconeVector } from './types'
+import type { PineconeFetchParams, PineconeResponse, PineconeVector } from '@/tools/pinecone/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
   id: 'pinecone_fetch',

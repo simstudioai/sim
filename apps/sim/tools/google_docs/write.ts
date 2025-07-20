@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleDocsToolParams, GoogleDocsWriteResponse } from './types'
+import type { GoogleDocsToolParams, GoogleDocsWriteResponse } from '@/tools/google_docs/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse> = {
   id: 'google_docs_write',

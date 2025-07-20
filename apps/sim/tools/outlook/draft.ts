@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { OutlookDraftParams, OutlookDraftResponse } from './types'
+import type { OutlookDraftParams, OutlookDraftResponse } from '@/tools/outlook/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftResponse> = {
   id: 'outlook_draft',

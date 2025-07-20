@@ -1,8 +1,8 @@
-import { airtableCreateRecordsTool } from './create_records'
-import { airtableGetRecordTool } from './get_record'
-import { airtableListRecordsTool } from './list_records'
-import { airtableUpdateMultipleRecordsTool } from './update_multiple_records'
-import { airtableUpdateRecordTool } from './update_record'
+import { airtableCreateRecordsTool } from '@/tools/airtable/create_records'
+import { airtableGetRecordTool } from '@/tools/airtable/get_record'
+import { airtableListRecordsTool } from '@/tools/airtable/list_records'
+import { airtableUpdateMultipleRecordsTool } from '@/tools/airtable/update_multiple_records'
+import { airtableUpdateRecordTool } from '@/tools/airtable/update_record'
 
 export {
   airtableCreateRecordsTool,

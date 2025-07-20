@@ -1,6 +1,6 @@
 import type { OAuthService } from '@/lib/oauth/oauth'
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 
 export type ParameterVisibility =
   | 'user-or-llm' // User can provide OR LLM must generate
@@ -50,7 +50,7 @@ export interface ToolConfig<P = any, R = any> {
   // Request configuration
   request: {
     url: string | ((params: P) => string)
-    method: string
+    method: HttpMethod
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any>
     isInternalRoute?: boolean // Whether this is an internal API route

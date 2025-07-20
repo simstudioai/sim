@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { CreateCommentParams, CreateCommentResponse } from './types'
+import type { CreateCommentParams, CreateCommentResponse } from '@/tools/github/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse> = {
   id: 'github_comment',

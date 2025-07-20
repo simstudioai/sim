@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface GoogleSheetsRange {
   sheetId?: number

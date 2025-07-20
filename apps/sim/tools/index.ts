@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import type { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
-import { formatRequestParams, getTool, getToolAsync, validateToolRequest } from './utils'
+import type { OAuthTokenPayload, ToolConfig, ToolResponse } from '@/tools/types'
+import { formatRequestParams, getTool, getToolAsync, validateToolRequest } from '@/tools/utils'
 
 const logger = createLogger('Tools')
 
