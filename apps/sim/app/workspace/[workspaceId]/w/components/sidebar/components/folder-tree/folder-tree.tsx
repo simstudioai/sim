@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { useParams, usePathname } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -354,6 +354,7 @@ export function FolderTree({
   const pathname = usePathname()
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const workflowId = params.workflowId as string
   const {
     getFolderTree,
     expandedFolders,
@@ -361,8 +362,32 @@ export function FolderTree({
     isLoading: foldersLoading,
     clearSelection,
     updateFolderAPI,
+    getFolderPath,
+    setExpanded,
   } = useFolderStore()
   const { updateWorkflow } = useWorkflowRegistry()
+
+  // Memoize the active workflow's folder ID to avoid unnecessary re-runs
+  const activeWorkflowFolderId = useMemo(() => {
+    if (!workflowId || isLoading || foldersLoading) return null
+    const activeWorkflow = regularWorkflows.find((workflow) => workflow.id === workflowId)
+    return activeWorkflow?.folderId || null
+  }, [workflowId, regularWorkflows, isLoading, foldersLoading])
+
+  // Auto-expand folders when a workflow is active
+  useEffect(() => {
+    if (!activeWorkflowFolderId) return
+
+    // Get the folder path from root to the workflow's folder
+    const folderPath = getFolderPath(activeWorkflowFolderId)
+
+    // Expand all folders in the path (only if not already expanded)
+    folderPath.forEach((folder) => {
+      if (!expandedFolders.has(folder.id)) {
+        setExpanded(folder.id, true)
+      }
+    })
+  }, [activeWorkflowFolderId, getFolderPath, setExpanded])
 
   // Clean up any existing folders with 3+ levels of nesting
   const cleanupDeepNesting = useCallback(async () => {

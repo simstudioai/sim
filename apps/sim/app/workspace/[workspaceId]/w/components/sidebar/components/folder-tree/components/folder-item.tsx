@@ -14,7 +14,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
@@ -299,16 +298,20 @@ export function FolderItem({
           </div>
 
           {isEditing ? (
-            <Input
+            <input
               ref={inputRef}
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleInputBlur}
-              className='h-6 flex-1 border-0 bg-transparent p-0 text-muted-foreground text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='flex-1 border-0 bg-transparent p-0 text-muted-foreground text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
               maxLength={50}
               disabled={isRenaming}
               onClick={(e) => e.stopPropagation()} // Prevent folder toggle when clicking input
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              spellCheck='false'
             />
           ) : (
             <span className='flex-1 select-none truncate text-muted-foreground'>{folder.name}</span>

@@ -86,6 +86,8 @@ export function Sidebar() {
 
   // Add state to prevent multiple simultaneous workflow creations
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
+  // Add state to prevent multiple simultaneous workspace creations
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
   // Add sidebar collapsed state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const params = useParams()
@@ -276,7 +278,13 @@ export function Sidebar() {
    * Handle create workspace
    */
   const handleCreateWorkspace = useCallback(async () => {
+    if (isCreatingWorkspace) {
+      logger.info('Workspace creation already in progress, ignoring request')
+      return
+    }
+
     try {
+      setIsCreatingWorkspace(true)
       logger.info('Creating new workspace')
 
       const response = await fetch('/api/workspaces', {
@@ -306,8 +314,10 @@ export function Sidebar() {
       await switchWorkspace(newWorkspace)
     } catch (error) {
       logger.error('Error creating workspace:', error)
+    } finally {
+      setIsCreatingWorkspace(false)
     }
-  }, [refreshWorkspaceList, switchWorkspace])
+  }, [refreshWorkspaceList, switchWorkspace, isCreatingWorkspace])
 
   /**
    * Confirm delete workspace
@@ -570,6 +580,29 @@ export function Sidebar() {
     return { regularWorkflows: regular, tempWorkflows: temp }
   }, [workflows, isLoading, workspaceId])
 
+  // Prepare workflows for search modal
+  const searchWorkflows = useMemo(() => {
+    if (isLoading) return []
+
+    const allWorkflows = [...regularWorkflows, ...tempWorkflows]
+    return allWorkflows.map((workflow) => ({
+      id: workflow.id,
+      name: workflow.name,
+      href: `/workspace/${workspaceId}/w/${workflow.id}`,
+      isCurrent: workflow.id === workflowId,
+    }))
+  }, [regularWorkflows, tempWorkflows, workspaceId, workflowId, isLoading])
+
+  // Prepare workspaces for search modal (include all workspaces)
+  const searchWorkspaces = useMemo(() => {
+    return workspaces.map((workspace) => ({
+      id: workspace.id,
+      name: workspace.name,
+      href: `/workspace/${workspace.id}/w`,
+      isCurrent: workspace.id === workspaceId,
+    }))
+  }, [workspaces, workspaceId])
+
   // Create workflow handler
   const handleCreateWorkflow = async (folderId?: string): Promise<string> => {
     if (isCreatingWorkflow) {
@@ -752,6 +785,7 @@ export function Sidebar() {
               onLeaveWorkspace={handleLeaveWorkspace}
               isDeleting={isDeleting}
               isLeaving={isLeaving}
+              isCreating={isCreatingWorkspace}
             />
           </div>
 
@@ -783,7 +817,7 @@ export function Sidebar() {
             }`}
           >
             <div className='px-2'>
-              <ScrollArea ref={workflowScrollAreaRef} className='h-[212px]' hideScrollbar={true}>
+              <ScrollArea ref={workflowScrollAreaRef} className='h-[210px]' hideScrollbar={true}>
                 <FolderTree
                   regularWorkflows={regularWorkflows}
                   marketplaceWorkflows={tempWorkflows}
@@ -838,7 +872,15 @@ export function Sidebar() {
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
       <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
-      <SearchModal open={showSearchModal} onOpenChange={setShowSearchModal} templates={templates} />
+      <SearchModal
+        open={showSearchModal}
+        onOpenChange={setShowSearchModal}
+        templates={templates}
+        workflows={searchWorkflows}
+        workspaces={searchWorkspaces}
+        loading={isTemplatesLoading}
+        isOnWorkflowPage={isOnWorkflowPage}
+      />
     </>
   )
 }

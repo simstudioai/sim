@@ -46,6 +46,7 @@ interface WorkspaceSelectorProps {
   onLeaveWorkspace: (workspace: Workspace) => Promise<void>
   isDeleting: boolean
   isLeaving: boolean
+  isCreating: boolean
 }
 
 export function WorkspaceSelector({
@@ -59,6 +60,7 @@ export function WorkspaceSelector({
   onLeaveWorkspace,
   isDeleting,
   isLeaving,
+  isCreating,
 }: WorkspaceSelectorProps) {
   const userPermissions = useUserPermissionsContext()
 
@@ -256,7 +258,7 @@ export function WorkspaceSelector({
               onClick={userPermissions.canAdmin ? () => setShowInviteMembers(true) : undefined}
               disabled={!userPermissions.canAdmin}
               className={cn(
-                'h-8 flex-1 justify-center gap-2 rounded-[8px] font-medium text-muted-foreground text-xs hover:bg-secondary hover:text-muted-foreground',
+                'h-8 flex-1 justify-center gap-2 rounded-[8px] font-medium text-muted-foreground text-xs transition-colors hover:bg-muted-foreground/10 hover:text-muted-foreground',
                 !userPermissions.canAdmin && 'cursor-not-allowed opacity-50'
               )}
             >
@@ -269,7 +271,11 @@ export function WorkspaceSelector({
               variant='secondary'
               size='sm'
               onClick={onCreateWorkspace}
-              className='h-8 flex-1 justify-center gap-2 rounded-[8px] font-medium text-muted-foreground text-xs hover:bg-secondary hover:text-muted-foreground'
+              disabled={isCreating}
+              className={cn(
+                'h-8 flex-1 justify-center gap-2 rounded-[8px] font-medium text-muted-foreground text-xs transition-colors hover:bg-muted-foreground/10 hover:text-muted-foreground',
+                isCreating && 'cursor-not-allowed'
+              )}
             >
               <Plus className='h-3 w-3' />
               <span>Create</span>
