@@ -75,14 +75,44 @@ export class WorkflowBlockHandler implements BlockHandler {
       // The input from this block should be passed as start.input to the child workflow
       let childWorkflowInput = {}
 
-      if (inputs.input !== undefined) {
-        // If input is provided, use it directly
+      // Check for structured input format first
+      if (inputs.workflowInputFormat && Array.isArray(inputs.workflowInputFormat)) {
+        // Convert structured input format to key-value object
+        const formattedInput: Record<string, any> = {}
+        for (const field of inputs.workflowInputFormat) {
+          if (field.name && field.value !== undefined) {
+            formattedInput[field.name] = field.value
+          }
+        }
+        childWorkflowInput = formattedInput
+        logger.info(
+          `Passing structured input to child workflow: ${JSON.stringify(childWorkflowInput)}`
+        )
+      } else if (inputs.jsonInput !== undefined) {
+        // Use JSON input directly (advanced mode)
+        try {
+          childWorkflowInput =
+            typeof inputs.jsonInput === 'string' ? JSON.parse(inputs.jsonInput) : inputs.jsonInput
+          logger.info(`Passing JSON input to child workflow: ${JSON.stringify(childWorkflowInput)}`)
+        } catch (error) {
+          logger.error('Failed to parse JSON input:', error)
+          throw new Error('Invalid JSON input provided')
+        }
+      } else if (inputs.input !== undefined) {
+        // Legacy input handling for backward compatibility
         childWorkflowInput = inputs.input
-        logger.info(`Passing input to child workflow: ${JSON.stringify(childWorkflowInput)}`)
+        logger.info(`Passing legacy input to child workflow: ${JSON.stringify(childWorkflowInput)}`)
       }
 
-      // Remove the workflowId from the input to avoid confusion
-      const { workflowId: _, input: __, ...otherInputs } = inputs
+      // Remove workflow-specific inputs from the input to avoid confusion
+      const {
+        workflowId: _,
+        input: __,
+        workflowInputFormat: ___,
+        jsonInput: ____,
+        hasInputFields: _____,
+        ...otherInputs
+      } = inputs
 
       // Execute child workflow inline
       const subExecutor = new Executor({
@@ -102,7 +132,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
 
       // Map child workflow output to parent block output
-      return this.mapChildOutputToParent(result, workflowId, childWorkflowName, duration)
+      return this.mapChildOutputToParent(result, childWorkflowName)
     } catch (error: any) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
@@ -110,16 +140,15 @@ export class WorkflowBlockHandler implements BlockHandler {
       const executionId = `${context.workflowId}_sub_${workflowId}`
       WorkflowBlockHandler.executionStack.delete(executionId)
 
-      // Get workflow name for error reporting
+      // Get workflow name for error reporting and re-throw the error
       const { workflows } = useWorkflowRegistry.getState()
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
 
-      return {
-        success: false,
-        error: error.message || 'Child workflow execution failed',
-        childWorkflowName: childWorkflowName,
-      } as Record<string, any>
+      // Re-throw the error with more context instead of wrapping it
+      throw new Error(
+        `Child workflow '${childWorkflowName}' failed: ${error.message || 'Execution failed'}`
+      )
     }
   }
 
@@ -189,12 +218,7 @@ export class WorkflowBlockHandler implements BlockHandler {
   /**
    * Maps child workflow output to parent block output format
    */
-  private mapChildOutputToParent(
-    childResult: any,
-    childWorkflowId: string,
-    childWorkflowName: string,
-    duration: number
-  ): BlockOutput {
+  private mapChildOutputToParent(childResult: any, childWorkflowName: string): BlockOutput {
     const success = childResult.success !== false
 
     // If child workflow failed, return minimal output
@@ -213,11 +237,12 @@ export class WorkflowBlockHandler implements BlockHandler {
       result = childResult.output
     }
 
-    // Return a properly structured response with all required fields
-    return {
-      success: true,
-      childWorkflowName,
-      result,
-    } as Record<string, any>
+    // Check if result is wrapped in response.data structure and unwrap it
+    if (result?.response?.data) {
+      result = result.response.data
+    }
+
+    // Return the child workflow's result directly without wrapper
+    return result as Record<string, any>
   }
 }

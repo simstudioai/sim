@@ -387,6 +387,9 @@ export function SubBlock({
             disabled={isDisabled}
           />
         )
+      case 'hidden':
+        // Hidden fields don't render any UI but still compute values
+        return null
       case 'channel-selector':
         return (
           <ChannelSelectorInput
@@ -403,6 +406,11 @@ export function SubBlock({
   }
 
   const required = isFieldRequired()
+
+  // Hidden fields should not render anything
+  if (config.type === 'hidden') {
+    return null
+  }
 
   return (
     <div className='space-y-[6px] pt-[2px]' onMouseDown={handleMouseDown}>

@@ -25,7 +25,7 @@ export const StarterBlock: BlockConfig = {
     // Structured Input format - visible if manual run is selected (advanced mode)
     {
       id: 'inputFormat',
-      title: 'Input Format (for API calls)',
+      title: 'Input Format',
       type: 'input-format',
       layout: 'full',
       mode: 'advanced',

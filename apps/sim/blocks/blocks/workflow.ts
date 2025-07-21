@@ -2,18 +2,8 @@ import { WorkflowIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { BlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('WorkflowBlock')
-
-interface WorkflowResponse extends ToolResponse {
-  output: {
-    success: boolean
-    childWorkflowName: string
-    result: any
-    error?: string
-  }
-}
 
 // Helper function to get available workflows for the dropdown
 const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
@@ -51,11 +41,40 @@ export const WorkflowBlock: BlockConfig = {
       options: getAvailableWorkflows,
     },
     {
-      id: 'input',
-      title: 'Input Variable (Optional)',
-      type: 'short-input',
-      placeholder: 'Select a variable to pass to the child workflow',
-      description: 'This variable will be available as start.input in the child workflow',
+      id: 'hasInputFields',
+      type: 'hidden',
+    },
+    {
+      id: 'workflowInputFormat',
+      title: 'Input Fields',
+      type: 'input-format',
+      mode: 'basic',
+      condition: {
+        field: 'workflowId',
+        value: '',
+        not: true,
+        and: {
+          field: 'hasInputFields',
+          value: true,
+        },
+      },
+      description:
+        "Fill in the input values for the selected workflow. These fields are defined in the target workflow's start block.",
+    },
+    {
+      id: 'jsonInput',
+      title: 'JSON Input',
+      type: 'code',
+      language: 'json',
+      generationType: 'json-object',
+      mode: 'advanced',
+      condition: {
+        field: 'workflowId',
+        value: '',
+        not: true,
+      },
+      description: 'Provide JSON data to send to the workflow',
+      placeholder: '{\n  "key": "value",\n  "nested": {\n    "field": "data"\n  }\n}',
     },
   ],
   tools: {
@@ -74,9 +93,7 @@ export const WorkflowBlock: BlockConfig = {
     },
   },
   outputs: {
-    success: 'boolean',
-    childWorkflowName: 'string',
-    result: 'json',
-    error: 'string',
+    // Dynamic outputs - the workflow block now returns whatever the child workflow returns
+    // This allows direct access to child workflow outputs without wrapper
   },
 }

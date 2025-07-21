@@ -109,13 +109,9 @@ describe('WorkflowBlockHandler', () => {
 
       ;(WorkflowBlockHandler as any).executionStack.add('parent-workflow-id_sub_child-workflow-id')
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Cyclic workflow dependency detected: parent-workflow-id_sub_child-workflow-id',
-        childWorkflowName: 'child-workflow-id',
-      })
+      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+        "Child workflow 'child-workflow-id' failed: Cyclic workflow dependency detected: parent-workflow-id_sub_child-workflow-id"
+      )
     })
 
     it('should enforce maximum depth limit', async () => {
@@ -128,13 +124,9 @@ describe('WorkflowBlockHandler', () => {
           'level1_sub_level2_sub_level3_sub_level4_sub_level5_sub_level6_sub_level7_sub_level8_sub_level9_sub_level10_sub_level11',
       }
 
-      const result = await handler.execute(mockBlock, inputs, deepContext)
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Maximum workflow nesting depth of 10 exceeded',
-        childWorkflowName: 'child-workflow-id',
-      })
+      await expect(handler.execute(mockBlock, inputs, deepContext)).rejects.toThrow(
+        "Child workflow 'child-workflow-id' failed: Maximum workflow nesting depth of 10 exceeded"
+      )
     })
 
     it('should handle child workflow not found', async () => {
@@ -146,13 +138,9 @@ describe('WorkflowBlockHandler', () => {
         statusText: 'Not Found',
       })
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Child workflow non-existent-workflow not found',
-        childWorkflowName: 'non-existent-workflow',
-      })
+      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+        "Child workflow 'non-existent-workflow' failed: Child workflow non-existent-workflow not found"
+      )
     })
 
     it('should handle fetch errors gracefully', async () => {
@@ -160,13 +148,9 @@ describe('WorkflowBlockHandler', () => {
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Child workflow child-workflow-id not found',
-        childWorkflowName: 'child-workflow-id',
-      })
+      await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+        "Child workflow 'child-workflow-id' failed: Child workflow child-workflow-id not found"
+      )
     })
   })
 
@@ -212,18 +196,9 @@ describe('WorkflowBlockHandler', () => {
         output: { data: 'test result' },
       }
 
-      const result = (handler as any).mapChildOutputToParent(
-        childResult,
-        'child-id',
-        'Child Workflow',
-        100
-      )
+      const result = (handler as any).mapChildOutputToParent(childResult, 'Child Workflow')
 
-      expect(result).toEqual({
-        success: true,
-        childWorkflowName: 'Child Workflow',
-        result: { data: 'test result' },
-      })
+      expect(result).toEqual({ data: 'test result' })
     })
 
     it('should map failed child output correctly', () => {
@@ -232,12 +207,7 @@ describe('WorkflowBlockHandler', () => {
         error: 'Child workflow failed',
       }
 
-      const result = (handler as any).mapChildOutputToParent(
-        childResult,
-        'child-id',
-        'Child Workflow',
-        100
-      )
+      const result = (handler as any).mapChildOutputToParent(childResult, 'Child Workflow')
 
       expect(result).toEqual({
         success: false,
@@ -251,18 +221,25 @@ describe('WorkflowBlockHandler', () => {
         output: { nested: 'data' },
       }
 
-      const result = (handler as any).mapChildOutputToParent(
-        childResult,
-        'child-id',
-        'Child Workflow',
-        100
-      )
+      const result = (handler as any).mapChildOutputToParent(childResult, 'Child Workflow')
 
-      expect(result).toEqual({
-        success: true,
-        childWorkflowName: 'Child Workflow',
-        result: { nested: 'data' },
-      })
+      expect(result).toEqual({ nested: 'data' })
+    })
+
+    it('should unwrap response.data structures', () => {
+      const childResult = {
+        output: {
+          response: {
+            data: { finalResult: 'unwrapped data' },
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        },
+      }
+
+      const result = (handler as any).mapChildOutputToParent(childResult, 'Child Workflow')
+
+      expect(result).toEqual({ finalResult: 'unwrapped data' })
     })
   })
 })
