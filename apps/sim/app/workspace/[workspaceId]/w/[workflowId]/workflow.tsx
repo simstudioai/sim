@@ -402,7 +402,6 @@ const WorkflowContent = React.memo(() => {
       }
 
       const { type } = event.detail
-      console.log('🛠️ Adding block from toolbar:', type)
 
       if (!type) return
       if (type === 'connectionBlock') return

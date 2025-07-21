@@ -92,7 +92,7 @@ export default function Templates({ initialTemplates, currentUserId }: Templates
 
   const handleCreateNew = () => {
     // TODO: Open create template modal or navigate to create page
-    console.log('Create new template')
+    logger.info('Create new template')
   }
 
   // Handle star change callback from template card

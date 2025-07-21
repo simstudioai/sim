@@ -605,9 +605,9 @@ export function useWorkflowExecution() {
     }
 
     try {
-      console.log('Executing debug step with blocks:', pendingBlocks)
+      logger.info('Executing debug step with blocks:', pendingBlocks)
       const result = await executor!.continueExecution(pendingBlocks, debugContext!)
-      console.log('Debug step execution result:', result)
+      logger.info('Debug step execution result:', result)
 
       if (isDebugSessionComplete(result)) {
         await handleDebugSessionComplete(result)
@@ -660,7 +660,7 @@ export function useWorkflowExecution() {
       let currentContext = { ...debugContext! }
       let currentPendingBlocks = [...pendingBlocks]
 
-      console.log('Starting resume execution with blocks:', currentPendingBlocks)
+      logger.info('Starting resume execution with blocks:', currentPendingBlocks)
 
       // Continue execution until there are no more pending blocks
       let iterationCount = 0

@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import type { TypeformInsightsParams, TypeformInsightsResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('TypeformInsightsTool')
 
 export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsResponse> = {
   id: 'typeform_insights',
@@ -38,7 +41,7 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
 
       try {
         const errorData = await response.json()
-        console.log('Typeform API error response:', JSON.stringify(errorData, null, 2))
+        logger.info('Typeform API error response:', JSON.stringify(errorData, null, 2))
 
         if (errorData?.message) {
           errorMessage = errorData.message
@@ -68,7 +71,7 @@ Details from API: ${errorMessage}${errorDetails}`,
         }
       } catch (e) {
         // If we can't parse the error as JSON, just use the status text
-        console.log('Error parsing Typeform API error:', e)
+        logger.error('Error parsing Typeform API error:', e)
       }
 
       throw new Error(`Typeform API error (${response.status}): ${errorMessage}${errorDetails}`)
