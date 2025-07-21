@@ -119,10 +119,6 @@ describe('Multi-Input Routing Scenarios', () => {
     const pathTracker = (executor as any).pathTracker
     pathTracker.updateExecutionPaths(['router-1'], context)
 
-    console.log('After Router execution:')
-    console.log('Active execution path:', Array.from(context.activeExecutionPath))
-    console.log('Router decision:', context.decisions.router.get('router-1'))
-
     // Verify only function-1 is active
     expect(context.activeExecutionPath.has('function-1')).toBe(true)
     expect(context.activeExecutionPath.has('function-2')).toBe(false)
@@ -140,7 +136,6 @@ describe('Multi-Input Routing Scenarios', () => {
 
     // Step 4: Check agent-1 dependencies
     const agent1Connections = workflow.connections.filter((conn) => conn.target === 'agent-1')
-    console.log('Agent 1 incoming connections:', agent1Connections)
 
     // Check dependencies for agent-1
     const agent1DependenciesMet = (executor as any).checkDependencies(
@@ -149,12 +144,8 @@ describe('Multi-Input Routing Scenarios', () => {
       context
     )
 
-    console.log('Agent 1 dependencies met:', agent1DependenciesMet)
-    console.log('Agent 1 in active path:', context.activeExecutionPath.has('agent-1'))
-
     // Step 5: Get next execution layer
     const nextLayer = (executor as any).getNextExecutionLayer(context)
-    console.log('Next execution layer:', nextLayer)
 
     // CRITICAL TEST: Agent should be able to execute even though it has multiple inputs
     // The key is that the dependency logic should handle this correctly:
@@ -213,8 +204,6 @@ describe('Multi-Input Routing Scenarios', () => {
       context
     )
 
-    console.log('Agent 1 dependencies met (function-2 path):', agent1DependenciesMet)
-
     // Step 4: Get next execution layer
     const nextLayer = (executor as any).getNextExecutionLayer(context)
 
@@ -244,12 +233,10 @@ describe('Multi-Input Routing Scenarios', () => {
     // Connection from function-1 (executed, selected) → should be met
     const function1Connection = [{ source: 'function-1', target: 'agent-1' }]
     const function1DepMet = checkDependencies(function1Connection, context.executedBlocks, context)
-    console.log('Function-1 → Agent dependency met:', function1DepMet)
 
     // Connection from function-2 (not executed, not selected) → should be met because of inactive source logic
     const function2Connection = [{ source: 'function-2', target: 'agent-1' }]
     const function2DepMet = checkDependencies(function2Connection, context.executedBlocks, context)
-    console.log('Function-2 → Agent dependency met:', function2DepMet)
 
     // Both connections together (the actual agent scenario)
     const bothConnections = [
@@ -257,7 +244,6 @@ describe('Multi-Input Routing Scenarios', () => {
       { source: 'function-2', target: 'agent-1' },
     ]
     const bothDepMet = checkDependencies(bothConnections, context.executedBlocks, context)
-    console.log('Both connections dependency met:', bothDepMet)
 
     // CRITICAL ASSERTIONS:
     expect(function1DepMet).toBe(true) // Executed and active
