@@ -172,7 +172,7 @@ export function Panel() {
                   <TooltipContent side='bottom'>Export chat data</TooltipContent>
                 </Tooltip>
               )}
-                                {(activeTab === 'console' || activeTab === 'chat' || activeTab === 'copilot') && (
+              {(activeTab === 'console' || activeTab === 'chat' || activeTab === 'copilot') && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -212,20 +212,20 @@ export function Panel() {
                 chatMessage={chatMessage}
                 setChatMessage={setChatMessage}
               />
-                            ) : activeTab === 'console' ? (
-                  <Console panelWidth={panelWidth} />
-                ) : activeTab === 'copilot' ? (
-                  <Copilot
-                    ref={copilotRef}
-                    panelWidth={panelWidth}
-                    isFullscreen={isCopilotModalOpen}
-                    onFullscreenToggle={setIsCopilotModalOpen}
-                    fullscreenInput={copilotMessage}
-                    onFullscreenInputChange={setCopilotMessage}
-                  />
-                ) : (
-                  <Variables />
-                )}
+            ) : activeTab === 'console' ? (
+              <Console panelWidth={panelWidth} />
+            ) : activeTab === 'copilot' ? (
+              <Copilot
+                ref={copilotRef}
+                panelWidth={panelWidth}
+                isFullscreen={isCopilotModalOpen}
+                onFullscreenToggle={setIsCopilotModalOpen}
+                fullscreenInput={copilotMessage}
+                onFullscreenInputChange={setCopilotMessage}
+              />
+            ) : (
+              <Variables />
+            )}
           </div>
         </div>
       )}

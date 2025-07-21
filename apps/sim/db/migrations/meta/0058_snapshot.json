@@ -1,10 +1,6 @@
 {
-<<<<<<< HEAD
-  "id": "1403e0c4-459b-41c9-a603-d0c28103a2b3",
-=======
-  "id": "c7bc1cbd-335c-492e-ade5-913d68f5782d",
->>>>>>> origin/staging
-  "prevId": "137b88bb-98b9-4ab5-b847-2ed3428094cc",
+  "id": "83a9e7bf-a72c-46d7-b4d0-0580c3000925",
+  "prevId": "629121b5-cdc9-4e2f-b671-7e3b11af7af1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -97,8 +93,12 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -170,8 +170,12 @@
           "name": "api_key_user_id_user_id_fk",
           "tableFrom": "api_key",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -181,7 +185,9 @@
         "api_key_key_unique": {
           "name": "api_key_key_unique",
           "nullsNotDistinct": false,
-          "columns": ["key"]
+          "columns": [
+            "key"
+          ]
         }
       },
       "policies": {},
@@ -306,8 +312,12 @@
           "name": "chat_workflow_id_workflow_id_fk",
           "tableFrom": "chat",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -315,8 +325,12 @@
           "name": "chat_user_id_user_id_fk",
           "tableFrom": "chat",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -473,8 +487,12 @@
           "name": "copilot_chats_user_id_user_id_fk",
           "tableFrom": "copilot_chats",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -482,8 +500,12 @@
           "name": "copilot_chats_workflow_id_workflow_id_fk",
           "tableFrom": "copilot_chats",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -494,7 +516,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-<<<<<<< HEAD
     "public.copilot_checkpoints": {
       "name": "copilot_checkpoints",
       "schema": "",
@@ -675,8 +696,12 @@
           "name": "copilot_checkpoints_user_id_user_id_fk",
           "tableFrom": "copilot_checkpoints",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -684,8 +709,12 @@
           "name": "copilot_checkpoints_workflow_id_workflow_id_fk",
           "tableFrom": "copilot_checkpoints",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -693,8 +722,12 @@
           "name": "copilot_checkpoints_chat_id_copilot_chats_id_fk",
           "tableFrom": "copilot_checkpoints",
           "tableTo": "copilot_chats",
-          "columnsFrom": ["chat_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "chat_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -705,8 +738,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-=======
->>>>>>> origin/staging
     "public.custom_tools": {
       "name": "custom_tools",
       "schema": "",
@@ -762,8 +793,12 @@
           "name": "custom_tools_user_id_user_id_fk",
           "tableFrom": "custom_tools",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1113,8 +1148,6 @@
           "primaryKey": false,
           "notNull": false
         },
-<<<<<<< HEAD
-=======
         "tag1": {
           "name": "tag1",
           "type": "text",
@@ -1157,7 +1190,6 @@
           "primaryKey": false,
           "notNull": false
         },
->>>>>>> origin/staging
         "uploaded_at": {
           "name": "uploaded_at",
           "type": "timestamp",
@@ -1238,8 +1270,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-<<<<<<< HEAD
-=======
         },
         "doc_tag1_idx": {
           "name": "doc_tag1_idx",
@@ -1345,7 +1375,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
->>>>>>> origin/staging
         }
       },
       "foreignKeys": {
@@ -1353,8 +1382,12 @@
           "name": "document_knowledge_base_id_knowledge_base_id_fk",
           "tableFrom": "document",
           "tableTo": "knowledge_base",
-          "columnsFrom": ["knowledge_base_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "knowledge_base_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1442,14 +1475,6 @@
           "primaryKey": false,
           "notNull": true
         },
-<<<<<<< HEAD
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'"
-=======
         "tag1": {
           "name": "tag1",
           "type": "text",
@@ -1491,7 +1516,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
->>>>>>> origin/staging
         },
         "enabled": {
           "name": "enabled",
@@ -1659,19 +1683,11 @@
             "ef_construction": 64
           }
         },
-<<<<<<< HEAD
-        "emb_metadata_gin_idx": {
-          "name": "emb_metadata_gin_idx",
-          "columns": [
-            {
-              "expression": "metadata",
-=======
         "emb_tag1_idx": {
           "name": "emb_tag1_idx",
           "columns": [
             {
               "expression": "tag1",
->>>>>>> origin/staging
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1679,9 +1695,6 @@
           ],
           "isUnique": false,
           "concurrently": false,
-<<<<<<< HEAD
-          "method": "gin",
-=======
           "method": "btree",
           "with": {}
         },
@@ -1773,7 +1786,6 @@
           "isUnique": false,
           "concurrently": false,
           "method": "btree",
->>>>>>> origin/staging
           "with": {}
         },
         "emb_content_fts_idx": {
@@ -1797,8 +1809,12 @@
           "name": "embedding_knowledge_base_id_knowledge_base_id_fk",
           "tableFrom": "embedding",
           "tableTo": "knowledge_base",
-          "columnsFrom": ["knowledge_base_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "knowledge_base_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1806,8 +1822,12 @@
           "name": "embedding_document_id_document_id_fk",
           "tableFrom": "embedding",
           "tableTo": "document",
-          "columnsFrom": ["document_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "document_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1859,8 +1879,12 @@
           "name": "environment_user_id_user_id_fk",
           "tableFrom": "environment",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1870,7 +1894,9 @@
         "environment_user_id_unique": {
           "name": "environment_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["user_id"]
+          "columns": [
+            "user_id"
+          ]
         }
       },
       "policies": {},
@@ -1937,8 +1963,12 @@
           "name": "invitation_inviter_id_user_id_fk",
           "tableFrom": "invitation",
           "tableTo": "user",
-          "columnsFrom": ["inviter_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "inviter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1946,8 +1976,12 @@
           "name": "invitation_organization_id_organization_id_fk",
           "tableFrom": "invitation",
           "tableTo": "organization",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2114,8 +2148,12 @@
           "name": "knowledge_base_user_id_user_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2123,8 +2161,12 @@
           "name": "knowledge_base_workspace_id_workspace_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2215,8 +2257,12 @@
           "name": "marketplace_workflow_id_workflow_id_fk",
           "tableFrom": "marketplace",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2224,8 +2270,12 @@
           "name": "marketplace_author_id_user_id_fk",
           "tableFrom": "marketplace",
           "tableTo": "user",
-          "columnsFrom": ["author_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "author_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2278,8 +2328,12 @@
           "name": "member_user_id_user_id_fk",
           "tableFrom": "member",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2287,8 +2341,12 @@
           "name": "member_organization_id_organization_id_fk",
           "tableFrom": "member",
           "tableTo": "organization",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2412,8 +2470,12 @@
           "name": "memory_workflow_id_workflow_id_fk",
           "tableFrom": "memory",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2676,8 +2738,12 @@
           "name": "permissions_user_id_user_id_fk",
           "tableFrom": "permissions",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2753,8 +2819,12 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2762,8 +2832,12 @@
           "name": "session_active_organization_id_organization_id_fk",
           "tableFrom": "session",
           "tableTo": "organization",
-          "columnsFrom": ["active_organization_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "active_organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2773,7 +2847,9 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": ["token"]
+          "columns": [
+            "token"
+          ]
         }
       },
       "policies": {},
@@ -2803,13 +2879,6 @@
           "notNull": true,
           "default": "'system'"
         },
-        "debug_mode": {
-          "name": "debug_mode",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "auto_connect": {
           "name": "auto_connect",
           "type": "boolean",
@@ -2826,6 +2895,13 @@
         },
         "auto_pan": {
           "name": "auto_pan",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "console_expanded_by_default": {
+          "name": "console_expanded_by_default",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -2873,8 +2949,12 @@
           "name": "settings_user_id_user_id_fk",
           "tableFrom": "settings",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2884,7 +2964,9 @@
         "settings_user_id_unique": {
           "name": "settings_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["user_id"]
+          "columns": [
+            "user_id"
+          ]
         }
       },
       "policies": {},
@@ -3009,6 +3091,507 @@
       },
       "isRLSEnabled": false
     },
+    "public.template_stars": {
+      "name": "template_stars",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "template_id": {
+          "name": "template_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "starred_at": {
+          "name": "starred_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "template_stars_user_id_idx": {
+          "name": "template_stars_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "template_stars_template_id_idx": {
+          "name": "template_stars_template_id_idx",
+          "columns": [
+            {
+              "expression": "template_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "template_stars_user_template_idx": {
+          "name": "template_stars_user_template_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "template_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "template_stars_template_user_idx": {
+          "name": "template_stars_template_user_idx",
+          "columns": [
+            {
+              "expression": "template_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "template_stars_starred_at_idx": {
+          "name": "template_stars_starred_at_idx",
+          "columns": [
+            {
+              "expression": "starred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "template_stars_template_starred_at_idx": {
+          "name": "template_stars_template_starred_at_idx",
+          "columns": [
+            {
+              "expression": "template_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "starred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "template_stars_user_template_unique": {
+          "name": "template_stars_user_template_unique",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "template_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "template_stars_user_id_user_id_fk": {
+          "name": "template_stars_user_id_user_id_fk",
+          "tableFrom": "template_stars",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "template_stars_template_id_templates_id_fk": {
+          "name": "template_stars_template_id_templates_id_fk",
+          "tableFrom": "template_stars",
+          "tableTo": "templates",
+          "columnsFrom": [
+            "template_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.templates": {
+      "name": "templates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "workflow_id": {
+          "name": "workflow_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "author": {
+          "name": "author",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "views": {
+          "name": "views",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "stars": {
+          "name": "stars",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'#3972F6'"
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'FileText'"
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "templates_workflow_id_idx": {
+          "name": "templates_workflow_id_idx",
+          "columns": [
+            {
+              "expression": "workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_user_id_idx": {
+          "name": "templates_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_category_idx": {
+          "name": "templates_category_idx",
+          "columns": [
+            {
+              "expression": "category",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_views_idx": {
+          "name": "templates_views_idx",
+          "columns": [
+            {
+              "expression": "views",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_stars_idx": {
+          "name": "templates_stars_idx",
+          "columns": [
+            {
+              "expression": "stars",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_category_views_idx": {
+          "name": "templates_category_views_idx",
+          "columns": [
+            {
+              "expression": "category",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "views",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_category_stars_idx": {
+          "name": "templates_category_stars_idx",
+          "columns": [
+            {
+              "expression": "category",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stars",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_user_category_idx": {
+          "name": "templates_user_category_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "category",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_created_at_idx": {
+          "name": "templates_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_updated_at_idx": {
+          "name": "templates_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "templates_workflow_id_workflow_id_fk": {
+          "name": "templates_workflow_id_workflow_id_fk",
+          "tableFrom": "templates",
+          "tableTo": "workflow",
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "templates_user_id_user_id_fk": {
+          "name": "templates_user_id_user_id_fk",
+          "tableFrom": "templates",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.user": {
       "name": "user",
       "schema": "",
@@ -3069,9 +3652,85 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": ["email"]
+          "columns": [
+            "email"
+          ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_rate_limits": {
+      "name": "user_rate_limits",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "sync_api_requests": {
+          "name": "sync_api_requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "async_api_requests": {
+          "name": "async_api_requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "window_start": {
+          "name": "window_start",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_request_at": {
+          "name": "last_request_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "is_rate_limited": {
+          "name": "is_rate_limited",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "rate_limit_reset_at": {
+          "name": "rate_limit_reset_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_rate_limits_user_id_user_id_fk": {
+          "name": "user_rate_limits_user_id_user_id_fk",
+          "tableFrom": "user_rate_limits",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -3202,8 +3861,12 @@
           "name": "user_stats_user_id_user_id_fk",
           "tableFrom": "user_stats",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3213,7 +3876,9 @@
         "user_stats_user_id_unique": {
           "name": "user_stats_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["user_id"]
+          "columns": [
+            "user_id"
+          ]
         }
       },
       "policies": {},
@@ -3314,7 +3979,9 @@
         "waitlist_email_unique": {
           "name": "waitlist_email_unique",
           "nullsNotDistinct": false,
-          "columns": ["email"]
+          "columns": [
+            "email"
+          ]
         }
       },
       "policies": {},
@@ -3336,6 +4003,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "block_id": {
+          "name": "block_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "path": {
           "name": "path",
@@ -3399,8 +4072,25 @@
           "name": "webhook_workflow_id_workflow_id_fk",
           "tableFrom": "webhook",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "webhook_block_id_workflow_blocks_id_fk": {
+          "name": "webhook_block_id_workflow_blocks_id_fk",
+          "tableFrom": "webhook",
+          "tableTo": "workflow_blocks",
+          "columnsFrom": [
+            "block_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3548,8 +4238,12 @@
           "name": "workflow_user_id_user_id_fk",
           "tableFrom": "workflow",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3557,8 +4251,12 @@
           "name": "workflow_workspace_id_workspace_id_fk",
           "tableFrom": "workflow",
           "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3566,8 +4264,12 @@
           "name": "workflow_folder_id_workflow_folder_id_fk",
           "tableFrom": "workflow",
           "tableTo": "workflow_folder",
-          "columnsFrom": ["folder_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "folder_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -3780,8 +4482,12 @@
           "name": "workflow_blocks_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_blocks",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3934,8 +4640,12 @@
           "name": "workflow_edges_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_edges",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3943,8 +4653,12 @@
           "name": "workflow_edges_source_block_id_workflow_blocks_id_fk",
           "tableFrom": "workflow_edges",
           "tableTo": "workflow_blocks",
-          "columnsFrom": ["source_block_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "source_block_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3952,8 +4666,12 @@
           "name": "workflow_edges_target_block_id_workflow_blocks_id_fk",
           "tableFrom": "workflow_edges",
           "tableTo": "workflow_blocks",
-          "columnsFrom": ["target_block_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "target_block_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4262,8 +4980,12 @@
           "name": "workflow_execution_blocks_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_execution_blocks",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4532,8 +5254,12 @@
           "name": "workflow_execution_logs_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_execution_logs",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4541,8 +5267,12 @@
           "name": "workflow_execution_logs_state_snapshot_id_workflow_execution_snapshots_id_fk",
           "tableFrom": "workflow_execution_logs",
           "tableTo": "workflow_execution_snapshots",
-          "columnsFrom": ["state_snapshot_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "state_snapshot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4662,8 +5392,12 @@
           "name": "workflow_execution_snapshots_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_execution_snapshots",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4808,8 +5542,12 @@
           "name": "workflow_folder_user_id_user_id_fk",
           "tableFrom": "workflow_folder",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4817,8 +5555,12 @@
           "name": "workflow_folder_workspace_id_workspace_id_fk",
           "tableFrom": "workflow_folder",
           "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4895,8 +5637,12 @@
           "name": "workflow_logs_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_logs",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4922,6 +5668,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "block_id": {
+          "name": "block_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "cron_expression": {
           "name": "cron_expression",
@@ -4989,26 +5741,59 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "workflow_schedule_workflow_block_unique": {
+          "name": "workflow_schedule_workflow_block_unique",
+          "columns": [
+            {
+              "expression": "workflow_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "block_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "workflow_schedule_workflow_id_workflow_id_fk": {
           "name": "workflow_schedule_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_schedule",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workflow_schedule_block_id_workflow_blocks_id_fk": {
+          "name": "workflow_schedule_block_id_workflow_blocks_id_fk",
+          "tableFrom": "workflow_schedule",
+          "tableTo": "workflow_blocks",
+          "columnsFrom": [
+            "block_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "workflow_schedule_workflow_id_unique": {
-          "name": "workflow_schedule_workflow_id_unique",
-          "nullsNotDistinct": false,
-          "columns": ["workflow_id"]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -5100,8 +5885,12 @@
           "name": "workflow_subflows_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_subflows",
           "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workflow_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5155,8 +5944,12 @@
           "name": "workspace_owner_id_user_id_fk",
           "tableFrom": "workspace",
           "tableTo": "user",
-          "columnsFrom": ["owner_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5250,8 +6043,12 @@
           "name": "workspace_invitation_workspace_id_workspace_id_fk",
           "tableFrom": "workspace_invitation",
           "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5259,8 +6056,12 @@
           "name": "workspace_invitation_inviter_id_user_id_fk",
           "tableFrom": "workspace_invitation",
           "tableTo": "user",
-          "columnsFrom": ["inviter_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "inviter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5270,102 +6071,11 @@
         "workspace_invitation_token_unique": {
           "name": "workspace_invitation_token_unique",
           "nullsNotDistinct": false,
-          "columns": ["token"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.workspace_member": {
-      "name": "workspace_member",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'member'"
-        },
-        "joined_at": {
-          "name": "joined_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "user_workspace_idx": {
-          "name": "user_workspace_idx",
           "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
+            "token"
+          ]
         }
       },
-      "foreignKeys": {
-        "workspace_member_workspace_id_workspace_id_fk": {
-          "name": "workspace_member_workspace_id_workspace_id_fk",
-          "tableFrom": "workspace_member",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "workspace_member_user_id_user_id_fk": {
-          "name": "workspace_member_user_id_user_id_fk",
-          "tableFrom": "workspace_member",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -5375,7 +6085,11 @@
     "public.permission_type": {
       "name": "permission_type",
       "schema": "public",
-      "values": ["admin", "write", "read"]
+      "values": [
+        "admin",
+        "write",
+        "read"
+      ]
     }
   },
   "schemas": {},

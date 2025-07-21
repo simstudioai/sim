@@ -180,7 +180,7 @@ export function validateToolRequest(
   // Note: user-only parameters are not checked here as they're optional
   for (const [paramName, paramConfig] of Object.entries(tool.params)) {
     if (
-      paramConfig.visibility === 'user-or-llm' &&
+      (paramConfig as any).visibility === 'user-or-llm' &&
       paramConfig.required &&
       !(paramName in params)
     ) {
