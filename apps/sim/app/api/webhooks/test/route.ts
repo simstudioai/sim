@@ -465,6 +465,58 @@ export async function GET(request: NextRequest) {
         })
       }
 
+      case 'microsoftteams': {
+        const hmacSecret = providerConfig.hmacSecret
+
+        if (!hmacSecret) {
+          logger.warn(`[${requestId}] Microsoft Teams webhook missing HMAC secret: ${webhookId}`)
+          return NextResponse.json(
+            { success: false, error: 'Microsoft Teams webhook requires HMAC secret' },
+            { status: 400 }
+          )
+        }
+
+        logger.info(`[${requestId}] Microsoft Teams webhook test successful: ${webhookId}`)
+        return NextResponse.json({
+          success: true,
+          webhook: {
+            id: foundWebhook.id,
+            url: webhookUrl,
+            isActive: foundWebhook.isActive,
+          },
+          message: 'Microsoft Teams outgoing webhook configuration is valid.',
+          setup: {
+            url: webhookUrl,
+            hmacSecretConfigured: !!hmacSecret,
+            instructions: [
+              'Create an outgoing webhook in Microsoft Teams',
+              'Set the callback URL to the webhook URL above',
+              'Copy the HMAC security token to the configuration',
+              'Users can trigger the webhook by @mentioning it in Teams',
+            ],
+          },
+          test: {
+            curlCommand: `curl -X POST "${webhookUrl}" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: HMAC <signature>" \\
+  -d '{"type":"message","text":"Hello from Microsoft Teams!","from":{"id":"test","name":"Test User"}}'`,
+            samplePayload: {
+              type: 'message',
+              id: '1234567890',
+              timestamp: new Date().toISOString(),
+              text: 'Hello Sim Studio Bot!',
+              from: {
+                id: '29:1234567890abcdef',
+                name: 'Test User',
+              },
+              conversation: {
+                id: '19:meeting_abcdef@thread.v2',
+              },
+            },
+          },
+        })
+      }
+
       default: {
         // Generic webhook test
         logger.info(`[${requestId}] Generic webhook test successful: ${webhookId}`)

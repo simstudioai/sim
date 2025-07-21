@@ -400,6 +400,61 @@ export function formatWebhookInput(
     }
     return body
   }
+
+  if (foundWebhook.provider === 'microsoftteams') {
+    // Microsoft Teams outgoing webhook - Teams sending data to us
+    const messageText = body?.text || ''
+    const messageId = body?.id || ''
+    const timestamp = body?.timestamp || body?.localTimestamp || ''
+    const from = body?.from || {}
+    const conversation = body?.conversation || {}
+
+    return {
+      input: messageText, // Primary workflow input - the message text
+      microsoftteams: {
+        message: {
+          id: messageId,
+          text: messageText,
+          timestamp,
+          type: body?.type || 'message',
+          serviceUrl: body?.serviceUrl,
+          channelId: body?.channelId,
+          raw: body,
+        },
+        from: {
+          id: from.id,
+          name: from.name,
+          aadObjectId: from.aadObjectId,
+        },
+        conversation: {
+          id: conversation.id,
+          name: conversation.name,
+          conversationType: conversation.conversationType,
+          tenantId: conversation.tenantId,
+        },
+        activity: {
+          type: body?.type,
+          id: body?.id,
+          timestamp: body?.timestamp,
+          localTimestamp: body?.localTimestamp,
+          serviceUrl: body?.serviceUrl,
+          channelId: body?.channelId,
+        },
+      },
+      webhook: {
+        data: {
+          provider: 'microsoftteams',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
   // Generic format for Slack and other providers
   return {
     webhook: {
@@ -791,6 +846,54 @@ export async function executeWorkflowFromPayload(
 }
 
 /**
+ * Validates a Microsoft Teams outgoing webhook request signature using HMAC SHA-256
+ * @param hmacSecret - Microsoft Teams HMAC secret (base64 encoded)
+ * @param signature - Authorization header value (should start with 'HMAC ')
+ * @param body - Raw request body string
+ * @returns Whether the signature is valid
+ */
+export function validateMicrosoftTeamsSignature(
+  hmacSecret: string,
+  signature: string,
+  body: string
+): boolean {
+  try {
+    // Basic validation first
+    if (!hmacSecret || !signature || !body) {
+      return false
+    }
+
+    // Check if signature has correct format
+    if (!signature.startsWith('HMAC ')) {
+      return false
+    }
+
+    const providedSignature = signature.substring(5) // Remove 'HMAC ' prefix
+
+    // Compute HMAC SHA256 signature using Node.js crypto
+    const crypto = require('crypto')
+    const secretBytes = Buffer.from(hmacSecret, 'base64')
+    const bodyBytes = Buffer.from(body, 'utf8')
+    const computedHash = crypto.createHmac('sha256', secretBytes).update(bodyBytes).digest('base64')
+
+    // Constant-time comparison to prevent timing attacks
+    if (computedHash.length !== providedSignature.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < computedHash.length; i++) {
+      result |= computedHash.charCodeAt(i) ^ providedSignature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    console.error('Error validating Microsoft Teams signature:', error)
+    return false
+  }
+}
+
+/**
  * Process webhook provider-specific verification
  */
 export function verifyProviderWebhook(
@@ -850,6 +953,10 @@ export function verifyProviderWebhook(
 
       break
     }
+    case 'microsoftteams':
+      // Microsoft Teams webhook authentication is handled separately in the main flow
+      // due to the need for raw body access for HMAC verification
+      break
     case 'generic':
       // Generic auth logic: requireAuth, token, secretHeaderName, allowedIps
       if (providerConfig.requireAuth) {
@@ -1350,10 +1457,10 @@ export async function processWebhook(
       return NextResponse.json({ message: 'Airtable webhook processed' }, { status: 200 })
     }
 
-    // --- Provider-specific Auth/Verification (excluding Airtable/WhatsApp/Slack handled earlier) ---
+    // --- Provider-specific Auth/Verification (excluding Airtable/WhatsApp/Slack/MicrosoftTeams handled earlier) ---
     if (
       foundWebhook.provider &&
-      !['airtable', 'whatsapp', 'slack'].includes(foundWebhook.provider)
+      !['airtable', 'whatsapp', 'slack', 'microsoftteams'].includes(foundWebhook.provider)
     ) {
       const verificationResponse = verifyProviderWebhook(foundWebhook, request, requestId)
       if (verificationResponse) {

@@ -11,6 +11,7 @@ import {
   processGenericDeduplication,
   processWebhook,
   processWhatsAppDeduplication,
+  validateMicrosoftTeamsSignature,
 } from '@/lib/webhooks/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
@@ -241,6 +242,51 @@ export async function POST(
   if (slackChallengeResponse) {
     logger.info(`[${requestId}] Responding to Slack URL verification challenge`)
     return slackChallengeResponse
+  }
+
+  // Handle Microsoft Teams outgoing webhook signature verification (must be done before timeout)
+  if (foundWebhook.provider === 'microsoftteams') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+
+    if (providerConfig.hmacSecret) {
+      const authHeader = request.headers.get('authorization')
+
+      if (!authHeader || !authHeader.startsWith('HMAC ')) {
+        logger.warn(
+          `[${requestId}] Microsoft Teams outgoing webhook missing HMAC authorization header`
+        )
+        return new NextResponse('Unauthorized - Missing HMAC signature', { status: 401 })
+      }
+
+      // Get the raw body for HMAC verification
+      const rawBody = await request.text()
+
+      const isValidSignature = validateMicrosoftTeamsSignature(
+        providerConfig.hmacSecret,
+        authHeader,
+        rawBody
+      )
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Microsoft Teams HMAC signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid HMAC signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Microsoft Teams HMAC signature verified successfully`)
+
+      // Parse the body again since we consumed it for verification
+      try {
+        body = JSON.parse(rawBody)
+      } catch (parseError) {
+        logger.error(
+          `[${requestId}] Failed to parse Microsoft Teams webhook body after verification`,
+          {
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+          }
+        )
+        return new NextResponse('Invalid JSON payload', { status: 400 })
+      }
+    }
   }
 
   // Skip processing if another instance is already handling this request
