@@ -1,8 +1,6 @@
 import type { ToolConfig, ToolResponse } from '../types'
 
-interface GetYamlStructureParams {
-  // No parameters needed for this tool
-}
+type GetYamlStructureParams = Record<string, never>
 
 interface GetYamlStructureResult {
   guide: string
