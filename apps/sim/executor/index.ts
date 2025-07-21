@@ -1123,9 +1123,9 @@ export class Executor {
           const conditionId = conn.sourceHandle.replace('condition-', '')
           const selectedCondition = context.decisions.condition.get(conn.source)
 
-          // If source is executed and this is not the selected path, consider it met
+          // If source is executed and this is not the selected path, dependency is NOT met
           if (sourceExecuted && selectedCondition && conditionId !== selectedCondition) {
-            return true
+            return false
           }
 
           // Otherwise, this dependency is met only if source is executed and this is the selected path
@@ -1137,9 +1137,9 @@ export class Executor {
       if (sourceBlock?.metadata?.id === BlockType.ROUTER) {
         const selectedTarget = context.decisions.router.get(conn.source)
 
-        // If source is executed and this is not the selected target, consider it met
+        // If source is executed and this is not the selected target, dependency is NOT met
         if (sourceExecuted && selectedTarget && conn.target !== selectedTarget) {
-          return true
+          return false
         }
 
         // Otherwise, this dependency is met only if source is executed and this is the selected target

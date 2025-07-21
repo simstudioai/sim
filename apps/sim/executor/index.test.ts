@@ -805,7 +805,7 @@ describe('Executor', () => {
         executedBlocks,
         mockContext
       )
-      expect(nonSelectedResult).toBe(true) // router executed + target NOT selected = dependency auto-met
+      expect(nonSelectedResult).toBe(false) // router executed + target NOT selected = dependency NOT met
     })
 
     test('should handle condition decisions correctly in dependency checking', () => {
@@ -837,7 +837,7 @@ describe('Executor', () => {
         { source: 'condition1', target: 'falseTarget', sourceHandle: 'condition-false' },
       ]
       const falseResult = checkDependencies(falseConnections, executedBlocks, mockContext)
-      expect(falseResult).toBe(true) // condition executed + path NOT selected = dependency auto-met
+      expect(falseResult).toBe(false) // condition executed + path NOT selected = dependency NOT met
     })
 
     test('should handle regular sequential dependencies correctly', () => {
