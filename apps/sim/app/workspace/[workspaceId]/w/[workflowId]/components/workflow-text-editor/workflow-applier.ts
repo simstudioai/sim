@@ -117,11 +117,16 @@ export async function applyWorkflowDiff(
     }
 
     // Extract workflow state and subblock values
+    // Regenerate loops and parallels from blocks to ensure consistency
+    const { generateLoopBlocks, generateParallelBlocks } = await import('@/stores/workflows/workflow/utils')
+    const regeneratedLoops = generateLoopBlocks(parsedData.state.blocks)
+    const regeneratedParallels = generateParallelBlocks(parsedData.state.blocks)
+    
     const newWorkflowState = {
       blocks: parsedData.state.blocks,
       edges: parsedData.state.edges || [],
-      loops: parsedData.state.loops || {},
-      parallels: parsedData.state.parallels || {},
+      loops: regeneratedLoops,
+      parallels: regeneratedParallels,
       lastSaved: Date.now(),
       isDeployed: parsedData.state.isDeployed || false,
       deployedAt: parsedData.state.deployedAt,

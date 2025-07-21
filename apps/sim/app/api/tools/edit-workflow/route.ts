@@ -11,6 +11,8 @@ import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
 import { convertYamlToWorkflow, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { autoLayoutWorkflow } from '@/lib/autolayout/service'
 
 const logger = createLogger('EditWorkflowAPI')
 
@@ -169,13 +171,62 @@ export async function POST(request: NextRequest) {
         data: block.data || {},
       }
 
-      // Set input values as subblock values
+      // Set input values as subblock values with block reference mapping
       if (block.inputs && typeof block.inputs === 'object') {
         Object.entries(block.inputs).forEach(([key, value]) => {
           if (newWorkflowState.blocks[newId].subBlocks[key]) {
-            newWorkflowState.blocks[newId].subBlocks[key].value = value
+            // Update block references in values to use new mapped IDs
+            let processedValue = value
+            if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
+              // Update block references to use new mapped IDs
+              const blockMatches = value.match(/<([^>]+)>/g)
+              if (blockMatches) {
+                for (const match of blockMatches) {
+                  const path = match.slice(1, -1)
+                  const [blockRef] = path.split('.')
+                  
+                  // Skip system references (start, loop, parallel, variable)
+                  if (['start', 'loop', 'parallel', 'variable'].includes(blockRef.toLowerCase())) {
+                    continue
+                  }
+                  
+                  // Check if this references an old block ID that needs mapping
+                  const newMappedId = blockIdMapping.get(blockRef)
+                  if (newMappedId) {
+                    logger.info(`[${requestId}] Updating block reference: ${blockRef} -> ${newMappedId}`)
+                    processedValue = processedValue.replace(new RegExp(`<${blockRef}\\.`, 'g'), `<${newMappedId}.`)
+                    processedValue = processedValue.replace(new RegExp(`<${blockRef}>`, 'g'), `<${newMappedId}>`)
+                  }
+                }
+              }
+            }
+            newWorkflowState.blocks[newId].subBlocks[key].value = processedValue
           }
         })
+      }
+    }
+
+    // Update parent-child relationships with mapped IDs
+    logger.info(`[${requestId}] Block ID mapping:`, Object.fromEntries(blockIdMapping))
+    for (const [newId, blockData] of Object.entries(newWorkflowState.blocks)) {
+      const block = blockData as any
+      if (block.data?.parentId) {
+        logger.info(`[${requestId}] Found child block ${block.name} with parentId: ${block.data.parentId}`)
+        const mappedParentId = blockIdMapping.get(block.data.parentId)
+        if (mappedParentId) {
+          logger.info(`[${requestId}] Updating parent reference: ${block.data.parentId} -> ${mappedParentId}`)
+          block.data.parentId = mappedParentId
+          // Ensure extent is set for child blocks
+          if (!block.data.extent) {
+            block.data.extent = 'parent'
+          }
+        } else {
+          logger.error(`[${requestId}] ❌ Parent block not found for mapping: ${block.data.parentId}`)
+          logger.error(`[${requestId}] Available mappings:`, Array.from(blockIdMapping.keys()))
+          // Remove invalid parent reference
+          block.data.parentId = undefined
+          block.data.extent = undefined
+        }
       }
     }
 
@@ -194,6 +245,53 @@ export async function POST(request: NextRequest) {
           type: edge.type || 'default',
         })
       }
+    }
+
+    // Generate loop and parallel configurations from the imported blocks
+    const loops = generateLoopBlocks(newWorkflowState.blocks)
+    const parallels = generateParallelBlocks(newWorkflowState.blocks)
+    
+    // Update workflow state with generated configurations
+    newWorkflowState.loops = loops
+    newWorkflowState.parallels = parallels
+    
+    logger.info(`[${requestId}] Generated loop and parallel configurations`, {
+      loopsCount: Object.keys(loops).length,
+      parallelsCount: Object.keys(parallels).length,
+      loopIds: Object.keys(loops),
+      parallelIds: Object.keys(parallels),
+    })
+
+    // Apply intelligent autolayout to optimize block positions
+    try {
+      logger.info(`[${requestId}] Applying autolayout to ${Object.keys(newWorkflowState.blocks).length} blocks`)
+      
+      const layoutedBlocks = await autoLayoutWorkflow(
+        newWorkflowState.blocks,
+        newWorkflowState.edges,
+        {
+          strategy: 'smart',
+          direction: 'auto',
+          spacing: {
+            horizontal: 400,
+            vertical: 200,
+            layer: 600,
+          },
+          alignment: 'center',
+          padding: {
+            x: 200,
+            y: 200,
+          },
+        }
+      )
+      
+      // Update workflow state with optimized positions
+      newWorkflowState.blocks = layoutedBlocks
+      
+      logger.info(`[${requestId}] Autolayout completed successfully`)
+    } catch (layoutError) {
+      // Log the error but don't fail the entire workflow save
+      logger.warn(`[${requestId}] Autolayout failed, using original positions:`, layoutError)
     }
 
     // Save directly to database using the same function as the workflow state API
@@ -239,11 +337,25 @@ export async function POST(request: NextRequest) {
       logger.warn('[edit-workflow] Failed to notify socket server:', socketError)
     }
 
+    // Calculate summary with loop/parallel information
+    const loopBlocksCount = Object.values(newWorkflowState.blocks).filter(
+      (b: any) => b.type === 'loop'
+    ).length
+    const parallelBlocksCount = Object.values(newWorkflowState.blocks).filter(
+      (b: any) => b.type === 'parallel'
+    ).length
+    
+    let summaryDetails = `Successfully created workflow with ${blocks.length} blocks and ${edges.length} connections.`
+    
+    if (loopBlocksCount > 0 || parallelBlocksCount > 0) {
+      summaryDetails += ` Generated ${Object.keys(loops).length} loop configurations and ${Object.keys(parallels).length} parallel configurations.`
+    }
+
     const result = {
       success: true,
       errors: [],
       warnings,
-      summary: `Successfully created workflow with ${blocks.length} blocks and ${edges.length} connections.`,
+      summary: summaryDetails,
     }
 
     logger.info('[edit-workflow] Import result', {

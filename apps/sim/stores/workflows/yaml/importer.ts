@@ -6,6 +6,7 @@ import { resolveOutputType } from '@/blocks/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { generateLoopBlocks, generateParallelBlocks } from '../workflow/utils'
 import {
   type ConnectionsFormat,
   expandConditionInputs,
@@ -759,12 +760,16 @@ export async function importWorkflowFromYaml(
       }
     }
 
+    // Generate loop and parallel configurations from the imported blocks
+    const loops = generateLoopBlocks(completeBlocks)
+    const parallels = generateParallelBlocks(completeBlocks)
+
     // Create final workflow state
     const completeWorkflowState = {
       blocks: completeBlocks,
       edges: completeEdges,
-      loops: {},
-      parallels: {},
+      loops,
+      parallels,
       lastSaved: Date.now(),
       isDeployed: false,
       deployedAt: undefined,
@@ -775,7 +780,11 @@ export async function importWorkflowFromYaml(
     logger.info('Final workflow state created', {
       totalBlocks: Object.keys(completeBlocks).length,
       totalEdges: completeEdges.length,
+      totalLoops: Object.keys(loops).length,
+      totalParallels: Object.keys(parallels).length,
       blockIds: Object.keys(completeBlocks),
+      loopIds: Object.keys(loops),
+      parallelIds: Object.keys(parallels),
     })
 
     // Save directly to database via API
@@ -821,12 +830,24 @@ export async function importWorkflowFromYaml(
       (b: any) => b.type === 'starter'
     ).length
     const newBlocksCount = totalBlocksInWorkflow - starterBlocksCount
+    const loopBlocksCount = Object.values(completeBlocks).filter(
+      (b: any) => b.type === 'loop'
+    ).length
+    const parallelBlocksCount = Object.values(completeBlocks).filter(
+      (b: any) => b.type === 'parallel'
+    ).length
+
+    let summaryDetails = `Successfully replaced workflow with ${blocks.length} blocks from YAML. Workflow now has ${totalBlocksInWorkflow} blocks (${starterBlocksCount} starter, ${newBlocksCount} new) and ${completeEdges.length} connections.`
+    
+    if (loopBlocksCount > 0 || parallelBlocksCount > 0) {
+      summaryDetails += ` Generated ${Object.keys(loops).length} loop configurations and ${Object.keys(parallels).length} parallel configurations.`
+    }
 
     return {
       success: true,
       errors: [],
       warnings,
-      summary: `Successfully replaced workflow with ${blocks.length} blocks from YAML. Workflow now has ${totalBlocksInWorkflow} blocks (${starterBlocksCount} starter, ${newBlocksCount} new) and ${completeEdges.length} connections.`,
+      summary: summaryDetails,
     }
   } catch (error) {
     logger.error('YAML import failed:', error)

@@ -5,6 +5,7 @@ import {
   Bug,
   ChevronLeft,
   Copy,
+  FileCode,
   Layers,
   Play,
   RefreshCw,
@@ -49,6 +50,7 @@ import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { ExportControls } from './components/export-controls/export-controls'
 import { TemplateModal } from './components/template-modal/template-modal'
+import { WorkflowTextEditorModal } from '../workflow-text-editor/workflow-text-editor-modal'
 
 const logger = createLogger('ControlBar')
 
@@ -509,6 +511,38 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   }
 
   /**
+   * Render YAML editor button
+   */
+  const renderYamlEditorButton = () => {
+    const canEdit = userPermissions.canEdit
+    const isDisabled = isExecuting || isDebugging || !canEdit
+
+    const getTooltipText = () => {
+      if (!canEdit) return 'Admin permission required to edit YAML'
+      if (isDebugging) return 'Cannot edit YAML while debugging'
+      if (isExecuting) return 'Cannot edit YAML while workflow is running'
+      return 'Edit workflow as YAML/JSON'
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <WorkflowTextEditorModal
+            disabled={isDisabled}
+            className={cn(
+              'h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs',
+              isDisabled
+                ? 'cursor-not-allowed opacity-50'
+                : 'hover:bg-secondary cursor-pointer'
+            )}
+          />
+        </TooltipTrigger>
+        <TooltipContent>{getTooltipText()}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  /**
    * Render auto-layout button
    */
   const renderAutoLayoutButton = () => {
@@ -943,6 +977,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {renderDisconnectionNotice()}
       {renderToggleButton()}
       {isExpanded && <ExportControls />}
+      {isExpanded && renderYamlEditorButton()}
       {isExpanded && renderAutoLayoutButton()}
       {isExpanded && renderDuplicateButton()}
       {renderDeleteButton()}

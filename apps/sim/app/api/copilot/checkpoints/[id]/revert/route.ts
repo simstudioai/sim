@@ -106,13 +106,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         continue
       }
 
-      // Create subBlocks for the block
+      // Create subBlocks for the block with block reference mapping
       const subBlocks: Record<string, any> = {}
       blockConfig.subBlocks.forEach((subBlock) => {
+        let value = block.inputs[subBlock.id] || null
+        
+        // Update block references in values to use new mapped IDs
+        if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
+          const blockMatches = value.match(/<([^>]+)>/g)
+          if (blockMatches) {
+            for (const match of blockMatches) {
+              const path = match.slice(1, -1)
+              const [blockRef] = path.split('.')
+              
+              // Skip system references (start, loop, parallel, variable)
+              if (['start', 'loop', 'parallel', 'variable'].includes(blockRef.toLowerCase())) {
+                continue
+              }
+              
+              // Check if this references an old block ID that needs mapping
+              const newMappedId = blockIdMapping.get(blockRef)
+              if (newMappedId) {
+                logger.info(`[${requestId}] Updating block reference: ${blockRef} -> ${newMappedId}`)
+                value = value.replace(new RegExp(`<${blockRef}\\.`, 'g'), `<${newMappedId}.`)
+                value = value.replace(new RegExp(`<${blockRef}>`, 'g'), `<${newMappedId}>`)
+              }
+            }
+          }
+        }
+        
         subBlocks[subBlock.id] = {
           id: subBlock.id,
           type: subBlock.type,
-          value: block.inputs[subBlock.id] || null,
+          value,
         }
       })
 
@@ -128,6 +154,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         isWide: false,
         height: 0,
         data: block.data || {},
+      }
+    }
+
+    // Update parent-child relationships with mapped IDs
+    for (const [newId, blockData] of Object.entries(newWorkflowState.blocks)) {
+      const block = blockData as any
+      if (block.data?.parentId) {
+        const mappedParentId = blockIdMapping.get(block.data.parentId)
+        if (mappedParentId) {
+          logger.info(`[${requestId}] Updating parent reference: ${block.data.parentId} -> ${mappedParentId}`)
+          block.data.parentId = mappedParentId
+          // Ensure extent is set for child blocks
+          if (!block.data.extent) {
+            block.data.extent = 'parent'
+          }
+        } else {
+          logger.warn(`[${requestId}] Parent block not found for mapping: ${block.data.parentId}`)
+          // Remove invalid parent reference
+          block.data.parentId = undefined
+          block.data.extent = undefined
+        }
       }
     }
 
