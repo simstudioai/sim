@@ -1,5 +1,8 @@
-import type { ToolConfig } from '../types'
-import type { MicrosoftExcelTableAddResponse, MicrosoftExcelTableToolParams } from './types'
+import type {
+  MicrosoftExcelTableAddResponse,
+  MicrosoftExcelTableToolParams,
+} from '@/tools/microsoft_excel/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const tableAddTool: ToolConfig<
   MicrosoftExcelTableToolParams,
@@ -18,21 +21,25 @@ export const tableAddTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Microsoft Excel API',
     },
     spreadsheetId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the spreadsheet containing the table',
     },
     tableName: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The name of the table to add rows to',
     },
     values: {
       type: 'array',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The data to add to the table (array of arrays or array of objects)',
     },
   },

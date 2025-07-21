@@ -1,5 +1,9 @@
-import type { ToolConfig } from '../types'
-import type { LinearIssue, LinearReadIssuesParams, LinearReadIssuesResponse } from './types'
+import type {
+  LinearIssue,
+  LinearReadIssuesParams,
+  LinearReadIssuesResponse,
+} from '@/tools/linear/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearReadIssuesResponse> = {
   id: 'linear_read_issues',
@@ -11,8 +15,18 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     provider: 'linear',
   },
   params: {
-    teamId: { type: 'string', required: true, description: 'Linear team ID' },
-    projectId: { type: 'string', required: true, description: 'Linear project ID' },
+    teamId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Linear team ID',
+    },
+    projectId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Linear project ID',
+    },
   },
   request: {
     url: 'https://api.linear.app/graphql',

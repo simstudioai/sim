@@ -1,5 +1,8 @@
-import type { ToolConfig } from '../types'
-import type { MicrosoftExcelToolParams, MicrosoftExcelWriteResponse } from './types'
+import type {
+  MicrosoftExcelToolParams,
+  MicrosoftExcelWriteResponse,
+} from '@/tools/microsoft_excel/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWriteResponse> = {
   id: 'microsoft_excel_write',
@@ -15,23 +18,37 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Microsoft Excel API',
     },
     spreadsheetId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the spreadsheet to write to',
     },
-    range: { type: 'string', required: false, description: 'The range of cells to write to' },
-    values: { type: 'array', required: true, description: 'The data to write to the spreadsheet' },
+    range: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The range of cells to write to',
+    },
+    values: {
+      type: 'array',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The data to write to the spreadsheet',
+    },
     valueInputOption: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'The format of the data to write',
     },
     includeValuesInResponse: {
       type: 'boolean',
       required: false,
+      visibility: 'hidden',
       description: 'Whether to include the written values in the response',
     },
   },

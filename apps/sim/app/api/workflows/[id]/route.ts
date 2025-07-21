@@ -119,7 +119,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       finalWorkflowData.state = {
         // Default values for expected properties
         deploymentStatuses: {},
-        hasActiveSchedule: false,
         hasActiveWebhook: false,
         // Preserve any existing state properties
         ...existingState,

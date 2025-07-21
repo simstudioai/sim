@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { useNotificationStore } from '@/stores/notifications/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DateInputProps {
@@ -31,7 +30,6 @@ export function DateInput({
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
-  const addNotification = useNotificationStore((state) => state.addNotification)
   const date = value ? new Date(value) : undefined
 
   const isPastDate = React.useMemo(() => {
@@ -47,10 +45,6 @@ export function DateInput({
     if (selectedDate) {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-
-      if (selectedDate < today) {
-        addNotification('error', 'Cannot start at a date in the past', blockId)
-      }
     }
     setStoreValue(selectedDate?.toISOString() || '')
   }

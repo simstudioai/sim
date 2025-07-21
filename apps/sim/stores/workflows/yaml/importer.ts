@@ -769,7 +769,6 @@ export async function importWorkflowFromYaml(
       isDeployed: false,
       deployedAt: undefined,
       deploymentStatuses: {},
-      hasActiveSchedule: false,
       hasActiveWebhook: false,
     }
 

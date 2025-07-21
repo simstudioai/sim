@@ -2,6 +2,7 @@ import path from 'path'
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/env'
+import { isDev, isProd } from './lib/environment'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -26,7 +27,7 @@ const nextConfig: NextConfig = {
     optimizeCss: true,
     turbopackSourceMaps: false,
   },
-  ...(env.NODE_ENV === 'development' && {
+  ...(isDev && {
     allowedDevOrigins: [
       ...(env.NEXT_PUBLIC_APP_URL
         ? (() => {
@@ -42,7 +43,13 @@ const nextConfig: NextConfig = {
     ],
     outputFileTracingRoot: path.join(__dirname, '../../'),
   }),
-  transpilePackages: ['prettier', '@react-email/components', '@react-email/render'],
+  transpilePackages: [
+    'prettier',
+    '@react-email/components',
+    '@react-email/render',
+    '@t3-oss/env-nextjs',
+    '@t3-oss/env-core',
+  ],
   async headers() {
     return [
       {
@@ -139,7 +146,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://*.vercel-scripts.com https://*.vercel-insights.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app https://vitals.vercel-insights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${env.NEXT_PUBLIC_APP_URL || ''} ${env.OLLAMA_URL || 'http://localhost:11434'} ${env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'} ${env.NEXT_PUBLIC_SOCKET_URL?.replace('http://', 'ws://').replace('https://', 'wss://') || 'ws://localhost:3002'} https://*.up.railway.app wss://*.up.railway.app https://api.browser-use.com https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://*.vercel-insights.com https://vitals.vercel-insights.com https://*.atlassian.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app wss://*.vercel.app; frame-src https://drive.google.com https://*.google.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://*.vercel-scripts.com https://*.vercel-insights.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app https://vitals.vercel-insights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${env.NEXT_PUBLIC_APP_URL || ''} ${env.OLLAMA_URL || 'http://localhost:11434'} ${env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'} ${env.NEXT_PUBLIC_SOCKET_URL?.replace('http://', 'ws://').replace('https://', 'wss://') || 'ws://localhost:3002'} https://*.up.railway.app wss://*.up.railway.app https://api.browser-use.com https://api.exa.ai https://api.firecrawl.dev https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://*.vercel-insights.com https://vitals.vercel-insights.com https://*.atlassian.com https://*.supabase.co https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app wss://*.vercel.app; frame-src https://drive.google.com https://*.google.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'`,
           },
         ],
       },
@@ -152,8 +159,8 @@ const sentryConfig = {
   org: env.SENTRY_ORG || '',
   project: env.SENTRY_PROJECT || '',
   authToken: env.SENTRY_AUTH_TOKEN || undefined,
-  disableSourceMapUpload: env.NODE_ENV !== 'production',
-  autoInstrumentServerFunctions: env.NODE_ENV === 'production',
+  disableSourceMapUpload: !isProd,
+  autoInstrumentServerFunctions: isProd,
   bundleSizeOptimizations: {
     excludeDebugStatements: true,
     excludePerformanceMonitoring: true,
@@ -163,6 +170,4 @@ const sentryConfig = {
   },
 }
 
-export default env.NODE_ENV === 'development'
-  ? nextConfig
-  : withSentryConfig(nextConfig, sentryConfig)
+export default isDev ? nextConfig : withSentryConfig(nextConfig, sentryConfig)

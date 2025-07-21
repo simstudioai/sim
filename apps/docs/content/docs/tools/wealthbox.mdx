@@ -1,0 +1,200 @@
+---
+title: Wealthbox
+description: Interact with Wealthbox
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wealthbox"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      version='1.0'
+      
+      
+      viewBox='50 -50 200 200'
+    >
+      <g fill='#106ED4' stroke='none' transform='translate(0, 200) scale(0.15, -0.15)'>
+        <path d='M764 1542 c-110 -64 -230 -134 -266 -156 -42 -24 -71 -49 -78 -65 -7 -19 -10 -126 -8 -334 3 -291 4 -307 23 -326 11 -11 103 -67 205 -126 102 -59 219 -127 261 -151 42 -24 85 -44 96 -44 23 0 527 288 561 320 22 22 22 23 22 340 0 288 -2 320 -17 338 -32 37 -537 322 -569 321 -18 0 -107 -46 -230 -117z m445 -144 c108 -62 206 -123 219 -135 22 -22 22 -26 22 -261 0 -214 -2 -242 -17 -260 -23 -26 -414 -252 -437 -252 -9 0 -70 31 -134 69 -64 37 -161 94 -215 125 l-97 57 2 261 3 261 210 123 c116 67 219 123 229 123 10 1 107 -50 215 -111z' />
+        <path d='M700 1246 l-55 -32 -3 -211 -2 -211 37 -23 c21 -12 52 -30 69 -40 l30 -18 103 59 c56 33 109 60 117 60 8 0 62 -27 119 -60 l104 -60 63 37 c35 21 66 42 70 48 4 5 8 101 8 212 l0 202 -62 35 -63 35 -3 -197 c-1 -108 -6 -200 -11 -205 -5 -5 -54 17 -114 52 -58 34 -108 61 -111 61 -2 0 -51 -27 -107 -60 -56 -32 -106 -57 -111 -54 -4 3 -8 95 -8 205 0 109 -3 199 -7 199 -5 -1 -33 -16 -63 -34z' />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Wealthbox](https://www.wealthbox.com/) is a comprehensive CRM platform designed specifically for financial advisors and wealth management professionals. It provides a centralized system for managing client relationships, tracking interactions, and organizing business workflows in the financial services industry.
+
+With Wealthbox, you can:
+
+- **Manage client relationships**: Store detailed contact information, background data, and relationship histories for all your clients
+- **Track interactions**: Create and maintain notes about meetings, calls, and other client touchpoints
+- **Organize tasks**: Schedule and manage follow-up activities, deadlines, and important action items
+- **Document workflows**: Keep comprehensive records of client communications and business processes
+- **Access client data**: Retrieve information quickly with organized contact management and search capabilities
+- **Automate follow-ups**: Set reminders and schedule tasks to ensure consistent client engagement
+
+In Sim Studio, the Wealthbox integration enables your agents to seamlessly interact with your CRM data through OAuth authentication. This allows for powerful automation scenarios such as automatically creating client notes from meeting transcripts, updating contact information, scheduling follow-up tasks, and retrieving client details for personalized communications. Your agents can read existing notes, contacts, and tasks to understand client history, while also creating new entries to maintain up-to-date records. This integration bridges the gap between your AI workflows and your client relationship management, enabling automated data entry, intelligent client insights, and streamlined administrative processes that free up time for more valuable client-facing activities.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Wealthbox functionality to manage notes, contacts, and tasks. Read content from existing notes, contacts, and tasks and write to them using OAuth authentication. Supports text content manipulation for note creation and editing.
+
+
+
+## Tools
+
+### `wealthbox_read_note`
+
+Read content from a Wealthbox note
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Wealthbox API |
+| `noteId` | string | No | The ID of the note to read |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `note` | string |
+| `metadata` | string |
+| `noteId` | string |
+| `itemType` | string |
+
+### `wealthbox_write_note`
+
+Create or update a Wealthbox note
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Wealthbox API |
+| `content` | string | Yes | The main body of the note |
+| `contactId` | string | No | ID of contact to link to this note |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `data` | json |
+
+### `wealthbox_read_contact`
+
+Read content from a Wealthbox contact
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Wealthbox API |
+| `contactId` | string | No | The ID of the contact to read |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `contact` | string |
+| `metadata` | string |
+| `contactId` | string |
+| `itemType` | string |
+
+### `wealthbox_write_contact`
+
+Create a new Wealthbox contact
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Wealthbox API |
+| `firstName` | string | Yes | The first name of the contact |
+| `lastName` | string | Yes | The last name of the contact |
+| `emailAddress` | string | No | The email address of the contact |
+| `backgroundInformation` | string | No | Background information about the contact |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `contact` | string |
+| `metadata` | string |
+| `itemType` | string |
+
+### `wealthbox_read_task`
+
+Read content from a Wealthbox task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Wealthbox API |
+| `taskId` | string | No | The ID of the task to read |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `task` | string |
+| `metadata` | string |
+| `taskId` | string |
+| `itemType` | string |
+
+### `wealthbox_write_task`
+
+Create or update a Wealthbox task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Wealthbox API |
+| `title` | string | Yes | The name/title of the task |
+| `dueDate` | string | Yes | The due date and time of the task \(format:  |
+| `contactId` | string | No | ID of contact to link to this task |
+| `description` | string | No | Description or notes about the task |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `data` | json |
+
+
+
+## Block Configuration
+
+### Input
+
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
+
+
+
+### Outputs
+
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `note` | any | note output from the block |
+| `notes` | any | notes output from the block |
+| `contact` | any | contact output from the block |
+| `contacts` | any | contacts output from the block |
+| `task` | any | task output from the block |
+| `tasks` | any | tasks output from the block |
+| `metadata` | json | metadata output from the block |
+| `success` | any | success output from the block |
+
+
+## Notes
+
+- Category: `tools`
+- Type: `wealthbox`

@@ -1,5 +1,9 @@
-import type { ToolConfig } from '../types'
-import type { LinkupSearchParams, LinkupSearchResponse, LinkupSearchToolResponse } from './types'
+import type {
+  LinkupSearchParams,
+  LinkupSearchResponse,
+  LinkupSearchToolResponse,
+} from '@/tools/linkup/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse> = {
   id: 'linkup_search',
@@ -11,23 +15,26 @@ export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse
     q: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The search query',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      description: 'Enter your Linkup API key',
-      requiredForToolCall: true,
     },
     depth: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Search depth (has to either be "standard" or "deep")',
     },
     outputType: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Type of output to return (has to either be "sourcedAnswer" or "searchResults")',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Enter your Linkup API key',
     },
   },
 

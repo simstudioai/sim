@@ -1,5 +1,5 @@
 import { PackageSearchIcon } from '@/components/icons'
-import type { BlockConfig } from '../types'
+import type { BlockConfig } from '@/blocks/types'
 
 export const KnowledgeBlock: BlockConfig = {
   type: 'knowledge',
@@ -26,6 +26,25 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_search'
         }
       },
+      params: (params) => {
+        // Validate required fields for each operation
+        if (params.operation === 'search' && !params.knowledgeBaseIds) {
+          throw new Error('Knowledge base IDs are required for search operation')
+        }
+        if (
+          (params.operation === 'upload_chunk' || params.operation === 'create_document') &&
+          !params.knowledgeBaseId
+        ) {
+          throw new Error(
+            'Knowledge base ID is required for upload_chunk and create_document operations'
+          )
+        }
+        if (params.operation === 'upload_chunk' && !params.documentId) {
+          throw new Error('Document ID is required for upload_chunk operation')
+        }
+
+        return params
+      },
     },
   },
   inputs: {
@@ -36,6 +55,15 @@ export const KnowledgeBlock: BlockConfig = {
     topK: { type: 'number', required: false },
     documentId: { type: 'string', required: false },
     content: { type: 'string', required: false },
+    name: { type: 'string', required: false },
+    // Tag filters for search
+    tag1: { type: 'string', required: false },
+    tag2: { type: 'string', required: false },
+    tag3: { type: 'string', required: false },
+    tag4: { type: 'string', required: false },
+    tag5: { type: 'string', required: false },
+    tag6: { type: 'string', required: false },
+    tag7: { type: 'string', required: false },
   },
   outputs: {
     results: 'json',
@@ -90,6 +118,69 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'search' },
     },
     {
+      id: 'tag1',
+      title: 'Tag 1 Filter',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Filter by tag 1',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag2',
+      title: 'Tag 2 Filter',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Filter by tag 2',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag3',
+      title: 'Tag 3 Filter',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Filter by tag 3',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag4',
+      title: 'Tag 4 Filter',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Filter by tag 4',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag5',
+      title: 'Tag 5 Filter',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Filter by tag 5',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag6',
+      title: 'Tag 6 Filter',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Filter by tag 6',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag7',
+      title: 'Tag 7 Filter',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Filter by tag 7',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
       id: 'documentId',
       title: 'Document',
       type: 'document-selector',
@@ -122,6 +213,70 @@ export const KnowledgeBlock: BlockConfig = {
       placeholder: 'Enter the document content',
       rows: 6,
       condition: { field: 'operation', value: ['create_document'] },
+    },
+    // Tag inputs for Create Document (in advanced mode)
+    {
+      id: 'tag1',
+      title: 'Tag 1',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter tag 1 value',
+      condition: { field: 'operation', value: 'create_document' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag2',
+      title: 'Tag 2',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter tag 2 value',
+      condition: { field: 'operation', value: 'create_document' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag3',
+      title: 'Tag 3',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter tag 3 value',
+      condition: { field: 'operation', value: 'create_document' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag4',
+      title: 'Tag 4',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter tag 4 value',
+      condition: { field: 'operation', value: 'create_document' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag5',
+      title: 'Tag 5',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter tag 5 value',
+      condition: { field: 'operation', value: 'create_document' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag6',
+      title: 'Tag 6',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter tag 6 value',
+      condition: { field: 'operation', value: 'create_document' },
+      mode: 'advanced',
+    },
+    {
+      id: 'tag7',
+      title: 'Tag 7',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter tag 7 value',
+      condition: { field: 'operation', value: 'create_document' },
+      mode: 'advanced',
     },
   ],
 }

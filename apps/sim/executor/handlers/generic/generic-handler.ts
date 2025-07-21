@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
-import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('GenericBlockHandler')
 
@@ -59,7 +59,30 @@ export class GenericBlockHandler implements BlockHandler {
         throw error
       }
 
-      return result.output
+      // Extract cost information from tool response if available
+      const output = result.output
+      let cost = null
+
+      // Check if the tool is a knowledge tool and has cost information
+      if (block.config.tool?.startsWith('knowledge_') && output?.cost) {
+        cost = output.cost
+      }
+
+      // Return the output with cost information if available
+      if (cost) {
+        return {
+          ...output,
+          cost: {
+            input: cost.input,
+            output: cost.output,
+            total: cost.total,
+          },
+          tokens: cost.tokens,
+          model: cost.model,
+        }
+      }
+
+      return output
     } catch (error: any) {
       // Ensure we have a meaningful error message
       if (!error.message || error.message === 'undefined (undefined)') {

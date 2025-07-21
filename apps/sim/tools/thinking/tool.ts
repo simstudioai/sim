@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ThinkingToolParams, ThinkingToolResponse } from './types'
+import type { ThinkingToolParams, ThinkingToolResponse } from '@/tools/thinking/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> = {
   id: 'thinking_tool',
@@ -8,11 +8,11 @@ export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> 
     'Processes a provided thought/instruction, making it available for subsequent steps.',
   version: '1.0.0',
 
-  // Define the input parameter
   params: {
     thought: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description:
         'The thought process or instruction provided by the user in the Thinking Step block.',
     },

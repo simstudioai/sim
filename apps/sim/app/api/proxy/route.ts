@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { getTool, validateToolRequest } from '@/tools/utils'
@@ -51,14 +52,14 @@ const createErrorResponse = (error: any, status = 500, additionalData = {}) => {
   logger.error('Creating error response', {
     errorMessage,
     status,
-    stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
+    stack: isDev ? errorStack : undefined,
   })
 
   return formatResponse(
     {
       success: false,
       error: errorMessage,
-      stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
+      stack: isDev ? errorStack : undefined,
       ...additionalData,
     },
     status

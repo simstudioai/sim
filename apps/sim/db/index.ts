@@ -1,6 +1,7 @@
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/lib/env'
+import { isDev } from '@/lib/environment'
 import * as schema from './schema'
 
 // In production, use the Vercel-generated POSTGRES_URL
@@ -10,25 +11,23 @@ const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
 /**
  * Connection Pool Allocation Strategy
  *
- * Main App (this file): 3 connections per instance
- * Socket Server Operations: 2 connections
- * Socket Server Room Manager: 1 connection
+ * Main App: 60 connections per instance
+ * Socket Server: 25 connections (operations) + 5 connections (room manager) = 30 total
  *
  * With ~3-4 Vercel serverless instances typically active:
- * - Main app: 3 × 4 = 12 connections
- * - Socket server: 2 + 1 = 3 connections
- * - Buffer: 5 connections for spikes/other services
- * - Total: ~20 connections (at capacity limit)
- *
- * This conservative allocation prevents pool exhaustion while maintaining performance.
+ * - Main app: 60 × 4 = 240 connections
+ * - Socket server: 30 connections total
+ * - Buffer: 130 connections
+ * - Total: ~400 connections
+ * - Supabase limit: 400 connections (16XL instance direct connection pool)
  */
 
 const postgresClient = postgres(connectionString, {
-  prepare: false, // Disable prefetch as it is not supported for "Transaction" pool mode
-  idle_timeout: 20, // Reduce idle timeout to 20 seconds to free up connections faster
-  connect_timeout: 30, // Increase connect timeout to 30 seconds to handle network issues
-  max: 2, // Further reduced limit to prevent Supabase connection exhaustion
-  onnotice: () => {}, // Disable notices to reduce noise
+  prepare: false,
+  idle_timeout: 20,
+  connect_timeout: 30,
+  max: 60,
+  onnotice: () => {},
 })
 
 const drizzleClient = drizzle(postgresClient, { schema })
@@ -38,4 +37,4 @@ declare global {
 }
 
 export const db = global.database || drizzleClient
-if (env.NODE_ENV !== 'production') global.database = db
+if (isDev) global.database = db

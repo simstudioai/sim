@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ClayPopulateParams, ClayPopulateResponse } from './types'
+import type { ClayPopulateParams, ClayPopulateResponse } from '@/tools/clay/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateResponse> = {
   id: 'clay_populate',
@@ -12,19 +12,20 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
     webhookURL: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'The webhook URL to populate',
     },
     data: {
       type: 'json',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The data to populate',
-      optionalToolInput: true,
     },
     authToken: {
       type: 'string',
-      required: false,
-      description: 'Optional auth token for WebhookURL',
+      required: true,
+      visibility: 'user-only',
+      description: 'Auth token for Clay webhook authentication',
     },
   },
 

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { AirtableGetParams, AirtableGetResponse } from './types'
+import type { AirtableGetParams, AirtableGetResponse } from '@/tools/airtable/types'
+import type { ToolConfig } from '@/tools/types'
 
 // import { logger } from '@/utils/logger' // Removed logger due to import issues
 
@@ -18,21 +18,25 @@ export const airtableGetRecordTool: ToolConfig<AirtableGetParams, AirtableGetRes
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token',
     },
     baseId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID of the Airtable base',
     },
     tableId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID or name of the table',
     },
     recordId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID of the record to retrieve',
     },
   },

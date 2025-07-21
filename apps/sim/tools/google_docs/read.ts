@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleDocsReadResponse, GoogleDocsToolParams } from './types'
+import type { GoogleDocsReadResponse, GoogleDocsToolParams } from '@/tools/google_docs/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> = {
   id: 'google_docs_read',
@@ -15,9 +15,15 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Docs API',
     },
-    documentId: { type: 'string', required: true, description: 'The ID of the document to read' },
+    documentId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The ID of the document to read',
+    },
   },
   request: {
     url: (params) => {

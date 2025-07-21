@@ -71,12 +71,15 @@ Define the data to pass to the child workflow:
 - **Optional**: The input field is optional - child workflows can run without input data
 - **Type Preservation**: Variable types (strings, numbers, objects, etc.) are preserved when passed to the child workflow
 
-### Examples of Input References
+### Accessing Results
 
-- `<variable.customerData>` - Pass a workflow variable
-- `<dataProcessor.result>` - Pass the result from a previous block
-- `<start.input>` - Pass the original workflow input
-- `<apiCall.data.user>` - Pass a specific field from an API response
+After a workflow executes, you can access its outputs:
+
+- **`<workflow.response>`**: The complete output from the child workflow
+- **`<workflow.name>`**: The name of the executed child workflow
+- **`<workflow.success>`**: Boolean indicating successful completion
+- **`<workflow.error>`**: Error details if the workflow failed
+- **`<workflow.execution_time>`**: Time taken to execute the workflow
 
 ### Execution Context
 
@@ -100,132 +103,157 @@ To prevent infinite recursion and ensure system stability, the Workflow block in
 - **Timeout Protection**: Child workflows inherit timeout settings to prevent indefinite execution
 - **Resource Limits**: Memory and execution time limits apply to prevent resource exhaustion
 
+## Advanced Features
+
+### Dynamic Workflow Selection
+
+Select workflows dynamically based on runtime conditions:
+
+```javascript
+// In a Function block before the Workflow block
+const workflowId = <condition.result> ? 'premium-workflow' : 'standard-workflow';
+return { selectedWorkflow: workflowId };
+```
+
+### Error Handling and Fallbacks
+
+Implement robust error handling for child workflows:
+
+```javascript
+// In a Function block after the Workflow block
+if (!<workflow.success>) {
+  console.error('Child workflow failed:', <workflow.error>);
+  // Implement fallback logic
+  return { fallback: true, error: <workflow.error> };
+}
+return <workflow.response>;
+```
+
+### Workflow Chaining
+
+Chain multiple workflows together:
+
+```javascript
+// Pass output from one workflow to another
+Workflow 1 Input: <start.input>
+Workflow 2 Input: <workflow1.response>
+Workflow 3 Input: <workflow2.response>
+```
+
 ## Inputs and Outputs
 
-<Tabs items={['Inputs', 'Outputs']}>
+<Tabs items={['Configuration', 'Variables', 'Results']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Workflow ID</strong>: The identifier of the workflow to execute
+        <strong>Workflow Selection</strong>: Choose which workflow to execute
       </li>
       <li>
-        <strong>Input Variable</strong>: Variable or block reference to pass to the child workflow (e.g., `<variable.name>` or `<block.field>`)
+        <strong>Input Data</strong>: Variable or block reference to pass to child workflow
+      </li>
+      <li>
+        <strong>Execution Context</strong>: Isolated environment with workspace resources
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Response</strong>: The complete output from the child workflow execution
+        <strong>workflow.response</strong>: Complete output from child workflow
       </li>
       <li>
-        <strong>Child Workflow Name</strong>: The name of the executed child workflow
+        <strong>workflow.name</strong>: Name of executed child workflow
       </li>
       <li>
-        <strong>Success Status</strong>: Boolean indicating whether the child workflow completed successfully
+        <strong>workflow.success</strong>: Boolean indicating completion status
       </li>
       <li>
-        <strong>Error Information</strong>: Details about any errors that occurred during execution
+        <strong>workflow.error</strong>: Error details if workflow failed
       </li>
       <li>
-        <strong>Execution Metadata</strong>: Information about execution time, resource usage, and performance
+        <strong>workflow.execution_time</strong>: Time taken to execute
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Workflow Response</strong>: Primary output from child workflow
+      </li>
+      <li>
+        <strong>Execution Status</strong>: Success status and error information
+      </li>
+      <li>
+        <strong>Access</strong>: Available in blocks after the workflow
       </li>
     </ul>
   </Tab>
 </Tabs>
 
-## Example Usage
+## Example Use Cases
 
-Here's an example of how a Workflow block might be used to create a modular customer onboarding process:
+### Modular Customer Onboarding
 
-### Parent Workflow: Customer Onboarding
-```yaml
-# Main customer onboarding workflow
-blocks:
-  - type: workflow
-    name: "Validate Customer Data"
-    workflowId: "customer-validation-workflow"
-    input: "<variable.newCustomer>"
-  
-  - type: workflow
-    name: "Setup Customer Account"
-    workflowId: "account-setup-workflow"
-    input: "<Validate Customer Data.result>"
-  
-  - type: workflow
-    name: "Send Welcome Email"
-    workflowId: "welcome-email-workflow"
-    input: "<Setup Customer Account.result.accountDetails>"
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Break down complex onboarding into reusable components</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Main workflow receives customer data</li>
+    <li>Workflow block executes validation workflow</li>
+    <li>Workflow block executes account setup workflow</li>
+    <li>Workflow block executes welcome email workflow</li>
+  </ol>
+</div>
+
+### Microservice Architecture
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Create independent service workflows</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Payment processing workflow handles transactions</li>
+    <li>Inventory management workflow updates stock</li>
+    <li>Notification workflow sends confirmations</li>
+    <li>Main workflow orchestrates all services</li>
+  </ol>
+</div>
+
+### Conditional Processing
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Execute different workflows based on conditions</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Condition block evaluates user type</li>
+    <li>Enterprise users → Complex approval workflow</li>
+    <li>Standard users → Simple approval workflow</li>
+    <li>Free users → Basic processing workflow</li>
+  </ol>
+</div>
+
+### Example: Customer Validation Workflow
+
+```javascript title="validation-workflow.js"
+// Main workflow passes customer data to validation workflow
+const customerData = <start.input>;
+
+// Validation workflow processes the data
+const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerData.email);
+const phoneValid = /^\+?[1-9]\d{1,14}$/.test(customerData.phone);
+
+return {
+  customer: customerData,
+  validation: {
+    email: emailValid,
+    phone: phoneValid,
+    overall: emailValid && phoneValid
+  }
+};
 ```
-
-### Child Workflow: Customer Validation
-```yaml
-# Reusable customer validation workflow
-# Access the input data using: start.input
-blocks:
-  - type: function
-    name: "Validate Email"
-    code: |
-      const customerData = start.input;
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(customerData.email);
-  
-  - type: api
-    name: "Check Credit Score"
-    url: "https://api.creditcheck.com/score"
-    method: "POST"
-    body: "<start.input>"
-```
-
-### Variable Reference Examples
-
-```yaml
-# Using workflow variables
-input: "<variable.customerInfo>"
-
-# Using block outputs
-  input: "<dataProcessor.cleanedData>"
-
-# Using nested object properties
-  input: "<apiCall.data.user.profile>"
-
-# Using array elements (if supported by the resolver)
-  input: "<listProcessor.items[0]>"
-```
-
-## Access Control and Permissions
-
-The Workflow block respects workspace permissions and access controls:
-
-- **Workspace Membership**: Only workflows within the same workspace can be executed
-- **Permission Inheritance**: Child workflows inherit the execution permissions of the parent workflow
-- **API Key Access**: Child workflows have access to the same API keys and environment variables as the parent
-- **User Context**: The execution maintains the original user context for audit and logging purposes
 
 ## Best Practices
 
-- **Keep workflows focused**: Design child workflows to handle specific, well-defined tasks
-- **Minimize nesting depth**: Avoid deeply nested workflow hierarchies for better maintainability
-- **Handle errors gracefully**: Implement proper error handling for child workflow failures
-- **Document dependencies**: Clearly document which workflows depend on others
-- **Version control**: Consider versioning strategies for workflows that are used as components
-- **Test independently**: Ensure child workflows can be tested and validated independently
-- **Monitor performance**: Be aware that nested workflows can impact overall execution time
-
-## Common Patterns
-
-### Microservice Architecture
-Break down complex business processes into smaller, focused workflows that can be developed and maintained independently.
-
-### Reusable Components
-Create library workflows for common operations like data validation, email sending, or API integrations that can be reused across multiple projects.
-
-### Conditional Execution
-Use workflow blocks within conditional logic to execute different business processes based on runtime conditions.
-
-### Parallel Processing
-Combine workflow blocks with parallel execution to run multiple child workflows simultaneously for improved performance.
-
-<Callout type="tip">
-  When designing modular workflows, think of each workflow as a function with clear inputs, outputs, and a single responsibility.
-</Callout> 
+- **Keep workflows focused**: Design child workflows to handle specific, well-defined tasks with clear inputs and outputs
+- **Minimize nesting depth**: Avoid deeply nested workflow hierarchies for better maintainability and performance
+- **Handle errors gracefully**: Implement proper error handling for child workflow failures and provide fallback mechanisms
+- **Document dependencies**: Clearly document which workflows depend on others and maintain dependency maps
+- **Test independently**: Ensure child workflows can be tested and validated independently from parent workflows
+- **Monitor performance**: Be aware that nested workflows can impact overall execution time and resource usage
+- **Use semantic naming**: Give workflows descriptive names that clearly indicate their purpose and functionality 

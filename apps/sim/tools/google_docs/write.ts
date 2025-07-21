@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleDocsToolParams, GoogleDocsWriteResponse } from './types'
+import type { GoogleDocsToolParams, GoogleDocsWriteResponse } from '@/tools/google_docs/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse> = {
   id: 'google_docs_write',
@@ -15,6 +15,7 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Docs API',
     },
     documentId: {

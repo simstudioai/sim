@@ -513,7 +513,6 @@ export async function POST(req: NextRequest) {
     // } else {
     logger.info(`[${requestId}] Using VM for code execution`, {
       resolvedCode,
-      executionParams,
       hasEnvVars: Object.keys(envVars).length > 0,
     })
 

@@ -79,6 +79,29 @@ Send emails using Gmail
 | `threadId` | string |
 | `labelIds` | string |
 
+### `gmail_draft`
+
+Draft emails using Gmail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Access token for Gmail API |
+| `to` | string | Yes | Recipient email address |
+| `subject` | string | Yes | Email subject |
+| `body` | string | Yes | Email body content |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `content` | string |
+| `metadata` | string |
+| `message` | string |
+| `threadId` | string |
+| `labelIds` | string |
+
 ### `gmail_read`
 
 Read emails from Gmail
@@ -117,12 +140,17 @@ Search emails in Gmail
 | Parameter | Type |
 | --------- | ---- |
 | `content` | string |
+| `metadata` | string |
 
 
 
 ## Block Configuration
 
-No configuration parameters required.
+### Input
+
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
 
 
 
@@ -130,9 +158,8 @@ No configuration parameters required.
 
 | Output | Type | Description |
 | ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `content` | string | content of the response |
-| ↳ `metadata` | json | metadata of the response |
+| `content` | string | content output from the block |
+| `metadata` | json | metadata output from the block |
 
 
 ## Notes

@@ -3,16 +3,16 @@
  */
 
 import { createLogger } from '@/lib/logs/console-logger'
-import type { BlockLog } from '@/executor/types'
-import { calculateStreamingCost } from './calculators'
-import { TOKENIZATION_CONFIG } from './constants'
+import { calculateStreamingCost } from '@/lib/tokenization/calculators'
+import { TOKENIZATION_CONFIG } from '@/lib/tokenization/constants'
 import {
   extractTextContent,
   hasRealCostData,
   hasRealTokenData,
   isTokenizableBlockType,
   logTokenizationDetails,
-} from './utils'
+} from '@/lib/tokenization/utils'
+import type { BlockLog } from '@/executor/types'
 
 const logger = createLogger('StreamingTokenization')
 

@@ -1,9 +1,10 @@
 import crypto from 'crypto'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 import type { LoopConfig, ParallelConfig, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -24,15 +25,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const requestId = crypto.randomUUID().slice(0, 8)
   const startTime = Date.now()
 
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(
-        `[${requestId}] Unauthorized workflow duplication attempt for ${sourceWorkflowId}`
-      )
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const session = await getSession()
+  if (!session?.user?.id) {
+    logger.warn(`[${requestId}] Unauthorized workflow duplication attempt for ${sourceWorkflowId}`)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
+  try {
     const body = await req.json()
     const { name, description, color, workspaceId, folderId } = DuplicateRequestSchema.parse(body)
 
@@ -46,18 +45,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Duplicate workflow and all related data in a transaction
     const result = await db.transaction(async (tx) => {
-      // First verify the source workflow exists and user has access
+      // First verify the source workflow exists
       const sourceWorkflow = await tx
         .select()
         .from(workflow)
-        .where(and(eq(workflow.id, sourceWorkflowId), eq(workflow.userId, session.user.id)))
+        .where(eq(workflow.id, sourceWorkflowId))
         .limit(1)
 
       if (sourceWorkflow.length === 0) {
-        throw new Error('Source workflow not found or access denied')
+        throw new Error('Source workflow not found')
       }
 
       const source = sourceWorkflow[0]
+
+      // Check if user has permission to access the source workflow
+      let canAccessSource = false
+
+      // Case 1: User owns the workflow
+      if (source.userId === session.user.id) {
+        canAccessSource = true
+      }
+
+      // Case 2: User has admin or write permission in the source workspace
+      if (!canAccessSource && source.workspaceId) {
+        const userPermission = await getUserEntityPermissions(
+          session.user.id,
+          'workspace',
+          source.workspaceId
+        )
+        if (userPermission === 'admin' || userPermission === 'write') {
+          canAccessSource = true
+        }
+      }
+
+      if (!canAccessSource) {
+        throw new Error('Source workflow not found or access denied')
+      }
 
       // Create the new workflow first (required for foreign key constraints)
       await tx.insert(workflow).values({
@@ -346,9 +369,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
-    if (error instanceof Error && error.message === 'Source workflow not found or access denied') {
-      logger.warn(`[${requestId}] Source workflow ${sourceWorkflowId} not found or access denied`)
-      return NextResponse.json({ error: 'Source workflow not found' }, { status: 404 })
+    if (error instanceof Error) {
+      if (error.message === 'Source workflow not found') {
+        logger.warn(`[${requestId}] Source workflow ${sourceWorkflowId} not found`)
+        return NextResponse.json({ error: 'Source workflow not found' }, { status: 404 })
+      }
+
+      if (error.message === 'Source workflow not found or access denied') {
+        logger.warn(
+          `[${requestId}] User ${session.user.id} denied access to source workflow ${sourceWorkflowId}`
+        )
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
     }
 
     if (error instanceof z.ZodError) {

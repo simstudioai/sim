@@ -1,15 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import {
-  ChevronDown,
-  ChevronDownSquare,
-  ChevronRight,
-  ChevronUpSquare,
-  Code,
-  Cpu,
-  ExternalLink,
-} from 'lucide-react'
+import { useState } from 'react'
+import { ChevronDown, ChevronRight, Code, Cpu, ExternalLink } from 'lucide-react'
 import {
   AgentIcon,
   ApiIcon,
@@ -18,7 +10,7 @@ import {
   ConditionalIcon,
   ConnectIcon,
 } from '@/components/icons'
-import { cn } from '@/lib/utils'
+import { cn, redactApiKeys } from '@/lib/utils'
 import type { TraceSpan } from '../../stores/types'
 
 interface TraceSpansDisplayProps {
@@ -33,15 +25,7 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
 
   // For input data, filter out sensitive information
   if (isInput) {
-    const cleanInput = { ...data }
-
-    // Remove sensitive fields
-    if (cleanInput.apiKey) {
-      cleanInput.apiKey = '***'
-    }
-    if (cleanInput.azureApiKey) {
-      cleanInput.azureApiKey = '***'
-    }
+    const cleanInput = redactApiKeys(data)
 
     // Remove null/undefined values for cleaner display
     Object.keys(cleanInput).forEach((key) => {
@@ -81,6 +65,10 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
           headers: response.headers,
         }
 
+      case 'tool':
+        // For tool calls, show the result data directly
+        return response
+
       default:
         // For other block types, show the response content
         return response
@@ -88,6 +76,70 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
   }
 
   return data
+}
+
+// Collapsible Input/Output component
+interface CollapsibleInputOutputProps {
+  span: TraceSpan
+  spanId: string
+}
+
+function CollapsibleInputOutput({ span, spanId }: CollapsibleInputOutputProps) {
+  const [inputExpanded, setInputExpanded] = useState(false)
+  const [outputExpanded, setOutputExpanded] = useState(false)
+
+  return (
+    <div className='mt-2 mr-4 mb-4 ml-8 space-y-3 overflow-hidden'>
+      {/* Input Data - Collapsible */}
+      {span.input && (
+        <div>
+          <button
+            onClick={() => setInputExpanded(!inputExpanded)}
+            className='mb-2 flex items-center gap-2 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground'
+          >
+            {inputExpanded ? (
+              <ChevronDown className='h-3 w-3' />
+            ) : (
+              <ChevronRight className='h-3 w-3' />
+            )}
+            Input
+          </button>
+          {inputExpanded && (
+            <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
+              <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Output Data - Collapsible */}
+      {span.output && (
+        <div>
+          <button
+            onClick={() => setOutputExpanded(!outputExpanded)}
+            className='mb-2 flex items-center gap-2 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground'
+          >
+            {outputExpanded ? (
+              <ChevronDown className='h-3 w-3' />
+            ) : (
+              <ChevronRight className='h-3 w-3' />
+            )}
+            {span.status === 'error' ? 'Error Details' : 'Output'}
+          </button>
+          {outputExpanded && (
+            <div className='mb-2 overflow-hidden rounded-md bg-secondary/30 p-3'>
+              <BlockDataDisplay
+                data={span.output}
+                blockType={span.type}
+                isInput={false}
+                isError={span.status === 'error'}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Component to display block input/output data in a clean, readable format
@@ -203,38 +255,9 @@ export function TraceSpansDisplay({
   // Keep track of expanded spans
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set())
 
-  // Function to collect all span IDs recursively (for expand all functionality)
-  const collectAllSpanIds = (spans: TraceSpan[]): string[] => {
-    const ids: string[] = []
-
-    const collectIds = (span: TraceSpan) => {
-      const spanId = span.id || `span-${span.name}-${span.startTime}`
-      ids.push(spanId)
-
-      // Process children
-      if (span.children && span.children.length > 0) {
-        span.children.forEach(collectIds)
-      }
-    }
-
-    spans.forEach(collectIds)
-    return ids
-  }
-
-  const allSpanIds = useMemo(() => {
-    if (!traceSpans || traceSpans.length === 0) return []
-    return collectAllSpanIds(traceSpans)
-  }, [traceSpans])
-
   // Early return after all hooks
   if (!traceSpans || traceSpans.length === 0) {
     return <div className='text-muted-foreground text-sm'>No trace data available</div>
-  }
-
-  // Format total duration for better readability
-  const _formatTotalDuration = (ms: number) => {
-    if (ms < 1000) return `${ms}ms`
-    return `${(ms / 1000).toFixed(2)}s (${ms}ms)`
   }
 
   // Find the earliest start time among all spans to be the workflow start time
@@ -269,48 +292,10 @@ export function TraceSpansDisplay({
     }
   }
 
-  // Handle expand all / collapse all
-  const handleExpandAll = () => {
-    const newExpandedSpans = new Set(allSpanIds)
-    setExpandedSpans(newExpandedSpans)
-
-    if (onExpansionChange) {
-      onExpansionChange(true)
-    }
-  }
-
-  const handleCollapseAll = () => {
-    setExpandedSpans(new Set())
-
-    if (onExpansionChange) {
-      onExpansionChange(false)
-    }
-  }
-
-  // Determine if all spans are currently expanded
-  const allExpanded = allSpanIds.length > 0 && allSpanIds.every((id) => expandedSpans.has(id))
-
   return (
     <div className='w-full'>
       <div className='mb-2 flex items-center justify-between'>
-        <div className='font-medium text-muted-foreground text-xs'>Trace Spans</div>
-        <button
-          onClick={allExpanded ? handleCollapseAll : handleExpandAll}
-          className='flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground'
-          title={allExpanded ? 'Collapse all spans' : 'Expand all spans'}
-        >
-          {allExpanded ? (
-            <>
-              <ChevronUpSquare className='h-3.5 w-3.5' />
-              <span>Collapse</span>
-            </>
-          ) : (
-            <>
-              <ChevronDownSquare className='h-3.5 w-3.5' />
-              <span>Expand</span>
-            </>
-          )}
-        </button>
+        <div className='font-medium text-muted-foreground text-xs'>Workflow Execution</div>
       </div>
       <div className='w-full overflow-hidden rounded-md border shadow-sm'>
         {traceSpans.map((span, index) => {
@@ -369,7 +354,8 @@ function TraceSpanItem({
   const expanded = expandedSpans.has(spanId)
   const hasChildren = span.children && span.children.length > 0
   const hasToolCalls = span.toolCalls && span.toolCalls.length > 0
-  const hasNestedItems = hasChildren || hasToolCalls
+  const hasInputOutput = Boolean(span.input || span.output)
+  const hasNestedItems = hasChildren || hasToolCalls || hasInputOutput
 
   // Calculate timing information
   const spanStartTime = new Date(span.startTime).getTime()
@@ -388,9 +374,6 @@ function TraceSpanItem({
   // Ensure values are within valid range
   const safeStartPercent = Math.min(100, Math.max(0, relativeStartPercent))
   const safeWidthPercent = Math.max(2, Math.min(100 - safeStartPercent, actualDurationPercent))
-
-  // For parent-relative timing display
-  const _startOffsetPercentage = totalDuration > 0 ? (startOffset / totalDuration) * 100 : 0
 
   // Handle click to expand/collapse this span
   const handleSpanClick = () => {
@@ -605,46 +588,13 @@ function TraceSpanItem({
         </div>
       </div>
 
-      {/* Children and tool calls */}
+      {/* Expanded content */}
       {expanded && (
         <div>
-          {/* Block Input/Output Data */}
-          {(span.input || span.output) && (
-            <div className='mt-2 ml-8 space-y-3 overflow-hidden'>
-              {/* Input Data */}
-              {span.input && (
-                <div>
-                  <h4 className='mb-2 font-medium text-muted-foreground text-xs'>Input</h4>
-                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3'>
-                    <BlockDataDisplay data={span.input} blockType={span.type} isInput={true} />
-                  </div>
-                </div>
-              )}
+          {/* Block Input/Output Data - Collapsible */}
+          {(span.input || span.output) && <CollapsibleInputOutput span={span} spanId={spanId} />}
 
-              {/* Output Data */}
-              {span.output && (
-                <div>
-                  <h4 className='mb-2 font-medium text-muted-foreground text-xs'>
-                    {span.status === 'error' ? 'Error Details' : 'Output'}
-                  </h4>
-                  <div className='overflow-hidden rounded-md bg-secondary/30 p-3'>
-                    <BlockDataDisplay
-                      data={span.output}
-                      blockType={span.type}
-                      isInput={false}
-                      isError={span.status === 'error'}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Children and tool calls */}
-      {expanded && (
-        <div>
+          {/* Children and tool calls */}
           {/* Render child spans */}
           {hasChildren && (
             <div>
@@ -694,9 +644,16 @@ function TraceSpanItem({
                   startTime: new Date(toolStartTime).toISOString(),
                   endTime: new Date(toolEndTime).toISOString(),
                   status: toolCall.error ? 'error' : 'success',
+                  // Include tool call arguments as input and result as output
+                  input: toolCall.input,
+                  output: toolCall.error
+                    ? { error: toolCall.error, ...(toolCall.output || {}) }
+                    : toolCall.output,
                 }
 
-                // Tool calls typically don't have sub-items
+                // Tool calls now have input/output data to display
+                const hasToolCallData = Boolean(toolCall.input || toolCall.output || toolCall.error)
+
                 return (
                   <TraceSpanItem
                     key={`tool-${index}`}
@@ -708,7 +665,7 @@ function TraceSpanItem({
                     workflowStartTime={workflowStartTime}
                     onToggle={onToggle}
                     expandedSpans={expandedSpans}
-                    hasSubItems={false}
+                    hasSubItems={hasToolCallData}
                   />
                 )
               })}

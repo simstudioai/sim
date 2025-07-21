@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type { TwilioSendSMSParams, TwilioSMSBlockOutput } from './types'
+import type { TwilioSendSMSParams, TwilioSMSBlockOutput } from '@/tools/twilio/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('Twilio Send SMS Tool')
 
@@ -14,28 +14,31 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     phoneNumbers: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Phone numbers to send the message to, separated by newlines',
     },
     message: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Message to send',
     },
     accountSid: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Twilio Account SID',
-      requiredForToolCall: true,
     },
     authToken: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Twilio Auth Token',
-      requiredForToolCall: true,
     },
     fromNumber: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Twilio phone number to send the message from',
     },
   },

@@ -1,15 +1,6 @@
 import { MicrosoftExcelIcon } from '@/components/icons'
-import type {
-  MicrosoftExcelReadResponse,
-  MicrosoftExcelTableAddResponse,
-  MicrosoftExcelWriteResponse,
-} from '@/tools/microsoft_excel/types'
-import type { BlockConfig } from '../types'
-
-type MicrosoftExcelResponse =
-  | MicrosoftExcelReadResponse
-  | MicrosoftExcelWriteResponse
-  | MicrosoftExcelTableAddResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { MicrosoftExcelResponse } from '@/tools/microsoft_excel/types'
 
 export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   type: 'microsoft_excel',
@@ -53,14 +44,15 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
+      mode: 'basic',
     },
     {
       id: 'manualSpreadsheetId',
-      title: 'Or Enter Spreadsheet ID Manually',
+      title: 'Spreadsheet ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the spreadsheet (from URL)',
-      condition: { field: 'spreadsheetId', value: '' },
+      placeholder: 'Enter spreadsheet ID',
+      mode: 'advanced',
     },
     {
       id: 'range',

@@ -1,6 +1,6 @@
 import { ResponseIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { ResponseBlockOutput } from '@/tools/response/types'
-import type { BlockConfig } from '../types'
 
 export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   type: 'response',

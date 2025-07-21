@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { OutlookSendParams, OutlookSendResponse } from './types'
+import type { OutlookSendParams, OutlookSendResponse } from '@/tools/outlook/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse> = {
   id: 'outlook_send',
@@ -16,21 +16,25 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Outlook API',
     },
     to: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Recipient email address',
     },
     subject: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Email subject',
     },
     body: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Email body content',
     },
   },

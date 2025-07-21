@@ -1,6 +1,12 @@
 import type { OAuthService } from '@/lib/oauth/oauth'
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
+
+export type ParameterVisibility =
+  | 'user-or-llm' // User can provide OR LLM must generate
+  | 'user-only' // Only user can provide (required/optional determined by required field)
+  | 'llm-only' // Only LLM provides (computed values)
+  | 'hidden' // Not shown to user or LLM
 
 export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
@@ -32,8 +38,7 @@ export interface ToolConfig<P = any, R = any> {
     {
       type: string
       required?: boolean
-      requiredForToolCall?: boolean
-      optionalToolInput?: boolean
+      visibility?: ParameterVisibility
       default?: any
       description?: string
     }
@@ -45,7 +50,7 @@ export interface ToolConfig<P = any, R = any> {
   // Request configuration
   request: {
     url: string | ((params: P) => string)
-    method: string
+    method: HttpMethod
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any>
     isInternalRoute?: boolean // Whether this is an internal API route

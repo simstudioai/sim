@@ -63,7 +63,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
     setIsLoading(true)
     try {
-      const response = await fetch('/api/user/api-keys')
+      const response = await fetch('/api/users/me/api-keys')
       if (response.ok) {
         const data = await response.json()
         setApiKeys(data.keys || [])
@@ -81,7 +81,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
     setIsCreating(true)
     try {
-      const response = await fetch('/api/user/api-keys', {
+      const response = await fetch('/api/users/me/api-keys', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
     if (!userId || !deleteKey) return
 
     try {
-      const response = await fetch(`/api/user/api-keys/${deleteKey.id}`, {
+      const response = await fetch(`/api/users/me/api-keys/${deleteKey.id}`, {
         method: 'DELETE',
       })
 

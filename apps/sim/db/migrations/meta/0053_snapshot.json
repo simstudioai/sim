@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "id": "1403e0c4-459b-41c9-a603-d0c28103a2b3",
+=======
+  "id": "c7bc1cbd-335c-492e-ade5-913d68f5782d",
+>>>>>>> origin/staging
   "prevId": "137b88bb-98b9-4ab5-b847-2ed3428094cc",
   "version": "7",
   "dialect": "postgresql",
@@ -490,6 +494,7 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+<<<<<<< HEAD
     "public.copilot_checkpoints": {
       "name": "copilot_checkpoints",
       "schema": "",
@@ -700,6 +705,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+=======
+>>>>>>> origin/staging
     "public.custom_tools": {
       "name": "custom_tools",
       "schema": "",
@@ -1106,6 +1113,51 @@
           "primaryKey": false,
           "notNull": false
         },
+<<<<<<< HEAD
+=======
+        "tag1": {
+          "name": "tag1",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag2": {
+          "name": "tag2",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag3": {
+          "name": "tag3",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag4": {
+          "name": "tag4",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag5": {
+          "name": "tag5",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag6": {
+          "name": "tag6",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag7": {
+          "name": "tag7",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+>>>>>>> origin/staging
         "uploaded_at": {
           "name": "uploaded_at",
           "type": "timestamp",
@@ -1186,6 +1238,114 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+<<<<<<< HEAD
+=======
+        },
+        "doc_tag1_idx": {
+          "name": "doc_tag1_idx",
+          "columns": [
+            {
+              "expression": "tag1",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_tag2_idx": {
+          "name": "doc_tag2_idx",
+          "columns": [
+            {
+              "expression": "tag2",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_tag3_idx": {
+          "name": "doc_tag3_idx",
+          "columns": [
+            {
+              "expression": "tag3",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_tag4_idx": {
+          "name": "doc_tag4_idx",
+          "columns": [
+            {
+              "expression": "tag4",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_tag5_idx": {
+          "name": "doc_tag5_idx",
+          "columns": [
+            {
+              "expression": "tag5",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_tag6_idx": {
+          "name": "doc_tag6_idx",
+          "columns": [
+            {
+              "expression": "tag6",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "doc_tag7_idx": {
+          "name": "doc_tag7_idx",
+          "columns": [
+            {
+              "expression": "tag7",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+>>>>>>> origin/staging
         }
       },
       "foreignKeys": {
@@ -1282,12 +1442,56 @@
           "primaryKey": false,
           "notNull": true
         },
+<<<<<<< HEAD
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'"
+=======
+        "tag1": {
+          "name": "tag1",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag2": {
+          "name": "tag2",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag3": {
+          "name": "tag3",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag4": {
+          "name": "tag4",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag5": {
+          "name": "tag5",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag6": {
+          "name": "tag6",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tag7": {
+          "name": "tag7",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+>>>>>>> origin/staging
         },
         "enabled": {
           "name": "enabled",
@@ -1455,11 +1659,19 @@
             "ef_construction": 64
           }
         },
+<<<<<<< HEAD
         "emb_metadata_gin_idx": {
           "name": "emb_metadata_gin_idx",
           "columns": [
             {
               "expression": "metadata",
+=======
+        "emb_tag1_idx": {
+          "name": "emb_tag1_idx",
+          "columns": [
+            {
+              "expression": "tag1",
+>>>>>>> origin/staging
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1467,7 +1679,101 @@
           ],
           "isUnique": false,
           "concurrently": false,
+<<<<<<< HEAD
           "method": "gin",
+=======
+          "method": "btree",
+          "with": {}
+        },
+        "emb_tag2_idx": {
+          "name": "emb_tag2_idx",
+          "columns": [
+            {
+              "expression": "tag2",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "emb_tag3_idx": {
+          "name": "emb_tag3_idx",
+          "columns": [
+            {
+              "expression": "tag3",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "emb_tag4_idx": {
+          "name": "emb_tag4_idx",
+          "columns": [
+            {
+              "expression": "tag4",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "emb_tag5_idx": {
+          "name": "emb_tag5_idx",
+          "columns": [
+            {
+              "expression": "tag5",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "emb_tag6_idx": {
+          "name": "emb_tag6_idx",
+          "columns": [
+            {
+              "expression": "tag6",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "emb_tag7_idx": {
+          "name": "emb_tag7_idx",
+          "columns": [
+            {
+              "expression": "tag7",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+>>>>>>> origin/staging
           "with": {}
         },
         "emb_content_fts_idx": {

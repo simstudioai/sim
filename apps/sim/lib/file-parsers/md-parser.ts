@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises'
+import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { FileParseResult, FileParser } from './types'
 
 const logger = createLogger('MdParser')
 

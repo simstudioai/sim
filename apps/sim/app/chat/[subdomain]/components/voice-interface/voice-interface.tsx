@@ -1,7 +1,7 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
-import { Mic, MicOff, Phone, X } from 'lucide-react'
+import { Mic, MicOff, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
@@ -68,131 +68,135 @@ export function VoiceInterface({
   messages = [],
   className,
 }: VoiceInterfaceProps) {
-  const [isListening, setIsListening] = useState(false)
+  // Simple state machine
+  const [state, setState] = useState<'idle' | 'listening' | 'agent_speaking'>('idle')
+  const [isInitialized, setIsInitialized] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [audioLevels, setAudioLevels] = useState<number[]>(new Array(200).fill(0))
-  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'prompt'>(
+  const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>(
     'prompt'
   )
-  const [isInitialized, setIsInitialized] = useState(false)
+
+  // Current turn transcript (subtitle)
+  const [currentTranscript, setCurrentTranscript] = useState('')
+
+  // State tracking
+  const currentStateRef = useRef<'idle' | 'listening' | 'agent_speaking'>('idle')
+
+  useEffect(() => {
+    currentStateRef.current = state
+  }, [state])
 
   const recognitionRef = useRef<SpeechRecognition | null>(null)
-  const localAudioContextRef = useRef<AudioContext | null>(null)
-  const audioContextRef = sharedAudioContextRef || localAudioContextRef
-  const analyserRef = useRef<AnalyserNode | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
   const animationFrameRef = useRef<number | null>(null)
-  const isStartingRef = useRef(false)
   const isMutedRef = useRef(false)
-  const compressorRef = useRef<DynamicsCompressorNode | null>(null)
-  const gainNodeRef = useRef<GainNode | null>(null)
+  const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const isSupported =
     typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 
+  // Update muted ref
   useEffect(() => {
     isMutedRef.current = isMuted
   }, [isMuted])
 
-  const cleanup = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current)
-      animationFrameRef.current = null
+  // Timeout to handle cases where agent doesn't provide audio response
+  const setResponseTimeout = useCallback(() => {
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current)
     }
 
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
-      mediaStreamRef.current = null
-    }
-
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close()
-      audioContextRef.current = null
-    }
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch (e) {
-        // Ignore errors during cleanup
+    responseTimeoutRef.current = setTimeout(() => {
+      if (currentStateRef.current === 'listening') {
+        setState('idle')
       }
-      recognitionRef.current = null
-    }
-
-    analyserRef.current = null
-    setAudioLevels(new Array(200).fill(0))
-    setIsListening(false)
+    }, 5000) // 5 second timeout (increased from 3)
   }, [])
 
-  const setupAudioVisualization = useCallback(async () => {
+  const clearResponseTimeout = useCallback(() => {
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current)
+      responseTimeoutRef.current = null
+    }
+  }, [])
+
+  // Sync with external state
+  useEffect(() => {
+    if (isPlayingAudio && state !== 'agent_speaking') {
+      clearResponseTimeout() // Clear timeout since agent is responding
+      setState('agent_speaking')
+      setCurrentTranscript('')
+
+      // Mute microphone immediately
+      setIsMuted(true)
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getAudioTracks().forEach((track) => {
+          track.enabled = false
+        })
+      }
+
+      // Stop speech recognition completely
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort()
+        } catch (error) {
+          logger.debug('Error aborting speech recognition:', error)
+        }
+      }
+    } else if (!isPlayingAudio && state === 'agent_speaking') {
+      setState('idle')
+      setCurrentTranscript('')
+
+      // Re-enable microphone
+      setIsMuted(false)
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getAudioTracks().forEach((track) => {
+          track.enabled = true
+        })
+      }
+    }
+  }, [isPlayingAudio, state, clearResponseTimeout])
+
+  // Audio setup
+  const setupAudio = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 44100,
           channelCount: 1,
-          // Enhanced echo cancellation settings to prevent picking up speaker output
-          suppressLocalAudioPlayback: true, // Modern browsers
-          googEchoCancellation: true, // Chrome-specific
-          googAutoGainControl: true,
-          googNoiseSuppression: true,
-          googHighpassFilter: true,
-          googTypingNoiseDetection: true,
-        } as any, // Type assertion for experimental properties
+        },
       })
 
       setPermissionStatus('granted')
       mediaStreamRef.current = stream
 
+      // Setup audio context for visualization
       if (!audioContextRef.current) {
-        const AudioContextConstructor = window.AudioContext || window.webkitAudioContext
-        if (!AudioContextConstructor) {
-          throw new Error('AudioContext is not supported in this browser')
-        }
-        audioContextRef.current = new AudioContextConstructor()
+        const AudioContext = window.AudioContext || window.webkitAudioContext
+        audioContextRef.current = new AudioContext()
       }
-      const audioContext = audioContextRef.current
 
+      const audioContext = audioContextRef.current
       if (audioContext.state === 'suspended') {
         await audioContext.resume()
       }
 
       const source = audioContext.createMediaStreamSource(stream)
-
-      const gainNode = audioContext.createGain()
-      gainNode.gain.setValueAtTime(1, audioContext.currentTime)
-
-      const compressor = audioContext.createDynamicsCompressor()
-      compressor.threshold.setValueAtTime(-50, audioContext.currentTime)
-      compressor.knee.setValueAtTime(40, audioContext.currentTime)
-      compressor.ratio.setValueAtTime(12, audioContext.currentTime)
-      compressor.attack.setValueAtTime(0, audioContext.currentTime)
-      compressor.release.setValueAtTime(0.25, audioContext.currentTime)
-
       const analyser = audioContext.createAnalyser()
       analyser.fftSize = 256
-      analyser.smoothingTimeConstant = 0.5
+      analyser.smoothingTimeConstant = 0.8
 
-      source.connect(gainNode)
-      gainNode.connect(compressor)
-      compressor.connect(analyser)
-
-      audioContextRef.current = audioContext
+      source.connect(analyser)
       analyserRef.current = analyser
-      compressorRef.current = compressor
-      gainNodeRef.current = gainNode
 
-      // Start visualization loop
+      // Start visualization
       const updateVisualization = () => {
         if (!analyserRef.current) return
-
-        if (isMutedRef.current) {
-          setAudioLevels(new Array(200).fill(0))
-          animationFrameRef.current = requestAnimationFrame(updateVisualization)
-          return
-        }
 
         const bufferLength = analyserRef.current.frequencyBinCount
         const dataArray = new Uint8Array(bufferLength)
@@ -210,280 +214,354 @@ export function VoiceInterface({
       }
 
       updateVisualization()
+      setIsInitialized(true)
       return true
     } catch (error) {
       logger.error('Error setting up audio:', error)
       setPermissionStatus('denied')
       return false
     }
-  }, [isMuted])
+  }, [])
 
-  // Start listening
-  const startListening = useCallback(async () => {
-    if (
-      !isSupported ||
-      !recognitionRef.current ||
-      isListening ||
-      isMuted ||
-      isStartingRef.current
-    ) {
-      return
-    }
-
-    try {
-      isStartingRef.current = true
-
-      if (!mediaStreamRef.current) {
-        await setupAudioVisualization()
-      }
-
-      recognitionRef.current.start()
-    } catch (error) {
-      isStartingRef.current = false
-      logger.error('Error starting voice input:', error)
-      setIsListening(false)
-    }
-  }, [isSupported, isListening, setupAudioVisualization, isMuted])
-
-  const initializeSpeechRecognition = useCallback(() => {
-    if (!isSupported || recognitionRef.current) return
+  // Speech recognition setup
+  const setupSpeechRecognition = useCallback(() => {
+    if (!isSupported) return
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) return
 
     const recognition = new SpeechRecognition()
+
     recognition.continuous = true
     recognition.interimResults = true
     recognition.lang = 'en-US'
 
-    recognition.onstart = () => {
-      isStartingRef.current = false
-      setIsListening(true)
-      onVoiceStart?.()
-    }
+    recognition.onstart = () => {}
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      // Don't process results if muted
-      if (isMutedRef.current) {
+      const currentState = currentStateRef.current
+
+      if (isMutedRef.current || currentState !== 'listening') {
         return
       }
 
       let finalTranscript = ''
+      let interimTranscript = ''
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
+        const transcript = result[0].transcript
+
         if (result.isFinal) {
-          finalTranscript += result[0].transcript
-        }
-      }
-
-      if (finalTranscript) {
-        if (isPlayingAudio) {
-          const cleanTranscript = finalTranscript.trim().toLowerCase()
-          const isSubstantialSpeech = cleanTranscript.length >= 10
-          const hasMultipleWords = cleanTranscript.split(/\s+/).length >= 3
-
-          if (isSubstantialSpeech && hasMultipleWords) {
-            onInterrupt?.()
-            onVoiceTranscript?.(finalTranscript)
-          }
+          finalTranscript += transcript
         } else {
-          onVoiceTranscript?.(finalTranscript)
+          interimTranscript += transcript
         }
       }
-    }
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      isStartingRef.current = false
-      logger.error('Speech recognition error:', event.error)
+      // Update live transcript
+      setCurrentTranscript(interimTranscript || finalTranscript)
 
-      if (event.error === 'not-allowed') {
-        setPermissionStatus('denied')
-        setIsListening(false)
-        onVoiceEnd?.()
-        return
-      }
+      // Send final transcript (but keep listening state until agent responds)
+      if (finalTranscript.trim()) {
+        setCurrentTranscript('') // Clear transcript
 
-      if (!isMutedRef.current && !isStartingRef.current) {
-        setTimeout(() => {
-          if (recognitionRef.current && !isMutedRef.current && !isStartingRef.current) {
-            startListening()
+        // Stop recognition to avoid interference while waiting for response
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.stop()
+          } catch (error) {
+            // Ignore
           }
-        }, 500)
+        }
+
+        // Start timeout in case agent doesn't provide audio response
+        setResponseTimeout()
+
+        onVoiceTranscript?.(finalTranscript)
       }
     }
 
     recognition.onend = () => {
-      isStartingRef.current = false
-      setIsListening(false)
-      onVoiceEnd?.()
+      const currentState = currentStateRef.current
 
-      if (!isMutedRef.current && !isStartingRef.current) {
+      // Only restart recognition if we're in listening state and not muted
+      if (currentState === 'listening' && !isMutedRef.current) {
+        // Add a delay to avoid immediate restart after sending transcript
         setTimeout(() => {
-          if (recognitionRef.current && !isMutedRef.current && !isStartingRef.current) {
-            startListening()
+          // Double-check state hasn't changed during delay
+          if (
+            recognitionRef.current &&
+            currentStateRef.current === 'listening' &&
+            !isMutedRef.current
+          ) {
+            try {
+              recognitionRef.current.start()
+            } catch (error) {
+              logger.debug('Error restarting speech recognition:', error)
+            }
           }
-        }, 200)
+        }, 1000) // Longer delay to give agent time to respond
+      }
+    }
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      // Filter out "aborted" errors - these are expected when we intentionally stop recognition
+      if (event.error === 'aborted') {
+        // Ignore
+        return
+      }
+
+      if (event.error === 'not-allowed') {
+        setPermissionStatus('denied')
       }
     }
 
     recognitionRef.current = recognition
-    setIsInitialized(true)
-  }, [
-    isSupported,
-    isPlayingAudio,
-    isMuted,
-    onVoiceStart,
-    onVoiceEnd,
-    onVoiceTranscript,
-    onInterrupt,
-    startListening,
-  ])
+  }, [isSupported, onVoiceTranscript, setResponseTimeout])
 
-  const toggleMute = useCallback(() => {
-    const newMutedState = !isMuted
+  // Start/stop listening
+  const startListening = useCallback(() => {
+    if (!isInitialized || isMuted || state !== 'idle') {
+      return
+    }
 
-    if (newMutedState) {
-      isStartingRef.current = false
+    setState('listening')
+    setCurrentTranscript('')
 
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop()
-        } catch (e) {
-          // Ignore errors
-        }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start()
+      } catch (error) {
+        logger.error('Error starting recognition:', error)
       }
+    }
+  }, [isInitialized, isMuted, state])
 
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getAudioTracks().forEach((track) => {
-          track.enabled = false
-        })
+  const stopListening = useCallback(() => {
+    setState('idle')
+    setCurrentTranscript('')
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+      } catch (error) {
+        // Ignore
       }
+    }
+  }, [])
 
-      setIsListening(false)
-    } else {
+  // Handle interrupt
+  const handleInterrupt = useCallback(() => {
+    if (state === 'agent_speaking') {
+      // Clear any subtitle timeouts and text
+      // (No longer needed after removing subtitle system)
+
+      onInterrupt?.()
+      setState('listening')
+      setCurrentTranscript('')
+
+      // Unmute microphone for user input
+      setIsMuted(false)
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getAudioTracks().forEach((track) => {
           track.enabled = true
         })
       }
-      setTimeout(() => {
-        if (!isMutedRef.current) {
-          startListening()
+
+      // Start listening immediately
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start()
+        } catch (error) {
+          logger.error('Could not start recognition after interrupt:', error)
         }
-      }, 200)
+      }
+    }
+  }, [state, onInterrupt])
+
+  // Handle call end with proper cleanup
+  const handleCallEnd = useCallback(() => {
+    // Stop everything immediately
+    setState('idle')
+    setCurrentTranscript('')
+    setIsMuted(false)
+
+    // Stop speech recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort()
+      } catch (error) {
+        logger.error('Error stopping speech recognition:', error)
+      }
     }
 
-    setIsMuted(newMutedState)
-  }, [isMuted, isListening, startListening])
+    // Clear timeouts
+    clearResponseTimeout()
 
-  const handleEndCall = useCallback(() => {
-    cleanup()
+    // Stop audio playback and streaming immediately
+    onInterrupt?.()
+
+    // Call the original onCallEnd
     onCallEnd?.()
-  }, [cleanup, onCallEnd])
+  }, [onCallEnd, onInterrupt, clearResponseTimeout])
 
-  const getStatusText = () => {
-    if (isStreaming) return 'Thinking...'
-    if (isPlayingAudio) return 'Speaking...'
-    if (isListening) return 'Listening...'
-    return 'Ready'
-  }
+  // Keyboard handler
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === 'Space') {
+        event.preventDefault()
+        handleInterrupt()
+      }
+    }
 
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [handleInterrupt])
+
+  // Mute toggle
+  const toggleMute = useCallback(() => {
+    if (state === 'agent_speaking') {
+      handleInterrupt()
+      return
+    }
+
+    const newMutedState = !isMuted
+    setIsMuted(newMutedState)
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = !newMutedState
+      })
+    }
+
+    if (newMutedState) {
+      stopListening()
+    } else if (state === 'idle') {
+      startListening()
+    }
+  }, [isMuted, state, handleInterrupt, stopListening, startListening])
+
+  // Initialize
   useEffect(() => {
     if (isSupported) {
-      initializeSpeechRecognition()
+      setupSpeechRecognition()
+      setupAudio()
     }
-  }, [isSupported, initializeSpeechRecognition])
+  }, [isSupported, setupSpeechRecognition, setupAudio])
 
+  // Auto-start listening when ready
   useEffect(() => {
-    if (isInitialized && !isMuted && !isListening) {
-      const startAudio = async () => {
-        try {
-          if (!mediaStreamRef.current) {
-            const success = await setupAudioVisualization()
-            if (!success) {
-              logger.error('Failed to setup audio visualization')
-              return
-            }
-          }
-
-          setTimeout(() => {
-            if (!isListening && !isMuted && !isStartingRef.current) {
-              startListening()
-            }
-          }, 300)
-        } catch (error) {
-          logger.error('Error setting up audio:', error)
-        }
-      }
-
-      startAudio()
+    if (isInitialized && !isMuted && state === 'idle') {
+      startListening()
     }
-  }, [isInitialized, isMuted, isListening, setupAudioVisualization, startListening])
+  }, [isInitialized, isMuted, state, startListening])
 
-  // Gain ducking during audio playback
-  useEffect(() => {
-    if (gainNodeRef.current && audioContextRef.current) {
-      const gainNode = gainNodeRef.current
-      const audioContext = audioContextRef.current
-
-      if (isPlayingAudio) {
-        gainNode.gain.setTargetAtTime(0.1, audioContext.currentTime, 0.1)
-      } else {
-        gainNode.gain.setTargetAtTime(1, audioContext.currentTime, 0.2)
-      }
-    }
-  }, [isPlayingAudio])
-
+  // Cleanup when call ends or component unmounts
   useEffect(() => {
     return () => {
-      cleanup()
+      // Stop speech recognition
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort()
+        } catch (error) {
+          // Ignore
+        }
+        recognitionRef.current = null
+      }
+
+      // Stop media stream
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => {
+          track.stop()
+        })
+        mediaStreamRef.current = null
+      }
+
+      // Stop audio context
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+        audioContextRef.current = null
+      }
+
+      // Cancel animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+      }
+
+      // Clear timeouts
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current)
+        responseTimeoutRef.current = null
+      }
     }
-  }, [cleanup])
+  }, [])
+
+  // Get status text
+  const getStatusText = () => {
+    switch (state) {
+      case 'listening':
+        return 'Listening...'
+      case 'agent_speaking':
+        return 'Press Space or tap to interrupt'
+      default:
+        return isInitialized ? 'Ready' : 'Initializing...'
+    }
+  }
+
+  // Get button content
+  const getButtonContent = () => {
+    if (state === 'agent_speaking') {
+      return (
+        <svg className='h-6 w-6' viewBox='0 0 24 24' fill='currentColor'>
+          <rect x='6' y='6' width='12' height='12' rx='2' />
+        </svg>
+      )
+    }
+    return isMuted ? <MicOff className='h-6 w-6' /> : <Mic className='h-6 w-6' />
+  }
 
   return (
     <div className={cn('fixed inset-0 z-[100] flex flex-col bg-white text-gray-900', className)}>
-      {/* Header with close button */}
-      <div className='flex justify-end p-4'>
-        <Button
-          variant='ghost'
-          size='icon'
-          onClick={handleEndCall}
-          className='h-10 w-10 rounded-full hover:bg-gray-100'
-        >
-          <X className='h-5 w-5' />
-        </Button>
-      </div>
-
-      {/* Main content area */}
+      {/* Main content */}
       <div className='flex flex-1 flex-col items-center justify-center px-8'>
         {/* Voice visualization */}
         <div className='relative mb-16'>
           <ParticlesVisualization
             audioLevels={audioLevels}
-            isListening={isListening}
-            isPlayingAudio={isPlayingAudio}
+            isListening={state === 'listening'}
+            isPlayingAudio={state === 'agent_speaking'}
             isStreaming={isStreaming}
             isMuted={isMuted}
-            isProcessingInterruption={false}
+            className='h-80 w-80 md:h-96 md:w-96'
           />
         </div>
 
-        {/* Status text */}
-        <div className='mb-8 text-center'>
-          <p className='font-light text-gray-600 text-lg'>
-            {getStatusText()}
-            {isMuted && <span className='ml-2 text-gray-400 text-sm'>(Muted)</span>}
-          </p>
+        {/* Live transcript - subtitle style */}
+        <div className='mb-16 flex h-24 items-center justify-center'>
+          {currentTranscript && (
+            <div className='max-w-2xl px-8'>
+              <p className='overflow-hidden text-center text-gray-700 text-xl leading-relaxed'>
+                {currentTranscript}
+              </p>
+            </div>
+          )}
         </div>
+
+        {/* Status */}
+        <p className='mb-8 text-center text-gray-600 text-lg'>
+          {getStatusText()}
+          {isMuted && <span className='ml-2 text-gray-400 text-sm'>(Muted)</span>}
+        </p>
       </div>
 
-      {/* Bottom controls */}
+      {/* Controls */}
       <div className='px-8 pb-12'>
         <div className='flex items-center justify-center space-x-12'>
-          {/* End call button */}
+          {/* End call */}
           <Button
-            onClick={handleEndCall}
+            onClick={handleCallEnd}
             variant='outline'
             size='icon'
             className='h-14 w-14 rounded-full border-gray-300 hover:bg-gray-50'
@@ -491,17 +569,18 @@ export function VoiceInterface({
             <Phone className='h-6 w-6 rotate-[135deg]' />
           </Button>
 
-          {/* Mute/unmute button */}
+          {/* Mic/Stop button */}
           <Button
             onClick={toggleMute}
             variant='outline'
             size='icon'
+            disabled={!isInitialized}
             className={cn(
-              'h-14 w-14 rounded-full border-gray-300 bg-transparent text-gray-600 hover:bg-gray-50',
-              isMuted && 'text-gray-400'
+              'h-14 w-14 rounded-full border-gray-300 bg-transparent hover:bg-gray-50',
+              isMuted ? 'text-gray-400' : 'text-gray-600'
             )}
           >
-            {isMuted ? <MicOff className='h-6 w-6' /> : <Mic className='h-6 w-6' />}
+            {getButtonContent()}
           </Button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AgentBlock } from './agent'
+import { AgentBlock } from '@/blocks/blocks/agent'
 
 vi.mock('@/blocks', () => ({
   getAllBlocks: vi.fn(() => [

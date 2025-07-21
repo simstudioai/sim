@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type { StagehandExtractParams, StagehandExtractResponse } from './types'
+import type { StagehandExtractParams, StagehandExtractResponse } from '@/tools/stagehand/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('StagehandExtractTool')
 
@@ -11,25 +11,29 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
   version: '1.0.0',
 
   params: {
+    url: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'URL of the webpage to extract data from',
+    },
     instruction: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Instructions for extraction',
-    },
-    schema: {
-      type: 'json',
-      required: true,
-      description: 'JSON schema defining the structure of the data to extract',
     },
     apiKey: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'OpenAI API key for extraction (required by Stagehand)',
     },
-    url: {
-      type: 'string',
+    schema: {
+      type: 'json',
       required: true,
-      description: 'URL of the webpage to extract data from',
+      visibility: 'user-only',
+      description: 'JSON schema defining the structure of the data to extract',
     },
   },
 

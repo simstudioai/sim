@@ -1,6 +1,6 @@
 ---
 title: Getting Started
-description: Build, test, and optimize your agentic workflows
+description: Build your first AI workflow in 5 minutes
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -8,6 +8,7 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { File, Files, Folder } from 'fumadocs-ui/components/files'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { ThemeImage } from '@/components/ui/theme-image'
 import {
   AgentIcon,
   ApiIcon,
@@ -23,79 +24,171 @@ import {
   SlackIcon,
 } from '@/components/icons'
 
-Sim Studio is a powerful, user-friendly platform for building, testing, and optimizing your agentic workflows. This documentation will help you understand how to use the various components of Sim Studio to create sophisticated agent-based applications.
+This tutorial will guide you through building your first AI workflow in Sim Studio. We'll create a people research agent that can find information about individuals using state-of-the-art LLM-Search tools.
 
 <Callout type="info">
-  This guide will walk you through the essential concepts and help you get started building your
-  first workflow.
+  This tutorial takes about 10 minutes and covers the essential concepts of building workflows in Sim Studio.
 </Callout>
 
-## Core Components
+## What We're Building
 
-Sim Studio is built around two primary components:
+A people research agent that:
+1. Receives a person's name via chat interface
+2. Uses an AI agent with advanced search capabilities
+3. Searches the web using state-of-the-art LLM-Search tools (Exa and Linkup)
+4. Extracts structured information using a response format
+5. Returns comprehensive data about the person
 
-### Blocks
+<ThemeImage
+  lightSrc="/static/examples/started/started-1.png"
+  darkSrc="/static/examples/started/started-1.png"
+  alt="Getting Started Example"
+  width={800}
+  height={500}
+/>
 
-Blocks are the fundamental building elements of your workflows. Each block serves a specific purpose:
+## Step-by-Step Tutorial
+
+<Steps>
+  <Step title="Create workflow and add AI agent">
+    Open Sim Studio and click "New Workflow" in the dashboard. Name it "Getting Started".
+    
+    When you create a new workflow, it automatically includes a **Start block** - this is the entry point that receives input from users. For this example, we'll be triggering the workflow via chat, so we don't need to configure anything on the Start block.
+    
+    Now drag an **Agent Block** onto the canvas from the blocks panel on the left.
+    
+    Configure the Agent Block:
+    - **Model**: Select "OpenAI GPT-4o"
+    - **System Prompt**: "You are a people research agent. When given a person's name, use your available search tools to find comprehensive information about them including their location, profession, educational background, and other relevant details."
+    - **User Prompt**: Drag the connection from the Start block's output into this field (this connects `<start.input>` to the user prompt)
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-2.mp4"></video>
+    </div>
+  </Step>
+  
+  <Step title="Add tools to the agent">
+    Let's enhance our agent with tools for better capabilities. Click on the Agent block to select it.
+    
+    In the **Tools** section:
+    - Click **Add Tool**
+    - Select **Exa** from the available tools
+    - Select **Linkup** from the available tools
+    - Add your API keys for both tools (this allows the agent to search the web and access additional information)
+    
+    <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-3.mp4"></video>
+    </div>
+  </Step>
+  
+  <Step title="Test the basic workflow">
+    Now let's test our workflow. Go to the **Chat panel** on the right side of the screen.
+    
+    In the chat panel:
+    - Click the dropdown and select `agent1.content` (this will show us the output of our agent)
+    - Enter a test message like: "John is a software engineer from San Francisco who studied Computer Science at Stanford University."
+    - Click "Send" to run the workflow
+    
+    You should see the agent's response analyzing the person described in your text.
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-4.mp4"></video>
+    </div>
+  </Step>
+  
+  <Step title="Add structured output">
+    Now let's make our agent return structured data. Click on the Agent block to select it.
+    
+    In the **Response Format** section:
+    - Click the **magic wand icon** (✨) next to the schema field
+    - In the prompt that appears, type: "create a schema named person, that contains location, profession, and education"
+    - The AI will generate a JSON schema for you automatically
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-5.mp4"></video>
+    </div>
+  </Step>
+  
+  <Step title="Test the structured output">
+    Go back to the **Chat panel**.
+    
+    Since we added a response format, new output options are now available:
+    - Click the dropdown and select the new structured output option (the schema we just created)
+    - Enter a new test message like: "Sarah is a marketing manager from New York who has an MBA from Harvard Business School."
+    - Click "Send" to run the workflow again
+    
+    You should now see structured JSON output with the person's information organized into location, profession, and education fields.
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-6.mp4"></video>
+    </div>
+  </Step>
+</Steps>
+
+## What You Just Built
+
+Congratulations! You've created your first AI workflow that:
+- ✅ Receives text input via chat interface
+- ✅ Uses AI to extract information from unstructured text
+- ✅ Integrates external tools (Exa and Linkup) for enhanced capabilities
+- ✅ Returns structured JSON data using AI-generated schemas
+- ✅ Demonstrates workflow testing and iteration
+- ✅ Shows the power of visual workflow building
+
+## Key Concepts You Learned
+
+### Block Types Used
 
 <Files>
+  <File
+    name="Start Block"
+    icon={<ConnectIcon className="h-4 w-4" />}
+    annotation="Entry point for user input (auto-included)"
+  />
   <File
     name="Agent Block"
     icon={<AgentIcon className="h-4 w-4" />}
-    annotation="Create AI agents using any LLM provider"
-  />
-  <File
-    name="API Block"
-    icon={<ApiIcon className="h-4 w-4" />}
-    annotation="Connect to external services and APIs"
-  />
-  <File
-    name="Condition Block"
-    icon={<ConditionalIcon className="h-4 w-4" />}
-    annotation="Add conditional branching to your workflows"
-  />
-  <File
-    name="Function Block"
-    icon={<CodeIcon className="h-4 w-4" />}
-    annotation="Execute custom JavaScript/TypeScript code"
-  />
-  <File
-    name="Evaluator Block"
-    icon={<ChartBarIcon className="h-4 w-4" />}
-    annotation="Assess responses against defined criteria"
-  />
-  <File
-    name="Router Block"
-    icon={<ConnectIcon className="h-4 w-4" />}
-    annotation="Direct workflow execution based on input analysis"
+    annotation="AI model for text processing and analysis"
   />
 </Files>
 
-### Tools
+### Core Workflow Concepts
 
-Tools extend the capabilities of agents. They provide additional functionality for agents by enabling you to interface with your favorite data sources and take action (e.g posting on X, sending an email)
+**Data Flow**: Variables flow between blocks by dragging connections
 
-<Files>
-  <File name="Gmail Tool" icon={<GmailIcon className="h-4 w-4" />} />
-  <File name="Firecrawl Tool" icon={<FirecrawlIcon className="h-4 w-4" />} />
-  <File name="Perplexity Tool" icon={<PerplexityIcon className="h-4 w-4" />} />
-  <File name="Notion Tool" icon={<NotionIcon className="h-4 w-4" />} />
-  <File name="Exa AI Tool" icon={<ExaAIIcon className="h-4 w-4" />} />
-  <File name="Slack Tool" icon={<SlackIcon className="h-4 w-4" />} />
-</Files>
+**Chat Interface**: Test workflows in real-time using the chat panel with different output options
 
-## Getting Started
+**Tool Integration**: Enhance agent capabilities by adding external tools like Exa and Linkup
 
-<Steps>
-  <Step title="Create a new workflow">
-    Start by creating a new workflow in the Sim Studio dashboard.
-  </Step>
-  <Step title="Add your first block">Drag and drop a block from the sidebar onto the canvas.</Step>
-  <Step title="Configure the block">
-    Set up the block's parameters and inputs according to your needs.
-  </Step>
-  <Step title="Connect blocks">
-    Create connections between blocks to define the flow of data and execution.
-  </Step>
-  <Step title="Test your workflow">Run your workflow with test inputs to verify its behavior.</Step>
-</Steps>
+**Variable References**: Access block outputs using `<blockName.output>` syntax
+
+**Structured Output**: Use JSON schemas to get consistent, structured data from AI
+
+**AI-Generated Schemas**: Use the magic wand (✨) to generate schemas with natural language
+
+**Iterative Development**: Test, modify, and re-test workflows easily
+
+## Next Steps
+
+<Cards>
+  <Card title="Add More Blocks" href="/blocks">
+    Learn about API, Function, and Condition blocks
+  </Card>
+  <Card title="Use Tools" href="/tools">
+    Integrate with external services like Gmail, Slack, and Notion
+  </Card>
+  <Card title="Add Custom Logic" href="/blocks/function">
+    Use Function blocks for custom data processing
+  </Card>
+  <Card title="Deploy Your Workflow" href="/execution">
+    Make your workflow accessible via REST API
+  </Card>
+</Cards>
+
+## Need Help?
+
+**Stuck on a step?** Check our [Blocks documentation](/blocks) for detailed explanations of each component.
+
+**Want to see more examples?** Browse our [Tools documentation](/tools) to see what integrations are available.
+
+**Ready to deploy?** Learn about [Execution and Deployment](/execution) to make your workflows live.

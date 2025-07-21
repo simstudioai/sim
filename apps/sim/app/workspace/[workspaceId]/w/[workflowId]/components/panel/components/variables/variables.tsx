@@ -12,7 +12,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -23,11 +22,7 @@ import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable, VariableType } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-interface VariablesProps {
-  panelWidth: number
-}
-
-export function Variables({ panelWidth }: VariablesProps) {
+export function Variables() {
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const {
     variables: storeVariables,
@@ -239,195 +234,196 @@ export function Variables({ panelWidth }: VariablesProps) {
   }, [workflowVariables])
 
   return (
-    <ScrollArea className='h-full'>
-      <div className='space-y-3 p-4'>
-        {/* Variables List */}
-        {workflowVariables.length === 0 ? (
-          <div className='flex h-32 flex-col items-center justify-center pt-4 text-muted-foreground text-sm'>
-            <div className='mb-2'>No variables yet</div>
-            <Button variant='outline' size='sm' className='text-xs' onClick={handleAddVariable}>
-              <Plus className='mr-1 h-3.5 w-3.5' />
-              Add your first variable
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className='space-y-3'>
-              {workflowVariables.map((variable) => (
-                <div
-                  key={variable.id}
-                  className='group flex flex-col space-y-2 rounded-lg border bg-background shadow-sm'
-                >
-                  <div className='flex items-center justify-between border-b bg-muted/30 p-3'>
-                    <div className='flex flex-1 items-center gap-2'>
-                      <Input
-                        className='!text-md h-9 max-w-40 border-input bg-background focus-visible:ring-1 focus-visible:ring-ring'
-                        placeholder='Variable name'
-                        value={variable.name}
-                        onChange={(e) => handleVariableNameChange(variable.id, e.target.value)}
-                      />
+    <div className='h-full pt-2'>
+      {workflowVariables.length === 0 ? (
+        <div className='flex h-full items-center justify-center'>
+          <Button
+            onClick={handleAddVariable}
+            className='h-9 rounded-lg border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 font-normal text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[#202020] dark:hover:text-muted-foreground'
+            variant='outline'
+          >
+            <Plus className='h-4 w-4' />
+            Add variable
+          </Button>
+        </div>
+      ) : (
+        <ScrollArea className='h-full' hideScrollbar={true}>
+          <div className='space-y-4'>
+            {workflowVariables.map((variable) => (
+              <div key={variable.id} className='space-y-2'>
+                {/* Header: Variable name | Variable type | Options dropdown */}
+                <div className='flex items-center gap-2'>
+                  <Input
+                    className='h-9 flex-1 rounded-lg border-none bg-secondary/50 px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+                    placeholder='Variable name'
+                    value={variable.name}
+                    onChange={(e) => handleVariableNameChange(variable.id, e.target.value)}
+                  />
 
-                      <DropdownMenu>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant='outline' size='sm' className='h-9 gap-1'>
-                                <span className='!font-mono pt-[0.3px] text-sm'>
-                                  {getTypeIcon(variable.type)}
-                                </span>
-                                <ChevronDown className='!h-3.5 !w-3.5 text-muted-foreground' />
-                              </Button>
-                            </DropdownMenuTrigger>
-                          </TooltipTrigger>
-                          <TooltipContent side='top'>Set variable type</TooltipContent>
-                        </Tooltip>
-                        <DropdownMenuContent align='end' className='min-w-32'>
-                          <DropdownMenuItem
-                            onClick={() => updateVariable(variable.id, { type: 'plain' })}
-                            className='flex cursor-pointer items-center'
-                          >
-                            <div className='mr-2 w-5 text-center font-mono text-sm'>Abc</div>
-                            <span>Plain</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => updateVariable(variable.id, { type: 'number' })}
-                            className='flex cursor-pointer items-center'
-                          >
-                            <div className='mr-2 w-5 text-center font-mono text-sm'>123</div>
-                            <span>Number</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => updateVariable(variable.id, { type: 'boolean' })}
-                            className='flex cursor-pointer items-center'
-                          >
-                            <div className='mr-2 w-5 text-center font-mono text-sm'>0/1</div>
-                            <span>Boolean</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => updateVariable(variable.id, { type: 'object' })}
-                            className='flex cursor-pointer items-center'
-                          >
-                            <div className='mr-2 w-5 text-center font-mono text-sm'>{'{}'}</div>
-                            <span>Object</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => updateVariable(variable.id, { type: 'array' })}
-                            className='flex cursor-pointer items-center'
-                          >
-                            <div className='mr-2 w-5 text-center font-mono text-sm'>[]</div>
-                            <span>Array</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-
-                      <div className='flex items-center'>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant='ghost'
-                              size='icon'
-                              className='h-9 w-9 text-muted-foreground'
-                            >
-                              <MoreVertical className='h-4 w-4' />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align='end'>
-                            <DropdownMenuItem
-                              onClick={() => duplicateVariable(variable.id)}
-                              className='cursor-pointer text-muted-foreground'
-                            >
-                              <Copy className='mr-2 h-4 w-4 text-muted-foreground' />
-                              Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => deleteVariable(variable.id)}
-                              className='cursor-pointer text-destructive focus:text-destructive'
-                            >
-                              <Trash className='mr-2 h-4 w-4' />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                  {/* Type selector */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <div className='flex h-9 w-16 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-secondary/50 px-3'>
+                        <span className='font-normal text-sm'>{getTypeIcon(variable.type)}</span>
+                        <ChevronDown className='ml-1 h-3 w-3 text-muted-foreground' />
                       </div>
-                    </div>
-                  </div>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align='end'
+                      className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+                    >
+                      <DropdownMenuItem
+                        onClick={() => updateVariable(variable.id, { type: 'plain' })}
+                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                      >
+                        <div className='mr-2 w-5 text-center font-[380] text-sm'>Abc</div>
+                        <span className='font-[380]'>Plain</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => updateVariable(variable.id, { type: 'number' })}
+                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                      >
+                        <div className='mr-2 w-5 text-center font-[380] text-sm'>123</div>
+                        <span className='font-[380]'>Number</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => updateVariable(variable.id, { type: 'boolean' })}
+                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                      >
+                        <div className='mr-2 w-5 text-center font-[380] text-sm'>0/1</div>
+                        <span className='font-[380]'>Boolean</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => updateVariable(variable.id, { type: 'object' })}
+                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                      >
+                        <div className='mr-2 w-5 text-center font-[380] text-sm'>{'{}'}</div>
+                        <span className='font-[380]'>Object</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => updateVariable(variable.id, { type: 'array' })}
+                        className='flex cursor-pointer items-center rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                      >
+                        <div className='mr-2 w-5 text-center font-[380] text-sm'>[]</div>
+                        <span className='font-[380]'>Array</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-                  <div
-                    className='relative min-h-[36px] rounded-md bg-background px-4 pt-2 pb-3 font-mono text-sm'
-                    ref={(el) => {
-                      editorRefs.current[variable.id] = el
-                    }}
-                    style={{
-                      maxWidth: panelWidth ? `${panelWidth - 50}px` : '100%',
-                      overflowWrap: 'break-word',
-                    }}
-                  >
-                    {variable.value === '' && (
-                      <div className='pointer-events-none absolute top-[8.5px] left-4 select-none text-muted-foreground/50'>
-                        {getPlaceholder(variable.type)}
-                      </div>
-                    )}
-                    <Editor
-                      key={`editor-${variable.id}-${variable.type}`}
-                      value={formatValue(variable)}
-                      onValueChange={handleEditorChange.bind(null, variable)}
-                      onBlur={() => handleEditorBlur(variable.id)}
-                      onFocus={() => handleEditorFocus(variable.id)}
-                      highlight={(code) =>
-                        highlight(
-                          code,
-                          languages[getEditorLanguage(variable.type)],
-                          getEditorLanguage(variable.type)
-                        )
-                      }
-                      padding={0}
-                      style={{
-                        fontFamily: 'inherit',
-                        lineHeight: '21px',
-                        width: '100%',
-                        wordWrap: 'break-word',
-                        whiteSpace: 'pre-wrap',
-                      }}
-                      className='w-full focus:outline-none'
-                      textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full whitespace-pre-wrap break-words overflow-visible'
-                    />
+                  {/* Options dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-9 w-9 shrink-0 rounded-lg bg-secondary/50 p-0 text-muted-foreground hover:bg-secondary/70 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+                      >
+                        <MoreVertical className='h-4 w-4' />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align='end'
+                      className='min-w-32 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+                    >
+                      <DropdownMenuItem
+                        onClick={() => duplicateVariable(variable.id)}
+                        className='cursor-pointer rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                      >
+                        <Copy className='mr-2 h-4 w-4 text-muted-foreground' />
+                        Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => deleteVariable(variable.id)}
+                        className='cursor-pointer rounded-md px-3 py-2 font-[380] text-destructive text-sm hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive'
+                      >
+                        <Trash className='mr-2 h-4 w-4' />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
-                    {/* Show validation indicator for any non-empty variable */}
-                    {variable.value !== '' && (
+                {/* Value area */}
+                <div className='relative rounded-lg bg-secondary/50'>
+                  {/* Validation indicator */}
+                  {variable.value !== '' && getValidationStatus(variable) && (
+                    <div className='absolute top-2 right-2 z-10'>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className='group absolute top-[4px] right-[0px] cursor-help'>
-                            {getValidationStatus(variable) && (
-                              <div className='rounded-md border border-transparent p-1 transition-all duration-200 group-hover:border-muted/50 group-hover:bg-muted/80 group-hover:shadow-sm'>
-                                <AlertTriangle className='h-4 w-4 text-muted-foreground opacity-30 transition-opacity duration-200 group-hover:opacity-100' />
-                              </div>
-                            )}
+                          <div className='cursor-help'>
+                            <AlertTriangle className='h-3 w-3 text-muted-foreground' />
                           </div>
                         </TooltipTrigger>
                         <TooltipContent side='bottom' className='max-w-xs'>
-                          {getValidationStatus(variable) && <p>{getValidationStatus(variable)}</p>}
+                          <p>{getValidationStatus(variable)}</p>
                         </TooltipContent>
                       </Tooltip>
-                    )}
+                    </div>
+                  )}
+
+                  {/* Editor */}
+                  <div className='relative overflow-hidden'>
+                    <div
+                      className='relative min-h-[36px] w-full max-w-full px-3 py-2 font-normal text-sm'
+                      ref={(el) => {
+                        editorRefs.current[variable.id] = el
+                      }}
+                      style={{ maxWidth: '100%' }}
+                    >
+                      {variable.value === '' && (
+                        <div className='pointer-events-none absolute inset-0 flex select-none items-start justify-start px-3 py-2 font-[380] text-muted-foreground text-sm leading-normal'>
+                          <div style={{ lineHeight: '20px' }}>{getPlaceholder(variable.type)}</div>
+                        </div>
+                      )}
+                      <Editor
+                        key={`editor-${variable.id}-${variable.type}`}
+                        value={formatValue(variable)}
+                        onValueChange={handleEditorChange.bind(null, variable)}
+                        onBlur={() => handleEditorBlur(variable.id)}
+                        onFocus={() => handleEditorFocus(variable.id)}
+                        highlight={(code) =>
+                          // Only apply syntax highlighting for non-basic text types
+                          variable.type === 'plain' || variable.type === 'string'
+                            ? code
+                            : highlight(
+                                code,
+                                languages[getEditorLanguage(variable.type)],
+                                getEditorLanguage(variable.type)
+                              )
+                        }
+                        padding={0}
+                        style={{
+                          fontFamily: 'inherit',
+                          lineHeight: '20px',
+                          width: '100%',
+                          maxWidth: '100%',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-all',
+                          overflowWrap: 'break-word',
+                          minHeight: '20px',
+                          overflow: 'hidden',
+                        }}
+                        className='[&>pre]:!max-w-full [&>pre]:!overflow-hidden [&>pre]:!whitespace-pre-wrap [&>pre]:!break-all [&>pre]:!overflow-wrap-break-word [&>textarea]:!max-w-full [&>textarea]:!overflow-hidden [&>textarea]:!whitespace-pre-wrap [&>textarea]:!break-all [&>textarea]:!overflow-wrap-break-word font-[380] text-foreground text-sm leading-normal focus:outline-none'
+                        textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full max-w-full whitespace-pre-wrap break-all overflow-wrap-break-word overflow-hidden font-[380] text-foreground'
+                      />
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
 
             {/* Add Variable Button */}
             <Button
-              variant='ghost'
-              size='sm'
-              className='mt-2 w-full justify-start text-muted-foreground text-xs hover:text-foreground'
               onClick={handleAddVariable}
+              className='mt-2 h-9 w-full rounded-lg border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 font-[380] text-muted-foreground text-sm shadow-xs transition-colors hover:text-muted-foreground dark:border-[#414141] dark:bg-[#202020] dark:hover:text-muted-foreground'
+              variant='outline'
             >
-              <Plus className='mr-1.5 h-3.5 w-3.5' />
+              <Plus className='h-4 w-4' />
               Add variable
             </Button>
-          </>
-        )}
-      </div>
-    </ScrollArea>
+          </div>
+        </ScrollArea>
+      )}
+    </div>
   )
 }

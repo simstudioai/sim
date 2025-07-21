@@ -1,31 +1,36 @@
-import type { ToolConfig } from '../types'
-import type { SupabaseInsertParams, SupabaseInsertResponse } from './types'
+import type { SupabaseInsertParams, SupabaseInsertResponse } from '@/tools/supabase/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse> = {
   id: 'supabase_insert',
   name: 'Supabase Insert',
   description: 'Insert data into a Supabase table',
   version: '1.0',
-  oauth: {
-    required: false,
-    provider: 'supabase',
-    additionalScopes: ['database.write', 'projects.read'],
-  },
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Your Supabase client anon key',
-    },
     projectId: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)',
     },
-    table: { type: 'string', required: true },
-    data: { type: 'any', required: true },
+    table: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The name of the Supabase table to insert data into',
+    },
+    data: {
+      type: 'any',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The data to insert',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Your Supabase service role secret key',
+    },
   },
   request: {
     url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,

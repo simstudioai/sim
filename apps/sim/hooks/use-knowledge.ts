@@ -40,24 +40,33 @@ export function useKnowledgeBase(id: string) {
   }
 }
 
-export function useKnowledgeBaseDocuments(knowledgeBaseId: string) {
+// Constants
+const MAX_DOCUMENTS_LIMIT = 10000
+const DEFAULT_PAGE_SIZE = 50
+
+export function useKnowledgeBaseDocuments(
+  knowledgeBaseId: string,
+  options?: { search?: string; limit?: number; offset?: number }
+) {
   const { getDocuments, getCachedDocuments, loadingDocuments, updateDocument, refreshDocuments } =
     useKnowledgeStore()
 
   const [error, setError] = useState<string | null>(null)
 
-  const documents = getCachedDocuments(knowledgeBaseId) || []
+  const documentsCache = getCachedDocuments(knowledgeBaseId)
+  const allDocuments = documentsCache?.documents || []
   const isLoading = loadingDocuments.has(knowledgeBaseId)
 
+  // Load all documents on initial mount
   useEffect(() => {
-    if (!knowledgeBaseId || documents.length > 0 || isLoading) return
+    if (!knowledgeBaseId || allDocuments.length > 0 || isLoading) return
 
     let isMounted = true
 
-    const loadData = async () => {
+    const loadAllDocuments = async () => {
       try {
         setError(null)
-        await getDocuments(knowledgeBaseId)
+        await getDocuments(knowledgeBaseId, { limit: MAX_DOCUMENTS_LIMIT })
       } catch (err) {
         if (isMounted) {
           setError(err instanceof Error ? err.message : 'Failed to load documents')
@@ -65,28 +74,59 @@ export function useKnowledgeBaseDocuments(knowledgeBaseId: string) {
       }
     }
 
-    loadData()
+    loadAllDocuments()
 
     return () => {
       isMounted = false
     }
-  }, [knowledgeBaseId, documents.length, isLoading]) // Removed getDocuments from dependencies
+  }, [knowledgeBaseId, allDocuments.length, isLoading, getDocuments])
 
-  const refreshDocumentsData = async () => {
+  // Client-side filtering and pagination
+  const { documents, pagination } = useMemo(() => {
+    let filteredDocs = allDocuments
+
+    // Apply search filter
+    if (options?.search) {
+      const searchLower = options.search.toLowerCase()
+      filteredDocs = filteredDocs.filter((doc) => doc.filename.toLowerCase().includes(searchLower))
+    }
+
+    // Apply pagination
+    const offset = options?.offset || 0
+    const limit = options?.limit || DEFAULT_PAGE_SIZE
+    const total = filteredDocs.length
+    const paginatedDocs = filteredDocs.slice(offset, offset + limit)
+
+    return {
+      documents: paginatedDocs,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+    }
+  }, [allDocuments, options?.search, options?.limit, options?.offset])
+
+  const refreshDocumentsData = useCallback(async () => {
     try {
       setError(null)
-      await refreshDocuments(knowledgeBaseId)
+      await refreshDocuments(knowledgeBaseId, { limit: MAX_DOCUMENTS_LIMIT })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh documents')
     }
-  }
+  }, [knowledgeBaseId, refreshDocuments])
 
-  const updateDocumentLocal = (documentId: string, updates: Partial<DocumentData>) => {
-    updateDocument(knowledgeBaseId, documentId, updates)
-  }
+  const updateDocumentLocal = useCallback(
+    (documentId: string, updates: Partial<DocumentData>) => {
+      updateDocument(knowledgeBaseId, documentId, updates)
+    },
+    [knowledgeBaseId, updateDocument]
+  )
 
   return {
     documents,
+    pagination,
     isLoading,
     error,
     refreshDocuments: refreshDocumentsData,

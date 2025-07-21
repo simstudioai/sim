@@ -1,5 +1,9 @@
-import type { ToolConfig } from '../types'
-import type { PineconeResponse, PineconeUpsertTextParams, PineconeUpsertTextRecord } from './types'
+import type {
+  PineconeResponse,
+  PineconeUpsertTextParams,
+  PineconeUpsertTextRecord,
+} from '@/tools/pinecone/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeResponse> = {
   id: 'pinecone_upsert_text',
@@ -8,28 +12,30 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
   version: '1.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Pinecone API key',
-    },
     indexHost: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Full Pinecone index host URL',
     },
     namespace: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Namespace to upsert records into',
     },
     records: {
       type: 'array',
       required: true,
+      visibility: 'user-or-llm',
       description:
         'Record or array of records to upsert, each containing _id, text, and optional metadata',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Pinecone API key',
     },
   },
 

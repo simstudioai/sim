@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { PROperationParams, PullRequestResponse } from './types'
+import type { PROperationParams, PullRequestResponse } from '@/tools/github/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
   id: 'github_pr',
@@ -11,22 +11,25 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
     owner: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Repository owner',
     },
     repo: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Repository name',
     },
     pullNumber: {
       type: 'number',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Pull request number',
     },
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'GitHub API token',
     },
   },

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { YouTubeSearchParams, YouTubeSearchResponse } from './types'
+import type { ToolConfig } from '@/tools/types'
+import type { YouTubeSearchParams, YouTubeSearchResponse } from '@/tools/youtube/types'
 
 export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchResponse> = {
   id: 'youtube_search',
@@ -10,19 +10,21 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
     query: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Search query for YouTube videos',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'YouTube API Key',
     },
     maxResults: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       default: 5,
       description: 'Maximum number of videos to return',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'YouTube API Key',
     },
   },
   request: {

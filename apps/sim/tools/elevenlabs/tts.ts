@@ -11,27 +11,29 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
   version: '1.0.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      description: 'Your ElevenLabs API key',
-      requiredForToolCall: true,
-    },
     text: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The text to convert to speech',
     },
     voiceId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the voice to use',
-      requiredForToolCall: true,
     },
     modelId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'The ID of the model to use (defaults to eleven_monolingual_v1)',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Your ElevenLabs API key',
     },
   },
 

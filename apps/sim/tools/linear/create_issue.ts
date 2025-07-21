@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { LinearCreateIssueParams, LinearCreateIssueResponse } from './types'
+import type { LinearCreateIssueParams, LinearCreateIssueResponse } from '@/tools/linear/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCreateIssueResponse> =
   {
@@ -12,10 +12,30 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
       provider: 'linear',
     },
     params: {
-      teamId: { type: 'string', required: true, description: 'Linear team ID' },
-      projectId: { type: 'string', required: true, description: 'Linear project ID' },
-      title: { type: 'string', required: true, description: 'Issue title' },
-      description: { type: 'string', required: false, description: 'Issue description' },
+      teamId: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Linear team ID',
+      },
+      projectId: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Linear project ID',
+      },
+      title: {
+        type: 'string',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'Issue title',
+      },
+      description: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Issue description',
+      },
     },
     request: {
       url: 'https://api.linear.app/graphql',

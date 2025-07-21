@@ -25,13 +25,14 @@
   },
   "overrides": {
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "tailwindcss": "3.4.1"
+    "react-dom": "19.1.0"
   },
   "dependencies": {
     "@linear/sdk": "40.0.0",
     "@t3-oss/env-nextjs": "0.13.4",
     "@vercel/analytics": "1.5.0",
+    "geist": "^1.4.2",
+    "react-colorful": "5.6.1",
     "remark-gfm": "4.0.1",
     "socket.io-client": "4.8.1"
   },
@@ -44,12 +45,11 @@
     "lint-staged": "16.0.0",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
-    "turbo": "2.5.4"
+    "turbo": "2.5.5"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,css,scss,md}": [
-      "biome check --files-ignore-unknown=true"
-    ],
-    "!.github/*.md": []
+    "*.{js,jsx,ts,tsx,json,css,scss}": [
+      "biome check --write --files-ignore-unknown=true"
+    ]
   }
 }

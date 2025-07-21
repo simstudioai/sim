@@ -1,6 +1,6 @@
 ---
 title: Blocks
-description: Building blocks for your agentic workflows
+description: The building components of your AI workflows
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
@@ -8,47 +8,121 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { BlockTypes } from '@/components/ui/block-types'
 
-Blocks are the fundamental building components of Sim Studio workflows. Each block has a specific purpose and can be connected to other blocks to create sophisticated workflows.
+Blocks are the building components you connect together to create AI workflows. Think of them as specialized modules that each handle a specific task—from chatting with AI models to making API calls or processing data.
 
-## What is a Block?
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/connections.mp4"></video>
+</div>
 
-A block is a reusable, configurable component that performs a specific function within your workflow. Blocks have inputs and outputs that allow them to communicate with other blocks. They can process data, make decisions, interact with external systems, or perform computations.
+## Core Block Types
 
-## Primary Block Types
+Sim Studio provides seven core block types that handle the essential functions of AI workflows:
 
-Sim Studio provides six powerful block types that form the foundation of any workflow. Each block is designed to handle specific aspects of your agentic applications, from AI-powered reasoning to conditional logic and external integrations.
+### Processing Blocks
+- **[Agent](/blocks/agent)** - Chat with AI models (OpenAI, Anthropic, Google, local models)
+- **[Function](/blocks/function)** - Run custom JavaScript/TypeScript code
+- **[API](/blocks/api)** - Connect to external services via HTTP requests
+
+### Logic Blocks
+- **[Condition](/blocks/condition)** - Branch workflow paths based on boolean expressions
+- **[Router](/blocks/router)** - Use AI to intelligently route requests to different paths
+- **[Evaluator](/blocks/evaluator)** - Score and assess content quality using AI
+
+### Output Blocks
+- **[Response](/blocks/response)** - Format and return final results from your workflow
 
 <BlockTypes />
 
-## Block Connections
+## How Blocks Work
 
-Blocks can be connected to form a directed graph representing your workflow. Each connection represents the flow of data from one block to another:
+Each block has three main components:
+
+**Inputs**: Data coming into the block from other blocks or user input
+**Configuration**: Settings that control how the block behaves
+**Outputs**: Data the block produces for other blocks to use
 
 <Steps>
   <Step>
-    <strong>Outputs to Inputs</strong>: A block's outputs can be connected to another block's
-    inputs.
+    <strong>Receive Input</strong>: Block receives data from connected blocks or user input
   </Step>
   <Step>
-    <strong>Multiple Connections</strong>: A block can have multiple incoming and outgoing
-    connections.
+    <strong>Process</strong>: Block processes the input according to its configuration
   </Step>
   <Step>
-    <strong>Conditional Flows</strong>: Some blocks (like Router and Condition) can have multiple
-    output paths based on conditions.
+    <strong>Output Results</strong>: Block produces output data for the next blocks in the workflow
   </Step>
 </Steps>
 
+## Connecting Blocks
+
+You create workflows by connecting blocks together. The output of one block becomes the input of another:
+
+- **Drag to connect**: Drag from an output port to an input port
+- **Multiple connections**: One output can connect to multiple inputs
+- **Branching paths**: Some blocks can route to different paths based on conditions
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/connections.mp4"></video>
+</div>
+
+## Common Patterns
+
+### Sequential Processing
+Connect blocks in a chain where each block processes the output of the previous one:
+```
+User Input → Agent → Function → Response
+```
+
+### Conditional Branching
+Use Condition or Router blocks to create different paths:
+```
+User Input → Router → Agent A (for questions)
+                   → Agent B (for commands)
+```
+
+### Quality Control
+Use Evaluator blocks to assess and filter outputs:
+```
+Agent → Evaluator → Condition → Response (if good)
+                              → Agent (retry if bad)
+```
+
 ## Block Configuration
 
-Each block type has its own configuration options allowing you to customize its behavior.
+Each block type has specific configuration options:
 
-### Common Configuration Options
+**All Blocks**:
+- Input/output connections
+- Error handling behavior
+- Execution timeout settings
 
-- **Input/output definitions**: Define how data flows in and out of the block
-- **Processing instructions**: Configure how the block processes its inputs
-- **API keys or authentication details**: Provide necessary credentials for external services
-- **Retry policies**: Configure how the block handles failures
-- **Error handling behavior**: Define how errors are managed and reported
+**AI Blocks** (Agent, Router, Evaluator):
+- Model selection (OpenAI, Anthropic, Google, local)
+- API keys and authentication
+- Temperature and other model parameters
+- System prompts and instructions
 
-See the specific documentation for each block type to learn about its configuration options.
+**Logic Blocks** (Condition, Function):
+- Custom expressions or code
+- Variable references
+- Execution environment settings
+
+**Integration Blocks** (API, Response):
+- Endpoint configuration
+- Headers and authentication
+- Request/response formatting
+
+<Cards>
+  <Card title="Agent Block" href="/blocks/agent">
+    Connect to AI models and create intelligent responses
+  </Card>
+  <Card title="Function Block" href="/blocks/function">
+    Run custom code to process and transform data
+  </Card>
+  <Card title="API Block" href="/blocks/api">
+    Integrate with external services and APIs
+  </Card>
+  <Card title="Condition Block" href="/blocks/condition">
+    Create branching logic based on data evaluation
+  </Card>
+</Cards>

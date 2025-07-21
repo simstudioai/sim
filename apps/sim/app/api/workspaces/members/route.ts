@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { hasAdminPermission } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { permissions, type permissionTypeEnum, user, workspaceMember } from '@/db/schema'
+import { permissions, type permissionTypeEnum, user } from '@/db/schema'
 
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
@@ -71,28 +71,15 @@ export async function POST(req: Request) {
       )
     }
 
-    // Use a transaction to ensure data consistency
-    await db.transaction(async (tx) => {
-      // Add user to workspace members table (keeping for compatibility)
-      await tx.insert(workspaceMember).values({
-        id: crypto.randomUUID(),
-        workspaceId,
-        userId: targetUser.id,
-        role: 'member', // Default role for compatibility
-        joinedAt: new Date(),
-        updatedAt: new Date(),
-      })
-
-      // Create single permission for the new member
-      await tx.insert(permissions).values({
-        id: crypto.randomUUID(),
-        userId: targetUser.id,
-        entityType: 'workspace' as const,
-        entityId: workspaceId,
-        permissionType: permission,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+    // Create single permission for the new member
+    await db.insert(permissions).values({
+      id: crypto.randomUUID(),
+      userId: targetUser.id,
+      entityType: 'workspace' as const,
+      entityId: workspaceId,
+      permissionType: permission,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     })
 
     return NextResponse.json({

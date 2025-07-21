@@ -1,9 +1,9 @@
-import type { ToolConfig } from '../types'
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarInviteParams,
   type GoogleCalendarInviteResponse,
-} from './types'
+} from '@/tools/google_calendar/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarInviteResponse> = {
   id: 'google_calendar_invite',
@@ -21,31 +21,37 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Google Calendar API',
     },
     calendarId: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Calendar ID (defaults to primary)',
     },
     eventId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Event ID to invite attendees to',
     },
     attendees: {
       type: 'array',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Array of attendee email addresses to invite',
     },
     sendUpdates: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'How to send updates to attendees: all, externalOnly, or none',
     },
     replaceExisting: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Whether to replace existing attendees or add to them (defaults to false)',
     },
   },

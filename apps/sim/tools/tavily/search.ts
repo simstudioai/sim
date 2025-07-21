@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { TavilySearchParams, TavilySearchResponse } from './types'
+import type { TavilySearchParams, TavilySearchResponse } from '@/tools/tavily/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = {
   id: 'tavily_search',
@@ -12,17 +12,19 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
     query: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The search query to execute',
     },
     max_results: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of results (1-20)',
     },
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Tavily API Key',
     },
   },

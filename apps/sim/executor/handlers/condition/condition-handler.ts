@@ -1,9 +1,10 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { BlockOutput } from '@/blocks/types'
+import { BlockType } from '@/executor/consts'
+import type { PathTracker } from '@/executor/path/path'
+import type { InputResolver } from '@/executor/resolver/resolver'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
-import type { PathTracker } from '../../path'
-import type { InputResolver } from '../../resolver'
-import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('ConditionBlockHandler')
 
@@ -21,7 +22,7 @@ export class ConditionBlockHandler implements BlockHandler {
   ) {}
 
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'condition'
+    return block.metadata?.id === BlockType.CONDITION
   }
 
   async execute(
@@ -104,12 +105,10 @@ export class ConditionBlockHandler implements BlockHandler {
       // 2. Resolve references WITHIN the specific condition's value string
       let resolvedConditionValue = condition.value
       try {
-        // Use the resolver instance to process block references within the condition string
-        resolvedConditionValue = this.resolver.resolveBlockReferences(
-          condition.value,
-          context,
-          block // Pass the current condition block as context
-        )
+        // Use full resolution pipeline: variables -> block references -> env vars
+        const resolvedVars = this.resolver.resolveVariableReferences(condition.value, block)
+        const resolvedRefs = this.resolver.resolveBlockReferences(resolvedVars, context, block)
+        resolvedConditionValue = this.resolver.resolveEnvVariables(resolvedRefs, true)
         logger.info(
           `Resolved condition "${condition.title}" (${condition.id}): from "${condition.value}" to "${resolvedConditionValue}"`
         )

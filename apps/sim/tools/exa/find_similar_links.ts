@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ExaFindSimilarLinksParams, ExaFindSimilarLinksResponse } from './types'
+import type { ExaFindSimilarLinksParams, ExaFindSimilarLinksResponse } from '@/tools/exa/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const findSimilarLinksTool: ToolConfig<
   ExaFindSimilarLinksParams,
@@ -15,22 +15,25 @@ export const findSimilarLinksTool: ToolConfig<
     url: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The URL to find similar links for',
     },
     numResults: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Number of similar links to return (default: 10, max: 25)',
     },
     text: {
       type: 'boolean',
       required: false,
+      visibility: 'user-or-llm',
       description: 'Whether to include the full text of the similar pages',
     },
     apiKey: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Exa AI API Key',
     },
   },

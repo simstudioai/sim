@@ -1,6 +1,6 @@
 import { S3Icon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { S3Response } from '@/tools/s3/types'
-import type { BlockConfig } from '../types'
 
 export const S3Block: BlockConfig<S3Response> = {
   type: 's3',

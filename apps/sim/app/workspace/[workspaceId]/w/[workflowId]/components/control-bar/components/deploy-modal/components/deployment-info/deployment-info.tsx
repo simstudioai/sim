@@ -19,19 +19,21 @@ import { ApiEndpoint } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { ApiKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-key/api-key'
 import { DeployStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components/deploy-status/deploy-status'
 import { ExampleCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
-import { useNotificationStore } from '@/stores/notifications/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { DeployedWorkflowModal } from '../../../deployment-controls/components/deployed-workflow-modal'
 
+interface WorkflowDeploymentInfo {
+  isDeployed: boolean
+  deployedAt?: string
+  apiKey: string
+  endpoint: string
+  exampleCommand: string
+  needsRedeployment: boolean
+}
+
 interface DeploymentInfoProps {
-  isLoading?: boolean
-  deploymentInfo: {
-    deployedAt?: string
-    apiKey: string
-    endpoint: string
-    exampleCommand: string
-    needsRedeployment: boolean
-  } | null
+  isLoading: boolean
+  deploymentInfo: WorkflowDeploymentInfo | null
   onRedeploy: () => void
   onUndeploy: () => void
   isSubmitting: boolean
@@ -39,6 +41,7 @@ interface DeploymentInfoProps {
   workflowId: string | null
   deployedState: WorkflowState
   isLoadingDeployedState: boolean
+  getInputFormatExample?: () => string
 }
 
 export function DeploymentInfo({
@@ -51,13 +54,12 @@ export function DeploymentInfo({
   workflowId,
   deployedState,
   isLoadingDeployedState,
+  getInputFormatExample,
 }: DeploymentInfoProps) {
   const [isViewingDeployed, setIsViewingDeployed] = useState(false)
-  const { addNotification } = useNotificationStore()
 
   const handleViewDeployed = async () => {
     if (!workflowId) {
-      addNotification('error', 'Cannot view deployment: Workflow ID is missing', null)
       return
     }
 
@@ -65,9 +67,6 @@ export function DeploymentInfo({
     if (deployedState) {
       setIsViewingDeployed(true)
       return
-    }
-    if (!isLoadingDeployedState) {
-      addNotification('error', 'Cannot view deployment: No deployed state available', workflowId)
     }
   }
 
@@ -110,7 +109,12 @@ export function DeploymentInfo({
         <div className='space-y-4'>
           <ApiEndpoint endpoint={deploymentInfo.endpoint} />
           <ApiKey apiKey={deploymentInfo.apiKey} />
-          <ExampleCommand command={deploymentInfo.exampleCommand} apiKey={deploymentInfo.apiKey} />
+          <ExampleCommand
+            command={deploymentInfo.exampleCommand}
+            apiKey={deploymentInfo.apiKey}
+            endpoint={deploymentInfo.endpoint}
+            getInputFormatExample={getInputFormatExample}
+          />
         </div>
 
         <div className='mt-4 flex items-center justify-between pt-2'>

@@ -33,6 +33,63 @@ describe('Workflow Execution API Route', () => {
       }),
     }))
 
+    // Mock authentication
+    vi.doMock('@/lib/auth', () => ({
+      getSession: vi.fn().mockResolvedValue({
+        user: { id: 'user-id' },
+      }),
+    }))
+
+    // Mock rate limiting
+    vi.doMock('@/services/queue', () => ({
+      RateLimiter: vi.fn().mockImplementation(() => ({
+        checkRateLimit: vi.fn().mockResolvedValue({
+          allowed: true,
+          remaining: 10,
+          resetAt: new Date(),
+        }),
+      })),
+      RateLimitError: class RateLimitError extends Error {
+        constructor(
+          message: string,
+          public statusCode = 429
+        ) {
+          super(message)
+          this.name = 'RateLimitError'
+        }
+      },
+    }))
+
+    // Mock billing usage check
+    vi.doMock('@/lib/billing', () => ({
+      checkServerSideUsageLimits: vi.fn().mockResolvedValue({
+        isExceeded: false,
+        currentUsage: 10,
+        limit: 100,
+      }),
+    }))
+
+    // Mock database subscription check
+    vi.doMock('@/db/schema', () => ({
+      subscription: {
+        plan: 'plan',
+        referenceId: 'referenceId',
+      },
+      apiKey: {
+        userId: 'userId',
+        key: 'key',
+      },
+      userStats: {
+        userId: 'userId',
+        totalApiCalls: 'totalApiCalls',
+        lastActive: 'lastActive',
+      },
+      environment: {
+        userId: 'userId',
+        variables: 'variables',
+      },
+    }))
+
     vi.doMock('@/lib/workflows/db-helpers', () => ({
       loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
         blocks: {
@@ -105,6 +162,15 @@ describe('Workflow Execution API Route', () => {
       persistExecutionError: vi.fn().mockResolvedValue(undefined),
     }))
 
+    vi.doMock('@/lib/logs/enhanced-logging-session', () => ({
+      EnhancedLoggingSession: vi.fn().mockImplementation(() => ({
+        safeStart: vi.fn().mockResolvedValue(undefined),
+        safeComplete: vi.fn().mockResolvedValue(undefined),
+        safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+        setupExecutor: vi.fn(),
+      })),
+    }))
+
     vi.doMock('@/lib/logs/enhanced-execution-logger', () => ({
       enhancedExecutionLogger: {
         startWorkflowExecution: vi.fn().mockResolvedValue(undefined),
@@ -123,22 +189,44 @@ describe('Workflow Execution API Route', () => {
     vi.doMock('@/lib/workflows/utils', () => ({
       updateWorkflowRunCounts: vi.fn().mockResolvedValue(undefined),
       workflowHasResponseBlock: vi.fn().mockReturnValue(false),
+      createHttpResponseFromBlock: vi.fn().mockReturnValue(new Response('OK')),
+    }))
+
+    vi.doMock('@/stores/workflows/server-utils', () => ({
+      mergeSubblockState: vi.fn().mockReturnValue({
+        'starter-id': {
+          id: 'starter-id',
+          type: 'starter',
+          subBlocks: {},
+        },
+      }),
     }))
 
     vi.doMock('@/db', () => {
       const mockDb = {
-        select: vi.fn().mockImplementation(() => ({
-          from: vi.fn().mockImplementation(() => ({
+        select: vi.fn().mockImplementation((columns) => ({
+          from: vi.fn().mockImplementation((table) => ({
             where: vi.fn().mockImplementation(() => ({
-              limit: vi.fn().mockImplementation(() => [
-                {
-                  id: 'env-id',
-                  userId: 'user-id',
-                  variables: {
-                    OPENAI_API_KEY: 'encrypted:key-value',
+              limit: vi.fn().mockImplementation(() => {
+                // Mock subscription queries
+                if (table === 'subscription' || columns?.plan) {
+                  return [{ plan: 'free' }]
+                }
+                // Mock API key queries
+                if (table === 'apiKey' || columns?.userId) {
+                  return [{ userId: 'user-id' }]
+                }
+                // Default environment query
+                return [
+                  {
+                    id: 'env-id',
+                    userId: 'user-id',
+                    variables: {
+                      OPENAI_API_KEY: 'encrypted:key-value',
+                    },
                   },
-                },
-              ]),
+                ]
+              }),
             })),
           })),
         })),
@@ -400,6 +488,25 @@ describe('Workflow Execution API Route', () => {
    * Test handling of execution errors
    */
   it('should handle execution errors gracefully', async () => {
+    // Mock enhanced execution logger with spy
+    const mockCompleteWorkflowExecution = vi.fn().mockResolvedValue({})
+    vi.doMock('@/lib/logs/enhanced-execution-logger', () => ({
+      enhancedExecutionLogger: {
+        completeWorkflowExecution: mockCompleteWorkflowExecution,
+      },
+    }))
+
+    // Mock EnhancedLoggingSession with spy
+    const mockSafeCompleteWithError = vi.fn().mockResolvedValue({})
+    vi.doMock('@/lib/logs/enhanced-logging-session', () => ({
+      EnhancedLoggingSession: vi.fn().mockImplementation(() => ({
+        safeStart: vi.fn().mockResolvedValue({}),
+        safeComplete: vi.fn().mockResolvedValue({}),
+        safeCompleteWithError: mockSafeCompleteWithError,
+        setupExecutor: vi.fn(),
+      })),
+    }))
+
     // Mock the executor to throw an error
     vi.doMock('@/executor', () => ({
       Executor: vi.fn().mockImplementation(() => ({
@@ -428,10 +535,8 @@ describe('Workflow Execution API Route', () => {
     expect(data).toHaveProperty('error')
     expect(data.error).toContain('Execution failed')
 
-    // Verify enhanced logger was called for error completion
-    const enhancedExecutionLogger = (await import('@/lib/logs/enhanced-execution-logger'))
-      .enhancedExecutionLogger
-    expect(enhancedExecutionLogger.completeWorkflowExecution).toHaveBeenCalled()
+    // Verify enhanced logger was called for error completion via EnhancedLoggingSession
+    expect(mockSafeCompleteWithError).toHaveBeenCalled()
   })
 
   /**

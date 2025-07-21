@@ -269,6 +269,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     const messageToSend = messageParam ?? inputValue
     if (!messageToSend.trim() || isLoading) return
 
+    logger.info('Sending message:', { messageToSend, isVoiceInput, conversationId })
+
     // Reset userHasScrolled when sending a new message
     setUserHasScrolled(false)
 
@@ -305,6 +307,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         conversationId,
       }
 
+      logger.info('API payload:', payload)
+
       const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
         headers: {
@@ -321,6 +325,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       if (!response.ok) {
         const errorData = await response.json()
+        logger.error('API error response:', errorData)
         throw new Error(errorData.error || 'Failed to get response')
       }
 
@@ -328,124 +333,29 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         throw new Error('Response body is missing')
       }
 
-      const messageIdMap = new Map<string, string>()
+      // Use the streaming hook with audio support
+      const shouldPlayAudio = isVoiceInput || isVoiceFirstMode
+      const audioHandler = shouldPlayAudio
+        ? createAudioStreamHandler(streamTextToAudio, DEFAULT_VOICE_SETTINGS.voiceId)
+        : undefined
 
-      // Get reader with proper cleanup
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
+      logger.info('Starting to handle streamed response:', { shouldPlayAudio })
 
-      const processStream = async () => {
-        let streamAborted = false
-
-        // Add cleanup handler for abort
-        const cleanup = () => {
-          streamAborted = true
-          try {
-            reader.releaseLock()
-          } catch (error) {
-            // Reader might already be released
-            logger.debug('Reader already released:', error)
-          }
-          setIsLoading(false)
+      await handleStreamedResponse(
+        response,
+        setMessages,
+        setIsLoading,
+        scrollToBottom,
+        userHasScrolled,
+        {
+          voiceSettings: {
+            isVoiceEnabled: shouldPlayAudio,
+            voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
+            autoPlayResponses: shouldPlayAudio,
+          },
+          audioStreamHandler: audioHandler,
         }
-
-        // Listen for abort events
-        abortController.signal.addEventListener('abort', cleanup)
-
-        try {
-          while (!streamAborted) {
-            const { done, value } = await reader.read()
-
-            if (done) {
-              setIsLoading(false)
-              break
-            }
-
-            if (streamAborted) {
-              break
-            }
-
-            const chunk = decoder.decode(value, { stream: true })
-            const lines = chunk.split('\n\n')
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const json = JSON.parse(line.substring(6))
-                  const { blockId, chunk: contentChunk, event: eventType } = json
-
-                  if (eventType === 'final' && json.data) {
-                    setIsLoading(false)
-
-                    // Process final execution result for field extraction
-                    const result = json.data
-                    const nonStreamingLogs =
-                      result.logs?.filter((log: any) => !messageIdMap.has(log.blockId)) || []
-
-                    // Chat field extraction will be handled by the backend using deployment outputConfigs
-
-                    return
-                  }
-
-                  if (blockId && contentChunk) {
-                    if (!messageIdMap.has(blockId)) {
-                      const newMessageId = crypto.randomUUID()
-                      messageIdMap.set(blockId, newMessageId)
-                      setMessages((prev) => [
-                        ...prev,
-                        {
-                          id: newMessageId,
-                          content: contentChunk,
-                          type: 'assistant',
-                          timestamp: new Date(),
-                          isStreaming: true,
-                        },
-                      ])
-                    } else {
-                      const messageId = messageIdMap.get(blockId)
-                      if (messageId) {
-                        setMessages((prev) =>
-                          prev.map((msg) =>
-                            msg.id === messageId
-                              ? { ...msg, content: msg.content + contentChunk }
-                              : msg
-                          )
-                        )
-                      }
-                    }
-                  } else if (blockId && eventType === 'end') {
-                    const messageId = messageIdMap.get(blockId)
-                    if (messageId) {
-                      setMessages((prev) =>
-                        prev.map((msg) =>
-                          msg.id === messageId ? { ...msg, isStreaming: false } : msg
-                        )
-                      )
-                    }
-                  }
-                } catch (parseError) {
-                  logger.error('Error parsing stream data:', parseError)
-                  // Continue processing other lines even if one fails
-                }
-              }
-            }
-          }
-        } catch (streamError: unknown) {
-          if (streamError instanceof Error && streamError.name === 'AbortError') {
-            logger.info('Stream processing aborted by user')
-            return
-          }
-
-          logger.error('Error processing stream:', streamError)
-          throw streamError
-        } finally {
-          // Ensure cleanup always happens
-          cleanup()
-          abortController.signal.removeEventListener('abort', cleanup)
-        }
-      }
-
-      await processStream()
+      )
     } catch (error: any) {
       // Clear timeout in case of error
       clearTimeout(timeoutId)
@@ -502,6 +412,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Handle voice transcript from voice-first interface
   const handleVoiceTranscript = useCallback(
     (transcript: string) => {
+      logger.info('Received voice transcript:', transcript)
       handleSendMessage(transcript, true)
     },
     [handleSendMessage]

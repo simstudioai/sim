@@ -1,15 +1,6 @@
 import { BrowserUseIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
-
-interface BrowserUseResponse extends ToolResponse {
-  output: {
-    id: string
-    success: boolean
-    output: any
-    steps: any[]
-  }
-}
+import type { BlockConfig } from '@/blocks/types'
+import type { BrowserUseResponse } from '@/tools/browser_use/types'
 
 export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   type: 'browser_use',

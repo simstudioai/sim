@@ -1,15 +1,6 @@
 import { GoogleDriveIcon } from '@/components/icons'
-import type {
-  GoogleDriveGetContentResponse,
-  GoogleDriveListResponse,
-  GoogleDriveUploadResponse,
-} from '@/tools/google_drive/types'
-import type { BlockConfig } from '../types'
-
-type GoogleDriveResponse =
-  | GoogleDriveUploadResponse
-  | GoogleDriveGetContentResponse
-  | GoogleDriveListResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { GoogleDriveResponse } from '@/tools/google_drive/types'
 
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   type: 'google_drive',
@@ -87,18 +78,17 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',
+      mode: 'basic',
       condition: { field: 'operation', value: 'upload' },
     },
     {
-      id: 'folderId',
-      title: 'Or Enter Parent Folder ID Manually',
+      id: 'manualFolderId',
+      title: 'Parent Folder ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the parent folder (leave empty for root folder)',
-      condition: {
-        field: 'operation',
-        value: 'upload',
-      },
+      placeholder: 'Enter parent folder ID (leave empty for root folder)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'upload' },
     },
     // Get Content Fields
     // {
@@ -160,21 +150,20 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a parent folder',
+      mode: 'basic',
       condition: { field: 'operation', value: 'create_folder' },
     },
-    // Manual Folder ID input (shown only when no folder is selected)
+    // Manual Folder ID input (advanced mode)
     {
-      id: 'folderId',
-      title: 'Or Enter Parent Folder ID Manually',
+      id: 'manualFolderId',
+      title: 'Parent Folder ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the parent folder (leave empty for root folder)',
-      condition: {
-        field: 'operation',
-        value: 'create_folder',
-      },
+      placeholder: 'Enter parent folder ID (leave empty for root folder)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_folder' },
     },
-    // List Fields - Folder Selector
+    // List Fields - Folder Selector (basic mode)
     {
       id: 'folderSelector',
       title: 'Select Folder',
@@ -185,19 +174,18 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a folder to list files from',
+      mode: 'basic',
       condition: { field: 'operation', value: 'list' },
     },
-    // Manual Folder ID input (shown only when no folder is selected)
+    // Manual Folder ID input (advanced mode)
     {
-      id: 'folderId',
-      title: 'Or Enter Folder ID Manually',
+      id: 'manualFolderId',
+      title: 'Folder ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the folder to list (leave empty for root folder)',
-      condition: {
-        field: 'operation',
-        value: 'list',
-      },
+      placeholder: 'Enter folder ID (leave empty for root folder)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list' },
     },
     {
       id: 'query',
@@ -234,14 +222,14 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderId, folderSelector, mimeType, ...rest } = params
+        const { credential, folderSelector, manualFolderId, mimeType, ...rest } = params
 
-        // Use folderSelector if provided, otherwise use folderId
-        const effectiveFolderId = folderSelector || folderId || ''
+        // Use folderSelector if provided, otherwise use manualFolderId
+        const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
 
         return {
           accessToken: credential,
-          folderId: effectiveFolderId.trim(),
+          folderId: effectiveFolderId,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...rest,
@@ -259,8 +247,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     // Get Content operation inputs
     // fileId: { type: 'string', required: false },
     // List operation inputs
-    folderId: { type: 'string', required: false },
     folderSelector: { type: 'string', required: false },
+    manualFolderId: { type: 'string', required: false },
     query: { type: 'string', required: false },
     pageSize: { type: 'number', required: false },
   },

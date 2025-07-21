@@ -51,9 +51,11 @@ export function ComboBox({
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const reactFlowInstance = useReactFlow()
 
   // Use preview value when in preview mode, otherwise use store value or prop value
@@ -167,6 +169,7 @@ export function ComboBox({
       setStoreValue(selectedValue)
     }
     setOpen(false)
+    setHighlightedIndex(-1)
     inputRef.current?.blur()
   }
 
@@ -184,9 +187,10 @@ export function ComboBox({
   const handleFocus = () => {
     setIsFocused(true)
     setOpen(true)
+    setHighlightedIndex(-1)
   }
 
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+  const handleBlur = () => {
     setIsFocused(false)
     setShowEnvVars(false)
     setShowTags(false)
@@ -196,6 +200,7 @@ export function ComboBox({
       const activeElement = document.activeElement
       if (!activeElement || !activeElement.closest('.absolute.top-full')) {
         setOpen(false)
+        setHighlightedIndex(-1)
       }
     }, 150)
   }
@@ -205,12 +210,33 @@ export function ComboBox({
       setShowEnvVars(false)
       setShowTags(false)
       setOpen(false)
+      setHighlightedIndex(-1)
       return
     }
 
-    if (e.key === 'ArrowDown' && !open) {
-      setOpen(true)
+    if (e.key === 'ArrowDown') {
       e.preventDefault()
+      if (!open) {
+        setOpen(true)
+        setHighlightedIndex(0)
+      } else {
+        setHighlightedIndex((prev) => (prev < filteredOptions.length - 1 ? prev + 1 : 0))
+      }
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (open) {
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filteredOptions.length - 1))
+      }
+    }
+
+    if (e.key === 'Enter' && open && highlightedIndex >= 0) {
+      e.preventDefault()
+      const selectedOption = filteredOptions[highlightedIndex]
+      if (selectedOption) {
+        handleSelect(getOptionValue(selectedOption))
+      }
     }
   }
 
@@ -315,6 +341,31 @@ export function ComboBox({
     }
   }, [value])
 
+  // Reset highlighted index when filtered options change, but preserve if within bounds
+  useEffect(() => {
+    setHighlightedIndex((prev) => {
+      if (prev >= 0 && prev < filteredOptions.length) {
+        return prev
+      }
+      return -1
+    })
+  }, [filteredOptions])
+
+  // Scroll highlighted option into view
+  useEffect(() => {
+    if (highlightedIndex >= 0 && dropdownRef.current) {
+      const highlightedElement = dropdownRef.current.querySelector(
+        `[data-option-index="${highlightedIndex}"]`
+      )
+      if (highlightedElement) {
+        highlightedElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+        })
+      }
+    }
+  }, [highlightedIndex])
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element
@@ -325,6 +376,7 @@ export function ComboBox({
         !target.closest('.absolute.top-full')
       ) {
         setOpen(false)
+        setHighlightedIndex(-1)
       }
     }
 
@@ -394,6 +446,7 @@ export function ComboBox({
         <div className='absolute top-full left-0 z-[100] mt-1 w-full min-w-[286px]'>
           <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
             <div
+              ref={dropdownRef}
               className='allow-scroll max-h-48 overflow-y-auto p-1'
               style={{ scrollbarWidth: 'thin' }}
             >
@@ -402,7 +455,7 @@ export function ComboBox({
                   No matching options found.
                 </div>
               ) : (
-                filteredOptions.map((option) => {
+                filteredOptions.map((option, index) => {
                   const optionValue = getOptionValue(option)
                   const optionLabel = getOptionLabel(option)
                   const OptionIcon =
@@ -410,16 +463,22 @@ export function ComboBox({
                       ? (option.icon as React.ComponentType<{ className?: string }>)
                       : null
                   const isSelected = displayValue === optionValue || displayValue === optionLabel
+                  const isHighlighted = index === highlightedIndex
 
                   return (
                     <div
                       key={optionValue}
+                      data-option-index={index}
                       onClick={() => handleSelect(optionValue)}
                       onMouseDown={(e) => {
                         e.preventDefault()
                         handleSelect(optionValue)
                       }}
-                      className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      className={cn(
+                        'relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground',
+                        isHighlighted && 'bg-accent text-accent-foreground'
+                      )}
                     >
                       {OptionIcon && <OptionIcon className='mr-2 h-3 w-3 opacity-60' />}
                       <span className='flex-1 truncate'>{optionLabel}</span>

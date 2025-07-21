@@ -12,7 +12,6 @@ import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/componen
 import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../../components/knowledge-header/knowledge-header'
 import { CreateChunkModal } from './components/create-chunk-modal/create-chunk-modal'
 import { DeleteChunkModal } from './components/delete-chunk-modal/delete-chunk-modal'
@@ -45,15 +44,10 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const { mode, isExpanded } = useSidebarStore()
   const { getCachedKnowledgeBase, getCachedDocuments } = useKnowledgeStore()
   const { workspaceId } = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
-
   const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
 
   const {
@@ -117,7 +111,7 @@ export function Document({
         setError(null)
 
         const cachedDocuments = getCachedDocuments(knowledgeBaseId)
-        const cachedDoc = cachedDocuments?.find((d) => d.id === documentId)
+        const cachedDoc = cachedDocuments?.documents?.find((d) => d.id === documentId)
 
         if (cachedDoc) {
           setDocument(cachedDoc)
@@ -247,7 +241,7 @@ export function Document({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedChunks(new Set(paginatedChunks.map((chunk) => chunk.id)))
+      setSelectedChunks(new Set(paginatedChunks.map((chunk: ChunkData) => chunk.id)))
     } else {
       setSelectedChunks(new Set())
     }
@@ -362,9 +356,7 @@ export function Document({
     ]
 
     return (
-      <div
-        className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-      >
+      <div className='flex h-[100vh] flex-col pl-64'>
         <KnowledgeHeader breadcrumbs={errorBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center'>
           <div className='text-center'>
@@ -382,9 +374,7 @@ export function Document({
   }
 
   return (
-    <div
-      className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-    >
+    <div className='flex h-[100vh] flex-col pl-64'>
       {/* Fixed Header with Breadcrumbs */}
       <KnowledgeHeader breadcrumbs={breadcrumbs} />
 
@@ -417,6 +407,37 @@ export function Document({
                 </Button>
               </div>
 
+              {/* Document Tags Display */}
+              {document &&
+                (() => {
+                  const tags = [
+                    { label: 'Tag 1', value: document.tag1 },
+                    { label: 'Tag 2', value: document.tag2 },
+                    { label: 'Tag 3', value: document.tag3 },
+                    { label: 'Tag 4', value: document.tag4 },
+                    { label: 'Tag 5', value: document.tag5 },
+                    { label: 'Tag 6', value: document.tag6 },
+                    { label: 'Tag 7', value: document.tag7 },
+                  ].filter((tag) => tag.value?.trim())
+
+                  return tags.length > 0 ? (
+                    <div className='mb-4 rounded-md bg-muted/50 p-3'>
+                      <p className='mb-2 text-muted-foreground text-xs'>Document Tags:</p>
+                      <div className='flex flex-wrap gap-2'>
+                        {tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className='inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-primary text-xs'
+                          >
+                            <span className='font-medium'>{tag.label}:</span>
+                            <span>{tag.value}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null
+                })()}
+
               {/* Error State for chunks */}
               {combinedError && !isLoadingAllChunks && (
                 <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-4'>
@@ -432,7 +453,7 @@ export function Document({
                     <colgroup>
                       <col className='w-[5%]' />
                       <col className='w-[8%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[57%]' : 'w-[55%]'}`} />
+                      <col className='w-[55%]' />
                       <col className='w-[10%]' />
                       <col className='w-[10%]' />
                       <col className='w-[12%]' />
@@ -478,7 +499,7 @@ export function Document({
                     <colgroup>
                       <col className='w-[5%]' />
                       <col className='w-[8%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[57%]' : 'w-[55%]'}`} />
+                      <col className='w-[55%]' />
                       <col className='w-[10%]' />
                       <col className='w-[10%]' />
                       <col className='w-[12%]' />
@@ -571,7 +592,7 @@ export function Document({
                           </tr>
                         ))
                       ) : (
-                        paginatedChunks.map((chunk) => (
+                        paginatedChunks.map((chunk: ChunkData) => (
                           <tr
                             key={chunk.id}
                             className='cursor-pointer border-b transition-colors hover:bg-accent/30'

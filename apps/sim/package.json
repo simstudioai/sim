@@ -22,7 +22,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:billing:suite": "bun run scripts/test-billing-suite.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -66,6 +67,7 @@
     "@radix-ui/react-tooltip": "^1.1.6",
     "@react-email/components": "^0.0.34",
     "@sentry/nextjs": "^9.15.0",
+    "@trigger.dev/sdk": "3.3.17",
     "@types/react-syntax-highlighter": "15.5.13",
     "@types/three": "0.177.0",
     "@vercel/og": "^0.6.5",
@@ -85,6 +87,7 @@
     "framer-motion": "^12.5.0",
     "freestyle-sandboxes": "^0.0.38",
     "fuse.js": "7.1.0",
+    "geist": "1.4.2",
     "groq-sdk": "^0.15.0",
     "input-otp": "^1.4.2",
     "ioredis": "^5.6.0",
@@ -102,6 +105,7 @@
     "postgres": "^3.4.5",
     "prismjs": "^1.30.0",
     "react": "19.1.0",
+    "react-colorful": "5.6.1",
     "react-day-picker": "8.10.1",
     "react-dom": "19.1.0",
     "react-google-drive-picker": "^1.2.2",
@@ -127,6 +131,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
+    "@trigger.dev/build": "3.3.17",
     "@types/js-yaml": "4.0.9",
     "@types/jsdom": "21.1.7",
     "@types/lodash": "^4.17.16",

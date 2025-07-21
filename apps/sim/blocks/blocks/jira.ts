@@ -1,17 +1,6 @@
 import { JiraIcon } from '@/components/icons'
-import type {
-  JiraRetrieveResponse,
-  JiraRetrieveResponseBulk,
-  JiraUpdateResponse,
-  JiraWriteResponse,
-} from '@/tools/jira/types'
-import type { BlockConfig } from '../types'
-
-type JiraResponse =
-  | JiraRetrieveResponse
-  | JiraUpdateResponse
-  | JiraWriteResponse
-  | JiraRetrieveResponseBulk
+import type { BlockConfig } from '@/blocks/types'
+import type { JiraResponse } from '@/tools/jira/types'
 
 export const JiraBlock: BlockConfig<JiraResponse> = {
   type: 'jira',
@@ -24,7 +13,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
   bgColor: '#E0E0E0',
   icon: JiraIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -62,7 +50,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       ],
       placeholder: 'Select Jira account',
     },
-    // Use file-selector component for issue selection
+    // Project selector (basic mode)
     {
       id: 'projectId',
       title: 'Select Project',
@@ -71,7 +59,18 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira project',
+      mode: 'basic',
     },
+    // Manual project ID input (advanced mode)
+    {
+      id: 'manualProjectId',
+      title: 'Project ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Jira project ID',
+      mode: 'advanced',
+    },
+    // Issue selector (basic mode)
     {
       id: 'issueKey',
       title: 'Select Issue',
@@ -81,6 +80,17 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       serviceId: 'jira',
       placeholder: 'Select Jira issue',
       condition: { field: 'operation', value: ['read', 'update'] },
+      mode: 'basic',
+    },
+    // Manual issue key input (advanced mode)
+    {
+      id: 'manualIssueKey',
+      title: 'Issue Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Jira issue key',
+      condition: { field: 'operation', value: ['read', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'summary',
@@ -117,18 +127,32 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         }
       },
       params: (params) => {
+        const { credential, projectId, manualProjectId, issueKey, manualIssueKey, ...rest } = params
+
         // Base params that are always needed
         const baseParams = {
-          accessToken: params.credential,
+          accessToken: credential,
           domain: params.domain,
         }
+
+        // Use the selected project ID or the manually entered one
+        const effectiveProjectId = (projectId || manualProjectId || '').trim()
+
+        // Use the selected issue key or the manually entered one
+        const effectiveIssueKey = (issueKey || manualIssueKey || '').trim()
 
         // Define allowed parameters for each operation
         switch (params.operation) {
           case 'write': {
+            if (!effectiveProjectId) {
+              throw new Error(
+                'Project ID is required. Please select a project or enter a project ID manually.'
+              )
+            }
+
             // For write operations, only include write-specific fields
             const writeParams = {
-              projectId: params.projectId,
+              projectId: effectiveProjectId,
               summary: params.summary || '',
               description: params.description || '',
               issueType: params.issueType || 'Task',
@@ -141,10 +165,21 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
             }
           }
           case 'update': {
+            if (!effectiveProjectId) {
+              throw new Error(
+                'Project ID is required. Please select a project or enter a project ID manually.'
+              )
+            }
+            if (!effectiveIssueKey) {
+              throw new Error(
+                'Issue Key is required. Please select an issue or enter an issue key manually.'
+              )
+            }
+
             // For update operations, only include update-specific fields
             const updateParams = {
-              projectId: params.projectId,
-              issueKey: params.issueKey,
+              projectId: effectiveProjectId,
+              issueKey: effectiveIssueKey,
               summary: params.summary || '',
               description: params.description || '',
             }
@@ -155,17 +190,29 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
             }
           }
           case 'read': {
+            if (!effectiveIssueKey) {
+              throw new Error(
+                'Issue Key is required. Please select an issue or enter an issue key manually.'
+              )
+            }
+
             // For read operations, only include read-specific fields
             return {
               ...baseParams,
-              issueKey: params.issueKey,
+              issueKey: effectiveIssueKey,
             }
           }
           case 'read-bulk': {
+            if (!effectiveProjectId) {
+              throw new Error(
+                'Project ID is required. Please select a project or enter a project ID manually.'
+              )
+            }
+
             // For read-bulk operations, only include read-bulk-specific fields
             return {
               ...baseParams,
-              projectId: params.projectId,
+              projectId: effectiveProjectId,
             }
           }
           default:
@@ -178,8 +225,10 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     operation: { type: 'string', required: true },
     domain: { type: 'string', required: true },
     credential: { type: 'string', required: true },
-    issueKey: { type: 'string', required: true },
+    issueKey: { type: 'string', required: false },
     projectId: { type: 'string', required: false },
+    manualProjectId: { type: 'string', required: false },
+    manualIssueKey: { type: 'string', required: false },
     // Update operation inputs
     summary: { type: 'string', required: true },
     description: { type: 'string', required: false },

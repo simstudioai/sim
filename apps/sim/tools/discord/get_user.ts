@@ -1,11 +1,11 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
 import type {
   DiscordAPIError,
   DiscordGetUserParams,
   DiscordGetUserResponse,
   DiscordUser,
-} from './types'
+} from '@/tools/discord/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DiscordGetUser')
 
@@ -19,13 +19,13 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
     botToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Discord bot token for authentication',
     },
     userId: {
       type: 'string',
       required: true,
-      optionalToolInput: true,
+      visibility: 'user-only',
       description: 'The Discord user ID',
     },
   },

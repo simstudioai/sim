@@ -1,11 +1,11 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
 import type {
   FileParseResult,
   FileParserInput,
   FileParserOutput,
   FileParserOutputData,
-} from './types'
+} from '@/tools/file/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FileParserTool')
 
@@ -19,11 +19,13 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
     filePath: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Path to the file(s). Can be a single path, URL, or an array of paths.',
     },
     fileType: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'Type of file to parse (auto-detected if not specified)',
     },
   },

@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface RedditPost {
   id: string
@@ -74,3 +74,5 @@ export interface RedditCommentsResponse extends ToolResponse {
     comments: RedditComment[]
   }
 }
+
+export type RedditResponse = RedditHotPostsResponse | RedditPostsResponse | RedditCommentsResponse

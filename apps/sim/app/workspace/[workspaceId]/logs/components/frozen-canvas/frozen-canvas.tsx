@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react'
 import {
   AlertCircle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Clock,
   DollarSign,
   Hash,
   Loader2,
+  Maximize2,
   X,
   Zap,
 } from 'lucide-react'
@@ -20,6 +23,71 @@ import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/work
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('FrozenCanvas')
+
+function ExpandableDataSection({ title, data }: { title: string; data: any }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const jsonString = JSON.stringify(data, null, 2)
+  const isLargeData = jsonString.length > 500 || jsonString.split('\n').length > 10
+
+  return (
+    <>
+      <div>
+        <div className='mb-2 flex items-center justify-between'>
+          <h4 className='font-medium text-foreground text-sm'>{title}</h4>
+          <div className='flex items-center gap-1'>
+            {isLargeData && (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+                title='Expand in modal'
+              >
+                <Maximize2 className='h-3 w-3' />
+              </button>
+            )}
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+            >
+              {isExpanded ? <ChevronUp className='h-3 w-3' /> : <ChevronDown className='h-3 w-3' />}
+            </button>
+          </div>
+        </div>
+        <div
+          className={cn(
+            'overflow-y-auto rounded bg-muted p-3 font-mono text-xs transition-all duration-200',
+            isExpanded ? 'max-h-96' : 'max-h-32'
+          )}
+        >
+          <pre className='whitespace-pre-wrap break-words text-foreground'>{jsonString}</pre>
+        </div>
+      </div>
+
+      {/* Modal for large data */}
+      {isModalOpen && (
+        <div className='fixed inset-0 z-[200] flex items-center justify-center bg-black/50'>
+          <div className='mx-4 h-[80vh] w-full max-w-4xl rounded-lg border bg-background shadow-lg'>
+            <div className='flex items-center justify-between border-b p-4'>
+              <h3 className='font-medium text-foreground text-lg'>{title}</h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className='rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground'
+              >
+                <X className='h-4 w-4' />
+              </button>
+            </div>
+            <div className='h-[calc(80vh-4rem)] overflow-auto p-4'>
+              <pre className='whitespace-pre-wrap break-words font-mono text-foreground text-sm'>
+                {jsonString}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
 
 function formatExecutionData(executionData: any) {
   const {
@@ -80,16 +148,79 @@ function getCurrentIterationData(blockExecutionData: any) {
   }
 }
 
-function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: () => void }) {
+function PinnedLogs({
+  executionData,
+  blockId,
+  workflowState,
+  onClose,
+}: {
+  executionData: any | null
+  blockId: string
+  workflowState: any
+  onClose: () => void
+}) {
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const [currentIterationIndex, setCurrentIterationIndex] = useState(0)
 
+  // Reset iteration index when execution data changes
+  useEffect(() => {
+    setCurrentIterationIndex(0)
+  }, [executionData])
+
+  // Handle case where block has no execution data (e.g., failed workflow)
+  if (!executionData) {
+    const blockInfo = workflowState?.blocks?.[blockId]
+    const formatted = {
+      blockName: blockInfo?.name || 'Unknown Block',
+      blockType: blockInfo?.type || 'unknown',
+      status: 'not_executed',
+      duration: 'N/A',
+      input: null,
+      output: null,
+      errorMessage: null,
+      errorStackTrace: null,
+      cost: null,
+      tokens: null,
+    }
+
+    return (
+      <Card className='fixed top-4 right-4 z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border-border bg-background shadow-lg'>
+        <CardHeader className='pb-3'>
+          <div className='flex items-center justify-between'>
+            <CardTitle className='flex items-center gap-2 text-foreground text-lg'>
+              <Zap className='h-5 w-5' />
+              {formatted.blockName}
+            </CardTitle>
+            <button onClick={onClose} className='rounded-sm p-1 text-foreground hover:bg-muted'>
+              <X className='h-4 w-4' />
+            </button>
+          </div>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <Badge variant='secondary'>{formatted.blockType}</Badge>
+              <Badge variant='outline'>not executed</Badge>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className='space-y-4'>
+          <div className='rounded-md bg-muted/50 p-4 text-center'>
+            <div className='text-muted-foreground text-sm'>
+              This block was not executed because the workflow failed before reaching it.
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Now we can safely use the execution data
   const iterationInfo = getCurrentIterationData({
     ...executionData,
     currentIteration: currentIterationIndex,
   })
 
   const formatted = formatExecutionData(iterationInfo.executionData)
-
   const totalIterations = executionData.iterations?.length || 1
 
   const goToPreviousIteration = () => {
@@ -103,10 +234,6 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
       setCurrentIterationIndex(currentIterationIndex + 1)
     }
   }
-
-  useEffect(() => {
-    setCurrentIterationIndex(0)
-  }, [executionData])
 
   return (
     <Card className='fixed top-4 right-4 z-[100] max-h-[calc(100vh-8rem)] w-96 overflow-y-auto border-border bg-background shadow-lg'>
@@ -160,14 +287,14 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
             <span className='text-foreground text-sm'>{formatted.duration}</span>
           </div>
 
-          {formatted.cost && (
+          {formatted.cost && formatted.cost.total > 0 && (
             <div className='flex items-center gap-2'>
               <DollarSign className='h-4 w-4 text-muted-foreground' />
               <span className='text-foreground text-sm'>${formatted.cost.total.toFixed(5)}</span>
             </div>
           )}
 
-          {formatted.tokens && (
+          {formatted.tokens && formatted.tokens.total > 0 && (
             <div className='flex items-center gap-2'>
               <Hash className='h-4 w-4 text-muted-foreground' />
               <span className='text-foreground text-sm'>{formatted.tokens.total} tokens</span>
@@ -175,21 +302,11 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
           )}
         </div>
 
-        <div>
-          <h4 className='mb-2 font-medium text-foreground text-sm'>Input</h4>
-          <div className='max-h-32 overflow-y-auto rounded bg-muted p-3 font-mono text-xs'>
-            <pre className='text-foreground'>{JSON.stringify(formatted.input, null, 2)}</pre>
-          </div>
-        </div>
+        <ExpandableDataSection title='Input' data={formatted.input} />
 
-        <div>
-          <h4 className='mb-2 font-medium text-foreground text-sm'>Output</h4>
-          <div className='max-h-32 overflow-y-auto rounded bg-muted p-3 font-mono text-xs'>
-            <pre className='text-foreground'>{JSON.stringify(formatted.output, null, 2)}</pre>
-          </div>
-        </div>
+        <ExpandableDataSection title='Output' data={formatted.output} />
 
-        {formatted.cost && (
+        {formatted.cost && formatted.cost.total > 0 && (
           <div>
             <h4 className='mb-2 font-medium text-foreground text-sm'>Cost Breakdown</h4>
             <div className='space-y-1 text-sm'>
@@ -209,7 +326,7 @@ function PinnedLogs({ executionData, onClose }: { executionData: any; onClose: (
           </div>
         )}
 
-        {formatted.tokens && (
+        {formatted.tokens && formatted.tokens.total > 0 && (
           <div>
             <h4 className='mb-2 font-medium text-foreground text-sm'>Token Usage</h4>
             <div className='space-y-1 text-sm'>
@@ -242,12 +359,7 @@ interface FrozenCanvasData {
     startedAt: string
     endedAt?: string
     totalDurationMs?: number
-    blockStats: {
-      total: number
-      success: number
-      error: number
-      skipped: number
-    }
+
     cost: {
       total: number | null
       input: number | null
@@ -284,75 +396,99 @@ export function FrozenCanvas({
     if (traceSpans && Array.isArray(traceSpans)) {
       const blockExecutionMap: Record<string, any> = {}
 
-      const workflowSpan = traceSpans[0]
-      if (workflowSpan?.children && Array.isArray(workflowSpan.children)) {
-        const traceSpansByBlockId = workflowSpan.children.reduce((acc: any, span: any) => {
+      logger.debug('Processing trace spans for frozen canvas:', { traceSpans })
+
+      // Recursively collect all spans with blockId from the trace spans tree
+      const collectBlockSpans = (spans: any[]): any[] => {
+        const blockSpans: any[] = []
+
+        for (const span of spans) {
+          // If this span has a blockId, it's a block execution
           if (span.blockId) {
-            if (!acc[span.blockId]) {
-              acc[span.blockId] = []
-            }
-            acc[span.blockId].push(span)
+            blockSpans.push(span)
           }
-          return acc
-        }, {})
 
-        for (const [blockId, spans] of Object.entries(traceSpansByBlockId)) {
-          const spanArray = spans as any[]
-
-          const iterations = spanArray.map((span: any) => {
-            // Extract error information from span output if status is error
-            let errorMessage = null
-            let errorStackTrace = null
-
-            if (span.status === 'error' && span.output) {
-              // Error information can be in different formats in the output
-              if (typeof span.output === 'string') {
-                errorMessage = span.output
-              } else if (span.output.error) {
-                errorMessage = span.output.error
-                errorStackTrace = span.output.stackTrace || span.output.stack
-              } else if (span.output.message) {
-                errorMessage = span.output.message
-                errorStackTrace = span.output.stackTrace || span.output.stack
-              } else {
-                // Fallback: stringify the entire output for error cases
-                errorMessage = JSON.stringify(span.output)
-              }
-            }
-
-            return {
-              id: span.id,
-              blockId: span.blockId,
-              blockName: span.name,
-              blockType: span.type,
-              status: span.status,
-              startedAt: span.startTime,
-              endedAt: span.endTime,
-              durationMs: span.duration,
-              inputData: span.input,
-              outputData: span.output,
-              errorMessage,
-              errorStackTrace,
-              cost: span.cost || {
-                input: null,
-                output: null,
-                total: null,
-              },
-              tokens: span.tokens || {
-                prompt: null,
-                completion: null,
-                total: null,
-              },
-              modelUsed: span.model || null,
-              metadata: {},
-            }
-          })
-
-          blockExecutionMap[blockId] = {
-            iterations,
-            currentIteration: 0,
-            totalIterations: iterations.length,
+          // Recursively check children
+          if (span.children && Array.isArray(span.children)) {
+            blockSpans.push(...collectBlockSpans(span.children))
           }
+        }
+
+        return blockSpans
+      }
+
+      const allBlockSpans = collectBlockSpans(traceSpans)
+      logger.debug('Collected all block spans:', allBlockSpans)
+
+      // Group spans by blockId
+      const traceSpansByBlockId = allBlockSpans.reduce((acc: any, span: any) => {
+        if (span.blockId) {
+          if (!acc[span.blockId]) {
+            acc[span.blockId] = []
+          }
+          acc[span.blockId].push(span)
+        }
+        return acc
+      }, {})
+
+      logger.debug('Grouped trace spans by blockId:', traceSpansByBlockId)
+
+      for (const [blockId, spans] of Object.entries(traceSpansByBlockId)) {
+        const spanArray = spans as any[]
+
+        const iterations = spanArray.map((span: any) => {
+          // Extract error information from span output if status is error
+          let errorMessage = null
+          let errorStackTrace = null
+
+          if (span.status === 'error' && span.output) {
+            // Error information can be in different formats in the output
+            if (typeof span.output === 'string') {
+              errorMessage = span.output
+            } else if (span.output.error) {
+              errorMessage = span.output.error
+              errorStackTrace = span.output.stackTrace || span.output.stack
+            } else if (span.output.message) {
+              errorMessage = span.output.message
+              errorStackTrace = span.output.stackTrace || span.output.stack
+            } else {
+              // Fallback: stringify the entire output for error cases
+              errorMessage = JSON.stringify(span.output)
+            }
+          }
+
+          return {
+            id: span.id,
+            blockId: span.blockId,
+            blockName: span.name,
+            blockType: span.type,
+            status: span.status,
+            startedAt: span.startTime,
+            endedAt: span.endTime,
+            durationMs: span.duration,
+            inputData: span.input,
+            outputData: span.output,
+            errorMessage,
+            errorStackTrace,
+            cost: span.cost || {
+              input: null,
+              output: null,
+              total: null,
+            },
+            tokens: span.tokens || {
+              prompt: null,
+              completion: null,
+              total: null,
+            },
+            modelUsed: span.model || null,
+            metadata: {},
+          }
+        })
+
+        blockExecutionMap[blockId] = {
+          iterations,
+          currentIteration: 0,
+          totalIterations: iterations.length,
         }
       }
 
@@ -385,8 +521,6 @@ export function FrozenCanvas({
 
     fetchData()
   }, [executionId])
-
-  // No need to create a temporary workflow - just use the workflowState directly
 
   if (loading) {
     return (
@@ -449,16 +583,18 @@ export function FrozenCanvas({
           showSubBlocks={true}
           isPannable={true}
           onNodeClick={(blockId) => {
-            if (blockExecutions[blockId]) {
-              setPinnedBlockId(blockId)
-            }
+            // Always allow clicking blocks, even if they don't have execution data
+            // This is important for failed workflows where some blocks never executed
+            setPinnedBlockId(blockId)
           }}
         />
       </div>
 
-      {pinnedBlockId && blockExecutions[pinnedBlockId] && (
+      {pinnedBlockId && (
         <PinnedLogs
-          executionData={blockExecutions[pinnedBlockId]}
+          executionData={blockExecutions[pinnedBlockId] || null}
+          blockId={pinnedBlockId}
+          workflowState={data.workflowState}
           onClose={() => setPinnedBlockId(null)}
         />
       )}

@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface LinearIssue {
   id: string
@@ -34,3 +34,5 @@ export interface LinearCreateIssueResponse extends ToolResponse {
     issue: LinearIssue
   }
 }
+
+export type LinearResponse = LinearReadIssuesResponse | LinearCreateIssueResponse

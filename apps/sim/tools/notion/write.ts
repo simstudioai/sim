@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { NotionResponse, NotionWriteParams } from './types'
+import type { NotionResponse, NotionWriteParams } from '@/tools/notion/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
   id: 'notion_write',
@@ -12,21 +12,23 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
     additionalScopes: ['workspace.content', 'page.write'],
   },
   params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Notion OAuth access token',
+    },
     pageId: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'The ID of the Notion page to append content to',
     },
     content: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The content to append to the page',
-    },
-    accessToken: {
-      type: 'string',
-      required: true,
-      description: 'Notion OAuth access token',
     },
   },
 

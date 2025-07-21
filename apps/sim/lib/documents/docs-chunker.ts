@@ -1,9 +1,10 @@
 import fs from 'fs/promises'
 import path from 'path'
+import { TextChunker } from '@/lib/documents/chunker'
+import type { DocChunk, DocsChunkerOptions, HeaderInfo } from '@/lib/documents/types'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
-import { TextChunker } from './chunker'
-import type { DocChunk, DocsChunkerOptions, HeaderInfo } from './types'
 
 interface Frontmatter {
   title?: string
@@ -28,7 +29,6 @@ export class DocsChunker {
       overlap: options.overlap ?? 50,
     })
     // Use localhost docs in development, production docs otherwise
-    const isDev = process.env.NODE_ENV === 'development'
     this.baseUrl =
       options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.simstudio.ai')
   }

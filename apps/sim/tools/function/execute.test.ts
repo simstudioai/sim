@@ -7,8 +7,8 @@
  * which runs JavaScript code in a secure sandbox.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { ToolTester } from '../__test-utils__/test-tools'
-import { functionExecuteTool } from './execute'
+import { ToolTester } from '@/tools/__test-utils__/test-tools'
+import { functionExecuteTool } from '@/tools/function/execute'
 
 describe('Function Execute Tool', () => {
   let tester: ToolTester

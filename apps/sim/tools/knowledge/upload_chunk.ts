@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { KnowledgeUploadChunkResponse } from './types'
+import type { KnowledgeUploadChunkResponse } from '@/tools/knowledge/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkResponse> = {
   id: 'knowledge_upload_chunk',
@@ -69,6 +69,7 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
           },
           message: `Successfully uploaded chunk to document`,
           documentId: data.documentId,
+          cost: data.cost,
         },
       }
     } catch (error: any) {

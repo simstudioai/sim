@@ -11,11 +11,12 @@ import {
   vi,
 } from 'vitest'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
+import { BlockType } from '@/executor/consts'
+import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
+import { PathTracker } from '@/executor/path/path'
+import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { PathTracker } from '../../path'
-import type { ExecutionContext } from '../../types'
-import { RouterBlockHandler } from './router-handler'
 
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
@@ -52,9 +53,9 @@ describe('RouterBlockHandler', () => {
     }
     mockBlock = {
       id: 'router-block-1',
-      metadata: { id: 'router', name: 'Test Router' },
+      metadata: { id: BlockType.ROUTER, name: 'Test Router' },
       position: { x: 50, y: 50 },
-      config: { tool: 'router', params: {} },
+      config: { tool: BlockType.ROUTER, params: {} },
       inputs: { prompt: 'string', model: 'string' }, // Using ParamType strings
       outputs: {},
       enabled: true,

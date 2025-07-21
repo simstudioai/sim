@@ -12,6 +12,11 @@ vi.mock('@/lib/logs/console-logger', () => ({
   })),
 }))
 
+// Blocks
+vi.mock('@/blocks/index', () => ({
+  getBlock: vi.fn(),
+}))
+
 // Tools
 vi.mock('@/tools/utils', () => ({
   getTool: vi.fn(),

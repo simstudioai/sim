@@ -46,9 +46,9 @@ export function useUserPermissions(
       }
     }
 
-    // Find current user in workspace permissions
+    // Find current user in workspace permissions (case-insensitive)
     const currentUser = workspacePermissions?.users?.find(
-      (user) => user.email === session.user.email
+      (user) => user.email.toLowerCase() === session.user.email.toLowerCase()
     )
 
     // If user not found in workspace, they have no permissions

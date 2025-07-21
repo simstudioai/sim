@@ -423,7 +423,8 @@ export async function executeWorkflowFromPayload(
   foundWorkflow: any,
   input: any,
   executionId: string,
-  requestId: string
+  requestId: string,
+  startBlockId?: string | null
 ): Promise<void> {
   // Add log at the beginning of this function for clarity
   logger.info(`[${requestId}] Preparing to execute workflow`, {
@@ -668,7 +669,7 @@ export async function executeWorkflowFromPayload(
     )
 
     // This is THE critical line where the workflow actually executes
-    const result = await executor.execute(foundWorkflow.id)
+    const result = await executor.execute(foundWorkflow.id, startBlockId || undefined)
 
     // Check if we got a StreamingExecution result (with stream + execution properties)
     // For webhook executions, we only care about the ExecutionResult part, not the stream
@@ -1275,9 +1276,7 @@ export async function fetchAndProcessAirtablePayloads(
           }
         )
 
-        // Execute using the original requestId as the executionId
-        // This is the exact point in the old code where execution happens - we're matching it exactly
-        await executeWorkflowFromPayload(workflowData, input, requestId, requestId)
+        await executeWorkflowFromPayload(workflowData, input, requestId, requestId, null)
 
         // COMPLETION LOG - This will only appear if execution succeeds
         logger.info(`[${requestId}] CRITICAL_TRACE: Workflow execution completed successfully`, {
@@ -1373,8 +1372,14 @@ export async function processWebhook(
     logger.info(
       `[${requestId}] Executing workflow ${foundWorkflow.id} for webhook ${foundWebhook.id} (Execution: ${executionId})`
     )
-    // Call the refactored execution function
-    await executeWorkflowFromPayload(foundWorkflow, input, executionId, requestId)
+
+    await executeWorkflowFromPayload(
+      foundWorkflow,
+      input,
+      executionId,
+      requestId,
+      foundWebhook.blockId
+    )
 
     // Since executeWorkflowFromPayload handles logging and errors internally,
     // we just need to return a standard success response for synchronous webhooks.

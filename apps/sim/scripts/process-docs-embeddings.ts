@@ -3,6 +3,7 @@
 import path from 'path'
 import { sql } from 'drizzle-orm'
 import { DocsChunker } from '@/lib/documents/docs-chunker'
+import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { docsEmbeddings } from '@/db/schema'
@@ -38,11 +39,7 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
       clearExisting: options.clearExisting ?? false,
       docsPath: options.docsPath ?? path.join(process.cwd(), '../../apps/docs/content/docs'),
       // Use localhost docs in development, production docs otherwise
-      baseUrl:
-        options.baseUrl ??
-        (process.env.NODE_ENV === 'development'
-          ? 'http://localhost:3001'
-          : 'https://docs.simstudio.ai'),
+      baseUrl: options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.simstudio.ai'),
       chunkSize: options.chunkSize ?? 300, // Max 300 tokens per chunk
       minChunkSize: options.minChunkSize ?? 100,
       overlap: options.overlap ?? 50,

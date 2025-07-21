@@ -1,9 +1,10 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { BlockOutput } from '@/blocks/types'
+import { BlockType } from '@/executor/consts'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('EvaluatorBlockHandler')
 
@@ -12,7 +13,7 @@ const logger = createLogger('EvaluatorBlockHandler')
  */
 export class EvaluatorBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'evaluator'
+    return block.metadata?.id === BlockType.EVALUATOR
   }
 
   async execute(

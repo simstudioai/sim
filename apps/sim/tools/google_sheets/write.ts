@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleSheetsToolParams, GoogleSheetsWriteResponse } from './types'
+import type { GoogleSheetsToolParams, GoogleSheetsWriteResponse } from '@/tools/google_sheets/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResponse> = {
   id: 'google_sheets_write',
@@ -15,23 +15,37 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Google Sheets API',
     },
     spreadsheetId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the spreadsheet to write to',
     },
-    range: { type: 'string', required: false, description: 'The range of cells to write to' },
-    values: { type: 'array', required: true, description: 'The data to write to the spreadsheet' },
+    range: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'The range of cells to write to',
+    },
+    values: {
+      type: 'array',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'The data to write to the spreadsheet',
+    },
     valueInputOption: {
       type: 'string',
       required: false,
+      visibility: 'hidden',
       description: 'The format of the data to write',
     },
     includeValuesInResponse: {
       type: 'boolean',
       required: false,
+      visibility: 'hidden',
       description: 'Whether to include the written values in the response',
     },
   },

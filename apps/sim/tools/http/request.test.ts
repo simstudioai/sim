@@ -7,9 +7,9 @@
  * to make HTTP requests to external APIs and services.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { mockHttpResponses } from '../__test-utils__/mock-data'
-import { ToolTester } from '../__test-utils__/test-tools'
-import { requestTool } from './request'
+import { mockHttpResponses } from '@/tools/__test-utils__/mock-data'
+import { ToolTester } from '@/tools/__test-utils__/test-tools'
+import { requestTool } from '@/tools/http/request'
 
 process.env.VITEST = 'true'
 

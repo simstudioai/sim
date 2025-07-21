@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { XReadParams, XReadResponse, XTweet } from './types'
+import type { ToolConfig } from '@/tools/types'
+import type { XReadParams, XReadResponse, XTweet } from '@/tools/x/types'
 
 export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
   id: 'x_read',
@@ -17,17 +17,19 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'X OAuth access token',
     },
     tweetId: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'ID of the tweet to read',
     },
     includeReplies: {
       type: 'boolean',
       required: false,
+      visibility: 'user-only',
       description: 'Whether to include replies to the tweet',
     },
   },

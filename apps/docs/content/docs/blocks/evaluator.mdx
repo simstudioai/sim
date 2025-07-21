@@ -8,24 +8,23 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 
-The Evaluator block allows you to assess the quality of content using customizable evaluation metrics. This is particularly useful for evaluating AI-generated text, ensuring outputs meet specific criteria, and building quality-control mechanisms into your workflows.
+The Evaluator block uses AI to score and assess content quality based on metrics you define. Perfect for quality control, A/B testing, and ensuring your AI outputs meet specific standards.
 
 <ThemeImage
   lightSrc="/static/light/evaluator-light.png"
   darkSrc="/static/dark/evaluator-dark.png"
-  alt="Evaluator Block"
-  width={300}
+  alt="Evaluator Block Configuration"
+  width={350}
   height={175}
 />
 
-## Overview
+## What You Can Evaluate
 
-The Evaluator block utilizes LLMs to objectively evaluate content based on custom metrics you define. This is especially useful for:
-
-- Assessing the quality of AI-generated content
-- Evaluating responses against specific criteria
-- Creating scoring frameworks for different types of content
-- Building objective feedback loops in your workflows
+**AI-Generated Content**: Score chatbot responses, generated articles, or marketing copy
+**User Input**: Evaluate customer feedback, survey responses, or form submissions  
+**Content Quality**: Assess clarity, accuracy, relevance, and tone
+**Performance Metrics**: Track improvements over time with consistent scoring
+**A/B Testing**: Compare different approaches with objective metrics
 
 ## Configuration Options
 
@@ -55,16 +54,19 @@ The content to be evaluated. This can be:
 
 ### Model Selection
 
-Choose an LLM provider to perform the evaluation:
+Choose an AI model to perform the evaluation:
 
-- OpenAI (GPT-4o, o1, o3, , gpt-4.1)
-- Anthropic (Claude 3.7 Sonnet)
-- Google (Gemini 2.5 Pro, Gemini 2.0 Flash)
-- Groq, Cerebras
-- Ollama Local Models
-- And more
+**OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1
+**Anthropic**: Claude 3.7 Sonnet
+**Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
+**Other Providers**: Groq, Cerebras, xAI, DeepSeek
+**Local Models**: Any model running on Ollama
 
-The chosen model should have strong reasoning capabilities to provide accurate evaluations.
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/models.mp4"></video>
+</div>
+
+**Recommendation**: Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for more accurate evaluations.
 
 ### API Key
 

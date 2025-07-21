@@ -15,6 +15,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 import { useKnowledgeUpload } from '../../hooks/use-knowledge-upload'
+import { type TagData, TagInput } from '../tag-input/tag-input'
 
 const logger = createLogger('CreateModal')
 
@@ -80,6 +81,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragCounter, setDragCounter] = useState(0) // Track drag events to handle nested elements
+  const [tags, setTags] = useState<TagData>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
@@ -273,7 +275,14 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       const newKnowledgeBase = result.data
 
       if (files.length > 0) {
-        const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
+        // Add tags to files before upload
+        const filesWithTags = files.map((file) => {
+          const fileWithTags = file as File & TagData
+          Object.assign(fileWithTags, tags)
+          return fileWithTags
+        })
+
+        const uploadedFiles = await uploadFiles(filesWithTags, newKnowledgeBase.id, {
           chunkSize: data.maxChunkSize,
           minCharactersPerChunk: data.minChunkSize,
           chunkOverlap: data.overlapSize,
@@ -297,6 +306,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         maxChunkSize: 1024,
         overlapSize: 200,
       })
+      setTags({})
 
       // Clean up file previews
       files.forEach((file) => URL.revokeObjectURL(file.preview))
@@ -420,6 +430,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                           placeholder='100'
                           {...register('minChunkSize', { valueAsNumber: true })}
                           className={errors.minChunkSize ? 'border-red-500' : ''}
+                          autoComplete='off'
+                          data-form-type='other'
+                          name='min-chunk-size'
                         />
                         {errors.minChunkSize && (
                           <p className='mt-1 text-red-500 text-xs'>{errors.minChunkSize.message}</p>
@@ -434,6 +447,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                           placeholder='1024'
                           {...register('maxChunkSize', { valueAsNumber: true })}
                           className={errors.maxChunkSize ? 'border-red-500' : ''}
+                          autoComplete='off'
+                          data-form-type='other'
+                          name='max-chunk-size'
                         />
                         {errors.maxChunkSize && (
                           <p className='mt-1 text-red-500 text-xs'>{errors.maxChunkSize.message}</p>
@@ -450,6 +466,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                         placeholder='200'
                         {...register('overlapSize', { valueAsNumber: true })}
                         className={errors.overlapSize ? 'border-red-500' : ''}
+                        autoComplete='off'
+                        data-form-type='other'
+                        name='overlap-size'
                       />
                       {errors.overlapSize && (
                         <p className='mt-1 text-red-500 text-xs'>{errors.overlapSize.message}</p>
@@ -461,6 +480,11 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                       provide more precise retrieval but may lose context.
                     </p>
                   </div>
+                </div>
+
+                {/* Tag Input Section */}
+                <div className='mt-6'>
+                  <TagInput tags={tags} onTagsChange={setTags} disabled={isSubmitting} />
                 </div>
 
                 {/* File Upload Section - Expands to fill remaining space */}

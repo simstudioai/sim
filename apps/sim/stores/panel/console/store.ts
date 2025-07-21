@@ -168,6 +168,97 @@ export const useConsoleStore = create<ConsoleStore>()(
           }))
         },
 
+        exportConsoleCSV: (workflowId: string) => {
+          const entries = get().entries.filter((entry) => entry.workflowId === workflowId)
+
+          if (entries.length === 0) {
+            return
+          }
+
+          // Helper function to safely stringify and escape CSV values
+          const formatCSVValue = (value: any): string => {
+            if (value === null || value === undefined) {
+              return ''
+            }
+
+            let stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
+
+            // Truncate very long strings
+            if (stringValue.length > 1000) {
+              stringValue = `${stringValue.substring(0, 1000)}...`
+            }
+
+            // Escape quotes and wrap in quotes if contains special characters
+            if (
+              stringValue.includes('"') ||
+              stringValue.includes(',') ||
+              stringValue.includes('\n')
+            ) {
+              stringValue = `"${stringValue.replace(/"/g, '""')}"`
+            }
+
+            return stringValue
+          }
+
+          // CSV Headers
+          const headers = [
+            'timestamp',
+            'blockName',
+            'blockType',
+            'startedAt',
+            'endedAt',
+            'durationMs',
+            'success',
+            'input',
+            'output',
+            'error',
+            'warning',
+          ]
+
+          // Generate CSV rows
+          const csvRows = [
+            headers.join(','),
+            ...entries.map((entry) =>
+              [
+                formatCSVValue(entry.timestamp),
+                formatCSVValue(entry.blockName),
+                formatCSVValue(entry.blockType),
+                formatCSVValue(entry.startedAt),
+                formatCSVValue(entry.endedAt),
+                formatCSVValue(entry.durationMs),
+                formatCSVValue(entry.success),
+                formatCSVValue(entry.input),
+                formatCSVValue(entry.output),
+                formatCSVValue(entry.error),
+                formatCSVValue(entry.warning),
+              ].join(',')
+            ),
+          ]
+
+          // Create CSV content
+          const csvContent = csvRows.join('\n')
+
+          // Generate filename with timestamp
+          const now = new Date()
+          const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          const filename = `console-${workflowId}-${timestamp}.csv`
+
+          // Create and trigger download
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+          const link = document.createElement('a')
+
+          if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob)
+            link.setAttribute('href', url)
+            link.setAttribute('download', filename)
+            link.style.visibility = 'hidden'
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+          }
+        },
+
         getWorkflowEntries: (workflowId) => {
           return get().entries.filter((entry) => entry.workflowId === workflowId)
         },
@@ -176,10 +267,16 @@ export const useConsoleStore = create<ConsoleStore>()(
           set((state) => ({ isOpen: !state.isOpen }))
         },
 
-        updateConsole: (blockId: string, update: string | import('./types').ConsoleUpdate) => {
+        updateConsole: (
+          blockId: string,
+          update: string | import('./types').ConsoleUpdate,
+          executionId?: string
+        ) => {
           set((state) => {
             const updatedEntries = state.entries.map((entry) => {
-              if (entry.blockId === blockId) {
+              // Only update if both blockId and executionId match
+              const isMatch = entry.blockId === blockId && entry.executionId === executionId
+              if (isMatch) {
                 if (typeof update === 'string') {
                   // Simple content update for backward compatibility
                   const newOutput = updateBlockOutput(entry.output, update)
@@ -222,6 +319,10 @@ export const useConsoleStore = create<ConsoleStore>()(
 
                 if (update.durationMs !== undefined) {
                   updatedEntry.durationMs = update.durationMs
+                }
+
+                if (update.input !== undefined) {
+                  updatedEntry.input = update.input
                 }
 
                 return updatedEntry

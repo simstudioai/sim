@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { db } from '@/db'
-import { permissions, user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
+import { permissions, user, workspace, workspaceInvitation } from '@/db/schema'
 
 // Accept an invitation via token
 export async function GET(req: NextRequest) {
@@ -126,20 +126,21 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Check if user is already a member
-    const existingMembership = await db
+    // Check if user already has permissions for this workspace
+    const existingPermission = await db
       .select()
-      .from(workspaceMember)
+      .from(permissions)
       .where(
         and(
-          eq(workspaceMember.workspaceId, invitation.workspaceId),
-          eq(workspaceMember.userId, session.user.id)
+          eq(permissions.entityId, invitation.workspaceId),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.userId, session.user.id)
         )
       )
       .then((rows) => rows[0])
 
-    if (existingMembership) {
-      // User is already a member, just mark the invitation as accepted and redirect
+    if (existingPermission) {
+      // User already has permissions, just mark the invitation as accepted and redirect
       await db
         .update(workspaceInvitation)
         .set({
@@ -156,34 +157,18 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Add user to workspace, permissions, and mark invitation as accepted in a transaction
+    // Add user permissions and mark invitation as accepted in a transaction
     await db.transaction(async (tx) => {
-      // Add user to workspace
-      await tx.insert(workspaceMember).values({
+      // Create permissions for the user
+      await tx.insert(permissions).values({
         id: randomUUID(),
-        workspaceId: invitation.workspaceId,
+        entityType: 'workspace' as const,
+        entityId: invitation.workspaceId,
         userId: session.user.id,
-        role: invitation.role,
-        joinedAt: new Date(),
+        permissionType: invitation.permissions || 'read',
+        createdAt: new Date(),
         updatedAt: new Date(),
       })
-
-      // Create permissions for the user
-      const permissionsToInsert = [
-        {
-          id: randomUUID(),
-          entityType: 'workspace' as const,
-          entityId: invitation.workspaceId,
-          userId: session.user.id,
-          permissionType: invitation.permissions || 'read',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ]
-
-      if (permissionsToInsert.length > 0) {
-        await tx.insert(permissions).values(permissionsToInsert)
-      }
 
       // Mark invitation as accepted
       await tx

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { NotionResponse, NotionUpdatePageParams } from './types'
+import type { NotionResponse, NotionUpdatePageParams } from '@/tools/notion/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResponse> = {
   id: 'notion_update_page',
@@ -12,22 +12,23 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
     additionalScopes: ['workspace.content', 'page.write'],
   },
   params: {
+    accessToken: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'Notion OAuth access token',
+    },
     pageId: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'ID of the page to update',
     },
     properties: {
       type: 'json',
       required: true,
+      visibility: 'user-or-llm',
       description: 'JSON object of properties to update',
-    },
-    accessToken: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Notion OAuth access token',
     },
   },
 

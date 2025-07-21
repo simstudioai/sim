@@ -1,280 +1,208 @@
 ---
-title: Advanced Execution Features
-description: Master advanced execution capabilities in Sim Studio
+title: Logging and Cost Calculation
+description: Understanding workflow logs and how execution costs are calculated in Sim Studio
 ---
 
 import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { ThemeImage } from '@/components/ui/theme-image'
 
-Sim Studio provides several advanced features that give you more control over workflow execution, error handling, and performance optimization.
+Sim Studio provides comprehensive logging for workflow executions and automatic cost calculation for AI model usage.
 
-## Error Handling
+## Logging System
 
-The execution engine includes built-in error handling mechanisms to make your workflows more robust:
+Sim Studio offers two complementary logging interfaces:
 
-### Block-Level Error Handling
+### Real-Time Console (Manual Executions)
 
-Errors in one block don't necessarily stop the entire workflow execution:
+During manual workflow execution, logs appear in real-time in the Console panel on the right side of the workflow editor:
 
-```javascript
-// Example of error handling in a Function block
-try {
-  // Potentially risky operation
-  const result = JSON.parse(input.apiBlock.data);
-  return { success: true, data: result };
-} catch (error) {
-  // Handle the error gracefully
-  console.error("Failed to parse JSON:", error.message);
-  return {
-    success: false,
-    error: error.message,
-    fallbackData: { status: "error", message: "Could not process data" }
-  };
-}
-```
+<ThemeImage
+  lightSrc="/static/light/console-panel-light.png"
+  darkSrc="/static/dark/console-panel-dark.png"
+  alt="Real-time Console Panel"
+  width={600}
+  height={400}
+/>
 
-### Error Logging
+The console shows:
+- Block execution progress with active block highlighting
+- Real-time outputs as blocks complete
+- Execution timing for each block
+- Success/error status indicators
 
-Comprehensive error information is captured in the execution logs:
+### Logs Page (All Executions)
 
-- **Error Messages**: Clear descriptions of what went wrong
-- **Stack Traces**: Detailed information about where errors occurred
-- **Context Data**: The inputs that led to the error
-- **Timestamps**: When the error occurred
+All workflow executions—whether triggered manually, via API, Chat, Schedule, or Webhook—are logged to the dedicated Logs page:
 
-<Callout type="info">
-  Error logs are invaluable for debugging workflows. Always check the logs first when
-  troubleshooting execution issues.
-</Callout>
+<ThemeImage
+  lightSrc="/static/light/logs-page-light.png"
+  darkSrc="/static/dark/logs-page-dark.png"
+  alt="Logs Page"
+  width={600}
+  height={400}
+/>
 
-### Fallback Mechanisms
+The Logs page provides:
+- Comprehensive filtering by time range, status, trigger type, folder, and workflow
+- Search functionality across all logs
+- Live mode for real-time updates
+- 7-day log retention (upgradeable for longer retention)
 
-For certain operations, the system provides automatic fallbacks:
+## Log Details Sidebar
 
-- **Function Execution**: Freestyle execution first, then VM execution if needed
-- **API Requests**: Automatic retries for transient network errors
-- **Model Calls**: Fallback to alternative models if primary model is unavailable
+Clicking on any log entry opens a detailed sidebar view:
 
-### Recovery Options
+<ThemeImage
+  lightSrc="/static/light/logs-sidebar-light.png"
+  darkSrc="/static/dark/logs-sidebar-dark.png"
+  alt="Logs Sidebar Details"
+  width={600}
+  height={400}
+/>
 
-Configure blocks to handle failures gracefully:
+### Block Input/Output
 
-- **Retry Logic**: Automatically retry failed operations
-- **Default Values**: Provide fallback values when operations fail
-- **Alternative Paths**: Use conditional blocks to create error handling paths
-- **Graceful Degradation**: Continue execution with partial results
+View the complete data flow for each block with tabs to switch between:
 
-## Environment Variables
-
-Environment variables provide a secure way to store and access configuration values:
-
-### Types of Environment Variables
-
-<Tabs items={['API Keys', 'Configuration Values', 'Secrets']}>
+<Tabs items={['Output', 'Input']}>
   <Tab>
-    Store API credentials securely: ``` OPENAI_API_KEY=sk-... ANTHROPIC_API_KEY=sk-...
-    GOOGLE_API_KEY=AIza... ``` These are automatically available to blocks that need them, without
-    hardcoding sensitive values in your workflow.
+    **Output Tab** shows the block's execution result:
+    - Structured data with JSON formatting
+    - Markdown rendering for AI-generated content
+    - Copy button for easy data extraction
   </Tab>
-
-<Tab>
-  Manage environment-specific configuration: ``` MAX_RETRIES=3 DEFAULT_MODEL=gpt-4o LOG_LEVEL=info
-  BASE_URL=https://api.example.com ``` These values can be referenced in blocks to control behavior
-  without modifying the workflow itself.
-</Tab>
-
+  
   <Tab>
-    Store sensitive information securely: ``` DATABASE_PASSWORD=... JWT_SECRET=...
-    ENCRYPTION_KEY=... ``` These values are encrypted at rest and only decrypted during execution,
-    providing an extra layer of security.
+    **Input Tab** displays what was passed to the block:
+    - Resolved variable values
+    - Referenced outputs from other blocks
+    - Environment variables used
+    - API keys are automatically redacted for security
   </Tab>
 </Tabs>
 
-### Using Environment Variables
+### Execution Timeline
 
-Environment variables can be accessed in different ways depending on the block type:
+For workflow-level logs, view detailed execution metrics:
+- Start and end timestamps
+- Total workflow duration
+- Individual block execution times
+- Performance bottleneck identification
 
-```javascript
-// In Function blocks
-const apiKey = process.env.MY_API_KEY
-const maxRetries = parseInt(process.env.MAX_RETRIES || '3')
+### Model Breakdown
 
-// In API blocks (via connection tags)
-// URL: https://api.example.com?key=<env.MY_API_KEY>
+For workflows using AI blocks, expand the Model Breakdown section to see:
 
-// In Agent blocks (via connection tags)
-// System prompt: Use the model <env.DEFAULT_MODEL> for this task.
-```
+<ThemeImage
+  lightSrc="/static/light/model-breakdown-light.png"
+  darkSrc="/static/dark/model-breakdown-dark.png"
+  alt="Model Breakdown"
+  width={600}
+  height={400}
+/>
 
-<Callout type="warning">
-  Never hardcode sensitive information like API keys directly in your workflows. Always use
-  environment variables instead.
+- **Token Usage**: Input and output token counts for each model
+- **Cost Breakdown**: Individual costs per model and operation
+- **Model Distribution**: Which models were used and how many times
+- **Total Cost**: Aggregate cost for the entire workflow execution
+
+### Workflow Snapshot
+
+For any logged execution, click "View Snapshot" to see the exact workflow state at execution time:
+
+<ThemeImage
+  lightSrc="/static/light/workflow-snapshot-light.png"
+  darkSrc="/static/dark/workflow-snapshot-dark.png"
+  alt="Workflow Snapshot"
+  width={600}
+  height={400}
+/>
+
+The snapshot provides:
+- Frozen canvas showing the workflow structure
+- Block states and connections as they were during execution
+- Click any block to see its inputs and outputs
+- Useful for debugging workflows that have since been modified
+
+<Callout type="info">
+  Workflow snapshots are only available for executions after the enhanced logging system was introduced. Older migrated logs show a "Logged State Not Found" message.
 </Callout>
 
-## Real-Time Monitoring
+## Cost Calculation
 
-Sim Studio provides powerful real-time monitoring capabilities:
+Sim Studio automatically calculates costs for all AI model usage:
+
+### How Costs Are Calculated
+
+```javascript
+cost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
+```
+
+<Callout type="info">
+  Prices are per million tokens. The calculation divides by 1,000,000 to get the actual cost.
+</Callout>
+
+### Pricing Options
+
+<Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
+  <Tab>
+    **Hosted Models** - Sim Studio provides API keys with a 2.5x pricing multiplier:
+    
+    | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
+    |-------|---------------------------|----------------------------|
+    | GPT-4o | $2.50 / $10.00 | $6.25 / $25.00 |
+    | GPT-4.1 | $2.00 / $8.00 | $5.00 / $20.00 |
+    | o1 | $15.00 / $60.00 | $37.50 / $150.00 |
+    | o3 | $2.00 / $8.00 | $5.00 / $20.00 |
+    | Claude 3.5 Sonnet | $3.00 / $15.00 | $7.50 / $37.50 |
+    | Claude Opus 4.0 | $15.00 / $75.00 | $37.50 / $187.50 |
+    
+    *The 2.5x multiplier covers infrastructure and API management costs.*
+  </Tab>
+  
+  <Tab>
+    **Your Own API Keys** - Use any model at base pricing:
+    
+    | Provider | Models | Input / Output |
+    |----------|---------|----------------|
+    | Google | Gemini 2.5 | $0.15 / $0.60 |
+    | Deepseek | V3, R1 | $0.75 / $1.00 |
+    | xAI | Grok 4, Grok 3 | $5.00 / $25.00 |
+    | Groq | Llama 4 Scout | $0.40 / $0.60 |
+    | Cerebras | Llama 3.3 70B | $0.94 / $0.94 |
+    | Ollama | Local models | Free |
+    
+    *Pay providers directly with no markup*
+  </Tab>
+</Tabs>
+
+<Callout type="warning">
+  Pricing shown reflects rates as of July 14, 2025. Check provider documentation for current pricing.
+</Callout>
+
+### Cost Optimization
 
 <Accordions>
-  <Accordion title="Active Block Indicator">
-    The currently executing block is highlighted in the workflow editor, making it easy to follow
-    the execution flow in real-time. This visual indicator helps you understand exactly where in
-    your workflow the execution is currently happening.
+  <Accordion title="Model Selection">
+    Choose models based on task complexity. Simple tasks can use GPT-4.1-nano ($0.10/$0.40) while complex reasoning might need o1 or Claude Opus.
   </Accordion>
-
-<Accordion title="Live Logs Panel">
-  Execution logs appear in real-time in the logs panel on the right side. These logs include
-  detailed information about each block's execution, including inputs, outputs, execution time, and
-  any errors that occur. You can use these logs to debug your workflow and understand how data flows
-  between blocks.
-</Accordion>
-
-<Accordion title="Block States">
-  Each block's state (pending, executing, completed, or error) is visually indicated in the workflow
-  editor. This helps you quickly identify which blocks have executed successfully and which may have
-  encountered issues.
-</Accordion>
-
-  <Accordion title="Performance Metrics">
-    Detailed timing information shows how long each block takes to execute, helping you identify
-    performance bottlenecks in your workflow. The execution engine tracks start time, end time, and
-    total duration for both individual blocks and the entire workflow.
+  
+  <Accordion title="Prompt Engineering">
+    Well-structured, concise prompts reduce token usage without sacrificing quality.
+  </Accordion>
+  
+  <Accordion title="Local Models">
+    Use Ollama for non-critical tasks to eliminate API costs entirely.
   </Accordion>
 </Accordions>
 
-## Performance Optimization
+## Usage Monitoring
 
-Optimize your workflows for better performance:
+Monitor your usage and billing in Settings → Subscription:
 
-### Block Optimization
-
-- **Break Down Complex Blocks**: Split complex operations into multiple simpler blocks
-- **Minimize External Calls**: Batch API requests where possible
-- **Cache Results**: Use Memory blocks to store and reuse results
-- **Optimize Function Code**: Write efficient JavaScript/TypeScript code
-
-### Data Flow Optimization
-
-- **Filter Data Early**: Process only the data you need as early as possible
-- **Minimize Data Transfer**: Pass only necessary fields between blocks
-- **Use Appropriate Data Structures**: Choose efficient data structures for your use case
-- **Avoid Redundant Computations**: Don't recalculate values that haven't changed
-
-### Execution Configuration
-
-- **Set Appropriate Timeouts**: Configure timeouts based on expected execution time
-- **Limit Parallel Executions**: Control how many workflows can run simultaneously
-- **Schedule During Off-Peak Hours**: Run resource-intensive workflows when system load is lower
-- **Monitor Resource Usage**: Keep an eye on memory and CPU usage
-
-<Callout type="info">
-  Performance optimization is especially important for workflows that run frequently or process
-  large amounts of data.
-</Callout>
-
-## Advanced Execution Context
-
-The execution context maintains detailed information about the workflow execution:
-
-```javascript
-// Example of execution context structure (simplified)
-{
-  // Block states indexed by block ID
-  blockStates: {
-    "block-1": { output: { content: "..." }, status: "completed" },
-    "block-2": { output: { data: { ... } }, status: "completed" },
-    "block-3": { status: "pending" }
-  },
-
-  // Active execution path
-  activeExecutionPath: Set(["block-1", "block-2", "block-5"]),
-
-  // Routing decisions
-  decisions: {
-    router: Map(["router-1" => "block-5"]),
-    condition: Map(["condition-1" => "condition-true"])
-  },
-
-  // Loop iterations
-  loopIterations: Map(["loop-1" => 2]),
-
-  // Environment variables
-  env: { "API_KEY": "...", "MAX_RETRIES": "3" },
-
-  // Execution logs
-  logs: [
-    { blockId: "block-1", timestamp: "...", status: "completed", duration: 120 },
-    { blockId: "block-2", timestamp: "...", status: "completed", duration: 85 }
-  ]
-}
-```
-
-This context is used internally by the execution engine but understanding its structure can help you debug complex workflows.
-
-## Debugging Techniques
-
-Advanced techniques for debugging workflow execution:
-
-### Console Logging
-
-Add strategic console.log statements in Function blocks:
-
-```javascript
-console.log('Input to processData:', JSON.stringify(input, null, 2))
-console.log('Processing step 1 complete:', intermediateResult)
-console.log('Final result:', finalResult)
-```
-
-### State Inspection
-
-Use Function blocks to inspect the current state:
-
-```javascript
-function debugState() {
-  // Log all inputs
-  console.log('All inputs:', input)
-
-  // Return a debug object with relevant information
-  return {
-    debug: true,
-    inputSummary: {
-      hasUserData: !!input.userBlock,
-      apiStatus: input.apiBlock?.status,
-      itemCount: input.dataBlock?.items?.length || 0,
-    },
-    timestamp: new Date().toISOString(),
-  }
-}
-```
-
-### Execution Tracing
-
-Enable detailed execution tracing for complex workflows:
-
-1. Add a Memory block to accumulate trace information
-2. Add trace logging in key Function blocks
-3. Review the trace after execution to understand the flow
-
-### Performance Profiling
-
-Identify performance bottlenecks:
-
-```javascript
-function profileOperation() {
-  const start = performance.now()
-
-  // Perform the operation
-  const result = performExpensiveOperation()
-
-  const end = performance.now()
-  console.log(`Operation took ${end - start}ms`)
-
-  return {
-    result,
-    executionTime: end - start,
-  }
-}
-```
-
-By mastering these advanced execution features, you can create more robust, efficient, and sophisticated workflows in Sim Studio.
+- **Current Usage**: Real-time usage and costs for the current period
+- **Usage Limits**: Plan limits with visual progress indicators
+- **Billing Details**: Projected charges and minimum commitments
+- **Plan Management**: Upgrade options and billing history

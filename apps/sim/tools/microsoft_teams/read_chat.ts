@@ -1,6 +1,9 @@
-import type { ToolConfig } from '../types'
-import { extractMessageAttachments } from './attachment-utils'
-import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
+import type {
+  MicrosoftTeamsReadResponse,
+  MicrosoftTeamsToolParams,
+} from '@/tools/microsoft_teams/types'
+import { extractMessageAttachments } from '@/tools/microsoft_teams/utils'
+import type { ToolConfig } from '@/tools/types'
 
 export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_chat',
@@ -15,11 +18,13 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Microsoft Teams API',
     },
     chatId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the chat to read from',
     },
   },

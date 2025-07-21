@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GmailSendParams, GmailToolResponse } from './types'
+import type { GmailSendParams, GmailToolResponse } from '@/tools/gmail/types'
+import type { ToolConfig } from '@/tools/types'
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
@@ -19,21 +19,25 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Access token for Gmail API',
     },
     to: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Recipient email address',
     },
     subject: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Email subject',
     },
     body: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'Email body content',
     },
   },

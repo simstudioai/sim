@@ -23,7 +23,6 @@ const initialState = {
   // New field for per-workflow deployment tracking
   deploymentStatuses: {},
   needsRedeployment: false,
-  hasActiveSchedule: false,
   hasActiveWebhook: false,
   history: {
     past: [],
@@ -436,7 +435,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           lastSaved: Date.now(),
           isDeployed: false,
           isPublished: false,
-          hasActiveSchedule: false,
           hasActiveWebhook: false,
         }
         set(newState)
@@ -799,23 +797,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }))
       },
 
-      setScheduleStatus: (hasActiveSchedule: boolean) => {
-        // Only update if the status has changed to avoid unnecessary rerenders
-        if (get().hasActiveSchedule !== hasActiveSchedule) {
-          set({ hasActiveSchedule })
-          get().updateLastSaved()
-          // Note: Socket.IO handles real-time sync automatically
-        }
-      },
-
       setWebhookStatus: (hasActiveWebhook: boolean) => {
         // Only update if the status has changed to avoid unnecessary rerenders
         if (get().hasActiveWebhook !== hasActiveWebhook) {
-          // If the workflow has an active schedule, disable it
-          if (get().hasActiveSchedule) {
-            get().setScheduleStatus(false)
-          }
-
           set({ hasActiveWebhook })
           get().updateLastSaved()
           // Note: Socket.IO handles real-time sync automatically

@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 // Base parameters shared by all GitHub operations
 export interface BaseGitHubParams {
@@ -147,3 +147,9 @@ export interface RepoInfoResponse extends ToolResponse {
     metadata: RepoMetadata
   }
 }
+
+export type GitHubResponse =
+  | PullRequestResponse
+  | CreateCommentResponse
+  | LatestCommitResponse
+  | RepoInfoResponse

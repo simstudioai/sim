@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ScrapeParams, ScrapeResponse } from './types'
+import type { ScrapeParams, ScrapeResponse } from '@/tools/firecrawl/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   id: 'firecrawl_scrape',
@@ -9,22 +9,23 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   version: '1.0.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Firecrawl API key',
-    },
     url: {
       type: 'string',
       required: true,
-      optionalToolInput: true,
+      visibility: 'user-or-llm',
       description: 'The URL to scrape content from',
     },
     scrapeOptions: {
       type: 'json',
       required: false,
+      visibility: 'hidden',
       description: 'Options for content scraping',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Firecrawl API key',
     },
   },
 

@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createParallelExecutionState } from '@/executor/__test-utils__/executor-mocks'
+import { BlockType } from '@/executor/consts'
+import { ParallelBlockHandler } from '@/executor/handlers/parallel/parallel-handler'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedParallel } from '@/serializer/types'
-import { createParallelExecutionState } from '../../__test-utils__/executor-mocks'
-import type { ExecutionContext } from '../../types'
-import { ParallelBlockHandler } from './parallel-handler'
 
 describe('ParallelBlockHandler', () => {
   const mockResolver = {
     resolveBlockReferences: vi.fn((expr: string) => expr),
+  }
+
+  const mockPathTracker = {
+    isInActivePath: vi.fn(),
   }
 
   const createMockBlock = (id: string): SerializedBlock => ({
@@ -15,7 +20,7 @@ describe('ParallelBlockHandler', () => {
     config: { tool: '', params: {} },
     inputs: {},
     outputs: {},
-    metadata: { id: 'parallel', name: 'Test Parallel' },
+    metadata: { id: BlockType.PARALLEL, name: 'Test Parallel' },
     enabled: true,
   })
 
@@ -46,7 +51,7 @@ describe('ParallelBlockHandler', () => {
 
     expect(handler.canHandle(block)).toBe(true)
 
-    const nonParallelBlock = { ...block, metadata: { id: 'agent' } }
+    const nonParallelBlock = { ...block, metadata: { id: BlockType.AGENT } }
     expect(handler.canHandle(nonParallelBlock)).toBe(false)
   })
 
@@ -394,24 +399,24 @@ describe('ParallelBlockHandler', () => {
             {
               id: 'agent-1',
               position: { x: 0, y: 0 },
-              config: { tool: 'agent', params: {} },
+              config: { tool: BlockType.AGENT, params: {} },
               inputs: {},
               outputs: {},
-              metadata: { id: 'agent', name: 'Agent 1' },
+              metadata: { id: BlockType.AGENT, name: 'Agent 1' },
               enabled: true,
             },
             {
               id: 'function-1',
               position: { x: 0, y: 0 },
               config: {
-                tool: 'function',
+                tool: BlockType.FUNCTION,
                 params: {
                   code: 'return <parallel.results>;',
                 },
               },
               inputs: {},
               outputs: {},
-              metadata: { id: 'function', name: 'Function 1' },
+              metadata: { id: BlockType.FUNCTION, name: 'Function 1' },
               enabled: true,
             },
           ],
@@ -479,6 +484,93 @@ describe('ParallelBlockHandler', () => {
         if (!results) throw new Error('No results found')
         return results
       }).not.toThrow()
+    })
+  })
+
+  describe('PathTracker integration', () => {
+    it('should activate children when in active path', async () => {
+      const handler = new ParallelBlockHandler(mockResolver as any, mockPathTracker as any)
+      const block = createMockBlock('parallel-1')
+      const parallel = {
+        id: 'parallel-1',
+        nodes: ['agent-1'],
+        distribution: ['item1', 'item2'],
+      }
+
+      const context = createMockContext(parallel)
+      context.workflow!.connections = [
+        {
+          source: 'parallel-1',
+          target: 'agent-1',
+          sourceHandle: 'parallel-start-source',
+        },
+      ]
+
+      // Mock PathTracker to return true (block is in active path)
+      mockPathTracker.isInActivePath.mockReturnValue(true)
+
+      await handler.execute(block, {}, context)
+
+      // Should activate children when in active path
+      expect(context.activeExecutionPath.has('agent-1')).toBe(true)
+      expect(mockPathTracker.isInActivePath).toHaveBeenCalledWith('parallel-1', context)
+    })
+
+    it('should not activate children when not in active path', async () => {
+      const handler = new ParallelBlockHandler(mockResolver as any, mockPathTracker as any)
+      const block = createMockBlock('parallel-1')
+      const parallel = {
+        id: 'parallel-1',
+        nodes: ['agent-1'],
+        distribution: ['item1', 'item2'],
+      }
+
+      const context = createMockContext(parallel)
+      context.workflow!.connections = [
+        {
+          source: 'parallel-1',
+          target: 'agent-1',
+          sourceHandle: 'parallel-start-source',
+        },
+      ]
+
+      // Mock PathTracker to return false (block is not in active path)
+      mockPathTracker.isInActivePath.mockReturnValue(false)
+
+      await handler.execute(block, {}, context)
+
+      // Should not activate children when not in active path
+      expect(context.activeExecutionPath.has('agent-1')).toBe(false)
+      expect(mockPathTracker.isInActivePath).toHaveBeenCalledWith('parallel-1', context)
+    })
+
+    it('should handle PathTracker errors gracefully', async () => {
+      const handler = new ParallelBlockHandler(mockResolver as any, mockPathTracker as any)
+      const block = createMockBlock('parallel-1')
+      const parallel = {
+        id: 'parallel-1',
+        nodes: ['agent-1'],
+        distribution: ['item1', 'item2'],
+      }
+
+      const context = createMockContext(parallel)
+      context.workflow!.connections = [
+        {
+          source: 'parallel-1',
+          target: 'agent-1',
+          sourceHandle: 'parallel-start-source',
+        },
+      ]
+
+      // Mock PathTracker to throw error
+      mockPathTracker.isInActivePath.mockImplementation(() => {
+        throw new Error('PathTracker error')
+      })
+
+      await handler.execute(block, {}, context)
+
+      // Should default to activating children when PathTracker fails
+      expect(context.activeExecutionPath.has('agent-1')).toBe(true)
     })
   })
 })

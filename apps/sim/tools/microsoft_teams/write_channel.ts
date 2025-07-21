@@ -1,5 +1,8 @@
-import type { ToolConfig } from '../types'
-import type { MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse } from './types'
+import type {
+  MicrosoftTeamsToolParams,
+  MicrosoftTeamsWriteResponse,
+} from '@/tools/microsoft_teams/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse> = {
   id: 'microsoft_teams_write_channel',
@@ -14,21 +17,25 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'The access token for the Microsoft Teams API',
     },
     teamId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the team to write to',
     },
     channelId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'The ID of the channel to write to',
     },
     content: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
       description: 'The content to write to the channel',
     },
   },

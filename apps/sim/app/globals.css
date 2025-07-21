@@ -2,7 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Z-index fixes for workflow components */
+/* ==========================================================================
+   WORKFLOW COMPONENT Z-INDEX FIXES
+   ========================================================================== */
 .workflow-container .react-flow__edges {
   z-index: 0 !important;
 }
@@ -24,81 +26,131 @@
   z-index: 0 !important;
 }
 
+/* ==========================================================================
+   THEME SYSTEM - CSS CUSTOM PROPERTIES
+   ========================================================================== */
 @layer base {
-  :root {
+  /* Light Mode Theme */
+  :root,
+  .light {
+    /* Core Colors */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 0 0% 3.9%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Card Colors */
+    --card: 0 0% 99.2%;
+    --card-foreground: 0 0% 3.9%;
 
+    /* Popover Colors */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 0 0% 3.9%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary Colors */
+    --primary: 0 0% 11.2%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary Colors */
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 11.2%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted Colors */
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 46.9%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent Colors */
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 11.2%;
 
+    /* Destructive Colors */
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Border & Input Colors */
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
 
+    /* Border Radius */
     --radius: 0.5rem;
 
-    /* Scrollbar Custom Properties */
+    /* Scrollbar Properties */
     --scrollbar-track: 0 0% 85%;
     --scrollbar-thumb: 0 0% 65%;
     --scrollbar-thumb-hover: 0 0% 55%;
     --scrollbar-size: 8px;
+
+    /* Workflow Properties */
+    --workflow-background: 0 0% 100%;
+    --workflow-dots: 0 0% 94.5%;
+    --card-background: 0 0% 99.2%;
+    --card-border: 0 0% 89.8%;
+    --card-text: 0 0% 3.9%;
+    --card-hover: 0 0% 96.1%;
+
+    /* Base Component Properties */
+    --base-muted-foreground: #737373;
   }
 
+  /* Dark Mode Theme */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Core Colors */
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    /* Card Colors */
+    --card: 0 0% 9.0%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    /* Popover Colors */
+    --popover: 0 0% 9.0%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Primary Colors */
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 11.2%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    /* Secondary Colors */
+    --secondary: 0 0% 12.0%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    /* Muted Colors */
+    --muted: 0 0% 17.5%;
+    --muted-foreground: 0 0% 65.1%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* Accent Colors */
+    --accent: 0 0% 17.5%;
+    --accent-foreground: 0 0% 98%;
 
+    /* Destructive Colors */
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* Border & Input Colors */
+    --border: 0 0% 22.7%;
+    --input: 0 0% 22.7%;
+    --ring: 0 0% 83.9%;
 
-    /* Dark Mode Scrollbar Custom Properties */
-    --scrollbar-track: 217.2 32.6% 17.5%;
-    --scrollbar-thumb: 217.2 32.6% 30%;
-    --scrollbar-thumb-hover: 217.2 32.6% 40%;
+    /* Scrollbar Properties */
+    --scrollbar-track: 0 0% 17.5%;
+    --scrollbar-thumb: 0 0% 30%;
+    --scrollbar-thumb-hover: 0 0% 40%;
+
+    /* Workflow Properties */
+    --workflow-background: 0 0% 3.9%;
+    --workflow-dots: 0 0% 7.5%;
+    --card-background: 0 0% 9.0%;
+    --card-border: 0 0% 22.7%;
+    --card-text: 0 0% 98%;
+    --card-hover: 0 0% 12.0%;
+
+    /* Base Component Properties */
+    --base-muted-foreground: #a3a3a3;
   }
 }
 
+/* ==========================================================================
+   BASE STYLES
+   ========================================================================== */
 @layer base {
   * {
     @apply border-border;
@@ -143,28 +195,137 @@
   }
 }
 
-/* Custom Animations */
+/* ==========================================================================
+   TYPOGRAPHY
+   ========================================================================== */
+.font-geist-sans {
+  font-family: var(--font-geist-sans);
+}
+
+.font-geist-mono {
+  font-family: var(--font-geist-mono);
+}
+
+/* ==========================================================================
+   PANEL STYLES
+   ========================================================================== */
+.panel-tab-base {
+  color: var(--base-muted-foreground);
+}
+
+.panel-tab-active {
+  /* Light Mode Panel Tab Active */
+  background-color: #f5f5f5;
+  color: #1a1a1a;
+  border-color: #e5e5e5;
+}
+
+/* Dark Mode Panel Tab Active */
+.dark .panel-tab-active {
+  background-color: #1f1f1f;
+  color: #ffffff;
+  border-color: #424242;
+}
+
+.panel-tab-inactive:hover {
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--card-foreground));
+}
+
+/* ==========================================================================
+   DARK MODE OVERRIDES
+   ========================================================================== */
+.dark .error-badge {
+  background-color: hsl(0, 70%, 20%) !important;
+  /* Darker red background for dark mode */
+  color: hsl(0, 0%, 100%) !important;
+  /* Pure white text for better contrast */
+}
+
+.dark .bg-red-500 {
+  @apply bg-red-700;
+}
+
+/* ==========================================================================
+   BROWSER INPUT OVERRIDES
+   ========================================================================== */
+/* Chrome, Safari, Edge, Opera */
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Firefox */
+input[type="search"]::-moz-search-cancel-button {
+  display: none;
+}
+
+/* Microsoft Edge */
+input[type="search"]::-ms-clear {
+  display: none;
+}
+
+/* ==========================================================================
+   LAYOUT UTILITIES
+   ========================================================================== */
+.main-content-overlay {
+  z-index: 40;
+  /* Higher z-index to appear above content */
+}
+
+/* ==========================================================================
+   ANIMATIONS & UTILITIES
+   ========================================================================== */
 @layer utilities {
-  /* Animation containment to avoid layout shifts */
+  /* Animation Performance */
   .animation-container {
     contain: paint layout style;
     will-change: opacity, transform;
   }
 
-  @keyframes pulse-ring {
-    0% {
-      box-shadow: 0 0 0 0 hsl(var(--border));
-    }
-
-    50% {
-      box-shadow: 0 0 0 8px hsl(var(--border));
-    }
-
-    100% {
-      box-shadow: 0 0 0 0 hsl(var(--border));
-    }
+  /* Scrollbar Utilities */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    /* For Webkit browsers (Chrome, Safari, Edge) */
+    -webkit-scrollbar: none;
+    -webkit-scrollbar-width: none;
+    -webkit-scrollbar-track: transparent;
+    -webkit-scrollbar-thumb: transparent;
+
+    /* For Firefox */
+    scrollbar-width: none;
+    scrollbar-color: transparent transparent;
+
+    /* For Internet Explorer and Edge Legacy */
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar-track {
+    display: none;
+    background: transparent;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar-thumb {
+    display: none;
+    background: transparent;
+  }
+
+  /* Animation Classes */
   .animate-pulse-ring {
     animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
@@ -173,16 +334,6 @@
     transition-property: box-shadow, transform;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 300ms;
-  }
-
-  /* Custom Scrollbar Utility Classes */
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
   }
 
   .animate-orbit {
@@ -197,7 +348,58 @@
     animation: marquee-vertical var(--duration) linear infinite;
   }
 
-  /* Code Editor Streaming Effect */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out forwards;
+  }
+
+  /* Special Effects */
+  .streaming-effect {
+    @apply relative overflow-hidden;
+  }
+
+  .streaming-effect::after {
+    content: "";
+    @apply pointer-events-none absolute left-0 top-0 h-full w-full;
+    background: linear-gradient(
+      90deg,
+      rgba(128, 128, 128, 0) 0%,
+      rgba(128, 128, 128, 0.1) 50%,
+      rgba(128, 128, 128, 0) 100%
+    );
+    animation: code-shimmer 1.5s infinite;
+    z-index: 10;
+  }
+
+  .dark .streaming-effect::after {
+    background: linear-gradient(
+      90deg,
+      rgba(180, 180, 180, 0) 0%,
+      rgba(180, 180, 180, 0.1) 50%,
+      rgba(180, 180, 180, 0) 100%
+    );
+  }
+
+  .loading-placeholder::placeholder {
+    animation: placeholder-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* ==========================================================================
+     KEYFRAME ANIMATIONS
+     ========================================================================== */
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 hsl(var(--border));
+    }
+
+    50% {
+      box-shadow: 0 0 0 8px hsl(var(--border));
+    }
+
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--border));
+    }
+  }
+
   @keyframes code-shimmer {
     0% {
       transform: translateX(-100%);
@@ -240,32 +442,6 @@
     }
   }
 
-  .streaming-effect {
-    @apply relative overflow-hidden;
-  }
-
-  .streaming-effect::after {
-    content: "";
-    @apply pointer-events-none absolute left-0 top-0 h-full w-full;
-    background: linear-gradient(
-      90deg,
-      rgba(128, 128, 128, 0) 0%,
-      rgba(128, 128, 128, 0.1) 50%,
-      rgba(128, 128, 128, 0) 100%
-    );
-    animation: code-shimmer 1.5s infinite;
-    z-index: 10;
-  }
-
-  .dark .streaming-effect::after {
-    background: linear-gradient(
-      90deg,
-      rgba(180, 180, 180, 0) 0%,
-      rgba(180, 180, 180, 0.1) 50%,
-      rgba(180, 180, 180, 0) 100%
-    );
-  }
-
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -276,68 +452,14 @@
     }
   }
 
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-in-out forwards;
+  @keyframes placeholder-pulse {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+
+    50% {
+      opacity: 0.8;
+    }
   }
-}
-
-/* Dark mode error badge styling */
-.dark .error-badge {
-  background-color: hsl(0, 70%, 20%) !important;
-  /* Darker red background for dark mode */
-  color: hsl(0, 0%, 100%) !important;
-  /* Pure white text for better contrast */
-}
-
-/* Input Overrides */
-/* Chrome, Safari, Edge, Opera */
-input[type="search"]::-webkit-search-cancel-button {
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-/* Firefox */
-input[type="search"]::-moz-search-cancel-button {
-  display: none;
-}
-
-/* Microsoft Edge */
-input[type="search"]::-ms-clear {
-  display: none;
-}
-
-/* Code Prompt Bar Placeholder Animation */
-@keyframes placeholder-pulse {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-
-  50% {
-    opacity: 0.8;
-  }
-}
-
-.loading-placeholder::placeholder {
-  animation: placeholder-pulse 1.5s ease-in-out infinite;
-}
-
-/* Dark mode error badge styling */
-.dark .bg-red-500 {
-  @apply bg-red-700;
-}
-
-/* Font Variables */
-.font-geist-sans {
-  font-family: var(--font-geist-sans);
-}
-
-.font-geist-mono {
-  font-family: var(--font-geist-mono);
-}
-
-/* Sidebar overlay styles */
-.main-content-overlay {
-  z-index: 40;
-  /* Higher z-index to appear above content */
 }

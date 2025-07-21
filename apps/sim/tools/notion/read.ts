@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { NotionReadParams, NotionResponse } from './types'
+import type { NotionReadParams, NotionResponse } from '@/tools/notion/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
   id: 'notion_read',
@@ -12,15 +12,17 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     additionalScopes: ['workspace.content', 'page.read'],
   },
   params: {
-    pageId: {
-      type: 'string',
-      required: true,
-      description: 'The ID of the Notion page to read',
-    },
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'Notion OAuth access token',
+    },
+    pageId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'The ID of the Notion page to read',
     },
   },
 

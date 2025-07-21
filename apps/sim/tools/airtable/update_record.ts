@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { AirtableUpdateParams, AirtableUpdateResponse } from './types'
+import type { AirtableUpdateParams, AirtableUpdateResponse } from '@/tools/airtable/types'
+import type { ToolConfig } from '@/tools/types'
 
 // import { logger } from '@/utils/logger' // Removed logger due to import issues
 
@@ -18,26 +18,31 @@ export const airtableUpdateRecordTool: ToolConfig<AirtableUpdateParams, Airtable
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token',
     },
     baseId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID of the Airtable base',
     },
     tableId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID or name of the table',
     },
     recordId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'ID of the record to update',
     },
     fields: {
       type: 'json',
       required: true,
+      visibility: 'user-or-llm',
       description: 'An object containing the field names and their new values',
       // Example: { "Field 1": "NewValue1", "Status": "Completed" }
     },

@@ -2,10 +2,11 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
+import { BlockType } from '@/executor/consts'
+import type { PathTracker } from '@/executor/path/path'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import type { PathTracker } from '../../path'
-import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('RouterBlockHandler')
 
@@ -19,7 +20,7 @@ export class RouterBlockHandler implements BlockHandler {
   constructor(private pathTracker: PathTracker) {}
 
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'router'
+    return block.metadata?.id === BlockType.ROUTER
   }
 
   async execute(
@@ -144,7 +145,7 @@ export class RouterBlockHandler implements BlockHandler {
 
         // Extract system prompt for agent blocks
         let systemPrompt = ''
-        if (targetBlock.metadata?.id === 'agent') {
+        if (targetBlock.metadata?.id === BlockType.AGENT) {
           // Try to get system prompt from different possible locations
           systemPrompt =
             targetBlock.config?.params?.systemPrompt || targetBlock.inputs?.systemPrompt || ''

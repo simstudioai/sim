@@ -19,18 +19,20 @@ export function Console({ panelWidth }: ConsoleProps) {
   }, [entries, activeWorkflowId])
 
   return (
-    <ScrollArea className='h-full'>
-      <div>
-        {filteredEntries.length === 0 ? (
-          <div className='flex h-32 items-center justify-center pt-4 text-muted-foreground text-sm'>
-            No console entries
+    <div className='h-full pt-2 pl-[1px]'>
+      {filteredEntries.length === 0 ? (
+        <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
+          No console entries
+        </div>
+      ) : (
+        <ScrollArea className='h-full' hideScrollbar={true}>
+          <div className='space-y-3'>
+            {filteredEntries.map((entry) => (
+              <ConsoleEntry key={entry.id} entry={entry} consoleWidth={panelWidth} />
+            ))}
           </div>
-        ) : (
-          filteredEntries.map((entry) => (
-            <ConsoleEntry key={entry.id} entry={entry} consoleWidth={panelWidth} />
-          ))
-        )}
-      </div>
-    </ScrollArea>
+        </ScrollArea>
+      )}
+    </div>
   )
 }

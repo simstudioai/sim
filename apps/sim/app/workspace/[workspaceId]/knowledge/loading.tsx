@@ -2,21 +2,14 @@
 
 import { Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from './components/knowledge-header/knowledge-header'
 import { KnowledgeBaseCardSkeletonGrid } from './components/skeletons/knowledge-base-card-skeleton'
 
 export default function KnowledgeLoading() {
-  const { mode, isExpanded } = useSidebarStore()
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
-
   const breadcrumbs = [{ id: 'knowledge', label: 'Knowledge' }]
 
   return (
-    <div
-      className={`flex h-screen flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-    >
+    <div className='flex h-screen flex-col pl-64'>
       {/* Header */}
       <KnowledgeHeader breadcrumbs={breadcrumbs} />
 

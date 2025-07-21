@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { TypeformInsightsParams, TypeformInsightsResponse } from './types'
+import type { TypeformInsightsParams, TypeformInsightsResponse } from '@/tools/typeform/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsResponse> = {
   id: 'typeform_insights',
@@ -10,11 +10,13 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
     formId: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Typeform form ID',
     },
     apiKey: {
       type: 'string',
       required: true,
+      visibility: 'user-only',
       description: 'Typeform Personal Access Token',
     },
   },

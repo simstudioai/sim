@@ -5,10 +5,10 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { useCopilotStore } from './copilot/store'
 import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
-import { useNotificationStore } from './notifications/store'
 import { useConsoleStore } from './panel/console/store'
 import { useVariablesStore } from './panel/variables/store'
 import { useEnvironmentStore } from './settings/environment/store'
+import { useSubscriptionStore } from './subscription/store'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
@@ -198,7 +198,6 @@ if (typeof window !== 'undefined') {
 export {
   useWorkflowStore,
   useWorkflowRegistry,
-  useNotificationStore,
   useEnvironmentStore,
   useExecutionStore,
   useConsoleStore,
@@ -206,6 +205,7 @@ export {
   useCustomToolsStore,
   useVariablesStore,
   useSubBlockStore,
+  useSubscriptionStore,
 }
 
 // Helper function to reset all stores
@@ -219,8 +219,6 @@ export const resetAllStores = () => {
   })
   useWorkflowStore.getState().clear()
   useSubBlockStore.getState().clear()
-  useSubBlockStore.getState().clearToolParams()
-  useNotificationStore.setState({ notifications: [] })
   useEnvironmentStore.setState({
     variables: {},
     isLoading: false,
@@ -231,6 +229,7 @@ export const resetAllStores = () => {
   useCopilotStore.setState({ messages: [], isSendingMessage: false, error: null })
   useCustomToolsStore.setState({ tools: {} })
   useVariablesStore.getState().resetLoaded() // Reset variables store tracking
+  useSubscriptionStore.getState().reset() // Reset subscription store
 }
 
 // Helper function to log all store states
@@ -238,7 +237,6 @@ export const logAllStores = () => {
   const state = {
     workflow: useWorkflowStore.getState(),
     workflowRegistry: useWorkflowRegistry.getState(),
-    notifications: useNotificationStore.getState(),
     environment: useEnvironmentStore.getState(),
     execution: useExecutionStore.getState(),
     console: useConsoleStore.getState(),
@@ -246,6 +244,7 @@ export const logAllStores = () => {
     customTools: useCustomToolsStore.getState(),
     subBlock: useSubBlockStore.getState(),
     variables: useVariablesStore.getState(),
+    subscription: useSubscriptionStore.getState(),
   }
 
   return state

@@ -55,6 +55,82 @@ export const useChatStore = create<ChatStore>()(
           })
         },
 
+        exportChatCSV: (workflowId: string) => {
+          const messages = get().messages.filter((message) => message.workflowId === workflowId)
+
+          if (messages.length === 0) {
+            return
+          }
+
+          // Helper function to safely stringify and escape CSV values
+          const formatCSVValue = (value: any): string => {
+            if (value === null || value === undefined) {
+              return ''
+            }
+
+            let stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
+
+            // Truncate very long strings
+            if (stringValue.length > 2000) {
+              stringValue = `${stringValue.substring(0, 2000)}...`
+            }
+
+            // Escape quotes and wrap in quotes if contains special characters
+            if (
+              stringValue.includes('"') ||
+              stringValue.includes(',') ||
+              stringValue.includes('\n')
+            ) {
+              stringValue = `"${stringValue.replace(/"/g, '""')}"`
+            }
+
+            return stringValue
+          }
+
+          // CSV Headers
+          const headers = ['timestamp', 'type', 'content']
+
+          // Sort messages by timestamp (oldest first)
+          const sortedMessages = messages.sort(
+            (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          )
+
+          // Generate CSV rows
+          const csvRows = [
+            headers.join(','),
+            ...sortedMessages.map((message) =>
+              [
+                formatCSVValue(message.timestamp),
+                formatCSVValue(message.type),
+                formatCSVValue(message.content),
+              ].join(',')
+            ),
+          ]
+
+          // Create CSV content
+          const csvContent = csvRows.join('\n')
+
+          // Generate filename with timestamp
+          const now = new Date()
+          const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          const filename = `chat-${workflowId}-${timestamp}.csv`
+
+          // Create and trigger download
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+          const link = document.createElement('a')
+
+          if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob)
+            link.setAttribute('href', url)
+            link.setAttribute('download', filename)
+            link.style.visibility = 'hidden'
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+          }
+        },
+
         getWorkflowMessages: (workflowId) => {
           return get().messages.filter((message) => message.workflowId === workflowId)
         },

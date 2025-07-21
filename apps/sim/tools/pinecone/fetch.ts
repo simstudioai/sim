@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { PineconeFetchParams, PineconeResponse, PineconeVector } from './types'
+import type { PineconeFetchParams, PineconeResponse, PineconeVector } from '@/tools/pinecone/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
   id: 'pinecone_fetch',
@@ -8,28 +8,29 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
   version: '1.0',
 
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Pinecone API key',
-    },
     indexHost: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Full Pinecone index host URL',
     },
     ids: {
       type: 'array',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Array of vector IDs to fetch',
     },
     namespace: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Namespace to fetch vectors from',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Pinecone API key',
     },
   },
 

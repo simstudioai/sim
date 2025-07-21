@@ -27,7 +27,7 @@ export function setupSubblocksHandlers(
       return
     }
 
-    const { blockId, subblockId, value, timestamp } = data
+    const { blockId, subblockId, value, timestamp, operationId } = data
     const room = roomManager.getWorkflowRoom(workflowId)
 
     if (!room) {
@@ -117,15 +117,42 @@ export function setupSubblocksHandlers(
           senderId: socket.id,
           userId: session.userId,
         })
-      }
 
-      logger.debug(`Subblock update in workflow ${workflowId}: ${blockId}.${subblockId}`)
+        // Emit confirmation if operationId is provided
+        if (operationId) {
+          socket.emit('operation-confirmed', {
+            operationId,
+            serverTimestamp: Date.now(),
+          })
+        }
+
+        logger.debug(`Subblock update in workflow ${workflowId}: ${blockId}.${subblockId}`)
+      } else if (operationId) {
+        // Block was deleted - notify client that operation completed (but didn't update anything)
+        socket.emit('operation-failed', {
+          operationId,
+          error: 'Block no longer exists',
+          retryable: false, // No point retrying for deleted blocks
+        })
+      }
     } catch (error) {
       logger.error('Error handling subblock update:', error)
 
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+      // Emit operation-failed for queue-tracked operations
+      if (operationId) {
+        socket.emit('operation-failed', {
+          operationId,
+          error: errorMessage,
+          retryable: true, // Subblock updates are generally retryable
+        })
+      }
+
+      // Also emit legacy operation-error for backward compatibility
       socket.emit('operation-error', {
         type: 'SUBBLOCK_UPDATE_FAILED',
-        message: `Failed to update subblock ${blockId}.${subblockId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `Failed to update subblock ${blockId}.${subblockId}: ${errorMessage}`,
         operation: 'subblock-update',
         target: 'subblock',
       })

@@ -1,11 +1,11 @@
-import type { ToolConfig } from '../types'
 import type {
   CleanedOutlookMessage,
   OutlookMessage,
   OutlookMessagesResponse,
   OutlookReadParams,
   OutlookReadResponse,
-} from './types'
+} from '@/tools/outlook/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse> = {
   id: 'outlook_read',
@@ -21,16 +21,19 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     accessToken: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
       description: 'OAuth access token for Outlook',
     },
     folder: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
       description: 'Folder ID to read emails from (default: Inbox)',
     },
     maxResults: {
       type: 'number',
       required: false,
+      visibility: 'user-only',
       description: 'Maximum number of emails to retrieve (default: 1, max: 10)',
     },
   },

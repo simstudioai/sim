@@ -1,6 +1,6 @@
 import { GmailIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { GmailToolResponse } from '@/tools/gmail/types'
-import type { BlockConfig } from '../types'
 
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
   type: 'gmail',
@@ -14,17 +14,18 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   icon: GmailIcon,
   subBlocks: [
     // Operation selector
-    // {
-    //   id: 'operation',
-    //   title: 'Operation',
-    //   type: 'dropdown',
-    //   layout: 'full',
-    //   options: [
-    //     { label: 'Send Email', id: 'send_gmail' },
-    //     // { label: 'Read Email', id: 'read_gmail' },
-    //     // { label: 'Search Emails', id: 'search_gmail' },
-    //   ],
-    // },
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Send Email', id: 'send_gmail' },
+        { label: 'Read Email', id: 'read_gmail' },
+        { label: 'Draft Email', id: 'draft_gmail' },
+        { label: 'Search Email', id: 'search_gmail' },
+      ],
+    },
     // Gmail Credentials
     {
       id: 'credential',
@@ -48,7 +49,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Recipient email address',
-      // condition: { field: 'operation', value: 'send_gmail' },
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
     },
     {
       id: 'subject',
@@ -56,7 +57,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Email subject',
-      // condition: { field: 'operation', value: 'send_gmail' },
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
     },
     {
       id: 'body',
@@ -64,107 +65,112 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Email content',
-      // condition: { field: 'operation', value: 'send_gmail' },
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
     },
-    // Read Email Fields - Add folder selector
-    // {
-    //   id: 'folder',
-    //   title: 'Label',
-    //   type: 'folder-selector',
-    //   layout: 'full',
-    //   provider: 'google-email',
-    //   serviceId: 'gmail',
-    //   requiredScopes: [
-    //     // 'https://www.googleapis.com/auth/gmail.readonly',
-    //     'https://www.googleapis.com/auth/gmail.labels',
-    //   ],
-    //   placeholder: 'Select Gmail label/folder',
-    //   condition: { field: 'operation', value: 'read_gmail' },
-    // },
-    // {
-    //   id: 'unreadOnly',
-    //   title: 'Unread Only',
-    //   type: 'switch',
-    //   layout: 'full',
-    //   condition: { field: 'operation', value: 'read_gmail' },
-    // },
-    // {
-    //   id: 'maxResults',
-    //   title: 'Number of Emails',
-    //   type: 'short-input',
-    //   layout: 'full',
-    //   placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
-    //   condition: { field: 'operation', value: 'read_gmail' },
-    // },
-    // {
-    //   id: 'messageId',
-    //   title: 'Message ID',
-    //   type: 'short-input',
-    //   layout: 'full',
-    //   placeholder: 'Enter message ID to read (optional)',
-    //   condition: {
-    //     field: 'operation',
-    //     value: 'read_gmail',
-    //     and: {
-    //       field: 'folder',
-    //       value: '',
-    //     },
-    //   },
-    // },
-    // // Search Fields
-    // {
-    //   id: 'query',
-    //   title: 'Search Query',
-    //   type: 'short-input',
-    //   layout: 'full',
-    //   placeholder: 'Enter search terms',
-    //   condition: { field: 'operation', value: 'search_gmail' },
-    // },
-    // {
-    //   id: 'maxResults',
-    //   title: 'Max Results',
-    //   type: 'short-input',
-    //   layout: 'full',
-    //   placeholder: 'Maximum number of results (default: 10)',
-    //   condition: { field: 'operation', value: 'search_gmail' },
-    // },
+    // Label/folder selector (basic mode)
+    {
+      id: 'folder',
+      title: 'Label',
+      type: 'folder-selector',
+      layout: 'full',
+      provider: 'google-email',
+      serviceId: 'gmail',
+      requiredScopes: [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.labels',
+      ],
+      placeholder: 'Select Gmail label/folder',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'read_gmail' },
+    },
+    // Manual label/folder input (advanced mode)
+    {
+      id: 'manualFolder',
+      title: 'Label/Folder',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Gmail label name (e.g., INBOX, SENT, or custom label)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'read_gmail' },
+    },
+    {
+      id: 'unreadOnly',
+      title: 'Unread Only',
+      type: 'switch',
+      layout: 'full',
+      condition: { field: 'operation', value: 'read_gmail' },
+    },
+    {
+      id: 'messageId',
+      title: 'Message ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter message ID to read (optional)',
+      condition: {
+        field: 'operation',
+        value: 'read_gmail',
+        and: {
+          field: 'folder',
+          value: '',
+        },
+      },
+    },
+    // Search Fields
+    {
+      id: 'query',
+      title: 'Search Query',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter search terms',
+      condition: { field: 'operation', value: 'search_gmail' },
+    },
+    {
+      id: 'maxResults',
+      title: 'Max Results',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Maximum number of results (default: 10)',
+      condition: { field: 'operation', value: ['search_gmail', 'read_gmail'] },
+    },
   ],
   tools: {
-    access: ['gmail_send', 'gmail_read', 'gmail_search'],
+    access: ['gmail_send', 'gmail_draft', 'gmail_read', 'gmail_search'],
     config: {
       tool: (params) => {
-        // Since we only have send_gmail now, we can simplify this
-        return 'gmail_send'
-
-        // switch (params.operation) {
-        //   case 'send_gmail':
-        //     return 'gmail_send'
-        //   case 'read_gmail':
-        //     return 'gmail_read'
-        //   case 'search_gmail':
-        //     return 'gmail_search'
-        //   default:
-        //     throw new Error(`Invalid Gmail operation: ${params.operation}`)
-        // }
+        switch (params.operation) {
+          case 'send_gmail':
+            return 'gmail_send'
+          case 'draft_gmail':
+            return 'gmail_draft'
+          case 'search_gmail':
+            return 'gmail_search'
+          case 'read_gmail':
+            return 'gmail_read'
+          default:
+            throw new Error(`Invalid Gmail operation: ${params.operation}`)
+        }
       },
       params: (params) => {
         // Pass the credential directly from the credential field
-        const { credential, ...rest } = params
+        const { credential, folder, manualFolder, ...rest } = params
 
-        // Set default folder to INBOX if not specified
-        if (rest.operation === 'read_gmail' && !rest.folder) {
-          rest.folder = 'INBOX'
+        // Handle folder input (selector or manual)
+        const effectiveFolder = (folder || manualFolder || '').trim()
+
+        // Ensure folder is always provided for read_gmail operation
+        if (rest.operation === 'read_gmail') {
+          rest.folder = effectiveFolder || 'INBOX'
         }
 
         return {
           ...rest,
-          credential, // Keep the credential parameter
+          credential,
         }
       },
     },
   },
   inputs: {
-    // operation: { type: 'string', required: true },
+    operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
     // Send operation inputs
     to: { type: 'string', required: false },
@@ -172,6 +178,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     body: { type: 'string', required: false },
     // Read operation inputs
     folder: { type: 'string', required: false },
+    manualFolder: { type: 'string', required: false },
     messageId: { type: 'string', required: false },
     unreadOnly: { type: 'boolean', required: false },
     // Search operation inputs

@@ -8,6 +8,14 @@ export interface UploadedFile {
   fileUrl: string
   fileSize: number
   mimeType: string
+  // Document tags
+  tag1?: string
+  tag2?: string
+  tag3?: string
+  tag4?: string
+  tag5?: string
+  tag6?: string
+  tag7?: string
 }
 
 export interface UploadProgress {
@@ -78,12 +86,21 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     filename: string,
     fileUrl: string,
     fileSize: number,
-    mimeType: string
+    mimeType: string,
+    originalFile?: File
   ): UploadedFile => ({
     filename,
     fileUrl,
     fileSize,
     mimeType,
+    // Include tags from original file if available
+    tag1: (originalFile as any)?.tag1,
+    tag2: (originalFile as any)?.tag2,
+    tag3: (originalFile as any)?.tag3,
+    tag4: (originalFile as any)?.tag4,
+    tag5: (originalFile as any)?.tag5,
+    tag6: (originalFile as any)?.tag6,
+    tag7: (originalFile as any)?.tag7,
   })
 
   const createErrorFromException = (error: unknown, defaultMessage: string): UploadError => {
@@ -196,7 +213,9 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
               ? presignedData.fileInfo.path
               : `${window.location.origin}${presignedData.fileInfo.path}`
 
-            uploadedFiles.push(createUploadedFile(file.name, fullFileUrl, file.size, file.type))
+            uploadedFiles.push(
+              createUploadedFile(file.name, fullFileUrl, file.size, file.type, file)
+            )
           } else {
             // Fallback to traditional upload through API route
             const formData = new FormData()
@@ -238,7 +257,8 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
                   ? uploadResult.path
                   : `${window.location.origin}${uploadResult.path}`,
                 file.size,
-                file.type
+                file.type,
+                file
               )
             )
           }
@@ -252,7 +272,17 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       // Start async document processing
       const processPayload = {
-        documents: uploadedFiles,
+        documents: uploadedFiles.map((file) => ({
+          ...file,
+          // Extract tags from file if they exist (added by upload modal)
+          tag1: (file as any).tag1,
+          tag2: (file as any).tag2,
+          tag3: (file as any).tag3,
+          tag4: (file as any).tag4,
+          tag5: (file as any).tag5,
+          tag6: (file as any).tag6,
+          tag7: (file as any).tag7,
+        })),
         processingOptions: {
           chunkSize: processingOptions.chunkSize || 1024,
           minCharactersPerChunk: processingOptions.minCharactersPerChunk || 100,
