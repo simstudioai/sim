@@ -357,6 +357,25 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
     throw error
   } finally {
     runningExecutions.delete(executionKey)
+
+    // Clean up execution-scoped files
+    try {
+      const { createWorkflowFileManager } = await import('@/lib/workflows/file-manager')
+      const fileManager = createWorkflowFileManager({
+        workspaceId: workflow.workspaceId || 'default-workspace',
+        workflowId: workflowId,
+        executionId: executionId,
+      })
+
+      await fileManager.cleanupExecution()
+      logger.info(`[${requestId}] Successfully cleaned up files for execution ${executionId}`)
+    } catch (cleanupError: any) {
+      logger.error(
+        `[${requestId}] Failed to clean up files for execution ${executionId}:`,
+        cleanupError
+      )
+      // Don't re-throw - cleanup failures shouldn't affect workflow execution results
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { type KeyboardEvent, useEffect, useMemo, useRef } from 'react'
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,10 +17,16 @@ import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
+import { ChatFileUpload } from './components/chat-file-upload'
 import { ChatMessage } from './components/chat-message/chat-message'
 import { OutputSelect } from './components/output-select/output-select'
 
 const logger = createLogger('ChatPanel')
+
+interface FileWithPreview {
+  file: File
+  preview?: string
+}
 
 interface ChatProps {
   panelWidth: number
@@ -47,6 +53,63 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
   // Get workflow execution functionality
   const { handleRunWorkflow } = useWorkflowExecution()
+
+  // File upload state
+  const [uploadedFiles, setUploadedFiles] = useState<FileWithPreview[]>([])
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false)
+
+  // Helper function to upload files to execution-scoped storage
+  const uploadFilesToExecution = async (files: FileWithPreview[], executionId: string) => {
+    const uploadedFileRefs = []
+
+    for (const fileWithPreview of files) {
+      try {
+        // Get presigned URL for workflow-execution upload
+        const presignedResponse = await fetch('/api/files/presigned?type=workflow-execution', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fileName: fileWithPreview.file.name,
+            contentType: fileWithPreview.file.type,
+            fileSize: fileWithPreview.file.size,
+            workspaceId: 'default-workspace', // TODO: Get actual workspace ID
+            workflowId: activeWorkflowId,
+            executionId: executionId,
+          }),
+        })
+
+        if (!presignedResponse.ok) {
+          throw new Error(`Failed to get presigned URL for ${fileWithPreview.file.name}`)
+        }
+
+        const presignedData = await presignedResponse.json()
+
+        // Upload file to cloud storage using presigned URL
+        const uploadResponse = await fetch(presignedData.presignedUrl, {
+          method: 'PUT',
+          body: fileWithPreview.file,
+          headers: {
+            'Content-Type': fileWithPreview.file.type,
+            ...(presignedData.uploadHeaders || {}),
+          },
+        })
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload ${fileWithPreview.file.name}`)
+        }
+
+        // Add file reference to the list
+        uploadedFileRefs.push(presignedData.fileInfo)
+      } catch (error) {
+        logger.error(`Error uploading file ${fileWithPreview.file.name}:`, error)
+        throw error
+      }
+    }
+
+    return uploadedFileRefs
+  }
 
   // Get output entries from console for the dropdown
   const outputEntries = useMemo(() => {
@@ -93,29 +156,68 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
   // Handle send message
   const handleSendMessage = async () => {
-    if (!chatMessage.trim() || !activeWorkflowId || isExecuting) return
+    if ((!chatMessage.trim() && uploadedFiles.length === 0) || !activeWorkflowId || isExecuting)
+      return
 
     // Store the message being sent for reference
     const sentMessage = chatMessage.trim()
+    const hasFiles = uploadedFiles.length > 0
 
     // Get the conversationId for this workflow before adding the message
     const conversationId = getConversationId(activeWorkflowId)
 
-    // Add user message
+    // Add user message (include file count if files are attached)
+    const messageContent = hasFiles
+      ? `${sentMessage}${sentMessage ? '\n\n' : ''}📎 ${uploadedFiles.length} file(s) attached`
+      : sentMessage
+
     addMessage({
-      content: sentMessage,
+      content: messageContent,
       workflowId: activeWorkflowId,
       type: 'user',
     })
 
-    // Clear input
+    // Clear input and files
     setChatMessage('')
+    const filesToUpload = [...uploadedFiles]
+    setUploadedFiles([])
 
-    // Execute the workflow to generate a response, passing the chat message and conversationId as input
-    const result = await handleRunWorkflow({
-      input: sentMessage,
-      conversationId: conversationId,
-    })
+    let result: any
+
+    try {
+      const workflowInput: any = { input: sentMessage, conversationId }
+
+      // Upload files if any are attached
+      if (hasFiles) {
+        setIsUploadingFiles(true)
+
+        // Generate execution ID for file uploads
+        const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+
+        // Upload files to execution-scoped storage
+        const uploadedFileRefs = await uploadFilesToExecution(filesToUpload, executionId)
+
+        // Add files to workflow input
+        workflowInput.files = uploadedFileRefs
+        workflowInput.executionId = executionId
+
+        setIsUploadingFiles(false)
+      }
+
+      // Execute the workflow to generate a response
+      result = await handleRunWorkflow(workflowInput)
+    } catch (error) {
+      logger.error('Error in handleSendMessage:', error)
+      setIsUploadingFiles(false)
+
+      // Add error message
+      addMessage({
+        content: `Error: ${error instanceof Error ? error.message : 'Failed to process message'}`,
+        workflowId: activeWorkflowId,
+        type: 'assistant',
+      })
+      return
+    }
 
     // Check if we got a streaming response
     if (result && 'stream' in result && result.stream instanceof ReadableStream) {
@@ -346,23 +448,44 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         </div>
 
         {/* Input section - Fixed height */}
-        <div className='-mt-[1px] relative flex-nonept-3 pb-4'>
+        <div className='-mt-[1px] relative flex-none space-y-3 pb-4'>
+          {/* File Upload Component */}
+          <ChatFileUpload
+            files={uploadedFiles}
+            onFilesChange={setUploadedFiles}
+            disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
+            maxFiles={5}
+            maxSizeInMB={10}
+          />
+
+          {/* Text Input and Send Button */}
           <div className='flex gap-2'>
             <Input
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder='Type a message...'
+              placeholder={
+                uploadedFiles.length > 0 ? 'Add a message (optional)...' : 'Type a message...'
+              }
               className='h-9 flex-1 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground shadow-xs focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-[#414141] dark:bg-[#202020]'
-              disabled={!activeWorkflowId || isExecuting}
+              disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
             />
             <Button
               onClick={handleSendMessage}
               size='icon'
-              disabled={!chatMessage.trim() || !activeWorkflowId || isExecuting}
+              disabled={
+                (!chatMessage.trim() && uploadedFiles.length === 0) ||
+                !activeWorkflowId ||
+                isExecuting ||
+                isUploadingFiles
+              }
               className='h-9 w-9 rounded-lg bg-[#802FFF] text-white shadow-[0_0_0_0_#802FFF] transition-all duration-200 hover:bg-[#7028E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
             >
-              <ArrowUp className='h-4 w-4' />
+              {isUploadingFiles ? (
+                <div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
+              ) : (
+                <ArrowUp className='h-4 w-4' />
+              )}
             </Button>
           </div>
         </div>

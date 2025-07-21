@@ -1,4 +1,4 @@
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
@@ -15,9 +15,13 @@ interface PresignedUrlRequest {
   fileName: string
   contentType: string
   fileSize: number
+  // For workflow-execution uploads
+  workspaceId?: string
+  workflowId?: string
+  executionId?: string
 }
 
-type UploadType = 'general' | 'knowledge-base'
+type UploadType = 'general' | 'knowledge-base' | 'workflow-execution'
 
 class PresignedUrlError extends Error {
   constructor(
@@ -51,7 +55,7 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('Invalid JSON in request body')
     }
 
-    const { fileName, contentType, fileSize } = data
+    const { fileName, contentType, fileSize, workspaceId, workflowId, executionId } = data
 
     if (!fileName?.trim()) {
       throw new ValidationError('fileName is required and cannot be empty')
@@ -72,7 +76,24 @@ export async function POST(request: NextRequest) {
 
     const uploadTypeParam = request.nextUrl.searchParams.get('type')
     const uploadType: UploadType =
-      uploadTypeParam === 'knowledge-base' ? 'knowledge-base' : 'general'
+      uploadTypeParam === 'knowledge-base'
+        ? 'knowledge-base'
+        : uploadTypeParam === 'workflow-execution'
+          ? 'workflow-execution'
+          : 'general'
+
+    // Validate execution context for workflow-execution uploads
+    if (uploadType === 'workflow-execution') {
+      if (!workspaceId?.trim()) {
+        throw new ValidationError('workspaceId is required for workflow-execution uploads')
+      }
+      if (!workflowId?.trim()) {
+        throw new ValidationError('workflowId is required for workflow-execution uploads')
+      }
+      if (!executionId?.trim()) {
+        throw new ValidationError('executionId is required for workflow-execution uploads')
+      }
+    }
 
     if (!isUsingCloudStorage()) {
       throw new StorageConfigError(
@@ -83,11 +104,33 @@ export async function POST(request: NextRequest) {
     const storageProvider = getStorageProvider()
     logger.info(`Generating ${uploadType} presigned URL for ${fileName} using ${storageProvider}`)
 
+    // Create execution context for workflow-execution uploads
+    const executionContext =
+      uploadType === 'workflow-execution'
+        ? {
+            workspaceId: workspaceId!,
+            workflowId: workflowId!,
+            executionId: executionId!,
+          }
+        : undefined
+
     switch (storageProvider) {
       case 's3':
-        return await handleS3PresignedUrl(fileName, contentType, fileSize, uploadType)
+        return await handleS3PresignedUrl(
+          fileName,
+          contentType,
+          fileSize,
+          uploadType,
+          executionContext
+        )
       case 'blob':
-        return await handleBlobPresignedUrl(fileName, contentType, fileSize, uploadType)
+        return await handleBlobPresignedUrl(
+          fileName,
+          contentType,
+          fileSize,
+          uploadType,
+          executionContext
+        )
       default:
         throw new StorageConfigError(`Unknown storage provider: ${storageProvider}`)
     }
@@ -115,7 +158,8 @@ async function handleS3PresignedUrl(
   fileName: string,
   contentType: string,
   fileSize: number,
-  uploadType: UploadType
+  uploadType: UploadType,
+  executionContext?: { workspaceId: string; workflowId: string; executionId: string }
 ) {
   try {
     const config = uploadType === 'knowledge-base' ? S3_KB_CONFIG : S3_CONFIG
@@ -125,8 +169,18 @@ async function handleS3PresignedUrl(
     }
 
     const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-    const prefix = uploadType === 'knowledge-base' ? 'kb/' : ''
-    const uniqueKey = `${prefix}${Date.now()}-${uuidv4()}-${safeFileName}`
+
+    let uniqueKey: string
+    if (uploadType === 'workflow-execution' && executionContext) {
+      // Use execution-scoped path for workflow files
+      uniqueKey = `workspaces/${executionContext.workspaceId}/workflows/${executionContext.workflowId}/executions/${executionContext.executionId}/${safeFileName}`
+    } else if (uploadType === 'knowledge-base') {
+      // Use kb/ prefix for knowledge base files
+      uniqueKey = `kb/${Date.now()}-${uuidv4()}-${safeFileName}`
+    } else {
+      // Use timestamp-uuid prefix for general files
+      uniqueKey = `${Date.now()}-${uuidv4()}-${safeFileName}`
+    }
 
     const sanitizedOriginalName = sanitizeFilenameForMetadata(fileName)
 
@@ -137,6 +191,11 @@ async function handleS3PresignedUrl(
 
     if (uploadType === 'knowledge-base') {
       metadata.purpose = 'knowledge-base'
+    } else if (uploadType === 'workflow-execution') {
+      metadata.purpose = 'workflow-execution'
+      metadata.workspaceId = executionContext!.workspaceId
+      metadata.workflowId = executionContext!.workflowId
+      metadata.executionId = executionContext!.executionId
     }
 
     const command = new PutObjectCommand({
@@ -160,6 +219,22 @@ async function handleS3PresignedUrl(
 
     logger.info(`Generated ${uploadType} S3 presigned URL for ${fileName} (${uniqueKey})`)
 
+    // Generate a download presigned URL (valid for 24 hours for external services)
+    const downloadCommand = new GetObjectCommand({
+      Bucket: config.bucket,
+      Key: uniqueKey,
+    })
+
+    let downloadUrl: string
+    try {
+      downloadUrl = await getSignedUrl(getS3Client(), downloadCommand, { expiresIn: 86400 }) // 24 hours
+    } catch (s3Error) {
+      logger.error('Failed to generate S3 download presigned URL:', s3Error)
+      throw new StorageConfigError(
+        'Failed to generate S3 download presigned URL - check AWS credentials and permissions'
+      )
+    }
+
     return NextResponse.json({
       presignedUrl,
       fileInfo: {
@@ -167,6 +242,7 @@ async function handleS3PresignedUrl(
         key: uniqueKey,
         name: fileName,
         size: fileSize,
+        directUrl: downloadUrl, // Direct URL for external services
         type: contentType,
       },
       directUploadSupported: true,
@@ -184,7 +260,8 @@ async function handleBlobPresignedUrl(
   fileName: string,
   contentType: string,
   fileSize: number,
-  uploadType: UploadType
+  uploadType: UploadType,
+  executionContext?: { workspaceId: string; workflowId: string; executionId: string }
 ) {
   try {
     const config = uploadType === 'knowledge-base' ? BLOB_KB_CONFIG : BLOB_CONFIG
@@ -198,8 +275,18 @@ async function handleBlobPresignedUrl(
     }
 
     const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-    const prefix = uploadType === 'knowledge-base' ? 'kb/' : ''
-    const uniqueKey = `${prefix}${Date.now()}-${uuidv4()}-${safeFileName}`
+
+    let uniqueKey: string
+    if (uploadType === 'workflow-execution' && executionContext) {
+      // Use execution-scoped path for workflow files
+      uniqueKey = `workspaces/${executionContext.workspaceId}/workflows/${executionContext.workflowId}/executions/${executionContext.executionId}/${safeFileName}`
+    } else if (uploadType === 'knowledge-base') {
+      // Use kb/ prefix for knowledge base files
+      uniqueKey = `kb/${Date.now()}-${uuidv4()}-${safeFileName}`
+    } else {
+      // Use timestamp-uuid prefix for general files
+      uniqueKey = `${Date.now()}-${uuidv4()}-${safeFileName}`
+    }
 
     const blobServiceClient = getBlobServiceClient()
     const containerClient = blobServiceClient.getContainerClient(config.containerName)
@@ -244,7 +331,26 @@ async function handleBlobPresignedUrl(
 
     if (uploadType === 'knowledge-base') {
       uploadHeaders['x-ms-meta-purpose'] = 'knowledge-base'
+    } else if (uploadType === 'workflow-execution' && executionContext) {
+      uploadHeaders['x-ms-meta-purpose'] = 'workflow-execution'
+      uploadHeaders['x-ms-meta-workspaceid'] = executionContext.workspaceId
+      uploadHeaders['x-ms-meta-workflowid'] = executionContext.workflowId
+      uploadHeaders['x-ms-meta-executionid'] = executionContext.executionId
     }
+
+    // Generate a download SAS URL (valid for 24 hours for external services)
+    const downloadSasToken = generateBlobSASQueryParameters(
+      {
+        containerName: config.containerName,
+        blobName: uniqueKey,
+        permissions: BlobSASPermissions.parse('r'), // Read permission only
+        startsOn: new Date(),
+        expiresOn: new Date(new Date().valueOf() + 24 * 60 * 60 * 1000), // 24 hours
+      },
+      sharedKeyCredential
+    ).toString()
+
+    const downloadUrl = `${blockBlobClient.url}?${downloadSasToken}`
 
     return NextResponse.json({
       presignedUrl,
@@ -254,6 +360,7 @@ async function handleBlobPresignedUrl(
         name: fileName,
         size: fileSize,
         type: contentType,
+        directUrl: downloadUrl, // Direct URL for external services
       },
       directUploadSupported: true,
       uploadHeaders,

@@ -775,9 +775,17 @@ export class Executor {
               Object.hasOwn(this.workflowInput, 'conversationId')
             ) {
               // Chat workflow: extract input and conversationId to root level
-              const starterOutput = {
+              const starterOutput: any = {
                 input: this.workflowInput.input,
                 conversationId: this.workflowInput.conversationId,
+              }
+
+              // Add files if present
+              if (
+                Object.hasOwn(this.workflowInput, 'files') &&
+                Array.isArray(this.workflowInput.files)
+              ) {
+                starterOutput.files = this.workflowInput.files
               }
 
               context.blockStates.set(initBlock.id, {
