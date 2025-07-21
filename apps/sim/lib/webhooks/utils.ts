@@ -1491,6 +1491,18 @@ export async function processWebhook(
     // Since executeWorkflowFromPayload handles logging and errors internally,
     // we just need to return a standard success response for synchronous webhooks.
     // Note: The actual result isn't typically returned in the webhook response itself.
+
+    // For Microsoft Teams outgoing webhooks, return the expected response format
+    if (foundWebhook.provider === 'microsoftteams') {
+      return NextResponse.json(
+        {
+          type: 'message',
+          text: 'Webhook processed successfully',
+        },
+        { status: 200 }
+      )
+    }
+
     return NextResponse.json({ message: 'Webhook processed' }, { status: 200 })
   } catch (error: any) {
     // Catch errors *before* calling executeWorkflowFromPayload (e.g., auth errors)
@@ -1498,6 +1510,18 @@ export async function processWebhook(
       `[${requestId}] Error in processWebhook *before* execution for ${foundWebhook.id} (Execution: ${executionId})`,
       error
     )
+
+    // For Microsoft Teams outgoing webhooks, return the expected error format
+    if (foundWebhook.provider === 'microsoftteams') {
+      return NextResponse.json(
+        {
+          type: 'message',
+          text: 'Webhook processing failed',
+        },
+        { status: 200 }
+      ) // Still return 200 to prevent Teams from showing additional error messages
+    }
+
     return new NextResponse(`Internal Server Error: ${error.message}`, {
       status: 500,
     })
