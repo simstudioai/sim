@@ -43,7 +43,13 @@ const nextConfig: NextConfig = {
     ],
     outputFileTracingRoot: path.join(__dirname, '../../'),
   }),
-  transpilePackages: ['prettier', '@react-email/components', '@react-email/render'],
+  transpilePackages: [
+    'prettier',
+    '@react-email/components',
+    '@react-email/render',
+    '@t3-oss/env-nextjs',
+    '@t3-oss/env-core',
+  ],
   async headers() {
     return [
       {
