@@ -172,4 +172,167 @@ After a loop completes, you can access aggregated results:
 
 - **Set reasonable limits**: Keep iteration counts reasonable to avoid long execution times
 - **Use ForEach for collections**: When processing arrays or objects, use ForEach instead of For loops
-- **Handle errors gracefully**: Consider adding error handling inside loops for robust workflows 
+- **Handle errors gracefully**: Consider adding error handling inside loops for robust workflows
+
+## YAML Schema
+
+### Schema Definition
+
+```yaml
+type: object
+required:
+  - type
+  - name
+  - inputs
+  - connections
+properties:
+  type:
+    type: string
+    enum: [loop]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this loop block
+  inputs:
+    type: object
+    required:
+      - count
+      - loopType
+    properties:
+      count:
+        type: number
+        description: Number of iterations for 'for' loops
+        minimum: 1
+      loopType:
+        type: string
+        enum: [for, forEach]
+        description: Type of loop to execute
+      collection:
+        type: string
+        description: Array or object to iterate over (forEach loops only)
+  connections:
+    type: object
+    required:
+      - loop
+    properties:
+      loop:
+        type: object
+        required:
+          - start
+        properties:
+          start:
+            type: string
+            description: Target block ID to execute within the loop
+```
+
+### Child Block Configuration
+
+Blocks executed within a loop must include a `parentId` reference:
+
+```yaml
+child-block:
+  type: <block-type>
+  name: "Child Block"
+  inputs:
+    # Block-specific inputs
+    # Can access loop variables like <loop.index>, <loop.currentItem>
+  parentId: <loop-block-id>              # Reference to the parent loop block
+```
+
+### Loop Variables
+
+Inside loop blocks, you can access these special variables:
+
+- **`<loop.index>`**: Current iteration number (0-based)
+- **`<loop.currentItem>`**: Current item being processed (forEach loops only)
+- **`<loop.items>`**: Full collection (forEach loops only)
+
+### Examples
+
+<Tabs items={['Simple ForEach', 'ForEach Array', 'Nested Data']}>
+  <Tab>
+    ```yaml
+    simple-loop:
+      type: loop
+      name: "Simple Loop"
+      inputs:
+        count: 3
+        loopType: forEach
+        collection: "['item1', 'item2', 'item3']"
+      connections:
+        loop:
+          start: greeting-agent
+    
+    greeting-agent:
+      type: agent
+      name: "Greeting Agent"
+      inputs:
+        systemPrompt: "You are a friendly assistant. Create a simple greeting message that includes the current iteration number."
+        userPrompt: "Create a greeting for iteration number <loop.currentItem> Make it unique and cheerful!"
+        model: gpt-4o
+        temperature: 0.7
+        apiKey: '{{OPENAI_API_KEY}}'
+      parentId: simple-loop
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    process-items:
+      type: loop
+      name: "Process Array Items"
+      inputs:
+        loopType: forEach
+        collection: <start.product_list>
+      connections:
+        loop:
+          start: item-processor
+    
+    item-processor:
+      type: function
+      name: "Item Processor"
+      inputs:
+        code: |
+          // Process each item in the array
+          const currentItem = <loop.currentItem>;
+          const itemIndex = <loop.index>;
+          
+          return {
+            index: itemIndex,
+            name: currentItem.name,
+            processed: true,
+            timestamp: new Date().toISOString()
+          };
+      parentId: process-items
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    data-enrichment:
+      type: loop
+      name: "Enrich Customer Data"
+      inputs:
+        loopType: forEach
+        collection: <start.customers>
+      connections:
+        loop:
+          start: lookup-agent
+    
+    lookup-agent:
+      type: agent
+      name: "Customer Lookup"
+      inputs:
+        systemPrompt: "Look up additional information for this customer."
+        userPrompt: "Find additional details for customer: <loop.currentItem.name> with ID: <loop.currentItem.id>"
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
+        tools:
+          - type: exa
+            title: "Web Search"
+            toolId: exa_search
+            operation: exa_search
+            params:
+              apiKey: '{{EXA_API_KEY}}'
+      parentId: data-enrichment
+    ```
+  </Tab>
+</Tabs> 

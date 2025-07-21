@@ -256,3 +256,162 @@ Confidence Threshold: 0.7 // Minimum confidence for routing
 - **Test with diverse inputs**: Ensure the Router handles various input types, edge cases, and unexpected content
 - **Monitor routing performance**: Review routing decisions regularly and refine criteria based on actual usage patterns
 - **Choose appropriate models**: Use models with strong reasoning capabilities for complex routing decisions
+
+## YAML Schema
+
+### Schema Definition
+
+```yaml
+type: object
+required:
+  - type
+  - name
+  - inputs
+properties:
+  type:
+    type: string
+    enum: [router]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this router block
+  inputs:
+    type: object
+    required:
+      - prompt
+      - model
+      - apiKey
+    properties:
+      prompt:
+        type: string
+        description: Instructions for routing decisions and criteria
+      model:
+        type: string
+        description: AI model identifier (e.g., gpt-4o, gemini-2.5-pro, deepseek-chat)
+      apiKey:
+        type: string
+        description: API key for the model provider (use {{ENV_VAR}} format)
+  connections:
+    type: object
+    description: Multiple connection paths for different routing outcomes
+    additionalProperties:
+      type: string
+      description: Target block IDs for each routing path
+```
+
+### Connection Configuration
+
+Router blocks use a success array containing all possible routing destinations:
+
+```yaml
+connections:
+  success:
+    - <string>                          # Target block ID option 1
+    - <string>                          # Target block ID option 2
+    - <string>                          # Target block ID option 3
+    # Additional target block IDs as needed
+```
+
+### Examples
+
+<Tabs items={['Simple Routing', 'Content Routing', 'Lead Qualification', 'Support Triage', 'Intent Detection']}>
+  <Tab>
+    ```yaml
+    simple-router:
+      type: router
+      name: "Number Router"
+      inputs:
+        prompt: go to agent-1 if <start.input> is greater than 5. else agent-2 if greater than 10. else agent-3
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
+      connections:
+        success:
+          - agent-1
+          - agent-2
+          - agent-3
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    content-router:
+      type: router
+      name: "Content Router"
+      inputs:
+        prompt: |
+          Route to tech-agent for technical questions, billing-agent for billing questions, 
+          general-agent for general questions, or escalation-handler for complaints.
+          
+          Content: <start.input>
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
+      connections:
+        success:
+          - tech-agent
+          - billing-agent
+          - general-agent
+          - escalation-handler
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    lead-qualifier:
+      type: router
+      name: "Lead Qualifier"
+      inputs:
+        prompt: |
+          Route to enterprise-flow for companies >1000 employees, 
+          smb-flow for 100-1000 employees, or onboarding-flow for <100 employees.
+          
+          Lead data: <start.lead_data>
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
+      connections:
+        success:
+          - enterprise-flow
+          - smb-flow
+          - onboarding-flow
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    support-router:
+      type: router
+      name: "Support Triage"
+      inputs:
+        prompt: |
+          Route to urgent-handler for critical bugs, product-agent for feature requests,
+          dev-agent for integration help, or cs-agent for account issues.
+          
+          Ticket: <start.ticket>
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
+      connections:
+        success:
+          - urgent-handler
+          - product-agent
+          - dev-agent
+          - cs-agent
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    intent-router:
+      type: router
+      name: "Intent Detection"
+      inputs:
+        prompt: |
+          Route to sales-agent for purchase intent, support-agent for support requests,
+          demo-scheduler for product demos, or pricing-agent for pricing inquiries.
+          
+          User message: <start.message>
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
+      connections:
+        success:
+          - sales-agent
+          - support-agent
+          - demo-scheduler
+          - pricing-agent
+    ```
+  </Tab>
+</Tabs>

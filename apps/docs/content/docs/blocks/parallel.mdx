@@ -207,4 +207,158 @@ Understanding when to use each:
 
 - **Independent operations only**: Ensure operations don't depend on each other
 - **Handle rate limits**: Add delays or throttling for API-heavy workflows
-- **Error handling**: Each instance should handle its own errors gracefully 
+- **Error handling**: Each instance should handle its own errors gracefully
+
+## YAML Schema
+
+### Schema Definition
+
+```yaml
+type: object
+required:
+  - type
+  - name
+  - inputs
+  - connections
+properties:
+  type:
+    type: string
+    enum: [parallel]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this parallel block
+  inputs:
+    type: object
+    required:
+      - parallelType
+    properties:
+      count:
+        type: number
+        description: Number of parallel instances (count type only)
+        minimum: 1
+      parallelType:
+        type: string
+        enum: [count, each]
+        description: Type of parallel execution
+      collection:
+        type: string
+        description: Array or object to process in parallel (each type only)
+  connections:
+    type: object
+    required:
+      - parallel
+    properties:
+      parallel:
+        type: object
+        required:
+          - start
+        properties:
+          start:
+            type: string
+            description: Target block ID to execute in parallel instances
+```
+
+### Child Block Configuration
+
+Blocks executed within parallel instances must include a `parentId` reference:
+
+```yaml
+child-block:
+  type: <block-type>
+  name: "Child Block"
+  inputs:
+    # Block-specific inputs
+    # Can access parallel variables like <parallel.index>, <parallel.currentItem>
+  parentId: <parallel-block-id>           # Reference to the parent parallel block
+```
+
+### Parallel Variables
+
+Inside parallel blocks, you can access these special variables:
+
+- **`<parallel.index>`**: Instance number (0-based)
+- **`<parallel.currentItem>`**: Item for this instance (each type only)
+- **`<parallel.items>`**: Full collection (each type only)
+
+### Examples
+
+<Tabs items={['Count Parallel', 'Each Parallel', 'API Processing']}>
+  <Tab>
+    ```yaml
+    parallel-count:
+      type: parallel
+      name: "Parallel Count"
+      inputs:
+        count: 5
+        parallelType: count
+      connections:
+        parallel:
+          start: worker-agent
+    
+    worker-agent:
+      type: agent
+      name: "Worker Agent"
+      inputs:
+        systemPrompt: "You are a worker processing task number <parallel.index>"
+        userPrompt: "Process task number <parallel.index> with data: <start.input>"
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
+      parentId: parallel-count
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    parallel-each:
+      type: parallel
+      name: "Parallel Each"
+      inputs:
+        parallelType: each
+        collection: <start.user_list>
+      connections:
+        parallel:
+          start: user-processor
+    
+    user-processor:
+      type: function
+      name: "User Processor"
+      inputs:
+        code: |
+          // Process each user in parallel
+          const currentUser = <parallel.currentItem>;
+          const instanceIndex = <parallel.index>;
+          
+          return {
+            user: currentUser,
+            instance: instanceIndex,
+            processed: true,
+            timestamp: new Date().toISOString()
+          };
+      parentId: parallel-each
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    api-parallel:
+      type: parallel
+      name: "Parallel API Calls"
+      inputs:
+        parallelType: each
+        collection: <start.api_endpoints>
+      connections:
+        parallel:
+          start: api-caller
+    
+    api-caller:
+      type: api
+      name: "API Caller"
+      inputs:
+        url: <parallel.currentItem.url>
+        method: GET
+        headers:
+          Authorization: "Bearer {{API_TOKEN}}"
+          User-Agent: "Parallel-Worker-<parallel.index>"
+      parentId: api-parallel
+    ```
+  </Tab>
+</Tabs> 
