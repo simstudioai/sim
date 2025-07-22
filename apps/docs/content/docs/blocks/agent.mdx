@@ -304,6 +304,16 @@ Agents automatically handle common errors:
 
 ## YAML Schema
 
+### Block Reference Syntax
+
+To reference outputs from other blocks, use the block name in lowercase with all spaces removed:
+
+- Block name "Agent 1" → reference as `<agent1.content>`
+- Block name "Sum Calculator" → reference as `<sumcalculator.result>`
+- Block name "Data Processor 2" → reference as `<dataprocessor2.output>`
+
+**Special case**: Always reference the starter block as `<start.input>` regardless of its actual name.
+
 ### Schema Definition
 
 ```yaml
@@ -425,9 +435,9 @@ connections:
 <Tabs items={['Basic Agent', 'Agent with Tools', 'Structured Output', 'Azure OpenAI']}>
   <Tab>
     ```yaml
-    my-agent:
+    content-agent:
       type: agent
-      name: "Content Analyzer"
+      name: "Content Analyzer 1"
       inputs:
         systemPrompt: "You are a helpful content analyzer. Be concise and clear."
         userPrompt: <start.input>
@@ -435,7 +445,18 @@ connections:
         temperature: 0.3
         apiKey: '{{OPENAI_API_KEY}}'
       connections:
-        success: next-block
+        success: summary-block
+    
+    summary-block:
+      type: agent
+      name: "Summary Generator"
+      inputs:
+        systemPrompt: "Create a brief summary of the analysis."
+        userPrompt: "Analyze this: <contentanalyzer1.content>"
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
+      connections:
+        success: final-step
     ```
   </Tab>
   <Tab>

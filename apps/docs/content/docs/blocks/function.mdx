@@ -314,6 +314,16 @@ return {
 
 ## YAML Schema
 
+### Block Reference Syntax
+
+To reference outputs from other blocks, use the block name in lowercase with all spaces removed:
+
+- Block name "Agent 1" → reference as `<agent1.content>`
+- Block name "Sum Calculator" → reference as `<sumcalculator.result>`
+- Block name "Data Processor 2" → reference as `<dataprocessor2.output>`
+
+**Special case**: Always reference the starter block as `<start.input>` regardless of its actual name.
+
 ### Schema Definition
 
 ```yaml

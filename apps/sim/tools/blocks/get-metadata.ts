@@ -5,19 +5,36 @@ interface GetBlockMetadataParams {
 }
 
 interface BlockMetadataInfo {
+  type: 'block' | 'tool'
   description: string
   longDescription?: string
   category: string
+  docsLink?: string
+  // For core blocks with YAML documentation
+  yamlSchema?: string
+  // For tool blocks or fallback
   inputs?: Record<string, any>
   outputs?: Record<string, any>
   subBlocks?: any[]
-  tools: Record<
-    string,
-    {
-      description: string
-      params?: Record<string, any>
+  toolSchemas?: Record<string, {
+    id: string
+    name: string
+    description: string
+    version?: string
+    params?: Record<string, any>
+    request?: {
+      method: string
+      url: string
+      headers?: any
+      isInternalRoute?: boolean
     }
-  >
+  }>
+  // Actual schemas from block code configuration
+  codeSchemas?: {
+    inputs?: Record<string, any>
+    outputs?: Record<string, any>
+    subBlocks?: any[]
+  }
 }
 
 interface GetBlockMetadataResult {
@@ -32,7 +49,7 @@ export const getBlockMetadataTool: ToolConfig<GetBlockMetadataParams, GetBlockMe
   id: 'get_blocks_metadata',
   name: 'Get Block Metadata',
   description:
-    'Get detailed metadata including descriptions, schemas, inputs, outputs, and subblocks for specific blocks and their associated tools',
+    'Get detailed metadata for specific blocks. Returns both documentation (YAML schemas) and actual code schemas (inputs, outputs, subBlocks). For core blocks (agent, function, api, etc.), includes YAML schema documentation from docs. For tool blocks, includes tool schema information with parameters and API details. All blocks include precise code schemas from their configuration.',
   version: '1.0.0',
 
   params: {

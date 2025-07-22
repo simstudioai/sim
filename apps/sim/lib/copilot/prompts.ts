@@ -378,15 +378,13 @@ export const TITLE_GENERATION_USER_PROMPT = (userMessage: string) =>
 
 /**
  * YAML Workflow Reference Guide
- * Complete reference for LLMs on how to write YAML workflows correctly
+ * Comprehensive guide for LLMs on how to write end-to-end YAML workflows correctly
  */
-export const YAML_WORKFLOW_PROMPT = `# Sim Studio YAML Workflow Reference for LLMs
+export const YAML_WORKFLOW_PROMPT = `# Comprehensive Guide to Writing End-to-End YAML Workflows in Sim Studio
 
-A focused guide on YAML workflow syntax, common pitfalls, and essential examples.
+## Fundamental Structure
 
-## Basic Structure & Rules
-
-Every workflow follows this structure:
+Every Sim Studio workflow must follow this exact structure:
 
 \`\`\`yaml
 version: '1.0'
@@ -400,247 +398,263 @@ blocks:
       success: next-block-id
 \`\`\`
 
-**Critical Rules:**
-- Version must be exactly \`'1.0'\` (with quotes)
-- Every workflow needs exactly one \`starter\` block
-- Use 2-space indentation consistently
-- Block IDs can be anything, but block **names** are used for references
+### Critical Requirements:
+- **Version Declaration**: Must be exactly \`version: '1.0'\` (with quotes)
+- **Single Starter Block**: Every workflow needs exactly one starter block
+- **Human-Readable Block IDs**: Use descriptive IDs like \`start\`, \`email-sender\`, \`data-processor\`, \`agent-1\`
+- **Consistent Indentation**: Use 2-space indentation throughout
+- **Block References**: ⚠️ **CRITICAL** - References use the block **NAME** (not ID), converted to lowercase with spaces removed
 
-## Block Reference Syntax (IMPORTANT)
+## Complete End-to-End Workflow Examples
 
-### How to Reference Blocks
-To reference another block's output:
-1. Take the block name: "Sum Calculator" 
-2. Remove spaces, make lowercase: \`sumcalculator\`
-3. Reference as: \`<sumcalculator.property>\`
+### Example 1: Multi-Agent Chain Workflow
+A workflow where multiple AI agents process information sequentially:
 
 \`\`\`yaml
-# Block definition
-sum-agent:
-  type: agent
-  name: Sum Calculator
+version: '1.0'
+blocks:
+  start:
+    type: starter
+    name: Start
+    inputs:
+      startWorkflow: manual
+    connections:
+      success: agent-1-initiator
 
-# Reference it elsewhere  
-other-block:
-  inputs:
-    value: <sumcalculator.sum>    # Correct
-    # NOT <sum-agent.sum> or <Sum Calculator.sum>
+  agent-1-initiator:
+    type: agent
+    name: Agent 1 - Initiator
+    inputs:
+      systemPrompt: You are the first agent in a chain. Your role is to analyze the input and create an initial response that will be passed to the next agent.
+      userPrompt: |-
+        Welcome! I'm the first agent in our chain.
+
+        Input to process: <start.input>
+
+        Please create an initial analysis or greeting that the next agent can build upon. Be creative and set a positive tone for the chain!
+      model: gpt-4o
+      temperature: 0.7
+      apiKey: '{{OPENAI_API_KEY}}'
+    connections:
+      success: agent-2-enhancer
+
+  agent-2-enhancer:
+    type: agent
+    name: Agent 2 - Enhancer
+    inputs:
+      systemPrompt: You are the second agent in a chain. Take the output from Agent 1 and enhance it with additional insights or improvements.
+      userPrompt: |-
+        I'm the second agent! Here's what Agent 1 provided:
+
+        <agent1initiator.content>
+
+        Now I'll enhance this with additional details, insights, or improvements. Let me build upon their work!
+      model: gpt-4o
+      temperature: 0.7
+      apiKey: '{{OPENAI_API_KEY}}'
+    connections:
+      success: agent-3-refiner
+
+  agent-3-refiner:
+    type: agent
+    name: Agent 3 - Refiner
+    inputs:
+      systemPrompt: You are the third agent in a chain. Take the enhanced output from Agent 2 and refine it further, adding structure or organization.
+      userPrompt: |-
+        I'm the third agent in our chain! Here's the enhanced work from Agent 2:
+
+        <agent2enhancer.content>
+
+        My job is to refine and organize this content. I'll add structure, clarity, and polish to make it even better!
+      model: gpt-4o
+      temperature: 0.6
+      apiKey: '{{OPENAI_API_KEY}}'
+    connections:
+      success: agent-4-finalizer
+
+  agent-4-finalizer:
+    type: agent
+    name: Agent 4 - Finalizer
+    inputs:
+      systemPrompt: You are the final agent in a chain of 4. Create a comprehensive summary and conclusion based on all the previous agents' work.
+      userPrompt: |-
+        I'm the final agent! Here's the refined work from Agent 3:
+
+        <agent3refiner.content>
+
+        As the last agent in our chain, I'll create a final, polished summary that brings together all the work from our team of 4 agents. Let me conclude this beautifully!
+      model: gpt-4o
+      temperature: 0.5
+      apiKey: '{{OPENAI_API_KEY}}'
 \`\`\`
 
-### Special Case: Starter Block
-Always reference starter as \`<start.input>\` regardless of its name:
+### Example 2: Router-Based Conditional Workflow
+A workflow that uses routing logic to send data to different agents based on conditions:
 
 \`\`\`yaml
-start:
-  type: starter
-  name: "My Custom Start"
+version: '1.0'
+blocks:
+  start:
+    type: starter
+    name: Start
+    inputs:
+      startWorkflow: manual
+    connections:
+      success: router-1
 
-agent:
-  inputs:
-    userPrompt: <start.input>    # Always "start", never the actual name
+  router-1:
+    type: router
+    name: Router 1
+    inputs:
+      prompt: go to agent 1 if <start.input> is greater than 5. else agent 2 if greater than 10. else agent 3
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
+    connections:
+      success:
+        - agent-1
+        - agent-2
+        - agent-3
+
+  agent-1:
+    type: agent
+    name: Agent 1
+    inputs:
+      systemPrompt: say 1
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
+
+  agent-2:
+    type: agent
+    name: Agent 2
+    inputs:
+      systemPrompt: say
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
+
+  agent-3:
+    type: agent
+    name: Agent 3
+    inputs:
+      systemPrompt: say 3
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
 \`\`\`
 
-### Environment Variables
-Use double curly braces:
+### Example 3: Web Search with Structured Output
+A workflow that searches the web using tools and returns structured data:
 
 \`\`\`yaml
-apiKey: '{{ANTHROPIC_KEY}}'
+version: '1.0'
+blocks:
+  start:
+    type: starter
+    name: Start
+    inputs:
+      startWorkflow: manual
+    connections:
+      success: search-agent
+
+  search-agent:
+    type: agent
+    name: Agent 1
+    inputs:
+      systemPrompt: look up the user input. use structured output
+      userPrompt: <start.input>
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
+      tools:
+        - type: exa
+          title: Exa
+          toolId: exa_search
+          params:
+            type: auto
+            apiKey: '{{EXA_API_KEY}}'
+            numResults: ''
+          isExpanded: true
+          operation: exa_search
+          usageControl: auto
+      responseFormat: |-
+        {
+            "name": "output_schema",
+            "description": "Defines the structure for an output object.",
+            "strict": true,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "output": {
+                        "type": "string",
+                        "description": "The output value"
+                    }
+                },
+                "additionalProperties": false,
+                "required": ["output"]
+            }
+        }
 \`\`\`
 
-## Essential Block Examples
+## The Starter Block
 
-### Starter Block
+The starter block is the entry point for every workflow and has special properties:
+
+### Manual Start Configuration
 \`\`\`yaml
 start:
   type: starter
   name: Start
   inputs:
-    startWorkflow: manual      # manual, webhook, or schedule
-    scheduleType: daily
-    weeklyDay: MON
-    timezone: UTC
+    startWorkflow: manual
   connections:
     success: next-block
 \`\`\`
 
-### Agent Block
+### Chat Start Configuration
 \`\`\`yaml
-my-agent:
-  type: agent
-  name: Sum Calculator
+start:
+  type: starter
+  name: Start
   inputs:
-    systemPrompt: "You are a helpful calculator. Return the sum of two numbers."
-    userPrompt: <start.input>
-    model: claude-sonnet-4-0
-    temperature: 0.2
-    apiKey: '{{ANTHROPIC_KEY}}'
-    tools: []
-    responseFormat: |
-      {
-        "name": "calculate_sum",
-        "description": "Returns the sum",
-        "strict": true,
-        "schema": {
-          "type": "object",
-          "properties": {
-            "sum": {"type": "integer"}
-          },
-          "required": ["sum"]
-        }
-      }
+    startWorkflow: chat
   connections:
-    success: next-block
-    error: error-handler
+    success: chat-handler
 \`\`\`
 
-### Agent Block with Tools
+**Key Points:**
+- Reference Pattern: Always use \`<start.input>\` to reference starter input
+- Manual workflows can accept any JSON input structure via API calls
+- The starter block doesn't require input format definition
+
+## Block References and Data Flow
+
+### Reference Naming Convention
+**CRITICAL**: To reference another block's output, use the block **name** (NOT the block ID) converted to lowercase with spaces removed:
+
 \`\`\`yaml
-search-agent:
-  type: agent
-  name: Recipe Searcher
-  inputs:
-    systemPrompt: "The user will pass in a dish name. Your job is to conduct a search to get the recipe for the dish."
-    userPrompt: <start.input>
-    model: claude-sonnet-4-0
-    temperature: 0.1
-    apiKey: '{{ANTHROPIC_KEY}}'
-    tools:
-      - type: serper
-        title: Serper
-        params:
-          apiKey: '{{SERPER_API_KEY}}'
-        isExpanded: false
-        usageControl: auto
-      - type: exa
-        title: Exa
-        params:
-          apiKey: '{{EXA_API_KEY}}'
-        isExpanded: true
-        operation: exa_search
-        usageControl: auto
-  connections:
-    success: next-block
-    error: error-handler
+# Block references use the BLOCK NAME converted to lowercase, spaces removed
+<blockname.content>          # For agent blocks
+<blockname.output>           # For tool blocks (API, Gmail, etc.)
+<start.input>                # For starter block input (special case)
+<loop.index>                 # For loop iteration index
+<loop.item>                  # For current loop item
+
+# Environment variables
+{{OPENAI_API_KEY}}
+{{CUSTOM_VARIABLE}}
 \`\`\`
 
-## Tool Configuration (For Agent Blocks)
+**Examples of Correct Block References:**
+- Block name: "Email Sender" → Reference: \`<emailsender.output>\`
+- Block name: "Data Processor" → Reference: \`<dataprocessor.content>\`
+- Block name: "Gmail Notification" → Reference: \`<gmailnotification.output>\`
+- Block name: "Agent 1" → Reference: \`<agent1.content>\`
+- Block name: "Start" → Reference: \`<start.input>\` (special case)
 
-Tools provide agents with access to external services and capabilities. Each tool in the \`tools\` array has the following structure:
+**Block Reference Rules:**
+1. Take the block's **name** field (not the block ID)
+2. Convert to lowercase
+3. Remove all spaces and special characters
+4. Use dot notation with .content (agents) or .output (tools)
 
-**Tool Properties:**
-- \`type\`: The tool identifier (e.g., "serper", "exa", "gmail", "slack")
-- \`title\`: Display name for the tool in the UI
-- \`params\`: Configuration parameters specific to the tool (often API keys)
-- \`isExpanded\`: Boolean controlling UI display state
-- \`operation\`: Specific operation for tools that support multiple operations
-- \`usageControl\`: Control how the agent uses the tool ("auto", "manual")
-
-**Common Tool Examples:**
-\`\`\`yaml
-tools:
-  # Search tools
-  - type: serper
-    title: Google Search
-    params:
-      apiKey: '{{SERPER_API_KEY}}'
-    isExpanded: false
-    usageControl: auto
-    
-  - type: exa
-    title: Exa Search
-    params:
-      apiKey: '{{EXA_API_KEY}}'
-    isExpanded: true
-    operation: exa_search
-    usageControl: auto
-    
-  # Communication tools
-  - type: gmail
-    title: Gmail
-    params:
-      apiKey: '{{GMAIL_API_KEY}}'
-    isExpanded: false
-    usageControl: auto
-    
-  - type: slack
-    title: Slack Bot
-    params:
-      token: '{{SLACK_BOT_TOKEN}}'
-    isExpanded: false
-    usageControl: auto
-    
-  # File tools
-  - type: google_drive
-    title: Google Drive
-    params:
-      apiKey: '{{GOOGLE_DRIVE_API_KEY}}'
-    isExpanded: false
-    usageControl: auto
-\`\`\`
-
-**Tool Usage Control:**
-- \`auto\`: Agent can use the tool automatically when needed
-- \`manual\`: Agent must ask user permission before using the tool
-
-**Tool-Specific Operations:**
-Some tools support multiple operations via the \`operation\` field:
-- \`exa\`: "exa_search", "exa_contents", "exa_find_similar"
-- \`google_drive\`: "list_files", "download_file", "upload_file"
-- \`gmail\`: "send_email", "read_emails", "search_emails"
-
-### Condition Block (Critical Syntax)
-\`\`\`yaml
-my-condition:
-  type: condition
-  name: Check Value
-  inputs:
-    conditions:                  # Direct YAML object (NOT JSON string)
-      if: <previousblock.score> > 10
-      else-if: <previousblock.score> > 5
-      else-if-2: <previousblock.score> > 0
-  connections:
-    conditions:
-      if: high-score-block
-      else-if: medium-score-block  
-      else-if-2: low-score-block
-      else: fallback-block       # Automatic else fallback
-\`\`\`
-
-**Common Condition Mistakes:**
-\`\`\`yaml
-# ❌ DON'T use JSON strings or |
-conditions: |
-  if: condition here
-
-# ❌ DON'T use array format
-conditions: |
-  [{"title": "if", "value": "condition"}]
-
-# ✅ DO use direct YAML object
-conditions:
-  if: condition here
-  else-if: another condition
-\`\`\`
-
-### Function Block
-\`\`\`yaml
-my-function:
-  type: function
-  name: Process Data
-  inputs:
-    code: |
-      const data = input.previousblock;
-      return { 
-        processed: true,
-        result: data.value * 2 
-      };
-  connections:
-    success: next-block
-\`\`\`
-
-## Complete Workflow Examples
-
-### Simple Linear Workflow
+### Data Flow Example
 \`\`\`yaml
 version: '1.0'
 blocks:
@@ -650,194 +664,144 @@ blocks:
     inputs:
       startWorkflow: manual
     connections:
-      success: sum-agent
+      success: email-classifier
 
-  sum-agent:
+  email-classifier:
     type: agent
-    name: Sum Calculator
+    name: Email Classifier
     inputs:
-      systemPrompt: "The user will provide 2 numbers, return the sum."
-      userPrompt: <start.input>
-      model: claude-sonnet-4-0
-      temperature: 0.2
-      apiKey: '{{ANTHROPIC_KEY}}'
-      tools: []
-      responseFormat: |
-        {
-          "name": "calculate_sum",
-          "description": "Returns a single integer called sum.",
-          "strict": true,
-          "schema": {
-            "type": "object",
-            "properties": {
-              "sum": {"type": "integer"}
-            },
-            "required": ["sum"]
-          }
-        }
-\`\`\`
-
-### Condition Workflow with Multiple Branches
-\`\`\`yaml
-version: '1.0'
-blocks:
-  start:
-    type: starter
-    name: Start
-    inputs:
-      startWorkflow: manual
+      systemPrompt: Classify emails into categories and extract key information.
+      userPrompt: |
+        Classify this email: <start.input>
+        
+        Categories: support, billing, sales, feedback
+        Extract: urgency level, customer sentiment, main request
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
     connections:
-      success: sum-agent
+      success: response-generator
 
-  sum-agent:
+  response-generator:
     type: agent
-    name: Sum Calculator
+    name: Response Generator
     inputs:
-      systemPrompt: "The user will provide 2 numbers, return the sum."
-      userPrompt: <start.input>
-      model: claude-sonnet-4-0
-      temperature: 0.2
-      apiKey: '{{ANTHROPIC_KEY}}'
-      tools: []
-      responseFormat: |
-        {
-          "name": "calculate_sum",
-          "description": "Returns a single integer called sum.",
-          "strict": true,
-          "schema": {
-            "type": "object",
-            "properties": {
-              "sum": {"type": "integer"}
-            },
-            "required": ["sum"]
-          }
-        }
-    connections:
-      success: sum-checker
-
-  sum-checker:
-    type: condition
-    name: Check Sum Value
-    inputs:
-      conditions:
-        if: <sumcalculator.sum> > 10
-        else-if: <sumcalculator.sum> > 5
-    connections:
-      conditions:
-        if: happy-greeting-agent
-        else-if: neutral-greeting-agent
-        else: sad-greeting-agent
-
-  happy-greeting-agent:
-    type: agent
-    name: Happy Greeting
-    inputs:
-      systemPrompt: "Provide a happy, enthusiastic greeting. Be cheerful!"
-      userPrompt: "The sum was <sumcalculator.sum>. Give me a happy greeting!"
-      model: claude-sonnet-4-0
+      systemPrompt: Generate appropriate responses based on email classification.
+      userPrompt: |
+        Email classification: <emailclassifier.content>
+        Original email: <start.input>
+        
+        Generate a professional, helpful response addressing the customer's needs.
+      model: gpt-4o
       temperature: 0.7
-      apiKey: '{{ANTHROPIC_KEY}}'
-      tools: []
-
-  neutral-greeting-agent:
-    type: agent
-    name: Neutral Greeting
-    inputs:
-      systemPrompt: "Provide a neutral, polite greeting."
-      userPrompt: "The sum was <sumcalculator.sum>. Give me a neutral greeting!"
-      model: claude-sonnet-4-0
-      temperature: 0.5
-      apiKey: '{{ANTHROPIC_KEY}}'
-      tools: []
-
-  sad-greeting-agent:
-    type: agent
-    name: Sad Greeting
-    inputs:
-      systemPrompt: "Provide a sad, disappointed greeting."
-      userPrompt: "The sum was <sumcalculator.sum>. Give me a sad greeting!"
-      model: claude-sonnet-4-0
-      temperature: 0.5
-      apiKey: '{{ANTHROPIC_KEY}}'
-      tools: []
+      apiKey: '{{OPENAI_API_KEY}}'
 \`\`\`
 
-### Complex Condition with Multiple Targets
+## Common Block Types and Patterns
+
+### Agent Blocks
+- Use for AI model interactions
+- Reference previous outputs with \`<blockname.content>\`
+- Set appropriate temperature for creativity vs consistency
+
+### Router Blocks  
+- Use for conditional logic and branching
+- Multiple success connections as array
+- Clear routing instructions in prompt
+
+### Tool Blocks
+- Gmail, Slack, API calls, etc.
+- Reference outputs with \`<blockname.output>\`
+- Use environment variables for sensitive data
+
+### Function Blocks
+- Custom JavaScript code execution
+- Access inputs via \`inputs\` parameter
+- Return results via \`return\` statement
+
+### Loop Blocks
+- Iterate over collections or fixed counts
+- Use \`<loop.index>\` and \`<loop.item>\` references
+- Child blocks have \`parentId\` set to loop ID
+
+## Best Practices
+
+### Human-Readable Block IDs
+✅ **Good:**
 \`\`\`yaml
-version: '1.0'
-blocks:
-  start:
-    type: starter
-    name: Start
-    inputs:
-      startWorkflow: manual
-    connections:
-      success: main-condition
+email-analyzer:
+  type: agent
+  name: Email Analyzer
 
-  main-condition:
-    type: condition
-    name: Condition 1
-    inputs:
-      conditions:
-        if: 1 == 2
-        else-if: 6 == 7
-        else-if-2: 9 == 10
-    connections:
-      conditions:
-        if: function-1
-        else-if:                    # Multiple targets for one condition
-          - function-2
-          - function-4
-        else-if-2: function-3
-        else: function-5
-
-  function-1:
-    type: function
-    name: Function 1
-    inputs:
-      code: "return { message: 'Condition IF was true' };"
-
-  function-2:
-    type: function
-    name: Function 2
-    inputs:
-      code: "return { message: 'Condition ELSE-IF was true - branch 1' };"
-
-  function-3:
-    type: function
-    name: Function 3
-    inputs:
-      code: "return { message: 'Condition ELSE-IF-2 was true' };"
-
-  function-4:
-    type: function
-    name: Function 4
-    inputs:
-      code: "return { message: 'Condition ELSE-IF was true - branch 2' };"
-
-  function-5:
-    type: function
-    name: Function 5
-    inputs:
-      code: "return { message: 'All conditions failed, using ELSE' };"
+customer-notifier:
+  type: gmail
+  name: Customer Notification
 \`\`\`
 
-## Key Syntax Reminders
+❌ **Bad:**
+\`\`\`yaml
+29bec199-99bb-4e5a-870a-bab01f2cece6:
+  type: agent
+  name: Email Analyzer
+\`\`\`
 
-1. **Block names** → references: "Sum Calculator" becomes \`<sumcalculator.property>\`
-2. **Starter block** → always \`<start.input>\`  IT WILL ALWAYS BE CALLED \`<start.input>\`
-3. **Conditions** → direct YAML object, not JSON string
-4. **Environment variables** → \`{{VARIABLE_NAME}}\`
-5. **Version** → must be \`'1.0'\` with quotes
-6. **Indentation** → 2 spaces consistently
-7. **Tools** → array of objects with type, title, params, isExpanded, usageControl, and optional operation
+### Clear Block References
+✅ **Good:**
+\`\`\`yaml
+userPrompt: |
+  Process this data: <emailanalyzer.content>
+  
+          User input: <start.input>
+\`\`\`
 
-## Common Block Types
-- \`starter\` - Always required, one per workflow
-- \`agent\` - AI model interactions  
-- \`function\` - Custom JavaScript code
-- \`condition\` - Branching logic
-- \`api\` - HTTP requests
-- \`loop\` - Iteration over data
-- \`parallel\` - Concurrent execution
-- Tool blocks: \`gmail\`, \`slack\`, \`notion\`, etc.`
+❌ **Bad:**
+\`\`\`yaml
+userPrompt: Process this data: <emailanalyzer.content.result>
+\`\`\`
+
+### Simple Starter Block Configuration
+✅ **Good:**
+\`\`\`yaml
+start:
+  type: starter
+  name: Start
+  inputs:
+    startWorkflow: manual
+  connections:
+    success: next-block
+\`\`\`
+
+### Environment Variables for Secrets
+✅ **Good:**
+\`\`\`yaml
+apiKey: '{{OPENAI_API_KEY}}'
+token: '{{SLACK_BOT_TOKEN}}'
+\`\`\`
+
+❌ **Bad:**
+\`\`\`yaml
+apiKey: 'sk-1234567890abcdef'
+\`\`\`
+
+## Common Patterns
+
+### Sequential Processing Chain
+\`\`\`yaml
+start → data-processor → analyzer → formatter → output-sender
+\`\`\`
+
+### Conditional Branching
+\`\`\`yaml
+start → classifier → router → [path-a, path-b, path-c]
+\`\`\`
+
+### Error Handling with Fallbacks
+\`\`\`yaml
+start → primary-processor → backup-processor (if primary fails)
+\`\`\`
+
+### Multi-Step Approval Process
+\`\`\`yaml
+start → reviewer → approver → implementer → notifier
+\`\`\`
+
+Remember: Always use human-readable block IDs, clear data flow patterns, and descriptive names for maintainable workflows!`

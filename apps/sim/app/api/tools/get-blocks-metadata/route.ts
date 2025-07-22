@@ -2,8 +2,42 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { tools as toolsRegistry } from '@/tools/registry'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 const logger = createLogger('GetBlockMetadataAPI')
+
+// Core blocks that have documentation with YAML schemas
+const CORE_BLOCKS_WITH_DOCS = [
+  'agent', 'function', 'api', 'condition', 'loop', 'parallel', 
+  'response', 'router', 'evaluator', 'webhook'
+]
+
+// Mapping for blocks that have different doc file names
+const DOCS_FILE_MAPPING: Record<string, string> = {
+  'webhook': 'webhook_trigger'
+}
+
+// Helper function to extract YAML schema section from documentation
+function getYamlSchemaFromDocs(blockType: string): string | null {
+  try {
+    const docFileName = DOCS_FILE_MAPPING[blockType] || blockType
+    // Go up from apps/sim to the workspace root, then into apps/docs
+    const docsPath = join(process.cwd(), '..', 'docs/content/docs/blocks', `${docFileName}.mdx`)
+    const content = readFileSync(docsPath, 'utf-8')
+    
+    // Find the YAML Schema section
+    const yamlSchemaMatch = content.match(/## YAML Schema\s*\n([\s\S]*?)(?=\n## [^Y]|\n# [^Y]|$)/i)
+    if (yamlSchemaMatch) {
+      return yamlSchemaMatch[1].trim()
+    }
+    
+    return null
+  } catch (error) {
+    logger.warn(`Failed to read YAML schema for ${blockType}:`, error)
+    return null
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,19 +60,8 @@ export async function POST(request: NextRequest) {
       requestedBlocks: blockIds.join(', '),
     })
 
-    // Create result object mapping block_id -> {description, longDescription, category, inputs, outputs, subBlocks, tools}
-    const result: Record<
-      string,
-      {
-        description: string
-        longDescription?: string
-        category: string
-        inputs?: Record<string, any>
-        outputs?: Record<string, any>
-        subBlocks?: any[]
-        tools: Record<string, { description: string; params?: Record<string, any> }>
-      }
-    > = {}
+    // Create result object
+    const result: Record<string, any> = {}
 
     for (const blockId of blockIds) {
       const blockConfig = blockRegistry[blockId]
@@ -48,41 +71,85 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Get block metadata
-      const blockDescription = blockConfig.description || ''
-      const blockLongDescription = blockConfig.longDescription
-      const blockCategory = blockConfig.category || ''
-      const blockInputs = blockConfig.inputs
-      const blockOutputs = blockConfig.outputs
-      const blockSubBlocks = blockConfig.subBlocks
-
-      // Get tool metadata for this block
-      const toolMetadata: Record<string, { description: string; params?: Record<string, any> }> = {}
-      const blockTools = blockConfig.tools?.access || []
-
-      for (const toolId of blockTools) {
-        const toolConfig = toolsRegistry[toolId]
-        if (toolConfig) {
-          toolMetadata[toolId] = {
-            description: toolConfig.description || '',
-            params: toolConfig.params,
-          }
-        } else {
-          logger.warn(`Tool not found: ${toolId} for block: ${blockId}`)
-          toolMetadata[toolId] = {
-            description: '',
-          }
-        }
+      // Always include code schemas from block configuration
+      const codeSchemas = {
+        inputs: blockConfig.inputs,
+        outputs: blockConfig.outputs,
+        subBlocks: blockConfig.subBlocks,
       }
 
-      result[blockId] = {
-        description: blockDescription,
-        longDescription: blockLongDescription,
-        category: blockCategory,
-        inputs: blockInputs,
-        outputs: blockOutputs,
-        subBlocks: blockSubBlocks,
-        tools: toolMetadata,
+      // Check if this is a core block with YAML documentation
+      if (CORE_BLOCKS_WITH_DOCS.includes(blockId)) {
+        // For core blocks, return both YAML schema from documentation AND code schemas
+        const yamlSchema = getYamlSchemaFromDocs(blockId)
+        
+        if (yamlSchema) {
+          result[blockId] = {
+            type: 'block',
+            description: blockConfig.description || '',
+            longDescription: blockConfig.longDescription,
+            category: blockConfig.category || '',
+            yamlSchema: yamlSchema,
+            docsLink: blockConfig.docsLink,
+            // Include actual schemas from code
+            codeSchemas: codeSchemas
+          }
+        } else {
+          // Fallback to regular metadata if YAML schema not found
+          result[blockId] = {
+            type: 'block',
+            description: blockConfig.description || '',
+            longDescription: blockConfig.longDescription,
+            category: blockConfig.category || '',
+            inputs: blockConfig.inputs,
+            outputs: blockConfig.outputs,
+            subBlocks: blockConfig.subBlocks,
+            // Include actual schemas from code
+            codeSchemas: codeSchemas
+          }
+        }
+      } else {
+        // For tool blocks, return tool schema information AND code schemas
+        const blockTools = blockConfig.tools?.access || []
+        const toolSchemas: Record<string, any> = {}
+
+        for (const toolId of blockTools) {
+          const toolConfig = toolsRegistry[toolId]
+          if (toolConfig) {
+            toolSchemas[toolId] = {
+              id: toolConfig.id,
+              name: toolConfig.name,
+              description: toolConfig.description || '',
+              version: toolConfig.version,
+              params: toolConfig.params,
+              request: toolConfig.request ? {
+                method: toolConfig.request.method,
+                url: toolConfig.request.url,
+                headers: typeof toolConfig.request.headers === 'function' ? 'function' : toolConfig.request.headers,
+                isInternalRoute: toolConfig.request.isInternalRoute
+              } : undefined
+            }
+          } else {
+            logger.warn(`Tool not found: ${toolId} for block: ${blockId}`)
+            toolSchemas[toolId] = {
+              id: toolId,
+              description: 'Tool not found',
+            }
+          }
+        }
+
+        result[blockId] = {
+          type: 'tool',
+          description: blockConfig.description || '',
+          longDescription: blockConfig.longDescription,
+          category: blockConfig.category || '',
+          inputs: blockConfig.inputs,
+          outputs: blockConfig.outputs,
+          subBlocks: blockConfig.subBlocks,
+          toolSchemas: toolSchemas,
+          // Include actual schemas from code
+          codeSchemas: codeSchemas
+        }
       }
     }
 
@@ -90,11 +157,49 @@ export async function POST(request: NextRequest) {
     const requestedBlocks = blockIds.length
     const notFoundBlocks = requestedBlocks - processedBlocks
 
-    logger.info(`Successfully processed ${processedBlocks} block descriptions`, {
+    // Log detailed output for debugging
+    Object.entries(result).forEach(([blockId, blockData]) => {
+      if (blockData.type === 'block' && blockData.yamlSchema) {
+        logger.info(`Retrieved YAML schema + code schemas for core block: ${blockId}`, {
+          blockId,
+          type: blockData.type,
+          description: blockData.description,
+          yamlSchemaLength: blockData.yamlSchema.length,
+          yamlSchemaPreview: blockData.yamlSchema.substring(0, 200) + '...',
+          hasCodeSchemas: !!blockData.codeSchemas,
+          codeSubBlocksCount: blockData.codeSchemas?.subBlocks?.length || 0,
+        })
+      } else if (blockData.type === 'tool' && blockData.toolSchemas) {
+        const toolIds = Object.keys(blockData.toolSchemas)
+        logger.info(`Retrieved tool schemas + code schemas for tool block: ${blockId}`, {
+          blockId,
+          type: blockData.type,
+          description: blockData.description,
+          toolCount: toolIds.length,
+          toolIds: toolIds,
+          hasCodeSchemas: !!blockData.codeSchemas,
+          codeSubBlocksCount: blockData.codeSchemas?.subBlocks?.length || 0,
+        })
+      } else {
+        logger.info(`Retrieved metadata + code schemas for block: ${blockId}`, {
+          blockId,
+          type: blockData.type,
+          description: blockData.description,
+          hasInputs: !!blockData.inputs,
+          hasOutputs: !!blockData.outputs,
+          hasSubBlocks: !!blockData.subBlocks,
+          hasCodeSchemas: !!blockData.codeSchemas,
+          codeSubBlocksCount: blockData.codeSchemas?.subBlocks?.length || 0,
+        })
+      }
+    })
+
+    logger.info(`Successfully processed ${processedBlocks} block metadata`, {
       requestedBlocks,
       processedBlocks,
       notFoundBlocks,
-      result,
+      coreBlocks: blockIds.filter(id => CORE_BLOCKS_WITH_DOCS.includes(id)),
+      toolBlocks: blockIds.filter(id => !CORE_BLOCKS_WITH_DOCS.includes(id)),
     })
 
     return NextResponse.json({
@@ -102,11 +207,11 @@ export async function POST(request: NextRequest) {
       data: result,
     })
   } catch (error) {
-    logger.error('Get block descriptions failed', error)
+    logger.error('Get block metadata failed', error)
     return NextResponse.json(
       {
         success: false,
-        error: `Failed to get block descriptions: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: `Failed to get block metadata: ${error instanceof Error ? error.message : 'Unknown error'}`,
       },
       { status: 500 }
     )

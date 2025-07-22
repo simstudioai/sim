@@ -41,6 +41,12 @@ export async function POST(request: NextRequest) {
       hasChatId: !!chatId,
     })
 
+    // Log the full YAML content for debugging
+    logger.info(`[${requestId}] Full YAML content from copilot:`)
+    logger.info('='.repeat(80))
+    logger.info(yamlContent)
+    logger.info('='.repeat(80))
+
     // Get the user ID for checkpoint creation
     const userId = await getUserId(requestId, workflowId)
     if (!userId) {

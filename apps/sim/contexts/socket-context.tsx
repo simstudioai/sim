@@ -376,11 +376,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
                         },
                       }))
 
-                      // Trigger auto layout after rehydration is complete
-                      // Add a small delay to ensure stores have propagated to components
-                      setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
-                      }, 100)
+                      // Note: Auto-layout is already handled by the copilot backend before saving
+                      // No need to trigger additional auto-layout here to avoid ID conflicts
 
                       logger.info('Successfully rehydrated stores from database after copilot edit')
                     })
@@ -498,8 +495,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
                     },
                   }))
 
-                  // Trigger auto layout after state update (same as YAML editor)
-                  window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
+                  // Note: Auto layout is not triggered here because:
+                  // 1. For copilot edits: positions are already optimized by the backend
+                  // 2. For other syncs: the existing positions should be preserved
+                  // This prevents ID conflicts and unnecessary position updates
 
                   logger.info('Successfully updated local stores with fresh workflow state')
                 })

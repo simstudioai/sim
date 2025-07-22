@@ -223,20 +223,33 @@ properties:
           start:
             type: string
             description: Target block ID to execute within the loop
+          end:
+            type: string
+            description: Target block ID to execute after the loop completes (optional)
 ```
 
 ### Child Block Configuration
 
-Blocks executed within a loop must include a `parentId` reference:
+Blocks executed within a loop must:
+1. **Stem from the loop's `start` field** - The loop's `connections.loop.start` points to the first block inside the loop
+2. **Include a `parentId` reference** to the actual loop block ID
 
 ```yaml
-child-block:
-  type: <block-type>
-  name: "Child Block"
+process-items:
+  type: loop
+  name: "Process Items"
+  connections:
+    loop:
+      start: item-processor  # This block must be inside the loop
+      end: summary-agent     # This block runs after the loop
+
+item-processor:
+  type: agent
+  name: "Item Processor"
   inputs:
     # Block-specific inputs
     # Can access loop variables like <loop.index>, <loop.currentItem>
-  parentId: <loop-block-id>              # Reference to the parent loop block
+  parentId: process-items  # Must reference the loop block ID
 ```
 
 ### Loop Variables
@@ -247,32 +260,71 @@ Inside loop blocks, you can access these special variables:
 - **`<loop.currentItem>`**: Current item being processed (forEach loops only)
 - **`<loop.items>`**: Full collection (forEach loops only)
 
+### Referencing Loop Output
+
+After a loop completes, you can reference its results using the loop block name (lowercase, no spaces):
+
+- Loop name "Process Items" → reference as `<processitems.results>`
+- Loop name "Data Processing" → reference as `<dataprocessing.results>`
+
+```yaml
+process-items:
+  type: loop
+  name: "Process Items"
+  # ... loop configuration
+
+summary-agent:
+  type: agent
+  name: "Summary Agent"  
+  inputs:
+    userPrompt: "Summarize these results: <processitems.results>"
+```
+
 ### Examples
 
-<Tabs items={['Simple ForEach', 'ForEach Array', 'Nested Data']}>
+<Tabs items={['Complete Loop Flow', 'ForEach Array', 'Nested Data']}>
   <Tab>
     ```yaml
-    simple-loop:
-      type: loop
-      name: "Simple Loop"
+    setup-agent:
+      type: agent
+      name: "Setup Agent"
       inputs:
-        count: 3
-        loopType: forEach
-        collection: "['item1', 'item2', 'item3']"
+        systemPrompt: "Create a simple JSON array of 3-5 items to process."
+        userPrompt: "Create a list of items for me to process in a loop"
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
+      connections:
+        success: process-items
+    
+    process-items:
+      type: loop
+      name: "Process Items"
+      inputs:
+        count: 1
       connections:
         loop:
-          start: greeting-agent
+          start: item-processor
+          end: summary-agent
     
-    greeting-agent:
+    item-processor:
       type: agent
-      name: "Greeting Agent"
+      name: "Item Processor"
       inputs:
-        systemPrompt: "You are a friendly assistant. Create a simple greeting message that includes the current iteration number."
-        userPrompt: "Create a greeting for iteration number <loop.currentItem> Make it unique and cheerful!"
+        systemPrompt: "Process items one by one. Provide a fun fact about each item."
+        userPrompt: "Tell me something interesting about: <setupagent.content>"
         model: gpt-4o
-        temperature: 0.7
+        temperature: 0.8
         apiKey: '{{OPENAI_API_KEY}}'
-      parentId: simple-loop
+      parentId: process-items
+    
+    summary-agent:
+      type: agent
+      name: "Summary Agent"
+      inputs:
+        systemPrompt: "Summarize the results"
+        userPrompt: "Summarize these results: <processitems.results>"
+        model: gpt-4o
+        apiKey: '{{OPENAI_API_KEY}}'
     ```
   </Tab>
   <Tab>

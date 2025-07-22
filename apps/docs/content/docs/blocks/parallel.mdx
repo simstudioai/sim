@@ -261,7 +261,7 @@ properties:
 
 ### Child Block Configuration
 
-Blocks executed within parallel instances must include a `parentId` reference:
+Blocks executed within parallel instances must include a `parentId` reference to the actual parallel block ID:
 
 ```yaml
 child-block:
@@ -270,7 +270,7 @@ child-block:
   inputs:
     # Block-specific inputs
     # Can access parallel variables like <parallel.index>, <parallel.currentItem>
-  parentId: <parallel-block-id>           # Reference to the parent parallel block
+  parentId: parallel-count           # Actual parallel block ID (not block name)
 ```
 
 ### Parallel Variables
