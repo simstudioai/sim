@@ -13,7 +13,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { env } from '@/lib/env'
+import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   type Credential,
@@ -301,7 +301,7 @@ export function GoogleDrivePicker({
         showUploadFolders: true,
         supportDrives: true,
         multiselect: false,
-        appId: env.NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER,
+        appId: getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER'),
         // Enable folder selection when mimeType is folder
         setSelectFolderEnabled: !!mimeTypeFilter?.includes('folder'),
         callbackFunction: (data) => {

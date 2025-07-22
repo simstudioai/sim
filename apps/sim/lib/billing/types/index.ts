@@ -128,7 +128,6 @@ export interface BillingSummary {
   billingStatus: 'ok' | 'warning' | 'exceeded'
 }
 
-// API Response Types
 export interface SubscriptionAPIResponse {
   isPaid: boolean
   isPro: boolean

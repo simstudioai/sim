@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { env } from '@/lib/env'
+import { getEnv } from '@/lib/env'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -169,8 +169,8 @@ export function FileSelectorInput({
   }
 
   // For Google Drive
-  const clientId = env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
-  const apiKey = env.NEXT_PUBLIC_GOOGLE_API_KEY || ''
+  const clientId = getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID') || ''
+  const apiKey = getEnv('NEXT_PUBLIC_GOOGLE_API_KEY') || ''
 
   // Render Google Calendar selector
   if (isGoogleCalendar) {
