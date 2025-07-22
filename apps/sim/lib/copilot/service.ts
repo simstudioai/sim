@@ -434,6 +434,7 @@ export async function generateChatResponse(
       maxTokens: config.chat.maxTokens,
       apiKey,
       stream,
+      streamToolCalls: true, // Enable tool call streaming for copilot
       workflowId: options.workflowId,
       chatId: options.chatId,
     })

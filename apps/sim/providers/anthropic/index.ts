@@ -261,8 +261,78 @@ ${fieldDescriptions}
       }
     }
 
+    // Check if we should stream tool calls (default: false for chat, true for copilot)
+    const shouldStreamToolCalls = request.streamToolCalls ?? false
+
+    // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
+    // we can directly stream the completion.
+    if (request.stream && (!anthropicTools || anthropicTools.length === 0)) {
+      logger.info('Using streaming response for Anthropic request (no tools)')
+
+      // Start execution timer for the entire provider execution
+      const providerStartTime = Date.now()
+      const providerStartTimeISO = new Date(providerStartTime).toISOString()
+
+      // Create a streaming request
+      const streamResponse: any = await anthropic.messages.create({
+        ...payload,
+        stream: true,
+      })
+
+      // Start collecting token usage
+      const tokenUsage = {
+        prompt: 0,
+        completion: 0,
+        total: 0,
+      }
+
+      // Create a StreamingExecution response with a readable stream
+      const streamingResult = {
+        stream: createReadableStreamFromAnthropicStream(streamResponse),
+        execution: {
+          success: true,
+          output: {
+            content: '', // Will be filled by streaming content in chat component
+            model: request.model,
+            tokens: tokenUsage,
+            toolCalls: undefined,
+            providerTiming: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+              timeSegments: [
+                {
+                  type: 'model',
+                  name: 'Streaming response',
+                  startTime: providerStartTime,
+                  endTime: Date.now(),
+                  duration: Date.now() - providerStartTime,
+                },
+              ],
+            },
+            // Estimate token cost based on typical Claude pricing
+            cost: {
+              total: 0.0,
+              input: 0.0,
+              output: 0.0,
+            },
+          },
+          logs: [], // No block logs for direct streaming
+          metadata: {
+            startTime: providerStartTimeISO,
+            endTime: new Date().toISOString(),
+            duration: Date.now() - providerStartTime,
+          },
+          isStreaming: true,
+        },
+      }
+
+      // Return the streaming execution object
+      return streamingResult as StreamingExecution
+    }
+
     // STREAMING WITH INCREMENTAL PARSING: Handle both text and tool calls in real-time
-    if (request.stream) {
+    if (request.stream && shouldStreamToolCalls) {
       logger.info('Using incremental streaming parser for Anthropic request', {
         hasTools: !!(anthropicTools && anthropicTools.length > 0),
       })
@@ -674,6 +744,443 @@ ${fieldDescriptions}
 
       // Return the streaming execution object
       return streamingResult as StreamingExecution
+    }
+
+    // NON-STREAMING WITH FINAL RESPONSE: Execute all tools silently and return only final response
+    if (request.stream && !shouldStreamToolCalls) {
+      logger.info('Using non-streaming mode for Anthropic request (tool calls executed silently)')
+
+      // Start execution timer for the entire provider execution
+      const providerStartTime = Date.now()
+      const providerStartTimeISO = new Date(providerStartTime).toISOString()
+
+      try {
+        // Make the initial API request
+        const initialCallTime = Date.now()
+
+        // Track the original tool_choice for forced tool tracking
+        const originalToolChoice = payload.tool_choice
+
+        // Track forced tools and their usage
+        const forcedTools = preparedTools?.forcedTools || []
+        let usedForcedTools: string[] = []
+
+        let currentResponse = await anthropic.messages.create(payload)
+        const firstResponseTime = Date.now() - initialCallTime
+
+        let content = ''
+
+        // Extract text content from the message
+        if (Array.isArray(currentResponse.content)) {
+          content = currentResponse.content
+            .filter((item) => item.type === 'text')
+            .map((item) => item.text)
+            .join('\n')
+        }
+
+        const tokens = {
+          prompt: currentResponse.usage?.input_tokens || 0,
+          completion: currentResponse.usage?.output_tokens || 0,
+          total:
+            (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
+        }
+
+        const toolCalls = []
+        const toolResults = []
+        const currentMessages = [...messages]
+        let iterationCount = 0
+        const MAX_ITERATIONS = 10 // Prevent infinite loops
+
+        // Track if a forced tool has been used
+        let hasUsedForcedTool = false
+
+        // Track time spent in model vs tools
+        let modelTime = firstResponseTime
+        let toolsTime = 0
+
+        // Track each model and tool call segment with timestamps
+        const timeSegments: TimeSegment[] = [
+          {
+            type: 'model',
+            name: 'Initial response',
+            startTime: initialCallTime,
+            endTime: initialCallTime + firstResponseTime,
+            duration: firstResponseTime,
+          },
+        ]
+
+        // Helper function to check for forced tool usage in Anthropic responses
+        const checkForForcedToolUsage = (response: any, toolChoice: any) => {
+          if (
+            typeof toolChoice === 'object' &&
+            toolChoice !== null &&
+            Array.isArray(response.content)
+          ) {
+            const toolUses = response.content.filter((item: any) => item.type === 'tool_use')
+
+            if (toolUses.length > 0) {
+              // Convert Anthropic tool_use format to a format trackForcedToolUsage can understand
+              const adaptedToolCalls = toolUses.map((tool: any) => ({
+                name: tool.name,
+              }))
+
+              // Convert Anthropic tool_choice format to match OpenAI format for tracking
+              const adaptedToolChoice =
+                toolChoice.type === 'tool' ? { function: { name: toolChoice.name } } : toolChoice
+
+              const result = trackForcedToolUsage(
+                adaptedToolCalls,
+                adaptedToolChoice,
+                logger,
+                'anthropic',
+                forcedTools,
+                usedForcedTools
+              )
+              // Make the behavior consistent with the initial check
+              hasUsedForcedTool = result.hasUsedForcedTool
+              usedForcedTools = result.usedForcedTools
+              return result
+            }
+          }
+          return null
+        }
+
+        // Check if a forced tool was used in the first response
+        checkForForcedToolUsage(currentResponse, originalToolChoice)
+
+        try {
+          while (iterationCount < MAX_ITERATIONS) {
+            // Check for tool calls
+            const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
+            if (!toolUses || toolUses.length === 0) {
+              break
+            }
+
+            // Track time for tool calls in this batch
+            const toolsStartTime = Date.now()
+
+            // Process each tool call
+            for (const toolUse of toolUses) {
+              try {
+                const toolName = toolUse.name
+                const toolArgs = toolUse.input as Record<string, any>
+
+                // Get the tool from the tools registry
+                const tool = request.tools?.find((t) => t.id === toolName)
+                if (!tool) continue
+
+                // Execute the tool
+                const toolCallStartTime = Date.now()
+
+                // Only merge actual tool parameters for logging
+                const toolParams = {
+                  ...tool.params,
+                  ...toolArgs,
+                }
+
+                // Add system parameters for execution
+                const executionParams = {
+                  ...toolParams,
+                  ...(request.workflowId
+                    ? {
+                        _context: {
+                          workflowId: request.workflowId,
+                          ...(request.chatId ? { chatId: request.chatId } : {}),
+                        },
+                      }
+                    : {}),
+                  ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
+                }
+
+                const result = await executeTool(toolName, executionParams, true)
+                const toolCallEndTime = Date.now()
+                const toolCallDuration = toolCallEndTime - toolCallStartTime
+
+                // Add to time segments for both success and failure
+                timeSegments.push({
+                  type: 'tool',
+                  name: toolName,
+                  startTime: toolCallStartTime,
+                  endTime: toolCallEndTime,
+                  duration: toolCallDuration,
+                })
+
+                // Prepare result content for the LLM
+                let resultContent: any
+                if (result.success) {
+                  toolResults.push(result.output)
+                  resultContent = result.output
+                } else {
+                  // Include error information so LLM can respond appropriately
+                  resultContent = {
+                    error: true,
+                    message: result.error || 'Tool execution failed',
+                    tool: toolName,
+                  }
+                }
+
+                toolCalls.push({
+                  name: toolName,
+                  arguments: toolParams,
+                  startTime: new Date(toolCallStartTime).toISOString(),
+                  endTime: new Date(toolCallEndTime).toISOString(),
+                  duration: toolCallDuration,
+                  result: resultContent,
+                  success: result.success,
+                })
+
+                // Add the tool call and result to messages (both success and failure)
+                const toolUseId = generateToolUseId(toolName)
+
+                currentMessages.push({
+                  role: 'assistant',
+                  content: [
+                    {
+                      type: 'tool_use',
+                      id: toolUseId,
+                      name: toolName,
+                      input: toolArgs,
+                    } as any,
+                  ],
+                })
+
+                currentMessages.push({
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'tool_result',
+                      tool_use_id: toolUseId,
+                      content: JSON.stringify(resultContent),
+                    } as any,
+                  ],
+                })
+              } catch (error) {
+                logger.error('Error processing tool call:', { error })
+              }
+            }
+
+            // Calculate tool call time for this iteration
+            const thisToolsTime = Date.now() - toolsStartTime
+            toolsTime += thisToolsTime
+
+            // Make the next request with updated messages
+            const nextPayload = {
+              ...payload,
+              messages: currentMessages,
+            }
+
+            // Update tool_choice based on which forced tools have been used
+            if (
+              typeof originalToolChoice === 'object' &&
+              hasUsedForcedTool &&
+              forcedTools.length > 0
+            ) {
+              // If we have remaining forced tools, get the next one to force
+              const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
+
+              if (remainingTools.length > 0) {
+                // Force the next tool - use Anthropic format
+                nextPayload.tool_choice = {
+                  type: 'tool',
+                  name: remainingTools[0],
+                }
+                logger.info(`Forcing next tool: ${remainingTools[0]}`)
+              } else {
+                // All forced tools have been used, switch to auto by removing tool_choice
+                nextPayload.tool_choice = undefined
+                logger.info('All forced tools have been used, removing tool_choice parameter')
+              }
+            } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
+              // Handle the case of a single forced tool that was used
+              nextPayload.tool_choice = undefined
+              logger.info(
+                'Removing tool_choice parameter for subsequent requests after forced tool was used'
+              )
+            }
+
+            // Time the next model call
+            const nextModelStartTime = Date.now()
+
+            // Make the next request
+            currentResponse = await anthropic.messages.create(nextPayload)
+
+            // Check if any forced tools were used in this response
+            checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
+
+            const nextModelEndTime = Date.now()
+            const thisModelTime = nextModelEndTime - nextModelStartTime
+
+            // Add to time segments
+            timeSegments.push({
+              type: 'model',
+              name: `Model response (iteration ${iterationCount + 1})`,
+              startTime: nextModelStartTime,
+              endTime: nextModelEndTime,
+              duration: thisModelTime,
+            })
+
+            // Add to model time
+            modelTime += thisModelTime
+
+            // Update content if we have a text response
+            const textContent = currentResponse.content
+              .filter((item) => item.type === 'text')
+              .map((item) => item.text)
+              .join('\n')
+
+            if (textContent) {
+              content = textContent
+            }
+
+            // Update token counts
+            if (currentResponse.usage) {
+              tokens.prompt += currentResponse.usage.input_tokens || 0
+              tokens.completion += currentResponse.usage.output_tokens || 0
+              tokens.total +=
+                (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
+            }
+
+            iterationCount++
+          }
+        } catch (error) {
+          logger.error('Error in Anthropic request:', { error })
+          throw error
+        }
+
+        // If the content looks like it contains JSON, extract just the JSON part
+        if (content.includes('{') && content.includes('}')) {
+          try {
+            const jsonMatch = content.match(/\{[\s\S]*\}/m)
+            if (jsonMatch) {
+              content = jsonMatch[0]
+            }
+          } catch (e) {
+            logger.error('Error extracting JSON from response:', { error: e })
+          }
+        }
+
+        // Calculate overall timing
+        const providerEndTime = Date.now()
+        const providerEndTimeISO = new Date(providerEndTime).toISOString()
+        const totalDuration = providerEndTime - providerStartTime
+
+        // For non-streaming mode with tools, we stream only the final response
+        if (iterationCount > 0) {
+          logger.info('Using streaming for final Anthropic response after tool calls (non-streaming mode)')
+
+          // When streaming after tool calls with forced tools, make sure tool_choice is removed
+          // This prevents the API from trying to force tool usage again in the final streaming response
+          const streamingPayload = {
+            ...payload,
+            messages: currentMessages,
+            // For Anthropic, omit tool_choice entirely rather than setting it to 'none'
+            stream: true,
+          }
+
+          // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
+          streamingPayload.tool_choice = undefined
+
+          const streamResponse: any = await anthropic.messages.create(streamingPayload)
+
+          // Create a StreamingExecution response with all collected data
+          const streamingResult = {
+            stream: createReadableStreamFromAnthropicStream(streamResponse),
+            execution: {
+              success: true,
+              output: {
+                content: '', // Will be filled by the callback
+                model: request.model || 'claude-3-7-sonnet-20250219',
+                tokens: {
+                  prompt: tokens.prompt,
+                  completion: tokens.completion,
+                  total: tokens.total,
+                },
+                toolCalls:
+                  toolCalls.length > 0
+                    ? {
+                        list: toolCalls,
+                        count: toolCalls.length,
+                      }
+                    : undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  modelTime: modelTime,
+                  toolsTime: toolsTime,
+                  firstResponseTime: firstResponseTime,
+                  iterations: iterationCount + 1,
+                  timeSegments: timeSegments,
+                },
+                cost: {
+                  total: (tokens.total || 0) * 0.0001, // Estimate cost based on tokens
+                  input: (tokens.prompt || 0) * 0.0001,
+                  output: (tokens.completion || 0) * 0.0001,
+                },
+              },
+              logs: [], // No block logs at provider level
+              metadata: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+              },
+              isStreaming: true,
+            },
+          }
+
+          return streamingResult as StreamingExecution
+        }
+
+        // If no tool calls were made, return a direct response
+        return {
+          content,
+          model: request.model || 'claude-3-7-sonnet-20250219',
+          tokens,
+          toolCalls:
+            toolCalls.length > 0
+              ? toolCalls.map((tc) => ({
+                  name: tc.name,
+                  arguments: tc.arguments as Record<string, any>,
+                  startTime: tc.startTime,
+                  endTime: tc.endTime,
+                  duration: tc.duration,
+                  result: tc.result,
+                }))
+              : undefined,
+          toolResults: toolResults.length > 0 ? toolResults : undefined,
+          timing: {
+            startTime: providerStartTimeISO,
+            endTime: providerEndTimeISO,
+            duration: totalDuration,
+            modelTime: modelTime,
+            toolsTime: toolsTime,
+            firstResponseTime: firstResponseTime,
+            iterations: iterationCount + 1,
+            timeSegments: timeSegments,
+          },
+        }
+      } catch (error) {
+        // Include timing information even for errors
+        const providerEndTime = Date.now()
+        const providerEndTimeISO = new Date(providerEndTime).toISOString()
+        const totalDuration = providerEndTime - providerStartTime
+
+        logger.error('Error in Anthropic request:', {
+          error,
+          duration: totalDuration,
+        })
+
+        // Create a new error with timing information
+        const enhancedError = new Error(error instanceof Error ? error.message : String(error))
+        // @ts-ignore - Adding timing property to the error
+        enhancedError.timing = {
+          startTime: providerStartTimeISO,
+          endTime: providerEndTimeISO,
+          duration: totalDuration,
+        }
+
+        throw enhancedError
+      }
     }
 
     // Start execution timer for the entire provider execution

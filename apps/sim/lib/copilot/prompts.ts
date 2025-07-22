@@ -607,6 +607,42 @@ start:
     success: next-block
 \`\`\`
 
+### Manual Start with Input Format Configuration
+For API workflows that need structured input validation and processing:
+\\\`\\\`\\\`yaml
+version: '1.0'
+blocks:
+  start:
+    type: starter
+    name: Start
+    inputs:
+      startWorkflow: manual
+      inputFormat:
+        - name: query
+          type: string
+        - name: email
+          type: string
+        - name: age
+          type: number
+        - name: isActive
+          type: boolean
+        - name: preferences
+          type: object
+        - name: tags
+          type: array
+    connections:
+      success: agent-1
+
+  agent-1:
+    type: agent
+    name: Agent 1
+    inputs:
+      systemPrompt: "Process the structured input data"
+      userPrompt: "Query: <start.query>\\nEmail: <start.email>\\nAge: <start.age>"
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
+\\\`\\\`\\\`
+
 ### Chat Start Configuration
 \`\`\`yaml
 start:
@@ -621,7 +657,9 @@ start:
 **Key Points:**
 - Reference Pattern: Always use \`<start.input>\` to reference starter input
 - Manual workflows can accept any JSON input structure via API calls
-- The starter block doesn't require input format definition
+- **Input Format**: Use \`inputFormat\` array to define expected input structure for API calls
+- **Input Format Fields**: Each field requires \`name\` (string) and \`type\` ('string', 'number', 'boolean', 'object', 'array')
+- **Input Format Benefits**: Provides type validation, structured data access, and better API documentation
 
 ## Block References and Data Flow
 
