@@ -6,6 +6,7 @@ import { File, Folder, Plus, Upload } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { generateFolderName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useFolderStore } from '@/stores/folders/store'
@@ -72,18 +73,8 @@ export function CreateMenu({
     try {
       setIsCreating(true)
 
-      // Get existing folders to find the next folder number
-      const { folders } = useFolderStore.getState()
-      const existingFolders = Object.values(folders).filter((f) => f.workspaceId === workspaceId)
-
-      // Find the next available folder number (always use highest + 1)
-      const folderNumbers = existingFolders
-        .map((f) => f.name.match(/^Folder (\d+)$/))
-        .filter((match) => match !== null)
-        .map((match) => Number.parseInt(match![1], 10))
-
-      const nextNumber = folderNumbers.length > 0 ? Math.max(...folderNumbers) + 1 : 1
-      const folderName = `Folder ${nextNumber}`
+      // Generate folder name using fresh data from API
+      const folderName = await generateFolderName(workspaceId)
 
       await createFolder({
         name: folderName,

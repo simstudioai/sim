@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
+import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import {
   getKeyboardShortcutText,
@@ -287,23 +288,10 @@ export function Sidebar() {
       setIsCreatingWorkspace(true)
       logger.info('Creating new workspace')
 
-      // Fetch latest workspaces to ensure accurate naming
-      const workspacesResponse = await fetch('/api/workspaces')
-      const workspacesData = await workspacesResponse.json()
-      const latestWorkspaces = workspacesData.workspaces || []
+      // Generate workspace name using utility function
+      const workspaceName = await generateWorkspaceName()
 
-      // Generate incremental workspace name based on latest data
-      const workspaceNumbers = latestWorkspaces
-        .map((w: Workspace) => w.name.match(/^Workspace (\d+)$/))
-        .filter((match: RegExpMatchArray | null) => match !== null)
-        .map((match: RegExpMatchArray) => Number.parseInt(match[1], 10))
-
-      const nextNumber = workspaceNumbers.length > 0 ? Math.max(...workspaceNumbers) + 1 : 1
-      const workspaceName = `Workspace ${nextNumber}`
-
-      logger.info(
-        `Generated workspace name: ${workspaceName} (found ${workspaceNumbers.length} existing numbered workspaces)`
-      )
+      logger.info(`Generated workspace name: ${workspaceName}`)
 
       const response = await fetch('/api/workspaces', {
         method: 'POST',

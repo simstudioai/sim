@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { generateSubfolderName } from '@/lib/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useFolderStore } from '@/stores/folders/store'
 
@@ -66,20 +67,8 @@ export function FolderContextMenu({
       // Ensure parent folder is expanded so user can see the new subfolder
       setExpanded(folderId, true)
 
-      // Get existing folders to find the next subfolder number
-      const { folders } = useFolderStore.getState()
-      const existingSubfolders = Object.values(folders).filter(
-        (f) => f.workspaceId === workspaceId && f.parentId === folderId
-      )
-
-      // Find the next available subfolder number (always use highest + 1)
-      const subfolderNumbers = existingSubfolders
-        .map((f) => f.name.match(/^Subfolder (\d+)$/))
-        .filter((match) => match !== null)
-        .map((match) => Number.parseInt(match![1], 10))
-
-      const nextNumber = subfolderNumbers.length > 0 ? Math.max(...subfolderNumbers) + 1 : 1
-      const subfolderName = `Subfolder ${nextNumber}`
+      // Generate subfolder name using fresh data from API
+      const subfolderName = await generateSubfolderName(workspaceId, folderId)
 
       await createFolder({
         name: subfolderName,
