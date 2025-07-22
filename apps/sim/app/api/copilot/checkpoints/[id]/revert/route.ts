@@ -2,11 +2,8 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
-import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
-import { convertYamlToWorkflow, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 
 const logger = createLogger('RevertCheckpointAPI')
 
@@ -49,163 +46,49 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       yamlLength: yamlContent.length,
     })
 
-    // Parse YAML content
-    const { data: yamlWorkflow, errors: parseErrors } = parseWorkflowYaml(yamlContent)
+    // Use the consolidated YAML endpoint instead of duplicating the processing logic
+    const yamlEndpointUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/workflows/${workflowId}/yaml`
+    
+    const yamlResponse = await fetch(yamlEndpointUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        // Forward auth cookies from the original request
+        'Cookie': request.headers.get('Cookie') || '',
+      },
+      body: JSON.stringify({
+        yamlContent,
+        description: `Reverted to checkpoint from ${new Date(checkpointData.createdAt).toLocaleString()}`,
+        source: 'checkpoint_revert',
+        applyAutoLayout: true,
+        createCheckpoint: false, // Don't create a checkpoint when reverting to one
+      }),
+    })
 
-    if (!yamlWorkflow || parseErrors.length > 0) {
-      logger.error(`[${requestId}] YAML parsing failed`, { parseErrors })
+    if (!yamlResponse.ok) {
+      const errorData = await yamlResponse.json()
+      logger.error(`[${requestId}] Consolidated YAML endpoint failed:`, errorData)
       return NextResponse.json(
         {
           success: false,
-          error: 'Failed to parse checkpoint YAML',
-          details: parseErrors,
+          error: 'Failed to revert checkpoint via YAML endpoint',
+          details: errorData.errors || [errorData.error || 'Unknown error'],
         },
-        { status: 400 }
+        { status: yamlResponse.status }
       )
     }
 
-    // Convert YAML to workflow format
-    const { blocks, edges, errors: convertErrors, warnings } = convertYamlToWorkflow(yamlWorkflow)
+    const yamlResult = await yamlResponse.json()
 
-    if (convertErrors.length > 0) {
-      logger.error(`[${requestId}] YAML conversion failed`, { convertErrors })
+    if (!yamlResult.success) {
+      logger.error(`[${requestId}] YAML endpoint returned failure:`, yamlResult)
       return NextResponse.json(
         {
           success: false,
-          error: 'Failed to convert checkpoint YAML to workflow',
-          details: convertErrors,
+          error: 'Failed to process checkpoint YAML',
+          details: yamlResult.errors || ['Unknown error'],
         },
         { status: 400 }
-      )
-    }
-
-    // Create workflow state (same format as edit-workflow)
-    const newWorkflowState: any = {
-      blocks: {} as Record<string, any>,
-      edges: [] as any[],
-      loops: {} as Record<string, any>,
-      parallels: {} as Record<string, any>,
-      lastSaved: Date.now(),
-      isDeployed: false,
-      deployedAt: undefined,
-      deploymentStatuses: {} as Record<string, any>,
-      hasActiveSchedule: false,
-      hasActiveWebhook: false,
-    }
-
-    // Process blocks with new IDs (complete replacement)
-    const blockIdMapping = new Map<string, string>()
-
-    for (const block of blocks) {
-      const newId = crypto.randomUUID()
-      blockIdMapping.set(block.id, newId)
-
-      const blockConfig = getBlock(block.type)
-      if (!blockConfig) {
-        logger.warn(`[${requestId}] Unknown block type: ${block.type}`)
-        continue
-      }
-
-      // Create subBlocks for the block with block reference mapping
-      const subBlocks: Record<string, any> = {}
-      blockConfig.subBlocks.forEach((subBlock) => {
-        let value = block.inputs[subBlock.id] || null
-        
-        // Update block references in values to use new mapped IDs
-        if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
-          const blockMatches = value.match(/<([^>]+)>/g)
-          if (blockMatches) {
-            for (const match of blockMatches) {
-              const path = match.slice(1, -1)
-              const [blockRef] = path.split('.')
-              
-              // Skip system references (start, loop, parallel, variable)
-              if (['start', 'loop', 'parallel', 'variable'].includes(blockRef.toLowerCase())) {
-                continue
-              }
-              
-              // Check if this references an old block ID that needs mapping
-              const newMappedId = blockIdMapping.get(blockRef)
-              if (newMappedId) {
-                logger.info(`[${requestId}] Updating block reference: ${blockRef} -> ${newMappedId}`)
-                value = value.replace(new RegExp(`<${blockRef}\\.`, 'g'), `<${newMappedId}.`)
-                value = value.replace(new RegExp(`<${blockRef}>`, 'g'), `<${newMappedId}>`)
-              }
-            }
-          }
-        }
-        
-        subBlocks[subBlock.id] = {
-          id: subBlock.id,
-          type: subBlock.type,
-          value,
-        }
-      })
-
-      newWorkflowState.blocks[newId] = {
-        id: newId,
-        type: block.type,
-        name: block.name,
-        position: block.position,
-        subBlocks,
-        outputs: blockConfig.outputs,
-        enabled: true,
-        horizontalHandles: true,
-        isWide: false,
-        height: 0,
-        data: block.data || {},
-      }
-    }
-
-    // Update parent-child relationships with mapped IDs
-    for (const [newId, blockData] of Object.entries(newWorkflowState.blocks)) {
-      const block = blockData as any
-      if (block.data?.parentId) {
-        const mappedParentId = blockIdMapping.get(block.data.parentId)
-        if (mappedParentId) {
-          logger.info(`[${requestId}] Updating parent reference: ${block.data.parentId} -> ${mappedParentId}`)
-          block.data.parentId = mappedParentId
-          // Ensure extent is set for child blocks
-          if (!block.data.extent) {
-            block.data.extent = 'parent'
-          }
-        } else {
-          logger.warn(`[${requestId}] Parent block not found for mapping: ${block.data.parentId}`)
-          // Remove invalid parent reference
-          block.data.parentId = undefined
-          block.data.extent = undefined
-        }
-      }
-    }
-
-    // Process edges with mapped IDs
-    for (const edge of edges) {
-      const sourceId = blockIdMapping.get(edge.source)
-      const targetId = blockIdMapping.get(edge.target)
-
-      if (sourceId && targetId) {
-        newWorkflowState.edges.push({
-          id: crypto.randomUUID(),
-          source: sourceId,
-          target: targetId,
-          sourceHandle: edge.sourceHandle,
-          targetHandle: edge.targetHandle,
-          type: edge.type || 'default',
-        })
-      }
-    }
-
-    // Save to database
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, newWorkflowState)
-
-    if (!saveResult.success) {
-      logger.error(`[${requestId}] Failed to save reverted workflow:`, saveResult.error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Database save failed: ${saveResult.error || 'Unknown error'}`,
-        },
-        { status: 500 }
       )
     }
 
@@ -215,7 +98,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .set({
         lastSynced: new Date(),
         updatedAt: new Date(),
-        state: saveResult.jsonBlob,
       })
       .where(eq(workflowTable.id, workflowId))
 
@@ -240,8 +122,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({
       success: true,
       message: `Successfully reverted to checkpoint from ${new Date(checkpointData.createdAt).toLocaleString()}`,
-      summary: `Restored workflow with ${blocks.length} blocks and ${edges.length} connections.`,
-      warnings,
+      summary: yamlResult.summary || `Restored workflow from checkpoint.`,
+      warnings: yamlResult.warnings || [],
+      data: yamlResult.data,
     })
   } catch (error) {
     logger.error(`[${requestId}] Error reverting checkpoint:`, error)
