@@ -2,8 +2,19 @@
  * Utility functions for generating names for all entities (workspaces, folders, workflows)
  */
 
+import type { WorkflowFolder } from '@/stores/folders/store'
+import type { Workspace } from '@/stores/organization/types'
+
 export interface NameableEntity {
   name: string
+}
+
+interface WorkspacesApiResponse {
+  workspaces: Workspace[]
+}
+
+interface FoldersApiResponse {
+  folders: WorkflowFolder[]
 }
 
 const ADJECTIVES = [
@@ -179,7 +190,7 @@ export function generateIncrementalName<T extends NameableEntity>(
  */
 export async function generateWorkspaceName(): Promise<string> {
   const response = await fetch('/api/workspaces')
-  const data = await response.json()
+  const data = (await response.json()) as WorkspacesApiResponse
   const workspaces = data.workspaces || []
 
   return generateIncrementalName(workspaces, 'Workspace')
@@ -190,11 +201,11 @@ export async function generateWorkspaceName(): Promise<string> {
  */
 export async function generateFolderName(workspaceId: string): Promise<string> {
   const response = await fetch(`/api/folders?workspaceId=${workspaceId}`)
-  const data = await response.json()
+  const data = (await response.json()) as FoldersApiResponse
   const folders = data.folders || []
 
   // Filter to only root-level folders (parentId is null)
-  const rootFolders = folders.filter((folder: any) => folder.parentId === null)
+  const rootFolders = folders.filter((folder) => folder.parentId === null)
 
   return generateIncrementalName(rootFolders, 'Folder')
 }
@@ -207,11 +218,11 @@ export async function generateSubfolderName(
   parentFolderId: string
 ): Promise<string> {
   const response = await fetch(`/api/folders?workspaceId=${workspaceId}`)
-  const data = await response.json()
+  const data = (await response.json()) as FoldersApiResponse
   const folders = data.folders || []
 
   // Filter to only subfolders of the specified parent
-  const subfolders = folders.filter((folder: any) => folder.parentId === parentFolderId)
+  const subfolders = folders.filter((folder) => folder.parentId === parentFolderId)
 
   return generateIncrementalName(subfolders, 'Subfolder')
 }

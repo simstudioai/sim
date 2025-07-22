@@ -87,7 +87,7 @@ export function CreateMenu({
     } finally {
       setIsCreating(false)
     }
-  }, [createFolder, workspaceId, isCreating])
+  }, [createFolder, workspaceId])
 
   const handleImportWorkflow = useCallback(() => {
     setIsOpen(false)
