@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { env } from '@/lib/env'
+import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { ChatDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
@@ -225,7 +225,7 @@ export function DeployModal({
         }
 
         const data = await response.json()
-        const endpoint = `${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
+        const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
         const inputFormatExample = getInputFormatExample()
 
         setDeploymentInfo({
@@ -288,7 +288,7 @@ export function DeployModal({
       }
 
       // Update the local deployment info
-      const endpoint = `${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
+      const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
       const inputFormatExample = getInputFormatExample()
 
       const newDeploymentInfo = {
@@ -597,7 +597,7 @@ export function DeployModal({
                         <DeployForm
                           apiKeys={apiKeys}
                           keysLoaded={keysLoaded}
-                          endpointUrl={`${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
+                          endpointUrl={`${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`}
                           workflowId={workflowId || ''}
                           onSubmit={onDeploy}
                           getInputFormatExample={getInputFormatExample}

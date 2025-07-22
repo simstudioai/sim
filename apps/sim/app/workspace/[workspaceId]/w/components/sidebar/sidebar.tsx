@@ -287,13 +287,31 @@ export function Sidebar() {
       setIsCreatingWorkspace(true)
       logger.info('Creating new workspace')
 
+      // Fetch latest workspaces to ensure accurate naming
+      const workspacesResponse = await fetch('/api/workspaces')
+      const workspacesData = await workspacesResponse.json()
+      const latestWorkspaces = workspacesData.workspaces || []
+
+      // Generate incremental workspace name based on latest data
+      const workspaceNumbers = latestWorkspaces
+        .map((w: Workspace) => w.name.match(/^Workspace (\d+)$/))
+        .filter((match: RegExpMatchArray | null) => match !== null)
+        .map((match: RegExpMatchArray) => Number.parseInt(match[1], 10))
+
+      const nextNumber = workspaceNumbers.length > 0 ? Math.max(...workspaceNumbers) + 1 : 1
+      const workspaceName = `Workspace ${nextNumber}`
+
+      logger.info(
+        `Generated workspace name: ${workspaceName} (found ${workspaceNumbers.length} existing numbered workspaces)`
+      )
+
       const response = await fetch('/api/workspaces', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: 'Untitled workspace',
+          name: workspaceName,
         }),
       })
 

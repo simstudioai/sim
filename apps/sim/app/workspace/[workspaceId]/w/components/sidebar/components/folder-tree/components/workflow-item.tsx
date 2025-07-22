@@ -225,7 +225,7 @@ export function WorkflowItem({
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleInputBlur}
-              className={`flex-1 border-0 bg-transparent p-0 font-medium text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 ${
+              className={`min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 ${
                 active && !isDragOver ? 'text-foreground' : 'text-muted-foreground'
               }`}
               maxLength={100}
@@ -237,7 +237,7 @@ export function WorkflowItem({
               spellCheck='false'
             />
           ) : (
-            <span className='flex-1 select-none truncate'>
+            <span className='min-w-0 flex-1 select-none truncate'>
               {workflow.name}
               {isMarketplace && ' (Preview)'}
             </span>

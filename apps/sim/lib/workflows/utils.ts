@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { env } from '@/lib/env'
+import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { userStats, workflow as workflowTable } from '@/db/schema'
@@ -24,7 +24,7 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
 
     // Get the origin from the environment or use direct DB update as fallback
     const origin =
-      env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
+      getEnv('NEXT_PUBLIC_APP_URL') || (typeof window !== 'undefined' ? window.location.origin : '')
 
     if (origin) {
       // Use absolute URL with origin
