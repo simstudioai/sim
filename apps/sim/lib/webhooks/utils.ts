@@ -1475,39 +1475,35 @@ export async function processWebhook(
       return new NextResponse('No messages in WhatsApp payload', { status: 200 })
     }
 
-    // --- Send immediate acknowledgment and execute workflow asynchronously ---
+    // --- Execute Workflow ---
     logger.info(
-      `[${requestId}] Acknowledging webhook ${foundWebhook.id} and executing workflow ${foundWorkflow.id} asynchronously (Execution: ${executionId})`
+      `[${requestId}] Executing workflow ${foundWorkflow.id} for webhook ${foundWebhook.id} (Execution: ${executionId})`
     )
 
-    // Execute workflow asynchronously without waiting for completion
-    executeWorkflowFromPayload(
+    await executeWorkflowFromPayload(
       foundWorkflow,
       input,
       executionId,
       requestId,
       foundWebhook.blockId
-    ).catch((error) => {
-      // Log any errors that occur during async execution
-      logger.error(
-        `[${requestId}] Error during async workflow execution for webhook ${foundWebhook.id} (Execution: ${executionId})`,
-        error
-      )
-    })
+    )
 
-    // Return immediate acknowledgment to the webhook provider
+    // Since executeWorkflowFromPayload handles logging and errors internally,
+    // we just need to return a standard success response for synchronous webhooks.
+    // Note: The actual result isn't typically returned in the webhook response itself.
+
     // For Microsoft Teams outgoing webhooks, return the expected response format
     if (foundWebhook.provider === 'microsoftteams') {
       return NextResponse.json(
         {
           type: 'message',
-          text: 'Sim Studio',
+          text: 'Webhook processed successfully',
         },
         { status: 200 }
       )
     }
 
-    return NextResponse.json({ message: 'Webhook received' }, { status: 200 })
+    return NextResponse.json({ message: 'Webhook processed' }, { status: 200 })
   } catch (error: any) {
     // Catch errors *before* calling executeWorkflowFromPayload (e.g., auth errors)
     logger.error(
@@ -1520,7 +1516,7 @@ export async function processWebhook(
       return NextResponse.json(
         {
           type: 'message',
-          text: 'Request received but processing failed',
+          text: 'Webhook processing failed',
         },
         { status: 200 }
       ) // Still return 200 to prevent Teams from showing additional error messages

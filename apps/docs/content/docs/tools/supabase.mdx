@@ -85,10 +85,8 @@ Query data from a Supabase table
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to query |
-| `filter` | string | No | PostgREST filter \(e.g.,  |
-| `orderBy` | string | No | Column to order by \(add DESC for descending\) |
-| `limit` | number | No | Maximum number of rows to return |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
+| `filter` | object | No | Filter to apply to the query |
+| `apiKey` | string | Yes | Your Supabase client anon key |
 
 #### Output
 
@@ -108,7 +106,7 @@ Insert data into a Supabase table
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to insert data into |
 | `data` | any | Yes | The data to insert |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
+| `apiKey` | string | Yes | Your Supabase client anon key |
 
 #### Output
 
@@ -116,65 +114,6 @@ Insert data into a Supabase table
 | --------- | ---- |
 | `message` | string |
 | `results` | string |
-
-### `supabase_get_row`
-
-Get a single row from a Supabase table based on filter criteria
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
-| `table` | string | Yes | The name of the Supabase table to query |
-| `filter` | string | Yes | PostgREST filter to find the specific row \(e.g.,  |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
-| `results` | string |
-
-### `supabase_update`
-
-Update rows in a Supabase table based on filter criteria
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
-| `table` | string | Yes | The name of the Supabase table to update |
-| `filter` | string | Yes | PostgREST filter to identify rows to update \(e.g.,  |
-| `data` | object | Yes | Data to update in the matching rows |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
-
-### `supabase_delete`
-
-Delete rows from a Supabase table based on filter criteria
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
-| `table` | string | Yes | The name of the Supabase table to delete from |
-| `filter` | string | Yes | PostgREST filter to identify rows to delete \(e.g.,  |
-| `apiKey` | string | Yes | Your Supabase service role secret key |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
 
 
 
