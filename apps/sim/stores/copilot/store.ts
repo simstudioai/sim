@@ -291,7 +291,7 @@ export const useCopilotStore = create<CopilotStore>()(
               // Get the updated chats list (after removal) in a single atomic operation
               const { chats: updatedChats } = get()
               const remainingChats = updatedChats.filter((chat) => chat.id !== chatId)
-              
+
               if (remainingChats.length > 0) {
                 const sortedByCreation = [...remainingChats].sort(
                   (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -546,19 +546,18 @@ export const useCopilotStore = create<CopilotStore>()(
             // Update the chat in the chats list (atomic check, update, or add)
             set((state) => {
               const chatExists = state.chats.some((chat) => chat.id === result.chat!.id)
-              
+
               if (!chatExists) {
                 // Chat doesn't exist, add it to the beginning
                 return {
                   chats: [result.chat!, ...state.chats],
                 }
-              } else {
-                // Chat exists, update it
-                const updatedChats = state.chats.map((chat) =>
-                  chat.id === result.chat!.id ? result.chat! : chat
-                )
-                return { chats: updatedChats }
               }
+              // Chat exists, update it
+              const updatedChats = state.chats.map((chat) =>
+                chat.id === result.chat!.id ? result.chat! : chat
+              )
+              return { chats: updatedChats }
             })
 
             logger.info(`Successfully saved chat ${chatId}`)
