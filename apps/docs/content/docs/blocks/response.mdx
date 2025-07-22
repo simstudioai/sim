@@ -148,7 +148,33 @@ Use the `<variable.name>` syntax to dynamically insert workflow variables into y
 
 ## Example Usage
 
-Response blocks are configured through the visual interface to define the final output structure of your workflow. You can specify the response data, HTTP status codes, and headers through the block's configuration panel.
+Here's an example of how a Response block might be configured for a user search API:
+
+```yaml
+data: |
+  {
+    "success": true,
+    "data": {
+      "users": "<variable.searchResults>",
+      "pagination": {
+        "page": "<variable.currentPage>",
+        "limit": "<variable.pageSize>",
+        "total": "<variable.totalUsers>"
+      }
+    },
+    "query": {
+      "searchTerm": "<variable.searchTerm>",
+      "filters": "<variable.appliedFilters>"
+    },
+    "timestamp": "<variable.timestamp>"
+  }
+status: 200
+headers:
+  - key: X-Total-Count
+    value: <variable.totalUsers>
+  - key: Cache-Control
+    value: public, max-age=300
+```
 
 ## Best Practices
 
