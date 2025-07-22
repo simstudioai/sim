@@ -1,8 +1,6 @@
 import { load as yamlParse } from 'js-yaml'
-import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks'
-import { resolveOutputType } from '@/blocks/utils'
 import {
   type ConnectionsFormat,
   expandConditionInputs,

@@ -48,13 +48,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Use the consolidated YAML endpoint instead of duplicating the processing logic
     const yamlEndpointUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/workflows/${workflowId}/yaml`
-    
+
     const yamlResponse = await fetch(yamlEndpointUrl, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         // Forward auth cookies from the original request
-        'Cookie': request.headers.get('Cookie') || '',
+        Cookie: request.headers.get('Cookie') || '',
       },
       body: JSON.stringify({
         yamlContent,

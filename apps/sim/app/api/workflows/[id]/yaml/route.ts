@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import { autoLayoutWorkflow } from '@/lib/autolayout/service'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import {
@@ -9,14 +9,13 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/db-helpers'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
-import { autoLayoutWorkflow } from '@/lib/autolayout/service'
+import { getUserId as getOAuthUserId } from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
-import { getUserId as getOAuthUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
-import { convertYamlToWorkflow, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { convertYamlToWorkflow, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 
 const logger = createLogger('WorkflowYamlAPI')
 
@@ -61,10 +60,9 @@ async function createWorkflowCheckpoint(
 
       logger.info(`[${requestId}] Checkpoint created successfully`)
       return true
-    } else {
-      logger.warn(`[${requestId}] Could not load current workflow state for checkpoint`)
-      return false
     }
+    logger.warn(`[${requestId}] Could not load current workflow state for checkpoint`)
+    return false
   } catch (error) {
     logger.error(`[${requestId}] Failed to create checkpoint:`, error)
     return false
@@ -77,7 +75,7 @@ async function createWorkflowCheckpoint(
 async function getUserId(requestId: string, workflowId: string): Promise<string | null> {
   // Use the OAuth utils function that handles both session and workflow-based auth
   const userId = await getOAuthUserId(requestId, workflowId)
-  
+
   if (!userId) {
     logger.warn(`[${requestId}] Could not determine user ID for workflow ${workflowId}`)
     return null
@@ -120,9 +118,7 @@ async function getUserId(requestId: string, workflowId: string): Promise<string 
   }
 
   if (!canUpdate) {
-    logger.warn(
-      `[${requestId}] User ${userId} denied permission to update workflow ${workflowId}`
-    )
+    logger.warn(`[${requestId}] User ${userId} denied permission to update workflow ${workflowId}`)
     return null
   }
 
@@ -140,35 +136,41 @@ function updateBlockReferences(
   if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
     let processedValue = value
     const blockMatches = value.match(/<([^>]+)>/g)
-    
+
     if (blockMatches) {
       for (const match of blockMatches) {
         const path = match.slice(1, -1)
         const [blockRef] = path.split('.')
-        
+
         // Skip system references (start, loop, parallel, variable)
         if (['start', 'loop', 'parallel', 'variable'].includes(blockRef.toLowerCase())) {
           continue
         }
-        
+
         // Check if this references an old block ID that needs mapping
         const newMappedId = blockIdMapping.get(blockRef)
         if (newMappedId) {
           logger.info(`[${requestId}] Updating block reference: ${blockRef} -> ${newMappedId}`)
-          processedValue = processedValue.replace(new RegExp(`<${blockRef}\\.`, 'g'), `<${newMappedId}.`)
-          processedValue = processedValue.replace(new RegExp(`<${blockRef}>`, 'g'), `<${newMappedId}>`)
+          processedValue = processedValue.replace(
+            new RegExp(`<${blockRef}\\.`, 'g'),
+            `<${newMappedId}.`
+          )
+          processedValue = processedValue.replace(
+            new RegExp(`<${blockRef}>`, 'g'),
+            `<${newMappedId}>`
+          )
         }
       }
     }
-    
+
     return processedValue
   }
-  
+
   // Handle arrays
   if (Array.isArray(value)) {
     return value.map((item) => updateBlockReferences(item, blockIdMapping, requestId))
   }
-  
+
   // Handle objects
   if (value !== null && typeof value === 'object') {
     const result = { ...value }
@@ -177,7 +179,7 @@ function updateBlockReferences(
     }
     return result
   }
-  
+
   return value
 }
 
@@ -194,14 +196,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     // Parse and validate request
     const body = await request.json()
-    const {
-      yamlContent,
-      description,
-      chatId,
-      source,
-      applyAutoLayout,
-      createCheckpoint,
-    } = YamlWorkflowRequestSchema.parse(body)
+    const { yamlContent, description, chatId, source, applyAutoLayout, createCheckpoint } =
+      YamlWorkflowRequestSchema.parse(body)
 
     logger.info(`[${requestId}] Processing ${source} YAML workflow save`, {
       workflowId,
@@ -265,7 +261,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Process blocks with proper configuration setup and assign new IDs
     const blockIdMapping = new Map<string, string>()
-    
+
     for (const block of blocks) {
       const newId = crypto.randomUUID()
       blockIdMapping.set(block.id, newId)
@@ -292,7 +288,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       } else if (blockConfig) {
         // Handle regular blocks with proper configuration
         const subBlocks: Record<string, any> = {}
-        
+
         // Set up subBlocks from block configuration
         blockConfig.subBlocks.forEach((subBlock) => {
           subBlocks[subBlock.id] = {
@@ -334,7 +330,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         logger.debug(`[${requestId}] Processed regular block: ${block.id} -> ${newId}`)
       } else {
         logger.warn(`[${requestId}] Unknown block type: ${block.type}`)
-        continue
       }
     }
 
@@ -359,17 +354,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     for (const [newId, blockData] of Object.entries(newWorkflowState.blocks)) {
       const block = blockData as any
       if (block.data?.parentId) {
-        logger.info(`[${requestId}] Found child block ${block.name} with parentId: ${block.data.parentId}`)
+        logger.info(
+          `[${requestId}] Found child block ${block.name} with parentId: ${block.data.parentId}`
+        )
         const mappedParentId = blockIdMapping.get(block.data.parentId)
         if (mappedParentId) {
-          logger.info(`[${requestId}] Updating parent reference: ${block.data.parentId} -> ${mappedParentId}`)
+          logger.info(
+            `[${requestId}] Updating parent reference: ${block.data.parentId} -> ${mappedParentId}`
+          )
           block.data.parentId = mappedParentId
           // Ensure extent is set for child blocks
           if (!block.data.extent) {
             block.data.extent = 'parent'
           }
         } else {
-          logger.error(`[${requestId}] ❌ Parent block not found for mapping: ${block.data.parentId}`)
+          logger.error(
+            `[${requestId}] ❌ Parent block not found for mapping: ${block.data.parentId}`
+          )
           logger.error(`[${requestId}] Available mappings:`, Array.from(blockIdMapping.keys()))
           // Remove invalid parent reference
           block.data.parentId = undefined
@@ -394,7 +395,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           type: edge.type || 'default',
         })
       } else {
-        logger.warn(`[${requestId}] Skipping edge - missing blocks: ${edge.source} -> ${edge.target}`)
+        logger.warn(
+          `[${requestId}] Skipping edge - missing blocks: ${edge.source} -> ${edge.target}`
+        )
       }
     }
 
@@ -415,7 +418,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (applyAutoLayout) {
       try {
         logger.info(`[${requestId}] Applying autolayout`)
-        
+
         const layoutedBlocks = await autoLayoutWorkflow(
           newWorkflowState.blocks,
           newWorkflowState.edges,
@@ -434,7 +437,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             },
           }
         )
-        
+
         newWorkflowState.blocks = layoutedBlocks
         logger.info(`[${requestId}] Autolayout completed successfully`)
       } catch (layoutError) {
@@ -506,17 +509,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       errors: [],
       warnings,
     })
-
   } catch (error) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] YAML workflow save failed in ${elapsed}ms:`, error)
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
           success: false,
           message: 'Invalid request data',
-          errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`),
+          errors: error.errors.map((e) => `${e.path.join('.')}: ${e.message}`),
           warnings: [],
         },
         { status: 400 }
@@ -533,4 +535,4 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       { status: 500 }
     )
   }
-} 
+}

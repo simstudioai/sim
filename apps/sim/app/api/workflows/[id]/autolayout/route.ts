@@ -1,7 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { autoLayoutWorkflow } from '@/lib/autolayout/service'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import {
   loadWorkflowFromNormalizedTables,
@@ -9,24 +11,31 @@ import {
 } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
-import { autoLayoutWorkflow } from '@/lib/autolayout/service'
-import { z } from 'zod'
 
 const logger = createLogger('AutoLayoutAPI')
 
 const AutoLayoutRequestSchema = z.object({
-  strategy: z.enum(['smart', 'hierarchical', 'layered', 'force-directed']).optional().default('smart'),
+  strategy: z
+    .enum(['smart', 'hierarchical', 'layered', 'force-directed'])
+    .optional()
+    .default('smart'),
   direction: z.enum(['horizontal', 'vertical', 'auto']).optional().default('auto'),
-  spacing: z.object({
-    horizontal: z.number().min(100).max(1000).optional().default(400),
-    vertical: z.number().min(50).max(500).optional().default(200),
-    layer: z.number().min(200).max(1200).optional().default(600),
-  }).optional().default({}),
+  spacing: z
+    .object({
+      horizontal: z.number().min(100).max(1000).optional().default(400),
+      vertical: z.number().min(50).max(500).optional().default(200),
+      layer: z.number().min(200).max(1200).optional().default(600),
+    })
+    .optional()
+    .default({}),
   alignment: z.enum(['start', 'center', 'end']).optional().default('center'),
-  padding: z.object({
-    x: z.number().min(50).max(500).optional().default(200),
-    y: z.number().min(50).max(500).optional().default(200),
-  }).optional().default({}),
+  padding: z
+    .object({
+      x: z.number().min(50).max(500).optional().default(200),
+      y: z.number().min(50).max(500).optional().default(200),
+    })
+    .optional()
+    .default({}),
 })
 
 type AutoLayoutRequest = z.infer<typeof AutoLayoutRequestSchema>
@@ -104,14 +113,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (!currentWorkflowData) {
       logger.error(`[${requestId}] Could not load workflow ${workflowId} for autolayout`)
-      return NextResponse.json(
-        { error: 'Could not load workflow data' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Could not load workflow data' }, { status: 500 })
     }
 
     // Apply autolayout
-    logger.info(`[${requestId}] Applying autolayout to ${Object.keys(currentWorkflowData.blocks).length} blocks`)
+    logger.info(
+      `[${requestId}] Applying autolayout to ${Object.keys(currentWorkflowData.blocks).length} blocks`
+    )
 
     const layoutedBlocks = await autoLayoutWorkflow(
       currentWorkflowData.blocks,
@@ -194,7 +202,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
   } catch (error) {
     const elapsed = Date.now() - startTime
-    
+
     if (error instanceof z.ZodError) {
       logger.warn(`[${requestId}] Invalid autolayout request data`, { errors: error.errors })
       return NextResponse.json(
@@ -205,11 +213,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.error(`[${requestId}] Autolayout failed after ${elapsed}ms:`, error)
     return NextResponse.json(
-      { 
+      {
         error: 'Autolayout failed',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     )
   }
-} 
+}

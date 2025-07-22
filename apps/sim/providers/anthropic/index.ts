@@ -782,7 +782,8 @@ ${fieldDescriptions}
           prompt: currentResponse.usage?.input_tokens || 0,
           completion: currentResponse.usage?.output_tokens || 0,
           total:
-            (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
+            (currentResponse.usage?.input_tokens || 0) +
+            (currentResponse.usage?.output_tokens || 0),
         }
 
         const toolCalls = []
@@ -889,7 +890,9 @@ ${fieldDescriptions}
                         },
                       }
                     : {}),
-                  ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
+                  ...(request.environmentVariables
+                    ? { envVars: request.environmentVariables }
+                    : {}),
                 }
 
                 const result = await executeTool(toolName, executionParams, true)
@@ -1037,7 +1040,8 @@ ${fieldDescriptions}
               tokens.prompt += currentResponse.usage.input_tokens || 0
               tokens.completion += currentResponse.usage.output_tokens || 0
               tokens.total +=
-                (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
+                (currentResponse.usage.input_tokens || 0) +
+                (currentResponse.usage.output_tokens || 0)
             }
 
             iterationCount++
@@ -1066,7 +1070,9 @@ ${fieldDescriptions}
 
         // For non-streaming mode with tools, we stream only the final response
         if (iterationCount > 0) {
-          logger.info('Using streaming for final Anthropic response after tool calls (non-streaming mode)')
+          logger.info(
+            'Using streaming for final Anthropic response after tool calls (non-streaming mode)'
+          )
 
           // When streaming after tool calls with forced tools, make sure tool_choice is removed
           // This prevents the API from trying to force tool usage again in the final streaming response

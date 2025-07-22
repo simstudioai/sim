@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { autoLayoutWorkflow } from '@/lib/autolayout/service'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   loadWorkflowFromNormalizedTables,
@@ -10,9 +11,8 @@ import { getUserId } from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
-import { convertYamlToWorkflow, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { autoLayoutWorkflow } from '@/lib/autolayout/service'
+import { convertYamlToWorkflow, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 
 const logger = createLogger('EditWorkflowAPI')
 
@@ -190,18 +190,26 @@ export async function POST(request: NextRequest) {
                 for (const match of blockMatches) {
                   const path = match.slice(1, -1)
                   const [blockRef] = path.split('.')
-                  
+
                   // Skip system references (start, loop, parallel, variable)
                   if (['start', 'loop', 'parallel', 'variable'].includes(blockRef.toLowerCase())) {
                     continue
                   }
-                  
+
                   // Check if this references an old block ID that needs mapping
                   const newMappedId = blockIdMapping.get(blockRef)
                   if (newMappedId) {
-                    logger.info(`[${requestId}] Updating block reference: ${blockRef} -> ${newMappedId}`)
-                    processedValue = processedValue.replace(new RegExp(`<${blockRef}\\.`, 'g'), `<${newMappedId}.`)
-                    processedValue = processedValue.replace(new RegExp(`<${blockRef}>`, 'g'), `<${newMappedId}>`)
+                    logger.info(
+                      `[${requestId}] Updating block reference: ${blockRef} -> ${newMappedId}`
+                    )
+                    processedValue = processedValue.replace(
+                      new RegExp(`<${blockRef}\\.`, 'g'),
+                      `<${newMappedId}.`
+                    )
+                    processedValue = processedValue.replace(
+                      new RegExp(`<${blockRef}>`, 'g'),
+                      `<${newMappedId}>`
+                    )
                   }
                 }
               }
@@ -217,17 +225,23 @@ export async function POST(request: NextRequest) {
     for (const [newId, blockData] of Object.entries(newWorkflowState.blocks)) {
       const block = blockData as any
       if (block.data?.parentId) {
-        logger.info(`[${requestId}] Found child block ${block.name} with parentId: ${block.data.parentId}`)
+        logger.info(
+          `[${requestId}] Found child block ${block.name} with parentId: ${block.data.parentId}`
+        )
         const mappedParentId = blockIdMapping.get(block.data.parentId)
         if (mappedParentId) {
-          logger.info(`[${requestId}] Updating parent reference: ${block.data.parentId} -> ${mappedParentId}`)
+          logger.info(
+            `[${requestId}] Updating parent reference: ${block.data.parentId} -> ${mappedParentId}`
+          )
           block.data.parentId = mappedParentId
           // Ensure extent is set for child blocks
           if (!block.data.extent) {
             block.data.extent = 'parent'
           }
         } else {
-          logger.error(`[${requestId}] ❌ Parent block not found for mapping: ${block.data.parentId}`)
+          logger.error(
+            `[${requestId}] ❌ Parent block not found for mapping: ${block.data.parentId}`
+          )
           logger.error(`[${requestId}] Available mappings:`, Array.from(blockIdMapping.keys()))
           // Remove invalid parent reference
           block.data.parentId = undefined
@@ -256,11 +270,11 @@ export async function POST(request: NextRequest) {
     // Generate loop and parallel configurations from the imported blocks
     const loops = generateLoopBlocks(newWorkflowState.blocks)
     const parallels = generateParallelBlocks(newWorkflowState.blocks)
-    
+
     // Update workflow state with generated configurations
     newWorkflowState.loops = loops
     newWorkflowState.parallels = parallels
-    
+
     logger.info(`[${requestId}] Generated loop and parallel configurations`, {
       loopsCount: Object.keys(loops).length,
       parallelsCount: Object.keys(parallels).length,
@@ -270,8 +284,10 @@ export async function POST(request: NextRequest) {
 
     // Apply intelligent autolayout to optimize block positions
     try {
-      logger.info(`[${requestId}] Applying autolayout to ${Object.keys(newWorkflowState.blocks).length} blocks`)
-      
+      logger.info(
+        `[${requestId}] Applying autolayout to ${Object.keys(newWorkflowState.blocks).length} blocks`
+      )
+
       const layoutedBlocks = await autoLayoutWorkflow(
         newWorkflowState.blocks,
         newWorkflowState.edges,
@@ -290,10 +306,10 @@ export async function POST(request: NextRequest) {
           },
         }
       )
-      
+
       // Update workflow state with optimized positions
       newWorkflowState.blocks = layoutedBlocks
-      
+
       logger.info(`[${requestId}] Autolayout completed successfully`)
     } catch (layoutError) {
       // Log the error but don't fail the entire workflow save
@@ -350,9 +366,9 @@ export async function POST(request: NextRequest) {
     const parallelBlocksCount = Object.values(newWorkflowState.blocks).filter(
       (b: any) => b.type === 'parallel'
     ).length
-    
+
     let summaryDetails = `Successfully created workflow with ${blocks.length} blocks and ${edges.length} connections.`
-    
+
     if (loopBlocksCount > 0 || parallelBlocksCount > 0) {
       summaryDetails += ` Generated ${Object.keys(loops).length} loop configurations and ${Object.keys(parallels).length} parallel configurations.`
     }

@@ -5,7 +5,6 @@ import {
   Bug,
   ChevronLeft,
   Copy,
-  FileCode,
   Layers,
   Play,
   RefreshCw,
@@ -47,10 +46,10 @@ import {
   useKeyboardShortcuts,
 } from '../../../hooks/use-keyboard-shortcuts'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
+import { WorkflowTextEditorModal } from '../workflow-text-editor/workflow-text-editor-modal'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { ExportControls } from './components/export-controls/export-controls'
 import { TemplateModal } from './components/template-modal/template-modal'
-import { WorkflowTextEditorModal } from '../workflow-text-editor/workflow-text-editor-modal'
 
 const logger = createLogger('ControlBar')
 
@@ -531,9 +530,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             disabled={isDisabled}
             className={cn(
               'h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs',
-              isDisabled
-                ? 'cursor-not-allowed opacity-50'
-                : 'hover:bg-secondary cursor-pointer'
+              isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-secondary'
             )}
           />
         </TooltipTrigger>

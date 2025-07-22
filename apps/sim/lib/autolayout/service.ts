@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { LayoutNode, LayoutEdge, LayoutOptions, LayoutResult, WorkflowGraph } from './types'
-import { BLOCK_CATEGORIES, BLOCK_DIMENSIONS } from './types'
 import { calculateHierarchicalLayout } from './algorithms/hierarchical'
 import { calculateSmartLayout } from './algorithms/smart'
+import type { LayoutEdge, LayoutNode, LayoutOptions, LayoutResult, WorkflowGraph } from './types'
+import { BLOCK_CATEGORIES, BLOCK_DIMENSIONS } from './types'
 
 const logger = createLogger('AutoLayoutService')
 
@@ -27,7 +27,7 @@ export class AutoLayoutService {
     options: Partial<LayoutOptions> = {}
   ): Promise<LayoutResult> {
     const startTime = Date.now()
-    
+
     try {
       // Merge with default options
       const layoutOptions: LayoutOptions = {
@@ -68,19 +68,11 @@ export class AutoLayoutService {
           )
           break
         case 'smart':
-          result = calculateSmartLayout(
-            workflowGraph.nodes,
-            workflowGraph.edges,
-            layoutOptions
-          )
+          result = calculateSmartLayout(workflowGraph.nodes, workflowGraph.edges, layoutOptions)
           break
         default:
           logger.warn(`Unknown layout strategy: ${layoutOptions.strategy}, falling back to smart`)
-          result = calculateSmartLayout(
-            workflowGraph.nodes,
-            workflowGraph.edges,
-            layoutOptions
-          )
+          result = calculateSmartLayout(workflowGraph.nodes, workflowGraph.edges, layoutOptions)
       }
 
       const elapsed = Date.now() - startTime
@@ -109,16 +101,13 @@ export class AutoLayoutService {
   /**
    * Convert workflow store blocks and edges to layout format with nested block support
    */
-  convertWorkflowToGraph(
-    blocks: Record<string, any>,
-    edges: any[]
-  ): WorkflowGraph {
+  convertWorkflowToGraph(blocks: Record<string, any>, edges: any[]): WorkflowGraph {
     try {
       // Convert all blocks to layout nodes
-      const allNodes: LayoutNode[] = Object.values(blocks).map(block => {
+      const allNodes: LayoutNode[] = Object.values(blocks).map((block) => {
         const category = BLOCK_CATEGORIES[block.type] || 'processing'
         const isContainer = block.type === 'loop' || block.type === 'parallel'
-        
+
         // Determine dimensions
         let dimensions = BLOCK_DIMENSIONS.default
         if (isContainer) {
@@ -148,7 +137,7 @@ export class AutoLayoutService {
       })
 
       // Convert edges to layout format
-      const layoutEdges: LayoutEdge[] = edges.map(edge => ({
+      const layoutEdges: LayoutEdge[] = edges.map((edge) => ({
         id: edge.id,
         source: edge.source,
         target: edge.target,
@@ -158,10 +147,10 @@ export class AutoLayoutService {
       }))
 
       // For the main graph, only include top-level nodes
-      const topLevelNodes = allNodes.filter(node => !node.parentId)
-      const topLevelEdges = layoutEdges.filter(edge => {
-        const sourceIsTopLevel = topLevelNodes.some(n => n.id === edge.source)
-        const targetIsTopLevel = topLevelNodes.some(n => n.id === edge.target)
+      const topLevelNodes = allNodes.filter((node) => !node.parentId)
+      const topLevelEdges = layoutEdges.filter((edge) => {
+        const sourceIsTopLevel = topLevelNodes.some((n) => n.id === edge.source)
+        const targetIsTopLevel = topLevelNodes.some((n) => n.id === edge.target)
         return sourceIsTopLevel && targetIsTopLevel
       })
 
@@ -212,30 +201,31 @@ export class AutoLayoutService {
     })
 
     // Handle nested blocks inside containers
-    const containerBlocks = result.nodes.filter(node => 
-      updatedBlocks[node.id]?.type === 'loop' || updatedBlocks[node.id]?.type === 'parallel'
+    const containerBlocks = result.nodes.filter(
+      (node) =>
+        updatedBlocks[node.id]?.type === 'loop' || updatedBlocks[node.id]?.type === 'parallel'
     )
 
-    containerBlocks.forEach(containerNode => {
+    containerBlocks.forEach((containerNode) => {
       const containerId = containerNode.id
-      
+
       // Get child blocks for this container
       const childBlocks = Object.fromEntries(
-        Object.entries(allBlocks).filter(([_, block]) => 
-          block.data?.parentId === containerId || block.parentId === containerId
+        Object.entries(allBlocks).filter(
+          ([_, block]) => block.data?.parentId === containerId || block.parentId === containerId
         )
       )
 
       if (Object.keys(childBlocks).length === 0) return
 
       // Get edges between child blocks
-      const childEdges = allEdges.filter(edge => 
-        childBlocks[edge.source] && childBlocks[edge.target]
+      const childEdges = allEdges.filter(
+        (edge) => childBlocks[edge.source] && childBlocks[edge.target]
       )
 
       // Layout child blocks with container-specific options
       const childGraph = this.createChildGraph(childBlocks, childEdges)
-      
+
       if (childGraph.nodes.length > 0) {
         try {
           const childLayoutOptions: LayoutOptions = {
@@ -254,7 +244,7 @@ export class AutoLayoutService {
           }
 
           const childResult = this.calculateChildLayout(childGraph, childLayoutOptions)
-          
+
           // Apply child positions relative to container
           childResult.nodes.forEach(({ id, position }) => {
             if (updatedBlocks[id]) {
@@ -273,7 +263,7 @@ export class AutoLayoutService {
             childResult.nodes,
             childBlocks
           )
-          
+
           if (updatedBlocks[containerId]) {
             updatedBlocks[containerId] = {
               ...updatedBlocks[containerId],
@@ -313,14 +303,11 @@ export class AutoLayoutService {
   /**
    * Create a graph for child blocks inside a container
    */
-  private createChildGraph(
-    childBlocks: Record<string, any>,
-    childEdges: any[]
-  ): WorkflowGraph {
-    const nodes: LayoutNode[] = Object.values(childBlocks).map(block => {
+  private createChildGraph(childBlocks: Record<string, any>, childEdges: any[]): WorkflowGraph {
+    const nodes: LayoutNode[] = Object.values(childBlocks).map((block) => {
       const category = BLOCK_CATEGORIES[block.type] || 'processing'
       const isContainer = block.type === 'loop' || block.type === 'parallel'
-      
+
       let dimensions = BLOCK_DIMENSIONS.default
       if (isContainer) {
         dimensions = BLOCK_DIMENSIONS.container
@@ -347,7 +334,7 @@ export class AutoLayoutService {
       }
     })
 
-    const edges: LayoutEdge[] = childEdges.map(edge => ({
+    const edges: LayoutEdge[] = childEdges.map((edge) => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
@@ -362,10 +349,7 @@ export class AutoLayoutService {
   /**
    * Calculate layout for child blocks using simplified algorithms
    */
-  private calculateChildLayout(
-    childGraph: WorkflowGraph,
-    options: LayoutOptions
-  ): LayoutResult {
+  private calculateChildLayout(childGraph: WorkflowGraph, options: LayoutOptions): LayoutResult {
     // Use hierarchical layout for child blocks as it's simpler and more predictable
     return calculateHierarchicalLayout(childGraph.nodes, childGraph.edges, options)
   }
@@ -511,9 +495,9 @@ export class AutoLayoutService {
       }
 
       // Check if source and target nodes exist
-      const sourceExists = graph.nodes.some(n => n.id === edge.source)
-      const targetExists = graph.nodes.some(n => n.id === edge.target)
-      
+      const sourceExists = graph.nodes.some((n) => n.id === edge.source)
+      const targetExists = graph.nodes.some((n) => n.id === edge.target)
+
       if (!sourceExists) {
         throw new Error(`Edge ${edge.id} references non-existent source node: ${edge.source}`)
       }
@@ -525,7 +509,7 @@ export class AutoLayoutService {
 
   private countByCategory(nodes: LayoutNode[]): Record<string, number> {
     const counts: Record<string, number> = {}
-    nodes.forEach(node => {
+    nodes.forEach((node) => {
       counts[node.category] = (counts[node.category] || 0) + 1
     })
     return counts
@@ -536,10 +520,7 @@ export class AutoLayoutService {
 export const autoLayoutService = AutoLayoutService.getInstance()
 
 // Export utility functions
-export function createWorkflowGraph(
-  blocks: Record<string, any>,
-  edges: any[]
-): WorkflowGraph {
+export function createWorkflowGraph(blocks: Record<string, any>, edges: any[]): WorkflowGraph {
   return autoLayoutService.convertWorkflowToGraph(blocks, edges)
 }
 
@@ -560,4 +541,4 @@ export async function autoLayoutWorkflow(
   const graph = createWorkflowGraph(blocks, edges)
   const result = await autoLayoutService.calculateLayout(graph, options)
   return applyLayoutToWorkflow(result, blocks, blocks, edges)
-} 
+}

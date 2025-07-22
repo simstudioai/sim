@@ -1,21 +1,29 @@
+import { existsSync, readFileSync } from 'fs'
+import { join } from 'path'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { tools as toolsRegistry } from '@/tools/registry'
-import { readFileSync, existsSync } from 'fs'
-import { join } from 'path'
 
 const logger = createLogger('GetBlockMetadataAPI')
 
 // Core blocks that have documentation with YAML schemas
 const CORE_BLOCKS_WITH_DOCS = [
-  'agent', 'function', 'api', 'condition', 'loop', 'parallel', 
-  'response', 'router', 'evaluator', 'webhook'
+  'agent',
+  'function',
+  'api',
+  'condition',
+  'loop',
+  'parallel',
+  'response',
+  'router',
+  'evaluator',
+  'webhook',
 ]
 
 // Mapping for blocks that have different doc file names
 const DOCS_FILE_MAPPING: Record<string, string> = {
-  'webhook': 'webhook_trigger'
+  webhook: 'webhook_trigger',
 }
 
 // Helper function to read YAML schema from dedicated YAML documentation files
@@ -23,19 +31,23 @@ function getYamlSchemaFromDocs(blockType: string): string | null {
   try {
     const docFileName = DOCS_FILE_MAPPING[blockType] || blockType
     // Read from the new YAML documentation structure
-    const yamlDocsPath = join(process.cwd(), '..', 'docs/content/docs/yaml/blocks', `${docFileName}.mdx`)
-    
+    const yamlDocsPath = join(
+      process.cwd(),
+      '..',
+      'docs/content/docs/yaml/blocks',
+      `${docFileName}.mdx`
+    )
+
     if (!existsSync(yamlDocsPath)) {
       logger.warn(`YAML schema file not found for ${blockType} at ${yamlDocsPath}`)
       return null
     }
-    
+
     const content = readFileSync(yamlDocsPath, 'utf-8')
-    
+
     // Remove the frontmatter and return the content after the title
     const contentWithoutFrontmatter = content.replace(/^---[\s\S]*?---\s*/, '')
     return contentWithoutFrontmatter.trim()
-    
   } catch (error) {
     logger.warn(`Failed to read YAML schema for ${blockType}:`, error)
     return null
@@ -85,7 +97,7 @@ export async function POST(request: NextRequest) {
       if (CORE_BLOCKS_WITH_DOCS.includes(blockId)) {
         // For core blocks, return both YAML schema from documentation AND code schemas
         const yamlSchema = getYamlSchemaFromDocs(blockId)
-        
+
         if (yamlSchema) {
           result[blockId] = {
             type: 'block',
@@ -95,7 +107,7 @@ export async function POST(request: NextRequest) {
             yamlSchema: yamlSchema,
             docsLink: blockConfig.docsLink,
             // Include actual schemas from code
-            codeSchemas: codeSchemas
+            codeSchemas: codeSchemas,
           }
         } else {
           // Fallback to regular metadata if YAML schema not found
@@ -108,7 +120,7 @@ export async function POST(request: NextRequest) {
             outputs: blockConfig.outputs,
             subBlocks: blockConfig.subBlocks,
             // Include actual schemas from code
-            codeSchemas: codeSchemas
+            codeSchemas: codeSchemas,
           }
         }
       } else {
@@ -125,12 +137,17 @@ export async function POST(request: NextRequest) {
               description: toolConfig.description || '',
               version: toolConfig.version,
               params: toolConfig.params,
-              request: toolConfig.request ? {
-                method: toolConfig.request.method,
-                url: toolConfig.request.url,
-                headers: typeof toolConfig.request.headers === 'function' ? 'function' : toolConfig.request.headers,
-                isInternalRoute: toolConfig.request.isInternalRoute
-              } : undefined
+              request: toolConfig.request
+                ? {
+                    method: toolConfig.request.method,
+                    url: toolConfig.request.url,
+                    headers:
+                      typeof toolConfig.request.headers === 'function'
+                        ? 'function'
+                        : toolConfig.request.headers,
+                    isInternalRoute: toolConfig.request.isInternalRoute,
+                  }
+                : undefined,
             }
           } else {
             logger.warn(`Tool not found: ${toolId} for block: ${blockId}`)
@@ -151,7 +168,7 @@ export async function POST(request: NextRequest) {
           subBlocks: blockConfig.subBlocks,
           toolSchemas: toolSchemas,
           // Include actual schemas from code
-          codeSchemas: codeSchemas
+          codeSchemas: codeSchemas,
         }
       }
     }
@@ -168,7 +185,7 @@ export async function POST(request: NextRequest) {
           type: blockData.type,
           description: blockData.description,
           yamlSchemaLength: blockData.yamlSchema.length,
-          yamlSchemaPreview: blockData.yamlSchema.substring(0, 200) + '...',
+          yamlSchemaPreview: `${blockData.yamlSchema.substring(0, 200)}...`,
           hasCodeSchemas: !!blockData.codeSchemas,
           codeSubBlocksCount: blockData.codeSchemas?.subBlocks?.length || 0,
         })
@@ -201,8 +218,8 @@ export async function POST(request: NextRequest) {
       requestedBlocks,
       processedBlocks,
       notFoundBlocks,
-      coreBlocks: blockIds.filter(id => CORE_BLOCKS_WITH_DOCS.includes(id)),
-      toolBlocks: blockIds.filter(id => !CORE_BLOCKS_WITH_DOCS.includes(id)),
+      coreBlocks: blockIds.filter((id) => CORE_BLOCKS_WITH_DOCS.includes(id)),
+      toolBlocks: blockIds.filter((id) => !CORE_BLOCKS_WITH_DOCS.includes(id)),
     })
 
     return NextResponse.json({

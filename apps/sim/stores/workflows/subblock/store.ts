@@ -31,10 +31,10 @@ export const useSubBlockStore = create<SubBlockStore>()(
       let validatedValue = value
       if (Array.isArray(value)) {
         // Check if this looks like table data (array of objects with cells)
-        const isTableData = value.length > 0 && value.some(item => 
-          item && typeof item === 'object' && 'cells' in item
-        )
-        
+        const isTableData =
+          value.length > 0 &&
+          value.some((item) => item && typeof item === 'object' && 'cells' in item)
+
         if (isTableData) {
           console.log('Validating table data for subblock:', { blockId, subBlockId })
           validatedValue = value.map((row: any) => {
@@ -43,21 +43,21 @@ export const useSubBlockStore = create<SubBlockStore>()(
               console.warn('Fixing malformed table row:', row)
               return {
                 id: crypto.randomUUID(),
-                cells: { Key: '', Value: '' }
+                cells: { Key: '', Value: '' },
               }
             }
-            
+
             // Ensure row has an id
             if (!row.id) {
               row.id = crypto.randomUUID()
             }
-            
+
             // Ensure row has cells object
             if (!row.cells || typeof row.cells !== 'object') {
               console.warn('Fixing malformed table row cells:', row)
               row.cells = { Key: '', Value: '' }
             }
-            
+
             return row
           })
         }

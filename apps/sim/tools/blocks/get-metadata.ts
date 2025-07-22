@@ -16,19 +16,22 @@ interface BlockMetadataInfo {
   inputs?: Record<string, any>
   outputs?: Record<string, any>
   subBlocks?: any[]
-  toolSchemas?: Record<string, {
-    id: string
-    name: string
-    description: string
-    version?: string
-    params?: Record<string, any>
-    request?: {
-      method: string
-      url: string
-      headers?: any
-      isInternalRoute?: boolean
+  toolSchemas?: Record<
+    string,
+    {
+      id: string
+      name: string
+      description: string
+      version?: string
+      params?: Record<string, any>
+      request?: {
+        method: string
+        url: string
+        headers?: any
+        isInternalRoute?: boolean
+      }
     }
-  }>
+  >
   // Actual schemas from block code configuration
   codeSchemas?: {
     inputs?: Record<string, any>

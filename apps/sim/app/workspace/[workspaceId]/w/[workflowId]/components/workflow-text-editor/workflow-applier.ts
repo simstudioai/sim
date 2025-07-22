@@ -72,7 +72,7 @@ export async function applyWorkflowDiff(
         }
 
         const result = await response.json()
-        
+
         logger.info('YAML workflow save completed', {
           success: result.success,
           errors: result.errors || [],
@@ -95,7 +95,9 @@ export async function applyWorkflowDiff(
         logger.error('YAML processing failed:', error)
         return {
           success: false,
-          errors: [`YAML processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+          errors: [
+            `YAML processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          ],
           warnings: [],
           appliedOperations: 0,
         }
@@ -142,7 +144,7 @@ export async function applyWorkflowDiff(
         }
 
         const result = await response.json()
-        
+
         logger.info('JSON workflow state save completed', {
           success: result.success,
           blocksCount: result.blocksCount,
@@ -165,7 +167,9 @@ export async function applyWorkflowDiff(
         logger.error('JSON processing failed:', error)
         return {
           success: false,
-          errors: [`JSON processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+          errors: [
+            `JSON processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          ],
           warnings: [],
           appliedOperations: 0,
         }
@@ -178,12 +182,13 @@ export async function applyWorkflowDiff(
       warnings: [],
       appliedOperations: 0,
     }
-
   } catch (error) {
     logger.error('applyWorkflowDiff failed:', error)
     return {
       success: false,
-      errors: [`Failed to apply workflow changes: ${error instanceof Error ? error.message : 'Unknown error'}`],
+      errors: [
+        `Failed to apply workflow changes: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      ],
       warnings: [],
       appliedOperations: 0,
     }

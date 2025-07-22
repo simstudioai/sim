@@ -48,14 +48,14 @@ export function Table({
         },
       ]
     }
-    
+
     // Validate and fix each row to ensure proper structure
     const validatedRows = value.map((row) => {
       // Ensure row has an id
       if (!row.id) {
         row.id = crypto.randomUUID()
       }
-      
+
       // Ensure row has cells object with proper structure
       if (!row.cells || typeof row.cells !== 'object') {
         console.warn('Fixing malformed table row:', row)
@@ -68,10 +68,10 @@ export function Table({
           }
         })
       }
-      
+
       return row
     })
-    
+
     return validatedRows as TableRow[]
   }, [value, columns])
 
@@ -117,7 +117,7 @@ export function Table({
           console.warn('Fixing malformed row cells during cell change:', row)
           row.cells = Object.fromEntries(columns.map((col) => [col, '']))
         }
-        
+
         return {
           ...row,
           cells: { ...row.cells, [column]: value },
@@ -166,10 +166,10 @@ export function Table({
       // Create a fallback cells object
       row = {
         ...row,
-        cells: Object.fromEntries(columns.map((col) => [col, '']))
+        cells: Object.fromEntries(columns.map((col) => [col, ''])),
       }
     }
-    
+
     const cellValue = row.cells[column] || ''
     const cellKey = `${rowIndex}-${column}`
 

@@ -74,20 +74,20 @@ export const BLOCK_CATEGORIES: Record<string, LayoutNode['category']> = {
   starter: 'trigger',
   schedule: 'trigger',
   webhook: 'trigger',
-  
+
   // Processing
   agent: 'processing',
   api: 'processing',
   function: 'processing',
-  
+
   // Logic
   condition: 'logic',
   router: 'logic',
   evaluator: 'logic',
-  
+
   // Output
   response: 'output',
-  
+
   // Containers
   loop: 'container',
   parallel: 'container',
@@ -98,4 +98,4 @@ export const BLOCK_DIMENSIONS: Record<string, { width: number; height: number }>
   default: { width: 320, height: 120 },
   wide: { width: 480, height: 120 },
   container: { width: 500, height: 300 },
-} 
+}

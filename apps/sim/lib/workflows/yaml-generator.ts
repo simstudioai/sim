@@ -128,10 +128,12 @@ function extractBlockInputs(
         case 'input-format':
           // Clean up input format to only include essential fields
           if (Array.isArray(value) && value.length > 0) {
-            inputs[subBlockId] = value.map((field: any) => ({
-              name: field.name,
-              type: field.type,
-            })).filter((field: any) => field.name && field.type)
+            inputs[subBlockId] = value
+              .map((field: any) => ({
+                name: field.name,
+                type: field.type,
+              }))
+              .filter((field: any) => field.name && field.type)
           }
           break
 
