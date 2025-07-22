@@ -14,6 +14,7 @@
     "execution",
     "---Advanced---",
     "./variables/index",
+    "yaml",
     "---SDKs---",
     "./sdks/python",
     "./sdks/typescript"

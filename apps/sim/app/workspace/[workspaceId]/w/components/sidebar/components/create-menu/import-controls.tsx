@@ -3,9 +3,8 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { importWorkflowFromYaml, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
+import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 
 const logger = createLogger('ImportControls')
 
@@ -36,8 +35,6 @@ export const ImportControls = forwardRef<ImportControlsRef, ImportControlsProps>
 
     // Stores and hooks
     const { createWorkflow } = useWorkflowRegistry()
-    const { collaborativeAddBlock, collaborativeAddEdge, collaborativeSetSubblockValue } =
-      useCollaborativeWorkflow()
 
     // Expose methods to parent component
     useImperativeHandle(ref, () => ({
@@ -107,27 +104,32 @@ export const ImportControls = forwardRef<ImportControlsRef, ImportControlsProps>
           workspaceId,
         })
 
-        // Import the YAML into the new workflow BEFORE navigation (creates complete state and saves directly to DB)
-        // This avoids timing issues with workflow reload during navigation
-        const result = await importWorkflowFromYaml(
-          content,
-          {
-            addBlock: collaborativeAddBlock,
-            addEdge: collaborativeAddEdge,
-            applyAutoLayout: () => {
-              // Do nothing - auto layout should not run during import
-            },
-            setSubBlockValue: (blockId: string, subBlockId: string, value: unknown) => {
-              // Use the collaborative function - the same one called when users type into fields
-              collaborativeSetSubblockValue(blockId, subBlockId, value)
-            },
-            getExistingBlocks: () => {
-              // For a new workflow, we'll get the starter block from the server
-              return {}
-            },
+        // Use the new consolidated YAML endpoint to import the workflow
+        const response = await fetch(`/api/workflows/${newWorkflowId}/yaml`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
           },
-          newWorkflowId
-        ) // Pass the new workflow ID to import into
+          body: JSON.stringify({
+            yamlContent: content,
+            description: 'Workflow imported from YAML',
+            source: 'import',
+            applyAutoLayout: true,
+            createCheckpoint: false,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          setImportResult({
+            success: false,
+            errors: [errorData.message || `HTTP ${response.status}: ${response.statusText}`],
+            warnings: errorData.warnings || [],
+          })
+          return
+        }
+
+        const result = await response.json()
 
         // Navigate to the new workflow AFTER import is complete
         if (result.success) {
@@ -135,7 +137,12 @@ export const ImportControls = forwardRef<ImportControlsRef, ImportControlsProps>
           router.push(`/workspace/${workspaceId}/w/${newWorkflowId}`)
         }
 
-        setImportResult(result)
+        setImportResult({
+          success: result.success,
+          errors: result.errors || [],
+          warnings: result.warnings || [],
+          summary: result.summary,
+        })
 
         if (result.success) {
           setYamlContent('')

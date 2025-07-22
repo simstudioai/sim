@@ -36,7 +36,7 @@ export async function POST(
 ): Promise<NextResponse<DocsSearchSuccessResponse | DocsSearchErrorResponse>> {
   try {
     const requestBody: DocsSearchRequest = await request.json()
-    const { query, topK = 5 } = requestBody
+    const { query, topK = 10 } = requestBody
 
     if (!query) {
       const errorResponse: DocsSearchErrorResponse = {

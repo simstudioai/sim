@@ -27,6 +27,42 @@ export const useSubBlockStore = create<SubBlockStore>()(
       const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
       if (!activeWorkflowId) return
 
+      // Validate and fix table data if needed
+      let validatedValue = value
+      if (Array.isArray(value)) {
+        // Check if this looks like table data (array of objects with cells)
+        const isTableData =
+          value.length > 0 &&
+          value.some((item) => item && typeof item === 'object' && 'cells' in item)
+
+        if (isTableData) {
+          console.log('Validating table data for subblock:', { blockId, subBlockId })
+          validatedValue = value.map((row: any) => {
+            // Ensure each row has proper structure
+            if (!row || typeof row !== 'object') {
+              console.warn('Fixing malformed table row:', row)
+              return {
+                id: crypto.randomUUID(),
+                cells: { Key: '', Value: '' },
+              }
+            }
+
+            // Ensure row has an id
+            if (!row.id) {
+              row.id = crypto.randomUUID()
+            }
+
+            // Ensure row has cells object
+            if (!row.cells || typeof row.cells !== 'object') {
+              console.warn('Fixing malformed table row cells:', row)
+              row.cells = { Key: '', Value: '' }
+            }
+
+            return row
+          })
+        }
+      }
+
       set((state) => ({
         workflowValues: {
           ...state.workflowValues,
@@ -34,7 +70,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
             ...state.workflowValues[activeWorkflowId],
             [blockId]: {
               ...state.workflowValues[activeWorkflowId]?.[blockId],
-              [subBlockId]: value,
+              [subBlockId]: validatedValue,
             },
           },
         },
