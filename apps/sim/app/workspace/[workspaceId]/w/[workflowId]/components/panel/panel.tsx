@@ -37,7 +37,12 @@ export function Panel() {
   const { activeWorkflowId } = useWorkflowRegistry()
 
   const handleTabClick = (tab: 'chat' | 'console' | 'variables' | 'copilot') => {
-    setActiveTab(tab)
+    // Redirect copilot tab clicks to console since copilot is hidden
+    if (tab === 'copilot') {
+      setActiveTab('console')
+    } else {
+      setActiveTab(tab)
+    }
     if (!isOpen) {
       togglePanel()
     }
@@ -93,7 +98,7 @@ export function Panel() {
   return (
     <>
       {/* Tab Selector - Always visible */}
-      <div className='fixed top-[76px] right-4 z-20 flex h-9 w-[380px] items-center gap-1 rounded-[14px] border bg-card px-[2.5px] py-1 shadow-xs'>
+      <div className='fixed top-[76px] right-4 z-20 flex h-9 w-[285px] items-center gap-1 rounded-[14px] border bg-card px-[2.5px] py-1 shadow-xs'>
         <button
           onClick={() => handleTabClick('chat')}
           className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
@@ -110,14 +115,15 @@ export function Panel() {
         >
           Console
         </button>
-        <button
+        {/* Temporarily hiding copilot tab */}
+        {/* <button
           onClick={() => handleTabClick('copilot')}
           className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
             isOpen && activeTab === 'copilot' ? 'panel-tab-active' : 'panel-tab-inactive'
           }`}
         >
           Copilot
-        </button>
+        </button> */}
         <button
           onClick={() => handleTabClick('variables')}
           className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
