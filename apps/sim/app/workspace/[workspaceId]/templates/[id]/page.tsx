@@ -1,10 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { templateStars, templates } from '@/db/schema'
 import type { Template } from '../templates'
 import TemplateDetails from './template'
+
+const logger = createLogger('TemplatePage')
 
 interface TemplatePageProps {
   params: Promise<{
@@ -58,7 +61,7 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
 
     // Validate that required fields are present
     if (!template.id || !template.name || !template.author) {
-      console.error('Template missing required fields:', {
+      logger.error('Template missing required fields:', {
         id: template.id,
         name: template.name,
         author: template.author,
@@ -100,9 +103,9 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
       isStarred,
     }
 
-    console.log('Template from DB:', template)
-    console.log('Serialized template:', serializedTemplate)
-    console.log('Template state from DB:', template.state)
+    logger.info('Template from DB:', template)
+    logger.info('Serialized template:', serializedTemplate)
+    logger.info('Template state from DB:', template.state)
 
     return (
       <TemplateDetails

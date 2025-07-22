@@ -15,6 +15,7 @@ import { DiscordConfig } from './providers/discord'
 import { GenericConfig } from './providers/generic'
 import { GithubConfig } from './providers/github'
 import { GmailConfig } from './providers/gmail'
+import { MicrosoftTeamsConfig } from './providers/microsoftteams'
 import { SlackConfig } from './providers/slack'
 import { StripeConfig } from './providers/stripe'
 import { TelegramConfig } from './providers/telegram'
@@ -79,6 +80,8 @@ export function WebhookModal({
   const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
   const [slackSigningSecret, setSlackSigningSecret] = useState('')
   const [telegramBotToken, setTelegramBotToken] = useState('')
+  // Microsoft Teams-specific state
+  const [microsoftTeamsHmacSecret, setMicrosoftTeamsHmacSecret] = useState('')
   // Airtable-specific state
   const [airtableWebhookSecret, _setAirtableWebhookSecret] = useState('')
   const [airtableBaseId, setAirtableBaseId] = useState('')
@@ -103,6 +106,7 @@ export function WebhookModal({
     airtableTableId: '',
     airtableIncludeCellValues: false,
     telegramBotToken: '',
+    microsoftTeamsHmacSecret: '',
     selectedLabels: ['INBOX'] as string[],
     labelFilterBehavior: 'INCLUDE',
     markAsRead: false,
@@ -259,6 +263,15 @@ export function WebhookModal({
                     includeRawEmail: config.includeRawEmail,
                   }))
                 }
+              } else if (webhookProvider === 'microsoftteams') {
+                const hmacSecret = config.hmacSecret || ''
+
+                setMicrosoftTeamsHmacSecret(hmacSecret)
+
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  microsoftTeamsHmacSecret: hmacSecret,
+                }))
               }
             }
           }
@@ -303,7 +316,9 @@ export function WebhookModal({
           !originalValues.selectedLabels.every((label) => selectedLabels.includes(label)) ||
           labelFilterBehavior !== originalValues.labelFilterBehavior ||
           markAsRead !== originalValues.markAsRead ||
-          includeRawEmail !== originalValues.includeRawEmail))
+          includeRawEmail !== originalValues.includeRawEmail)) ||
+      (webhookProvider === 'microsoftteams' &&
+        microsoftTeamsHmacSecret !== originalValues.microsoftTeamsHmacSecret)
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -327,6 +342,7 @@ export function WebhookModal({
     labelFilterBehavior,
     markAsRead,
     includeRawEmail,
+    microsoftTeamsHmacSecret,
   ])
 
   // Validate required fields for current provider
@@ -354,6 +370,9 @@ export function WebhookModal({
       case 'gmail':
         isValid = selectedLabels.length > 0
         break
+      case 'microsoftteams':
+        isValid = microsoftTeamsHmacSecret.trim() !== ''
+        break
     }
     setIsCurrentConfigValid(isValid)
   }, [
@@ -364,6 +383,7 @@ export function WebhookModal({
     whatsappVerificationToken,
     telegramBotToken,
     selectedLabels,
+    microsoftTeamsHmacSecret,
   ])
 
   // Use the provided path or generate a UUID-based path
@@ -433,6 +453,10 @@ export function WebhookModal({
         return {
           botToken: telegramBotToken || undefined,
         }
+      case 'microsoftteams':
+        return {
+          hmacSecret: microsoftTeamsHmacSecret,
+        }
       default:
         return {}
     }
@@ -482,6 +506,7 @@ export function WebhookModal({
             airtableTableId,
             airtableIncludeCellValues,
             telegramBotToken,
+            microsoftTeamsHmacSecret,
             selectedLabels,
             labelFilterBehavior,
             markAsRead,
@@ -725,6 +750,18 @@ export function WebhookModal({
             testWebhook={testWebhook}
             webhookId={webhookId}
             webhookUrl={webhookUrl}
+          />
+        )
+      case 'microsoftteams':
+        return (
+          <MicrosoftTeamsConfig
+            hmacSecret={microsoftTeamsHmacSecret}
+            setHmacSecret={setMicrosoftTeamsHmacSecret}
+            isLoadingToken={isLoadingToken}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
+            testWebhook={testWebhook}
           />
         )
       default:

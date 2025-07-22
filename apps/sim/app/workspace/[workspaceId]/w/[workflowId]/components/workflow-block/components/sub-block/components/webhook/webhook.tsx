@@ -6,6 +6,7 @@ import {
   DiscordIcon,
   GithubIcon,
   GmailIcon,
+  MicrosoftTeamsIcon,
   SlackIcon,
   StripeIcon,
   TelegramIcon,
@@ -85,6 +86,10 @@ export interface TelegramConfig {
   botToken?: string
 }
 
+export interface MicrosoftTeamsConfig {
+  hmacSecret: string
+}
+
 // Union type for all provider configurations
 export type ProviderConfig =
   | WhatsAppConfig
@@ -96,6 +101,7 @@ export type ProviderConfig =
   | AirtableWebhookConfig
   | TelegramConfig
   | GmailConfig
+  | MicrosoftTeamsConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -277,6 +283,20 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         label: 'Bot Token',
         placeholder: 'Enter your Telegram Bot Token',
         description: 'The token for your Telegram bot.',
+      },
+    },
+  },
+  microsoftteams: {
+    id: 'microsoftteams',
+    name: 'Microsoft Teams',
+    icon: (props) => <MicrosoftTeamsIcon {...props} />,
+    configFields: {
+      hmacSecret: {
+        type: 'string',
+        label: 'HMAC Secret',
+        placeholder: 'Enter HMAC secret from Teams outgoing webhook',
+        description:
+          'The security token provided by Teams when creating an outgoing webhook. Used to verify request authenticity.',
       },
     },
   },

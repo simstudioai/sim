@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { logger } from '@trigger.dev/sdk/v3'
 import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -684,34 +685,25 @@ export function ToolInput({
   }
 
   const handleOperationChange = (toolIndex: number, operation: string) => {
-    console.log('🔄 handleOperationChange called:', { toolIndex, operation, isPreview, disabled })
-
     if (isPreview || disabled) {
-      console.log('❌ Early return: preview or disabled')
+      logger.info('❌ Early return: preview or disabled')
       return
     }
 
     const tool = selectedTools[toolIndex]
-    console.log('🔧 Current tool:', tool)
 
     const newToolId = getToolIdForOperation(tool.type, operation)
-    console.log('🆔 getToolIdForOperation result:', { toolType: tool.type, operation, newToolId })
 
     if (!newToolId) {
-      console.log('❌ Early return: no newToolId')
+      logger.info('❌ Early return: no newToolId')
       return
     }
 
     // Get parameters for the new tool
     const toolParams = getToolParametersConfig(newToolId, tool.type)
-    console.log('📋 getToolParametersConfig result:', {
-      newToolId,
-      toolType: tool.type,
-      toolParams,
-    })
 
     if (!toolParams) {
-      console.log('❌ Early return: no toolParams')
+      logger.info('❌ Early return: no toolParams')
       return
     }
 

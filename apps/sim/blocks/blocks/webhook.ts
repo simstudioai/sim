@@ -3,6 +3,7 @@ import {
   DiscordIcon,
   GithubIcon,
   GmailIcon,
+  MicrosoftTeamsIcon,
   SignalIcon,
   SlackIcon,
   StripeIcon,
@@ -23,6 +24,7 @@ const getWebhookProviderIcon = (provider: string) => {
     github: GithubIcon,
     discord: DiscordIcon,
     stripe: StripeIcon,
+    microsoftteams: MicrosoftTeamsIcon,
   }
 
   return iconMap[provider.toLowerCase()]
@@ -52,6 +54,7 @@ export const WebhookBlock: BlockConfig = {
         'github',
         'discord',
         'stripe',
+        'microsoftteams',
       ].map((provider) => {
         const providerLabels = {
           slack: 'Slack',
@@ -63,6 +66,7 @@ export const WebhookBlock: BlockConfig = {
           github: 'GitHub',
           discord: 'Discord',
           stripe: 'Stripe',
+          microsoftteams: 'Microsoft Teams',
         }
 
         const icon = getWebhookProviderIcon(provider)

@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { useParams, usePathname } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
+import { createLogger } from '@/lib/logs/console-logger'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { FolderItem } from './components/folder-item'
 import { WorkflowItem } from './components/workflow-item'
+
+const logger = createLogger('FolderTree')
 
 interface FolderSectionProps {
   folder: FolderTreeNode
@@ -282,9 +285,9 @@ function useDragHandlers(
         for (const workflowId of workflowIds) {
           await updateWorkflow(workflowId, { folderId: targetFolderId })
         }
-        console.log(logMessage || `Moved ${workflowIds.length} workflow(s)`)
+        logger.info(logMessage || `Moved ${workflowIds.length} workflow(s)`)
       } catch (error) {
-        console.error('Failed to move workflows:', error)
+        logger.error('Failed to move workflows:', error)
       }
     }
 
@@ -298,7 +301,7 @@ function useDragHandlers(
 
         // Prevent circular references - don't allow dropping a folder into itself or its descendants
         if (targetFolderId === folderIdData) {
-          console.log('Cannot move folder into itself')
+          logger.info('Cannot move folder into itself')
           return
         }
 
@@ -308,21 +311,21 @@ function useDragHandlers(
           targetFolderId &&
           draggedFolderPath.some((ancestor) => ancestor.id === targetFolderId)
         ) {
-          console.log('Cannot move folder into its own descendant')
+          logger.info('Cannot move folder into its own descendant')
           return
         }
 
         // If target folder is already at level 1 (has 1 parent), we can't nest another folder
         if (targetFolderPath.length >= 1) {
-          console.log('Cannot nest folder: Maximum 2 levels of nesting allowed. Drop prevented.')
+          logger.info('Cannot nest folder: Maximum 2 levels of nesting allowed. Drop prevented.')
           return // Prevent the drop entirely
         }
 
         // Target folder is at root level, safe to nest
         await updateFolder(folderIdData, { parentId: targetFolderId })
-        console.log(`Moved folder to ${targetFolderId ? `folder ${targetFolderId}` : 'root'}`)
+        logger.info(`Moved folder to ${targetFolderId ? `folder ${targetFolderId}` : 'root'}`)
       } catch (error) {
-        console.error('Failed to move folder:', error)
+        logger.error('Failed to move folder:', error)
       }
     }
   }
@@ -416,9 +419,9 @@ export function FolderTree({
     for (const folder of deepFolders) {
       try {
         await updateFolderAPI(folder.id, { parentId: null })
-        console.log(`Moved deeply nested folder "${folder.name}" to root level`)
+        logger.info(`Moved deeply nested folder "${folder.name}" to root level`)
       } catch (error) {
-        console.error(`Failed to move folder "${folder.name}":`, error)
+        logger.error(`Failed to move folder "${folder.name}":`, error)
       }
     }
   }, [workspaceId])

@@ -13,6 +13,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { createLogger } from '@/lib/logs/console-logger'
 import {
   type Credential,
   getProviderIdFromServiceId,
@@ -20,6 +21,8 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+
+const logger = createLogger('ConfluenceFileSelector')
 
 export interface ConfluenceFileInfo {
   id: string
@@ -138,7 +141,7 @@ export function ConfluenceFileSelector({
         }
       }
     } catch (error) {
-      console.error('Error fetching credentials:', error)
+      logger.error('Error fetching credentials:', error)
     } finally {
       setIsLoading(false)
     }
@@ -205,7 +208,7 @@ export function ConfluenceFileSelector({
           onFileInfoChange?.(data.file)
         }
       } catch (error) {
-        console.error('Error fetching page info:', error)
+        logger.error('Error fetching page info:', error)
         setError((error as Error).message)
       } finally {
         setIsLoading(false)
@@ -247,7 +250,7 @@ export function ConfluenceFileSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          console.error('Access token error:', errorData)
+          logger.error('Access token error:', errorData)
 
           // If there's a token error, we might need to reconnect the account
           setError('Authentication failed. Please reconnect your Confluence account.')
@@ -259,7 +262,7 @@ export function ConfluenceFileSelector({
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          console.error('No access token returned')
+          logger.error('No access token returned')
           setError('Authentication failed. Please reconnect your Confluence account.')
           setIsLoading(false)
           return
@@ -281,12 +284,12 @@ export function ConfluenceFileSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('Confluence API error:', errorData)
+          logger.error('Confluence API error:', errorData)
           throw new Error(errorData.error || 'Failed to fetch pages')
         }
 
         const data = await response.json()
-        console.log(`Received ${data.files?.length || 0} files from API`)
+        logger.info(`Received ${data.files?.length || 0} files from API`)
         setFiles(data.files || [])
 
         // If we have a selected file ID, find the file info
@@ -301,7 +304,7 @@ export function ConfluenceFileSelector({
           }
         }
       } catch (error) {
-        console.error('Error fetching pages:', error)
+        logger.error('Error fetching pages:', error)
         setError((error as Error).message)
         setFiles([])
       } finally {
