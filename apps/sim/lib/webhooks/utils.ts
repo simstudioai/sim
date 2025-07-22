@@ -1501,7 +1501,7 @@ export async function processWebhook(
       return NextResponse.json(
         {
           type: 'message',
-          text: 'Sim Studio Workflow Executing...',
+          text: 'Sim Studio',
         },
         { status: 200 }
       )
