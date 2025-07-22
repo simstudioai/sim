@@ -44,7 +44,7 @@ blocks:
     <strong>Blocks Structure</strong>: All workflow blocks are defined under the `blocks` key
   </Step>
   <Step>
-    <strong>Block References</strong>: Use block names in lowercase with spaces removed (e.g., `<agent1.content>`)
+    <strong>Block References</strong>: Use block names in lowercase with spaces removed (e.g., `<aiassistant.content>`)
   </Step>
   <Step>
     <strong>Environment Variables</strong>: Reference with double curly braces `{{VARIABLE_NAME}}`
@@ -110,12 +110,12 @@ The most critical aspect of YAML workflows is understanding how to reference dat
 # Block definitions
 email-processor:
   type: agent
-  name: "Email Processor"
+  name: "Email Agent"
   # ... configuration
 
 data-formatter:
   type: function
-  name: "Data Formatter"
+  name: "Data Agent"
   # ... configuration
 
 # Referencing their outputs
@@ -124,8 +124,8 @@ next-block:
   name: "Next Step"
   inputs:
     userPrompt: |
-      Process this email: <emailprocessor.content>
-      Use this formatted data: <dataformatter.output>
+      Process this email: <emailagent.content>
+      Use this formatted data: <dataagent.output>
       Original input: <start.input>
 ```
 

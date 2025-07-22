@@ -1,4 +1,5 @@
 import { load as yamlParse } from 'js-yaml'
+import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks'
 import {
@@ -403,7 +404,7 @@ function createSmartIdMapping(
   for (const block of yamlBlocks) {
     if (forceNewIds || !existingBlockIds.has(block.id)) {
       // Force new ID or block ID doesn't exist in current workflow - generate new UUID
-      const newId = crypto.randomUUID()
+      const newId = uuidv4()
       yamlIdToActualId.set(block.id, newId)
       logger.info(
         `🆕 Mapping new block: ${block.id} -> ${newId} (${forceNewIds ? 'forced new ID' : `not found in workflow ${activeWorkflowId}`})`

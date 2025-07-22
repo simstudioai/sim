@@ -288,18 +288,24 @@ export const useCopilotStore = create<CopilotStore>()(
 
             // If this was the current chat, clear it and select another one
             if (currentChat?.id === chatId) {
-              set({
-                currentChat: null,
-                messages: [],
-              })
-
-              // Select the most recent chat if available
-              const { chats } = get()
-              if (chats.length > 0) {
-                const sortedByCreation = [...chats].sort(
+              // Get the updated chats list (after removal) in a single atomic operation
+              const { chats: updatedChats } = get()
+              const remainingChats = updatedChats.filter((chat) => chat.id !== chatId)
+              
+              if (remainingChats.length > 0) {
+                const sortedByCreation = [...remainingChats].sort(
                   (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                 )
+                set({
+                  currentChat: null,
+                  messages: [],
+                })
                 await get().selectChat(sortedByCreation[0])
+              } else {
+                set({
+                  currentChat: null,
+                  messages: [],
+                })
               }
             }
 
@@ -502,7 +508,7 @@ export const useCopilotStore = create<CopilotStore>()(
               currentChat: chatResult.chat,
             })
 
-            // Add to chats list if not already there
+            // Add to chats list if not already there (atomic check and update)
             set((state) => {
               const chatExists = state.chats.some((chat) => chat.id === newChatId)
               if (!chatExists) {
@@ -537,21 +543,22 @@ export const useCopilotStore = create<CopilotStore>()(
               saveError: null,
             })
 
-            // Update the chat in the chats list
+            // Update the chat in the chats list (atomic check, update, or add)
             set((state) => {
-              const updatedChats = state.chats.map((chat) =>
-                chat.id === result.chat!.id ? result.chat! : chat
-              )
-
-              // If the chat doesn't exist in the list yet, add it
               const chatExists = state.chats.some((chat) => chat.id === result.chat!.id)
+              
               if (!chatExists) {
+                // Chat doesn't exist, add it to the beginning
                 return {
                   chats: [result.chat!, ...state.chats],
                 }
+              } else {
+                // Chat exists, update it
+                const updatedChats = state.chats.map((chat) =>
+                  chat.id === result.chat!.id ? result.chat! : chat
+                )
+                return { chats: updatedChats }
               }
-
-              return { chats: updatedChats }
             })
 
             logger.info(`Successfully saved chat ${chatId}`)

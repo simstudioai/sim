@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
 
     logger.info('Successfully fetched user workflow YAML', {
       workflowId,
-      blockCount: response.blockCount,
+      blockCount: response.summary.blockCount,
       yamlLength: yaml.length,
     })
 

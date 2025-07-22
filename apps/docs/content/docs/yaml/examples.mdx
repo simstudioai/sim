@@ -22,7 +22,7 @@ blocks:
 
   agent-1-initiator:
     type: agent
-    name: Agent 1 - Initiator
+    name: Agent 1 Initiator
     inputs:
       systemPrompt: You are the first agent in a chain. Your role is to analyze the input and create an initial response that will be passed to the next agent.
       userPrompt: |-
@@ -39,7 +39,7 @@ blocks:
 
   agent-2-enhancer:
     type: agent
-    name: Agent 2 - Enhancer
+    name: Agent 2 Enhancer
     inputs:
       systemPrompt: You are the second agent in a chain. Take the output from Agent 1 and enhance it with additional insights or improvements.
       userPrompt: |-
@@ -56,7 +56,7 @@ blocks:
 
   agent-3-refiner:
     type: agent
-    name: Agent 3 - Refiner
+    name: Agent 3 Refiner
     inputs:
       systemPrompt: You are the third agent in a chain. Take the enhanced output from Agent 2 and refine it further, adding structure or organization.
       userPrompt: |-
@@ -73,7 +73,7 @@ blocks:
 
   agent-4-finalizer:
     type: agent
-    name: Agent 4 - Finalizer
+    name: Agent 4 Finalizer
     inputs:
       systemPrompt: You are the final agent in a chain of 4. Create a comprehensive summary and conclusion based on all the previous agents' work.
       userPrompt: |-

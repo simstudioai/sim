@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('YamlParsingUtils')
@@ -596,7 +597,7 @@ function createEdge(
   targetHandle: string
 ): ImportedEdge {
   return {
-    id: crypto.randomUUID(),
+    id: uuidv4(),
     source,
     target,
     sourceHandle,
@@ -634,7 +635,7 @@ function extractConditionId(sourceHandle: string): string {
 
   // Find the first UUID pattern (36 characters with 4 hyphens in specific positions)
   // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.+)$/
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.+)$/i
   const match = withoutPrefix.match(uuidRegex)
 
   if (match) {

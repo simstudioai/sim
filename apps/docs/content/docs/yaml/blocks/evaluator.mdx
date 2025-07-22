@@ -43,8 +43,16 @@ properties:
               type: string
               description: Detailed explanation of what the metric measures
             range:
-              type: string
-              description: Scoring range (e.g., "1-5", "0-10")
+              type: object
+              properties:
+                min:
+                  type: number
+                  description: Minimum score value
+                max:
+                  type: number
+                  description: Maximum score value
+              required: [min, max]
+              description: Scoring range with numeric bounds
       model:
         type: string
         description: AI model identifier (e.g., gpt-4o, claude-3-5-sonnet-20241022)
@@ -97,16 +105,24 @@ content-evaluator:
     metrics:
       - name: "accuracy"
         description: "How factually accurate is the content?"
-        range: "1-5"
+        range:
+          min: 1
+          max: 5
       - name: "clarity"
         description: "How clear and understandable is the content?"
-        range: "1-5"
+        range:
+          min: 1
+          max: 5
       - name: "relevance"
         description: "How relevant is the content to the original query?"
-        range: "1-5"
+        range:
+          min: 1
+          max: 5
       - name: "completeness"
         description: "How complete and comprehensive is the content?"
-        range: "1-5"
+        range:
+          min: 1
+          max: 5
     model: gpt-4o
     temperature: 0.2
     apiKey: '{{OPENAI_API_KEY}}'
@@ -126,13 +142,19 @@ response-evaluator:
     metrics:
       - name: "helpfulness"
         description: "How helpful is the response in addressing the customer's needs?"
-        range: "1-10"
+        range:
+          min: 1
+          max: 10
       - name: "tone"
         description: "How appropriate and professional is the tone?"
-        range: "1-10"
+        range:
+          min: 1
+          max: 10
       - name: "completeness"
         description: "Does the response fully address all aspects of the inquiry?"
-        range: "1-10"
+        range:
+          min: 1
+          max: 10
     model: claude-3-5-sonnet-20241022
     apiKey: '{{ANTHROPIC_API_KEY}}'
   connections:
@@ -179,19 +201,29 @@ comprehensive-evaluator:
     metrics:
       - name: "technical_accuracy"
         description: "How technically accurate and correct is the information?"
-        range: "0-100"
+        range:
+          min: 0
+          max: 100
       - name: "readability"
         description: "How easy is the content to read and understand?"
-        range: "0-100"
+        range:
+          min: 0
+          max: 100
       - name: "seo_optimization"
         description: "How well optimized is the content for search engines?"
-        range: "0-100"
+        range:
+          min: 0
+          max: 100
       - name: "user_engagement"
         description: "How likely is this content to engage and retain readers?"
-        range: "0-100"
+        range:
+          min: 0
+          max: 100
       - name: "brand_alignment"
         description: "How well does the content align with brand voice and values?"
-        range: "0-100"
+        range:
+          min: 0
+          max: 100
     model: gpt-4o
     temperature: 0.3
     apiKey: '{{OPENAI_API_KEY}}'

@@ -136,7 +136,7 @@ You are STRICTLY FORBIDDEN from calling "Edit Workflow" until you have completed
 You don't need to call every tool for every request. Use your judgment:
 
 - **Simple questions**: If user asks about a specific block, you might only need "Get Block Metadata"
-- **Quick edits**: For minor modifications, you might only need "Get User's Specific Workflow" + "Edit Workflow"
+- **Quick edits**: For minor modifications, you still MUST call all four prerequisite tools before "Edit Workflow"
 - **Complex builds**: For new workflows, you'll likely need multiple tools to gather information
 - **Exploration**: If user is exploring options, "Get All Blocks and Tools" might be sufficient
 
@@ -212,7 +212,6 @@ When you use the "Search Documentation" tool:
 
 **Tool Result Processing**:
 - The search tool returns an array of documentation chunks with content, title, and URL
-- Each result contains: 
 - Use the \`content\` field for information and \`url\` field for citations
 - Include the \`title\` in your link text when appropriate
 - Reference multiple sources when they provide complementary information`

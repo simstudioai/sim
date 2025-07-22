@@ -5,49 +5,8 @@ interface GetAllBlocksParams {
   filterCategory?: string
 }
 
-interface BlockInfo {
-  type: string
-  name: string
-  description: string
-  longDescription?: string
-  category: string
-  docsLink?: string
-  bgColor: string
-  inputs?: Record<string, any>
-  outputs?: Record<string, any>
-  tools?: {
-    access: string[]
-    config?: any
-  }
-  subBlocks?: any[]
-}
-
-interface ToolInfo {
-  id: string
-  name: string
-  description: string
-  version: string
-  params?: Record<string, any>
-  paramCount?: number
-  request?: any
-}
-
 interface GetAllBlocksResult {
-  blocks: {
-    count: number
-    items: BlockInfo[]
-  }
-  tools: {
-    count: number
-    items: ToolInfo[]
-  }
-  summary: {
-    totalBlocks: number
-    totalTools: number
-    categories: string[]
-    detailLevel: string
-    filteredBy?: string
-  }
+  blockToToolsMapping: Record<string, string[]>
 }
 
 interface GetAllBlocksResponse extends ToolResponse {
@@ -104,7 +63,9 @@ export const getAllBlocksTool: ToolConfig<GetAllBlocksParams, GetAllBlocksRespon
 
     return {
       success: true,
-      output: data.data,
+      output: {
+        blockToToolsMapping: data.data,
+      },
     }
   },
 
