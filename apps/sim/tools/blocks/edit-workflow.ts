@@ -9,16 +9,20 @@ interface EditWorkflowParams {
   }
 }
 
-interface EditWorkflowResult {
-  success: boolean
-  message: string
-  summary?: string
-  errors?: string[]
-  warnings?: string[]
-}
-
 interface EditWorkflowResponse extends ToolResponse {
-  output: EditWorkflowResult
+  output: {
+    success: boolean
+    message: string
+    summary?: string
+    errors: string[]
+    warnings: string[]
+    data?: {
+      blocksCount: number
+      edgesCount: number
+      loopsCount: number
+      parallelsCount: number
+    }
+  }
 }
 
 export const editWorkflowTool: ToolConfig<EditWorkflowParams, EditWorkflowResponse> = {
@@ -42,16 +46,18 @@ export const editWorkflowTool: ToolConfig<EditWorkflowParams, EditWorkflowRespon
   },
 
   request: {
-    url: '/api/tools/edit-workflow',
-    method: 'POST',
+    url: (params) => `/api/workflows/${params._context?.workflowId}/yaml`,
+    method: 'PUT',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
       yamlContent: params.yamlContent,
-      workflowId: params._context?.workflowId,
       description: params.description,
       chatId: params._context?.chatId,
+      source: 'copilot',
+      applyAutoLayout: true,
+      createCheckpoint: true, // Always create checkpoints for copilot edits
     }),
     isInternalRoute: true,
   },
@@ -64,12 +70,12 @@ export const editWorkflowTool: ToolConfig<EditWorkflowParams, EditWorkflowRespon
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.error || 'Failed to edit workflow')
+      throw new Error(data.message || 'Failed to edit workflow')
     }
 
     return {
       success: true,
-      output: data.data,
+      output: data,
     }
   },
 
