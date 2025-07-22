@@ -11,7 +11,7 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
     url: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Qdrant base URL',
     },
     apiKey: {
@@ -22,12 +22,13 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
     collection: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
+      visibility: 'user-only',
       description: 'Collection name',
     },
     points: {
       type: 'array',
       required: true,
+      visibility: 'user-only',
       description: 'Array of points to upsert',
     },
   },
