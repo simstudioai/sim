@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { tools as toolsRegistry } from '@/tools/registry'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
 const logger = createLogger('GetBlockMetadataAPI')
@@ -18,21 +18,24 @@ const DOCS_FILE_MAPPING: Record<string, string> = {
   'webhook': 'webhook_trigger'
 }
 
-// Helper function to extract YAML schema section from documentation
+// Helper function to read YAML schema from dedicated YAML documentation files
 function getYamlSchemaFromDocs(blockType: string): string | null {
   try {
     const docFileName = DOCS_FILE_MAPPING[blockType] || blockType
-    // Go up from apps/sim to the workspace root, then into apps/docs
-    const docsPath = join(process.cwd(), '..', 'docs/content/docs/blocks', `${docFileName}.mdx`)
-    const content = readFileSync(docsPath, 'utf-8')
+    // Read from the new YAML documentation structure
+    const yamlDocsPath = join(process.cwd(), '..', 'docs/content/docs/yaml/blocks', `${docFileName}.mdx`)
     
-    // Find the YAML Schema section
-    const yamlSchemaMatch = content.match(/## YAML Schema\s*\n([\s\S]*?)(?=\n## [^Y]|\n# [^Y]|$)/i)
-    if (yamlSchemaMatch) {
-      return yamlSchemaMatch[1].trim()
+    if (!existsSync(yamlDocsPath)) {
+      logger.warn(`YAML schema file not found for ${blockType} at ${yamlDocsPath}`)
+      return null
     }
     
-    return null
+    const content = readFileSync(yamlDocsPath, 'utf-8')
+    
+    // Remove the frontmatter and return the content after the title
+    const contentWithoutFrontmatter = content.replace(/^---[\s\S]*?---\s*/, '')
+    return contentWithoutFrontmatter.trim()
+    
   } catch (error) {
     logger.warn(`Failed to read YAML schema for ${blockType}:`, error)
     return null

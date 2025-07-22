@@ -337,8 +337,8 @@ export function validateSystemPrompts(): {
   if (ASK_MODE_SYSTEM_PROMPT.includes('switch to')) {
     askIssues.push('Should not suggest switching modes')
   }
-  if (ASK_MODE_SYSTEM_PROMPT.includes('WORKFLOW BUILDING PATTERN')) {
-    askIssues.push('Should not contain workflow building pattern (Agent only)')
+  if (ASK_MODE_SYSTEM_PROMPT.includes('WORKFLOW BUILDING PROCESS')) {
+    askIssues.push('Should not contain workflow building process (Agent only)')
   }
   if (ASK_MODE_SYSTEM_PROMPT.includes('Edit Workflow')) {
     askIssues.push('Should not reference edit workflow capability')
@@ -348,14 +348,14 @@ export function validateSystemPrompts(): {
   if (!AGENT_MODE_SYSTEM_PROMPT || AGENT_MODE_SYSTEM_PROMPT.length < 1000) {
     agentIssues.push('Prompt too short or undefined')
   }
-  if (!AGENT_MODE_SYSTEM_PROMPT.includes('WORKFLOW BUILDING PATTERN')) {
-    agentIssues.push('Missing workflow building pattern')
+  if (!AGENT_MODE_SYSTEM_PROMPT.includes('WORKFLOW BUILDING PROCESS')) {
+    agentIssues.push('Missing workflow building process')
   }
   if (!AGENT_MODE_SYSTEM_PROMPT.includes('Edit Workflow')) {
     agentIssues.push('Missing edit workflow capability')
   }
-  if (!AGENT_MODE_SYSTEM_PROMPT.includes('MANDATORY 5-STEP')) {
-    agentIssues.push('Missing mandatory 5-step process')
+  if (!AGENT_MODE_SYSTEM_PROMPT.includes('CRITICAL REQUIREMENT')) {
+    agentIssues.push('Missing critical workflow editing requirements')
   }
 
   return {
@@ -407,190 +407,22 @@ blocks:
 
 ## Complete End-to-End Workflow Examples
 
-### Example 1: Multi-Agent Chain Workflow
-A workflow where multiple AI agents process information sequentially:
+**IMPORTANT**: For complete, up-to-date YAML workflow examples, refer to the documentation at:
+- **YAML Workflow Examples**: \`/yaml/examples\` - Contains real-world workflow patterns including:
+  - Multi-Agent Chain Workflows
+  - Router-Based Conditional Workflows  
+  - Web Search with Structured Output
+  - Loop Processing with Collections
+  - Email Classification and Response
+  - And more practical examples
 
-\`\`\`yaml
-version: '1.0'
-blocks:
-  start:
-    type: starter
-    name: Start
-    inputs:
-      startWorkflow: manual
-    connections:
-      success: agent-1-initiator
+- **Block Schema Documentation**: \`/yaml/blocks\` - Contains detailed schemas for all block types including:
+  - Loop blocks with proper \`connections.loop.start\` syntax
+  - Parallel blocks with proper \`connections.parallel.start\` syntax
+  - Agent blocks with tools configuration
+  - All other block types with complete parameter references
 
-  agent-1-initiator:
-    type: agent
-    name: Agent 1 - Initiator
-    inputs:
-      systemPrompt: You are the first agent in a chain. Your role is to analyze the input and create an initial response that will be passed to the next agent.
-      userPrompt: |-
-        Welcome! I'm the first agent in our chain.
-
-        Input to process: <start.input>
-
-        Please create an initial analysis or greeting that the next agent can build upon. Be creative and set a positive tone for the chain!
-      model: gpt-4o
-      temperature: 0.7
-      apiKey: '{{OPENAI_API_KEY}}'
-    connections:
-      success: agent-2-enhancer
-
-  agent-2-enhancer:
-    type: agent
-    name: Agent 2 - Enhancer
-    inputs:
-      systemPrompt: You are the second agent in a chain. Take the output from Agent 1 and enhance it with additional insights or improvements.
-      userPrompt: |-
-        I'm the second agent! Here's what Agent 1 provided:
-
-        <agent1initiator.content>
-
-        Now I'll enhance this with additional details, insights, or improvements. Let me build upon their work!
-      model: gpt-4o
-      temperature: 0.7
-      apiKey: '{{OPENAI_API_KEY}}'
-    connections:
-      success: agent-3-refiner
-
-  agent-3-refiner:
-    type: agent
-    name: Agent 3 - Refiner
-    inputs:
-      systemPrompt: You are the third agent in a chain. Take the enhanced output from Agent 2 and refine it further, adding structure or organization.
-      userPrompt: |-
-        I'm the third agent in our chain! Here's the enhanced work from Agent 2:
-
-        <agent2enhancer.content>
-
-        My job is to refine and organize this content. I'll add structure, clarity, and polish to make it even better!
-      model: gpt-4o
-      temperature: 0.6
-      apiKey: '{{OPENAI_API_KEY}}'
-    connections:
-      success: agent-4-finalizer
-
-  agent-4-finalizer:
-    type: agent
-    name: Agent 4 - Finalizer
-    inputs:
-      systemPrompt: You are the final agent in a chain of 4. Create a comprehensive summary and conclusion based on all the previous agents' work.
-      userPrompt: |-
-        I'm the final agent! Here's the refined work from Agent 3:
-
-        <agent3refiner.content>
-
-        As the last agent in our chain, I'll create a final, polished summary that brings together all the work from our team of 4 agents. Let me conclude this beautifully!
-      model: gpt-4o
-      temperature: 0.5
-      apiKey: '{{OPENAI_API_KEY}}'
-\`\`\`
-
-### Example 2: Router-Based Conditional Workflow
-A workflow that uses routing logic to send data to different agents based on conditions:
-
-\`\`\`yaml
-version: '1.0'
-blocks:
-  start:
-    type: starter
-    name: Start
-    inputs:
-      startWorkflow: manual
-    connections:
-      success: router-1
-
-  router-1:
-    type: router
-    name: Router 1
-    inputs:
-      prompt: go to agent 1 if <start.input> is greater than 5. else agent 2 if greater than 10. else agent 3
-      model: gpt-4o
-      apiKey: '{{OPENAI_API_KEY}}'
-    connections:
-      success:
-        - agent-1
-        - agent-2
-        - agent-3
-
-  agent-1:
-    type: agent
-    name: Agent 1
-    inputs:
-      systemPrompt: say 1
-      model: gpt-4o
-      apiKey: '{{OPENAI_API_KEY}}'
-
-  agent-2:
-    type: agent
-    name: Agent 2
-    inputs:
-      systemPrompt: say
-      model: gpt-4o
-      apiKey: '{{OPENAI_API_KEY}}'
-
-  agent-3:
-    type: agent
-    name: Agent 3
-    inputs:
-      systemPrompt: say 3
-      model: gpt-4o
-      apiKey: '{{OPENAI_API_KEY}}'
-\`\`\`
-
-### Example 3: Web Search with Structured Output
-A workflow that searches the web using tools and returns structured data:
-
-\`\`\`yaml
-version: '1.0'
-blocks:
-  start:
-    type: starter
-    name: Start
-    inputs:
-      startWorkflow: manual
-    connections:
-      success: search-agent
-
-  search-agent:
-    type: agent
-    name: Agent 1
-    inputs:
-      systemPrompt: look up the user input. use structured output
-      userPrompt: <start.input>
-      model: gpt-4o
-      apiKey: '{{OPENAI_API_KEY}}'
-      tools:
-        - type: exa
-          title: Exa
-          toolId: exa_search
-          params:
-            type: auto
-            apiKey: '{{EXA_API_KEY}}'
-            numResults: ''
-          isExpanded: true
-          operation: exa_search
-          usageControl: auto
-      responseFormat: |-
-        {
-            "name": "output_schema",
-            "description": "Defines the structure for an output object.",
-            "strict": true,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "output": {
-                        "type": "string",
-                        "description": "The output value"
-                    }
-                },
-                "additionalProperties": false,
-                "required": ["output"]
-            }
-        }
-\`\`\`
+**CRITICAL**: Always use the "Get All Blocks and Tools" and "Get Block Metadata" tools to get the latest examples and schemas when building workflows. The documentation contains the most current syntax and examples.
 
 ## The Starter Block
 
@@ -609,39 +441,28 @@ start:
 
 ### Manual Start with Input Format Configuration
 For API workflows that need structured input validation and processing:
-\\\`\\\`\\\`yaml
-version: '1.0'
-blocks:
-  start:
-    type: starter
-    name: Start
-    inputs:
-      startWorkflow: manual
-      inputFormat:
-        - name: query
-          type: string
-        - name: email
-          type: string
-        - name: age
-          type: number
-        - name: isActive
-          type: boolean
-        - name: preferences
-          type: object
-        - name: tags
-          type: array
-    connections:
-      success: agent-1
-
-  agent-1:
-    type: agent
-    name: Agent 1
-    inputs:
-      systemPrompt: "Process the structured input data"
-      userPrompt: "Query: <start.query>\\nEmail: <start.email>\\nAge: <start.age>"
-      model: gpt-4o
-      apiKey: '{{OPENAI_API_KEY}}'
-\\\`\\\`\\\`
+\`\`\`yaml
+start:
+  type: starter
+  name: Start
+  inputs:
+    startWorkflow: manual
+    inputFormat:
+      - name: query
+        type: string
+      - name: email
+        type: string
+      - name: age
+        type: number
+      - name: isActive
+        type: boolean
+      - name: preferences
+        type: object
+      - name: tags
+        type: array
+  connections:
+    success: agent-1
+\`\`\`
 
 ### Chat Start Configuration
 \`\`\`yaml
@@ -694,44 +515,21 @@ start:
 
 ### Data Flow Example
 \`\`\`yaml
-version: '1.0'
-blocks:
-  start:
-    type: starter
-    name: Start
-    inputs:
-      startWorkflow: manual
-    connections:
-      success: email-classifier
+email-classifier:
+  type: agent
+  name: Email Classifier
+  inputs:
+    userPrompt: |
+      Classify this email: <start.input>
+      Categories: support, billing, sales, feedback
 
-  email-classifier:
-    type: agent
-    name: Email Classifier
-    inputs:
-      systemPrompt: Classify emails into categories and extract key information.
-      userPrompt: |
-        Classify this email: <start.input>
-        
-        Categories: support, billing, sales, feedback
-        Extract: urgency level, customer sentiment, main request
-      model: gpt-4o
-      apiKey: '{{OPENAI_API_KEY}}'
-    connections:
-      success: response-generator
-
-  response-generator:
-    type: agent
-    name: Response Generator
-    inputs:
-      systemPrompt: Generate appropriate responses based on email classification.
-      userPrompt: |
-        Email classification: <emailclassifier.content>
-        Original email: <start.input>
-        
-        Generate a professional, helpful response addressing the customer's needs.
-      model: gpt-4o
-      temperature: 0.7
-      apiKey: '{{OPENAI_API_KEY}}'
+response-generator:
+  type: agent  
+  name: Response Generator
+  inputs:
+    userPrompt: |
+      Classification: <emailclassifier.content>
+      Original: <start.input>
 \`\`\`
 
 ## Common Block Types and Patterns
@@ -830,6 +628,26 @@ start → data-processor → analyzer → formatter → output-sender
 ### Conditional Branching
 \`\`\`yaml
 start → classifier → router → [path-a, path-b, path-c]
+\`\`\`
+
+### Loop Processing ⚠️ SPECIAL SYNTAX
+\`\`\`yaml
+loop-block:
+  type: loop
+  connections:
+    loop:
+      start: child-block-id  # Block to execute inside loop
+      end: next-block-id     # Block to run after loop completes
+\`\`\`
+
+### Parallel Processing ⚠️ SPECIAL SYNTAX
+\`\`\`yaml
+parallel-block:
+  type: parallel
+  connections:
+    parallel:
+      start: child-block-id  # Block to execute in each parallel instance
+      end: next-block-id     # Block to run after all instances complete
 \`\`\`
 
 ### Error Handling with Fallbacks
