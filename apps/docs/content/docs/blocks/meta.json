@@ -10,6 +10,7 @@
     "parallel",
     "response",
     "router",
+    "webhook_trigger",
     "workflow"
   ]
 }
