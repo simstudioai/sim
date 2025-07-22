@@ -89,7 +89,6 @@ export async function applyWorkflowDiff(
       isDeployed: parsedData.state.isDeployed || false,
       deployedAt: parsedData.state.deployedAt,
       deploymentStatuses: parsedData.state.deploymentStatuses || {},
-      hasActiveSchedule: parsedData.state.hasActiveSchedule || false,
       hasActiveWebhook: parsedData.state.hasActiveWebhook || false,
     }
 

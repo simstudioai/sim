@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GmailMessage, GmailReadParams, GmailToolResponse } from './types'
+import type { GmailMessage, GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
+import type { ToolConfig } from '@/tools/types'
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 

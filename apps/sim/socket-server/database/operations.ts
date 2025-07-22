@@ -130,7 +130,6 @@ export async function getWorkflowState(workflowId: string) {
       const finalState = {
         // Default values for expected properties
         deploymentStatuses: {},
-        hasActiveSchedule: false,
         hasActiveWebhook: false,
         // Preserve any existing state properties
         ...existingState,

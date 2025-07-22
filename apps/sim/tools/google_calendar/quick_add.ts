@@ -1,9 +1,9 @@
-import type { ToolConfig } from '../types'
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarQuickAddParams,
   type GoogleCalendarQuickAddResponse,
-} from './types'
+} from '@/tools/google_calendar/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const quickAddTool: ToolConfig<
   GoogleCalendarQuickAddParams,

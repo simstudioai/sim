@@ -1,12 +1,6 @@
 import { ElevenLabsIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
-
-interface ElevenLabsBlockResponse extends ToolResponse {
-  output: {
-    audioUrl: string
-  }
-}
+import type { BlockConfig } from '@/blocks/types'
+import type { ElevenLabsBlockResponse } from '@/tools/elevenlabs/types'
 
 export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   type: 'elevenlabs',

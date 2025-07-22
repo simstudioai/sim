@@ -1,4 +1,4 @@
-import { linearCreateIssueTool } from './create_issue'
-import { linearReadIssuesTool } from './read_issues'
+import { linearCreateIssueTool } from '@/tools/linear/create_issue'
+import { linearReadIssuesTool } from '@/tools/linear/read_issues'
 
 export { linearReadIssuesTool, linearCreateIssueTool }

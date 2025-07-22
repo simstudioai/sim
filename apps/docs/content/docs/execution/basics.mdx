@@ -161,13 +161,9 @@ Run workflows on-demand through the Sim Studio interface by clicking the "Run" b
 - One-off tasks
 - Workflows that need human supervision
 
-<ThemeImage
-  lightSrc="/static/light/manual-execution-light.png"
-  darkSrc="/static/dark/manual-execution-dark.png"
-  alt="Manual Execution"
-  width={600}
-  height={400}
-/>
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/input-format.mp4"></video>
+</div>
 
 ### Scheduled Execution
 
@@ -178,13 +174,9 @@ Configure workflows to run automatically on a specified schedule:
 - Configure timezone settings
 - Set minimum and maximum execution intervals
 
-<ThemeImage
-  lightSrc="/static/light/scheduled-execution-light.png"
-  darkSrc="/static/dark/scheduled-execution-dark.png"
-  alt="Scheduled Execution"
-  width={600}
-  height={400}
-/>
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/configure-schedule.mp4"></video>
+</div>
 
 ### API Endpoints
 
@@ -195,13 +187,19 @@ Each workflow can be exposed as an API endpoint:
 - Send custom inputs via POST requests
 - Receive execution results as JSON responses
 
-<ThemeImage
-  lightSrc="/static/light/api-execution-light.png"
-  darkSrc="/static/dark/api-execution-dark.png"
-  alt="API Execution"
-  width={600}
-  height={400}
-/>
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/api-deployment.mp4"></video>
+</div>
+
+#### Viewing Deployed APIs
+
+Monitor your deployed workflow APIs and their current state:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/api-redeployment.mp4"></video>
+</div>
+
+This shows how to view the deployed state and compare with the original deployed API configuration.
 
 ### Webhooks
 
@@ -212,13 +210,9 @@ Configure workflows to execute in response to external events:
 - Configure webhook security settings
 - Support for specialized webhooks (GitHub, Stripe, etc.)
 
-<ThemeImage
-  lightSrc="/static/light/webhook-execution-light.png"
-  darkSrc="/static/dark/webhook-execution-dark.png"
-  alt="Webhook Execution"
-  width={600}
-  height={400}
-/>
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/webhooks.mp4"></video>
+</div>
 
 <Callout type="info">
   The execution method you choose depends on your workflow's purpose. Manual execution is great for

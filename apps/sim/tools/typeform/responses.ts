@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { TypeformResponsesParams, TypeformResponsesResponse } from './types'
+import type { TypeformResponsesParams, TypeformResponsesResponse } from '@/tools/typeform/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponsesResponse> = {
   id: 'typeform_responses',

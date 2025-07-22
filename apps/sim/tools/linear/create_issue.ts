@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { LinearCreateIssueParams, LinearCreateIssueResponse } from './types'
+import type { LinearCreateIssueParams, LinearCreateIssueResponse } from '@/tools/linear/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCreateIssueResponse> =
   {

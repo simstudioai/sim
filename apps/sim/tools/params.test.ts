@@ -11,8 +11,8 @@ import {
   type ToolSchema,
   type ValidationResult,
   validateToolParameters,
-} from './params'
-import type { ParameterVisibility } from './types'
+} from '@/tools/params'
+import type { HttpMethod, ParameterVisibility } from '@/tools/types'
 
 const mockToolConfig = {
   id: 'test_tool',
@@ -48,7 +48,7 @@ const mockToolConfig = {
   },
   request: {
     url: 'https://api.example.com/test',
-    method: 'POST',
+    method: 'POST' as HttpMethod,
     headers: () => ({}),
   },
 }

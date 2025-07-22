@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import type { ToolConfig } from '../types'
-import type { BaseImageRequestBody } from './types'
+import type { BaseImageRequestBody } from '@/tools/openai/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ImageTool')
 

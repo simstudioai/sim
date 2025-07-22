@@ -1,7 +1,7 @@
-import { createFolderTool } from './create_folder'
-import { getContentTool } from './get_content'
-import { listTool } from './list'
-import { uploadTool } from './upload'
+import { createFolderTool } from '@/tools/google_drive/create_folder'
+import { getContentTool } from '@/tools/google_drive/get_content'
+import { listTool } from '@/tools/google_drive/list'
+import { uploadTool } from '@/tools/google_drive/upload'
 
 export const googleDriveCreateFolderTool = createFolderTool
 export const googleDriveGetContentTool = getContentTool

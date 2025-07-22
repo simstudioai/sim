@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { XWriteParams, XWriteResponse } from './types'
+import type { ToolConfig } from '@/tools/types'
+import type { XWriteParams, XWriteResponse } from '@/tools/x/types'
 
 export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
   id: 'x_write',

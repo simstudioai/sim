@@ -1,5 +1,8 @@
-import type { ToolConfig } from '../types'
-import type { MicrosoftExcelReadResponse, MicrosoftExcelToolParams } from './types'
+import type {
+  MicrosoftExcelReadResponse,
+  MicrosoftExcelToolParams,
+} from '@/tools/microsoft_excel/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadResponse> = {
   id: 'microsoft_excel_read',

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   cn,
   convertScheduleOptionsToCron,
@@ -34,9 +34,11 @@ vi.mock('crypto', () => ({
   }),
 }))
 
-beforeEach(() => {
-  process.env.ENCRYPTION_KEY = '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
-})
+vi.mock('@/lib/env', () => ({
+  env: {
+    ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+  },
+}))
 
 afterEach(() => {
   vi.clearAllMocks()

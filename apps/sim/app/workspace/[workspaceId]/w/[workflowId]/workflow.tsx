@@ -402,7 +402,6 @@ const WorkflowContent = React.memo(() => {
       }
 
       const { type } = event.detail
-      console.log('🛠️ Adding block from toolbar:', type)
 
       if (!type) return
       if (type === 'connectionBlock') return
@@ -1079,6 +1078,16 @@ const WorkflowContent = React.memo(() => {
         const targetNode = getNodes().find((n) => n.id === connection.target)
 
         if (!sourceNode || !targetNode) return
+
+        // Prevent incoming connections to trigger blocks (webhook, schedule, etc.)
+        if (targetNode.data?.config?.category === 'triggers') {
+          return
+        }
+
+        // Prevent incoming connections to starter blocks (still keep separate for backward compatibility)
+        if (targetNode.data?.type === 'starter') {
+          return
+        }
 
         // Get parent information (handle container start node case)
         const sourceParentId =

@@ -142,6 +142,25 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 | `url` | string |
 | `text` | string |
 
+### `exa_research`
+
+Perform comprehensive research using AI to generate detailed reports with citations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | Research query or topic |
+| `includeText` | boolean | No | Include full text content in results |
+| `apiKey` | string | Yes | Exa AI API Key |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `taskId` | string |
+| `research` | string |
+
 
 
 ## Block Configuration
@@ -162,6 +181,7 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 | `similarLinks` | json | similarLinks output from the block |
 | `answer` | string | answer output from the block |
 | `citations` | json | citations output from the block |
+| `research` | json | research output from the block |
 
 
 ## Notes

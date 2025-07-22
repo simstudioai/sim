@@ -1,7 +1,7 @@
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
-import { formatRequestParams, getTool, getToolAsync, validateToolRequest } from './utils'
+import { getBaseUrl } from '@/lib/urls/utils'
+import type { OAuthTokenPayload, ToolConfig, ToolResponse } from '@/tools/types'
+import { formatRequestParams, getTool, getToolAsync, validateToolRequest } from '@/tools/utils'
 
 const logger = createLogger('Tools')
 
@@ -52,10 +52,7 @@ export async function executeTool(
         `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`
       )
       try {
-        const baseUrl = env.NEXT_PUBLIC_APP_URL
-        if (!baseUrl) {
-          throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
-        }
+        const baseUrl = getBaseUrl()
 
         const isServerSide = typeof window === 'undefined'
 
@@ -368,12 +365,12 @@ async function handleInternalRequest(
   const requestParams = formatRequestParams(tool, params)
 
   try {
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
+    const baseUrl = getBaseUrl()
     // Handle the case where url may be a function or string
     const endpointUrl =
       typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
 
-    const fullUrl = new URL(await endpointUrl, baseUrl).toString()
+    const fullUrl = new URL(endpointUrl, baseUrl).toString()
 
     // For custom tools, validate parameters on the client side before sending
     if (toolId.startsWith('custom_') && tool.request.body) {
@@ -588,12 +585,7 @@ async function handleProxyRequest(
 ): Promise<ToolResponse> {
   const requestId = crypto.randomUUID().slice(0, 8)
 
-  const baseUrl = env.NEXT_PUBLIC_APP_URL
-  if (!baseUrl) {
-    logger.error(`[${requestId}] NEXT_PUBLIC_APP_URL not set`)
-    throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
-  }
-
+  const baseUrl = getBaseUrl()
   const proxyUrl = new URL('/api/proxy', baseUrl).toString()
 
   try {

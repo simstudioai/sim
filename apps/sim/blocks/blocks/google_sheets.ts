@@ -1,17 +1,6 @@
 import { GoogleSheetsIcon } from '@/components/icons'
-import type {
-  GoogleSheetsAppendResponse,
-  GoogleSheetsReadResponse,
-  GoogleSheetsUpdateResponse,
-  GoogleSheetsWriteResponse,
-} from '@/tools/google_sheets/types'
-import type { BlockConfig } from '../types'
-
-type GoogleSheetsResponse =
-  | GoogleSheetsReadResponse
-  | GoogleSheetsWriteResponse
-  | GoogleSheetsUpdateResponse
-  | GoogleSheetsAppendResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { GoogleSheetsResponse } from '@/tools/google_sheets/types'
 
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   type: 'google_sheets',
@@ -59,15 +48,16 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.spreadsheet',
       placeholder: 'Select a spreadsheet',
+      mode: 'basic',
     },
-    // Manual Spreadsheet ID (hidden by default)
+    // Manual Spreadsheet ID (advanced mode)
     {
       id: 'manualSpreadsheetId',
-      title: 'Or Enter Spreadsheet ID Manually',
+      title: 'Spreadsheet ID',
       type: 'short-input',
       layout: 'full',
       placeholder: 'ID of the spreadsheet (from URL)',
-      condition: { field: 'spreadsheetId', value: '' },
+      mode: 'advanced',
     },
     // Range
     {

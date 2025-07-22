@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { Mem0Response } from './types'
+import type { Mem0Response } from '@/tools/mem0/types'
+import type { ToolConfig } from '@/tools/types'
 
 // Search Memories Tool
 export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {

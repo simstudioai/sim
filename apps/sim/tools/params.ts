@@ -1,5 +1,5 @@
-import type { ParameterVisibility, ToolConfig } from './types'
-import { getTool } from './utils'
+import type { ParameterVisibility, ToolConfig } from '@/tools/types'
+import { getTool } from '@/tools/utils'
 
 export interface Option {
   label: string

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { SearchParams, SearchResponse } from './types'
+import type { SearchParams, SearchResponse } from '@/tools/firecrawl/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'firecrawl_search',

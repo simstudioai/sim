@@ -2,8 +2,11 @@ import crypto from 'crypto'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { permissions, workflow, workflowBlocks, workspace } from '@/db/schema'
+
+const logger = createLogger('Workspaces')
 
 // Get all workspaces for the current user
 export async function GET() {
@@ -244,12 +247,12 @@ async function createWorkspace(userId: string, name: string) {
         updatedAt: now,
       })
 
-      console.log(
-        `✅ Created workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
+      logger.info(
+        `Created workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
       )
     })
   } catch (error) {
-    console.error(`❌ Failed to create workspace ${workspaceId} with initial workflow:`, error)
+    logger.error(`Failed to create workspace ${workspaceId} with initial workflow:`, error)
     throw error
   }
 
@@ -276,7 +279,7 @@ async function migrateExistingWorkflows(userId: string, workspaceId: string) {
     return // No orphaned workflows to migrate
   }
 
-  console.log(
+  logger.info(
     `Migrating ${orphanedWorkflows.length} workflows to workspace ${workspaceId} for user ${userId}`
   )
 
@@ -308,6 +311,6 @@ async function ensureWorkflowsHaveWorkspace(userId: string, defaultWorkspaceId: 
       })
       .where(and(eq(workflow.userId, userId), isNull(workflow.workspaceId)))
 
-    console.log(`Fixed ${orphanedWorkflows.length} orphaned workflows for user ${userId}`)
+    logger.info(`Fixed ${orphanedWorkflows.length} orphaned workflows for user ${userId}`)
   }
 }

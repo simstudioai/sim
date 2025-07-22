@@ -1,17 +1,6 @@
 import { ExaAIIcon } from '@/components/icons'
-import type {
-  ExaAnswerResponse,
-  ExaFindSimilarLinksResponse,
-  ExaGetContentsResponse,
-  ExaSearchResponse,
-} from '@/tools/exa/types'
-import type { BlockConfig } from '../types'
-
-type ExaResponse =
-  | ExaSearchResponse
-  | ExaGetContentsResponse
-  | ExaFindSimilarLinksResponse
-  | ExaAnswerResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { ExaResponse } from '@/tools/exa/types'
 
 export const ExaBlock: BlockConfig<ExaResponse> = {
   type: 'exa',
@@ -24,7 +13,6 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   bgColor: '#1F40ED',
   icon: ExaAIIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -35,6 +23,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
         { label: 'Get Contents', id: 'exa_get_contents' },
         { label: 'Find Similar Links', id: 'exa_find_similar_links' },
         { label: 'Answer', id: 'exa_answer' },
+        { label: 'Research', id: 'exa_research' },
       ],
       value: () => 'exa_search',
     },
@@ -140,6 +129,22 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       layout: 'full',
       condition: { field: 'operation', value: 'exa_answer' },
     },
+    // Research operation inputs
+    {
+      id: 'query',
+      title: 'Research Query',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter your research topic or question...',
+      condition: { field: 'operation', value: 'exa_research' },
+    },
+    {
+      id: 'includeText',
+      title: 'Include Full Text',
+      type: 'switch',
+      layout: 'full',
+      condition: { field: 'operation', value: 'exa_research' },
+    },
     // API Key (common)
     {
       id: 'apiKey',
@@ -151,7 +156,13 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     },
   ],
   tools: {
-    access: ['exa_search', 'exa_get_contents', 'exa_find_similar_links', 'exa_answer'],
+    access: [
+      'exa_search',
+      'exa_get_contents',
+      'exa_find_similar_links',
+      'exa_answer',
+      'exa_research',
+    ],
     config: {
       tool: (params) => {
         // Convert numResults to a number for operations that use it
@@ -168,6 +179,8 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
             return 'exa_find_similar_links'
           case 'exa_answer':
             return 'exa_answer'
+          case 'exa_research':
+            return 'exa_research'
           default:
             return 'exa_search'
         }
@@ -197,5 +210,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     // Answer output
     answer: 'string',
     citations: 'json',
+    // Research output
+    research: 'json',
   },
 }

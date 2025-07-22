@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { OutlookSendParams, OutlookSendResponse } from './types'
+import type { OutlookSendParams, OutlookSendResponse } from '@/tools/outlook/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse> = {
   id: 'outlook_send',

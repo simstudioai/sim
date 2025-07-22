@@ -1,11 +1,11 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
 import type {
   DiscordAPIError,
   DiscordGetUserParams,
   DiscordGetUserResponse,
   DiscordUser,
-} from './types'
+} from '@/tools/discord/types'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DiscordGetUser')
 

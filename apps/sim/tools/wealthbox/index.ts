@@ -1,9 +1,9 @@
-import { wealthboxReadContactTool } from './read_contact'
-import { wealthboxReadNoteTool } from './read_note'
-import { wealthboxReadTaskTool } from './read_task'
-import { wealthboxWriteContactTool } from './write_contact'
-import { wealthboxWriteNoteTool } from './write_note'
-import { wealthboxWriteTaskTool } from './write_task'
+import { wealthboxReadContactTool } from '@/tools/wealthbox/read_contact'
+import { wealthboxReadNoteTool } from '@/tools/wealthbox/read_note'
+import { wealthboxReadTaskTool } from '@/tools/wealthbox/read_task'
+import { wealthboxWriteContactTool } from '@/tools/wealthbox/write_contact'
+import { wealthboxWriteNoteTool } from '@/tools/wealthbox/write_note'
+import { wealthboxWriteTaskTool } from '@/tools/wealthbox/write_task'
 
 export { wealthboxReadNoteTool }
 export { wealthboxWriteNoteTool }

@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
 
@@ -276,3 +276,11 @@ export interface GoogleCalendarApiListResponse {
   nextSyncToken?: string
   items: GoogleCalendarApiEventResponse[]
 }
+
+export type GoogleCalendarResponse =
+  | GoogleCalendarCreateResponse
+  | GoogleCalendarListResponse
+  | GoogleCalendarGetResponse
+  | GoogleCalendarQuickAddResponse
+  | GoogleCalendarInviteResponse
+  | GoogleCalendarUpdateResponse

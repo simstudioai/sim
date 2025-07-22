@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ExaSearchParams, ExaSearchResponse } from './types'
+import type { ExaSearchParams, ExaSearchResponse } from '@/tools/exa/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
   id: 'exa_search',

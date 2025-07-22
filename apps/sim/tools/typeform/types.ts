@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface TypeformFilesParams {
   formId: string
@@ -102,4 +102,11 @@ export interface TypeformResponsesResponse extends ToolResponse {
       }>
     }>
   }
+}
+
+export interface TypeformResponse extends ToolResponse {
+  output:
+    | TypeformResponsesResponse['output']
+    | TypeformFilesResponse['output']
+    | TypeformInsightsData
 }

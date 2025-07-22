@@ -1,5 +1,9 @@
-import type { ToolConfig } from '../types'
-import type { PineconeResponse, PineconeUpsertTextParams, PineconeUpsertTextRecord } from './types'
+import type {
+  PineconeResponse,
+  PineconeUpsertTextParams,
+  PineconeUpsertTextRecord,
+} from '@/tools/pinecone/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeResponse> = {
   id: 'pinecone_upsert_text',

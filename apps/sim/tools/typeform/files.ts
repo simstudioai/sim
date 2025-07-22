@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { TypeformFilesParams, TypeformFilesResponse } from './types'
+import type { TypeformFilesParams, TypeformFilesResponse } from '@/tools/typeform/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> = {
   id: 'typeform_files',

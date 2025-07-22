@@ -1,16 +1,11 @@
-import type { ToolConfig } from '../types'
-import type { SupabaseInsertParams, SupabaseInsertResponse } from './types'
+import type { SupabaseInsertParams, SupabaseInsertResponse } from '@/tools/supabase/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse> = {
   id: 'supabase_insert',
   name: 'Supabase Insert',
   description: 'Insert data into a Supabase table',
   version: '1.0',
-  oauth: {
-    required: false,
-    provider: 'supabase',
-    additionalScopes: ['database.write', 'projects.read'],
-  },
   params: {
     projectId: {
       type: 'string',
@@ -33,8 +28,8 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
-      description: 'Your Supabase client anon key',
+      visibility: 'hidden',
+      description: 'Your Supabase service role secret key',
     },
   },
   request: {

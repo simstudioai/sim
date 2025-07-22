@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { AirtableCreateParams, AirtableCreateResponse } from './types'
+import type { AirtableCreateParams, AirtableCreateResponse } from '@/tools/airtable/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, AirtableCreateResponse> = {
   id: 'airtable_create_records',

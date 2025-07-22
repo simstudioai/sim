@@ -1,5 +1,5 @@
-import { confluenceRetrieveTool } from './retrieve'
-import { confluenceUpdateTool } from './update'
+import { confluenceRetrieveTool } from '@/tools/confluence/retrieve'
+import { confluenceUpdateTool } from '@/tools/confluence/update'
 
 export { confluenceRetrieveTool }
 export { confluenceUpdateTool }

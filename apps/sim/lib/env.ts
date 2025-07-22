@@ -48,6 +48,9 @@ export const env = createEnv({
     NEXT_RUNTIME: z.string().optional(),
     VERCEL_ENV: z.string().optional(),
 
+    // Trigger.dev
+    TRIGGER_SECRET_KEY: z.string().min(1).optional(),
+
     // Storage
     AWS_REGION: z.string().optional(),
     AWS_ACCESS_KEY_ID: z.string().optional(),
@@ -107,6 +110,8 @@ export const env = createEnv({
     SOCKET_PORT: z.number().optional(),
     PORT: z.number().optional(),
     ALLOWED_ORIGINS: z.string().optional(),
+    // Job Queue Configuration
+    JOB_RETENTION_DAYS: z.string().optional().default('1'), // How long to keep completed jobs
   },
 
   client: {

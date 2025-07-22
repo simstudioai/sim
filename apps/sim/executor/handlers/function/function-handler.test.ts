@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
-import type { ExecutionContext } from '../../types'
-import { FunctionBlockHandler } from './function-handler'
 
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: vi.fn(() => ({
@@ -29,9 +30,9 @@ describe('FunctionBlockHandler', () => {
 
     mockBlock = {
       id: 'func-block-1',
-      metadata: { id: 'function', name: 'Test Function' },
+      metadata: { id: BlockType.FUNCTION, name: 'Test Function' },
       position: { x: 30, y: 30 },
-      config: { tool: 'function', params: {} },
+      config: { tool: BlockType.FUNCTION, params: {} },
       inputs: { code: 'string', timeout: 'number' }, // Using ParamType strings
       outputs: {},
       enabled: true,

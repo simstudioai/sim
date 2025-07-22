@@ -11,10 +11,13 @@ import {
   processGenericDeduplication,
   processWebhook,
   processWhatsAppDeduplication,
+  validateMicrosoftTeamsSignature,
 } from '@/lib/webhooks/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
-import { webhook, workflow } from '@/db/schema'
+import { subscription, webhook, workflow } from '@/db/schema'
+import { RateLimiter } from '@/services/queue'
+import type { SubscriptionPlan } from '@/services/queue/types'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -241,6 +244,51 @@ export async function POST(
     return slackChallengeResponse
   }
 
+  // Handle Microsoft Teams outgoing webhook signature verification (must be done before timeout)
+  if (foundWebhook.provider === 'microsoftteams') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+
+    if (providerConfig.hmacSecret) {
+      const authHeader = request.headers.get('authorization')
+
+      if (!authHeader || !authHeader.startsWith('HMAC ')) {
+        logger.warn(
+          `[${requestId}] Microsoft Teams outgoing webhook missing HMAC authorization header`
+        )
+        return new NextResponse('Unauthorized - Missing HMAC signature', { status: 401 })
+      }
+
+      // Get the raw body for HMAC verification
+      const rawBody = await request.text()
+
+      const isValidSignature = validateMicrosoftTeamsSignature(
+        providerConfig.hmacSecret,
+        authHeader,
+        rawBody
+      )
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Microsoft Teams HMAC signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid HMAC signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Microsoft Teams HMAC signature verified successfully`)
+
+      // Parse the body again since we consumed it for verification
+      try {
+        body = JSON.parse(rawBody)
+      } catch (parseError) {
+        logger.error(
+          `[${requestId}] Failed to parse Microsoft Teams webhook body after verification`,
+          {
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+          }
+        )
+        return new NextResponse('Invalid JSON payload', { status: 400 })
+      }
+    }
+  }
+
   // Skip processing if another instance is already handling this request
   if (!hasExecutionLock) {
     logger.info(`[${requestId}] Skipping execution as lock was not acquired`)
@@ -383,6 +431,42 @@ export async function POST(
         if (genericDuplicateResponse) {
           return genericDuplicateResponse
         }
+      }
+
+      // Check rate limits for webhook execution
+      const [subscriptionRecord] = await db
+        .select({ plan: subscription.plan })
+        .from(subscription)
+        .where(eq(subscription.referenceId, foundWorkflow.userId))
+        .limit(1)
+
+      const subscriptionPlan = (subscriptionRecord?.plan || 'free') as SubscriptionPlan
+
+      const rateLimiter = new RateLimiter()
+      const rateLimitCheck = await rateLimiter.checkRateLimit(
+        foundWorkflow.userId,
+        subscriptionPlan,
+        'webhook',
+        false // webhooks are always sync
+      )
+
+      if (!rateLimitCheck.allowed) {
+        logger.warn(`[${requestId}] Rate limit exceeded for webhook user ${foundWorkflow.userId}`, {
+          remaining: rateLimitCheck.remaining,
+          resetAt: rateLimitCheck.resetAt,
+        })
+
+        // Return 200 to prevent webhook retries but indicate rate limit in response
+        return new NextResponse(
+          JSON.stringify({
+            status: 'error',
+            message: `Rate limit exceeded. You have ${rateLimitCheck.remaining} requests remaining. Resets at ${rateLimitCheck.resetAt.toISOString()}`,
+          }),
+          {
+            status: 200, // Use 200 to prevent webhook provider retries
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
       }
 
       // Check if the user has exceeded their usage limits

@@ -1,11 +1,11 @@
-import type { ToolConfig } from '../types'
 import type {
   CleanedOutlookMessage,
   OutlookMessage,
   OutlookMessagesResponse,
   OutlookReadParams,
   OutlookReadResponse,
-} from './types'
+} from '@/tools/outlook/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse> = {
   id: 'outlook_read',

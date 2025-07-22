@@ -22,6 +22,7 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-placeholder}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://localhost:3002}
+      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
     depends_on:
       db:
         condition: service_healthy
@@ -54,7 +55,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002']
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002/health']
       interval: 90s
       timeout: 5s
       retries: 3

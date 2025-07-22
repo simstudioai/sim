@@ -1,6 +1,6 @@
-import type { ToolConfig } from '../types'
-import type { JiraUpdateParams, JiraUpdateResponse } from './types'
-import { getJiraCloudId } from './utils'
+import type { JiraUpdateParams, JiraUpdateResponse } from '@/tools/jira/types'
+import { getJiraCloudId } from '@/tools/jira/utils'
+import type { ToolConfig } from '@/tools/types'
 
 export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = {
   id: 'jira_update',

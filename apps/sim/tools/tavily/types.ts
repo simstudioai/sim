@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 export interface TavilySearchResult {
   title: string
@@ -70,3 +70,5 @@ export interface SearchResponse extends ToolResponse {
     response_time: number
   }
 }
+
+export type TavilyResponse = TavilySearchResponse | TavilyExtractResponse

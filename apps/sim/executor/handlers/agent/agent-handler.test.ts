@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { isHosted } from '@/lib/environment'
 import { getAllBlocks } from '@/blocks'
+import { BlockType } from '@/executor/consts'
+import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
+import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
-import type { ExecutionContext, StreamingExecution } from '../../types'
-import { AgentBlockHandler } from './agent-handler'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 
@@ -88,8 +89,8 @@ describe('AgentBlockHandler', () => {
 
     mockBlock = {
       id: 'test-agent-block',
-      metadata: { id: 'agent', name: 'Test Agent' },
-      type: 'agent',
+      metadata: { id: BlockType.AGENT, name: 'Test Agent' },
+      type: BlockType.AGENT,
       position: { x: 0, y: 0 },
       config: {
         tool: 'mock-tool',
@@ -908,7 +909,7 @@ describe('AgentBlockHandler', () => {
         logs: [
           {
             blockId: 'some-id',
-            blockType: 'agent',
+            blockType: BlockType.AGENT,
             startedAt: new Date().toISOString(),
             endedAt: new Date().toISOString(),
             durationMs: 100,
@@ -959,7 +960,7 @@ describe('AgentBlockHandler', () => {
       const logs = (result as StreamingExecution).execution.logs
       expect(logs?.length).toBe(1)
       if (logs && logs.length > 0 && logs[0]) {
-        expect(logs[0].blockType).toBe('agent')
+        expect(logs[0].blockType).toBe(BlockType.AGENT)
       }
     })
 
@@ -1069,7 +1070,7 @@ describe('AgentBlockHandler', () => {
           memories: [
             {
               key: 'conversation-1',
-              type: 'agent',
+              type: BlockType.AGENT,
               data: [
                 { role: 'user', content: 'Hi there!' },
                 { role: 'assistant', content: 'Hello! How can I help you?' },

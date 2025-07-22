@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { logger } from '@trigger.dev/sdk/v3'
 import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -17,7 +18,6 @@ import { cn } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
@@ -400,7 +400,6 @@ export function ToolInput({
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
   const subBlockStore = useSubBlockStore()
-  const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
 
   // Get the current model from the 'model' subblock
   const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
@@ -507,26 +506,13 @@ export function ToolInput({
     return block.tools.access[0]
   }
 
-  // Initialize tool parameters with auto-fill if enabled
+  // Initialize tool parameters - no autofill, just return empty params
   const initializeToolParams = (
     toolId: string,
     params: ToolParameterConfig[],
     instanceId?: string
   ): Record<string, string> => {
-    const initialParams: Record<string, string> = {}
-
-    // Only auto-fill parameters if the setting is enabled
-    if (isAutoFillEnvVarsEnabled) {
-      // For each parameter, check if we have a stored/resolved value
-      params.forEach((param) => {
-        const resolvedValue = subBlockStore.resolveToolParamValue(toolId, param.id, instanceId)
-        if (resolvedValue) {
-          initialParams[param.id] = resolvedValue
-        }
-      })
-    }
-
-    return initialParams
+    return {}
   }
 
   const handleSelectTool = (toolBlock: (typeof toolBlocks)[0]) => {
@@ -682,11 +668,6 @@ export function ToolInput({
 
     const tool = selectedTools[toolIndex]
 
-    // Store the value in the tool params store for future use
-    if (paramValue.trim()) {
-      subBlockStore.setToolParam(tool.toolId, paramId, paramValue)
-    }
-
     // Update the value in the workflow
     setStoreValue(
       selectedTools.map((tool, index) =>
@@ -704,34 +685,25 @@ export function ToolInput({
   }
 
   const handleOperationChange = (toolIndex: number, operation: string) => {
-    console.log('🔄 handleOperationChange called:', { toolIndex, operation, isPreview, disabled })
-
     if (isPreview || disabled) {
-      console.log('❌ Early return: preview or disabled')
+      logger.info('❌ Early return: preview or disabled')
       return
     }
 
     const tool = selectedTools[toolIndex]
-    console.log('🔧 Current tool:', tool)
 
     const newToolId = getToolIdForOperation(tool.type, operation)
-    console.log('🆔 getToolIdForOperation result:', { toolType: tool.type, operation, newToolId })
 
     if (!newToolId) {
-      console.log('❌ Early return: no newToolId')
+      logger.info('❌ Early return: no newToolId')
       return
     }
 
     // Get parameters for the new tool
     const toolParams = getToolParametersConfig(newToolId, tool.type)
-    console.log('📋 getToolParametersConfig result:', {
-      newToolId,
-      toolType: tool.type,
-      toolParams,
-    })
 
     if (!toolParams) {
-      console.log('❌ Early return: no toolParams')
+      logger.info('❌ Early return: no toolParams')
       return
     }
 
@@ -1026,9 +998,9 @@ export function ToolInput({
       case 'channel-selector':
         return (
           <ChannelSelectorInput
-            blockId={uniqueBlockId}
+            blockId={blockId}
             subBlock={{
-              id: param.id,
+              id: `tool-${toolIndex || 0}-${param.id}`,
               type: 'channel-selector' as const,
               title: param.id,
               provider: uiComponent.provider || 'slack',
@@ -1043,9 +1015,9 @@ export function ToolInput({
       case 'project-selector':
         return (
           <ProjectSelectorInput
-            blockId={uniqueBlockId}
+            blockId={blockId}
             subBlock={{
-              id: param.id,
+              id: `tool-${toolIndex || 0}-${param.id}`,
               type: 'project-selector' as const,
               title: param.id,
               provider: uiComponent.provider || 'jira',
@@ -1652,7 +1624,7 @@ export function ToolInput({
                                 {param.required && param.visibility === 'user-only' && (
                                   <span className='ml-1 text-red-500'>*</span>
                                 )}
-                                {!param.required && (
+                                {(!param.required || param.visibility !== 'user-only') && (
                                   <span className='ml-1 text-muted-foreground/60 text-xs'>
                                     (Optional)
                                   </span>

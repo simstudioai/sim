@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleSheetsToolParams, GoogleSheetsWriteResponse } from './types'
+import type { GoogleSheetsToolParams, GoogleSheetsWriteResponse } from '@/tools/google_sheets/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResponse> = {
   id: 'google_sheets_write',

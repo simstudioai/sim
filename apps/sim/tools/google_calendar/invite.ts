@@ -1,9 +1,9 @@
-import type { ToolConfig } from '../types'
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarInviteParams,
   type GoogleCalendarInviteResponse,
-} from './types'
+} from '@/tools/google_calendar/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarInviteResponse> = {
   id: 'google_calendar_invite',

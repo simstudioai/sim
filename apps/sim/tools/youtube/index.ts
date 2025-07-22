@@ -1,3 +1,3 @@
-import { youtubeSearchTool } from './search'
+import { youtubeSearchTool } from '@/tools/youtube/search'
 
 export { youtubeSearchTool }

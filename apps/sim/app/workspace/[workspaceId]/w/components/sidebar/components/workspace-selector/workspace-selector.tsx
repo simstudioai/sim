@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Plus, Send, Trash2 } from 'lucide-react'
+import { LogOut, Plus, Send, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,7 +43,10 @@ interface WorkspaceSelectorProps {
   onSwitchWorkspace: (workspace: Workspace) => Promise<void>
   onCreateWorkspace: () => Promise<void>
   onDeleteWorkspace: (workspace: Workspace) => Promise<void>
+  onLeaveWorkspace: (workspace: Workspace) => Promise<void>
   isDeleting: boolean
+  isLeaving: boolean
+  isCreating: boolean
 }
 
 export function WorkspaceSelector({
@@ -54,7 +57,10 @@ export function WorkspaceSelector({
   onSwitchWorkspace,
   onCreateWorkspace,
   onDeleteWorkspace,
+  onLeaveWorkspace,
   isDeleting,
+  isLeaving,
+  isCreating,
 }: WorkspaceSelectorProps) {
   const userPermissions = useUserPermissionsContext()
 
@@ -94,6 +100,16 @@ export function WorkspaceSelector({
     [onDeleteWorkspace]
   )
 
+  /**
+   * Confirm leave workspace
+   */
+  const confirmLeaveWorkspace = useCallback(
+    async (workspaceToLeave: Workspace) => {
+      await onLeaveWorkspace(workspaceToLeave)
+    },
+    [onLeaveWorkspace]
+  )
+
   // Render workspace list
   const renderWorkspaceList = () => {
     if (isWorkspacesLoading) {
@@ -125,48 +141,95 @@ export function WorkspaceSelector({
             <div className='flex h-full min-w-0 flex-1 items-center text-left'>
               <span
                 className={cn(
-                  'truncate font-medium text-sm',
+                  'flex-1 truncate font-medium text-sm',
                   activeWorkspace?.id === workspace.id ? 'text-foreground' : 'text-muted-foreground'
                 )}
+                style={{ maxWidth: '168px' }}
               >
                 {workspace.name}
               </span>
             </div>
-            <div className='flex h-full w-6 flex-shrink-0 items-center justify-center'>
-              {hoveredWorkspaceId === workspace.id && workspace.permissions === 'admin' && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      onClick={(e) => {
-                        e.stopPropagation()
-                      }}
-                      className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:text-muted-foreground'
-                    >
-                      <Trash2 className='h-2 w-2' />
-                    </Button>
-                  </AlertDialogTrigger>
+            <div
+              className='flex h-full items-center justify-center'
+              onClick={(e) => e.stopPropagation()}
+            >
+              {hoveredWorkspaceId === workspace.id && (
+                <>
+                  {/* Leave Workspace - for non-admin users */}
+                  {workspace.permissions !== 'admin' && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                          }}
+                          className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:text-muted-foreground'
+                        >
+                          <LogOut className='h-2 w-2' />
+                        </Button>
+                      </AlertDialogTrigger>
 
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete "{workspace.name}"? This action cannot be
-                        undone and will permanently delete all workflows and data in this workspace.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => confirmDeleteWorkspace(workspace)}
-                        className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? 'Deleting...' : 'Delete'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Leave Workspace</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to leave "{workspace.name}"? You will lose access
+                            to all workflows and data in this workspace.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => confirmLeaveWorkspace(workspace)}
+                            className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                            disabled={isLeaving}
+                          >
+                            {isLeaving ? 'Leaving...' : 'Leave'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+
+                  {/* Delete Workspace - for admin users */}
+                  {workspace.permissions === 'admin' && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                          }}
+                          className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:text-muted-foreground'
+                        >
+                          <Trash2 className='h-2 w-2' />
+                        </Button>
+                      </AlertDialogTrigger>
+
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete "{workspace.name}"? This action cannot
+                            be undone and will permanently delete all workflows and data in this
+                            workspace.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => confirmDeleteWorkspace(workspace)}
+                            className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                            disabled={isDeleting}
+                          >
+                            {isDeleting ? 'Deleting...' : 'Delete'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -195,7 +258,7 @@ export function WorkspaceSelector({
               onClick={userPermissions.canAdmin ? () => setShowInviteMembers(true) : undefined}
               disabled={!userPermissions.canAdmin}
               className={cn(
-                'h-8 flex-1 justify-center gap-2 rounded-[8px] font-medium text-muted-foreground text-xs hover:bg-secondary hover:text-muted-foreground',
+                'h-8 flex-1 justify-center gap-2 rounded-[8px] font-medium text-muted-foreground text-xs transition-colors hover:bg-muted-foreground/10 hover:text-muted-foreground',
                 !userPermissions.canAdmin && 'cursor-not-allowed opacity-50'
               )}
             >
@@ -208,7 +271,11 @@ export function WorkspaceSelector({
               variant='secondary'
               size='sm'
               onClick={onCreateWorkspace}
-              className='h-8 flex-1 justify-center gap-2 rounded-[8px] font-medium text-muted-foreground text-xs hover:bg-secondary hover:text-muted-foreground'
+              disabled={isCreating}
+              className={cn(
+                'h-8 flex-1 justify-center gap-2 rounded-[8px] font-medium text-muted-foreground text-xs transition-colors hover:bg-muted-foreground/10 hover:text-muted-foreground',
+                isCreating && 'cursor-not-allowed'
+              )}
             >
               <Plus className='h-3 w-3' />
               <span>Create</span>

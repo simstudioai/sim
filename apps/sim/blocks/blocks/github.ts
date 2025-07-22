@@ -1,17 +1,6 @@
 import { GithubIcon } from '@/components/icons'
-import type {
-  CreateCommentResponse,
-  LatestCommitResponse,
-  PullRequestResponse,
-  RepoInfoResponse,
-} from '@/tools/github/types'
-import type { BlockConfig } from '../types'
-
-type GitHubResponse =
-  | PullRequestResponse
-  | CreateCommentResponse
-  | LatestCommitResponse
-  | RepoInfoResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { GitHubResponse } from '@/tools/github/types'
 
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',

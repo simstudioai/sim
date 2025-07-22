@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { ExaFindSimilarLinksParams, ExaFindSimilarLinksResponse } from './types'
+import type { ExaFindSimilarLinksParams, ExaFindSimilarLinksResponse } from '@/tools/exa/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const findSimilarLinksTool: ToolConfig<
   ExaFindSimilarLinksParams,

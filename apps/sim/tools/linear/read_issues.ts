@@ -1,5 +1,9 @@
-import type { ToolConfig } from '../types'
-import type { LinearIssue, LinearReadIssuesParams, LinearReadIssuesResponse } from './types'
+import type {
+  LinearIssue,
+  LinearReadIssuesParams,
+  LinearReadIssuesResponse,
+} from '@/tools/linear/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearReadIssuesResponse> = {
   id: 'linear_read_issues',

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ToolConfig } from './types'
+import type { ToolConfig } from '@/tools/types'
 import {
   createCustomToolRequestBody,
   createParamSchema,
@@ -8,7 +8,7 @@ import {
   getClientEnvVars,
   transformTable,
   validateToolRequest,
-} from './utils'
+} from '@/tools/utils'
 
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: vi.fn().mockReturnValue({
@@ -202,10 +202,12 @@ describe('validateToolRequest', () => {
       params: {
         required1: {
           type: 'string',
+          required: true,
           visibility: 'user-or-llm',
         },
         required2: {
           type: 'number',
+          required: true,
           visibility: 'user-or-llm',
         },
         optional: {

@@ -1,18 +1,6 @@
 import { PerplexityIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
-
-interface PerplexityChatResponse extends ToolResponse {
-  output: {
-    content: string
-    model: string
-    usage: {
-      prompt_tokens: number
-      completion_tokens: number
-      total_tokens: number
-    }
-  }
-}
+import type { BlockConfig } from '@/blocks/types'
+import type { PerplexityChatResponse } from '@/tools/perplexity/types'
 
 export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
   type: 'perplexity',

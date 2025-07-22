@@ -42,7 +42,6 @@ export const ollamaProvider: ProviderConfig = {
   },
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
-    console.log(request)
     logger.info('Preparing Ollama request', {
       model: request.model,
       hasSystemPrompt: !!request.systemPrompt,

@@ -1,8 +1,6 @@
 import { TavilyIcon } from '@/components/icons'
-import type { TavilyExtractResponse, TavilySearchResponse } from '@/tools/tavily/types'
-import type { BlockConfig } from '../types'
-
-type TavilyResponse = TavilySearchResponse | TavilyExtractResponse
+import type { BlockConfig } from '@/blocks/types'
+import type { TavilyResponse } from '@/tools/tavily/types'
 
 export const TavilyBlock: BlockConfig<TavilyResponse> = {
   type: 'tavily',
@@ -15,7 +13,6 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
   bgColor: '#0066FF',
   icon: TavilyIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -27,7 +24,6 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       ],
       value: () => 'tavily_search',
     },
-    // API Key (common)
     {
       id: 'apiKey',
       title: 'API Key',
@@ -36,7 +32,6 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       placeholder: 'Enter your Tavily API key',
       password: true,
     },
-    // Search operation inputs
     {
       id: 'query',
       title: 'Search Query',
@@ -53,7 +48,6 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       placeholder: '5',
       condition: { field: 'operation', value: 'tavily_search' },
     },
-    // Extract operation inputs
     {
       id: 'urls',
       title: 'URL',
@@ -93,10 +87,8 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
   inputs: {
     operation: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
-    // Search operation
     query: { type: 'string', required: false },
     maxResults: { type: 'number', required: false },
-    // Extract operation
     urls: { type: 'string', required: false },
     extract_depth: { type: 'string', required: false },
   },

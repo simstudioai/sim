@@ -1,12 +1,13 @@
 import '../../__test-utils__/mock-dependencies'
 
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { BlockType } from '@/executor/consts'
+import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
+import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
-import type { ExecutionContext } from '../../types'
-import { ApiBlockHandler } from './api-handler'
 
 const mockGetTool = vi.mocked(getTool)
 const mockExecuteTool = executeTool as Mock
@@ -21,7 +22,7 @@ describe('ApiBlockHandler', () => {
     handler = new ApiBlockHandler()
     mockBlock = {
       id: 'api-block-1',
-      metadata: { id: 'api', name: 'Test API Block' },
+      metadata: { id: BlockType.API, name: 'Test API Block' },
       position: { x: 10, y: 10 },
       config: { tool: 'http_request', params: {} },
       inputs: {},

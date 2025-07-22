@@ -219,7 +219,6 @@ export const resetAllStores = () => {
   })
   useWorkflowStore.getState().clear()
   useSubBlockStore.getState().clear()
-  useSubBlockStore.getState().clearToolParams()
   useEnvironmentStore.setState({
     variables: {},
     isLoading: false,

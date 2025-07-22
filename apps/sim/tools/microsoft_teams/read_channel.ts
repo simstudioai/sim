@@ -1,7 +1,10 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
-import { extractMessageAttachments } from './utils'
+import type {
+  MicrosoftTeamsReadResponse,
+  MicrosoftTeamsToolParams,
+} from '@/tools/microsoft_teams/types'
+import { extractMessageAttachments } from '@/tools/microsoft_teams/utils'
+import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MicrosoftTeamsReadChannel')
 

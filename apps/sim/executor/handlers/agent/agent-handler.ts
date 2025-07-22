@@ -2,13 +2,19 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
+import { BlockType } from '@/executor/consts'
+import type {
+  AgentInputs,
+  Message,
+  StreamingConfig,
+  ToolInput,
+} from '@/executor/handlers/agent/types'
+import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey, getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
-import type { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
-import type { AgentInputs, Message, StreamingConfig, ToolInput } from './types'
 
 const logger = createLogger('AgentBlockHandler')
 
@@ -22,7 +28,7 @@ const CUSTOM_TOOL_PREFIX = 'custom_'
  */
 export class AgentBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'agent'
+    return block.metadata?.id === BlockType.AGENT
   }
 
   async execute(

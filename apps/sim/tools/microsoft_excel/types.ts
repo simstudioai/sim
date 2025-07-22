@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
 // Type for Excel cell values - covers all valid data types that Excel supports
 export type ExcelCellValue = string | number | boolean | null
@@ -67,3 +67,8 @@ export interface MicrosoftExcelTableToolParams {
   values: ExcelCellValue[][]
   rowIndex?: number
 }
+
+export type MicrosoftExcelResponse =
+  | MicrosoftExcelReadResponse
+  | MicrosoftExcelWriteResponse
+  | MicrosoftExcelTableAddResponse

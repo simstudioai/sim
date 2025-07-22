@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { RedditPostsParams, RedditPostsResponse } from './types'
+import type { RedditPostsParams, RedditPostsResponse } from '@/tools/reddit/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = {
   id: 'reddit_get_posts',

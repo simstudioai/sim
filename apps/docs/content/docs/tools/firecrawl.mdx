@@ -95,6 +95,28 @@ Search for information on the web using Firecrawl
 | `data` | string |
 | `warning` | string |
 
+### `firecrawl_crawl`
+
+Crawl entire websites and extract structured content from all accessible pages
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The website URL to crawl |
+| `limit` | number | No | Maximum number of pages to crawl \(default: 100\) |
+| `onlyMainContent` | boolean | No | Extract only main content from pages |
+| `apiKey` | string | Yes | Firecrawl API Key |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `jobId` | string |
+| `pages` | string |
+| `total` | string |
+| `creditsUsed` | string |
+
 
 
 ## Block Configuration
@@ -116,6 +138,9 @@ Search for information on the web using Firecrawl
 | `metadata` | json | metadata output from the block |
 | `data` | json | data output from the block |
 | `warning` | any | warning output from the block |
+| `pages` | json | pages output from the block |
+| `total` | number | total output from the block |
+| `creditsUsed` | number | creditsUsed output from the block |
 
 
 ## Notes

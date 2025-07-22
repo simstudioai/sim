@@ -1,3 +1,3 @@
-import { s3GetObjectTool } from './get_object'
+import { s3GetObjectTool } from '@/tools/s3/get_object'
 
 export { s3GetObjectTool }

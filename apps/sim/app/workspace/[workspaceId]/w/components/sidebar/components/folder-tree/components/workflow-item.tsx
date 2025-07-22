@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useFolderStore, useIsWorkflowSelected } from '@/stores/folders/store'
@@ -220,16 +219,22 @@ export function WorkflowItem({
             style={{ backgroundColor: workflow.color }}
           />
           {isEditing ? (
-            <Input
+            <input
               ref={inputRef}
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleInputBlur}
-              className='h-6 flex-1 border-0 bg-transparent p-0 text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              className={`flex-1 border-0 bg-transparent p-0 font-medium text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 ${
+                active && !isDragOver ? 'text-foreground' : 'text-muted-foreground'
+              }`}
               maxLength={100}
               disabled={isRenaming}
               onClick={(e) => e.preventDefault()} // Prevent navigation when clicking input
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              spellCheck='false'
             />
           ) : (
             <span className='flex-1 select-none truncate'>

@@ -103,7 +103,6 @@ const WorkflowStateSchema = z.object({
   isDeployed: z.boolean().optional(),
   deployedAt: z.date().optional(),
   deploymentStatuses: z.record(DeploymentStatusSchema).optional(),
-  hasActiveSchedule: z.boolean().optional(),
   hasActiveWebhook: z.boolean().optional(),
 })
 
@@ -180,7 +179,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       isDeployed: state.isDeployed || false,
       deployedAt: state.deployedAt,
       deploymentStatuses: state.deploymentStatuses || {},
-      hasActiveSchedule: state.hasActiveSchedule || false,
       hasActiveWebhook: state.hasActiveWebhook || false,
     }
 
