@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+
+const logger = createLogger('ConfluencePages')
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
     const queryString = queryParams.toString()
     const url = queryString ? `${baseUrl}?${queryString}` : baseUrl
 
-    console.log(`Fetching Confluence pages from: ${url}`)
+    logger.info(`Fetching Confluence pages from: ${url}`)
 
     // Make the request to Confluence API with OAuth Bearer token
     const response = await fetch(url, {
@@ -50,23 +53,23 @@ export async function POST(request: Request) {
       },
     })
 
-    console.log('Response status:', response.status, response.statusText)
+    logger.info('Response status:', response.status, response.statusText)
 
     if (!response.ok) {
-      console.error(`Confluence API error: ${response.status} ${response.statusText}`)
+      logger.error(`Confluence API error: ${response.status} ${response.statusText}`)
       let errorMessage
 
       try {
         const errorData = await response.json()
-        console.error('Error details:', JSON.stringify(errorData, null, 2))
+        logger.error('Error details:', JSON.stringify(errorData, null, 2))
         errorMessage = errorData.message || `Failed to fetch Confluence pages (${response.status})`
       } catch (e) {
-        console.error('Could not parse error response as JSON:', e)
+        logger.error('Could not parse error response as JSON:', e)
 
         // Try to get the response text for more context
         try {
           const text = await response.text()
-          console.error('Response text:', text)
+          logger.error('Response text:', text)
           errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
         } catch (_textError) {
           errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
@@ -77,13 +80,13 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    console.log('Confluence API response:', `${JSON.stringify(data, null, 2).substring(0, 300)}...`)
-    console.log(`Found ${data.results?.length || 0} pages`)
+    logger.info('Confluence API response:', `${JSON.stringify(data, null, 2).substring(0, 300)}...`)
+    logger.info(`Found ${data.results?.length || 0} pages`)
 
     if (data.results && data.results.length > 0) {
-      console.log('First few pages:')
+      logger.info('First few pages:')
       for (const page of data.results.slice(0, 3)) {
-        console.log(`- ${page.id}: ${page.title}`)
+        logger.info(`- ${page.id}: ${page.title}`)
       }
     }
 
@@ -99,7 +102,7 @@ export async function POST(request: Request) {
       })),
     })
   } catch (error) {
-    console.error('Error fetching Confluence pages:', error)
+    logger.error('Error fetching Confluence pages:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }

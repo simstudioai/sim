@@ -17,10 +17,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { validateName } from '@/lib/utils'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable, VariableType } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('Variables')
 
 export function Variables() {
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
@@ -190,7 +193,7 @@ export function Variables() {
 
           return undefined // Valid object
         } catch (e) {
-          console.log('Object parsing error:', e)
+          logger.info('Object parsing error:', e)
           return 'Invalid object syntax'
         }
       case 'array':
@@ -215,7 +218,7 @@ export function Variables() {
 
           return undefined // Valid array
         } catch (e) {
-          console.log('Array parsing error:', e)
+          logger.info('Array parsing error:', e)
           return 'Invalid array syntax'
         }
       default:

@@ -72,7 +72,7 @@ function validateVariable(variable: Variable): string | undefined {
 
           return undefined // Valid object
         } catch (e) {
-          console.log('Object parsing error:', e)
+          logger.error('Object parsing error:', e)
           return 'Invalid object syntax'
         }
       case 'array':

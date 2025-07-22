@@ -57,7 +57,7 @@ services:
         limits:
           memory: 8G
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002']
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002/health']
       interval: 90s
       timeout: 5s
       retries: 3

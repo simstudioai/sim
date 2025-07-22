@@ -231,46 +231,6 @@ export function ConditionInput({
     }
   }, [])
 
-  // Update block value with trigger checks - handle both tag and env var triggers consistently
-  const updateBlockValue = (
-    blockId: string,
-    newValue: string,
-    textarea: HTMLTextAreaElement | null
-  ) => {
-    if (isPreview || disabled) return
-
-    try {
-      setConditionalBlocks((blocks) =>
-        blocks.map((block) => {
-          if (block.id === blockId) {
-            const pos = textarea?.selectionStart ?? 0
-            const tagTrigger = checkTagTrigger(newValue, pos)
-            const envVarTrigger = checkEnvVarTrigger(newValue, pos)
-
-            // Check triggers for both tags and env vars
-            const lastCharTyped = newValue.charAt(pos - 1)
-            const shouldShowTags = tagTrigger.show || lastCharTyped === '<'
-            const shouldShowEnvVars = envVarTrigger.show || lastCharTyped === '$'
-
-            return {
-              ...block,
-              value: newValue,
-              showTags: shouldShowTags,
-              showEnvVars: shouldShowEnvVars,
-              searchTerm: shouldShowEnvVars ? envVarTrigger.searchTerm : '',
-              cursorPosition: pos,
-              // Maintain activeSourceBlockId only when tags are showing
-              activeSourceBlockId: shouldShowTags ? block.activeSourceBlockId : null,
-            }
-          }
-          return block
-        })
-      )
-    } catch (error) {
-      logger.error('Error updating block value:', { error, blockId, newValue })
-    }
-  }
-
   // Update the line counting logic to be block-specific
   useEffect(() => {
     if (!editorRef.current || conditionalBlocks.length === 0) return
@@ -541,9 +501,6 @@ export function ConditionInput({
     })
   }, [conditionalBlocks.length])
 
-  // Use preview value when in preview mode, otherwise use store value
-  const value = isPreview ? previewValue : storeValue
-
   // Show loading or empty state if not ready or no blocks
   if (!isReady || conditionalBlocks.length === 0) {
     return (
@@ -698,11 +655,33 @@ export function ConditionInput({
                 <Editor
                   value={block.value}
                   onValueChange={(newCode) => {
-                    if (!isPreview) {
+                    if (!isPreview && !disabled) {
                       const textarea = editorRef.current?.querySelector(
                         `[data-block-id="${block.id}"] textarea`
-                      )
-                      updateBlockValue(block.id, newCode, textarea as HTMLTextAreaElement | null)
+                      ) as HTMLTextAreaElement | null
+                      if (textarea) {
+                        const pos = textarea.selectionStart ?? 0
+
+                        const tagTrigger = checkTagTrigger(newCode, pos)
+                        const envVarTrigger = checkEnvVarTrigger(newCode, pos)
+
+                        setConditionalBlocks((blocks) =>
+                          blocks.map((b) => {
+                            if (b.id === block.id) {
+                              return {
+                                ...b,
+                                value: newCode,
+                                showTags: tagTrigger.show,
+                                showEnvVars: envVarTrigger.show,
+                                searchTerm: envVarTrigger.show ? envVarTrigger.searchTerm : '',
+                                cursorPosition: pos,
+                                activeSourceBlockId: tagTrigger.show ? b.activeSourceBlockId : null,
+                              }
+                            }
+                            return b
+                          })
+                        )
+                      }
                     }
                   }}
                   onKeyDown={(e) => {
