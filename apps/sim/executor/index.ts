@@ -156,7 +156,7 @@ export class Executor {
       new LoopBlockHandler(this.resolver, this.pathTracker),
       new ParallelBlockHandler(this.resolver, this.pathTracker),
       new ResponseBlockHandler(),
-      new WorkflowBlockHandler(),
+      new WorkflowBlockHandler(this.resolver),
       new GenericBlockHandler(),
     ]
 
@@ -461,7 +461,8 @@ export class Executor {
         logs: context.blockLogs,
       }
     } finally {
-      if (!this.isDebugging) {
+      // Only reset store for top-level executions, not child workflow executions
+      if (!this.isDebugging && !workflowId.includes('_sub_')) {
         reset()
       }
     }
@@ -1195,7 +1196,14 @@ export class Executor {
         }
       })
 
-      setActiveBlocks(activeBlockIds)
+      // For child workflow executions, preserve parent's active blocks
+      if (context.workflowId?.includes('_sub_')) {
+        const currentActiveBlocks = useExecutionStore.getState().activeBlockIds
+        const combinedActiveBlocks = new Set([...currentActiveBlocks, ...activeBlockIds])
+        setActiveBlocks(combinedActiveBlocks)
+      } else {
+        setActiveBlocks(activeBlockIds)
+      }
 
       const results = await Promise.all(
         blockIds.map((blockId) => this.executeBlock(blockId, context))
@@ -1209,8 +1217,15 @@ export class Executor {
 
       return results
     } catch (error) {
-      // If there's an uncaught error, clear all active blocks as a safety measure
-      setActiveBlocks(new Set())
+      // If there's an uncaught error, clear active blocks as a safety measure
+      // For child workflows, only clear child blocks and preserve parent blocks
+      if (context.workflowId?.includes('_sub_')) {
+        // For child workflows, try to preserve parent blocks by removing only child blocks
+        // Since we don't track which blocks belong to child vs parent, we'll leave the blocks as-is
+        // The parent workflow will clean up when it completes
+      } else {
+        setActiveBlocks(new Set())
+      }
       throw error
     }
   }

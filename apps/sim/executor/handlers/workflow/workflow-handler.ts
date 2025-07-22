@@ -4,9 +4,11 @@ import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import { BlockType } from '@/executor/consts'
+import type { InputResolver } from '@/executor/resolver/resolver'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowBlockHandler')
@@ -21,6 +23,8 @@ const MAX_WORKFLOW_DEPTH = 10
 export class WorkflowBlockHandler implements BlockHandler {
   private serializer = new Serializer()
   private static executionStack = new Set<string>()
+
+  constructor(private resolver?: InputResolver) {}
 
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.WORKFLOW
@@ -38,83 +42,111 @@ export class WorkflowBlockHandler implements BlockHandler {
     if (!workflowId) {
       throw new Error('No workflow selected for execution')
     }
+    // Get workflow metadata for error messages
+    const { workflows } = useWorkflowRegistry.getState()
+    const workflowMetadata = workflows[workflowId]
+    const childWorkflowName = workflowMetadata?.name || workflowId
+
+    // Check execution depth
+    const currentDepth = (context.workflowId?.split('_sub_').length || 1) - 1
+    if (currentDepth >= MAX_WORKFLOW_DEPTH) {
+      throw new Error(
+        `Child workflow '${childWorkflowName}' failed: Maximum workflow nesting depth of ${MAX_WORKFLOW_DEPTH} exceeded`
+      )
+    }
+
+    // Check for cycles
+    const executionId = `${context.workflowId}_sub_${workflowId}`
+    if (WorkflowBlockHandler.executionStack.has(executionId)) {
+      throw new Error(
+        `Child workflow '${childWorkflowName}' failed: Cyclic workflow dependency detected: ${executionId}`
+      )
+    }
+
+    // Add current execution to stack
+    WorkflowBlockHandler.executionStack.add(executionId)
+
+    // Load the child workflow from API
+    const childWorkflow = await this.loadChildWorkflow(workflowId)
+
+    if (!childWorkflow) {
+      throw new Error(
+        `Child workflow '${childWorkflowName}' failed: Child workflow ${workflowId} not found`
+      )
+    }
+
+    // Update workflow name with loaded workflow data
+    const finalChildWorkflowName =
+      workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
+
+    logger.info(
+      `Executing child workflow: ${finalChildWorkflowName} (${workflowId}) at depth ${currentDepth}`
+    )
+
+    // Prepare the input for the child workflow
+    // The input from this block should be passed as start.input to the child workflow
+    let childWorkflowInput = {}
+
+    // Prioritize JSON input (advanced mode) over structured input format (basic mode)
+    if (inputs.jsonInput !== undefined && inputs.jsonInput !== null) {
+      // Use JSON input directly (advanced mode)
+      try {
+        let jsonString =
+          typeof inputs.jsonInput === 'string' ? inputs.jsonInput : JSON.stringify(inputs.jsonInput)
+
+        // Resolve variables in the JSON string before parsing
+        if (this.resolver) {
+          const resolvedVars = this.resolver.resolveVariableReferences(jsonString, block)
+          const resolvedRefs = this.resolver.resolveBlockReferences(resolvedVars, context, block)
+          jsonString = this.resolver.resolveEnvVariables(resolvedRefs, false)
+        }
+
+        childWorkflowInput = JSON.parse(jsonString)
+        logger.info(`Passing JSON input to child workflow: ${JSON.stringify(childWorkflowInput)}`)
+      } catch (error) {
+        logger.error('Failed to parse JSON input:', error)
+        throw new Error(
+          'Invalid JSON input provided. Please check your JSON syntax and variable references.'
+        )
+      }
+    } else if (inputs.workflowInputFormat && Array.isArray(inputs.workflowInputFormat)) {
+      // Use structured input format (basic mode) as fallback
+      const formattedInput: Record<string, any> = {}
+      for (const field of inputs.workflowInputFormat) {
+        if (field.name && field.value !== undefined) {
+          let resolvedValue = field.value
+
+          // Resolve variables in field values
+          if (this.resolver && typeof field.value === 'string') {
+            const resolvedVars = this.resolver.resolveVariableReferences(field.value, block)
+            const resolvedRefs = this.resolver.resolveBlockReferences(resolvedVars, context, block)
+            resolvedValue = this.resolver.resolveEnvVariables(resolvedRefs, false)
+          }
+
+          formattedInput[field.name] = resolvedValue
+        }
+      }
+      childWorkflowInput = formattedInput
+      logger.info(
+        `Passing structured input to child workflow: ${JSON.stringify(childWorkflowInput)}`
+      )
+    }
+
+    // Set this workflow block as active during execution
+    const { setActiveBlocks } = useExecutionStore.getState()
+    const currentActiveBlocks = useExecutionStore.getState().activeBlockIds
+    const newActiveBlocks = new Set([...currentActiveBlocks, block.id])
+    logger.info(
+      `Setting workflow block ${block.id} as active. Current active blocks:`,
+      Array.from(currentActiveBlocks)
+    )
+    setActiveBlocks(newActiveBlocks)
 
     try {
-      // Check execution depth
-      const currentDepth = (context.workflowId?.split('_sub_').length || 1) - 1
-      if (currentDepth >= MAX_WORKFLOW_DEPTH) {
-        throw new Error(`Maximum workflow nesting depth of ${MAX_WORKFLOW_DEPTH} exceeded`)
-      }
-
-      // Check for cycles
-      const executionId = `${context.workflowId}_sub_${workflowId}`
-      if (WorkflowBlockHandler.executionStack.has(executionId)) {
-        throw new Error(`Cyclic workflow dependency detected: ${executionId}`)
-      }
-
-      // Add current execution to stack
-      WorkflowBlockHandler.executionStack.add(executionId)
-
-      // Load the child workflow from API
-      const childWorkflow = await this.loadChildWorkflow(workflowId)
-
-      if (!childWorkflow) {
-        throw new Error(`Child workflow ${workflowId} not found`)
-      }
-
-      // Get workflow metadata for logging
-      const { workflows } = useWorkflowRegistry.getState()
-      const workflowMetadata = workflows[workflowId]
-      const childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
-
-      logger.info(
-        `Executing child workflow: ${childWorkflowName} (${workflowId}) at depth ${currentDepth}`
-      )
-
-      // Prepare the input for the child workflow
-      // The input from this block should be passed as start.input to the child workflow
-      let childWorkflowInput = {}
-
-      // Check for structured input format first
-      if (inputs.workflowInputFormat && Array.isArray(inputs.workflowInputFormat)) {
-        // Convert structured input format to key-value object
-        const formattedInput: Record<string, any> = {}
-        for (const field of inputs.workflowInputFormat) {
-          if (field.name && field.value !== undefined) {
-            formattedInput[field.name] = field.value
-          }
-        }
-        childWorkflowInput = formattedInput
-        logger.info(
-          `Passing structured input to child workflow: ${JSON.stringify(childWorkflowInput)}`
-        )
-      } else if (inputs.jsonInput !== undefined) {
-        // Use JSON input directly (advanced mode)
-        try {
-          childWorkflowInput =
-            typeof inputs.jsonInput === 'string' ? JSON.parse(inputs.jsonInput) : inputs.jsonInput
-          logger.info(`Passing JSON input to child workflow: ${JSON.stringify(childWorkflowInput)}`)
-        } catch (error) {
-          logger.error('Failed to parse JSON input:', error)
-          throw new Error('Invalid JSON input provided')
-        }
-      } else if (inputs.input !== undefined) {
-        // Legacy input handling for backward compatibility
-        childWorkflowInput = inputs.input
-        logger.info(`Passing legacy input to child workflow: ${JSON.stringify(childWorkflowInput)}`)
-      }
-
-      // Remove workflow-specific inputs from the input to avoid confusion
-      const {
-        workflowId: _,
-        input: __,
-        workflowInputFormat: ___,
-        jsonInput: ____,
-        hasInputFields: _____,
-        ...otherInputs
-      } = inputs
-
       // Execute child workflow inline
+      logger.info(
+        `[WorkflowHandler] Passing input to child workflow: ${JSON.stringify(childWorkflowInput)}`
+      )
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
         workflowInput: childWorkflowInput,
@@ -129,26 +161,40 @@ export class WorkflowBlockHandler implements BlockHandler {
       WorkflowBlockHandler.executionStack.delete(executionId)
 
       // Log execution completion
-      logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
+      logger.info(`Child workflow ${finalChildWorkflowName} completed in ${Math.round(duration)}ms`)
+
+      // Aggregate child workflow logs into parent context
+      const executionResult = 'execution' in result ? result.execution : result
+      if (executionResult.logs && executionResult.logs.length > 0) {
+        logger.info(
+          `Aggregating ${executionResult.logs.length} logs from child workflow ${finalChildWorkflowName}`
+        )
+        // Add all child workflow logs to the parent execution context
+        context.blockLogs.push(...executionResult.logs)
+      }
 
       // Map child workflow output to parent block output
-      return this.mapChildOutputToParent(result, childWorkflowName)
+      return this.mapChildOutputToParent(result, finalChildWorkflowName)
     } catch (error: any) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
       // Clean up execution stack in case of error
-      const executionId = `${context.workflowId}_sub_${workflowId}`
       WorkflowBlockHandler.executionStack.delete(executionId)
-
-      // Get workflow name for error reporting and re-throw the error
-      const { workflows } = useWorkflowRegistry.getState()
-      const workflowMetadata = workflows[workflowId]
-      const childWorkflowName = workflowMetadata?.name || workflowId
 
       // Re-throw the error with more context instead of wrapping it
       throw new Error(
-        `Child workflow '${childWorkflowName}' failed: ${error.message || 'Execution failed'}`
+        `Child workflow '${finalChildWorkflowName}' failed: ${error.message || 'Execution failed'}`
       )
+    } finally {
+      // Always remove this block from active blocks when execution completes or fails
+      const finalActiveBlocks = useExecutionStore.getState().activeBlockIds
+      const updatedActiveBlocks = new Set(finalActiveBlocks)
+      updatedActiveBlocks.delete(block.id)
+      logger.info(
+        `Removing workflow block ${block.id} from active blocks. Active blocks before removal:`,
+        Array.from(finalActiveBlocks)
+      )
+      setActiveBlocks(updatedActiveBlocks)
     }
   }
 

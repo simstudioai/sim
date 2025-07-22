@@ -538,8 +538,8 @@ export class InputResolver {
                 else if (blockType === 'condition') {
                   formattedValue = this.stringifyForCondition(replacementValue)
                 }
-                // For response blocks, preserve object structure as-is for proper JSON response
-                else if (blockType === 'response') {
+                // For response and workflow blocks, preserve object structure as-is for proper JSON response
+                else if (blockType === 'response' || blockType === 'workflow') {
                   formattedValue = replacementValue
                 }
                 // For all other blocks, stringify objects
@@ -557,6 +557,12 @@ export class InputResolver {
                   )
                 } else if (blockType === 'condition') {
                   formattedValue = this.stringifyForCondition(replacementValue)
+                } else if (blockType === 'workflow') {
+                  // For workflow blocks, properly quote string values for JSON context
+                  formattedValue =
+                    typeof replacementValue === 'string'
+                      ? JSON.stringify(replacementValue)
+                      : String(replacementValue)
                 } else {
                   formattedValue = String(replacementValue)
                 }
@@ -565,8 +571,8 @@ export class InputResolver {
               // Standard handling for non-input references
               const blockType = currentBlock.metadata?.id
 
-              if (blockType === 'response') {
-                // For response blocks, properly quote string values for JSON context
+              if (blockType === 'workflow') {
+                // For workflow blocks, properly quote string values for JSON context
                 if (typeof replacementValue === 'string') {
                   // Properly escape and quote the string for JSON
                   formattedValue = JSON.stringify(replacementValue)
@@ -716,8 +722,8 @@ export class InputResolver {
           value.includes('}') &&
           value.includes('`')
 
-        // For response blocks, properly quote string values for JSON context
-        if (currentBlock.metadata?.id === 'response') {
+        // For workflow blocks, properly quote string values for JSON context
+        if (currentBlock.metadata?.id === 'workflow') {
           if (typeof replacementValue === 'string') {
             // Properly escape and quote the string for JSON
             formattedValue = JSON.stringify(replacementValue)

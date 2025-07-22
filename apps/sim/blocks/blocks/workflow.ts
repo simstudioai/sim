@@ -41,10 +41,6 @@ export const WorkflowBlock: BlockConfig = {
       options: getAvailableWorkflows,
     },
     {
-      id: 'hasInputFields',
-      type: 'hidden',
-    },
-    {
       id: 'workflowInputFormat',
       title: 'Input Fields',
       type: 'input-format',
@@ -53,10 +49,6 @@ export const WorkflowBlock: BlockConfig = {
         field: 'workflowId',
         value: '',
         not: true,
-        and: {
-          field: 'hasInputFields',
-          value: true,
-        },
       },
       description:
         "Fill in the input values for the selected workflow. These fields are defined in the target workflow's start block.",
@@ -85,11 +77,6 @@ export const WorkflowBlock: BlockConfig = {
       type: 'string',
       required: true,
       description: 'ID of the workflow to execute',
-    },
-    input: {
-      type: 'string',
-      required: false,
-      description: 'Variable reference to pass to the child workflow',
     },
   },
   outputs: {

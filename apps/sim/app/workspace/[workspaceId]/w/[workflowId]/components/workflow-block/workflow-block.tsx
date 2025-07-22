@@ -38,6 +38,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const [isConnecting, setIsConnecting] = useState(false)
 
   const [isEditing, setIsEditing] = useState(false)
+
   const [editedName, setEditedName] = useState('')
   const [isLoadingScheduleInfo, setIsLoadingScheduleInfo] = useState(false)
   const [scheduleInfo, setScheduleInfo] = useState<{
@@ -335,6 +336,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
       // If there's no condition, the block should be shown
       if (!block.condition) return true
+
+      // Handle field-based conditions
+      if (!block.condition.field) return true
 
       // Get the values of the fields this block depends on from the appropriate state
       const fieldValue = stateToUse[block.condition.field]?.value

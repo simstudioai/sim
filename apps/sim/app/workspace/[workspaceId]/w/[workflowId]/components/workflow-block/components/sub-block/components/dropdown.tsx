@@ -3,7 +3,6 @@ import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DropdownProps {
@@ -43,32 +42,8 @@ export function Dropdown({
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // For workflow blocks - handle hasInputFields computation and mode conversion
-  const [hasInputFieldsValue, setHasInputFields] = useSubBlockValue<boolean>(
-    blockId,
-    'hasInputFields'
-  )
-  const [workflowInputFormatData] = useSubBlockValue<any[]>(blockId, 'workflowInputFormat')
-  const [currentJsonInput, setJsonInput] = useSubBlockValue<string>(blockId, 'jsonInput')
-  const parentBlockType = useWorkflowStore((state) => state.blocks[blockId]?.type)
-  const isAdvancedMode = useWorkflowStore((state) => state.blocks[blockId]?.advancedMode)
-
   // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
-
-  // Initialize hasInputFields to false if it's undefined for workflow blocks
-  useEffect(() => {
-    if (parentBlockType === 'workflow' && hasInputFieldsValue === undefined) {
-      setHasInputFields(false)
-    }
-  }, [parentBlockType, hasInputFieldsValue, setHasInputFields])
-
-  // Reset hasInputFields when workflow selection is cleared
-  useEffect(() => {
-    if (subBlockId === 'workflowId' && parentBlockType === 'workflow' && !value) {
-      setHasInputFields(false)
-    }
-  }, [subBlockId, parentBlockType, value, setHasInputFields])
 
   // Evaluate options if it's a function
   const evaluatedOptions = useMemo(() => {
@@ -122,37 +97,8 @@ export function Dropdown({
   }, [storeInitialized, value, defaultOptionValue, setStoreValue])
 
   // Event handlers
-  const handleSelect = async (selectedValue: string) => {
+  const handleSelect = (selectedValue: string) => {
     if (!isPreview && !disabled) {
-      // Handle workflow selection - compute hasInputFields
-      if (subBlockId === 'workflowId' && parentBlockType === 'workflow') {
-        // Reset hasInputFields immediately when workflow changes
-        setHasInputFields(false)
-        try {
-          const response = await fetch(`/api/workflows/${selectedValue}`)
-          if (response.ok) {
-            const workflowData = await response.json()
-            const blocks = workflowData.data?.state?.blocks || {}
-            const starterBlock = Object.values(blocks).find(
-              (block: any) => block.type === 'starter'
-            ) as any
-
-            if (starterBlock) {
-              const inputFormat = starterBlock.subBlocks?.inputFormat?.value
-              const hasFields = inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0
-              setHasInputFields(hasFields)
-            } else {
-              setHasInputFields(false)
-            }
-          } else {
-            setHasInputFields(false)
-          }
-        } catch (error) {
-          console.error('Error fetching workflow input format for hasInputFields:', error)
-          setHasInputFields(false)
-        }
-      }
-
       setStoreValue(selectedValue)
     }
     setOpen(false)

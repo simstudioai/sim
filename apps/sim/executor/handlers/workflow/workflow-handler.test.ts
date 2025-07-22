@@ -144,12 +144,12 @@ describe('WorkflowBlockHandler', () => {
     })
 
     it('should handle fetch errors gracefully', async () => {
-      const inputs = { workflowId: 'child-workflow-id' }
+      const inputs = { workflowId: 'fetch-error-workflow-id' }
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
       await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
-        "Child workflow 'child-workflow-id' failed: Child workflow child-workflow-id not found"
+        "Child workflow 'fetch-error-workflow-id' failed: Child workflow fetch-error-workflow-id not found"
       )
     })
   })
