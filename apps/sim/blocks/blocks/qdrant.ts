@@ -56,7 +56,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       title: 'Points',
       type: 'long-input',
       layout: 'full',
-      placeholder: '[{"id": "1", "vector": [0.1, 0.2], "payload": {"category": "a"}}]',
+      placeholder: '[{"id": 1, "vector": [0.1, 0.2], "payload": {"category": "a"}}]',
       condition: { field: 'operation', value: 'upsert' },
     },
     // Search fields
