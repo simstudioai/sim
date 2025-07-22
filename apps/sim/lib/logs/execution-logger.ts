@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
-import { redactApiKeys } from '@/lib/utils'
+import { redactSensitiveData } from '@/lib/utils'
 import { stripCustomToolPrefix } from '@/lib/workflows/utils'
 import { db } from '@/db'
 import { userStats, workflow, workflowLogs } from '@/db/schema'
@@ -496,7 +496,8 @@ export async function persistExecutionLogs(
 
           const redactedToolCalls = getToolCalls.map((toolCall) => ({
             ...toolCall,
-            input: redactApiKeys(toolCall.input),
+            input: redactSensitiveData(toolCall.input),
+            output: redactSensitiveData(toolCall.output),
           }))
 
           // Merge with existing metadata instead of overwriting

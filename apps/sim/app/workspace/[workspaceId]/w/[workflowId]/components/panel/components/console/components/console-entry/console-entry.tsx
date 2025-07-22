@@ -13,6 +13,7 @@ import {
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
+import { redactSensitiveData } from '@/lib/utils'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -203,9 +204,10 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
     return imageData != null && imageData.length > 0
   }, [imageData])
 
-  // Get the data to display based on the toggle state
+  // Get the data to display based on the toggle state (with sensitive data redacted)
   const displayData = useMemo(() => {
-    return showInput ? entry.input : entry.output
+    const rawData = showInput ? entry.input : entry.output
+    return redactSensitiveData(rawData)
   }, [showInput, entry.input, entry.output])
 
   // Check if input data exists

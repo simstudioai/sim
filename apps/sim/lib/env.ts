@@ -58,6 +58,7 @@ export const env = createEnv({
     S3_BUCKET_NAME: z.string().optional(),
     S3_LOGS_BUCKET_NAME: z.string().optional(),
     S3_KB_BUCKET_NAME: z.string().optional(),
+    S3_EXECUTION_FILES_BUCKET_NAME: z.string().optional(),
     AZURE_ACCOUNT_NAME: z.string().optional(),
     AZURE_ACCOUNT_KEY: z.string().optional(),
     AZURE_CONNECTION_STRING: z.string().optional(),

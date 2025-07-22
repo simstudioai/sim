@@ -303,6 +303,7 @@ export const workflowExecutionLogs = pgTable(
     totalOutputCost: decimal('total_output_cost', { precision: 10, scale: 6 }),
     totalTokens: integer('total_tokens'),
 
+    files: jsonb('files'), // Store file metadata as JSONB array
     metadata: jsonb('metadata').notNull().default('{}'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },

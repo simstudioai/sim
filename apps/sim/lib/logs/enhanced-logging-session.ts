@@ -22,6 +22,7 @@ export interface SessionCompleteParams {
   totalDurationMs?: number
   finalOutput?: any
   traceSpans?: any[]
+  files?: any[]
 }
 
 export class EnhancedLoggingSession {
@@ -95,7 +96,7 @@ export class EnhancedLoggingSession {
   }
 
   async complete(params: SessionCompleteParams = {}): Promise<void> {
-    const { endedAt, totalDurationMs, finalOutput, traceSpans } = params
+    const { endedAt, totalDurationMs, finalOutput, traceSpans, files } = params
 
     try {
       const costSummary = calculateCostSummary(traceSpans || [])
@@ -107,6 +108,7 @@ export class EnhancedLoggingSession {
         costSummary,
         finalOutput: finalOutput || {},
         traceSpans: traceSpans || [],
+        files: files || null,
       })
 
       if (this.requestId) {

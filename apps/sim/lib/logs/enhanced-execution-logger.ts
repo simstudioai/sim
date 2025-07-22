@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { snapshotService } from '@/lib/logs/snapshot-service'
+import { redactSensitiveData } from '@/lib/utils'
 import { db } from '@/db'
 import { userStats, workflow, workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
 import type {
@@ -168,8 +169,8 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         status,
         errorMessage: error?.message || null,
         errorStackTrace: error?.stackTrace || null,
-        inputData: input,
-        outputData: output,
+        inputData: redactSensitiveData(input),
+        outputData: redactSensitiveData(output),
         costInput: cost?.input ? cost.input.toString() : null,
         costOutput: cost?.output ? cost.output.toString() : null,
         costTotal: cost?.total ? cost.total.toString() : null,
@@ -179,7 +180,15 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         modelUsed: cost?.model || null,
         metadata: {
           ...(metadata || {}),
-          ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+          ...(toolCalls && toolCalls.length > 0
+            ? {
+                toolCalls: toolCalls.map((toolCall) => ({
+                  ...toolCall,
+                  input: redactSensitiveData(toolCall.input),
+                  output: redactSensitiveData(toolCall.output),
+                })),
+              }
+            : {}),
         },
       })
       .returning()
@@ -230,8 +239,10 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
+    files?: any[]
   }): Promise<WorkflowExecutionLog> {
-    const { executionId, endedAt, totalDurationMs, costSummary, finalOutput, traceSpans } = params
+    const { executionId, endedAt, totalDurationMs, costSummary, finalOutput, traceSpans, files } =
+      params
 
     logger.debug(`Completing workflow execution ${executionId}`)
 
@@ -265,9 +276,10 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         totalInputCost: costSummary.totalInputCost.toString(),
         totalOutputCost: costSummary.totalOutputCost.toString(),
         totalTokens: costSummary.totalTokens,
+        files: files ? this.convertFilesToMetadata(files) : null,
         metadata: {
-          traceSpans,
-          finalOutput,
+          traceSpans: redactSensitiveData(traceSpans),
+          finalOutput: redactSensitiveData(finalOutput),
           tokenBreakdown: {
             prompt: costSummary.totalPromptTokens,
             completion: costSummary.totalCompletionTokens,
@@ -552,6 +564,33 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       default:
         return 'Unknown'
     }
+  }
+
+  private convertFilesToMetadata(files: any[]): any[] {
+    return files.map((file) => ({
+      id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      fileKey: file.key,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      storageProvider: this.getStorageProviderFromKey(file.key),
+      bucketName: this.getBucketNameFromKey(file.key),
+      directUrl: file.directUrl,
+      uploadedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+    }))
+  }
+
+  private getStorageProviderFromKey(key: string): 's3' | 'blob' | 'local' {
+    if (key.includes('workspaces/')) return 's3' // Our execution-scoped files use this pattern
+    if (key.includes('blob')) return 'blob'
+    return 'local'
+  }
+
+  private getBucketNameFromKey(key: string): string | undefined {
+    // This would need to be enhanced based on your actual bucket naming strategy
+    // For now, return undefined and let the cleanup use the default bucket
+    return undefined
   }
 }
 

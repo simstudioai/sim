@@ -1,10 +1,6 @@
-import { writeFile } from 'fs/promises'
-import { join } from 'path'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { isUsingCloudStorage, uploadFile } from '@/lib/uploads'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
 // Import to ensure the uploads directory is created
 import '@/lib/uploads/setup.server'
 
@@ -26,6 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Log storage mode
+    const { isUsingCloudStorage } = await import('@/lib/uploads')
     const usingCloudStorage = isUsingCloudStorage()
     logger.info(`Using storage mode: ${usingCloudStorage ? 'Cloud' : 'Local'} for file upload`)
 
@@ -41,6 +38,7 @@ export async function POST(request: NextRequest) {
         // Upload to cloud storage (S3 or Azure Blob)
         try {
           logger.info(`Uploading file to cloud storage: ${originalName}`)
+          const { uploadFile } = await import('@/lib/uploads')
           const result = await uploadFile(buffer, originalName, file.type, file.size)
           logger.info(`Successfully uploaded to cloud storage: ${result.key}`)
           uploadResults.push(result)
@@ -52,6 +50,11 @@ export async function POST(request: NextRequest) {
         // Upload to local file system in development
         const extension = originalName.split('.').pop() || ''
         const uniqueFilename = `${uuidv4()}.${extension}`
+
+        const { join } = await import('path')
+        const { UPLOAD_DIR } = await import('@/lib/uploads/setup')
+        const { writeFile } = await import('fs/promises')
+
         const filePath = join(UPLOAD_DIR, uniqueFilename)
 
         logger.info(`Uploading file to local storage: ${filePath}`)

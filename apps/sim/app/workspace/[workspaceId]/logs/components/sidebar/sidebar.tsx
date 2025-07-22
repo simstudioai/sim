@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { redactApiKeys } from '@/lib/utils'
+import { redactSensitiveData } from '@/lib/utils'
 import type { WorkflowLog } from '@/app/workspace/[workspaceId]/logs/stores/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
+import { ExecutionFilesDisplay } from '../execution-files/execution-files-display'
 import { FrozenCanvasModal } from '../frozen-canvas/frozen-canvas-modal'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '../trace-spans/trace-spans-display'
@@ -103,7 +104,7 @@ const BlockContentDisplay = ({
   const [activeTab, setActiveTab] = useState<'output' | 'input'>(blockInput ? 'output' : 'output')
 
   const redactedBlockInput = useMemo(() => {
-    return blockInput ? redactApiKeys(blockInput) : undefined
+    return blockInput ? redactSensitiveData(blockInput) : undefined
   }, [blockInput])
 
   const redactedOutput = useMemo(() => {
@@ -111,7 +112,7 @@ const BlockContentDisplay = ({
 
     try {
       const parsedOutput = JSON.parse(formatted)
-      const redactedJson = redactApiKeys(parsedOutput)
+      const redactedJson = redactSensitiveData(parsedOutput)
       return JSON.stringify(redactedJson, null, 2)
     } catch (_e) {
       return formatted
@@ -553,6 +554,28 @@ export function Sidebar({
                   </p>
                 </div>
               )}
+
+              {/* Execution Files (if available and this is a workflow execution log) */}
+              {(() => {
+                // Debug logging
+                console.log('File display debug:', {
+                  isWorkflowExecutionLog,
+                  executionId: log.executionId,
+                  hasFiles: !!log.files,
+                  filesCount: log.files?.length || 0,
+                  files: log.files,
+                })
+
+                return (
+                  isWorkflowExecutionLog &&
+                  log.executionId &&
+                  log.files && (
+                    <div className='w-full pb-4'>
+                      <ExecutionFilesDisplay executionId={log.executionId} files={log.files} />
+                    </div>
+                  )
+                )
+              })()}
 
               {/* Message Content */}
               <div className='w-full pb-2'>

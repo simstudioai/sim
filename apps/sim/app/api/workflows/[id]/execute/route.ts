@@ -339,6 +339,10 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
       totalDurationMs: totalDuration || 0,
       finalOutput: executionResult.output || {},
       traceSpans: (traceSpans || []) as any,
+      files:
+        executionResult.success && input && input.files && Array.isArray(input.files)
+          ? input.files
+          : null,
     })
 
     return executionResult
@@ -358,24 +362,8 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
   } finally {
     runningExecutions.delete(executionKey)
 
-    // Clean up execution-scoped files
-    try {
-      const { createWorkflowFileManager } = await import('@/lib/workflows/file-manager')
-      const fileManager = createWorkflowFileManager({
-        workspaceId: workflow.workspaceId || 'default-workspace',
-        workflowId: workflowId,
-        executionId: executionId,
-      })
-
-      await fileManager.cleanupExecution()
-      logger.info(`[${requestId}] Successfully cleaned up files for execution ${executionId}`)
-    } catch (cleanupError: any) {
-      logger.error(
-        `[${requestId}] Failed to clean up files for execution ${executionId}:`,
-        cleanupError
-      )
-      // Don't re-throw - cleanup failures shouldn't affect workflow execution results
-    }
+    // Note: Files are now persisted for 30 days and cleaned up by cron job
+    // No immediate cleanup needed - files are stored in execution log metadata
   }
 }
 

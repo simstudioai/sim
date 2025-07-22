@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const body = await request.json()
-    const { logs, executionId, result } = body
+    const { logs, executionId, result, files } = body
 
     // If result is provided, use persistExecutionLogs for full tool call extraction
     if (result) {
@@ -51,6 +51,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         totalDurationMs: result.metadata?.duration || 0,
         finalOutput: result.output || {},
         traceSpans,
+        files: files || null,
       })
 
       return createSuccessResponse({

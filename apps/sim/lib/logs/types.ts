@@ -364,5 +364,6 @@ export interface ExecutionLoggerService {
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
+    files?: any[]
   }): Promise<WorkflowExecutionLog>
 }

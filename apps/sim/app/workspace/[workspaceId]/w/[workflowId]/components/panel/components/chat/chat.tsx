@@ -74,7 +74,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             fileName: fileWithPreview.file.name,
             contentType: fileWithPreview.file.type,
             fileSize: fileWithPreview.file.size,
-            workspaceId: 'default-workspace', // TODO: Get actual workspace ID
+            workspaceId: window.location.pathname.split('/')[2], // Get actual workspace UUID from URL
             workflowId: activeWorkflowId,
             executionId: executionId,
           }),

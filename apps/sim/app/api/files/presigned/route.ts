@@ -3,10 +3,6 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
-import { getBlobServiceClient } from '@/lib/uploads/blob/blob-client'
-import { getS3Client, sanitizeFilenameForMetadata } from '@/lib/uploads/s3/s3-client'
-import { BLOB_CONFIG, BLOB_KB_CONFIG, S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
 import { createErrorResponse, createOptionsResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('PresignedUploadAPI')
@@ -95,6 +91,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const { isUsingCloudStorage } = await import('@/lib/uploads')
+    const { getStorageProvider } = await import('@/lib/uploads/storage-client')
+
     if (!isUsingCloudStorage()) {
       throw new StorageConfigError(
         'Direct uploads are only available when cloud storage is enabled'
@@ -162,7 +161,15 @@ async function handleS3PresignedUrl(
   executionContext?: { workspaceId: string; workflowId: string; executionId: string }
 ) {
   try {
-    const config = uploadType === 'knowledge-base' ? S3_KB_CONFIG : S3_CONFIG
+    const { S3_CONFIG, S3_KB_CONFIG, S3_EXECUTION_FILES_CONFIG } = await import(
+      '@/lib/uploads/setup'
+    )
+    const config =
+      uploadType === 'knowledge-base'
+        ? S3_KB_CONFIG
+        : uploadType === 'workflow-execution'
+          ? S3_EXECUTION_FILES_CONFIG
+          : S3_CONFIG
 
     if (!config.bucket || !config.region) {
       throw new StorageConfigError(`S3 configuration missing for ${uploadType} uploads`)
@@ -172,8 +179,8 @@ async function handleS3PresignedUrl(
 
     let uniqueKey: string
     if (uploadType === 'workflow-execution' && executionContext) {
-      // Use execution-scoped path for workflow files
-      uniqueKey = `workspaces/${executionContext.workspaceId}/workflows/${executionContext.workflowId}/executions/${executionContext.executionId}/${safeFileName}`
+      // Use execution-scoped path for workflow files: workspaceId/workflowId/executionId/filename
+      uniqueKey = `${executionContext.workspaceId}/${executionContext.workflowId}/${executionContext.executionId}/${safeFileName}`
     } else if (uploadType === 'knowledge-base') {
       // Use kb/ prefix for knowledge base files
       uniqueKey = `kb/${Date.now()}-${uuidv4()}-${safeFileName}`
@@ -182,6 +189,7 @@ async function handleS3PresignedUrl(
       uniqueKey = `${Date.now()}-${uuidv4()}-${safeFileName}`
     }
 
+    const { sanitizeFilenameForMetadata } = await import('@/lib/uploads/s3/s3-client')
     const sanitizedOriginalName = sanitizeFilenameForMetadata(fileName)
 
     const metadata: Record<string, string> = {
@@ -204,6 +212,8 @@ async function handleS3PresignedUrl(
       ContentType: contentType,
       Metadata: metadata,
     })
+
+    const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
 
     let presignedUrl: string
     try {
@@ -264,6 +274,7 @@ async function handleBlobPresignedUrl(
   executionContext?: { workspaceId: string; workflowId: string; executionId: string }
 ) {
   try {
+    const { BLOB_CONFIG, BLOB_KB_CONFIG } = await import('@/lib/uploads/setup')
     const config = uploadType === 'knowledge-base' ? BLOB_KB_CONFIG : BLOB_CONFIG
 
     if (
@@ -278,8 +289,8 @@ async function handleBlobPresignedUrl(
 
     let uniqueKey: string
     if (uploadType === 'workflow-execution' && executionContext) {
-      // Use execution-scoped path for workflow files
-      uniqueKey = `workspaces/${executionContext.workspaceId}/workflows/${executionContext.workflowId}/executions/${executionContext.executionId}/${safeFileName}`
+      // Use execution-scoped path for workflow files: workspaceId/workflowId/executionId/filename
+      uniqueKey = `${executionContext.workspaceId}/${executionContext.workflowId}/${executionContext.executionId}/${safeFileName}`
     } else if (uploadType === 'knowledge-base') {
       // Use kb/ prefix for knowledge base files
       uniqueKey = `kb/${Date.now()}-${uuidv4()}-${safeFileName}`
@@ -288,6 +299,7 @@ async function handleBlobPresignedUrl(
       uniqueKey = `${Date.now()}-${uuidv4()}-${safeFileName}`
     }
 
+    const { getBlobServiceClient } = await import('@/lib/uploads/blob/blob-client')
     const blobServiceClient = getBlobServiceClient()
     const containerClient = blobServiceClient.getContainerClient(config.containerName)
     const blockBlobClient = containerClient.getBlockBlobClient(uniqueKey)
@@ -345,9 +357,9 @@ async function handleBlobPresignedUrl(
         blobName: uniqueKey,
         permissions: BlobSASPermissions.parse('r'), // Read permission only
         startsOn: new Date(),
-        expiresOn: new Date(new Date().valueOf() + 24 * 60 * 60 * 1000), // 24 hours
+        expiresOn: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       },
-      sharedKeyCredential
+      new StorageSharedKeyCredential(config.accountName, config.accountKey || '')
     ).toString()
 
     const downloadUrl = `${blockBlobClient.url}?${downloadSasToken}`

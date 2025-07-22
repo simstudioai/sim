@@ -1,8 +1,5 @@
-import { readFile } from 'fs/promises'
 import type { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { downloadFile, getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
-import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 
 import {
@@ -55,6 +52,7 @@ export async function GET(
     const isCloudPath = isS3Path || isBlobPath
 
     // Use cloud handler if in production, path explicitly specifies cloud storage, or we're using cloud storage
+    const { isUsingCloudStorage } = await import('@/lib/uploads')
     if (isUsingCloudStorage() || isCloudPath) {
       // Extract the actual key (remove 's3/' or 'blob/' prefix if present)
       const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
@@ -85,6 +83,7 @@ async function handleLocalFile(filename: string): Promise<NextResponse> {
       throw new FileNotFoundError(`File not found: ${filename}`)
     }
 
+    const { readFile } = await import('fs/promises')
     const fileBuffer = await readFile(filePath)
     const contentType = getContentType(filename)
 
@@ -100,12 +99,14 @@ async function handleLocalFile(filename: string): Promise<NextResponse> {
 }
 
 async function downloadKBFile(cloudKey: string): Promise<Buffer> {
+  const { getStorageProvider } = await import('@/lib/uploads')
   const storageProvider = getStorageProvider()
 
   if (storageProvider === 'blob') {
     logger.info(`Downloading KB file from Azure Blob Storage: ${cloudKey}`)
     // Use KB-specific blob configuration
     const { getBlobServiceClient } = await import('@/lib/uploads/blob/blob-client')
+    const { BLOB_KB_CONFIG } = await import('@/lib/uploads/setup')
     const blobServiceClient = getBlobServiceClient()
     const containerClient = blobServiceClient.getContainerClient(BLOB_KB_CONFIG.containerName)
     const blockBlobClient = containerClient.getBlockBlobClient(cloudKey)
@@ -124,6 +125,7 @@ async function downloadKBFile(cloudKey: string): Promise<Buffer> {
     // Use KB-specific S3 configuration
     const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
     const { GetObjectCommand } = await import('@aws-sdk/client-s3')
+    const { S3_KB_CONFIG } = await import('@/lib/uploads/setup')
 
     const s3Client = getS3Client()
     const command = new GetObjectCommand({
@@ -157,6 +159,7 @@ async function handleCloudProxy(cloudKey: string): Promise<NextResponse> {
     // Check if this is a KB file (starts with 'kb/')
     const isKBFile = cloudKey.startsWith('kb/')
 
+    const { downloadFile } = await import('@/lib/uploads')
     const fileBuffer = isKBFile ? await downloadKBFile(cloudKey) : await downloadFile(cloudKey)
 
     // Extract the original filename from the key (last part after last /)

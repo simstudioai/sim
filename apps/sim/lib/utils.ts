@@ -346,6 +346,61 @@ export const redactApiKeys = (obj: any): any => {
 }
 
 /**
+ * Recursively redacts sensitive data (API keys and file URLs) in an object
+ * @param obj The object to redact sensitive data from
+ * @returns A new object with sensitive data redacted
+ */
+export const redactSensitiveData = (obj: any): any => {
+  if (!obj || typeof obj !== 'object') {
+    return obj
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(redactSensitiveData)
+  }
+
+  const result: Record<string, any> = {}
+
+  for (const [key, value] of Object.entries(obj)) {
+    // Redact API keys and secrets
+    if (
+      key.toLowerCase() === 'apikey' ||
+      key.toLowerCase() === 'api_key' ||
+      key.toLowerCase() === 'access_token' ||
+      /\bsecret\b/i.test(key.toLowerCase()) ||
+      /\bpassword\b/i.test(key.toLowerCase())
+    ) {
+      result[key] = '***REDACTED***'
+    }
+    // Redact presigned URLs specifically (sourceUrl, directUrl, etc.) - but NOT filePath
+    else if (
+      key.toLowerCase() === 'sourceurl' ||
+      key.toLowerCase() === 'source_url' ||
+      key.toLowerCase() === 'directurl' ||
+      key.toLowerCase() === 'direct_url' ||
+      (typeof value === 'string' &&
+        key.toLowerCase() !== 'filepath' &&
+        key.toLowerCase() !== 'file_path' &&
+        key.toLowerCase() !== 'path' &&
+        (value.includes('X-Amz-Signature') ||
+          value.includes('X-Amz-Credential') ||
+          value.includes('sig=') ||
+          value.includes('se=') ||
+          (value.includes('amazonaws.com') && value.length > 200) ||
+          (value.includes('blob.core.windows.net') && value.length > 200)))
+    ) {
+      result[key] = '[SECURE DOWNLOAD - Click download button]'
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = redactSensitiveData(value)
+    } else {
+      result[key] = value
+    }
+  }
+
+  return result
+}
+
+/**
  * Validates a name by removing any characters that could cause issues
  * with variable references or node naming.
  *

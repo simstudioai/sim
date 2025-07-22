@@ -341,6 +341,7 @@ export async function GET(request: NextRequest) {
           duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
           trigger: log.trigger,
           createdAt: log.startedAt.toISOString(),
+          files: log.files || [], // Include files from the database
           metadata: {
             totalDuration: log.totalDurationMs,
             cost: costSummary,

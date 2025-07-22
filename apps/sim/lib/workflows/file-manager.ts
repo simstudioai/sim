@@ -5,30 +5,12 @@ import {
   getStorageProvider,
   uploadFile,
 } from '@/lib/uploads/storage-client'
+import type { ExecutionContext, WorkflowFileReference } from './execution-files-types'
 
 const logger = createLogger('WorkflowFileManager')
 
-/**
- * Execution context for file operations
- */
-export interface ExecutionContext {
-  workspaceId: string
-  workflowId: string
-  executionId: string
-}
-
-/**
- * File reference with metadata
- */
-export interface WorkflowFileReference {
-  path: string // API path to serve the file (for internal use)
-  directUrl?: string // Direct cloud storage URL (for external services)
-  key: string // Storage key/path
-  name: string // Original filename
-  size: number // File size in bytes
-  type: string // MIME type
-  executionContext: ExecutionContext
-}
+// Re-export types for convenience
+export type { ExecutionContext, WorkflowFileReference } from './execution-files-types'
 
 /**
  * Manages files for workflow executions with execution-scoped storage
@@ -46,7 +28,7 @@ export class WorkflowFileManager {
   private generateStorageKey(fileName: string): string {
     const { workspaceId, workflowId, executionId } = this.executionContext
     const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-    return `workspaces/${workspaceId}/workflows/${workflowId}/executions/${executionId}/${safeFileName}`
+    return `${workspaceId}/${workflowId}/${executionId}/${safeFileName}`
   }
 
   /**
@@ -54,7 +36,7 @@ export class WorkflowFileManager {
    */
   private getExecutionPrefix(): string {
     const { workspaceId, workflowId, executionId } = this.executionContext
-    return `workspaces/${workspaceId}/workflows/${workflowId}/executions/${executionId}/`
+    return `${workspaceId}/${workflowId}/${executionId}/`
   }
 
   /**
@@ -73,9 +55,21 @@ export class WorkflowFileManager {
     // Upload using existing storage infrastructure
     const fileInfo = await uploadFile(fileBuffer, storageKey, contentType, fileBuffer.length)
 
+    // Generate a presigned URL for external services (24 hours expiry)
+    let directUrl: string | undefined
+    try {
+      const { getPresignedUrl } = await import('@/lib/uploads/storage-client')
+      directUrl = await getPresignedUrl(fileInfo.key, 24 * 60 * 60) // 24 hours
+      logger.info(`Generated presigned URL for external access: ${fileName}`)
+    } catch (error) {
+      logger.warn(`Failed to generate presigned URL for ${fileName}:`, error)
+      // Continue without directUrl - external services won't work but internal access will
+    }
+
     // Convert to WorkflowFileReference
     return {
       path: fileInfo.path,
+      directUrl, // Include presigned URL for external services
       key: fileInfo.key,
       name: fileName, // Keep original name for display
       size: fileBuffer.length,

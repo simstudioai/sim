@@ -173,6 +173,13 @@ export const workflowExecution = task({
         totalDurationMs: totalDuration || 0,
         finalOutput: executionResult.output || {},
         traceSpans: traceSpans as any,
+        files:
+          executionResult.success &&
+          payload.input &&
+          payload.input.files &&
+          Array.isArray(payload.input.files)
+            ? payload.input.files
+            : null,
       })
 
       return {
