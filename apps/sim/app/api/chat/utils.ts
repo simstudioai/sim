@@ -7,6 +7,7 @@ import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
+import { getEmailDomain } from '@/lib/urls/utils'
 import { decryptSecret } from '@/lib/utils'
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
@@ -141,7 +142,7 @@ export const setChatAuthCookie = (
     sameSite: 'lax',
     path: '/',
     // Using subdomain for the domain in production
-    domain: isDev ? undefined : '.simstudio.ai',
+    domain: isDev ? undefined : `.${getEmailDomain()}`,
     maxAge: 60 * 60 * 24, // 24 hours
   })
 }

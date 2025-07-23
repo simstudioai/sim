@@ -68,9 +68,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Create a new result object without the password
     const { password, ...safeData } = chatRecord
 
-    const chatUrl = isDev
-      ? `http://${chatRecord.subdomain}.${getBaseDomain()}`
-      : `https://${chatRecord.subdomain}.simstudio.ai`
+    const baseDomain = getBaseDomain()
+    const protocol = isDev ? 'http' : 'https'
+    const chatUrl = `${protocol}://${chatRecord.subdomain}.${baseDomain}`
 
     const result = {
       ...safeData,
@@ -214,9 +214,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const updatedSubdomain = subdomain || existingChat[0].subdomain
 
-      const chatUrl = isDev
-        ? `http://${updatedSubdomain}.${getBaseDomain()}`
-        : `https://${updatedSubdomain}.simstudio.ai`
+      const baseDomain = getBaseDomain()
+      const protocol = isDev ? 'http' : 'https'
+      const chatUrl = `${protocol}://${updatedSubdomain}.${baseDomain}`
 
       logger.info(`Chat "${chatId}" updated successfully`)
 

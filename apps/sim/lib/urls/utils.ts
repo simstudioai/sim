@@ -36,6 +36,11 @@ export function getBaseDomain(): string {
     try {
       return new URL(fallbackUrl).host
     } catch {
+      // Final fallback - try to handle different environments
+      const appUrl = getEnv('NEXT_PUBLIC_APP_URL')
+      if (appUrl?.includes('staging.simstudio.ai')) {
+        return 'staging.simstudio.ai'
+      }
       return isProd ? 'simstudio.ai' : 'localhost:3000'
     }
   }
