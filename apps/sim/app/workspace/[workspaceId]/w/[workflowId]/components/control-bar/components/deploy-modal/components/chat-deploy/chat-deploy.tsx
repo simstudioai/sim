@@ -30,7 +30,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
@@ -54,11 +53,10 @@ interface ChatDeployProps {
 type AuthType = 'public' | 'password' | 'email'
 
 const getDomainSuffix = (() => {
-  const suffix = isDev ? `.${getBaseDomain()}` : '.simstudio.ai'
+  const suffix = `.${getBaseDomain()}`
   return () => suffix
 })()
 
-// Define Zod schema for API request validation
 const chatSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   subdomain: z
@@ -124,10 +122,6 @@ export function ChatDeploy({
     selectedOutputIds: string[]
   } | null>(null)
 
-  // State to track if any changes have been made
-  const [hasChanges, setHasChanges] = useState(false)
-
-  // Confirmation dialogs
   const [showEditConfirmation, setShowEditConfirmation] = useState(false)
   const [internalShowDeleteConfirmation, setInternalShowDeleteConfirmation] = useState(false)
 
@@ -183,53 +177,6 @@ export function ChatDeploy({
       fetchExistingChat()
     }
   }, [workflowId])
-
-  // Check for changes when form values update
-  useEffect(() => {
-    if (originalValues && existingChat) {
-      const currentAuthTypeChanged = authType !== originalValues.authType
-      const subdomainChanged = subdomain !== originalValues.subdomain
-      const titleChanged = title !== originalValues.title
-      const descriptionChanged = description !== originalValues.description
-      const outputBlockChanged = selectedOutputBlocks.some(
-        (blockId) => !originalValues.selectedOutputIds.includes(blockId)
-      )
-      const welcomeMessageChanged =
-        welcomeMessage !==
-        (existingChat.customizations?.welcomeMessage || 'Hi there! How can I help you today?')
-
-      // Check if emails have changed
-      const emailsChanged =
-        emails.length !== originalValues.emails.length ||
-        emails.some((email) => !originalValues.emails.includes(email))
-
-      // Check if password has changed - any value in password field means change
-      const passwordChanged = password.length > 0
-
-      // Determine if any changes have been made
-      const changed =
-        subdomainChanged ||
-        titleChanged ||
-        descriptionChanged ||
-        currentAuthTypeChanged ||
-        emailsChanged ||
-        passwordChanged ||
-        outputBlockChanged ||
-        welcomeMessageChanged
-
-      setHasChanges(changed)
-    }
-  }, [
-    subdomain,
-    title,
-    description,
-    authType,
-    emails,
-    password,
-    selectedOutputBlocks,
-    welcomeMessage,
-    originalValues,
-  ])
 
   // Fetch existing chat data for this workflow
   const fetchExistingChat = async () => {
@@ -310,7 +257,6 @@ export function ChatDeploy({
     } finally {
       setIsLoading(false)
       setDataFetched(true)
-      setHasChanges(false) // Reset changes detection after loading
     }
   }
 
@@ -490,6 +436,8 @@ export function ChatDeploy({
       (!originalValues || subdomain !== originalValues.subdomain)
     ) {
       setIsCheckingSubdomain(true)
+      setSubdomainError('')
+
       try {
         const response = await fetch(
           `/api/chat/subdomains/validate?subdomain=${encodeURIComponent(subdomain)}`
@@ -497,11 +445,15 @@ export function ChatDeploy({
         const data = await response.json()
 
         if (!response.ok || !data.available) {
-          setSubdomainError('This subdomain is already in use')
+          const errorMsg = data.error || 'This subdomain is already in use'
+          setSubdomainError(errorMsg)
           setChatSubmitting(false)
           setIsCheckingSubdomain(false)
+          logger.warn('Subdomain validation failed:', errorMsg)
           return
         }
+
+        setSubdomainError('')
       } catch (error) {
         logger.error('Error checking subdomain availability:', error)
         setSubdomainError('Error checking subdomain availability')
@@ -512,15 +464,16 @@ export function ChatDeploy({
       setIsCheckingSubdomain(false)
     }
 
-    // Verify output selection if it's set
-    if (selectedOutputBlocks.length === 0) {
-      logger.error('No output blocks selected')
-      setErrorMessage('Please select at least one output block')
+    if (subdomainError) {
+      logger.warn('Blocking submission due to subdomain error:', subdomainError)
       setChatSubmitting(false)
       return
     }
 
-    if (subdomainError) {
+    // Verify output selection if it's set
+    if (selectedOutputBlocks.length === 0) {
+      logger.error('No output blocks selected')
+      setErrorMessage('Please select at least one output block')
       setChatSubmitting(false)
       return
     }
@@ -722,6 +675,11 @@ export function ChatDeploy({
       const result = await response.json()
 
       if (!response.ok) {
+        if (result.error === 'Subdomain already in use') {
+          setSubdomainError(result.error)
+          setChatSubmitting(false)
+          return
+        }
         throw new Error(result.error || `Failed to ${existingChat ? 'update' : 'deploy'} chat`)
       }
 
@@ -743,32 +701,19 @@ export function ChatDeploy({
       }
     } catch (error: any) {
       logger.error(`Failed to ${existingChat ? 'update' : 'deploy'} chat:`, error)
-      setErrorMessage(error.message || 'An unexpected error occurred')
+
+      const errorMessage = error.message || 'An unexpected error occurred'
+      if (errorMessage.includes('Subdomain already in use') || errorMessage.includes('subdomain')) {
+        setSubdomainError(errorMessage)
+      } else {
+        setErrorMessage(errorMessage)
+      }
+
       logger.error(`Failed to deploy chat: ${error.message}`, workflowId)
     } finally {
       setChatSubmitting(false)
       setShowEditConfirmation(false)
     }
-  }
-
-  // Determine button label based on state
-  const _getSubmitButtonLabel = () => {
-    return existingChat ? 'Update Chat' : 'Deploy Chat'
-  }
-
-  // Check if form submission is possible
-  const _isFormSubmitDisabled = () => {
-    return (
-      chatSubmitting ||
-      isDeleting ||
-      !subdomain ||
-      !title ||
-      !!subdomainError ||
-      isCheckingSubdomain ||
-      (authType === 'password' && !password && !existingChat) ||
-      (authType === 'email' && emails.length === 0) ||
-      (existingChat && !hasChanges)
-    )
   }
 
   if (isLoading) {
@@ -827,12 +772,13 @@ export function ChatDeploy({
       const port = url.port || (baseDomain.includes(':') ? baseDomain.split(':')[1] : '3000')
       domainSuffix = `.${baseHost}:${port}`
     } else {
-      domainSuffix = '.simstudio.ai'
+      domainSuffix = `.${getBaseDomain()}`
     }
 
+    const baseDomainForSplit = getBaseDomain()
     const subdomainPart = isDevelopmentUrl
       ? hostname.split('.')[0]
-      : hostname.split('.simstudio.ai')[0]
+      : hostname.split(`.${baseDomainForSplit}`)[0]
 
     // Success view - simplified with no buttons
     return (
@@ -996,11 +942,6 @@ export function ChatDeploy({
                   onOutputSelect={(values) => {
                     logger.info(`Output block selection changed to: ${values}`)
                     setSelectedOutputBlocks(values)
-
-                    // Mark as changed to enable update button
-                    if (existingChat) {
-                      setHasChanges(true)
-                    }
                   }}
                   placeholder='Select which block outputs to use'
                   disabled={isDeploying}
@@ -1306,7 +1247,10 @@ export function ChatDeploy({
             <AlertDialogTitle>Delete Chat?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete your chat deployment at{' '}
-              <span className='font-mono text-destructive'>{subdomain}.simstudio.ai</span>.
+              <span className='font-mono text-destructive'>
+                {subdomain}.{getBaseDomain()}
+              </span>
+              .
               <p className='mt-2'>
                 All users will lose access immediately, and this action cannot be undone.
               </p>
