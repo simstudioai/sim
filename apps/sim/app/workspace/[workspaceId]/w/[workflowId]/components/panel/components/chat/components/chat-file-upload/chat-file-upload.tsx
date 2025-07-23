@@ -152,7 +152,7 @@ export function ChatFileUpload({
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / k ** i).toFixed(1)) + ' ' + sizes[i]
+    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
 
   return (
@@ -172,7 +172,7 @@ export function ChatFileUpload({
         </Button>
 
         {uploadedFiles.length > 0 && (
-          <span className='text-xs text-muted-foreground'>
+          <span className='text-muted-foreground text-xs'>
             {uploadedFiles.length}/{maxFiles} files
           </span>
         )}
@@ -196,7 +196,7 @@ export function ChatFileUpload({
               key={index}
               className='flex items-center justify-between rounded-md bg-muted/50 px-2 py-1 text-xs'
             >
-              <div className='flex items-center gap-2 min-w-0'>
+              <div className='flex min-w-0 items-center gap-2'>
                 <span className='truncate font-medium'>{file.name}</span>
                 <span className='text-muted-foreground'>{formatFileSize(file.size)}</span>
               </div>

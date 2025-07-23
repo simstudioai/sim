@@ -22,7 +22,7 @@ function formatFileSize(bytes: number): string {
   const k = 1024
   const sizes = ['Bytes', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Number.parseFloat((bytes / k ** i).toFixed(2)) + ' ' + sizes[i]
+  return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
 }
 
 /**
@@ -71,12 +71,12 @@ function FileItem({
 
   return (
     <div className='flex items-center justify-between rounded-md border bg-card p-3'>
-      <div className='flex items-center gap-3 min-w-0 flex-1'>
+      <div className='flex min-w-0 flex-1 items-center gap-3'>
         <div className='flex-shrink-0 text-muted-foreground'>{getFileIcon(file.fileType)}</div>
 
         <div className='min-w-0 flex-1'>
           <div className='flex items-center gap-2'>
-            <p className='font-medium text-sm truncate' title={file.fileName}>
+            <p className='truncate font-medium text-sm' title={file.fileName}>
               {file.fileName}
             </p>
             {expired && (
@@ -187,7 +187,7 @@ export function ExecutionFilesDisplay({ executionId, files = [] }: ExecutionFile
 
   return (
     <div className='w-full'>
-      <div className='flex items-center justify-between mb-2'>
+      <div className='mb-2 flex items-center justify-between'>
         <h3 className='font-medium text-muted-foreground text-xs'>
           Execution Files ({files.length})
         </h3>

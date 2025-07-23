@@ -118,7 +118,7 @@ export function ChatFileUpload({
     const k = 1024
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / k ** i).toFixed(2)) + ' ' + sizes[i]
+    return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
   }
 
   return (
@@ -146,7 +146,7 @@ export function ChatFileUpload({
         />
 
         {files.length > 0 && (
-          <span className='text-xs text-muted-foreground'>
+          <span className='text-muted-foreground text-xs'>
             {files.length}/{maxFiles} files
           </span>
         )}
@@ -171,9 +171,9 @@ export function ChatFileUpload({
               )}
 
               {/* File Info */}
-              <div className='flex-1 min-w-0'>
+              <div className='min-w-0 flex-1'>
                 <div className='truncate font-medium'>{fileWithPreview.file.name}</div>
-                <div className='text-xs text-muted-foreground'>
+                <div className='text-muted-foreground text-xs'>
                   {formatFileSize(fileWithPreview.file.size)}
                 </div>
               </div>
@@ -202,10 +202,10 @@ export function ChatFileUpload({
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          <div className='rounded-lg border-2 border-dashed border-primary bg-background p-8 text-center'>
+          <div className='rounded-lg border-2 border-primary border-dashed bg-background p-8 text-center'>
             <Paperclip className='mx-auto h-12 w-12 text-primary' />
-            <p className='mt-2 text-lg font-medium'>Drop files here</p>
-            <p className='text-sm text-muted-foreground'>
+            <p className='mt-2 font-medium text-lg'>Drop files here</p>
+            <p className='text-muted-foreground text-sm'>
               Maximum {maxFiles} files, {maxSizeInMB}MB each
             </p>
           </div>
