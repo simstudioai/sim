@@ -1,10 +1,5 @@
-import { existsSync } from 'fs'
-import { unlink } from 'fs/promises'
-import { join } from 'path'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { deleteFile, isUsingCloudStorage } from '@/lib/uploads'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 
 import {
@@ -40,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     try {
       // Use appropriate handler based on path and environment
+      const { isUsingCloudStorage } = await import('@/lib/uploads')
       const result =
         isCloudPath(filePath) || isUsingCloudStorage()
           ? await handleCloudFileDelete(filePath)
@@ -69,6 +65,7 @@ async function handleCloudFileDelete(filePath: string) {
 
   try {
     // Delete from cloud storage using abstraction layer
+    const { deleteFile } = await import('@/lib/uploads')
     await deleteFile(key)
     logger.info(`File successfully deleted from cloud storage: ${key}`)
 
@@ -87,6 +84,11 @@ async function handleCloudFileDelete(filePath: string) {
  */
 async function handleLocalFileDelete(filePath: string) {
   const filename = extractFilename(filePath)
+
+  const { join } = await import('path')
+  const { UPLOAD_DIR } = await import('@/lib/uploads/setup')
+  const { existsSync } = await import('fs')
+
   const fullPath = join(UPLOAD_DIR, filename)
 
   logger.info(`Deleting local file: ${fullPath}`)
@@ -100,6 +102,7 @@ async function handleLocalFileDelete(filePath: string) {
   }
 
   try {
+    const { unlink } = await import('fs/promises')
     await unlink(fullPath)
     logger.info(`File successfully deleted: ${fullPath}`)
 

@@ -346,6 +346,63 @@ export const redactApiKeys = (obj: any): any => {
 }
 
 /**
+ * Recursively redacts sensitive data (API keys and file URLs) in an object
+ * @param obj The object to redact sensitive data from
+ * @returns A new object with sensitive data redacted
+ */
+const SENSITIVE_KEYS = new Set([
+  'apikey',
+  'api_key',
+  'access_token',
+  'sourceurl',
+  'source_url',
+  'directurl',
+  'direct_url',
+  'url',
+  'filepath',
+  'file_path',
+])
+
+const SENSITIVE_PATTERNS = [/\bsecret\b/i, /\bpassword\b/i]
+
+const isPresignedUrl = (value: string): boolean =>
+  value.includes('X-Amz-Signature') ||
+  value.includes('X-Amz-Credential') ||
+  value.includes('sig=') ||
+  value.includes('se=') ||
+  (value.includes('amazonaws.com') && value.length > 200) ||
+  (value.includes('blob.core.windows.net') && value.length > 200)
+
+const shouldRedactKey = (key: string): boolean => {
+  const lowerKey = key.toLowerCase()
+  return (
+    SENSITIVE_KEYS.has(lowerKey) || SENSITIVE_PATTERNS.some((pattern) => pattern.test(lowerKey))
+  )
+}
+
+const shouldRedactValue = (value: unknown): boolean =>
+  typeof value === 'string' && isPresignedUrl(value)
+
+export const redactSensitiveData = (obj: any): any => {
+  if (!obj || typeof obj !== 'object') return obj
+  if (Array.isArray(obj)) return obj.map(redactSensitiveData)
+
+  const result: Record<string, any> = {}
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (shouldRedactKey(key) || shouldRedactValue(value)) {
+      result[key] = '***REDACTED***'
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = redactSensitiveData(value)
+    } else {
+      result[key] = value
+    }
+  }
+
+  return result
+}
+
+/**
  * Validates a name by removing any characters that could cause issues
  * with variable references or node naming.
  *

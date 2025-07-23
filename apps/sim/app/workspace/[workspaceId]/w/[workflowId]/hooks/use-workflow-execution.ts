@@ -184,7 +184,8 @@ export function useWorkflowExecution() {
   const persistLogs = async (
     executionId: string,
     result: ExecutionResult,
-    streamContent?: string
+    streamContent?: string,
+    files?: any[]
   ) => {
     try {
       // Build trace spans from execution logs
@@ -228,6 +229,7 @@ export function useWorkflowExecution() {
         body: JSON.stringify({
           executionId,
           result: enrichedResult,
+          files: files || null,
         }),
       })
 
@@ -340,7 +342,7 @@ export function useWorkflowExecution() {
                 controller.enqueue(
                   encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
                 )
-                persistLogs(executionId, result).catch((err) =>
+                persistLogs(executionId, result, undefined, workflowInput?.files).catch((err) =>
                   logger.error('Error persisting logs:', err)
                 )
               }
@@ -381,14 +383,14 @@ export function useWorkflowExecution() {
             ;(result.metadata as any).source = 'chat'
           }
 
-          persistLogs(executionId, result).catch((err) => {
+          persistLogs(executionId, result, undefined, workflowInput?.files).catch((err) => {
             logger.error('Error persisting logs:', { error: err })
           })
         }
         return result
       } catch (error: any) {
         const errorResult = handleExecutionError(error)
-        persistLogs(executionId, errorResult).catch((err) => {
+        persistLogs(executionId, errorResult, undefined, workflowInput?.files).catch((err) => {
           logger.error('Error persisting logs:', { error: err })
         })
         return errorResult

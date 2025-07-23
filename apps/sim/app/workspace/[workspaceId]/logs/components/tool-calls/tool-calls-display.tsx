@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import { CopyButton } from '@/components/ui/copy-button'
-import { cn } from '@/lib/utils'
+import { cn, redactSensitiveData } from '@/lib/utils'
 import type { ToolCall, ToolCallMetadata } from '../../stores/types'
 
 interface ToolCallsDisplayProps {
@@ -112,8 +112,8 @@ function ToolCallItem({ toolCall, index }: ToolCallItemProps) {
               <div>
                 <div className='mb-1 text-muted-foreground'>Input</div>
                 <pre className='group relative max-h-32 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded bg-background p-2'>
-                  <CopyButton text={JSON.stringify(toolCall.input, null, 2)} />
-                  <code>{JSON.stringify(toolCall.input, null, 2)}</code>
+                  <CopyButton text={JSON.stringify(redactSensitiveData(toolCall.input), null, 2)} />
+                  <code>{JSON.stringify(redactSensitiveData(toolCall.input), null, 2)}</code>
                 </pre>
               </div>
             )}
@@ -123,8 +123,10 @@ function ToolCallItem({ toolCall, index }: ToolCallItemProps) {
               <div>
                 <div className='mb-1 text-muted-foreground'>Output</div>
                 <pre className='group relative max-h-32 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded bg-background p-2'>
-                  <CopyButton text={JSON.stringify(toolCall.output, null, 2)} />
-                  <code>{JSON.stringify(toolCall.output, null, 2)}</code>
+                  <CopyButton
+                    text={JSON.stringify(redactSensitiveData(toolCall.output), null, 2)}
+                  />
+                  <code>{JSON.stringify(redactSensitiveData(toolCall.output), null, 2)}</code>
                 </pre>
               </div>
             )}

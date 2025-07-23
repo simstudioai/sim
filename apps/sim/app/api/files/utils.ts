@@ -1,7 +1,7 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { NextResponse } from 'next/server'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
+import { UPLOAD_DIR } from '@/lib/uploads'
 
 /**
  * Response type definitions

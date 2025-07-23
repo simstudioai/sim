@@ -73,6 +73,12 @@ export async function GET(request: NextRequest) {
         cleaned: 0,
         cleanupFailed: 0,
       },
+      files: {
+        metadataCleaned: 0,
+        metadataCleanupFailed: 0,
+        storageDeleted: 0,
+        storageDeleteFailed: 0,
+      },
     }
 
     const startTime = Date.now()
@@ -192,6 +198,38 @@ export async function GET(request: NextRequest) {
     } catch (snapshotError) {
       results.snapshots.cleanupFailed = 1
       logger.error('Error cleaning up orphaned snapshots:', { snapshotError })
+    }
+
+    // Cleanup expired execution files
+    try {
+      const { getExpiredFiles, cleanupExpiredFileMetadata } = await import(
+        '@/lib/workflows/execution-files-server'
+      )
+
+      // Get all expired files before cleaning up metadata
+      const expiredFiles = await getExpiredFiles()
+      logger.info(`Found ${expiredFiles.length} expired files to delete from storage`)
+
+      // Delete expired files from cloud storage
+      if (expiredFiles.length > 0) {
+        const { deleteExpiredFilesFromStorage } = await import(
+          '@/lib/workflows/execution-files-server'
+        )
+        const storageResults = await deleteExpiredFilesFromStorage(expiredFiles)
+        results.files.storageDeleted = storageResults.deleted
+        results.files.storageDeleteFailed = storageResults.failed
+        logger.info(
+          `Deleted ${storageResults.deleted} expired files from storage, ${storageResults.failed} failed`
+        )
+      }
+
+      // Clean up expired file metadata from execution logs
+      const cleanedMetadata = await cleanupExpiredFileMetadata()
+      results.files.metadataCleaned = cleanedMetadata
+      logger.info(`Cleaned up ${cleanedMetadata} expired file metadata entries`)
+    } catch (fileCleanupError) {
+      results.files.metadataCleanupFailed = 1
+      logger.error('Error cleaning up expired files:', { fileCleanupError })
     }
 
     const timeElapsed = (Date.now() - startTime) / 1000

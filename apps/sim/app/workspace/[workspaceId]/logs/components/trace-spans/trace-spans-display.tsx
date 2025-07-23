@@ -10,7 +10,7 @@ import {
   ConditionalIcon,
   ConnectIcon,
 } from '@/components/icons'
-import { cn, redactApiKeys } from '@/lib/utils'
+import { cn, redactSensitiveData } from '@/lib/utils'
 import type { TraceSpan } from '../../stores/types'
 
 interface TraceSpansDisplayProps {
@@ -25,7 +25,7 @@ function transformBlockData(data: any, blockType: string, isInput: boolean) {
 
   // For input data, filter out sensitive information
   if (isInput) {
-    const cleanInput = redactApiKeys(data)
+    const cleanInput = redactSensitiveData(data)
 
     // Remove null/undefined values for cleaner display
     Object.keys(cleanInput).forEach((key) => {

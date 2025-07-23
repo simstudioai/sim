@@ -1,3 +1,5 @@
+import type { ExecutionFileMetadata } from '@/lib/workflows/execution-files-types'
+
 export interface WorkflowData {
   id: string
   name: string
@@ -78,6 +80,7 @@ export interface WorkflowLog {
   trigger: string | null
   createdAt: string
   workflow?: WorkflowData | null
+  files?: ExecutionFileMetadata[] // Files stored in dedicated column
   metadata?: ToolCallMetadata & {
     traceSpans?: TraceSpan[]
     totalDuration?: number

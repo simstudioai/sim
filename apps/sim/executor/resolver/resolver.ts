@@ -507,7 +507,7 @@ export class InputResolver {
                 throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
               }
 
-              replacementValue = replacementValue[part]
+              replacementValue = this.resolvePathPart(replacementValue, part)
 
               if (replacementValue === undefined) {
                 logger.warn(
@@ -520,6 +520,38 @@ export class InputResolver {
             // Format the value based on block type and path
             let formattedValue: string
 
+            // Special handling for file URL resolution
+            if (
+              blockRef.toLowerCase() === 'start' &&
+              pathParts.length >= 2 &&
+              pathParts[0] === 'files'
+            ) {
+              const lastPart = pathParts[pathParts.length - 1]
+
+              if (lastPart === 'path') {
+                // This is accessing a file path like start.files[0].path
+                // Return directUrl if available, otherwise fall back to API path
+                if (
+                  typeof replacementValue === 'object' &&
+                  replacementValue !== null &&
+                  'directUrl' in replacementValue &&
+                  replacementValue.directUrl
+                ) {
+                  formattedValue = String(replacementValue.directUrl)
+                } else if (
+                  typeof replacementValue === 'object' &&
+                  replacementValue !== null &&
+                  'path' in replacementValue
+                ) {
+                  formattedValue = String(replacementValue.path)
+                } else {
+                  formattedValue = String(replacementValue)
+                }
+              } else if (lastPart === 'directUrl') {
+                // Explicit access to directUrl like start.files[0].directUrl
+                formattedValue = String(replacementValue)
+              }
+            }
             // Special handling for all blocks referencing starter input
             if (blockRef.toLowerCase() === 'start' && pathParts.join('.').includes('input')) {
               const blockType = currentBlock.metadata?.id
@@ -690,7 +722,7 @@ export class InputResolver {
           )
         }
 
-        replacementValue = replacementValue[part]
+        replacementValue = this.resolvePathPart(replacementValue, part)
 
         if (replacementValue === undefined) {
           throw new Error(
@@ -1778,5 +1810,41 @@ export class InputResolver {
     }
 
     return value
+  }
+
+  /**
+   * Resolves a single path part, handling both object properties and array indexing.
+   * Supports syntax like "files[0]" or "data[1].name"
+   *
+   * @param obj - The object to access
+   * @param part - The path part (e.g., "files[0]", "name", "data")
+   * @returns The resolved value
+   */
+  private resolvePathPart(obj: any, part: string): any {
+    // Check if this part contains array indexing syntax like "files[0]"
+    const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/)
+
+    if (arrayMatch) {
+      const [, arrayName, indexStr] = arrayMatch
+      const index = Number.parseInt(indexStr, 10)
+
+      // First access the array property
+      const array = obj[arrayName]
+
+      if (!Array.isArray(array)) {
+        throw new Error(`Property "${arrayName}" is not an array, cannot access index [${index}]`)
+      }
+
+      if (index < 0 || index >= array.length) {
+        throw new Error(
+          `Array index [${index}] is out of bounds for array "${arrayName}" (length: ${array.length})`
+        )
+      }
+
+      return array[index]
+    }
+
+    // Regular property access
+    return obj[part]
   }
 }

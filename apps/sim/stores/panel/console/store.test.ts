@@ -7,7 +7,7 @@ vi.stubGlobal('crypto', {
 })
 
 vi.mock('@/lib/utils', () => ({
-  redactApiKeys: vi.fn((obj) => obj), // Return object as-is for testing
+  redactSensitiveData: vi.fn((obj) => obj), // Return object as-is for testing
 }))
 
 describe('Console Store', () => {

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { redactApiKeys } from '@/lib/utils'
+import { redactSensitiveData } from '@/lib/utils'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { ConsoleEntry, ConsoleStore } from './types'
 
@@ -140,7 +140,12 @@ export const useConsoleStore = create<ConsoleStore>()(
               redactedEntry.output &&
               typeof redactedEntry.output === 'object'
             ) {
-              redactedEntry.output = redactApiKeys(redactedEntry.output)
+              redactedEntry.output = redactSensitiveData(redactedEntry.output)
+            }
+
+            // Also redact input data
+            if (redactedEntry.input && typeof redactedEntry.input === 'object') {
+              redactedEntry.input = redactSensitiveData(redactedEntry.input)
             }
 
             // Create the new entry with ID and timestamp

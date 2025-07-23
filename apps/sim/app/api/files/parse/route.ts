@@ -1,13 +1,9 @@
 import { Buffer } from 'buffer'
 import { createHash } from 'crypto'
-import fsPromises, { readFile } from 'fs/promises'
-import path from 'path'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
-import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 
 export const dynamic = 'force-dynamic'
@@ -174,6 +170,7 @@ async function parseFileSingle(filePath: string, fileType?: string): Promise<Par
   const isBlobPath = filePath.includes('/api/files/serve/blob/')
 
   // Use cloud handler if it's a cloud path or we're in cloud mode
+  const { isUsingCloudStorage } = await import('@/lib/uploads')
   if (isS3Path || isBlobPath || isUsingCloudStorage()) {
     return handleCloudFile(filePath, fileType)
   }
@@ -244,6 +241,7 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
     // Extract filename from URL
     const urlPath = new URL(url).pathname
     const filename = urlPath.split('/').pop() || 'download'
+    const path = await import('path')
     const extension = path.extname(filename).toLowerCase().substring(1)
 
     // Process the file based on its content type
@@ -291,11 +289,13 @@ async function handleCloudFile(filePath: string, fileType?: string): Promise<Par
     logger.info('Extracted cloud key:', cloudKey)
 
     // Download the file from cloud storage - this can throw for access errors
+    const { downloadFile } = await import('@/lib/uploads')
     const fileBuffer = await downloadFile(cloudKey)
     logger.info(`Downloaded file from cloud storage: ${cloudKey}, size: ${fileBuffer.length} bytes`)
 
     // Extract the filename from the cloud key
     const filename = cloudKey.split('/').pop() || cloudKey
+    const path = await import('path')
     const extension = path.extname(filename).toLowerCase().substring(1)
 
     // Process the file based on its content type
@@ -337,6 +337,12 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
   try {
     // Extract filename from path
     const filename = filePath.split('/').pop() || filePath
+
+    const path = await import('path')
+    const { UPLOAD_DIR } = await import('@/lib/uploads/setup')
+    const fsPromises = await import('fs/promises')
+    const { readFile } = await import('fs/promises')
+
     const fullPath = path.join(UPLOAD_DIR, filename)
 
     logger.info('Processing local file:', fullPath)

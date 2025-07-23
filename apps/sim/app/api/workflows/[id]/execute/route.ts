@@ -339,6 +339,10 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
       totalDurationMs: totalDuration || 0,
       finalOutput: executionResult.output || {},
       traceSpans: (traceSpans || []) as any,
+      files:
+        executionResult.success && input && input.files && Array.isArray(input.files)
+          ? input.files
+          : null,
     })
 
     return executionResult
@@ -357,6 +361,9 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
     throw error
   } finally {
     runningExecutions.delete(executionKey)
+
+    // Note: Files are now persisted for 30 days and cleaned up by cron job
+    // No immediate cleanup needed - files are stored in execution log metadata
   }
 }
 

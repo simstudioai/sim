@@ -4,7 +4,7 @@ import { env } from '@/lib/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getPresignedUrlWithConfig, getStorageProvider, uploadFile } from '@/lib/uploads'
-import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
+import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/config'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
 const logger = createLogger('DocumentProcessor')

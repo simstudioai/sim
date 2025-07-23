@@ -173,6 +173,13 @@ export const workflowExecution = task({
         totalDurationMs: totalDuration || 0,
         finalOutput: executionResult.output || {},
         traceSpans: traceSpans as any,
+        files:
+          executionResult.success &&
+          payload.input &&
+          payload.input.files &&
+          Array.isArray(payload.input.files)
+            ? payload.input.files
+            : null,
       })
 
       return {
@@ -199,6 +206,25 @@ export const workflowExecution = task({
       })
 
       throw error // Let Trigger.dev handle retries
+    } finally {
+      // Clean up execution-scoped files
+      try {
+        const { createWorkflowFileManager } = await import('@/lib/workflows/file-manager')
+        const fileManager = createWorkflowFileManager({
+          workspaceId: 'default-workspace', // TODO: Get actual workspace ID from workflow
+          workflowId: payload.workflowId,
+          executionId,
+        })
+
+        await fileManager.cleanupExecution()
+        logger.info(`[${requestId}] Successfully cleaned up files for execution ${executionId}`)
+      } catch (cleanupError: any) {
+        logger.error(
+          `[${requestId}] Failed to clean up files for execution ${executionId}:`,
+          cleanupError
+        )
+        // Don't re-throw - cleanup failures shouldn't affect workflow execution results
+      }
     }
   },
 })

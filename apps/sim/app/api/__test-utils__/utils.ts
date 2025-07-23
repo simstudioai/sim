@@ -783,6 +783,10 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
         bucket: 'test-s3-kb-bucket',
         region: 'us-east-1',
       },
+      S3_EXECUTION_FILES_CONFIG: {
+        bucket: 'test-s3-execution-files-bucket',
+        region: 'us-east-1',
+      },
       BLOB_CONFIG: {
         accountName: 'testaccount',
         accountKey: 'testkey',
