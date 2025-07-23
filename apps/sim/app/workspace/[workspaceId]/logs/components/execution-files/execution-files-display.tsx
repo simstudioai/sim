@@ -126,11 +126,12 @@ function FileItem({
 export function ExecutionFilesDisplay({ executionId, files = [] }: ExecutionFilesDisplayProps) {
   const handleDownload = async (file: ExecutionFileMetadata) => {
     try {
-      logger.info(`Downloading file: ${file.fileName}`)
+      logger.info(`Requesting NEW presigned URL for file: ${file.fileName}`)
 
       // Get download URL from our secure endpoint using combined execution and file ID
       const downloadId = `${executionId}_${file.id}`
-      const response = await fetch(`/api/files/download/${downloadId}`)
+      // Add cache-busting parameter to ensure fresh presigned URL generation
+      const response = await fetch(`/api/files/download/${downloadId}?t=${Date.now()}`)
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -144,6 +145,16 @@ export function ExecutionFilesDisplay({ executionId, files = [] }: ExecutionFile
 
       const downloadData = await response.json()
 
+      // Debug logging to verify we're getting a fresh URL
+      logger.info(`Received download URL from API:`, {
+        url: downloadData.downloadUrl,
+        fileName: downloadData.fileName,
+        expiresIn: downloadData.expiresIn,
+        isS3Url: downloadData.downloadUrl.includes('s3'),
+        hasShortExpiry:
+          downloadData.downloadUrl.includes('Expires=300') || downloadData.expiresIn === 300,
+      })
+
       // Create a temporary link and trigger download
       const link = document.createElement('a')
       link.href = downloadData.downloadUrl
@@ -155,7 +166,7 @@ export function ExecutionFilesDisplay({ executionId, files = [] }: ExecutionFile
       link.click()
       document.body.removeChild(link)
 
-      logger.info(`Successfully initiated download for: ${file.fileName}`)
+      logger.info(`Successfully initiated download with fresh presigned URL for: ${file.fileName}`)
     } catch (error) {
       logger.error(`Failed to download file ${file.fileName}:`, error)
 

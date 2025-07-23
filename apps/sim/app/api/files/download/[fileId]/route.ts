@@ -78,9 +78,36 @@ export async function GET(
     }
 
     // Generate a new short-lived presigned URL (5 minutes)
-    // Use the storage provider from the file metadata
-    const storageProvider = file.storageProvider
+    // Use the storage provider from the file metadata, but verify it's correct
+    let storageProvider = file.storageProvider
+
+    // Fix incorrect storage provider detection - if directUrl is S3 but provider says local, correct it
+    if (storageProvider === 'local' && file.directUrl && file.directUrl.includes('s3.')) {
+      storageProvider = 's3'
+      logger.info(`Corrected storage provider from 'local' to 's3' based on directUrl`)
+    } else if (
+      storageProvider === 'local' &&
+      file.directUrl &&
+      file.directUrl.includes('blob.core.windows.net')
+    ) {
+      storageProvider = 'blob'
+      logger.info(`Corrected storage provider from 'local' to 'blob' based on directUrl`)
+    }
+
     let downloadUrl: string
+
+    logger.info(`Processing download request for file:`, {
+      fileName: file.fileName,
+      fileKey: file.fileKey,
+      originalStorageProvider: file.storageProvider,
+      correctedStorageProvider: storageProvider,
+      hasDirectUrl: !!file.directUrl,
+      directUrlExpiry: file.directUrl
+        ? file.directUrl.includes('Expires=')
+          ? file.directUrl.match(/Expires=(\d+)/)?.[1]
+          : 'unknown'
+        : 'none',
+    })
 
     if (storageProvider === 's3') {
       try {
@@ -96,6 +123,12 @@ export async function GET(
         })
 
         downloadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 }) // 5 minutes
+        logger.info(`Generated fresh S3 presigned URL with 5-minute expiry:`, {
+          fileKey: file.fileKey,
+          bucket: S3_EXECUTION_FILES_CONFIG.bucket,
+          hasShortExpiry: downloadUrl.includes('Expires=300'),
+          urlLength: downloadUrl.length,
+        })
       } catch (error) {
         logger.error('Failed to generate S3 download URL:', error)
         return NextResponse.json({ error: 'Failed to generate download URL' }, { status: 500 })
@@ -137,15 +170,24 @@ export async function GET(
       downloadUrl = file.directUrl
     }
 
-    logger.info(`Generated download URL for file ${file.fileName} (execution: ${executionId})`)
+    logger.info(
+      `Generated NEW presigned download URL for file ${file.fileName} (execution: ${executionId}) - expires in 5 minutes`
+    )
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       downloadUrl,
       fileName: file.fileName,
       fileSize: file.fileSize,
       fileType: file.fileType,
       expiresIn: 300, // 5 minutes
     })
+
+    // Ensure no caching of download URLs
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+
+    return response
   } catch (error) {
     logger.error('Error generating file download URL:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -582,7 +582,10 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
   }
 
   private getStorageProviderFromKey(key: string): 's3' | 'blob' | 'local' {
-    if (key.includes('workspaces/')) return 's3' // Our execution-scoped files use this pattern
+    // Check if this is an execution-scoped file (workspace/workflow/execution pattern)
+    if (key.includes('workspaces/') || key.match(/^[a-f0-9-]{36}\/[a-f0-9-]{36}\/exec_/)) {
+      return 's3' // Our execution-scoped files use this pattern
+    }
     if (key.includes('blob')) return 'blob'
     return 'local'
   }
