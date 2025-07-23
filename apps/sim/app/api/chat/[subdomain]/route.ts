@@ -34,6 +34,10 @@ export async function POST(
     }
 
     // Find the chat deployment for this subdomain
+    logger.info(
+      `[${requestId}] Searching for chat with subdomain: "${subdomain}" (length: ${subdomain.length})`
+    )
+
     const deploymentResult = await db
       .select({
         id: chat.id,
@@ -49,7 +53,15 @@ export async function POST(
       .where(eq(chat.subdomain, subdomain))
       .limit(1)
 
+    logger.info(`[${requestId}] Database query returned ${deploymentResult.length} results`)
+
     if (deploymentResult.length === 0) {
+      // Let's also try to get all chat subdomains to see what's in the database
+      const allChats = await db
+        .select({ subdomain: chat.subdomain, id: chat.id })
+        .from(chat)
+        .limit(10)
+      logger.info(`[${requestId}] Available chats in database:`, allChats)
       logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
       return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
     }
@@ -147,6 +159,10 @@ export async function GET(
     logger.debug(`[${requestId}] Fetching chat info for subdomain: ${subdomain}`)
 
     // Find the chat deployment for this subdomain
+    logger.info(
+      `[${requestId}] GET: Searching for chat with subdomain: "${subdomain}" (length: ${subdomain.length})`
+    )
+
     const deploymentResult = await db
       .select({
         id: chat.id,
@@ -164,7 +180,15 @@ export async function GET(
       .where(eq(chat.subdomain, subdomain))
       .limit(1)
 
+    logger.info(`[${requestId}] GET: Database query returned ${deploymentResult.length} results`)
+
     if (deploymentResult.length === 0) {
+      // Let's also try to get all chat subdomains to see what's in the database
+      const allChats = await db
+        .select({ subdomain: chat.subdomain, id: chat.id })
+        .from(chat)
+        .limit(10)
+      logger.info(`[${requestId}] GET: Available chats in database:`, allChats)
       logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
       return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
     }
