@@ -37,6 +37,7 @@ export default function Logs() {
     setLogs,
     setLoading,
     setError,
+    setWorkspaceId,
     page,
     setPage,
     hasMore,
@@ -51,6 +52,11 @@ export default function Logs() {
     searchQuery,
     triggers,
   } = useFilterStore()
+
+  // Set workspace ID in store when component mounts or workspaceId changes
+  useEffect(() => {
+    setWorkspaceId(workspaceId)
+  }, [workspaceId, setWorkspaceId])
 
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
@@ -106,7 +112,7 @@ export default function Logs() {
           setIsFetchingMore(true)
         }
 
-        const queryParams = buildQueryParams(pageNum, LOGS_PER_PAGE, workspaceId)
+        const queryParams = buildQueryParams(pageNum, LOGS_PER_PAGE)
         const response = await fetch(`/api/logs/enhanced?${queryParams}`)
 
         if (!response.ok) {
@@ -131,7 +137,7 @@ export default function Logs() {
         }
       }
     },
-    [setLogs, setLoading, setError, setHasMore, setIsFetchingMore, buildQueryParams, workspaceId]
+    [setLogs, setLoading, setError, setHasMore, setIsFetchingMore, buildQueryParams]
   )
 
   useEffect(() => {
@@ -154,7 +160,7 @@ export default function Logs() {
     const fetchWithNewFilters = async () => {
       try {
         setLoading(true)
-        const queryParams = buildQueryParams(1, LOGS_PER_PAGE, workspaceId)
+        const queryParams = buildQueryParams(1, LOGS_PER_PAGE)
         const response = await fetch(`/api/logs/enhanced?${queryParams}`)
 
         if (!response.ok) {
@@ -181,7 +187,6 @@ export default function Logs() {
     folderIds,
     searchQuery,
     triggers,
-    workspaceId,
     setPage,
     setHasMore,
     setLoading,

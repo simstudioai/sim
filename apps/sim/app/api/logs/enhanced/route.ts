@@ -56,7 +56,7 @@ const QueryParamsSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   search: z.string().optional(),
-  workspaceId: z.string().optional(), // Filter by specific workspace ID
+  workspaceId: z.string(),
 })
 
 export async function GET(request: NextRequest) {
@@ -75,17 +75,11 @@ export async function GET(request: NextRequest) {
       const { searchParams } = new URL(request.url)
       const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
-      // Get workflows that user can access through direct ownership OR workspace permissions
-      // If workspaceId is provided, filter workflows to only that workspace
-      let workflowConditions = or(
-        eq(workflow.userId, userId),
-        and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace'))
+      const workflowConditions = and(
+        eq(workflow.workspaceId, params.workspaceId),
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace')
       )
-
-      // If workspaceId is specified, filter workflows to only that workspace
-      if (params.workspaceId) {
-        workflowConditions = and(eq(workflow.workspaceId, params.workspaceId), workflowConditions)
-      }
 
       const userWorkflows = await db
         .select({ id: workflow.id, folderId: workflow.folderId })
