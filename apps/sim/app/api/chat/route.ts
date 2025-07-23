@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
@@ -7,9 +7,10 @@ import { env } from '@/lib/env'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { encryptSecret } from '@/lib/utils'
+import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import { chat, workflow } from '@/db/schema'
+import { chat } from '@/db/schema'
 
 const logger = createLogger('ChatAPI')
 
@@ -107,19 +108,18 @@ export async function POST(request: NextRequest) {
         return createErrorResponse('Subdomain already in use', 400)
       }
 
-      // Verify the workflow exists and belongs to the user
-      const workflowExists = await db
-        .select()
-        .from(workflow)
-        .where(and(eq(workflow.id, workflowId), eq(workflow.userId, session.user.id)))
-        .limit(1)
+      // Check if user has permission to create chat for this workflow
+      const { hasAccess, workflow: workflowRecord } = await checkWorkflowAccessForChatCreation(
+        workflowId,
+        session.user.id
+      )
 
-      if (workflowExists.length === 0) {
+      if (!hasAccess || !workflowRecord) {
         return createErrorResponse('Workflow not found or access denied', 404)
       }
 
       // Verify the workflow is deployed (required for chat deployment)
-      if (!workflowExists[0].isDeployed) {
+      if (!workflowRecord.isDeployed) {
         return createErrorResponse('Workflow must be deployed before creating a chat', 400)
       }
 

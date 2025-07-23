@@ -7,7 +7,6 @@ import type { NextResponse } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/env'
 
-// Mock all the problematic imports that cause timeouts
 vi.mock('@/db', () => ({
   db: {
     select: vi.fn(),
