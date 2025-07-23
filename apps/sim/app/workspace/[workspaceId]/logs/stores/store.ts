@@ -110,13 +110,18 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   resetPagination: () => set({ page: 1, hasMore: true }),
 
   // Build query parameters for server-side filtering
-  buildQueryParams: (page: number, limit: number) => {
+  buildQueryParams: (page: number, limit: number, workspaceId?: string) => {
     const { timeRange, level, workflowIds, folderIds, searchQuery, triggers } = get()
     const params = new URLSearchParams()
 
     params.set('includeWorkflow', 'true')
     params.set('limit', limit.toString())
     params.set('offset', ((page - 1) * limit).toString())
+
+    // Add workspace filter
+    if (workspaceId) {
+      params.set('workspaceId', workspaceId)
+    }
 
     // Add level filter
     if (level !== 'all') {

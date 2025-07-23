@@ -156,5 +156,5 @@ export interface FilterState {
   resetPagination: () => void
 
   // Build query parameters for server-side filtering
-  buildQueryParams: (page: number, limit: number) => string
+  buildQueryParams: (page: number, limit: number, workspaceId?: string) => string
 }

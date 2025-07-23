@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
@@ -26,6 +27,9 @@ const selectedRowAnimation = `
 `
 
 export default function Logs() {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const {
     logs,
     loading,
@@ -102,7 +106,7 @@ export default function Logs() {
           setIsFetchingMore(true)
         }
 
-        const queryParams = buildQueryParams(pageNum, LOGS_PER_PAGE)
+        const queryParams = buildQueryParams(pageNum, LOGS_PER_PAGE, workspaceId)
         const response = await fetch(`/api/logs/enhanced?${queryParams}`)
 
         if (!response.ok) {
@@ -127,7 +131,7 @@ export default function Logs() {
         }
       }
     },
-    [setLogs, setLoading, setError, setHasMore, setIsFetchingMore, buildQueryParams]
+    [setLogs, setLoading, setError, setHasMore, setIsFetchingMore, buildQueryParams, workspaceId]
   )
 
   useEffect(() => {
@@ -150,7 +154,7 @@ export default function Logs() {
     const fetchWithNewFilters = async () => {
       try {
         setLoading(true)
-        const queryParams = buildQueryParams(1, LOGS_PER_PAGE)
+        const queryParams = buildQueryParams(1, LOGS_PER_PAGE, workspaceId)
         const response = await fetch(`/api/logs/enhanced?${queryParams}`)
 
         if (!response.ok) {
@@ -177,6 +181,7 @@ export default function Logs() {
     folderIds,
     searchQuery,
     triggers,
+    workspaceId,
     setPage,
     setHasMore,
     setLoading,
