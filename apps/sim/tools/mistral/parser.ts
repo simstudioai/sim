@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
+import { redactSensitiveData } from '@/lib/utils'
 import type { MistralParserInput, MistralParserOutput } from '@/tools/mistral/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -230,7 +231,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       }
 
       // Log the request (with sensitive data redacted)
-      logger.info('Mistral OCR request:', {
+      const logData = {
         url: url.toString(),
         hasApiKey: !!params.apiKey,
         model: requestBody.model,
@@ -240,7 +241,8 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
           imageLimit: requestBody.image_limit ?? 'no limit',
           imageMinSize: requestBody.image_min_size ?? 'no minimum',
         },
-      })
+      }
+      logger.info('Mistral OCR request:', redactSensitiveData(logData))
 
       return requestBody
     },

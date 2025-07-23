@@ -372,16 +372,16 @@ export const redactSensitiveData = (obj: any): any => {
     ) {
       result[key] = '***REDACTED***'
     }
-    // Redact presigned URLs specifically (sourceUrl, directUrl, etc.) - but NOT filePath
+    // Redact presigned URLs and file URLs
     else if (
       key.toLowerCase() === 'sourceurl' ||
       key.toLowerCase() === 'source_url' ||
       key.toLowerCase() === 'directurl' ||
       key.toLowerCase() === 'direct_url' ||
+      key.toLowerCase() === 'url' ||
+      key.toLowerCase() === 'filepath' ||
+      key.toLowerCase() === 'file_path' ||
       (typeof value === 'string' &&
-        key.toLowerCase() !== 'filepath' &&
-        key.toLowerCase() !== 'file_path' &&
-        key.toLowerCase() !== 'path' &&
         (value.includes('X-Amz-Signature') ||
           value.includes('X-Amz-Credential') ||
           value.includes('sig=') ||
@@ -389,7 +389,7 @@ export const redactSensitiveData = (obj: any): any => {
           (value.includes('amazonaws.com') && value.length > 200) ||
           (value.includes('blob.core.windows.net') && value.length > 200)))
     ) {
-      result[key] = '[SECURE DOWNLOAD - Click download button]'
+      result[key] = '***REDACTED***'
     } else if (typeof value === 'object' && value !== null) {
       result[key] = redactSensitiveData(value)
     } else {
