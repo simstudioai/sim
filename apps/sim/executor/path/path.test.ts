@@ -606,6 +606,288 @@ describe('PathTracker', () => {
     })
   })
 
+  describe('Condition downstream path activation', () => {
+    beforeEach(() => {
+      // Create condition workflow with downstream connections similar to router test
+      mockWorkflow = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'condition1',
+            metadata: { id: BlockType.CONDITION, name: 'Condition' },
+            position: { x: 0, y: 0 },
+            config: { tool: BlockType.CONDITION, params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'knowledge1',
+            metadata: { id: BlockType.FUNCTION, name: 'Knowledge 1' },
+            position: { x: 0, y: 0 },
+            config: { tool: BlockType.FUNCTION, params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'knowledge2',
+            metadata: { id: BlockType.FUNCTION, name: 'Knowledge 2' },
+            position: { x: 0, y: 0 },
+            config: { tool: BlockType.FUNCTION, params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'agent1',
+            metadata: { id: BlockType.AGENT, name: 'Agent' },
+            position: { x: 0, y: 0 },
+            config: { tool: BlockType.AGENT, params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          { source: 'condition1', target: 'knowledge1', sourceHandle: 'condition-if-id' },
+          { source: 'condition1', target: 'knowledge2', sourceHandle: 'condition-else-if-id' },
+          { source: 'condition1', target: 'agent1', sourceHandle: 'condition-else-id' },
+          { source: 'knowledge1', target: 'agent1' },
+          { source: 'knowledge2', target: 'agent1' },
+        ],
+        loops: {},
+        parallels: {},
+      }
+
+      pathTracker = new PathTracker(mockWorkflow)
+      mockContext = {
+        workflowId: 'test-condition-workflow',
+        blockStates: new Map(),
+        blockLogs: [],
+        metadata: { duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        loopItems: new Map(),
+        completedLoops: new Set(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(),
+        workflow: mockWorkflow,
+      }
+    })
+
+    it('should recursively activate downstream paths when condition selects regular block target', () => {
+      // Mock condition output selecting knowledge1 (if path)
+      mockContext.blockStates.set('condition1', {
+        output: {
+          selectedConditionId: 'if-id',
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      // Update paths for condition
+      pathTracker.updateExecutionPaths(['condition1'], mockContext)
+
+      // Both knowledge1 and agent1 should be activated (agent1 is downstream from knowledge1)
+      expect(mockContext.activeExecutionPath.has('knowledge1')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(true)
+
+      // knowledge2 should NOT be activated (not selected by condition)
+      expect(mockContext.activeExecutionPath.has('knowledge2')).toBe(false)
+
+      // Condition decision should be recorded
+      expect(mockContext.decisions.condition.get('condition1')).toBe('if-id')
+    })
+
+    it('should recursively activate downstream paths when condition selects else-if path', () => {
+      // Mock condition output selecting knowledge2 (else-if path)
+      mockContext.blockStates.set('condition1', {
+        output: {
+          selectedConditionId: 'else-if-id',
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      pathTracker.updateExecutionPaths(['condition1'], mockContext)
+
+      // Both knowledge2 and agent1 should be activated (agent1 is downstream from knowledge2)
+      expect(mockContext.activeExecutionPath.has('knowledge2')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(true)
+
+      // knowledge1 should NOT be activated (not selected by condition)
+      expect(mockContext.activeExecutionPath.has('knowledge1')).toBe(false)
+
+      // Condition decision should be recorded
+      expect(mockContext.decisions.condition.get('condition1')).toBe('else-if-id')
+    })
+
+    it('should activate direct path when condition selects else path', () => {
+      // Mock condition output selecting agent1 directly (else path)
+      mockContext.blockStates.set('condition1', {
+        output: {
+          selectedConditionId: 'else-id',
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      pathTracker.updateExecutionPaths(['condition1'], mockContext)
+
+      // Only agent1 should be activated (direct path)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(true)
+
+      // Neither knowledge block should be activated
+      expect(mockContext.activeExecutionPath.has('knowledge1')).toBe(false)
+      expect(mockContext.activeExecutionPath.has('knowledge2')).toBe(false)
+
+      // Condition decision should be recorded
+      expect(mockContext.decisions.condition.get('condition1')).toBe('else-id')
+    })
+
+    it('should handle multiple levels of downstream connections', () => {
+      // Add another level to test deep activation
+      mockWorkflow.blocks.push({
+        id: 'finalStep',
+        metadata: { id: BlockType.FUNCTION, name: 'Final Step' },
+        position: { x: 0, y: 0 },
+        config: { tool: BlockType.FUNCTION, params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      })
+      mockWorkflow.connections.push({ source: 'agent1', target: 'finalStep' })
+
+      pathTracker = new PathTracker(mockWorkflow)
+
+      // Mock condition output selecting knowledge1
+      mockContext.blockStates.set('condition1', {
+        output: {
+          selectedConditionId: 'if-id',
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      pathTracker.updateExecutionPaths(['condition1'], mockContext)
+
+      // All downstream blocks should be activated
+      expect(mockContext.activeExecutionPath.has('knowledge1')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('finalStep')).toBe(true)
+
+      // Non-selected path should not be activated
+      expect(mockContext.activeExecutionPath.has('knowledge2')).toBe(false)
+    })
+
+    it('should not recursively activate when condition selects routing block', () => {
+      // Add another condition block as a target
+      mockWorkflow.blocks.push({
+        id: 'condition2',
+        metadata: { id: BlockType.CONDITION, name: 'Nested Condition' },
+        position: { x: 0, y: 0 },
+        config: { tool: BlockType.CONDITION, params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      })
+
+      // Add connection from condition1 to condition2
+      mockWorkflow.connections.push({
+        source: 'condition1',
+        target: 'condition2',
+        sourceHandle: 'condition-nested-id',
+      })
+
+      pathTracker = new PathTracker(mockWorkflow)
+
+      // Mock condition output selecting condition2 (routing block)
+      mockContext.blockStates.set('condition1', {
+        output: {
+          selectedConditionId: 'nested-id',
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      pathTracker.updateExecutionPaths(['condition1'], mockContext)
+
+      // Only condition2 should be activated (routing blocks don't activate downstream)
+      expect(mockContext.activeExecutionPath.has('condition2')).toBe(true)
+
+      // Other blocks should not be activated
+      expect(mockContext.activeExecutionPath.has('knowledge1')).toBe(false)
+      expect(mockContext.activeExecutionPath.has('knowledge2')).toBe(false)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(false)
+    })
+
+    it('should not recursively activate when condition selects flow control block', () => {
+      // Add a parallel block as a target
+      mockWorkflow.blocks.push({
+        id: 'parallel1',
+        metadata: { id: BlockType.PARALLEL, name: 'Parallel Block' },
+        position: { x: 0, y: 0 },
+        config: { tool: BlockType.PARALLEL, params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      })
+
+      // Add connection from condition1 to parallel1
+      mockWorkflow.connections.push({
+        source: 'condition1',
+        target: 'parallel1',
+        sourceHandle: 'condition-parallel-id',
+      })
+
+      pathTracker = new PathTracker(mockWorkflow)
+
+      // Mock condition output selecting parallel1 (flow control block)
+      mockContext.blockStates.set('condition1', {
+        output: {
+          selectedConditionId: 'parallel-id',
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      pathTracker.updateExecutionPaths(['condition1'], mockContext)
+
+      // Only parallel1 should be activated (flow control blocks don't activate downstream)
+      expect(mockContext.activeExecutionPath.has('parallel1')).toBe(true)
+
+      // Other blocks should not be activated
+      expect(mockContext.activeExecutionPath.has('knowledge1')).toBe(false)
+      expect(mockContext.activeExecutionPath.has('knowledge2')).toBe(false)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(false)
+    })
+
+    it('should not create infinite loops in cyclic workflows', () => {
+      // Add a cycle to test loop prevention
+      mockWorkflow.connections.push({ source: 'agent1', target: 'knowledge1' })
+      pathTracker = new PathTracker(mockWorkflow)
+
+      mockContext.blockStates.set('condition1', {
+        output: {
+          selectedConditionId: 'if-id',
+        },
+        executed: true,
+        executionTime: 100,
+      })
+
+      // This should not throw or cause infinite recursion
+      expect(() => {
+        pathTracker.updateExecutionPaths(['condition1'], mockContext)
+      }).not.toThrow()
+
+      // Both knowledge1 and agent1 should still be activated
+      expect(mockContext.activeExecutionPath.has('knowledge1')).toBe(true)
+      expect(mockContext.activeExecutionPath.has('agent1')).toBe(true)
+    })
+  })
+
   describe('RoutingStrategy integration', () => {
     beforeEach(() => {
       // Add more block types to test the new routing strategy

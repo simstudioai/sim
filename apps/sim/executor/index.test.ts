@@ -837,7 +837,7 @@ describe('Executor', () => {
         { source: 'condition1', target: 'falseTarget', sourceHandle: 'condition-false' },
       ]
       const falseResult = checkDependencies(falseConnections, executedBlocks, mockContext)
-      expect(falseResult).toBe(false) // condition executed + path NOT selected = dependency NOT met
+      expect(falseResult).toBe(true) // unselected condition paths are treated as "not applicable" to support multi-path scenarios
     })
 
     test('should handle regular sequential dependencies correctly', () => {
