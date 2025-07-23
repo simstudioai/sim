@@ -3,6 +3,7 @@ import { Circle, CircleOff, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 
 interface ActionBarProps {
   selectedCount: number
@@ -25,10 +26,13 @@ export function ActionBar({
   isLoading = false,
   className,
 }: ActionBarProps) {
+  const userPermissions = useUserPermissionsContext()
+
   if (selectedCount === 0) return null
 
-  const showEnableButton = disabledCount > 0 && onEnable
-  const showDisableButton = enabledCount > 0 && onDisable
+  const canEdit = userPermissions.canEdit
+  const showEnableButton = disabledCount > 0 && onEnable && canEdit
+  const showDisableButton = enabledCount > 0 && onDisable && canEdit
 
   return (
     <motion.div
@@ -82,7 +86,7 @@ export function ActionBar({
             </Tooltip>
           )}
 
-          {onDelete && (
+          {onDelete && canEdit && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

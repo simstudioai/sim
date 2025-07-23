@@ -2,8 +2,8 @@
 
 import React from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import { ThemeProvider } from './theme-provider'
-import { WorkspacePermissionsProvider } from './workspace-permissions-provider'
 
 interface ProvidersProps {
   children: React.ReactNode

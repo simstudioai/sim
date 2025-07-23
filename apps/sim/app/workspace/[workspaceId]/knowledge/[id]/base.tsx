@@ -36,6 +36,7 @@ import { PrimaryButton } from '@/app/workspace/[workspaceId]/knowledge/component
 import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
+import { useUserPermissionsContext } from '../../components/providers/workspace-permissions-provider'
 import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
 import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowledge-base-loading'
 import { UploadModal } from './components/upload-modal/upload-modal'
@@ -120,6 +121,7 @@ export function KnowledgeBase({
   knowledgeBaseName: passedKnowledgeBaseName,
 }: KnowledgeBaseProps) {
   const { removeKnowledgeBase } = useKnowledgeStore()
+  const userPermissions = useUserPermissionsContext()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -680,10 +682,20 @@ export function KnowledgeBase({
                     )}
 
                     {/* Add Documents Button */}
-                    <PrimaryButton onClick={handleAddDocuments}>
-                      <Plus className='h-3.5 w-3.5' />
-                      Add Documents
-                    </PrimaryButton>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PrimaryButton
+                          onClick={handleAddDocuments}
+                          disabled={userPermissions.canEdit !== true}
+                        >
+                          <Plus className='h-3.5 w-3.5' />
+                          Add Documents
+                        </PrimaryButton>
+                      </TooltipTrigger>
+                      {userPermissions.canEdit !== true && (
+                        <TooltipContent>Write permission required to add documents</TooltipContent>
+                      )}
+                    </Tooltip>
                   </div>
                 </div>
               </div>
@@ -1030,7 +1042,10 @@ export function KnowledgeBase({
                                           e.stopPropagation()
                                           handleDeleteDocument(doc.id)
                                         }}
-                                        disabled={doc.processingStatus === 'processing'}
+                                        disabled={
+                                          doc.processingStatus === 'processing' ||
+                                          !userPermissions.canEdit
+                                        }
                                         className='h-8 w-8 p-0 text-gray-500 hover:text-red-600 disabled:opacity-50'
                                       >
                                         <Trash2 className='h-4 w-4' />
@@ -1039,7 +1054,9 @@ export function KnowledgeBase({
                                     <TooltipContent side='top'>
                                       {doc.processingStatus === 'processing'
                                         ? 'Cannot delete while processing'
-                                        : 'Delete Document'}
+                                        : !userPermissions.canEdit
+                                          ? 'Write permission required to delete documents'
+                                          : 'Delete Document'}
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>

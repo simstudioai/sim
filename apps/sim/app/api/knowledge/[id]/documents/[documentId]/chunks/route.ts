@@ -6,10 +6,14 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
+import {
+  checkDocumentAccess,
+  checkDocumentWriteAccess,
+  generateEmbeddings,
+} from '@/app/api/knowledge/utils'
 import { db } from '@/db'
 import { document, embedding } from '@/db/schema'
 import { calculateCost } from '@/providers/utils'
-import { checkDocumentAccess, generateEmbeddings } from '../../../../utils'
 
 const logger = createLogger('DocumentChunksAPI')
 
@@ -182,7 +186,7 @@ export async function POST(
       return NextResponse.json({ error: errorMessage }, { status: statusCode })
     }
 
-    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
+    const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
 
     if (!accessCheck.hasAccess) {
       if (accessCheck.notFound) {

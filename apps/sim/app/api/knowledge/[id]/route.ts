@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
 import { knowledgeBase } from '@/db/schema'
 
@@ -22,31 +23,7 @@ const UpdateKnowledgeBaseSchema = z.object({
     .optional(),
 })
 
-async function checkKnowledgeBaseAccess(knowledgeBaseId: string, userId: string) {
-  const kb = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-    })
-    .from(knowledgeBase)
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-    .limit(1)
-
-  if (kb.length === 0) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const kbData = kb[0]
-
-  // Check if user owns the knowledge base
-  if (kbData.userId === userId) {
-    return { hasAccess: true, knowledgeBase: kbData }
-  }
-
-  return { hasAccess: false, knowledgeBase: kbData }
-}
-
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const { id } = await params
 
@@ -59,12 +36,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const accessCheck = await checkKnowledgeBaseAccess(id, session.user.id)
 
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
-      return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-    }
-
     if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted to access unauthorized knowledge base ${id}`
       )
@@ -106,12 +82,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const accessCheck = await checkKnowledgeBaseAccess(id, session.user.id)
 
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
-      return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-    }
-
     if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted to update unauthorized knowledge base ${id}`
       )
@@ -176,7 +151,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const { id } = await params
 
@@ -187,14 +162,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const accessCheck = await checkKnowledgeBaseAccess(id, session.user.id)
-
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
-      return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-    }
+    const accessCheck = await checkKnowledgeBaseWriteAccess(id, session.user.id)
 
     if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${id}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted to delete unauthorized knowledge base ${id}`
       )
