@@ -22,6 +22,9 @@ export const formatDate = (dateString: string) => {
       hour12: false,
     }),
     formatted: format(date, 'HH:mm:ss'),
+    compact: format(date, 'MMM d HH:mm:ss'),
+    compactDate: format(date, 'MMM d').toUpperCase(),
+    compactTime: format(date, 'HH:mm:ss'),
     relative: (() => {
       const now = new Date()
       const diffMs = now.getTime() - date.getTime()

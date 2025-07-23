@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { cn } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '../../../../stores/logs/filters/store'
 import type { LogsResponse, WorkflowLog } from '../../../../stores/logs/filters/types'
@@ -388,34 +389,34 @@ export default function Logs() {
   ])
 
   return (
-    <div className='flex h-[100vh] flex-col pl-64'>
+    <div className='flex h-[100vh] min-w-0 flex-col pl-64'>
       {/* Add the animation styles */}
       <style jsx global>
         {selectedRowAnimation}
       </style>
 
-      <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto p-6'>
+      <div className='flex min-w-0 flex-1 overflow-hidden'>
+        <div className='flex flex-1 flex-col overflow-auto'>
           {/* Header */}
-          <div className='mb-6'>
+          <div className='mb-6 px-6 pt-6'>
             <h1 className='font-sans font-semibold text-3xl text-foreground tracking-[0.01em]'>
               Logs
             </h1>
           </div>
 
           {/* Search and Controls */}
-          <div className='mb-6 flex items-center justify-between'>
-            <div className='flex h-9 w-[460px] items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
-              <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
+          <div className='mb-6 flex flex-col items-stretch justify-between gap-4 px-6 sm:flex-row sm:items-center'>
+            <div className='flex h-9 w-full min-w-[200px] max-w-[460px] items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
+              <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
               <Input
                 placeholder='Search logs...'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className='flex-1 border-0 bg-transparent px-0 font-normal font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
 
-            <div className='flex items-center gap-3'>
+            <div className='flex flex-shrink-0 items-center gap-3'>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -454,22 +455,33 @@ export default function Logs() {
 
           {/* Table container */}
           <div className='flex flex-1 flex-col overflow-hidden'>
-            {/* Table with fixed layout */}
-            <div className='w-full min-w-[800px]'>
+            {/* Table with responsive layout */}
+            <div className='w-full overflow-x-auto'>
               {/* Header */}
-              <div className='px-4 py-4'>
-                <div className='rounded-lg border border-border/30 bg-muted/30'>
-                  <div className='grid grid-cols-[160px_100px_1fr_120px_100px_100px] gap-4 px-4 py-3'>
-                    <div className='font-medium text-muted-foreground text-xs'>Time</div>
-                    <div className='font-medium text-muted-foreground text-xs'>Status</div>
-                    <div className='font-medium text-muted-foreground text-xs'>Workflow</div>
-                    <div className='hidden font-medium text-muted-foreground text-xs lg:block'>
+              <div className='px-6'>
+                <div className='border-border border-b'>
+                  <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_80px_1fr] gap-2 px-2 pb-3 md:grid-cols-[140px_90px_140px_90px_1fr] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_100px_1fr] lg:gap-4 xl:grid-cols-[160px_100px_160px_100px_100px_1fr_100px]'>
+                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                      Time
+                    </div>
+                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                      Status
+                    </div>
+                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                      Workflow
+                    </div>
+                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                      ID
+                    </div>
+                    <div className='hidden font-[480] font-sans text-[13px] text-muted-foreground leading-normal xl:block'>
                       Trigger
                     </div>
-                    <div className='hidden font-medium text-muted-foreground text-xs xl:block'>
-                      Cost
+                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                      Message
                     </div>
-                    <div className='font-medium text-muted-foreground text-xs'>Duration</div>
+                    <div className='hidden font-[480] font-sans text-[13px] text-muted-foreground leading-normal xl:block'>
+                      Duration
+                    </div>
                   </div>
                 </div>
               </div>
@@ -499,7 +511,7 @@ export default function Logs() {
                   </div>
                 </div>
               ) : (
-                <div className='space-y-1 px-4 pb-4'>
+                <div className='px-6 pb-4'>
                   {logs.map((log) => {
                     const formattedDate = formatDate(log.createdAt)
                     const isSelected = selectedLog?.id === log.id
@@ -508,67 +520,74 @@ export default function Logs() {
                       <div
                         key={log.id}
                         ref={isSelected ? selectedRowRef : null}
-                        className={`cursor-pointer rounded-lg border transition-all duration-200 ${
-                          isSelected
-                            ? 'border-primary bg-accent/40 shadow-sm'
-                            : 'border-border hover:border-border/80 hover:bg-accent/20'
+                        className={`cursor-pointer border-border border-b transition-all duration-200 ${
+                          isSelected ? 'bg-accent/40' : 'hover:bg-accent/20'
                         }`}
                         onClick={() => handleLogClick(log)}
                       >
-                        <div className='grid grid-cols-[160px_100px_1fr_120px_100px_100px] gap-4 px-4 py-4'>
+                        <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_80px_1fr] items-center gap-2 px-2 py-3 md:grid-cols-[140px_90px_140px_90px_1fr] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_100px_1fr] lg:gap-4 xl:grid-cols-[160px_100px_160px_100px_100px_1fr_100px]'>
                           {/* Time */}
                           <div>
-                            <div className='font-medium text-sm'>{formattedDate.formatted}</div>
-                            <div className='text-muted-foreground text-xs'>
-                              {formattedDate.relative}
+                            <div className='text-[13px]'>
+                              <span className='font-sm text-muted-foreground'>
+                                {formattedDate.compactDate}
+                              </span>
+                              <span
+                                style={{ marginLeft: '8px' }}
+                                className='hidden font-medium sm:inline'
+                              >
+                                {formattedDate.compactTime}
+                              </span>
                             </div>
                           </div>
 
                           {/* Status */}
                           <div>
                             <div
-                              className={`inline-flex items-center justify-center rounded-md px-2 py-1 text-xs ${
+                              className={cn(
+                                'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-xs transition-all duration-200 lg:px-[8px]',
                                 log.level === 'error'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-green-100 text-green-800'
-                              }`}
+                                  ? 'bg-red-500 text-white'
+                                  : 'bg-secondary text-card-foreground'
+                              )}
                             >
-                              <span className='font-medium'>
-                                {log.level === 'error' ? 'Failed' : 'Success'}
-                              </span>
+                              {log.level}
                             </div>
                           </div>
 
                           {/* Workflow */}
                           <div className='min-w-0'>
-                            <div className='truncate font-medium text-sm'>
+                            <div
+                              className='inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-white text-xs transition-all duration-200 lg:px-[8px]'
+                              style={{
+                                backgroundColor: log.workflow?.color || '#6b7280',
+                              }}
+                            >
                               {log.workflow?.name || 'Unknown Workflow'}
                             </div>
-                            <div className='truncate text-muted-foreground text-xs'>
-                              {log.message}
+                          </div>
+
+                          {/* ID */}
+                          <div>
+                            <div className='font-medium text-muted-foreground text-xs'>
+                              #{log.id.slice(-4)}
                             </div>
                           </div>
 
                           {/* Trigger */}
-                          <div className='hidden lg:block'>
+                          <div className='hidden xl:block'>
                             <div className='text-muted-foreground text-xs'>
                               {log.trigger || '—'}
                             </div>
                           </div>
 
-                          {/* Cost */}
-                          <div className='hidden xl:block'>
-                            <div className='text-muted-foreground text-xs'>
-                              {log.metadata?.enhanced && log.metadata?.cost?.total ? (
-                                <span>${log.metadata.cost.total.toFixed(4)}</span>
-                              ) : (
-                                <span className='pl-0.5'>—</span>
-                              )}
-                            </div>
+                          {/* Message */}
+                          <div className='min-w-0'>
+                            <div className='truncate text-sm'>{log.message}</div>
                           </div>
 
                           {/* Duration */}
-                          <div>
+                          <div className='hidden xl:block'>
                             <div className='text-muted-foreground text-xs'>
                               {log.duration || '—'}
                             </div>
