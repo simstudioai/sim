@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
 import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
@@ -49,6 +50,7 @@ export function Document({
   const router = useRouter()
   const searchParams = useSearchParams()
   const currentPageFromURL = Number.parseInt(searchParams.get('page') || '1', 10)
+  const userPermissions = useUserPermissionsContext()
 
   const {
     chunks: paginatedChunks,
@@ -398,7 +400,7 @@ export function Document({
 
                 <Button
                   onClick={() => setIsCreateChunkModalOpen(true)}
-                  disabled={document?.processingStatus === 'failed'}
+                  disabled={document?.processingStatus === 'failed' || !userPermissions.canEdit}
                   size='sm'
                   className='flex items-center gap-1 bg-[#701FFC] font-[480] text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
                 >
@@ -464,7 +466,9 @@ export function Document({
                           <Checkbox
                             checked={isAllSelected}
                             onCheckedChange={handleSelectAll}
-                            disabled={document?.processingStatus !== 'completed'}
+                            disabled={
+                              document?.processingStatus !== 'completed' || !userPermissions.canEdit
+                            }
                             aria-label='Select all chunks'
                             className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
                           />
@@ -605,6 +609,7 @@ export function Document({
                                 onCheckedChange={(checked) =>
                                   handleSelectChunk(chunk.id, checked as boolean)
                                 }
+                                disabled={!userPermissions.canEdit}
                                 aria-label={`Select chunk ${chunk.chunkIndex}`}
                                 className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
                                 onClick={(e) => e.stopPropagation()}
@@ -656,7 +661,8 @@ export function Document({
                                         e.stopPropagation()
                                         handleToggleEnabled(chunk.id)
                                       }}
-                                      className='h-8 w-8 p-0 text-gray-500 hover:text-gray-700'
+                                      disabled={!userPermissions.canEdit}
+                                      className='h-8 w-8 p-0 text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50'
                                     >
                                       {chunk.enabled ? (
                                         <Circle className='h-4 w-4' />
@@ -679,7 +685,8 @@ export function Document({
                                         e.stopPropagation()
                                         handleDeleteChunk(chunk.id)
                                       }}
-                                      className='h-8 w-8 p-0 text-gray-500 hover:text-red-600'
+                                      disabled={!userPermissions.canEdit}
+                                      className='h-8 w-8 p-0 text-gray-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50'
                                     >
                                       <Trash2 className='h-4 w-4' />
                                     </Button>

@@ -728,6 +728,7 @@ export function KnowledgeBase({
                           <Checkbox
                             checked={isAllSelected}
                             onCheckedChange={handleSelectAll}
+                            disabled={!userPermissions.canEdit}
                             aria-label='Select all documents'
                             className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
                           />
@@ -883,6 +884,7 @@ export function KnowledgeBase({
                                   onCheckedChange={(checked) =>
                                     handleSelectDocument(doc.id, checked as boolean)
                                   }
+                                  disabled={!userPermissions.canEdit}
                                   onClick={(e) => e.stopPropagation()}
                                   aria-label={`Select ${doc.filename}`}
                                   className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
@@ -1012,7 +1014,8 @@ export function KnowledgeBase({
                                         }}
                                         disabled={
                                           doc.processingStatus === 'processing' ||
-                                          doc.processingStatus === 'pending'
+                                          doc.processingStatus === 'pending' ||
+                                          !userPermissions.canEdit
                                         }
                                         className='h-8 w-8 p-0 text-gray-500 hover:text-gray-700 disabled:opacity-50'
                                       >
@@ -1027,9 +1030,11 @@ export function KnowledgeBase({
                                       {doc.processingStatus === 'processing' ||
                                       doc.processingStatus === 'pending'
                                         ? 'Cannot modify while processing'
-                                        : doc.enabled
-                                          ? 'Disable Document'
-                                          : 'Enable Document'}
+                                        : !userPermissions.canEdit
+                                          ? 'Write permission required to modify documents'
+                                          : doc.enabled
+                                            ? 'Disable Document'
+                                            : 'Enable Document'}
                                     </TooltipContent>
                                   </Tooltip>
 

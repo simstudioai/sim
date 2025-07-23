@@ -41,6 +41,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Check for workspace filtering
+    const { searchParams } = new URL(req.url)
+    const workspaceId = searchParams.get('workspaceId')
+
     // Get knowledge bases that user can access through direct ownership OR workspace permissions
     const knowledgeBasesWithCounts = await db
       .select({
@@ -72,6 +76,8 @@ export async function GET(req: NextRequest) {
       .where(
         and(
           isNull(knowledgeBase.deletedAt),
+          // Filter by workspace if specified
+          workspaceId ? eq(knowledgeBase.workspaceId, workspaceId) : undefined,
           or(
             // User owns the knowledge base directly
             eq(knowledgeBase.userId, session.user.id),

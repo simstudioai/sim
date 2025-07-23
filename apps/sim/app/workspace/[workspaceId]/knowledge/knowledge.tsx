@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { LibraryBig, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
@@ -19,8 +20,11 @@ interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
 }
 
 export function Knowledge() {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const { knowledgeBases, isLoading, error, addKnowledgeBase, refreshList } =
-    useKnowledgeBasesList()
+    useKnowledgeBasesList(workspaceId)
   const userPermissions = useUserPermissionsContext()
 
   const [searchQuery, setSearchQuery] = useState('')

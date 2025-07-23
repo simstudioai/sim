@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import type { ChunkData, DocumentData } from '@/stores/knowledge/store'
 
 const logger = createLogger('EditChunkModal')
@@ -50,6 +51,7 @@ export function EditChunkModal({
   onNavigateToChunk,
   onNavigateToPage,
 }: EditChunkModalProps) {
+  const userPermissions = useUserPermissionsContext()
   const [editedContent, setEditedContent] = useState(chunk?.content || '')
   const [isSaving, setIsSaving] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
@@ -285,9 +287,12 @@ export function EditChunkModal({
                     id='content'
                     value={editedContent}
                     onChange={(e) => setEditedContent(e.target.value)}
-                    placeholder='Enter chunk content...'
+                    placeholder={
+                      userPermissions.canEdit ? 'Enter chunk content...' : 'Read-only view'
+                    }
                     className='flex-1 resize-none'
-                    disabled={isSaving || isNavigating}
+                    disabled={isSaving || isNavigating || !userPermissions.canEdit}
+                    readOnly={!userPermissions.canEdit}
                   />
                 </div>
               </div>
@@ -303,20 +308,22 @@ export function EditChunkModal({
                 >
                   Cancel
                 </Button>
-                <Button
-                  onClick={handleSaveContent}
-                  disabled={!isFormValid || isSaving || !hasUnsavedChanges || isNavigating}
-                  className='bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </Button>
+                {userPermissions.canEdit && (
+                  <Button
+                    onClick={handleSaveContent}
+                    disabled={!isFormValid || isSaving || !hasUnsavedChanges || isNavigating}
+                    className='bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           </div>

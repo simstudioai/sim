@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { PackageSearchIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,6 +35,9 @@ export function KnowledgeBaseSelector({
   isPreview = false,
   previewValue,
 }: KnowledgeBaseSelectorProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const { getKnowledgeBasesList, knowledgeBasesList, loadingKnowledgeBasesList } =
     useKnowledgeStore()
 
@@ -75,7 +79,7 @@ export function KnowledgeBaseSelector({
     setError(null)
 
     try {
-      const data = await getKnowledgeBasesList()
+      const data = await getKnowledgeBasesList(workspaceId)
       setKnowledgeBases(data)
       setInitialFetchDone(true)
     } catch (err) {
@@ -85,7 +89,7 @@ export function KnowledgeBaseSelector({
     } finally {
       setLoading(false)
     }
-  }, [getKnowledgeBasesList])
+  }, [getKnowledgeBasesList, workspaceId])
 
   // Handle dropdown open/close - fetch knowledge bases when opening
   const handleOpenChange = (isOpen: boolean) => {
