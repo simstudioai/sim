@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getBaseDomain } from '@/lib/urls/utils'
+import { getEmailDomain } from '@/lib/urls/utils'
 import { encryptSecret } from '@/lib/utils'
 import { checkChatAccess } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -68,7 +68,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Create a new result object without the password
     const { password, ...safeData } = chatRecord
 
-    const baseDomain = getBaseDomain()
+    const baseDomain = getEmailDomain()
     const protocol = isDev ? 'http' : 'https'
     const chatUrl = `${protocol}://${chatRecord.subdomain}.${baseDomain}`
 
@@ -214,7 +214,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const updatedSubdomain = subdomain || existingChat[0].subdomain
 
-      const baseDomain = getBaseDomain()
+      const baseDomain = getEmailDomain()
       const protocol = isDev ? 'http' : 'https'
       const chatUrl = `${protocol}://${updatedSubdomain}.${baseDomain}`
 
