@@ -350,45 +350,47 @@ export const redactApiKeys = (obj: any): any => {
  * @param obj The object to redact sensitive data from
  * @returns A new object with sensitive data redacted
  */
-export const redactSensitiveData = (obj: any): any => {
-  if (!obj || typeof obj !== 'object') {
-    return obj
-  }
+const SENSITIVE_KEYS = new Set([
+  'apikey',
+  'api_key',
+  'access_token',
+  'sourceurl',
+  'source_url',
+  'directurl',
+  'direct_url',
+  'url',
+  'filepath',
+  'file_path',
+])
 
-  if (Array.isArray(obj)) {
-    return obj.map(redactSensitiveData)
-  }
+const SENSITIVE_PATTERNS = [/\bsecret\b/i, /\bpassword\b/i]
+
+const isPresignedUrl = (value: string): boolean =>
+  value.includes('X-Amz-Signature') ||
+  value.includes('X-Amz-Credential') ||
+  value.includes('sig=') ||
+  value.includes('se=') ||
+  (value.includes('amazonaws.com') && value.length > 200) ||
+  (value.includes('blob.core.windows.net') && value.length > 200)
+
+const shouldRedactKey = (key: string): boolean => {
+  const lowerKey = key.toLowerCase()
+  return (
+    SENSITIVE_KEYS.has(lowerKey) || SENSITIVE_PATTERNS.some((pattern) => pattern.test(lowerKey))
+  )
+}
+
+const shouldRedactValue = (value: unknown): boolean =>
+  typeof value === 'string' && isPresignedUrl(value)
+
+export const redactSensitiveData = (obj: any): any => {
+  if (!obj || typeof obj !== 'object') return obj
+  if (Array.isArray(obj)) return obj.map(redactSensitiveData)
 
   const result: Record<string, any> = {}
 
   for (const [key, value] of Object.entries(obj)) {
-    // Redact API keys and secrets
-    if (
-      key.toLowerCase() === 'apikey' ||
-      key.toLowerCase() === 'api_key' ||
-      key.toLowerCase() === 'access_token' ||
-      /\bsecret\b/i.test(key.toLowerCase()) ||
-      /\bpassword\b/i.test(key.toLowerCase())
-    ) {
-      result[key] = '***REDACTED***'
-    }
-    // Redact presigned URLs and file URLs
-    else if (
-      key.toLowerCase() === 'sourceurl' ||
-      key.toLowerCase() === 'source_url' ||
-      key.toLowerCase() === 'directurl' ||
-      key.toLowerCase() === 'direct_url' ||
-      key.toLowerCase() === 'url' ||
-      key.toLowerCase() === 'filepath' ||
-      key.toLowerCase() === 'file_path' ||
-      (typeof value === 'string' &&
-        (value.includes('X-Amz-Signature') ||
-          value.includes('X-Amz-Credential') ||
-          value.includes('sig=') ||
-          value.includes('se=') ||
-          (value.includes('amazonaws.com') && value.length > 200) ||
-          (value.includes('blob.core.windows.net') && value.length > 200)))
-    ) {
+    if (shouldRedactKey(key) || shouldRedactValue(value)) {
       result[key] = '***REDACTED***'
     } else if (typeof value === 'object' && value !== null) {
       result[key] = redactSensitiveData(value)
