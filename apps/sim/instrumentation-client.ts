@@ -18,13 +18,13 @@ import {
   linkedErrorsIntegration,
   makeFetchTransport,
 } from '@sentry/nextjs'
-import { env } from './lib/env'
+import { env, getEnv } from './lib/env'
 import { isProd } from './lib/environment'
 
 // Only in production
 if (typeof window !== 'undefined' && isProd) {
   const client = new BrowserClient({
-    dsn: env.NEXT_PUBLIC_SENTRY_DSN || undefined,
+    dsn: getEnv('NEXT_PUBLIC_SENTRY_DSN') || undefined,
     environment: env.NODE_ENV || 'development',
     transport: makeFetchTransport,
     stackParser: defaultStackParser,

@@ -41,6 +41,7 @@ import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
+import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RouterBlock } from '@/blocks/blocks/router'
@@ -98,7 +99,6 @@ export const registry: Record<string, BlockConfig> = {
   linear: LinearBlock,
   linkup: LinkupBlock,
   mem0: Mem0Block,
-  memory: MemoryBlock,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   mistral_parse: MistralParseBlock,
@@ -107,6 +107,8 @@ export const registry: Record<string, BlockConfig> = {
   outlook: OutlookBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
+  qdrant: QdrantBlock,
+  memory: MemoryBlock,
   reddit: RedditBlock,
   response: ResponseBlock,
   router: RouterBlock,

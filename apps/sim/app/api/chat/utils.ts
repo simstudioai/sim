@@ -5,7 +5,9 @@ import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
+import { getEmailDomain } from '@/lib/urls/utils'
 import { decryptSecret } from '@/lib/utils'
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
@@ -20,6 +22,80 @@ declare global {
 }
 
 const logger = createLogger('ChatAuthUtils')
+
+/**
+ * Check if user has permission to create a chat for a specific workflow
+ * Either the user owns the workflow directly OR has admin permission for the workflow's workspace
+ */
+export async function checkWorkflowAccessForChatCreation(
+  workflowId: string,
+  userId: string
+): Promise<{ hasAccess: boolean; workflow?: any }> {
+  // Get workflow data
+  const workflowData = await db.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1)
+
+  if (workflowData.length === 0) {
+    return { hasAccess: false }
+  }
+
+  const workflowRecord = workflowData[0]
+
+  // Case 1: User owns the workflow directly
+  if (workflowRecord.userId === userId) {
+    return { hasAccess: true, workflow: workflowRecord }
+  }
+
+  // Case 2: Workflow belongs to a workspace and user has admin permission
+  if (workflowRecord.workspaceId) {
+    const hasAdmin = await hasAdminPermission(userId, workflowRecord.workspaceId)
+    if (hasAdmin) {
+      return { hasAccess: true, workflow: workflowRecord }
+    }
+  }
+
+  return { hasAccess: false }
+}
+
+/**
+ * Check if user has access to view/edit/delete a specific chat
+ * Either the user owns the chat directly OR has admin permission for the workflow's workspace
+ */
+export async function checkChatAccess(
+  chatId: string,
+  userId: string
+): Promise<{ hasAccess: boolean; chat?: any }> {
+  // Get chat with workflow information
+  const chatData = await db
+    .select({
+      chat: chat,
+      workflowWorkspaceId: workflow.workspaceId,
+    })
+    .from(chat)
+    .innerJoin(workflow, eq(chat.workflowId, workflow.id))
+    .where(eq(chat.id, chatId))
+    .limit(1)
+
+  if (chatData.length === 0) {
+    return { hasAccess: false }
+  }
+
+  const { chat: chatRecord, workflowWorkspaceId } = chatData[0]
+
+  // Case 1: User owns the chat directly
+  if (chatRecord.userId === userId) {
+    return { hasAccess: true, chat: chatRecord }
+  }
+
+  // Case 2: Chat's workflow belongs to a workspace and user has admin permission
+  if (workflowWorkspaceId) {
+    const hasAdmin = await hasAdminPermission(userId, workflowWorkspaceId)
+    if (hasAdmin) {
+      return { hasAccess: true, chat: chatRecord }
+    }
+  }
+
+  return { hasAccess: false }
+}
 
 export const encryptAuthToken = (subdomainId: string, type: string): string => {
   return Buffer.from(`${subdomainId}:${type}:${Date.now()}`).toString('base64')
@@ -66,7 +142,7 @@ export const setChatAuthCookie = (
     sameSite: 'lax',
     path: '/',
     // Using subdomain for the domain in production
-    domain: isDev ? undefined : '.simstudio.ai',
+    domain: isDev ? undefined : `.${getEmailDomain()}`,
     maxAge: 60 * 60 * 24, // 24 hours
   })
 }

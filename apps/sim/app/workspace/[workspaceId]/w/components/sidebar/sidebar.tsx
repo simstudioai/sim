@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
+import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import {
   getKeyboardShortcutText,
@@ -287,13 +288,18 @@ export function Sidebar() {
       setIsCreatingWorkspace(true)
       logger.info('Creating new workspace')
 
+      // Generate workspace name using utility function
+      const workspaceName = await generateWorkspaceName()
+
+      logger.info(`Generated workspace name: ${workspaceName}`)
+
       const response = await fetch('/api/workspaces', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: 'Untitled workspace',
+          name: workspaceName,
         }),
       })
 

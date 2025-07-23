@@ -1,0 +1,17 @@
+{
+  "title": "Block Schemas",
+  "pages": [
+    "starter",
+    "agent",
+    "function",
+    "api",
+    "condition",
+    "router",
+    "evaluator",
+    "response",
+    "loop",
+    "parallel",
+    "webhook",
+    "workflow"
+  ]
+}

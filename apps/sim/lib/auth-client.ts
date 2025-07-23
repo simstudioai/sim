@@ -1,20 +1,20 @@
 import { stripeClient } from '@better-auth/stripe/client'
 import { emailOTPClient, genericOAuthClient, organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
-import { env } from '@/lib/env'
+import { env, getEnv } from '@/lib/env'
 import { isDev, isProd } from '@/lib/environment'
 
 export function getBaseURL() {
   let baseURL
 
   if (env.VERCEL_ENV === 'preview') {
-    baseURL = `https://${env.NEXT_PUBLIC_VERCEL_URL}`
+    baseURL = `https://${getEnv('NEXT_PUBLIC_VERCEL_URL')}`
   } else if (env.VERCEL_ENV === 'development') {
-    baseURL = `https://${env.NEXT_PUBLIC_VERCEL_URL}`
+    baseURL = `https://${getEnv('NEXT_PUBLIC_VERCEL_URL')}`
   } else if (env.VERCEL_ENV === 'production') {
-    baseURL = env.BETTER_AUTH_URL || env.NEXT_PUBLIC_APP_URL
+    baseURL = env.BETTER_AUTH_URL || getEnv('NEXT_PUBLIC_APP_URL')
   } else if (env.NODE_ENV === 'development') {
-    baseURL = env.NEXT_PUBLIC_APP_URL || env.BETTER_AUTH_URL || 'http://localhost:3000'
+    baseURL = getEnv('NEXT_PUBLIC_APP_URL') || env.BETTER_AUTH_URL || 'http://localhost:3000'
   }
 
   return baseURL

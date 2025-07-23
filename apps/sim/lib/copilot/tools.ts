@@ -1,29 +1,68 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowYamlStore } from '@/stores/workflows/yaml/store'
 import { searchDocumentation } from './service'
 
 const logger = createLogger('CopilotTools')
 
-// Interface for copilot tool execution results
+/**
+ * Interface for copilot tool execution results
+ */
 export interface CopilotToolResult {
   success: boolean
   data?: any
   error?: string
 }
 
-// Interface for copilot tool definitions
+/**
+ * Interface for copilot tool parameters
+ */
+export interface CopilotToolParameters {
+  type: 'object'
+  properties: Record<string, any>
+  required: string[]
+}
+
+/**
+ * Interface for copilot tool definitions
+ */
 export interface CopilotTool {
   id: string
   name: string
   description: string
-  parameters: {
-    type: 'object'
-    properties: Record<string, any>
-    required: string[]
-  }
+  parameters: CopilotToolParameters
   execute: (args: Record<string, any>) => Promise<CopilotToolResult>
 }
 
-// Documentation search tool for copilot
+/**
+ * Interface for documentation search arguments
+ */
+interface DocsSearchArgs {
+  query: string
+  topK?: number
+}
+
+/**
+ * Interface for workflow metadata
+ */
+interface WorkflowMetadata {
+  workflowId: string
+  name: string
+  description: string | undefined
+  workspaceId: string
+}
+
+/**
+ * Interface for user workflow data
+ */
+interface UserWorkflowData {
+  yaml: string
+  metadata?: WorkflowMetadata
+}
+
+/**
+ * Documentation search tool for copilot
+ */
 const docsSearchTool: CopilotTool = {
   id: 'docs_search_internal',
   name: 'Search Documentation',
@@ -38,21 +77,16 @@ const docsSearchTool: CopilotTool = {
       },
       topK: {
         type: 'number',
-        description: 'Number of results to return (default: 5, max: 10)',
-        default: 5,
+        description: 'Number of results to return (default: 10, max: 10)',
+        default: 10,
       },
     },
     required: ['query'],
   },
   execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
     try {
-      const { query, topK = 5 } = args
-
-      logger.info('Executing documentation search', { query, topK })
-
+      const { query, topK = 10 } = args
       const results = await searchDocumentation(query, { topK })
-
-      logger.info(`Found ${results.length} documentation results`, { query })
 
       return {
         success: true,
@@ -72,7 +106,9 @@ const docsSearchTool: CopilotTool = {
   },
 }
 
-// Get user workflow as YAML tool for copilot
+/**
+ * Get user workflow as YAML tool for copilot
+ */
 const getUserWorkflowTool: CopilotTool = {
   id: 'get_user_workflow',
   name: 'Get User Workflow',
@@ -85,12 +121,6 @@ const getUserWorkflowTool: CopilotTool = {
   },
   execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
     try {
-      logger.info('Executing get user workflow')
-
-      // Import the workflow YAML store dynamically to avoid import issues
-      const { useWorkflowYamlStore } = await import('@/stores/workflows/yaml/store')
-      const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
       // Get the current workflow YAML using the same logic as export
       const yamlContent = useWorkflowYamlStore.getState().getYaml()
 
@@ -99,24 +129,24 @@ const getUserWorkflowTool: CopilotTool = {
       const activeWorkflowId = registry.activeWorkflowId
       const activeWorkflow = activeWorkflowId ? registry.workflows[activeWorkflowId] : null
 
-      let metadata
-      if (activeWorkflow) {
+      let metadata: WorkflowMetadata | undefined
+      if (activeWorkflow && activeWorkflowId) {
         metadata = {
           workflowId: activeWorkflowId,
-          name: activeWorkflow.name,
+          name: activeWorkflow.name || 'Untitled Workflow',
           description: activeWorkflow.description,
-          workspaceId: activeWorkflow.workspaceId,
+          workspaceId: activeWorkflow.workspaceId || '',
         }
       }
 
-      logger.info('Successfully retrieved user workflow YAML')
+      const data: UserWorkflowData = {
+        yaml: yamlContent,
+        metadata,
+      }
 
       return {
         success: true,
-        data: {
-          yaml: yamlContent,
-          metadata: metadata,
-        },
+        data,
       }
     } catch (error) {
       logger.error('Get user workflow failed', error)
@@ -128,18 +158,24 @@ const getUserWorkflowTool: CopilotTool = {
   },
 }
 
-// Copilot tools registry
+/**
+ * Copilot tools registry
+ */
 const copilotTools: Record<string, CopilotTool> = {
   docs_search_internal: docsSearchTool,
   get_user_workflow: getUserWorkflowTool,
 }
 
-// Get a copilot tool by ID
+/**
+ * Get a copilot tool by ID
+ */
 export function getCopilotTool(toolId: string): CopilotTool | undefined {
   return copilotTools[toolId]
 }
 
-// Execute a copilot tool
+/**
+ * Execute a copilot tool
+ */
 export async function executeCopilotTool(
   toolId: string,
   args: Record<string, any>
@@ -155,9 +191,7 @@ export async function executeCopilotTool(
   }
 
   try {
-    logger.info(`Executing copilot tool: ${toolId}`, { args })
     const result = await tool.execute(args)
-    logger.info(`Copilot tool execution completed: ${toolId}`, { success: result.success })
     return result
   } catch (error) {
     logger.error(`Copilot tool execution failed: ${toolId}`, error)
@@ -168,7 +202,9 @@ export async function executeCopilotTool(
   }
 }
 
-// Get all available copilot tools (for tool definitions in LLM requests)
+/**
+ * Get all available copilot tools (for tool definitions in LLM requests)
+ */
 export function getAllCopilotTools(): CopilotTool[] {
   return Object.values(copilotTools)
 }

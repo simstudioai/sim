@@ -383,7 +383,14 @@ export const azureOpenAIProvider: ProviderConfig = {
             // Add system parameters for execution
             const executionParams = {
               ...toolParams,
-              ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
+              ...(request.workflowId
+                ? {
+                    _context: {
+                      workflowId: request.workflowId,
+                      ...(request.chatId ? { chatId: request.chatId } : {}),
+                    },
+                  }
+                : {}),
               ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
             }
 

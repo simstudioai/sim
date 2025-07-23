@@ -34,8 +34,10 @@
     "outlook",
     "perplexity",
     "pinecone",
+    "qdrant",
     "reddit",
     "s3",
+    "schedule",
     "serper",
     "slack",
     "stagehand",
@@ -49,6 +51,7 @@
     "typeform",
     "vision",
     "wealthbox",
+    "webhook",
     "whatsapp",
     "x",
     "youtube"

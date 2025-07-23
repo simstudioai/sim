@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -6,6 +6,7 @@ import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { encryptSecret } from '@/lib/utils'
+import { checkChatAccess } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import { chat } from '@/db/schema'
@@ -57,23 +58,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse('Unauthorized', 401)
     }
 
-    // Get the specific chat deployment
-    const chatInstance = await db
-      .select()
-      .from(chat)
-      .where(and(eq(chat.id, chatId), eq(chat.userId, session.user.id)))
-      .limit(1)
+    // Check if user has access to view this chat
+    const { hasAccess, chat: chatRecord } = await checkChatAccess(chatId, session.user.id)
 
-    if (chatInstance.length === 0) {
+    if (!hasAccess || !chatRecord) {
       return createErrorResponse('Chat not found or access denied', 404)
     }
 
     // Create a new result object without the password
-    const { password, ...safeData } = chatInstance[0]
+    const { password, ...safeData } = chatRecord
 
-    const chatUrl = isDev
-      ? `http://${chatInstance[0].subdomain}.${getBaseDomain()}`
-      : `https://${chatInstance[0].subdomain}.simstudio.ai`
+    const baseDomain = getBaseDomain()
+    const protocol = isDev ? 'http' : 'https'
+    const chatUrl = `${protocol}://${chatRecord.subdomain}.${baseDomain}`
 
     const result = {
       ...safeData,
@@ -107,16 +104,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     try {
       const validatedData = chatUpdateSchema.parse(body)
 
-      // Verify the chat exists and belongs to the user
-      const existingChat = await db
-        .select()
-        .from(chat)
-        .where(and(eq(chat.id, chatId), eq(chat.userId, session.user.id)))
-        .limit(1)
+      // Check if user has access to edit this chat
+      const { hasAccess, chat: existingChatRecord } = await checkChatAccess(chatId, session.user.id)
 
-      if (existingChat.length === 0) {
+      if (!hasAccess || !existingChatRecord) {
         return createErrorResponse('Chat not found or access denied', 404)
       }
+
+      const existingChat = [existingChatRecord] // Keep array format for compatibility
 
       // Extract validated data
       const {
@@ -219,9 +214,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const updatedSubdomain = subdomain || existingChat[0].subdomain
 
-      const chatUrl = isDev
-        ? `http://${updatedSubdomain}.${getBaseDomain()}`
-        : `https://${updatedSubdomain}.simstudio.ai`
+      const baseDomain = getBaseDomain()
+      const protocol = isDev ? 'http' : 'https'
+      const chatUrl = `${protocol}://${updatedSubdomain}.${baseDomain}`
 
       logger.info(`Chat "${chatId}" updated successfully`)
 
@@ -260,14 +255,10 @@ export async function DELETE(
       return createErrorResponse('Unauthorized', 401)
     }
 
-    // Verify the chat exists and belongs to the user
-    const existingChat = await db
-      .select()
-      .from(chat)
-      .where(and(eq(chat.id, chatId), eq(chat.userId, session.user.id)))
-      .limit(1)
+    // Check if user has access to delete this chat
+    const { hasAccess } = await checkChatAccess(chatId, session.user.id)
 
-    if (existingChat.length === 0) {
+    if (!hasAccess) {
       return createErrorResponse('Chat not found or access denied', 404)
     }
 

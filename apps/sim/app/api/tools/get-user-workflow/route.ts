@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.info('Fetching workflow for YAML generation', { workflowId })
+    logger.info('Fetching user workflow', { workflowId })
 
     // Fetch workflow from database
     const [workflowRecord] = await db
@@ -190,9 +190,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    logger.info('Successfully generated workflow YAML', {
+    logger.info('Successfully fetched user workflow YAML', {
       workflowId,
-      blockCount: response.blockCount,
+      blockCount: response.summary.blockCount,
       yamlLength: yaml.length,
     })
 

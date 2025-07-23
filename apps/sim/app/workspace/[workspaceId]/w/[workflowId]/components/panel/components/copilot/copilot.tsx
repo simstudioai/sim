@@ -1,16 +1,7 @@
 'use client'
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
-import {
-  Bot,
-  ChevronDown,
-  Loader2,
-  MessageSquarePlus,
-  MoreHorizontal,
-  Send,
-  Trash2,
-  User,
-} from 'lucide-react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { Bot, ChevronDown, History, MessageSquarePlus, MoreHorizontal, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -18,13 +9,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCopilotStore } from '@/stores/copilot/store'
-import type { CopilotMessage } from '@/stores/copilot/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { CheckpointPanel } from './components/checkpoint-panel'
 import { CopilotModal } from './components/copilot-modal/copilot-modal'
+import { ProfessionalInput } from './components/professional-input/professional-input'
+import { ProfessionalMessage } from './components/professional-message/professional-message'
+import { CopilotWelcome } from './components/welcome/welcome'
 
 const logger = createLogger('Copilot')
 
@@ -52,8 +45,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     },
     ref
   ) => {
-    const inputRef = useRef<HTMLInputElement>(null)
     const scrollAreaRef = useRef<HTMLDivElement>(null)
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+    const [showCheckpoints, setShowCheckpoints] = useState(false)
 
     const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -67,13 +61,16 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       isSendingMessage,
       error,
       workflowId,
+      mode,
       setWorkflowId,
+      validateCurrentChat,
       selectChat,
       createNewChat,
       deleteChat,
       sendMessage,
       clearMessages,
       clearError,
+      setMode,
     } = useCopilotStore()
 
     // Sync workflow ID with store
@@ -82,6 +79,14 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
         setWorkflowId(activeWorkflowId)
       }
     }, [activeWorkflowId, workflowId, setWorkflowId])
+
+    // Safety check: Clear any chat that doesn't belong to current workflow
+    useEffect(() => {
+      if (activeWorkflowId && workflowId === activeWorkflowId) {
+        // Validate that current chat belongs to this workflow
+        validateCurrentChat()
+      }
+    }, [currentChat, chats, activeWorkflowId, workflowId, validateCurrentChat])
 
     // Auto-scroll to bottom when new messages are added
     useEffect(() => {
@@ -126,16 +131,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
 
     // Handle message submission
     const handleSubmit = useCallback(
-      async (e?: React.FormEvent, message?: string) => {
-        e?.preventDefault()
-
-        const query = message || inputRef.current?.value?.trim() || ''
+      async (query: string) => {
         if (!query || isSendingMessage || !activeWorkflowId) return
-
-        // Clear input if using the form input
-        if (!message && inputRef.current) {
-          inputRef.current.value = ''
-        }
 
         try {
           await sendMessage(query, { stream: true })
@@ -147,253 +144,236 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       [isSendingMessage, activeWorkflowId, sendMessage]
     )
 
-    // Format timestamp for display
-    const formatTimestamp = (timestamp: string) => {
-      return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-
-    // Function to render content with basic markdown (including direct links from LLM)
-    const renderMarkdownContent = (content: string) => {
-      if (!content) return content
-
-      let processedContent = content
-
-      // Process markdown links: [text](url)
-      processedContent = processedContent.replace(
-        /\[([^\]]+)\]\(([^)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-semibold underline transition-colors">$1</a>'
-      )
-
-      // Basic markdown processing
-      processedContent = processedContent
-        .replace(
-          /```(\w+)?\n([\s\S]*?)```/g,
-          '<pre class="bg-muted p-3 rounded-lg overflow-x-auto my-3 text-sm"><code>$2</code></pre>'
-        )
-        .replace(
-          /`([^`]+)`/g,
-          '<code class="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">$1</code>'
-        )
-        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-        .replace(/^### (.*$)/gm, '<h3 class="font-semibold text-base mt-4 mb-2">$1</h3>')
-        .replace(/^## (.*$)/gm, '<h2 class="font-semibold text-lg mt-4 mb-2">$1</h2>')
-        .replace(/^# (.*$)/gm, '<h1 class="font-bold text-xl mt-4 mb-3">$1</h1>')
-        .replace(/^\* (.*$)/gm, '<li class="ml-4">• $1</li>')
-        .replace(/^- (.*$)/gm, '<li class="ml-4">• $1</li>')
-        .replace(/\n\n+/g, '</p><p class="mt-2">')
-        .replace(/\n/g, '<br>')
-
-      // Wrap in paragraph tags if needed
-      if (
-        !processedContent.includes('<p>') &&
-        !processedContent.includes('<h1>') &&
-        !processedContent.includes('<h2>') &&
-        !processedContent.includes('<h3>')
-      ) {
-        processedContent = `<p>${processedContent}</p>`
-      }
-
-      return processedContent
-    }
-
-    // Render individual message
-    const renderMessage = (message: CopilotMessage) => {
-      return (
-        <div key={message.id} className='group flex gap-3 p-4 hover:bg-muted/30'>
-          <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full ${
-              message.role === 'user' ? 'bg-muted' : 'bg-primary'
-            }`}
-          >
-            {message.role === 'user' ? (
-              <User className='h-4 w-4 text-muted-foreground' />
-            ) : (
-              <Bot className='h-4 w-4 text-primary-foreground' />
-            )}
-          </div>
-          <div className='min-w-0 flex-1'>
-            <div className='mb-3 flex items-center gap-2'>
-              <span className='font-medium text-sm'>
-                {message.role === 'user' ? 'You' : 'Copilot'}
-              </span>
-              <span className='text-muted-foreground text-xs'>
-                {formatTimestamp(message.timestamp)}
-              </span>
-            </div>
-
-            {/* Enhanced content rendering with markdown links */}
-            <div className='prose prose-sm dark:prose-invert max-w-none'>
-              <div
-                className='text-foreground text-sm leading-normal'
-                dangerouslySetInnerHTML={{
-                  __html: renderMarkdownContent(message.content),
-                }}
-              />
-            </div>
-
-            {/* Streaming cursor */}
-            {!message.content && (
-              <div className='flex items-center gap-2 text-muted-foreground'>
-                <Loader2 className='h-4 w-4 animate-spin' />
-                <span className='text-sm'>Thinking...</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )
-    }
-
-    // Convert messages for modal (role -> type)
-    const modalMessages = messages.map((msg) => ({
-      id: msg.id,
-      content: msg.content,
-      type: msg.role as 'user' | 'assistant',
-      timestamp: new Date(msg.timestamp),
-      citations: msg.citations,
-    }))
-
     // Handle modal message sending
     const handleModalSendMessage = useCallback(
       async (message: string) => {
-        await handleSubmit(undefined, message)
+        await handleSubmit(message)
       },
       [handleSubmit]
     )
 
     return (
       <>
-        <div className='flex h-full flex-col'>
-          {/* Header with Chat Title and Management */}
-          <div className='border-b p-4'>
-            <div className='flex items-center justify-between'>
-              {/* Chat Title Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant='ghost' className='h-8 min-w-0 flex-1 justify-start px-3'>
-                    <span className='truncate'>{currentChat?.title || 'New Chat'}</span>
-                    <ChevronDown className='ml-2 h-4 w-4 shrink-0' />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align='start' className='z-[110] w-64' sideOffset={8}>
-                  {chats.map((chat) => (
-                    <div key={chat.id} className='flex items-center'>
-                      <DropdownMenuItem
-                        onClick={() => selectChat(chat)}
-                        className='flex-1 cursor-pointer'
-                      >
-                        <div className='min-w-0 flex-1'>
-                          <div className='truncate font-medium text-sm'>
-                            {chat.title || 'Untitled Chat'}
-                          </div>
-                          <div className='text-muted-foreground text-xs'>
-                            {chat.messageCount} messages •{' '}
-                            {new Date(chat.updatedAt).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant='ghost' size='sm' className='h-8 w-8 shrink-0 p-0'>
-                            <MoreHorizontal className='h-4 w-4' />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align='end' className='z-[120]'>
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteChat(chat.id)}
-                            className='cursor-pointer text-destructive'
-                          >
-                            <Trash2 className='mr-2 h-4 w-4' />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* New Chat Button */}
-              <Button
-                variant='ghost'
-                size='sm'
-                onClick={handleStartNewChat}
-                className='h-8 w-8 p-0'
-                title='New Chat'
-              >
-                <MessageSquarePlus className='h-4 w-4' />
-              </Button>
+        <div
+          className='flex h-full max-w-full flex-col overflow-hidden'
+          style={{ width: `${panelWidth}px`, maxWidth: `${panelWidth}px` }}
+        >
+          {/* Show loading state with centered pulsing agent icon */}
+          {isLoadingChats || isLoading ? (
+            <div className='flex h-full items-center justify-center'>
+              <div className='flex items-center justify-center'>
+                <Bot className='h-16 w-16 animate-pulse text-muted-foreground' />
+              </div>
             </div>
+          ) : (
+            <>
+              {/* Header with Chat Title and Management */}
+              <div className='border-b p-4'>
+                <div className='flex items-center justify-between'>
+                  {/* Chat Title Dropdown */}
+                  <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        className='h-8 min-w-0 flex-1 justify-start px-3 hover:bg-accent/50'
+                      >
+                        <span className='truncate'>
+                          {/* Only show chat title if we have verified workflow match */}
+                          {currentChat &&
+                          workflowId === activeWorkflowId &&
+                          chats.some((chat) => chat.id === currentChat.id)
+                            ? currentChat.title || 'New Chat'
+                            : 'New Chat'}
+                        </span>
+                        <ChevronDown className='ml-2 h-4 w-4 shrink-0' />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align='start'
+                      className='z-[110] w-72 border-border/50 bg-background/95 shadow-lg backdrop-blur-sm'
+                      sideOffset={8}
+                      onMouseLeave={() => setIsDropdownOpen(false)}
+                    >
+                      {isLoadingChats ? (
+                        <div className='px-4 py-3 text-muted-foreground text-sm'>
+                          Loading chats...
+                        </div>
+                      ) : chats.length === 0 ? (
+                        <div className='px-4 py-3 text-muted-foreground text-sm'>No chats yet</div>
+                      ) : (
+                        // Sort chats by updated date (most recent first) for display
+                        [...chats]
+                          .sort(
+                            (a, b) =>
+                              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+                          )
+                          .map((chat) => (
+                            <div key={chat.id} className='group flex items-center gap-2 px-2 py-1'>
+                              <DropdownMenuItem asChild>
+                                <div
+                                  onClick={() => {
+                                    selectChat(chat)
+                                    setIsDropdownOpen(false)
+                                  }}
+                                  className={`min-w-0 flex-1 cursor-pointer rounded-lg px-3 py-2.5 transition-all ${
+                                    currentChat?.id === chat.id
+                                      ? 'bg-accent/80 text-accent-foreground'
+                                      : 'hover:bg-accent/40'
+                                  }`}
+                                >
+                                  <div className='min-w-0'>
+                                    <div className='truncate font-medium text-sm leading-tight'>
+                                      {chat.title || 'Untitled Chat'}
+                                    </div>
+                                    <div className='mt-0.5 truncate text-muted-foreground text-xs'>
+                                      {new Date(chat.updatedAt).toLocaleDateString()} at{' '}
+                                      {new Date(chat.updatedAt).toLocaleTimeString([], {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}{' '}
+                                      • {chat.messageCount}
+                                    </div>
+                                  </div>
+                                </div>
+                              </DropdownMenuItem>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    size='sm'
+                                    className='h-7 w-7 shrink-0 p-0 hover:bg-accent/60'
+                                  >
+                                    <MoreHorizontal className='h-3.5 w-3.5' />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align='end'
+                                  className='z-[120] border-border/50 bg-background/95 shadow-lg backdrop-blur-sm'
+                                >
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteChat(chat.id)}
+                                    className='cursor-pointer text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive'
+                                  >
+                                    <Trash2 className='mr-2 h-3.5 w-3.5' />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          ))
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-            {/* Error display */}
-            {error && (
-              <div className='mt-2 rounded-md bg-destructive/10 p-2 text-destructive text-sm'>
-                {error}
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={clearError}
-                  className='ml-2 h-auto p-1 text-destructive'
-                >
-                  Dismiss
-                </Button>
-              </div>
-            )}
-          </div>
+                  {/* Checkpoint Toggle Button */}
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => setShowCheckpoints(!showCheckpoints)}
+                    className={`h-8 w-8 p-0 ${
+                      showCheckpoints
+                        ? 'bg-[#802FFF]/20 text-[#802FFF] hover:bg-[#802FFF]/30'
+                        : 'hover:bg-accent/50'
+                    }`}
+                    title='View Checkpoints'
+                  >
+                    <History className='h-4 w-4' />
+                  </Button>
 
-          {/* Messages area */}
-          <ScrollArea ref={scrollAreaRef} className='flex-1'>
-            {messages.length === 0 ? (
-              <div className='flex h-full flex-col items-center justify-center px-4 py-10'>
-                <div className='space-y-4 text-center'>
-                  <Bot className='mx-auto h-12 w-12 text-muted-foreground' />
-                  <div className='space-y-2'>
-                    <h3 className='font-medium text-lg'>Welcome to Documentation Copilot</h3>
-                    <p className='text-muted-foreground text-sm'>
-                      Ask me anything about Sim Studio features, workflows, tools, or how to get
-                      started.
-                    </p>
+                  {/* New Chat Button */}
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={handleStartNewChat}
+                    className='h-8 w-8 p-0'
+                    title='New Chat'
+                  >
+                    <MessageSquarePlus className='h-4 w-4' />
+                  </Button>
+                </div>
+
+                {/* Error display */}
+                {error && (
+                  <div className='mt-2 rounded-md bg-destructive/10 p-2 text-destructive text-sm'>
+                    {error}
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={clearError}
+                      className='ml-2 h-auto p-1 text-destructive'
+                    >
+                      Dismiss
+                    </Button>
                   </div>
-                  <div className='mx-auto max-w-xs space-y-2 text-left'>
-                    <div className='text-muted-foreground text-xs'>Try asking:</div>
-                    <div className='space-y-1'>
-                      <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
-                        "How do I create a workflow?"
-                      </div>
-                      <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
-                        "What tools are available?"
-                      </div>
-                      <div className='rounded bg-muted/50 px-2 py-1 text-xs'>
-                        "How do I deploy my workflow?"
-                      </div>
+                )}
+              </div>
+
+              {/* Messages area or Checkpoint Panel */}
+              {showCheckpoints ? (
+                <CheckpointPanel />
+              ) : (
+                <ScrollArea ref={scrollAreaRef} className='max-w-full flex-1 overflow-hidden'>
+                  {messages.length === 0 ? (
+                    <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
+                  ) : (
+                    messages.map((message) => (
+                      <ProfessionalMessage
+                        key={message.id}
+                        message={message}
+                        isStreaming={
+                          isSendingMessage && message.id === messages[messages.length - 1]?.id
+                        }
+                      />
+                    ))
+                  )}
+                </ScrollArea>
+              )}
+
+              {/* Mode Selector and Input */}
+              {!showCheckpoints && (
+                <>
+                  {/* Mode Selector */}
+                  <div className='border-t px-4 pt-2 pb-1'>
+                    <div className='flex items-center gap-1 rounded-md border bg-muted/30 p-0.5'>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => setMode('ask')}
+                        className={`h-6 flex-1 font-medium text-xs ${
+                          mode === 'ask'
+                            ? 'bg-[#802FFF]/20 text-[#802FFF] hover:bg-[#802FFF]/30'
+                            : 'hover:bg-muted/50'
+                        }`}
+                        title='Ask questions and get answers. Cannot edit workflows.'
+                      >
+                        Ask
+                      </Button>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => setMode('agent')}
+                        className={`h-6 flex-1 font-medium text-xs ${
+                          mode === 'agent'
+                            ? 'bg-[#802FFF]/20 text-[#802FFF] hover:bg-[#802FFF]/30'
+                            : 'hover:bg-muted/50'
+                        }`}
+                        title='Full agent with workflow editing capabilities.'
+                      >
+                        Agent
+                      </Button>
                     </div>
                   </div>
-                </div>
-              </div>
-            ) : (
-              messages.map(renderMessage)
-            )}
-          </ScrollArea>
 
-          {/* Input area */}
-          <div className='border-t p-4'>
-            <form onSubmit={handleSubmit} className='flex gap-2'>
-              <Input
-                ref={inputRef}
-                placeholder='Ask about Sim Studio documentation...'
-                disabled={isSendingMessage}
-                className='flex-1'
-                autoComplete='off'
-              />
-              <Button type='submit' size='icon' disabled={isSendingMessage} className='h-10 w-10'>
-                {isSendingMessage ? (
-                  <Loader2 className='h-4 w-4 animate-spin' />
-                ) : (
-                  <Send className='h-4 w-4' />
-                )}
-              </Button>
-            </form>
-          </div>
+                  {/* Input area */}
+                  <ProfessionalInput
+                    onSubmit={handleSubmit}
+                    disabled={!activeWorkflowId}
+                    isLoading={isSendingMessage}
+                  />
+                </>
+              )}
+            </>
+          )}
         </div>
 
         {/* Fullscreen Modal */}
@@ -402,14 +382,17 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
           onOpenChange={(open) => onFullscreenToggle?.(open)}
           copilotMessage={fullscreenInput}
           setCopilotMessage={(message) => onFullscreenInputChange?.(message)}
-          messages={modalMessages}
+          messages={messages}
           onSendMessage={handleModalSendMessage}
           isLoading={isSendingMessage}
+          isLoadingChats={isLoadingChats}
           chats={chats}
           currentChat={currentChat}
           onSelectChat={selectChat}
           onStartNewChat={handleStartNewChat}
           onDeleteChat={handleDeleteChat}
+          mode={mode}
+          onModeChange={setMode}
         />
       </>
     )

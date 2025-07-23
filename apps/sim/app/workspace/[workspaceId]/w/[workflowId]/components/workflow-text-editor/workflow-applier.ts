@@ -1,11 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { importWorkflowFromYaml } from '@/stores/workflows/yaml/importer'
-import type { EditorFormat } from './workflow-text-editor'
 
 const logger = createLogger('WorkflowApplier')
+
+export type EditorFormat = 'json' | 'yaml'
 
 export interface ApplyResult {
   success: boolean
@@ -15,13 +13,15 @@ export interface ApplyResult {
 }
 
 /**
- * Apply workflow changes by using the existing importer for YAML
- * or direct state replacement for JSON
+ * Apply workflow changes by using the new consolidated YAML endpoint
+ * for YAML format or direct state replacement for JSON
  */
 export async function applyWorkflowDiff(
   content: string,
   format: EditorFormat
 ): Promise<ApplyResult> {
+  console.log('🔥 applyWorkflowDiff called!', { format, contentLength: content.length })
+
   try {
     const { activeWorkflowId } = useWorkflowRegistry.getState()
 
@@ -34,155 +34,161 @@ export async function applyWorkflowDiff(
       }
     }
 
+    logger.info('Starting applyWorkflowDiff', {
+      format,
+      activeWorkflowId,
+      contentLength: content.length,
+    })
+
     if (format === 'yaml') {
-      // Use the existing YAML importer which handles ID mapping and complete state replacement
-      const workflowActions = {
-        addBlock: () => {}, // Not used in this path
-        addEdge: () => {}, // Not used in this path
-        applyAutoLayout: () => {
-          // Trigger auto layout after import
-          window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
-        },
-        setSubBlockValue: () => {}, // Not used in this path
-        getExistingBlocks: () => useWorkflowStore.getState().blocks,
-      }
+      console.log('🔥 Processing YAML format!')
 
-      const result = await importWorkflowFromYaml(content, workflowActions)
+      logger.info('Processing YAML format - calling consolidated YAML endpoint')
 
-      return {
-        success: result.success,
-        errors: result.errors,
-        warnings: result.warnings,
-        appliedOperations: result.success ? 1 : 0, // One complete import operation
-      }
-    }
-    // Handle JSON format - complete state replacement
-    let parsedData: any
-    try {
-      parsedData = JSON.parse(content)
-    } catch (error) {
-      return {
-        success: false,
-        errors: [`Invalid JSON: ${error instanceof Error ? error.message : 'Parse error'}`],
-        warnings: [],
-        appliedOperations: 0,
-      }
-    }
-
-    // Validate JSON structure
-    if (!parsedData.state || !parsedData.state.blocks) {
-      return {
-        success: false,
-        errors: ['Invalid JSON structure: missing state.blocks'],
-        warnings: [],
-        appliedOperations: 0,
-      }
-    }
-
-    // Extract workflow state and subblock values
-    const newWorkflowState = {
-      blocks: parsedData.state.blocks,
-      edges: parsedData.state.edges || [],
-      loops: parsedData.state.loops || {},
-      parallels: parsedData.state.parallels || {},
-      lastSaved: Date.now(),
-      isDeployed: parsedData.state.isDeployed || false,
-      deployedAt: parsedData.state.deployedAt,
-      deploymentStatuses: parsedData.state.deploymentStatuses || {},
-      hasActiveWebhook: parsedData.state.hasActiveWebhook || false,
-    }
-
-    // Atomically update local state with rollback on failure
-    const previousWorkflowState = useWorkflowStore.getState()
-    const previousSubBlockState = useSubBlockStore.getState()
-
-    try {
-      // Update workflow state first
-      useWorkflowStore.setState(newWorkflowState)
-
-      // Update subblock values if provided
-      if (parsedData.subBlockValues) {
-        useSubBlockStore.setState((state: any) => ({
-          workflowValues: {
-            ...state.workflowValues,
-            [activeWorkflowId]: parsedData.subBlockValues,
+      try {
+        // Use the new consolidated YAML endpoint
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/yaml`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        }))
-      }
-    } catch (error) {
-      // Rollback state changes on any failure
-      logger.error('State update failed, rolling back:', error)
-      useWorkflowStore.setState(previousWorkflowState)
-      useSubBlockStore.setState(previousSubBlockState)
+          body: JSON.stringify({
+            yamlContent: content,
+            source: 'editor',
+            applyAutoLayout: true,
+            createCheckpoint: false,
+          }),
+        })
 
-      return {
-        success: false,
-        errors: [
-          `State update failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        ],
-        warnings: [],
-        appliedOperations: 0,
-      }
-    }
+        if (!response.ok) {
+          const errorData = await response.json()
+          logger.error('Failed to save YAML workflow:', errorData)
+          return {
+            success: false,
+            errors: [errorData.message || `HTTP ${response.status}: ${response.statusText}`],
+            warnings: [],
+            appliedOperations: 0,
+          }
+        }
 
-    // Update workflow metadata if provided
-    if (parsedData.workflow) {
-      const { updateWorkflow } = useWorkflowRegistry.getState()
-      const metadata = parsedData.workflow
+        const result = await response.json()
 
-      updateWorkflow(activeWorkflowId, {
-        name: metadata.name,
-        description: metadata.description,
-        color: metadata.color,
-      })
-    }
+        logger.info('YAML workflow save completed', {
+          success: result.success,
+          errors: result.errors || [],
+          warnings: result.warnings || [],
+        })
 
-    // Save to database
-    try {
-      const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newWorkflowState),
-      })
+        // Trigger auto layout after successful save
+        window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        logger.error('Failed to save workflow state:', errorData.error)
+        // Calculate applied operations (blocks + edges)
+        const appliedOperations = (result.data?.blocksCount || 0) + (result.data?.edgesCount || 0)
+
+        return {
+          success: result.success,
+          errors: result.errors || [],
+          warnings: result.warnings || [],
+          appliedOperations,
+        }
+      } catch (error) {
+        logger.error('YAML processing failed:', error)
         return {
           success: false,
-          errors: [`Database save failed: ${errorData.error || 'Unknown error'}`],
+          errors: [
+            `YAML processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          ],
           warnings: [],
           appliedOperations: 0,
         }
       }
-    } catch (error) {
-      logger.error('Failed to save workflow state:', error)
-      return {
-        success: false,
-        errors: [
-          `Failed to save workflow state: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        ],
-        warnings: [],
-        appliedOperations: 0,
+    }
+
+    if (format === 'json') {
+      logger.info('Processing JSON format - direct state replacement')
+
+      try {
+        const workflowState = JSON.parse(content)
+
+        // Validate that this looks like a workflow state
+        if (!workflowState.blocks || !workflowState.edges) {
+          return {
+            success: false,
+            errors: ['Invalid workflow state: missing blocks or edges'],
+            warnings: [],
+            appliedOperations: 0,
+          }
+        }
+
+        // Use the existing workflow state endpoint for JSON
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/state`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...workflowState,
+            lastSaved: Date.now(),
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          logger.error('Failed to save JSON workflow state:', errorData)
+          return {
+            success: false,
+            errors: [errorData.error || `HTTP ${response.status}: ${response.statusText}`],
+            warnings: [],
+            appliedOperations: 0,
+          }
+        }
+
+        const result = await response.json()
+
+        logger.info('JSON workflow state save completed', {
+          success: result.success,
+          blocksCount: result.blocksCount,
+          edgesCount: result.edgesCount,
+        })
+
+        // Trigger auto layout after successful save
+        window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
+
+        // Calculate applied operations
+        const appliedOperations = (result.blocksCount || 0) + (result.edgesCount || 0)
+
+        return {
+          success: true,
+          errors: [],
+          warnings: [],
+          appliedOperations,
+        }
+      } catch (error) {
+        logger.error('JSON processing failed:', error)
+        return {
+          success: false,
+          errors: [
+            `JSON processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          ],
+          warnings: [],
+          appliedOperations: 0,
+        }
       }
     }
 
-    // Trigger auto layout
-    window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
-
-    return {
-      success: true,
-      errors: [],
-      warnings: [],
-      appliedOperations: 1, // One complete state replacement
-    }
-  } catch (error) {
-    logger.error('Failed to apply workflow changes:', error)
     return {
       success: false,
-      errors: [`Apply failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+      errors: [`Unsupported format: ${format}`],
+      warnings: [],
+      appliedOperations: 0,
+    }
+  } catch (error) {
+    logger.error('applyWorkflowDiff failed:', error)
+    return {
+      success: false,
+      errors: [
+        `Failed to apply workflow changes: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      ],
       warnings: [],
       appliedOperations: 0,
     }

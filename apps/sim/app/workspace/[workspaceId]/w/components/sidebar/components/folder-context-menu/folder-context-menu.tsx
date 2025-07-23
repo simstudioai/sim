@@ -4,17 +4,15 @@ import { useState } from 'react'
 import { File, Folder, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { generateSubfolderName } from '@/lib/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useFolderStore } from '@/stores/folders/store'
 
@@ -37,8 +35,6 @@ export function FolderContextMenu({
   onStartEdit,
   level,
 }: FolderContextMenuProps) {
-  const [showSubfolderDialog, setShowSubfolderDialog] = useState(false)
-  const [subfolderName, setSubfolderName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -46,14 +42,46 @@ export function FolderContextMenu({
   // Get user permissions for the workspace
   const userPermissions = useUserPermissionsContext()
 
-  const { createFolder, deleteFolder } = useFolderStore()
+  const { createFolder, deleteFolder, setExpanded } = useFolderStore()
 
   const handleCreateWorkflow = () => {
+    // Ensure folder is expanded so user can see the new workflow
+    setExpanded(folderId, true)
     onCreateWorkflow(folderId)
   }
 
-  const handleCreateSubfolder = () => {
-    setShowSubfolderDialog(true)
+  const handleCreateSubfolder = async () => {
+    if (isCreating) {
+      logger.info('Subfolder creation already in progress, ignoring request')
+      return
+    }
+
+    if (!workspaceId) {
+      logger.error('No workspaceId available for subfolder creation')
+      return
+    }
+
+    try {
+      setIsCreating(true)
+
+      // Ensure parent folder is expanded so user can see the new subfolder
+      setExpanded(folderId, true)
+
+      // Generate subfolder name using fresh data from API
+      const subfolderName = await generateSubfolderName(workspaceId, folderId)
+
+      await createFolder({
+        name: subfolderName,
+        workspaceId: workspaceId,
+        parentId: folderId,
+      })
+
+      logger.info(`Created subfolder: ${subfolderName}`)
+    } catch (error) {
+      logger.error('Failed to create subfolder:', { error })
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   const handleRename = () => {
@@ -74,31 +102,6 @@ export function FolderContextMenu({
         logger.error('Failed to delete folder from context menu:', { error, folderId, folderName })
       }
     }
-  }
-
-  const handleSubfolderSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!subfolderName.trim() || !workspaceId) return
-
-    setIsCreating(true)
-    try {
-      await createFolder({
-        name: subfolderName.trim(),
-        workspaceId: workspaceId,
-        parentId: folderId,
-      })
-      setSubfolderName('')
-      setShowSubfolderDialog(false)
-    } catch (error) {
-      logger.error('Failed to create subfolder:', { error })
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  const handleCancel = () => {
-    setSubfolderName('')
-    setShowSubfolderDialog(false)
   }
 
   return (
@@ -175,37 +178,6 @@ export function FolderContextMenu({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-
-      {/* Subfolder creation dialog */}
-      <Dialog open={showSubfolderDialog} onOpenChange={setShowSubfolderDialog}>
-        <DialogContent className='sm:max-w-[425px]' onClick={(e) => e.stopPropagation()}>
-          <DialogHeader>
-            <DialogTitle>Create New Subfolder</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubfolderSubmit} className='space-y-4'>
-            <div className='space-y-2'>
-              <Label htmlFor='subfolder-name'>Folder Name</Label>
-              <Input
-                id='subfolder-name'
-                value={subfolderName}
-                onChange={(e) => setSubfolderName(e.target.value)}
-                placeholder='Enter folder name...'
-                maxLength={50}
-                autoFocus
-                required
-              />
-            </div>
-            <div className='flex justify-end space-x-2'>
-              <Button type='button' variant='outline' onClick={handleCancel}>
-                Cancel
-              </Button>
-              <Button type='submit' disabled={!subfolderName.trim() || isCreating}>
-                {isCreating ? 'Creating...' : 'Create Folder'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

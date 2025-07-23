@@ -1853,15 +1853,22 @@ export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      width='24'
-      height='24'
-      viewBox='0 0 24 24'
-      fill='none'
+      version='1.1'
+      id='Layer_1'
       xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      x='0px'
+      y='0px'
+      viewBox='0 0 122.3 80.3'
+      xmlSpace='preserve'
     >
-      <g transform='translate(1, 4)'>
-        <rect x='0' y='0' width='5' height='16' rx='2.5' fill='currentColor' />
-        <rect x='8' y='0' width='14' height='16' rx='4' fill='currentColor' />
+      <g>
+        <path
+          fill='currentColor'
+          d='M94.3,0H65.4c-26,0-28,11.2-28,26.2l0,27.9c0,15.6,2,26.2,28.1,26.2h28.8c26,0,28-11.2,28-26.1V26.2
+		C122.3,11.2,120.3,0,94.3,0z M0,20.1C0,6.9,5.2,0,14,0c8.8,0,14,6.9,14,20.1v40.1c0,13.2-5.2,20.1-14,20.1c-8.8,0-14-6.9-14-20.1
+		V20.1z'
+        />
       </g>
     </svg>
   )
@@ -3023,6 +3030,80 @@ export function ScheduleIcon(props: SVGProps<SVGSVGElement>) {
       <path d='M16 2v4' />
       <rect width='18' height='18' x='3' y='4' rx='2' />
       <path d='M3 10h18' />
+    </svg>
+  )
+}
+
+export function QdrantIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} fill='none' viewBox='0 0 49 56' xmlns='http://www.w3.org/2000/svg'>
+      <g clipPath='url(#b)'>
+        <path
+          d='m38.489 51.477-1.1167-30.787-2.0223-8.1167 13.498 1.429v37.242l-8.2456 4.7589-2.1138-4.5259z'
+          clipRule='evenodd'
+          fill='#24386C'
+          fillRule='evenodd'
+        />
+        <path
+          d='m48.847 14-8.2457 4.7622-17.016-3.7326-19.917 8.1094-3.3183-9.139 12.122-7 12.126-7 12.123 7 12.126 7z'
+          clipRule='evenodd'
+          fill='#7589BE'
+          fillRule='evenodd'
+        />
+        <path
+          d='m0.34961 13.999 8.2457 4.7622 4.7798 14.215 16.139 12.913-4.9158 10.109-12.126-7.0004-12.123-7v-28z'
+          clipRule='evenodd'
+          fill='#B2BFE8'
+          fillRule='evenodd'
+        />
+        <path
+          d='m30.066 38.421-5.4666 8.059v9.5207l7.757-4.4756 3.9968-5.9681'
+          clipRule='evenodd'
+          fill='#24386C'
+          fillRule='evenodd'
+        />
+        <path
+          d='m24.602 36.962-7.7603-13.436 1.6715-4.4531 6.3544-3.0809 7.488 7.5343-7.7536 13.436z'
+          clipRule='evenodd'
+          fill='#7589BE'
+          fillRule='evenodd'
+        />
+        <path
+          d='m16.843 23.525 7.7569 4.4756v8.9585l-7.1741 0.3087-4.3397-5.5412 3.7569-8.2016z'
+          clipRule='evenodd'
+          fill='#B2BFE8'
+          fillRule='evenodd'
+        />
+        <path
+          d='m24.6 28 7.757-4.4752 5.2792 8.7903-6.3886 5.2784-6.6476-0.6346v-8.9589z'
+          clipRule='evenodd'
+          fill='#24386C'
+          fillRule='evenodd'
+        />
+        <path
+          d='m32.355 51.524 8.2457 4.476v-37.238l-8.0032-4.6189-7.9995-4.6189-8.0031 4.6189-7.9995 4.6189v18.479l7.9995 4.6189 8.0031 4.6193 7.757-4.4797v9.5244zm0-19.045-7.757 4.4793-7.7569-4.4793v-8.9549l7.7569-4.4792 7.757 4.4792v8.9549z'
+          clipRule='evenodd'
+          fill='#DC244C'
+          fillRule='evenodd'
+        />
+        <path d='m24.603 46.483v-9.5222l-7.7166-4.4411v9.5064l7.7166 4.4569z' fill='url(#a)' />
+      </g>
+      <defs>
+        <linearGradient
+          id='a'
+          x1='23.18'
+          x2='15.491'
+          y1='38.781'
+          y2='38.781'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#FF3364' offset='0' />
+          <stop stopColor='#C91540' stopOpacity='0' offset='1' />
+        </linearGradient>
+        <clipPath id='b'>
+          <rect transform='translate(.34961)' width='48.3' height='56' fill='#fff' />
+        </clipPath>
+      </defs>
     </svg>
   )
 }

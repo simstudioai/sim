@@ -5,10 +5,8 @@ import { logger } from '@sentry/nextjs'
 import { File, Folder, Plus, Upload } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { generateFolderName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useFolderStore } from '@/stores/folders/store'
@@ -25,8 +23,6 @@ export function CreateMenu({
   isCollapsed,
   isCreatingWorkflow = false,
 }: CreateMenuProps) {
-  const [showFolderDialog, setShowFolderDialog] = useState(false)
-  const [folderName, setFolderName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null)
@@ -61,10 +57,37 @@ export function CreateMenu({
     }
   }, [onCreateWorkflow, isCreatingWorkflow, router, workspaceId])
 
-  const handleCreateFolder = useCallback(() => {
+  const handleCreateFolder = useCallback(async () => {
     setIsOpen(false)
-    setShowFolderDialog(true)
-  }, [])
+
+    if (isCreating) {
+      logger.info('Folder creation already in progress, ignoring request')
+      return
+    }
+
+    if (!workspaceId) {
+      logger.error('No workspaceId available for folder creation')
+      return
+    }
+
+    try {
+      setIsCreating(true)
+
+      // Generate folder name using fresh data from API
+      const folderName = await generateFolderName(workspaceId)
+
+      await createFolder({
+        name: folderName,
+        workspaceId: workspaceId,
+      })
+
+      logger.info(`Created folder: ${folderName}`)
+    } catch (error) {
+      logger.error('Failed to create folder:', { error })
+    } finally {
+      setIsCreating(false)
+    }
+  }, [createFolder, workspaceId])
 
   const handleImportWorkflow = useCallback(() => {
     setIsOpen(false)
@@ -146,30 +169,6 @@ export function CreateMenu({
     }
   }, [pressTimer])
 
-  const handleFolderSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!folderName.trim() || !workspaceId) return
-
-    setIsCreating(true)
-    try {
-      await createFolder({
-        name: folderName.trim(),
-        workspaceId: workspaceId,
-      })
-      setFolderName('')
-      setShowFolderDialog(false)
-    } catch (error) {
-      logger.error('Failed to create folder:', { error })
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  const handleCancel = () => {
-    setFolderName('')
-    setShowFolderDialog(false)
-  }
-
   return (
     <>
       <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -221,11 +220,15 @@ export function CreateMenu({
           </button>
 
           <button
-            className='flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 font-[380] text-card-foreground text-sm outline-none hover:bg-secondary/50 focus:bg-secondary/50'
+            className={cn(
+              'flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 font-[380] text-card-foreground text-sm outline-none hover:bg-secondary/50 focus:bg-secondary/50',
+              isCreating && 'cursor-not-allowed opacity-50'
+            )}
             onClick={handleCreateFolder}
+            disabled={isCreating}
           >
             <Folder className='h-4 w-4' />
-            New folder
+            {isCreating ? 'Creating...' : 'New folder'}
           </button>
 
           {userPermissions.canEdit && (
@@ -246,36 +249,6 @@ export function CreateMenu({
         disabled={!userPermissions.canEdit}
         onClose={() => setIsOpen(false)}
       />
-
-      {/* Folder creation dialog */}
-      <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
-        <DialogContent className='sm:max-w-[425px]'>
-          <DialogHeader>
-            <DialogTitle>Create New Folder</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleFolderSubmit} className='space-y-4'>
-            <div className='space-y-2'>
-              <Label htmlFor='folder-name'>Folder Name</Label>
-              <Input
-                id='folder-name'
-                value={folderName}
-                onChange={(e) => setFolderName(e.target.value)}
-                placeholder='Enter folder name...'
-                autoFocus
-                required
-              />
-            </div>
-            <div className='flex justify-end space-x-2'>
-              <Button type='button' variant='outline' onClick={handleCancel}>
-                Cancel
-              </Button>
-              <Button type='submit' disabled={!folderName.trim() || isCreating}>
-                {isCreating ? 'Creating...' : 'Create Folder'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

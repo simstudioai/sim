@@ -130,6 +130,54 @@ export class RoomManager {
     logger.info(`Notified ${room.users.size} users about workflow revert: ${workflowId}`)
   }
 
+  handleWorkflowUpdate(workflowId: string) {
+    logger.info(`Handling workflow update notification for ${workflowId}`)
+
+    const room = this.workflowRooms.get(workflowId)
+    if (!room) {
+      logger.debug(`No active room found for updated workflow ${workflowId}`)
+      return
+    }
+
+    const timestamp = Date.now()
+
+    // Notify all clients in the workflow room that the workflow has been updated
+    // This will trigger them to refresh their local state
+    this.io.to(workflowId).emit('workflow-updated', {
+      workflowId,
+      message: 'Workflow has been updated externally',
+      timestamp,
+    })
+
+    room.lastModified = timestamp
+
+    logger.info(`Notified ${room.users.size} users about workflow update: ${workflowId}`)
+  }
+
+  handleCopilotWorkflowEdit(workflowId: string, description?: string) {
+    logger.info(`Handling copilot workflow edit notification for ${workflowId}`)
+
+    const room = this.workflowRooms.get(workflowId)
+    if (!room) {
+      logger.debug(`No active room found for copilot workflow edit ${workflowId}`)
+      return
+    }
+
+    const timestamp = Date.now()
+
+    // Emit special event for copilot edits that tells clients to rehydrate from database
+    this.io.to(workflowId).emit('copilot-workflow-edit', {
+      workflowId,
+      description,
+      message: 'Copilot has edited the workflow - rehydrating from database',
+      timestamp,
+    })
+
+    room.lastModified = timestamp
+
+    logger.info(`Notified ${room.users.size} users about copilot workflow edit: ${workflowId}`)
+  }
+
   async validateWorkflowConsistency(
     workflowId: string
   ): Promise<{ valid: boolean; issues: string[] }> {

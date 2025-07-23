@@ -1,0 +1,140 @@
+---
+title: Response Block YAML Schema
+description: YAML configuration reference for Response blocks
+---
+
+## Schema Definition
+
+```yaml
+type: object
+required:
+  - type
+  - name
+properties:
+  type:
+    type: string
+    enum: [response]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this response block
+  inputs:
+    type: object
+    properties:
+      dataMode:
+        type: string
+        enum: [structured, json]
+        description: Mode for defining response data structure
+        default: structured
+      builderData:
+        type: object
+        description: Structured response data (when dataMode is 'structured')
+      data:
+        type: object
+        description: JSON response data (when dataMode is 'json')
+      status:
+        type: number
+        description: HTTP status code
+        default: 200
+        minimum: 100
+        maximum: 599
+      headers:
+        type: array
+        description: Response headers as key-value pairs
+        items:
+          type: object
+          properties:
+            key:
+              type: string
+              description: Header name
+            value:
+              type: string
+              description: Header value
+```
+
+## Connection Configuration
+
+Response blocks are terminal blocks (no outgoing connections) and define the final output:
+
+```yaml
+# No connections object needed - Response blocks are always terminal
+```
+
+## Examples
+
+### Simple Response
+
+```yaml
+simple-response:
+  type: response
+  name: "Simple Response"
+  inputs:
+    data:
+      message: "Hello World"
+      timestamp: <function.timestamp>
+    status: 200
+```
+
+### Success Response
+
+```yaml
+success-response:
+  type: response
+  name: "Success Response"
+  inputs:
+    data:
+      success: true
+      user:
+        id: <agent.user_id>
+        name: <agent.user_name>
+        email: <agent.user_email>
+      created_at: <function.timestamp>
+    status: 201
+    headers:
+      - key: "Location"
+        value: "/api/users/<agent.user_id>"
+      - key: "X-Created-By"
+        value: "workflow-engine"
+```
+
+### Error Response
+
+```yaml
+error-response:
+  type: response
+  name: "Error Response"
+  inputs:
+    data:
+      error: true
+      message: <agent.error_message>
+      code: "VALIDATION_FAILED"
+      details: <function.validation_errors>
+    status: 400
+    headers:
+      - key: "X-Error-Code"
+        value: "VALIDATION_FAILED"
+```
+
+### Paginated Response
+
+```yaml
+paginated-response:
+  type: response
+  name: "Paginated Response"
+  inputs:
+    data:
+      data: <agent.results>
+      pagination:
+        page: <start.page>
+        per_page: <start.per_page>
+        total: <function.total_count>
+        total_pages: <function.total_pages>
+    status: 200
+    headers:
+      - key: "X-Total-Count"
+        value: <function.total_count>
+      - key: "Cache-Control"
+        value: "public, max-age=300"
+      - key: "Content-Type"
+        value: "application/json"
+``` 

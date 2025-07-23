@@ -25,6 +25,7 @@ const SendMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   chatId: z.string().optional(),
   workflowId: z.string().optional(),
+  mode: z.enum(['ask', 'agent']).optional().default('ask'),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(false),
 })
@@ -90,7 +91,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { message, chatId, workflowId, createNewChat, stream } = SendMessageSchema.parse(body)
+    const { message, chatId, workflowId, mode, createNewChat, stream } =
+      SendMessageSchema.parse(body)
 
     const session = await getSession()
     if (!session?.user?.id) {
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
     logger.info(`[${requestId}] Copilot message: "${message}"`, {
       chatId,
       workflowId,
+      mode,
       createNewChat,
       stream,
       userId: session.user.id,
@@ -110,6 +113,7 @@ export async function POST(req: NextRequest) {
       message,
       chatId,
       workflowId,
+      mode,
       createNewChat,
       stream,
       userId: session.user.id,

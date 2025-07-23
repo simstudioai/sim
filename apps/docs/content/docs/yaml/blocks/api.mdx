@@ -1,0 +1,179 @@
+---
+title: API Block YAML Schema
+description: YAML configuration reference for API blocks
+---
+
+## Schema Definition
+
+```yaml
+type: object
+required:
+  - type
+  - name
+  - inputs
+properties:
+  type:
+    type: string
+    enum: [api]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this API block
+  inputs:
+    type: object
+    required:
+      - url
+      - method
+    properties:
+      url:
+        type: string
+        description: The endpoint URL to send the request to
+      method:
+        type: string
+        enum: [GET, POST, PUT, DELETE, PATCH]
+        description: HTTP method for the request
+        default: GET
+      queryParams:
+        type: array
+        description: Query parameters as key-value pairs
+        items:
+          type: object
+          properties:
+            key:
+              type: string
+              description: Parameter name
+            value:
+              type: string
+              description: Parameter value
+      headers:
+        type: array
+        description: HTTP headers as key-value pairs
+        items:
+          type: object
+          properties:
+            key:
+              type: string
+              description: Header name
+            value:
+              type: string
+              description: Header value
+      body:
+        type: string
+        description: Request body for POST/PUT/PATCH methods
+      timeout:
+        type: number
+        description: Request timeout in milliseconds
+        default: 30000
+        minimum: 1000
+        maximum: 300000
+  connections:
+    type: object
+    properties:
+      success:
+        type: string
+        description: Target block ID for successful requests
+      error:
+        type: string
+        description: Target block ID for error handling
+```
+
+## Connection Configuration
+
+Connections define where the workflow goes based on request results:
+
+```yaml
+connections:
+  success: <string>                     # Target block ID for successful requests
+  error: <string>                       # Target block ID for error handling (optional)
+```
+
+## Examples
+
+### Simple GET Request
+
+```yaml
+user-api:
+  type: api
+  name: "Fetch User Data"
+  inputs:
+    url: "https://api.example.com/users/123"
+    method: GET
+    headers:
+      - key: "Authorization"
+        value: "Bearer {{API_TOKEN}}"
+      - key: "Content-Type"
+        value: "application/json"
+  connections:
+    success: process-user-data
+    error: handle-api-error
+```
+
+### POST Request with Body
+
+```yaml
+create-ticket:
+  type: api
+  name: "Create Support Ticket"
+  inputs:
+    url: "https://api.support.com/tickets"
+    method: POST
+    headers:
+      - key: "Authorization"
+        value: "Bearer {{SUPPORT_API_KEY}}"
+      - key: "Content-Type"
+        value: "application/json"
+    body: |
+      {
+        "title": "<agent.title>",
+        "description": "<agent.description>",
+        "priority": "high"
+      }
+  connections:
+    success: ticket-created
+    error: ticket-error
+```
+
+### Dynamic URL with Query Parameters
+
+```yaml
+search-api:
+  type: api
+  name: "Search Products"
+  inputs:
+    url: "https://api.store.com/products"
+    method: GET
+    queryParams:
+      - key: "q"
+        value: <start.searchTerm>
+      - key: "limit"
+        value: "10"
+      - key: "category"
+        value: <filter.category>
+    headers:
+      - key: "Authorization"
+        value: "Bearer {{STORE_API_KEY}}"
+  connections:
+    success: display-results
+```
+
+## Output References
+
+After an API block executes, you can reference its outputs:
+
+```yaml
+# In subsequent blocks
+next-block:
+  inputs:
+    data: <api-block-name.output>        # Response data
+    status: <api-block-name.status>      # HTTP status code  
+    headers: <api-block-name.headers>    # Response headers
+    error: <api-block-name.error>        # Error details (if any)
+```
+
+## Best Practices
+
+- Use environment variables for API keys: `{{API_KEY_NAME}}`
+- Include error handling with error connections
+- Set appropriate timeouts for your use case
+- Validate response status codes in subsequent blocks
+- Use meaningful block names for easier reference 
