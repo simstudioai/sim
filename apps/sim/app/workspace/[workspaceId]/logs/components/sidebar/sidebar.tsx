@@ -557,15 +557,6 @@ export function Sidebar({
 
               {/* Execution Files (if available and this is a workflow execution log) */}
               {(() => {
-                // Debug logging
-                console.log('File display debug:', {
-                  isWorkflowExecutionLog,
-                  executionId: log.executionId,
-                  hasFiles: !!log.files,
-                  filesCount: log.files?.length || 0,
-                  files: log.files,
-                })
-
                 return (
                   isWorkflowExecutionLog &&
                   log.executionId &&
