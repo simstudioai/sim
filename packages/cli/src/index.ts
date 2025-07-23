@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync, spawn } from 'child_process'
+import { execFileFileSync, spawn } from 'child_process'
 import { existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -48,7 +48,7 @@ async function runCommand(command: string[]): Promise<boolean> {
 
 async function ensureNetworkExists(): Promise<boolean> {
   try {
-    const networks = execSync('docker network ls --format "{{.Name}}"').toString()
+    const networks = execFileSync('docker network ls --format "{{.Name}}"').toString()
     if (!networks.includes(NETWORK_NAME)) {
       console.log(chalk.blue(`🔄 Creating Docker network '${NETWORK_NAME}'...`))
       return await runCommand(['docker', 'network', 'create', NETWORK_NAME])
@@ -67,8 +67,8 @@ async function pullImage(image: string): Promise<boolean> {
 
 async function stopAndRemoveContainer(name: string): Promise<void> {
   try {
-    execSync(`docker stop ${name} 2>/dev/null || true`)
-    execSync(`docker rm ${name} 2>/dev/null || true`)
+    execFileSync(`docker stop ${name} 2>/dev/null || true`)
+    execFileSync(`docker rm ${name} 2>/dev/null || true`)
   } catch (_error) {
     // Ignore errors, container might not exist
   }
@@ -160,7 +160,7 @@ async function main() {
   let pgReady = false
   for (let i = 0; i < 30; i++) {
     try {
-      execSync(`docker exec ${DB_CONTAINER} pg_isready -U postgres`)
+      execFileSync(`docker exec ${DB_CONTAINER} pg_isready -U postgres`)
       pgReady = true
       break
     } catch (_error) {
