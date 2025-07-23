@@ -25,10 +25,16 @@ export async function middleware(request: NextRequest) {
   // Get base domain dynamically to ensure correct staging environment detection
   const BASE_DOMAIN = getBaseDomain()
 
+  // Debug logging for subdomain detection
+  console.log(`[MIDDLEWARE] Request to: ${hostname}`)
+  console.log(`[MIDDLEWARE] BASE_DOMAIN: ${BASE_DOMAIN}`)
+  console.log(`[MIDDLEWARE] Request path: ${url.pathname}`)
+
   // Extract subdomain - handle nested subdomains for any domain
   const isCustomDomain = (() => {
     // Standard check for non-base domains
     if (hostname === BASE_DOMAIN || hostname.startsWith('www.')) {
+      console.log(`[MIDDLEWARE] Not custom domain: hostname matches BASE_DOMAIN or starts with www`)
       return false
     }
 
@@ -42,8 +48,11 @@ export async function middleware(request: NextRequest) {
             .join('.') // Last 2 parts: ["simstudio", "ai"] -> "simstudio.ai"
         : BASE_DOMAIN
 
+    console.log(`[MIDDLEWARE] Root domain extracted: ${rootDomain}`)
+
     // Check if hostname is under the same root domain
     if (!hostname.includes(rootDomain)) {
+      console.log(`[MIDDLEWARE] Not custom domain: hostname doesn't include root domain`)
       return false
     }
 
@@ -51,16 +60,32 @@ export async function middleware(request: NextRequest) {
     const hostParts = hostname.split('.')
     const basePartCount = BASE_DOMAIN.split('.').length
 
+    console.log(`[MIDDLEWARE] hostParts: ${hostParts.length}, basePartCount: ${basePartCount}`)
+
     // If hostname has more parts than base domain, it's a nested subdomain
     if (hostParts.length > basePartCount) {
+      console.log(`[MIDDLEWARE] Custom domain: nested subdomain detected`)
       return true
     }
 
     // For single-level subdomains: regular subdomain logic
-    return hostname !== BASE_DOMAIN
+    const result = hostname !== BASE_DOMAIN
+    console.log(`[MIDDLEWARE] Single-level check: ${result}`)
+    return result
   })()
 
   const subdomain = isCustomDomain ? hostname.split('.')[0] : null
+
+  // Debug logging for subdomain results
+  console.log(`[MIDDLEWARE] isCustomDomain: ${isCustomDomain}`)
+  console.log(`[MIDDLEWARE] subdomain: ${subdomain}`)
+
+  // Handle chat subdomains
+  if (subdomain && isCustomDomain) {
+    console.log(`[MIDDLEWARE] Rewriting ${hostname} to /chat/${subdomain}`)
+  } else {
+    console.log(`[MIDDLEWARE] NOT rewriting ${hostname} - no subdomain detected`)
+  }
 
   // Handle chat subdomains
   if (subdomain && isCustomDomain) {
