@@ -31,7 +31,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getBaseDomain } from '@/lib/urls/utils'
+import { getBaseDomain, getEmailDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/output-select/output-select'
 import type { OutputConfig } from '@/stores/panel/chat/types'
@@ -53,7 +53,7 @@ interface ChatDeployProps {
 type AuthType = 'public' | 'password' | 'email'
 
 const getDomainSuffix = (() => {
-  const suffix = `.${getBaseDomain()}`
+  const suffix = `.${getEmailDomain()}`
   return () => suffix
 })()
 
@@ -772,10 +772,10 @@ export function ChatDeploy({
       const port = url.port || (baseDomain.includes(':') ? baseDomain.split(':')[1] : '3000')
       domainSuffix = `.${baseHost}:${port}`
     } else {
-      domainSuffix = `.${getBaseDomain()}`
+      domainSuffix = `.${getEmailDomain()}`
     }
 
-    const baseDomainForSplit = getBaseDomain()
+    const baseDomainForSplit = getEmailDomain()
     const subdomainPart = isDevelopmentUrl
       ? hostname.split('.')[0]
       : hostname.split(`.${baseDomainForSplit}`)[0]
@@ -1248,7 +1248,7 @@ export function ChatDeploy({
             <AlertDialogDescription>
               This will permanently delete your chat deployment at{' '}
               <span className='font-mono text-destructive'>
-                {subdomain}.{getBaseDomain()}
+                {subdomain}.{getEmailDomain()}
               </span>
               .
               <p className='mt-2'>

@@ -175,7 +175,11 @@ export async function POST(request: NextRequest) {
       let chatUrl: string
       try {
         const url = new URL(baseUrl)
-        chatUrl = `${url.protocol}//${subdomain}.${url.host}`
+        let host = url.host
+        if (host.startsWith('www.')) {
+          host = host.substring(4)
+        }
+        chatUrl = `${url.protocol}//${subdomain}.${host}`
       } catch (error) {
         logger.warn('Failed to parse baseUrl, falling back to defaults:', {
           baseUrl,
