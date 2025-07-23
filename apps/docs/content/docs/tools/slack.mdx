@@ -83,52 +83,6 @@ Send messages to Slack channels or users through the Slack API. Supports Slack m
 | `ts` | string |
 | `channel` | string |
 
-### `slack_canvas`
-
-Create and share Slack canvases in channels. Canvases are collaborative documents within Slack.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `authMethod` | string | No | Authentication method: oauth or bot_token |
-| `botToken` | string | No | Bot token for Custom Bot |
-| `accessToken` | string | No | OAuth access token or bot token for Slack API |
-| `channel` | string | Yes | Target Slack channel \(e.g., #general\) |
-| `title` | string | Yes | Title of the canvas |
-| `content` | string | Yes | Canvas content in markdown format |
-| `document_content` | object | No | Structured canvas document content |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `canvas_id` | string |
-| `channel` | string |
-| `title` | string |
-
-### `slack_message_reader`
-
-Read the latest messages from Slack channels. Retrieve conversation history with filtering options.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `authMethod` | string | No | Authentication method: oauth or bot_token |
-| `botToken` | string | No | Bot token for Custom Bot |
-| `accessToken` | string | No | OAuth access token or bot token for Slack API |
-| `channel` | string | Yes | Slack channel to read messages from \(e.g., #general\) |
-| `limit` | number | No | Number of messages to retrieve \(default: 10, max: 100\) |
-| `oldest` | string | No | Start of time range \(timestamp\) |
-| `latest` | string | No | End of time range \(timestamp\) |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `messages` | string |
-
 
 
 ## Block Configuration
@@ -147,9 +101,6 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 | ------ | ---- | ----------- |
 | `ts` | string | ts output from the block |
 | `channel` | string | channel output from the block |
-| `canvas_id` | string | canvas_id output from the block |
-| `title` | string | title output from the block |
-| `messages` | json | messages output from the block |
 
 
 ## Notes
