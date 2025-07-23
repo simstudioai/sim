@@ -119,7 +119,68 @@ describe('Knowledge Document Chunks API Route', () => {
 
     const mockParams = Promise.resolve({ id: 'kb-123', documentId: 'doc-123' })
 
-    // REMOVED: "should create chunk successfully with cost tracking" test - it was failing
+    it('should create chunk successfully with cost tracking', async () => {
+      const { checkDocumentWriteAccess, generateEmbeddings } = await import(
+        '@/app/api/knowledge/utils'
+      )
+      const { estimateTokenCount } = await import('@/lib/tokenization/estimators')
+      const { calculateCost } = await import('@/providers/utils')
+
+      mockGetUserId.mockResolvedValue('user-123')
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
+        ...mockDocumentAccess,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      } as any)
+
+      // Mock generateEmbeddings
+      vi.mocked(generateEmbeddings).mockResolvedValue([[0.1, 0.2, 0.3]])
+
+      // Mock transaction
+      const mockTx = {
+        select: vi.fn().mockReturnThis(),
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        orderBy: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue([{ chunkIndex: 0 }]),
+        insert: vi.fn().mockReturnThis(),
+        values: vi.fn().mockResolvedValue(undefined),
+        update: vi.fn().mockReturnThis(),
+        set: vi.fn().mockReturnThis(),
+      }
+
+      mockDbChain.transaction.mockImplementation(async (callback) => {
+        return await callback(mockTx)
+      })
+
+      const req = createMockRequest('POST', validChunkData)
+      const { POST } = await import('./route')
+      const response = await POST(req, { params: mockParams })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+
+      // Verify cost tracking
+      expect(data.data.cost).toBeDefined()
+      expect(data.data.cost.input).toBe(0.00000904)
+      expect(data.data.cost.output).toBe(0)
+      expect(data.data.cost.total).toBe(0.00000904)
+      expect(data.data.cost.tokens).toEqual({
+        prompt: 452,
+        completion: 0,
+        total: 452,
+      })
+      expect(data.data.cost.model).toBe('text-embedding-3-small')
+      expect(data.data.cost.pricing).toEqual({
+        input: 0.02,
+        output: 0,
+        updatedAt: '2025-07-10',
+      })
+
+      // Verify function calls
+      expect(estimateTokenCount).toHaveBeenCalledWith(validChunkData.content, 'openai')
+      expect(calculateCost).toHaveBeenCalledWith('text-embedding-3-small', 452, 0, false)
+    })
 
     it('should handle workflow-based authentication', async () => {
       const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
