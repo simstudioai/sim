@@ -1,4 +1,4 @@
-import { and, count, eq, isNull, or } from 'drizzle-orm'
+import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
             // User owns the knowledge base directly
             eq(knowledgeBase.userId, session.user.id),
             // User has permissions on the knowledge base's workspace
-            and(eq(permissions.userId, session.user.id), eq(permissions.entityType, 'workspace'))
+            isNotNull(permissions.userId)
           )
         )
       )
