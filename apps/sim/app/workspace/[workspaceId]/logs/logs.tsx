@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
@@ -26,6 +27,9 @@ const selectedRowAnimation = `
 `
 
 export default function Logs() {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const {
     logs,
     loading,
@@ -33,6 +37,7 @@ export default function Logs() {
     setLogs,
     setLoading,
     setError,
+    setWorkspaceId,
     page,
     setPage,
     hasMore,
@@ -47,6 +52,11 @@ export default function Logs() {
     searchQuery,
     triggers,
   } = useFilterStore()
+
+  // Set workspace ID in store when component mounts or workspaceId changes
+  useEffect(() => {
+    setWorkspaceId(workspaceId)
+  }, [workspaceId, setWorkspaceId])
 
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)

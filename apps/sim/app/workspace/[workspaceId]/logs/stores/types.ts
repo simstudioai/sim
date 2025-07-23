@@ -120,6 +120,9 @@ export interface FilterState {
   // Original logs from API
   logs: WorkflowLog[]
 
+  // Workspace context
+  workspaceId: string
+
   // Filter states
   timeRange: TimeRange
   level: LogLevel
@@ -139,6 +142,7 @@ export interface FilterState {
 
   // Actions
   setLogs: (logs: WorkflowLog[], append?: boolean) => void
+  setWorkspaceId: (workspaceId: string) => void
   setTimeRange: (timeRange: TimeRange) => void
   setLevel: (level: LogLevel) => void
   setWorkflowIds: (workflowIds: string[]) => void
