@@ -25,6 +25,7 @@ export async function middleware(request: NextRequest) {
   // Get base domain dynamically to ensure correct staging environment detection
   const BASE_DOMAIN = getBaseDomain()
 
+
   // Debug logging for subdomain detection
   console.log(`[MIDDLEWARE] Request to: ${hostname}`)
   console.log(`[MIDDLEWARE] BASE_DOMAIN: ${BASE_DOMAIN}`)
