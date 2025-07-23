@@ -14,8 +14,6 @@ const SUSPICIOUS_UA_PATTERNS = [
   /\b(sqlmap|nikto|gobuster|dirb|nmap)\b/i, // Known scanning tools
 ]
 
-const BASE_DOMAIN = getBaseDomain()
-
 export async function middleware(request: NextRequest) {
   // Check for active session
   const sessionCookie = getSessionCookie(request)
@@ -23,6 +21,9 @@ export async function middleware(request: NextRequest) {
 
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''
+
+  // Get base domain dynamically to ensure correct staging environment detection
+  const BASE_DOMAIN = getBaseDomain()
 
   // Extract subdomain - handle nested subdomains for any domain
   const isCustomDomain = (() => {
