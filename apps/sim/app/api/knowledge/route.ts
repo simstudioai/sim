@@ -76,21 +76,21 @@ export async function GET(req: NextRequest) {
       .where(
         and(
           isNull(knowledgeBase.deletedAt),
-          // Filter by workspace if specified, with fallback to user-owned knowledge bases without workspace
           workspaceId
-            ? or(
-                // Knowledge bases belonging to the specified workspace
-                eq(knowledgeBase.workspaceId, workspaceId),
+            ? // When filtering by workspace
+              or(
+                // Knowledge bases belonging to the specified workspace (user must have workspace permissions)
+                and(eq(knowledgeBase.workspaceId, workspaceId), isNotNull(permissions.userId)),
                 // Fallback: User-owned knowledge bases without workspace (legacy)
                 and(eq(knowledgeBase.userId, session.user.id), isNull(knowledgeBase.workspaceId))
               )
-            : undefined,
-          or(
-            // User owns the knowledge base directly
-            eq(knowledgeBase.userId, session.user.id),
-            // User has permissions on the knowledge base's workspace
-            isNotNull(permissions.userId)
-          )
+            : // When not filtering by workspace, use original logic
+              or(
+                // User owns the knowledge base directly
+                eq(knowledgeBase.userId, session.user.id),
+                // User has permissions on the knowledge base's workspace
+                isNotNull(permissions.userId)
+              )
         )
       )
       .groupBy(knowledgeBase.id)
