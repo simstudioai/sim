@@ -1,6 +1,6 @@
 'use client'
 
-import { type KeyboardEvent, useEffect, useMemo, useRef } from 'react'
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,6 +41,13 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   } = useChatStore()
   const { entries } = useConsoleStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Prompt history state
+  const [promptHistory, setPromptHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
 
   // Use the execution store state to track if a workflow is executing
   const { isExecuting } = useExecutionStore()
@@ -61,6 +68,26 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
       .filter((msg) => msg.workflowId === activeWorkflowId)
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
   }, [messages, activeWorkflowId])
+
+  // Memoize user messages for performance
+  const userMessages = useMemo(() => {
+    return workflowMessages
+      .filter((msg) => msg.type === 'user')
+      .map((msg) => msg.content)
+      .filter((content): content is string => typeof content === 'string')
+  }, [workflowMessages])
+
+  // Update prompt history when workflow changes
+  useEffect(() => {
+    if (!activeWorkflowId) {
+      setPromptHistory([])
+      setHistoryIndex(-1)
+      return
+    }
+
+    setPromptHistory(userMessages)
+    setHistoryIndex(-1)
+  }, [activeWorkflowId, userMessages])
 
   // Get selected workflow outputs
   const selectedOutputs = useMemo(() => {
@@ -84,6 +111,31 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     return selected
   }, [selectedWorkflowOutputs, activeWorkflowId, setSelectedWorkflowOutput])
 
+  // Focus input helper with proper cleanup
+  const focusInput = useCallback((delay = 0) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+
+    timeoutRef.current = setTimeout(() => {
+      if (inputRef.current && document.contains(inputRef.current)) {
+        inputRef.current.focus({ preventScroll: true })
+      }
+    }, delay)
+  }, [])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [])
+
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -92,11 +144,25 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   }, [workflowMessages])
 
   // Handle send message
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if (!chatMessage.trim() || !activeWorkflowId || isExecuting) return
 
     // Store the message being sent for reference
     const sentMessage = chatMessage.trim()
+
+    // Add to prompt history if it's not already the most recent
+    if (promptHistory.length === 0 || promptHistory[promptHistory.length - 1] !== sentMessage) {
+      setPromptHistory((prev) => [...prev, sentMessage])
+    }
+
+    // Reset history index
+    setHistoryIndex(-1)
+
+    // Cancel any existing operations
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    abortControllerRef.current = new AbortController()
 
     // Get the conversationId for this workflow before adding the message
     const conversationId = getConversationId(activeWorkflowId)
@@ -108,8 +174,9 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
       type: 'user',
     })
 
-    // Clear input
+    // Clear input and refocus immediately
     setChatMessage('')
+    focusInput(10)
 
     // Execute the workflow to generate a response, passing the chat message and conversationId as input
     const result = await handleRunWorkflow({
@@ -223,7 +290,12 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         }
       }
 
-      processStream().catch((e) => logger.error('Error processing stream:', e))
+      processStream()
+        .catch((e) => logger.error('Error processing stream:', e))
+        .finally(() => {
+          // Restore focus after streaming completes
+          focusInput(100)
+        })
     } else if (result && 'success' in result && result.success && 'logs' in result) {
       const finalOutputs: any[] = []
 
@@ -287,30 +359,72 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         type: 'workflow',
       })
     }
-  }
+
+    // Restore focus after workflow execution completes
+    focusInput(100)
+  }, [
+    chatMessage,
+    activeWorkflowId,
+    isExecuting,
+    promptHistory,
+    getConversationId,
+    addMessage,
+    handleRunWorkflow,
+    selectedOutputs,
+    setSelectedWorkflowOutput,
+    appendMessageContent,
+    finalizeMessageStream,
+    focusInput,
+  ])
 
   // Handle key press
-  const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
+  const handleKeyPress = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleSendMessage()
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (promptHistory.length > 0) {
+          const newIndex =
+            historyIndex === -1 ? promptHistory.length - 1 : Math.max(0, historyIndex - 1)
+          setHistoryIndex(newIndex)
+          setChatMessage(promptHistory[newIndex])
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (historyIndex >= 0) {
+          const newIndex = historyIndex + 1
+          if (newIndex >= promptHistory.length) {
+            setHistoryIndex(-1)
+            setChatMessage('')
+          } else {
+            setHistoryIndex(newIndex)
+            setChatMessage(promptHistory[newIndex])
+          }
+        }
+      }
+    },
+    [handleSendMessage, promptHistory, historyIndex, setChatMessage]
+  )
 
   // Handle output selection
-  const handleOutputSelection = (values: string[]) => {
-    // Ensure no duplicates in selection
-    const dedupedValues = [...new Set(values)]
+  const handleOutputSelection = useCallback(
+    (values: string[]) => {
+      // Ensure no duplicates in selection
+      const dedupedValues = [...new Set(values)]
 
-    if (activeWorkflowId) {
-      // If array is empty, explicitly set to empty array to ensure complete reset
-      if (dedupedValues.length === 0) {
-        setSelectedWorkflowOutput(activeWorkflowId, [])
-      } else {
-        setSelectedWorkflowOutput(activeWorkflowId, dedupedValues)
+      if (activeWorkflowId) {
+        // If array is empty, explicitly set to empty array to ensure complete reset
+        if (dedupedValues.length === 0) {
+          setSelectedWorkflowOutput(activeWorkflowId, [])
+        } else {
+          setSelectedWorkflowOutput(activeWorkflowId, dedupedValues)
+        }
       }
-    }
-  }
+    },
+    [activeWorkflowId, setSelectedWorkflowOutput]
+  )
 
   return (
     <div className='flex h-full flex-col'>
@@ -349,8 +463,12 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         <div className='-mt-[1px] relative flex-nonept-3 pb-4'>
           <div className='flex gap-2'>
             <Input
+              ref={inputRef}
               value={chatMessage}
-              onChange={(e) => setChatMessage(e.target.value)}
+              onChange={(e) => {
+                setChatMessage(e.target.value)
+                setHistoryIndex(-1) // Reset history index when typing
+              }}
               onKeyDown={handleKeyPress}
               placeholder='Type a message...'
               className='h-9 flex-1 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground shadow-xs focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-[#414141] dark:bg-[#202020]'

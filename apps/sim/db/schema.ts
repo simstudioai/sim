@@ -1039,6 +1039,48 @@ export const copilotChats = pgTable(
   })
 )
 
+export const copilotCheckpoints = pgTable(
+  'copilot_checkpoints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    yaml: text('yaml').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access patterns
+    userIdIdx: index('copilot_checkpoints_user_id_idx').on(table.userId),
+    workflowIdIdx: index('copilot_checkpoints_workflow_id_idx').on(table.workflowId),
+    chatIdIdx: index('copilot_checkpoints_chat_id_idx').on(table.chatId),
+
+    // Combined indexes for common queries
+    userWorkflowIdx: index('copilot_checkpoints_user_workflow_idx').on(
+      table.userId,
+      table.workflowId
+    ),
+    workflowChatIdx: index('copilot_checkpoints_workflow_chat_idx').on(
+      table.workflowId,
+      table.chatId
+    ),
+
+    // Ordering indexes
+    createdAtIdx: index('copilot_checkpoints_created_at_idx').on(table.createdAt),
+    chatCreatedAtIdx: index('copilot_checkpoints_chat_created_at_idx').on(
+      table.chatId,
+      table.createdAt
+    ),
+  })
+)
+
 export const templates = pgTable(
   'templates',
   {

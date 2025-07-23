@@ -31,7 +31,7 @@ const BlockDataSchema = z.object({
 const SubBlockStateSchema = z.object({
   id: z.string(),
   type: z.string(),
-  value: z.union([z.string(), z.number(), z.array(z.array(z.string())), z.null()]),
+  value: z.any(),
 })
 
 const BlockOutputSchema = z.any()

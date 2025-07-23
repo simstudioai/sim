@@ -567,7 +567,7 @@ export function FolderTree({
         marketplaceWorkflows.length === 0 &&
         folderTree.length === 0 &&
         !isCollapsed && (
-          <div className='break-words px-2 py-1.5 text-muted-foreground text-xs'>
+          <div className='break-words px-2 py-1.5 pr-12 text-muted-foreground text-xs'>
             No workflows or folders in {workspaceId ? 'this workspace' : 'your account'}. Create one
             to get started.
           </div>

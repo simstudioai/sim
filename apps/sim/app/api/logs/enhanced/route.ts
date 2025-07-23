@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflow, workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
+import { permissions, workflow, workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
 
 const logger = createLogger('EnhancedLogsAPI')
 
@@ -74,11 +74,24 @@ export async function GET(request: NextRequest) {
       const { searchParams } = new URL(request.url)
       const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
-      // Get user's workflows
+      // Get workflows that user can access through direct ownership OR workspace permissions
       const userWorkflows = await db
         .select({ id: workflow.id, folderId: workflow.folderId })
         .from(workflow)
-        .where(eq(workflow.userId, userId))
+        .leftJoin(
+          permissions,
+          and(
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, workflow.workspaceId),
+            eq(permissions.userId, userId)
+          )
+        )
+        .where(
+          or(
+            eq(workflow.userId, userId),
+            and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace'))
+          )
+        )
 
       const userWorkflowIds = userWorkflows.map((w) => w.id)
 

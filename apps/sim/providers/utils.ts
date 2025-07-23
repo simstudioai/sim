@@ -900,7 +900,7 @@ export function supportsToolUsageControl(provider: string): boolean {
 export function prepareToolExecution(
   tool: { params?: Record<string, any> },
   llmArgs: Record<string, any>,
-  request: { workflowId?: string; environmentVariables?: Record<string, any> }
+  request: { workflowId?: string; chatId?: string; environmentVariables?: Record<string, any> }
 ): {
   toolParams: Record<string, any>
   executionParams: Record<string, any>
@@ -914,7 +914,14 @@ export function prepareToolExecution(
   // Add system parameters for execution
   const executionParams = {
     ...toolParams,
-    ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
+    ...(request.workflowId
+      ? {
+          _context: {
+            workflowId: request.workflowId,
+            ...(request.chatId ? { chatId: request.chatId } : {}),
+          },
+        }
+      : {}),
     ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
   }
 

@@ -48,7 +48,31 @@ export function Table({
         },
       ]
     }
-    return value as TableRow[]
+
+    // Validate and fix each row to ensure proper structure
+    const validatedRows = value.map((row) => {
+      // Ensure row has an id
+      if (!row.id) {
+        row.id = crypto.randomUUID()
+      }
+
+      // Ensure row has cells object with proper structure
+      if (!row.cells || typeof row.cells !== 'object') {
+        console.warn('Fixing malformed table row:', row)
+        row.cells = Object.fromEntries(columns.map((col) => [col, '']))
+      } else {
+        // Ensure all required columns exist in cells
+        columns.forEach((col) => {
+          if (!(col in row.cells)) {
+            row.cells[col] = ''
+          }
+        })
+      }
+
+      return row
+    })
+
+    return validatedRows as TableRow[]
   }, [value, columns])
 
   // Add state for managing dropdowns
@@ -86,14 +110,21 @@ export function Table({
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
     if (isPreview || disabled) return
 
-    const updatedRows = [...rows].map((row, idx) =>
-      idx === rowIndex
-        ? {
-            ...row,
-            cells: { ...row.cells, [column]: value },
-          }
-        : row
-    )
+    const updatedRows = [...rows].map((row, idx) => {
+      if (idx === rowIndex) {
+        // Ensure the row has a proper cells object
+        if (!row.cells || typeof row.cells !== 'object') {
+          console.warn('Fixing malformed row cells during cell change:', row)
+          row.cells = Object.fromEntries(columns.map((col) => [col, '']))
+        }
+
+        return {
+          ...row,
+          cells: { ...row.cells, [column]: value },
+        }
+      }
+      return row
+    })
 
     if (rowIndex === rows.length - 1 && value !== '') {
       updatedRows.push({
@@ -129,6 +160,16 @@ export function Table({
   )
 
   const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => {
+    // Defensive programming: ensure row.cells exists and has the expected structure
+    if (!row.cells || typeof row.cells !== 'object') {
+      console.warn('Table row has malformed cells data:', row)
+      // Create a fallback cells object
+      row = {
+        ...row,
+        cells: Object.fromEntries(columns.map((col) => [col, ''])),
+      }
+    }
+
     const cellValue = row.cells[column] || ''
     const cellKey = `${rowIndex}-${column}`
 

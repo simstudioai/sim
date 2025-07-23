@@ -1,4 +1,4 @@
-import { env } from '@/lib/env'
+import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
@@ -477,7 +477,7 @@ export class AgentBlockHandler implements BlockHandler {
   ) {
     logger.info('Using HTTP provider request (browser environment)')
 
-    const url = new URL('/api/providers', env.NEXT_PUBLIC_APP_URL || '')
+    const url = new URL('/api/providers', getEnv('NEXT_PUBLIC_APP_URL') || '')
     const response = await fetch(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

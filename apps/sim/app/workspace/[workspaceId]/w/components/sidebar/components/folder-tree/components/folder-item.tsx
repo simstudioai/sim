@@ -304,7 +304,7 @@ export function FolderItem({
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleInputBlur}
-              className='flex-1 border-0 bg-transparent p-0 text-muted-foreground text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='min-w-0 flex-1 border-0 bg-transparent p-0 text-muted-foreground text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
               maxLength={50}
               disabled={isRenaming}
               onClick={(e) => e.stopPropagation()} // Prevent folder toggle when clicking input
@@ -314,7 +314,9 @@ export function FolderItem({
               spellCheck='false'
             />
           ) : (
-            <span className='flex-1 select-none truncate text-muted-foreground'>{folder.name}</span>
+            <span className='min-w-0 flex-1 select-none truncate text-muted-foreground'>
+              {folder.name}
+            </span>
           )}
 
           {!isEditing && (

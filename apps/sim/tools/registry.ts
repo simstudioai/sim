@@ -94,6 +94,7 @@ import {
   pineconeSearchVectorTool,
   pineconeUpsertTextTool,
 } from '@/tools/pinecone'
+import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@/tools/reddit'
 import { s3GetObjectTool } from '@/tools/s3'
 import { searchTool as serperSearch } from '@/tools/serper'
@@ -261,4 +262,7 @@ export const tools: Record<string, ToolConfig> = {
   wealthbox_write_task: wealthboxWriteTaskTool,
   wealthbox_read_note: wealthboxReadNoteTool,
   wealthbox_write_note: wealthboxWriteNoteTool,
+  qdrant_fetch_points: qdrantFetchTool,
+  qdrant_search_vector: qdrantSearchTool,
+  qdrant_upsert_points: qdrantUpsertTool,
 }

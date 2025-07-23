@@ -1,0 +1,278 @@
+---
+title: Webhook Block YAML Schema
+description: YAML configuration reference for Webhook blocks
+---
+
+## Schema Definition
+
+```yaml
+type: object
+required:
+  - type
+  - name
+properties:
+  type:
+    type: string
+    enum: [webhook]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this webhook block
+  inputs:
+    type: object
+    properties:
+      webhookConfig:
+        type: object
+        description: Webhook configuration settings
+        properties:
+          enabled:
+            type: boolean
+            description: Whether the webhook is active
+            default: true
+          secret:
+            type: string
+            description: Secret key for webhook verification
+          headers:
+            type: array
+            description: Expected headers for validation
+            items:
+              type: object
+              properties:
+                key:
+                  type: string
+                  description: Header name
+                value:
+                  type: string
+                  description: Expected header value
+          methods:
+            type: array
+            description: Allowed HTTP methods
+            items:
+              type: string
+              enum: [GET, POST, PUT, DELETE, PATCH]
+            default: [POST]
+      responseConfig:
+        type: object
+        description: Response configuration for the webhook
+        properties:
+          status:
+            type: number
+            description: HTTP status code to return
+            default: 200
+            minimum: 100
+            maximum: 599
+          headers:
+            type: array
+            description: Response headers
+            items:
+              type: object
+              properties:
+                key:
+                  type: string
+                  description: Header name
+                value:
+                  type: string
+                  description: Header value
+          body:
+            type: string
+            description: Response body content
+  connections:
+    type: object
+    properties:
+      success:
+        type: string
+        description: Target block ID for successful webhook processing
+      error:
+        type: string
+        description: Target block ID for error handling
+```
+
+## Connection Configuration
+
+Connections define where the workflow goes based on webhook processing:
+
+```yaml
+connections:
+  success: <string>                     # Target block ID for successful processing
+  error: <string>                       # Target block ID for error handling (optional)
+```
+
+## Examples
+
+### Basic Webhook Trigger
+
+```yaml
+github-webhook:
+  type: webhook
+  name: "GitHub Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      secret: "{{GITHUB_WEBHOOK_SECRET}}"
+      methods: [POST]
+      headers:
+        - key: "X-GitHub-Event"
+          value: "push"
+    responseConfig:
+      status: 200
+      body: |
+        {
+          "message": "Webhook received successfully",
+          "timestamp": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: process-github-event
+    error: webhook-error-handler
+```
+
+### Slack Event Webhook
+
+```yaml
+slack-events:
+  type: webhook
+  name: "Slack Events"
+  inputs:
+    webhookConfig:
+      enabled: true
+      secret: "{{SLACK_SIGNING_SECRET}}"
+      methods: [POST]
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+    responseConfig:
+      status: 200
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {
+          "challenge": "<webhook.challenge>"
+        }
+  connections:
+    success: handle-slack-event
+```
+
+### Payment Webhook (Stripe)
+
+```yaml
+stripe-webhook:
+  type: webhook
+  name: "Stripe Payment Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      secret: "{{STRIPE_WEBHOOK_SECRET}}"
+      methods: [POST]
+      headers:
+        - key: "Stripe-Signature"
+          value: "*"
+    responseConfig:
+      status: 200
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {
+          "received": true
+        }
+  connections:
+    success: process-payment-event
+    error: payment-webhook-error
+```
+
+### Generic API Webhook
+
+```yaml
+api-webhook:
+  type: webhook
+  name: "API Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      methods: [POST, PUT]
+      headers:
+        - key: "Authorization"
+          value: "Bearer {{WEBHOOK_API_KEY}}"
+        - key: "Content-Type"
+          value: "application/json"
+    responseConfig:
+      status: 202
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "X-Processed-By"
+          value: "Sim Studio"
+      body: |
+        {
+          "status": "accepted",
+          "id": "{{Math.random().toString(36).substr(2, 9)}}",
+          "received_at": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: process-webhook-data
+```
+
+### Multi-Method Webhook
+
+```yaml
+crud-webhook:
+  type: webhook
+  name: "CRUD Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      methods: [GET, POST, PUT, DELETE]
+      headers:
+        - key: "X-API-Key"
+          value: "{{CRUD_API_KEY}}"
+    responseConfig:
+      status: 200
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {
+          "method": "<webhook.method>",
+          "processed": true,
+          "timestamp": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: route-by-method
+```
+
+## Webhook Variables
+
+Inside webhook-triggered workflows, these special variables are available:
+
+```yaml
+# Available in blocks after the webhook
+<webhook.payload>               # Full request payload/body
+<webhook.headers>               # Request headers
+<webhook.method>                # HTTP method used
+<webhook.query>                 # Query parameters
+<webhook.path>                  # Request path
+<webhook.challenge>             # Challenge parameter (for verification)
+```
+
+## Output References
+
+After a webhook processes a request, you can reference its data:
+
+```yaml
+# In subsequent blocks
+process-webhook:
+  inputs:
+    payload: <webhook-name.payload>      # Request payload
+    headers: <webhook-name.headers>      # Request headers
+    method: <webhook-name.method>        # HTTP method
+```
+
+## Security Best Practices
+
+- Always use webhook secrets for verification
+- Validate expected headers and methods
+- Implement proper error handling
+- Use HTTPS endpoints in production
+- Monitor webhook activity and failures
+- Set appropriate response timeouts
+- Validate payload structure before processing 

@@ -1,5 +1,16 @@
 import { createEnv } from '@t3-oss/env-nextjs'
+import { env as runtimeEnv } from 'next-runtime-env'
 import { z } from 'zod'
+
+/**
+ * Universal environment variable getter that works in both client and server contexts.
+ * - Client-side: Uses next-runtime-env for runtime injection (supports Docker runtime vars)
+ * - Server-side: Falls back to process.env when runtimeEnv returns undefined
+ * - Provides seamless Docker runtime variable support for NEXT_PUBLIC_ vars
+ */
+const getEnv = (variable: string): string | undefined => {
+  return runtimeEnv(variable) ?? process.env[variable]
+}
 
 export const env = createEnv({
   skipValidation: true,
@@ -110,8 +121,7 @@ export const env = createEnv({
     SOCKET_PORT: z.number().optional(),
     PORT: z.number().optional(),
     ALLOWED_ORIGINS: z.string().optional(),
-    // Job Queue Configuration
-    JOB_RETENTION_DAYS: z.string().optional().default('1'), // How long to keep completed jobs
+    JOB_RETENTION_DAYS: z.string().optional().default('1'),
   },
 
   client: {
@@ -132,7 +142,7 @@ export const env = createEnv({
 
   experimental__runtimeEnv: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    NEXT_PUBLIC_VERCEL_URL: process.env.VERCEL_URL,
+    NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
     NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
@@ -146,3 +156,5 @@ export const env = createEnv({
 // Needing this utility because t3-env is returning string for boolean values.
 export const isTruthy = (value: string | boolean | number | undefined) =>
   typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value)
+
+export { getEnv }
