@@ -42,8 +42,8 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const { entries } = useConsoleStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const timeoutRef = useRef<NodeJS.Timeout>()
-  const abortControllerRef = useRef<AbortController>()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Prompt history state
   const [promptHistory, setPromptHistory] = useState<string[]>([])
