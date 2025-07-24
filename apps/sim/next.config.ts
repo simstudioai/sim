@@ -27,6 +27,8 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizeCss: true,
     turbopackSourceMaps: false,
+    webpackMemoryOptimizations: true,
+    optimizeServerReact: true,
   },
   ...(isDev && {
     allowedDevOrigins: [

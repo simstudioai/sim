@@ -9,3 +9,27 @@ README.md
 .devcontainer
 .env.example
 node_modules
+
+# Exclude large video files from docs
+apps/docs/public/**/*.mp4
+apps/docs/public/static/**/*.mp4
+
+# Exclude build artifacts and cache files
+**/.next
+**/dist
+**/.turbo
+**/build
+**/*.log
+**/.DS_Store
+
+# Exclude test files and coverage
+**/__tests__
+**/coverage
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Exclude development files
+**/.env*
+!**/.env.example
