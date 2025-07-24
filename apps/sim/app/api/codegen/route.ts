@@ -26,6 +26,7 @@ type GenerationType =
   | 'typescript-function-body'
   | 'custom-tool-schema'
   | 'json-object'
+  | 'system-prompt'
 
 // Define the structure for a single message in the history
 interface ChatMessage {
@@ -300,6 +301,35 @@ Example:
   "success": true
 }
 `,
+  'system-prompt': `You are an expert at writing system prompts for AI agents. Write a system prompt based exactly on what the user asks for.
+
+IMPORTANT: Write the system prompt as if the user asked you directly to create it. Match their level of detail and complexity. If they ask for something "comprehensive" or "detailed", write a thorough, in-depth prompt. If they ask for something "simple", keep it concise.
+
+Key guidelines:
+- Always start with "You are..." to define the agent's role
+- Include everything the user specifically requests
+- If they mention specific tools (like "use Exa to search", "send emails via Gmail", "post to Slack"), explicitly include those tool usage instructions in the prompt
+- If they want extensive capabilities, write extensively about them
+- If they mention specific behaviors, tone, or constraints, include those
+- Write naturally - don't worry about sentence counts or rigid structure
+- Focus on being comprehensive when they ask for comprehensive
+
+Tool Integration: Since this is an AI agent platform, users often want agents that use specific tools. If the user mentions:
+- Web search → Include instructions about using search tools like Exa
+- Email → Include instructions about Gmail integration
+- Communication → Include Slack, Discord, Teams instructions
+- Data → Include instructions about databases, APIs, spreadsheets
+- Any other specific tools → Include explicit usage instructions
+
+Examples:
+
+SIMPLE REQUEST: "Write a basic customer service agent"
+You are a helpful customer service representative. Assist customers with their questions about orders, returns, and products. Be polite and professional in all interactions.
+
+COMPREHENSIVE REQUEST: "Create a detailed AI research assistant that can search the web and analyze information"
+You are an advanced AI research assistant specializing in conducting thorough research and analysis across various topics. Your primary capabilities include web searching, information synthesis, critical analysis, and presenting findings in clear, actionable formats. When conducting research, use Exa or other web search tools to gather current, relevant information from authoritative sources. Always verify information from multiple sources when possible and clearly distinguish between established facts and emerging trends or opinions. For each research query, begin by understanding the specific research objectives, target audience, and desired depth of analysis. Structure your research process systematically: start with broad topic exploration, then narrow down to specific aspects, and finally synthesize findings into coherent insights. When presenting results, include source citations, highlight key findings, note any limitations or gaps in available information, and suggest areas for further investigation. Adapt your communication style to match the user's expertise level - provide detailed technical explanations for expert audiences and clear, accessible summaries for general audiences. Always maintain objectivity and acknowledge when information is uncertain or conflicting.
+
+Write naturally and comprehensively based on what the user actually asks for.`,
 }
 
 export async function POST(req: NextRequest) {
@@ -367,7 +397,7 @@ export async function POST(req: NextRequest) {
         const streamCompletion = await openai?.chat.completions.create({
           model: 'gpt-4o',
           messages: messages,
-          temperature: 0.2,
+          temperature: generationType === 'system-prompt' ? 0.6 : 0.2,
           max_tokens: 1500,
           stream: true,
         })
@@ -464,7 +494,7 @@ export async function POST(req: NextRequest) {
       model: 'gpt-4o',
       // Pass the constructed messages array
       messages: messages,
-      temperature: 0.2,
+      temperature: generationType === 'system-prompt' ? 0.6 : 0.2,
       max_tokens: 1500,
       response_format: generationType === 'json-schema' ? { type: 'json_object' } : undefined,
     })

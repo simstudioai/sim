@@ -135,6 +135,9 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
+  enableWand?: boolean
+  wandGenerationType?: string
+  wandPlaceholder?: string
 }
 
 // Main block definition
