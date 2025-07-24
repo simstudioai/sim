@@ -17,6 +17,26 @@ import { formatDate } from './utils/format-date'
 const logger = createLogger('Logs')
 const LOGS_PER_PAGE = 50
 
+// Get color for different trigger types using app's color scheme
+const getTriggerColor = (trigger: string | null | undefined): string => {
+  if (!trigger) return '#9ca3af'
+
+  switch (trigger.toLowerCase()) {
+    case 'manual':
+      return '#9ca3af' // gray-400 (matches secondary styling better)
+    case 'schedule':
+      return '#10b981' // green (emerald-500)
+    case 'webhook':
+      return '#f97316' // orange (orange-500)
+    case 'chat':
+      return '#8b5cf6' // purple (violet-500)
+    case 'api':
+      return '#3b82f6' // blue (blue-500)
+    default:
+      return '#9ca3af' // gray-400
+  }
+}
+
 const selectedRowAnimation = `
   @keyframes borderPulse {
     0% { border-left-color: hsl(var(--primary) / 0.3) }
@@ -396,16 +416,16 @@ export default function Logs() {
       </style>
 
       <div className='flex min-w-0 flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto'>
+        <div className='flex flex-1 flex-col overflow-auto p-6'>
           {/* Header */}
-          <div className='mb-6 px-6 pt-6'>
+          <div className='mb-5'>
             <h1 className='font-sans font-semibold text-3xl text-foreground tracking-[0.01em]'>
               Logs
             </h1>
           </div>
 
           {/* Search and Controls */}
-          <div className='mb-6 flex flex-col items-stretch justify-between gap-4 px-6 sm:flex-row sm:items-center'>
+          <div className='mb-8 flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center'>
             <div className='flex h-9 w-full min-w-[200px] max-w-[460px] items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
               <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
               <Input
@@ -458,7 +478,7 @@ export default function Logs() {
             {/* Table with responsive layout */}
             <div className='w-full overflow-x-auto'>
               {/* Header */}
-              <div className='px-6'>
+              <div>
                 <div className='border-border border-b'>
                   <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_80px_1fr] gap-2 px-2 pb-3 md:grid-cols-[140px_90px_140px_90px_1fr] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_100px_1fr] lg:gap-4 xl:grid-cols-[160px_100px_160px_100px_100px_1fr_100px]'>
                     <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
@@ -511,7 +531,7 @@ export default function Logs() {
                   </div>
                 </div>
               ) : (
-                <div className='px-6 pb-4'>
+                <div className='pb-4'>
                   {logs.map((log) => {
                     const formattedDate = formatDate(log.createdAt)
                     const isSelected = selectedLog?.id === log.id
@@ -525,7 +545,7 @@ export default function Logs() {
                         }`}
                         onClick={() => handleLogClick(log)}
                       >
-                        <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_80px_1fr] items-center gap-2 px-2 py-3 md:grid-cols-[140px_90px_140px_90px_1fr] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_100px_1fr] lg:gap-4 xl:grid-cols-[160px_100px_160px_100px_100px_1fr_100px]'>
+                        <div className='grid min-w-[600px] grid-cols-[120px_80px_120px_80px_1fr] items-center gap-2 px-2 py-4 md:grid-cols-[140px_90px_140px_90px_1fr] md:gap-3 lg:min-w-0 lg:grid-cols-[160px_100px_160px_100px_1fr] lg:gap-4 xl:grid-cols-[160px_100px_160px_100px_100px_1fr_100px]'>
                           {/* Time */}
                           <div>
                             <div className='text-[13px]'>
@@ -557,12 +577,7 @@ export default function Logs() {
 
                           {/* Workflow */}
                           <div className='min-w-0'>
-                            <div
-                              className='inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-white text-xs transition-all duration-200 lg:px-[8px]'
-                              style={{
-                                backgroundColor: log.workflow?.color || '#6b7280',
-                              }}
-                            >
+                            <div className='truncate font-medium text-[13px]'>
                               {log.workflow?.name || 'Unknown Workflow'}
                             </div>
                           </div>
@@ -576,14 +591,30 @@ export default function Logs() {
 
                           {/* Trigger */}
                           <div className='hidden xl:block'>
-                            <div className='text-muted-foreground text-xs'>
-                              {log.trigger || '—'}
-                            </div>
+                            {log.trigger ? (
+                              <div
+                                className={cn(
+                                  'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-xs transition-all duration-200 lg:px-[8px]',
+                                  log.trigger.toLowerCase() === 'manual'
+                                    ? 'bg-secondary text-card-foreground'
+                                    : 'text-white'
+                                )}
+                                style={
+                                  log.trigger.toLowerCase() === 'manual'
+                                    ? undefined
+                                    : { backgroundColor: getTriggerColor(log.trigger) }
+                                }
+                              >
+                                {log.trigger}
+                              </div>
+                            ) : (
+                              <div className='text-muted-foreground text-xs'>—</div>
+                            )}
                           </div>
 
                           {/* Message */}
                           <div className='min-w-0'>
-                            <div className='truncate text-sm'>{log.message}</div>
+                            <div className='truncate font-[420] text-[13px]'>{log.message}</div>
                           </div>
 
                           {/* Duration */}
