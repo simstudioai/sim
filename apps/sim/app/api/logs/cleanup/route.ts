@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
           results.enhancedLogs.archived++
 
           try {
-            // Delete enhanced log (will cascade to workflowExecutionBlocks due to foreign key)
+            // Delete enhanced log
             const deleteResult = await db
               .delete(workflowExecutionLogs)
               .where(eq(workflowExecutionLogs.id, log.id))

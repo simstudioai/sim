@@ -338,59 +338,6 @@ export const workflowExecutionLogs = pgTable(
   })
 )
 
-export const workflowExecutionBlocks = pgTable(
-  'workflow_execution_blocks',
-  {
-    id: text('id').primaryKey(),
-    executionId: text('execution_id').notNull(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
-    blockId: text('block_id').notNull(),
-    blockName: text('block_name'),
-    blockType: text('block_type').notNull(),
-
-    startedAt: timestamp('started_at').notNull(),
-    endedAt: timestamp('ended_at'),
-    durationMs: integer('duration_ms'),
-
-    status: text('status').notNull(), // 'success', 'error', 'skipped'
-    errorMessage: text('error_message'),
-    errorStackTrace: text('error_stack_trace'),
-
-    inputData: jsonb('input_data'),
-    outputData: jsonb('output_data'),
-
-    costInput: decimal('cost_input', { precision: 10, scale: 6 }),
-    costOutput: decimal('cost_output', { precision: 10, scale: 6 }),
-    costTotal: decimal('cost_total', { precision: 10, scale: 6 }),
-    tokensPrompt: integer('tokens_prompt'),
-    tokensCompletion: integer('tokens_completion'),
-    tokensTotal: integer('tokens_total'),
-    modelUsed: text('model_used'),
-
-    metadata: jsonb('metadata'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    executionIdIdx: index('execution_blocks_execution_id_idx').on(table.executionId),
-    workflowIdIdx: index('execution_blocks_workflow_id_idx').on(table.workflowId),
-    blockIdIdx: index('execution_blocks_block_id_idx').on(table.blockId),
-    statusIdx: index('execution_blocks_status_idx').on(table.status),
-    durationIdx: index('execution_blocks_duration_idx').on(table.durationMs),
-    costIdx: index('execution_blocks_cost_idx').on(table.costTotal),
-    workflowExecutionIdx: index('execution_blocks_workflow_execution_idx').on(
-      table.workflowId,
-      table.executionId
-    ),
-    executionStatusIdx: index('execution_blocks_execution_status_idx').on(
-      table.executionId,
-      table.status
-    ),
-    startedAtIdx: index('execution_blocks_started_at_idx').on(table.startedAt),
-  })
-)
-
 export const environment = pgTable('environment', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')

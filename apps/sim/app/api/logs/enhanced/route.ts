@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { permissions, workflow, workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
+import { permissions, workflow, workflowExecutionLogs } from '@/db/schema'
 
 const logger = createLogger('EnhancedLogsAPI')
 
@@ -183,56 +183,8 @@ export async function GET(request: NextRequest) {
 
       const count = countResult[0]?.count || 0
 
-      // Get block executions for all workflow executions
-      const executionIds = logs.map((log) => log.executionId)
-      let blockExecutionsByExecution: Record<string, any[]> = {}
-
-      if (executionIds.length > 0) {
-        const blockLogs = await db
-          .select()
-          .from(workflowExecutionBlocks)
-          .where(inArray(workflowExecutionBlocks.executionId, executionIds))
-          .orderBy(workflowExecutionBlocks.startedAt)
-
-        // Group block logs by execution ID
-        blockExecutionsByExecution = blockLogs.reduce(
-          (acc, blockLog) => {
-            if (!acc[blockLog.executionId]) {
-              acc[blockLog.executionId] = []
-            }
-            acc[blockLog.executionId].push({
-              id: blockLog.id,
-              blockId: blockLog.blockId,
-              blockName: blockLog.blockName || '',
-              blockType: blockLog.blockType,
-              startedAt: blockLog.startedAt.toISOString(),
-              endedAt: blockLog.endedAt?.toISOString() || blockLog.startedAt.toISOString(),
-              durationMs: blockLog.durationMs || 0,
-              status: blockLog.status,
-              errorMessage: blockLog.errorMessage || undefined,
-              errorStackTrace: blockLog.errorStackTrace || undefined,
-              inputData: blockLog.inputData,
-              outputData: blockLog.outputData,
-              cost: blockLog.costTotal
-                ? {
-                    input: Number(blockLog.costInput) || 0,
-                    output: Number(blockLog.costOutput) || 0,
-                    total: Number(blockLog.costTotal) || 0,
-                    tokens: {
-                      prompt: blockLog.tokensPrompt || 0,
-                      completion: blockLog.tokensCompletion || 0,
-                      total: blockLog.tokensTotal || 0,
-                    },
-                    model: blockLog.modelUsed || '',
-                  }
-                : undefined,
-              metadata: blockLog.metadata || {},
-            })
-            return acc
-          },
-          {} as Record<string, any[]>
-        )
-      }
+      // Block executions are now extracted from trace spans instead of separate table
+      const blockExecutionsByExecution: Record<string, any[]> = {}
 
       // Create clean trace spans from block executions
       const createTraceSpans = (blockExecutions: any[]) => {
@@ -397,87 +349,38 @@ export async function GET(request: NextRequest) {
 
       // Include block execution data if requested
       if (params.includeBlocks) {
-        const executionIds = logs.map((log) => log.executionId)
+        // Block executions are now extracted from stored trace spans in metadata
+        const blockLogsByExecution: Record<string, any[]> = {}
 
-        if (executionIds.length > 0) {
-          const blockLogs = await db
-            .select()
-            .from(workflowExecutionBlocks)
-            .where(inArray(workflowExecutionBlocks.executionId, executionIds))
-            .orderBy(workflowExecutionBlocks.startedAt)
+        logs.forEach((log) => {
+          const storedTraceSpans = (log.metadata as any)?.traceSpans
+          if (storedTraceSpans && Array.isArray(storedTraceSpans)) {
+            blockLogsByExecution[log.executionId] =
+              extractBlockExecutionsFromTraceSpans(storedTraceSpans)
+          } else {
+            blockLogsByExecution[log.executionId] = []
+          }
+        })
 
-          // Group block logs by execution ID
-          const blockLogsByExecution = blockLogs.reduce(
-            (acc, blockLog) => {
-              if (!acc[blockLog.executionId]) {
-                acc[blockLog.executionId] = []
-              }
-              acc[blockLog.executionId].push({
-                id: blockLog.id,
-                blockId: blockLog.blockId,
-                blockName: blockLog.blockName || '',
-                blockType: blockLog.blockType,
-                startedAt: blockLog.startedAt.toISOString(),
-                endedAt: blockLog.endedAt?.toISOString() || blockLog.startedAt.toISOString(),
-                durationMs: blockLog.durationMs || 0,
-                status: blockLog.status,
-                errorMessage: blockLog.errorMessage || undefined,
-                inputData: blockLog.inputData,
-                outputData: blockLog.outputData,
-                cost: blockLog.costTotal
-                  ? {
-                      input: Number(blockLog.costInput) || 0,
-                      output: Number(blockLog.costOutput) || 0,
-                      total: Number(blockLog.costTotal) || 0,
-                      tokens: {
-                        prompt: blockLog.tokensPrompt || 0,
-                        completion: blockLog.tokensCompletion || 0,
-                        total: blockLog.tokensTotal || 0,
-                      },
-                      model: blockLog.modelUsed || '',
-                    }
-                  : undefined,
-              })
-              return acc
-            },
-            {} as Record<string, any[]>
-          )
+        // Add block logs to metadata
+        const logsWithBlocks = enhancedLogs.map((log) => ({
+          ...log,
+          metadata: {
+            ...log.metadata,
+            blockExecutions: blockLogsByExecution[log.executionId] || [],
+          },
+        }))
 
-          // For executions with no block logs in the database,
-          // extract block executions from stored trace spans in metadata
-          logs.forEach((log) => {
-            if (
-              !blockLogsByExecution[log.executionId] ||
-              blockLogsByExecution[log.executionId].length === 0
-            ) {
-              const storedTraceSpans = (log.metadata as any)?.traceSpans
-              if (storedTraceSpans && Array.isArray(storedTraceSpans)) {
-                blockLogsByExecution[log.executionId] =
-                  extractBlockExecutionsFromTraceSpans(storedTraceSpans)
-              }
-            }
-          })
-
-          // Add block logs to metadata
-          const logsWithBlocks = enhancedLogs.map((log) => ({
-            ...log,
-            metadata: {
-              ...log.metadata,
-              blockExecutions: blockLogsByExecution[log.executionId] || [],
-            },
-          }))
-
-          return NextResponse.json(
-            {
-              data: logsWithBlocks,
-              total: Number(count),
-              page: Math.floor(params.offset / params.limit) + 1,
-              pageSize: params.limit,
-              totalPages: Math.ceil(Number(count) / params.limit),
-            },
-            { status: 200 }
-          )
-        }
+        return NextResponse.json(
+          {
+            data: logsWithBlocks,
+            total: Number(count),
+            page: Math.floor(params.offset / params.limit) + 1,
+            pageSize: params.limit,
+            totalPages: Math.ceil(Number(count) / params.limit),
+          },
+          { status: 200 }
+        )
       }
 
       // Return basic logs
