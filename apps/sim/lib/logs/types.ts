@@ -171,7 +171,7 @@ export interface BlockExecutionSummary {
   startedAt: string
   endedAt: string
   durationMs: number
-  status: BlockExecutionLog['status']
+  status: 'success' | 'error' | 'skipped'
   errorMessage?: string
   cost?: CostBreakdown
   inputSummary: {
