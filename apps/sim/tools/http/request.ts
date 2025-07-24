@@ -1,4 +1,4 @@
-import { getEnv } from '@/lib/env'
+import { env } from '@/lib/env'
 import { isTest } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
@@ -15,7 +15,7 @@ const getReferer = (): string => {
   try {
     return getBaseUrl()
   } catch (_error) {
-    return getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000'
+    return env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   }
 }
 

@@ -1,4 +1,4 @@
-import { getEnv } from '@/lib/env'
+import { env } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 
 /**
@@ -10,7 +10,7 @@ export function getBaseUrl(): string {
     return window.location.origin
   }
 
-  const baseUrl = getEnv('NEXT_PUBLIC_APP_URL')
+  const baseUrl = env.NEXT_PUBLIC_APP_URL
   if (baseUrl) {
     if (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')) {
       return baseUrl
@@ -32,7 +32,7 @@ export function getBaseDomain(): string {
     const url = new URL(getBaseUrl())
     return url.host // host includes port if specified
   } catch (_e) {
-    const fallbackUrl = getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000'
+    const fallbackUrl = env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     try {
       return new URL(fallbackUrl).host
     } catch {

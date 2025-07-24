@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react'
 import { useParams } from 'next/navigation'
+import { env as runtimeEnv } from 'next-runtime-env'
 import { io, type Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -155,6 +156,14 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         const token = await generateSocketToken()
 
         const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || 'http://localhost:3002'
+
+        logger.info('Environment variable debug info', {
+          runtimeEnv_value: runtimeEnv('NEXT_PUBLIC_SOCKET_URL'),
+          processEnv_value: process.env.NEXT_PUBLIC_SOCKET_URL,
+          getEnv_value: getEnv('NEXT_PUBLIC_SOCKET_URL'),
+          final_socketUrl: socketUrl,
+          window_env: typeof window !== 'undefined' ? (window as any).__ENV : 'server-side',
+        })
 
         logger.info('Attempting to connect to Socket.IO server', {
           url: socketUrl,
