@@ -128,7 +128,7 @@ export function WorkspaceSelector({
             variant='ghost'
             size='sm'
             disabled={disabled || isLoading || isUpdating}
-            className='h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground'
+            className='h-8 gap-1 px-2 text-muted-foreground text-xs hover:text-foreground'
           >
             <span className='max-w-[120px] truncate'>
               {isLoading
@@ -159,7 +159,7 @@ export function WorkspaceSelector({
             >
               <div className='flex flex-col'>
                 <span>{workspace.name}</span>
-                <span className='text-xs text-muted-foreground capitalize'>
+                <span className='text-muted-foreground text-xs capitalize'>
                   {workspace.permissions}
                 </span>
               </div>
