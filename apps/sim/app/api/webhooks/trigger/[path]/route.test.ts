@@ -32,7 +32,6 @@ const executeMock = vi.fn().mockResolvedValue({
     endTime: new Date().toISOString(),
   },
 })
-const persistExecutionErrorMock = vi.fn().mockResolvedValue(undefined)
 
 // Mock the DB schema objects
 const webhookMock = {
@@ -76,10 +75,6 @@ vi.mock('@/executor', () => ({
   Executor: vi.fn().mockImplementation(() => ({
     execute: executeMock,
   })),
-}))
-
-vi.mock('@/lib/logs/execution-logger', () => ({
-  persistExecutionError: persistExecutionErrorMock,
 }))
 
 // Mock setTimeout and other timer functions

@@ -245,30 +245,6 @@ export const waitlist = pgTable('waitlist', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const workflowLogs = pgTable(
-  'workflow_logs',
-  {
-    id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
-    executionId: text('execution_id'),
-    level: text('level').notNull(), // "info", "error", etc.
-    message: text('message').notNull(),
-    duration: text('duration'), // Store as text to allow 'NA' for errors
-    trigger: text('trigger'), // "api", "schedule", "manual"
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    metadata: json('metadata'),
-  },
-  (table) => ({
-    workflowIdIdx: index('workflow_logs_workflow_id_idx').on(table.workflowId),
-    workflowCreatedIdx: index('workflow_logs_workflow_created_idx').on(
-      table.workflowId,
-      table.createdAt
-    ),
-  })
-)
-
 export const workflowExecutionSnapshots = pgTable(
   'workflow_execution_snapshots',
   {
