@@ -650,7 +650,15 @@ export function KnowledgeBase({
       {/* Fixed Header with Breadcrumbs */}
       <KnowledgeHeader
         breadcrumbs={breadcrumbs}
-        options={{ onDeleteKnowledgeBase: () => setShowDeleteDialog(true) }}
+        options={{
+          knowledgeBaseId: id,
+          currentWorkspaceId: knowledgeBase?.workspaceId || null,
+          onWorkspaceChange: () => {
+            // Refresh the page to reflect the workspace change
+            window.location.reload()
+          },
+          onDeleteKnowledgeBase: () => setShowDeleteDialog(true),
+        }}
       />
 
       <div className='flex flex-1 overflow-hidden'>

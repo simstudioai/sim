@@ -14,6 +14,7 @@ const UpdateKnowledgeBaseSchema = z.object({
   description: z.string().optional(),
   embeddingModel: z.literal('text-embedding-3-small').optional(),
   embeddingDimension: z.literal(1536).optional(),
+  workspaceId: z.string().nullable().optional(),
   chunkingConfig: z
     .object({
       maxSize: z.number(),
@@ -105,6 +106,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (validatedData.name !== undefined) updateData.name = validatedData.name
       if (validatedData.description !== undefined)
         updateData.description = validatedData.description
+      if (validatedData.workspaceId !== undefined)
+        updateData.workspaceId = validatedData.workspaceId
 
       // Handle embedding model and dimension together to ensure consistency
       if (

@@ -773,7 +773,7 @@ export const knowledgeBase = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id),
     name: text('name').notNull(),
     description: text('description'),
 

@@ -8,7 +8,7 @@ const logger = createLogger('WorkspaceByIdAPI')
 
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { permissions, workspace } from '@/db/schema'
+import { knowledgeBase, permissions, workspace } from '@/db/schema'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -125,6 +125,13 @@ export async function DELETE(
       // workflow_logs, workflow_execution_snapshots, workflow_execution_logs, workflow_execution_trace_spans,
       // workflow_schedule, webhook, marketplace, chat, and memory records
       await tx.delete(workflow).where(eq(workflow.workspaceId, workspaceId))
+
+      // Clear workspace ID from knowledge bases instead of deleting them
+      // This allows knowledge bases to become "unassigned" rather than being deleted
+      await tx
+        .update(knowledgeBase)
+        .set({ workspaceId: null, updatedAt: new Date() })
+        .where(eq(knowledgeBase.workspaceId, workspaceId))
 
       // Delete all permissions associated with this workspace
       await tx
