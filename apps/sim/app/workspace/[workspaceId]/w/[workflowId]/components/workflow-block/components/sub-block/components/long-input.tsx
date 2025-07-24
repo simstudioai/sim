@@ -139,7 +139,7 @@ export function LongInput({
     if (valueString !== localText && !aiGeneration?.isStreaming && !aiGeneration?.isLoading) {
       setLocalText(valueString)
     }
-  }, [value, localText, aiGeneration?.isStreaming, aiGeneration?.isLoading])
+  }, [value])
 
   // Set initial height on first render
   useLayoutEffect(() => {
