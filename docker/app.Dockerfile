@@ -37,7 +37,8 @@ RUN bun install sharp
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     VERCEL_TELEMETRY_DISABLED=1 \
-    DOCKER_BUILD=1
+    DOCKER_BUILD=1 \
+    NODE_OPTIONS="--max-old-space-size=8192"
 
 WORKDIR /app
 RUN bun run build

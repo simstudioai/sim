@@ -29,6 +29,8 @@ const nextConfig: NextConfig = {
     turbopackSourceMaps: false,
     webpackMemoryOptimizations: true,
     optimizeServerReact: true,
+    staticGenerationRetryCount: 1,
+    staticGenerationTimeout: 60,
   },
   ...(isDev && {
     allowedDevOrigins: [
