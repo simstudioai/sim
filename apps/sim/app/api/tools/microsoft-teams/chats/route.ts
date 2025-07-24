@@ -114,6 +114,8 @@ const getChatDisplayName = async (
 }
 
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  
   try {
     const session = await getSession()
     const body = await request.json()
@@ -134,7 +136,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      const accessToken = await refreshAccessTokenIfNeeded(credential, userId, body.workflowId)
+      const accessToken = await refreshAccessTokenIfNeeded(credential, userId, requestId)
 
       if (!accessToken) {
         logger.error('Failed to get access token', { credentialId: credential, userId })

@@ -16,6 +16,8 @@ interface SlackChannel {
 }
 
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  
   try {
     const session = await getSession()
     const body = await request.json()
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      const resolvedToken = await refreshAccessTokenIfNeeded(credential, userId, workflowId)
+      const resolvedToken = await refreshAccessTokenIfNeeded(credential, userId, requestId)
       if (!resolvedToken) {
         logger.error('Failed to get access token', { credentialId: credential, userId })
         return NextResponse.json(
