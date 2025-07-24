@@ -264,24 +264,13 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
       {} as Record<string, Record<string, any>>
     )
 
-    // Get workflow variables
-    let workflowVariables = {}
-    if (workflow.variables) {
-      try {
-        // Parse workflow variables if they're stored as a string
-        if (typeof workflow.variables === 'string') {
-          workflowVariables = JSON.parse(workflow.variables)
-        } else {
-          // Otherwise use as is (already parsed JSON)
-          workflowVariables = workflow.variables
-        }
-        logger.debug(
-          `[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${workflowId}`
-        )
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to parse workflow variables: ${workflowId}`, error)
-        // Continue execution even if variables can't be parsed
-      }
+    // Get workflow variables - they are stored as JSON objects in the database
+    const workflowVariables = (workflow.variables as Record<string, any>) || {}
+
+    if (Object.keys(workflowVariables).length > 0) {
+      logger.debug(
+        `[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${workflowId}`
+      )
     } else {
       logger.debug(`[${requestId}] No workflow variables found for: ${workflowId}`)
     }

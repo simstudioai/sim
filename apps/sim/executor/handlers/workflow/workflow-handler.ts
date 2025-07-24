@@ -177,27 +177,12 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowState.parallels || {}
       )
 
-      // Load workflow variables
-      let workflowVariables = {}
-      if (workflowData.variables) {
-        try {
-          // Parse workflow variables if they're stored as a string
-          if (typeof workflowData.variables === 'string') {
-            workflowVariables = JSON.parse(workflowData.variables)
-          } else {
-            // Otherwise use as is (already parsed JSON)
-            workflowVariables = workflowData.variables
-          }
-          logger.info(
-            `Loaded ${Object.keys(workflowVariables).length} variables for child workflow: ${workflowId}`
-          )
-        } catch (error) {
-          logger.error(
-            `Failed to parse workflow variables for child workflow ${workflowId}:`,
-            error
-          )
-          // Continue execution even if variables can't be parsed
-        }
+      const workflowVariables = (workflowData.variables as Record<string, any>) || {}
+
+      if (Object.keys(workflowVariables).length > 0) {
+        logger.info(
+          `Loaded ${Object.keys(workflowVariables).length} variables for child workflow: ${workflowId}`
+        )
       } else {
         logger.debug(`No workflow variables found for child workflow: ${workflowId}`)
       }
