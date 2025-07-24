@@ -10,13 +10,13 @@ import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useUserPermissionsContext } from '../providers/workspace-permissions-provider'
 import { SearchModal } from '../search-modal/search-modal'
 import { CreateMenu } from './components/create-menu/create-menu'
 import { FolderTree } from './components/folder-tree/folder-tree'

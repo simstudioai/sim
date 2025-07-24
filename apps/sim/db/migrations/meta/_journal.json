@@ -414,6 +414,13 @@
       "when": 1753310161586,
       "tag": "0059_odd_may_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1753323514125,
+      "tag": "0060_ordinary_nick_fury",
+      "breakpoints": true
     }
   ]
 }

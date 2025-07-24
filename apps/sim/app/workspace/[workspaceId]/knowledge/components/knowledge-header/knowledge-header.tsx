@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { WorkspaceSelector } from '../workspace-selector/workspace-selector'
 
 interface BreadcrumbItem {
   label: string
@@ -24,10 +25,13 @@ const HEADER_STYLES = {
   label: 'font-medium text-sm',
   separator: 'text-muted-foreground',
   // Always reserve consistent space for actions area
-  actionsContainer: 'flex h-8 w-8 items-center justify-center',
+  actionsContainer: 'flex h-8 items-center justify-center gap-2',
 } as const
 
 interface KnowledgeHeaderOptions {
+  knowledgeBaseId?: string
+  currentWorkspaceId?: string | null
+  onWorkspaceChange?: (workspaceId: string | null) => void
   onDeleteKnowledgeBase?: () => void
 }
 
@@ -64,6 +68,16 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
 
       {/* Actions Area - always reserve consistent space */}
       <div className={HEADER_STYLES.actionsContainer}>
+        {/* Workspace Selector */}
+        {options?.knowledgeBaseId && (
+          <WorkspaceSelector
+            knowledgeBaseId={options.knowledgeBaseId}
+            currentWorkspaceId={options.currentWorkspaceId || null}
+            onWorkspaceChange={options.onWorkspaceChange}
+          />
+        )}
+
+        {/* Actions Menu */}
         {options?.onDeleteKnowledgeBase && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

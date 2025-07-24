@@ -56,10 +56,11 @@ export function useKnowledgeBaseDocuments(
   const documentsCache = getCachedDocuments(knowledgeBaseId)
   const allDocuments = documentsCache?.documents || []
   const isLoading = loadingDocuments.has(knowledgeBaseId)
+  const hasBeenLoaded = documentsCache !== null // Check if we have any cache entry, even if empty
 
   // Load all documents on initial mount
   useEffect(() => {
-    if (!knowledgeBaseId || allDocuments.length > 0 || isLoading) return
+    if (!knowledgeBaseId || hasBeenLoaded || isLoading) return
 
     let isMounted = true
 
@@ -79,7 +80,7 @@ export function useKnowledgeBaseDocuments(
     return () => {
       isMounted = false
     }
-  }, [knowledgeBaseId, allDocuments.length, isLoading, getDocuments])
+  }, [knowledgeBaseId, hasBeenLoaded, isLoading, getDocuments])
 
   // Client-side filtering and pagination
   const { documents, pagination } = useMemo(() => {
@@ -134,7 +135,7 @@ export function useKnowledgeBaseDocuments(
   }
 }
 
-export function useKnowledgeBasesList() {
+export function useKnowledgeBasesList(workspaceId?: string) {
   const {
     getKnowledgeBasesList,
     knowledgeBasesList,
@@ -162,7 +163,7 @@ export function useKnowledgeBasesList() {
 
       try {
         setError(null)
-        await getKnowledgeBasesList()
+        await getKnowledgeBasesList(workspaceId)
 
         // Reset retry count on success
         if (isMounted) {
@@ -203,14 +204,14 @@ export function useKnowledgeBasesList() {
         clearTimeout(retryTimeoutId)
       }
     }
-  }, [knowledgeBasesListLoaded, loadingKnowledgeBasesList, getKnowledgeBasesList])
+  }, [knowledgeBasesListLoaded, loadingKnowledgeBasesList, getKnowledgeBasesList, workspaceId])
 
   const refreshList = async () => {
     try {
       setError(null)
       setRetryCount(0)
       clearKnowledgeBasesList()
-      await getKnowledgeBasesList()
+      await getKnowledgeBasesList(workspaceId)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to refresh knowledge bases'
       setError(errorMessage)
@@ -232,7 +233,7 @@ export function useKnowledgeBasesList() {
     })
 
     try {
-      await getKnowledgeBasesList()
+      await getKnowledgeBasesList(workspaceId)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to refresh knowledge bases'
       setError(errorMessage)

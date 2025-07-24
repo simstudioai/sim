@@ -4,6 +4,7 @@ import { processDocument } from '@/lib/documents/document-processor'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { document, embedding, knowledgeBase } from '@/db/schema'
 
@@ -174,6 +175,7 @@ export async function checkKnowledgeBaseAccess(
     .select({
       id: knowledgeBase.id,
       userId: knowledgeBase.userId,
+      workspaceId: knowledgeBase.workspaceId,
     })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
@@ -185,11 +187,116 @@ export async function checkKnowledgeBaseAccess(
 
   const kbData = kb[0]
 
+  // Case 1: User owns the knowledge base directly
   if (kbData.userId === userId) {
     return { hasAccess: true, knowledgeBase: kbData }
   }
 
+  // Case 2: Knowledge base belongs to a workspace the user has permissions for
+  if (kbData.workspaceId) {
+    const userPermission = await getUserEntityPermissions(userId, 'workspace', kbData.workspaceId)
+    if (userPermission !== null) {
+      return { hasAccess: true, knowledgeBase: kbData }
+    }
+  }
+
   return { hasAccess: false }
+}
+
+/**
+ * Check if a user has write access to a knowledge base
+ * Write access is granted if:
+ * 1. User owns the knowledge base directly, OR
+ * 2. User has write or admin permissions on the knowledge base's workspace
+ */
+export async function checkKnowledgeBaseWriteAccess(
+  knowledgeBaseId: string,
+  userId: string
+): Promise<KnowledgeBaseAccessCheck> {
+  const kb = await db
+    .select({
+      id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
+      workspaceId: knowledgeBase.workspaceId,
+    })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
+
+  if (kb.length === 0) {
+    return { hasAccess: false, notFound: true }
+  }
+
+  const kbData = kb[0]
+
+  // Case 1: User owns the knowledge base directly
+  if (kbData.userId === userId) {
+    return { hasAccess: true, knowledgeBase: kbData }
+  }
+
+  // Case 2: Knowledge base belongs to a workspace and user has write/admin permissions
+  if (kbData.workspaceId) {
+    const userPermission = await getUserEntityPermissions(userId, 'workspace', kbData.workspaceId)
+    if (userPermission === 'write' || userPermission === 'admin') {
+      return { hasAccess: true, knowledgeBase: kbData }
+    }
+  }
+
+  return { hasAccess: false }
+}
+
+/**
+ * Check if a user has write access to a specific document
+ * Write access is granted if user has write access to the knowledge base
+ */
+export async function checkDocumentWriteAccess(
+  knowledgeBaseId: string,
+  documentId: string,
+  userId: string
+): Promise<DocumentAccessCheck> {
+  // First check if user has write access to the knowledge base
+  const kbAccess = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, userId)
+
+  if (!kbAccess.hasAccess) {
+    return {
+      hasAccess: false,
+      notFound: kbAccess.notFound,
+      reason: kbAccess.notFound ? 'Knowledge base not found' : 'Unauthorized knowledge base access',
+    }
+  }
+
+  // Check if document exists
+  const doc = await db
+    .select({
+      id: document.id,
+      filename: document.filename,
+      fileUrl: document.fileUrl,
+      fileSize: document.fileSize,
+      mimeType: document.mimeType,
+      chunkCount: document.chunkCount,
+      tokenCount: document.tokenCount,
+      characterCount: document.characterCount,
+      enabled: document.enabled,
+      processingStatus: document.processingStatus,
+      processingError: document.processingError,
+      uploadedAt: document.uploadedAt,
+      processingStartedAt: document.processingStartedAt,
+      processingCompletedAt: document.processingCompletedAt,
+      knowledgeBaseId: document.knowledgeBaseId,
+    })
+    .from(document)
+    .where(and(eq(document.id, documentId), isNull(document.deletedAt)))
+    .limit(1)
+
+  if (doc.length === 0) {
+    return { hasAccess: false, notFound: true, reason: 'Document not found' }
+  }
+
+  return {
+    hasAccess: true,
+    document: doc[0] as DocumentData,
+    knowledgeBase: kbAccess.knowledgeBase!,
+  }
 }
 
 /**
@@ -200,27 +307,15 @@ export async function checkDocumentAccess(
   documentId: string,
   userId: string
 ): Promise<DocumentAccessCheck> {
-  const kb = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-    })
-    .from(knowledgeBase)
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-    .limit(1)
+  // First check if user has access to the knowledge base
+  const kbAccess = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
 
-  if (kb.length === 0) {
+  if (!kbAccess.hasAccess) {
     return {
       hasAccess: false,
-      notFound: true,
-      reason: 'Knowledge base not found',
+      notFound: kbAccess.notFound,
+      reason: kbAccess.notFound ? 'Knowledge base not found' : 'Unauthorized knowledge base access',
     }
-  }
-
-  const kbData = kb[0]
-
-  if (kbData.userId !== userId) {
-    return { hasAccess: false, reason: 'Unauthorized knowledge base access' }
   }
 
   const doc = await db
@@ -242,7 +337,7 @@ export async function checkDocumentAccess(
   return {
     hasAccess: true,
     document: doc[0] as DocumentData,
-    knowledgeBase: kbData,
+    knowledgeBase: kbAccess.knowledgeBase!,
   }
 }
 
@@ -255,27 +350,15 @@ export async function checkChunkAccess(
   chunkId: string,
   userId: string
 ): Promise<ChunkAccessCheck> {
-  const kb = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-    })
-    .from(knowledgeBase)
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-    .limit(1)
+  // First check if user has access to the knowledge base
+  const kbAccess = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
 
-  if (kb.length === 0) {
+  if (!kbAccess.hasAccess) {
     return {
       hasAccess: false,
-      notFound: true,
-      reason: 'Knowledge base not found',
+      notFound: kbAccess.notFound,
+      reason: kbAccess.notFound ? 'Knowledge base not found' : 'Unauthorized knowledge base access',
     }
-  }
-
-  const kbData = kb[0]
-
-  if (kbData.userId !== userId) {
-    return { hasAccess: false, reason: 'Unauthorized knowledge base access' }
   }
 
   const doc = await db
@@ -318,7 +401,7 @@ export async function checkChunkAccess(
     hasAccess: true,
     chunk: chunk[0] as EmbeddingData,
     document: docData,
-    knowledgeBase: kbData,
+    knowledgeBase: kbAccess.knowledgeBase!,
   }
 }
 

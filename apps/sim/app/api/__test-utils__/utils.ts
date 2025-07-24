@@ -647,6 +647,15 @@ export function mockKnowledgeSchemas() {
       tag7: 'tag7',
       createdAt: 'created_at',
     },
+    permissions: {
+      id: 'permission_id',
+      userId: 'user_id',
+      entityType: 'entity_type',
+      entityId: 'entity_id',
+      permissionType: 'permission_type',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    },
   }))
 }
 

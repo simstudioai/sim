@@ -36,6 +36,7 @@ import { PrimaryButton } from '@/app/workspace/[workspaceId]/knowledge/component
 import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
+import { useUserPermissionsContext } from '../../components/providers/workspace-permissions-provider'
 import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
 import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowledge-base-loading'
 import { UploadModal } from './components/upload-modal/upload-modal'
@@ -120,6 +121,7 @@ export function KnowledgeBase({
   knowledgeBaseName: passedKnowledgeBaseName,
 }: KnowledgeBaseProps) {
   const { removeKnowledgeBase } = useKnowledgeStore()
+  const userPermissions = useUserPermissionsContext()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -648,7 +650,15 @@ export function KnowledgeBase({
       {/* Fixed Header with Breadcrumbs */}
       <KnowledgeHeader
         breadcrumbs={breadcrumbs}
-        options={{ onDeleteKnowledgeBase: () => setShowDeleteDialog(true) }}
+        options={{
+          knowledgeBaseId: id,
+          currentWorkspaceId: knowledgeBase?.workspaceId || null,
+          onWorkspaceChange: () => {
+            // Refresh the page to reflect the workspace change
+            window.location.reload()
+          },
+          onDeleteKnowledgeBase: () => setShowDeleteDialog(true),
+        }}
       />
 
       <div className='flex flex-1 overflow-hidden'>
@@ -680,10 +690,20 @@ export function KnowledgeBase({
                     )}
 
                     {/* Add Documents Button */}
-                    <PrimaryButton onClick={handleAddDocuments}>
-                      <Plus className='h-3.5 w-3.5' />
-                      Add Documents
-                    </PrimaryButton>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PrimaryButton
+                          onClick={handleAddDocuments}
+                          disabled={userPermissions.canEdit !== true}
+                        >
+                          <Plus className='h-3.5 w-3.5' />
+                          Add Documents
+                        </PrimaryButton>
+                      </TooltipTrigger>
+                      {userPermissions.canEdit !== true && (
+                        <TooltipContent>Write permission required to add documents</TooltipContent>
+                      )}
+                    </Tooltip>
                   </div>
                 </div>
               </div>
@@ -716,6 +736,7 @@ export function KnowledgeBase({
                           <Checkbox
                             checked={isAllSelected}
                             onCheckedChange={handleSelectAll}
+                            disabled={!userPermissions.canEdit}
                             aria-label='Select all documents'
                             className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
                           />
@@ -871,6 +892,7 @@ export function KnowledgeBase({
                                   onCheckedChange={(checked) =>
                                     handleSelectDocument(doc.id, checked as boolean)
                                   }
+                                  disabled={!userPermissions.canEdit}
                                   onClick={(e) => e.stopPropagation()}
                                   aria-label={`Select ${doc.filename}`}
                                   className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
@@ -1000,7 +1022,8 @@ export function KnowledgeBase({
                                         }}
                                         disabled={
                                           doc.processingStatus === 'processing' ||
-                                          doc.processingStatus === 'pending'
+                                          doc.processingStatus === 'pending' ||
+                                          !userPermissions.canEdit
                                         }
                                         className='h-8 w-8 p-0 text-gray-500 hover:text-gray-700 disabled:opacity-50'
                                       >
@@ -1015,9 +1038,11 @@ export function KnowledgeBase({
                                       {doc.processingStatus === 'processing' ||
                                       doc.processingStatus === 'pending'
                                         ? 'Cannot modify while processing'
-                                        : doc.enabled
-                                          ? 'Disable Document'
-                                          : 'Enable Document'}
+                                        : !userPermissions.canEdit
+                                          ? 'Write permission required to modify documents'
+                                          : doc.enabled
+                                            ? 'Disable Document'
+                                            : 'Enable Document'}
                                     </TooltipContent>
                                   </Tooltip>
 
@@ -1030,7 +1055,10 @@ export function KnowledgeBase({
                                           e.stopPropagation()
                                           handleDeleteDocument(doc.id)
                                         }}
-                                        disabled={doc.processingStatus === 'processing'}
+                                        disabled={
+                                          doc.processingStatus === 'processing' ||
+                                          !userPermissions.canEdit
+                                        }
                                         className='h-8 w-8 p-0 text-gray-500 hover:text-red-600 disabled:opacity-50'
                                       >
                                         <Trash2 className='h-4 w-4' />
@@ -1039,7 +1067,9 @@ export function KnowledgeBase({
                                     <TooltipContent side='top'>
                                       {doc.processingStatus === 'processing'
                                         ? 'Cannot delete while processing'
-                                        : 'Delete Document'}
+                                        : !userPermissions.canEdit
+                                          ? 'Write permission required to delete documents'
+                                          : 'Delete Document'}
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>

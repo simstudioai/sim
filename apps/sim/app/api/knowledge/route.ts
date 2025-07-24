@@ -1,10 +1,11 @@
-import { and, count, eq, isNull } from 'drizzle-orm'
+import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { document, knowledgeBase } from '@/db/schema'
+import { document, knowledgeBase, permissions } from '@/db/schema'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
@@ -40,13 +41,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Build where conditions
-    const whereConditions = [
-      eq(knowledgeBase.userId, session.user.id),
-      isNull(knowledgeBase.deletedAt),
-    ]
+    // Check for workspace filtering
+    const { searchParams } = new URL(req.url)
+    const workspaceId = searchParams.get('workspaceId')
 
-    // Get knowledge bases with document counts
+    // Get knowledge bases that user can access through direct ownership OR workspace permissions
     const knowledgeBasesWithCounts = await db
       .select({
         id: knowledgeBase.id,
@@ -66,7 +65,34 @@ export async function GET(req: NextRequest) {
         document,
         and(eq(document.knowledgeBaseId, knowledgeBase.id), isNull(document.deletedAt))
       )
-      .where(and(...whereConditions))
+      .leftJoin(
+        permissions,
+        and(
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, knowledgeBase.workspaceId),
+          eq(permissions.userId, session.user.id)
+        )
+      )
+      .where(
+        and(
+          isNull(knowledgeBase.deletedAt),
+          workspaceId
+            ? // When filtering by workspace
+              or(
+                // Knowledge bases belonging to the specified workspace (user must have workspace permissions)
+                and(eq(knowledgeBase.workspaceId, workspaceId), isNotNull(permissions.userId)),
+                // Fallback: User-owned knowledge bases without workspace (legacy)
+                and(eq(knowledgeBase.userId, session.user.id), isNull(knowledgeBase.workspaceId))
+              )
+            : // When not filtering by workspace, use original logic
+              or(
+                // User owns the knowledge base directly
+                eq(knowledgeBase.userId, session.user.id),
+                // User has permissions on the knowledge base's workspace
+                isNotNull(permissions.userId)
+              )
+        )
+      )
       .groupBy(knowledgeBase.id)
       .orderBy(knowledgeBase.createdAt)
 
@@ -94,6 +120,24 @@ export async function POST(req: NextRequest) {
 
     try {
       const validatedData = CreateKnowledgeBaseSchema.parse(body)
+
+      // If creating in a workspace, check if user has write/admin permissions
+      if (validatedData.workspaceId) {
+        const userPermission = await getUserEntityPermissions(
+          session.user.id,
+          'workspace',
+          validatedData.workspaceId
+        )
+        if (userPermission !== 'write' && userPermission !== 'admin') {
+          logger.warn(
+            `[${requestId}] User ${session.user.id} denied permission to create knowledge base in workspace ${validatedData.workspaceId}`
+          )
+          return NextResponse.json(
+            { error: 'Insufficient permissions to create knowledge base in this workspace' },
+            { status: 403 }
+          )
+        }
+      }
 
       const id = crypto.randomUUID()
       const now = new Date()

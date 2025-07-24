@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { generateFolderName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import { useFolderStore } from '@/stores/folders/store'
 import { ImportControls, type ImportControlsRef } from './import-controls'
 
