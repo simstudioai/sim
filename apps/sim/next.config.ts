@@ -30,8 +30,8 @@ const nextConfig: NextConfig = {
     webpackMemoryOptimizations: true,
     optimizeServerReact: true,
     ...(isTruthy(env.DOCKER_BUILD) && {
-      staticPageGenerationTimeout: 60,
-      manualClientBasePath: false,
+      staticGenerationRetryCount: 1,
+      staticGenerationTimeout: 60,
     }),
   },
   ...(isDev && {

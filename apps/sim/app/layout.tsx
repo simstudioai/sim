@@ -8,6 +8,8 @@ import './globals.css'
 
 import { ZoomPrevention } from './zoom-prevention'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('RootLayout')
 
 const BROWSER_EXTENSION_ATTRIBUTES = [
