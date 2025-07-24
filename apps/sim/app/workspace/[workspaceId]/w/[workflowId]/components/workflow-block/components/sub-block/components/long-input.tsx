@@ -7,9 +7,9 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { CodePromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/code-prompt-bar/code-prompt-bar'
+import { useCodeGeneration } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-code-generation'
 import type { SubBlockConfig } from '@/blocks/types'
-import { CodePromptBar } from '../../../../../components/code-prompt-bar/code-prompt-bar'
-import { useCodeGeneration } from '../../../../../hooks/use-code-generation'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 const logger = createLogger('LongInput')
@@ -102,10 +102,6 @@ export function LongInput({
 
   // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
-
-  // Current display value: use localText during streaming, otherwise use value
-  const displayValue =
-    aiGeneration?.isStreaming || aiGeneration?.isLoading ? localText : (value?.toString() ?? '')
 
   // Define the handlers now that we have access to setStoreValue
   handleStreamStartRef.current = () => {
@@ -352,7 +348,7 @@ export function LongInput({
           isLoading={aiGeneration?.isLoading ?? false}
           isStreaming={aiGeneration?.isStreaming ?? false}
           promptValue={aiGeneration?.promptInputValue ?? ''}
-          onSubmit={(prompt) => aiGeneration?.generateStream({ prompt, context: displayValue })}
+          onSubmit={(prompt) => aiGeneration?.generateStream({ prompt, context: localText })}
           onCancel={() => {
             if (aiGeneration?.isStreaming) {
               aiGeneration?.cancelGeneration?.()
@@ -379,7 +375,7 @@ export function LongInput({
             )}
             rows={rows ?? DEFAULT_ROWS}
             placeholder={placeholder ?? ''}
-            value={displayValue}
+            value={localText}
             onChange={handleChange}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -413,7 +409,7 @@ export function LongInput({
               overflow: 'hidden',
             }}
           >
-            {formatDisplayText(displayValue, true)}
+            {formatDisplayText(localText, true)}
           </div>
         </div>
 
@@ -457,7 +453,7 @@ export function LongInput({
             }
           }}
           searchTerm={searchTerm}
-          inputValue={displayValue}
+          inputValue={localText}
           cursorPosition={cursorPosition}
           onClose={() => {
             setShowEnvVars(false)
@@ -475,7 +471,7 @@ export function LongInput({
           }}
           blockId={blockId}
           activeSourceBlockId={activeSourceBlockId}
-          inputValue={displayValue}
+          inputValue={localText}
           cursorPosition={cursorPosition}
           onClose={() => {
             setShowTags(false)
