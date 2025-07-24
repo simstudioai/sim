@@ -107,6 +107,9 @@ export function SubBlock({
             isPreview={isPreview}
             previewValue={previewValue}
             disabled={isDisabled}
+            enableWand={config.enableWand}
+            wandGenerationType={config.wandGenerationType}
+            wandPlaceholder={config.wandPlaceholder}
           />
         )
       case 'dropdown':
