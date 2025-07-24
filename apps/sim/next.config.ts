@@ -29,8 +29,10 @@ const nextConfig: NextConfig = {
     turbopackSourceMaps: false,
     webpackMemoryOptimizations: true,
     optimizeServerReact: true,
-    staticGenerationRetryCount: 1,
-    staticGenerationTimeout: 60,
+    ...(isTruthy(env.DOCKER_BUILD) && {
+      staticPageGenerationTimeout: 60,
+      manualClientBasePath: false,
+    }),
   },
   ...(isDev && {
     allowedDevOrigins: [
