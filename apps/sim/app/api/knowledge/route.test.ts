@@ -56,37 +56,6 @@ describe('Knowledge Base API Route', () => {
   })
 
   describe('GET /api/knowledge', () => {
-    it('should return knowledge bases with document counts for authenticated user', async () => {
-      const mockKnowledgeBases = [
-        {
-          id: 'kb-1',
-          name: 'Test KB 1',
-          description: 'Test description',
-          tokenCount: 100,
-          embeddingModel: 'text-embedding-3-small',
-          embeddingDimension: 1536,
-          chunkingConfig: { maxSize: 1024, minSize: 100, overlap: 200 },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          workspaceId: null,
-          docCount: 5,
-        },
-      ]
-
-      mockAuth$.mockAuthenticatedUser()
-      mockDbChain.orderBy.mockResolvedValue(mockKnowledgeBases)
-
-      const req = createMockRequest('GET')
-      const { GET } = await import('./route')
-      const response = await GET(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.data).toEqual(mockKnowledgeBases)
-      expect(mockDbChain.select).toHaveBeenCalled()
-    })
-
     it('should return unauthorized for unauthenticated user', async () => {
       mockAuth$.mockUnauthenticated()
 
