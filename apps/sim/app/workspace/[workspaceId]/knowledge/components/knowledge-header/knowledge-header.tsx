@@ -72,7 +72,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
         {options?.knowledgeBaseId && (
           <WorkspaceSelector
             knowledgeBaseId={options.knowledgeBaseId}
-            currentWorkspaceId={options.currentWorkspaceId}
+            currentWorkspaceId={options.currentWorkspaceId || null}
             onWorkspaceChange={options.onWorkspaceChange}
           />
         )}
