@@ -131,12 +131,6 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should handle errors during scheduled execution gracefully', async () => {
-    const persistExecutionErrorMock = vi.fn().mockResolvedValue(undefined)
-
-    vi.doMock('@/lib/logs/execution-logger', () => ({
-      persistExecutionError: persistExecutionErrorMock,
-    }))
-
     vi.doMock('@/executor', () => ({
       Executor: vi.fn().mockImplementation(() => ({
         execute: vi.fn().mockRejectedValue(new Error('Execution failed')),
