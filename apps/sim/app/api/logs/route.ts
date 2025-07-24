@@ -22,6 +22,7 @@ const QueryParamsSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   search: z.string().optional(),
+  workspaceId: z.string(),
 })
 
 // Used to retrieve and display workflow logs
@@ -41,10 +42,15 @@ export async function GET(request: NextRequest) {
       const { searchParams } = new URL(request.url)
       const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
+      const workflowConditions = and(
+        eq(workflow.workspaceId, params.workspaceId),
+        eq(workflow.userId, userId)
+      )
+
       const userWorkflows = await db
         .select({ id: workflow.id, folderId: workflow.folderId })
         .from(workflow)
-        .where(eq(workflow.userId, userId))
+        .where(workflowConditions)
 
       const userWorkflowIds = userWorkflows.map((w) => w.id)
 

@@ -235,6 +235,18 @@ export class PathTracker {
     for (const conn of targetConnections) {
       context.activeExecutionPath.add(conn.target)
       logger.debug(`Condition ${block.id} activated path to: ${conn.target}`)
+
+      // Check if the selected target should activate downstream paths
+      const selectedBlock = this.getBlock(conn.target)
+      const selectedBlockType = selectedBlock?.metadata?.id || ''
+      const selectedCategory = Routing.getCategory(selectedBlockType)
+
+      // Only activate downstream paths for regular blocks
+      // Routing blocks make their own routing decisions when they execute
+      // Flow control blocks manage their own path activation
+      if (selectedCategory === 'regular') {
+        this.activateDownstreamPathsSelectively(conn.target, context)
+      }
     }
   }
 

@@ -35,7 +35,7 @@ export function ControlBar() {
 
   const fetchLogs = async () => {
     try {
-      const queryParams = buildQueryParams(1, 50) // Get first 50 logs for refresh
+      const queryParams = buildQueryParams(1, 50)
       const response = await fetch(`/api/logs/enhanced?${queryParams}`)
 
       if (!response.ok) {

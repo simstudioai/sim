@@ -121,8 +121,7 @@ export const env = createEnv({
     SOCKET_PORT: z.number().optional(),
     PORT: z.number().optional(),
     ALLOWED_ORIGINS: z.string().optional(),
-    // Job Queue Configuration
-    JOB_RETENTION_DAYS: z.string().optional().default('1'), // How long to keep completed jobs
+    JOB_RETENTION_DAYS: z.string().optional().default('1'),
   },
 
   client: {

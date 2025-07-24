@@ -71,7 +71,7 @@ describe('Chat Edit API Route', () => {
     }))
 
     vi.doMock('@/lib/urls/utils', () => ({
-      getBaseDomain: vi.fn().mockReturnValue('localhost:3000'),
+      getEmailDomain: vi.fn().mockReturnValue('localhost:3000'),
     }))
 
     vi.doMock('@/lib/environment', () => ({

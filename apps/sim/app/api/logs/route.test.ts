@@ -4,7 +4,6 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('Workflow Logs API Route', () => {
   const mockWorkflowLogs = [
@@ -54,6 +53,7 @@ describe('Workflow Logs API Route', () => {
     {
       id: 'workflow-1',
       userId: 'user-123',
+      workspaceId: 'workspace-123',
       folderId: 'folder-1',
       name: 'Test Workflow 1',
       color: '#3972F6',
@@ -65,6 +65,7 @@ describe('Workflow Logs API Route', () => {
     {
       id: 'workflow-2',
       userId: 'user-123',
+      workspaceId: 'workspace-123',
       folderId: 'folder-2',
       name: 'Test Workflow 2',
       color: '#FF6B6B',
@@ -76,6 +77,7 @@ describe('Workflow Logs API Route', () => {
     {
       id: 'workflow-3',
       userId: 'user-123',
+      workspaceId: 'workspace-123',
       folderId: null,
       name: 'Test Workflow 3',
       color: '#22C55E',
@@ -192,6 +194,7 @@ describe('Workflow Logs API Route', () => {
       workflow: {
         id: 'workflow.id',
         userId: 'workflow.userId',
+        workspaceId: 'workflow.workspaceId',
         name: 'workflow.name',
         color: 'workflow.color',
         description: 'workflow.description',
@@ -212,10 +215,11 @@ describe('Workflow Logs API Route', () => {
     it('should return logs successfully with default parameters', async () => {
       setupDatabaseMock()
 
-      const req = createMockRequest('GET')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123')
+      const req = new Request(url.toString())
 
       const { GET } = await import('./route')
-      const response = await GET(req)
+      const response = await GET(req as any)
       const data = await response.json()
 
       expect(response.status).toBe(200)
@@ -231,7 +235,9 @@ describe('Workflow Logs API Route', () => {
     it('should include workflow data when includeWorkflow=true', async () => {
       setupDatabaseMock()
 
-      const url = new URL('http://localhost:3000/api/logs?includeWorkflow=true')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&includeWorkflow=true'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -248,7 +254,7 @@ describe('Workflow Logs API Route', () => {
       const errorLogs = mockWorkflowLogs.filter((log) => log.level === 'error')
       setupDatabaseMock({ logs: errorLogs })
 
-      const url = new URL('http://localhost:3000/api/logs?level=error')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123&level=error')
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -264,7 +270,9 @@ describe('Workflow Logs API Route', () => {
       const workflow1Logs = mockWorkflowLogs.filter((log) => log.workflowId === 'workflow-1')
       setupDatabaseMock({ logs: workflow1Logs })
 
-      const url = new URL('http://localhost:3000/api/logs?workflowIds=workflow-1')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&workflowIds=workflow-1'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -283,7 +291,9 @@ describe('Workflow Logs API Route', () => {
       )
       setupDatabaseMock({ logs: filteredLogs })
 
-      const url = new URL('http://localhost:3000/api/logs?workflowIds=workflow-1,workflow-2')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&workflowIds=workflow-1,workflow-2'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -301,7 +311,9 @@ describe('Workflow Logs API Route', () => {
       )
       setupDatabaseMock({ logs: filteredLogs })
 
-      const url = new URL(`http://localhost:3000/api/logs?startDate=${startDate}`)
+      const url = new URL(
+        `http://localhost:3000/api/logs?workspaceId=workspace-123&startDate=${startDate}`
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -318,7 +330,7 @@ describe('Workflow Logs API Route', () => {
       )
       setupDatabaseMock({ logs: searchLogs })
 
-      const url = new URL('http://localhost:3000/api/logs?search=failed')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123&search=failed')
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -334,7 +346,9 @@ describe('Workflow Logs API Route', () => {
       const paginatedLogs = mockWorkflowLogs.slice(1, 3)
       setupDatabaseMock({ logs: paginatedLogs })
 
-      const url = new URL('http://localhost:3000/api/logs?limit=2&offset=1')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&limit=2&offset=1'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -352,10 +366,11 @@ describe('Workflow Logs API Route', () => {
     it('should return empty array when user has no workflows', async () => {
       setupDatabaseMock({ userWorkflows: [], logs: [], workflows: [] })
 
-      const req = createMockRequest('GET')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123')
+      const req = new Request(url.toString())
 
       const { GET } = await import('./route')
-      const response = await GET(req)
+      const response = await GET(req as any)
       const data = await response.json()
 
       expect(response.status).toBe(200)
@@ -369,7 +384,9 @@ describe('Workflow Logs API Route', () => {
         userWorkflows: mockWorkflows.filter((w) => w.id !== 'unauthorized-workflow'),
       })
 
-      const url = new URL('http://localhost:3000/api/logs?workflowIds=unauthorized-workflow')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&workflowIds=unauthorized-workflow'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -388,10 +405,11 @@ describe('Workflow Logs API Route', () => {
 
       setupDatabaseMock()
 
-      const req = createMockRequest('GET')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123')
+      const req = new Request(url.toString())
 
       const { GET } = await import('./route')
-      const response = await GET(req)
+      const response = await GET(req as any)
       const data = await response.json()
 
       expect(response.status).toBe(401)
@@ -401,7 +419,7 @@ describe('Workflow Logs API Route', () => {
     it('should validate query parameters', async () => {
       setupDatabaseMock()
 
-      const url = new URL('http://localhost:3000/api/logs?limit=invalid')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123&limit=invalid')
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -416,10 +434,11 @@ describe('Workflow Logs API Route', () => {
     it('should handle database errors gracefully', async () => {
       setupDatabaseMock({ throwError: true })
 
-      const req = createMockRequest('GET')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123')
+      const req = new Request(url.toString())
 
       const { GET } = await import('./route')
-      const response = await GET(req)
+      const response = await GET(req as any)
       const data = await response.json()
 
       expect(response.status).toBe(500)
@@ -436,7 +455,7 @@ describe('Workflow Logs API Route', () => {
       setupDatabaseMock({ logs: filteredLogs })
 
       const url = new URL(
-        'http://localhost:3000/api/logs?level=info&workflowIds=workflow-1&search=started'
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&level=info&workflowIds=workflow-1&search=started'
       )
       const req = new Request(url.toString())
 
@@ -458,7 +477,9 @@ describe('Workflow Logs API Route', () => {
       )
       setupDatabaseMock({ logs: filteredLogs })
 
-      const url = new URL(`http://localhost:3000/api/logs?endDate=${endDate}`)
+      const url = new URL(
+        `http://localhost:3000/api/logs?workspaceId=workspace-123&endDate=${endDate}`
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -472,7 +493,9 @@ describe('Workflow Logs API Route', () => {
     it('should handle large offset values', async () => {
       setupDatabaseMock({ logs: [] })
 
-      const url = new URL('http://localhost:3000/api/logs?limit=10&offset=1000')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&limit=10&offset=1000'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -489,7 +512,7 @@ describe('Workflow Logs API Route', () => {
       const searchLogs = mockWorkflowLogs.filter((log) => log.executionId?.includes('exec-1'))
       setupDatabaseMock({ logs: searchLogs })
 
-      const url = new URL('http://localhost:3000/api/logs?search=exec-1')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123&search=exec-1')
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -505,7 +528,7 @@ describe('Workflow Logs API Route', () => {
       const apiLogs = mockWorkflowLogs.filter((log) => log.trigger === 'api')
       setupDatabaseMock({ logs: apiLogs })
 
-      const url = new URL('http://localhost:3000/api/logs?triggers=api')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123&triggers=api')
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -523,7 +546,9 @@ describe('Workflow Logs API Route', () => {
       )
       setupDatabaseMock({ logs: manualAndApiLogs })
 
-      const url = new URL('http://localhost:3000/api/logs?triggers=manual,api')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&triggers=manual,api'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -542,7 +567,7 @@ describe('Workflow Logs API Route', () => {
       setupDatabaseMock({ logs: filteredLogs })
 
       const url = new URL(
-        'http://localhost:3000/api/logs?triggers=manual&level=info&workflowIds=workflow-1'
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&triggers=manual&level=info&workflowIds=workflow-1'
       )
       const req = new Request(url.toString())
 
@@ -561,7 +586,9 @@ describe('Workflow Logs API Route', () => {
       const folder1Logs = mockWorkflowLogs.filter((log) => log.workflowId === 'workflow-1')
       setupDatabaseMock({ logs: folder1Logs })
 
-      const url = new URL('http://localhost:3000/api/logs?folderIds=folder-1')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&folderIds=folder-1'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -579,7 +606,9 @@ describe('Workflow Logs API Route', () => {
       )
       setupDatabaseMock({ logs: folder1And2Logs })
 
-      const url = new URL('http://localhost:3000/api/logs?folderIds=folder-1,folder-2')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&folderIds=folder-1,folder-2'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -597,7 +626,7 @@ describe('Workflow Logs API Route', () => {
       const rootLogs = mockWorkflowLogs.filter((log) => log.workflowId === 'workflow-3')
       setupDatabaseMock({ logs: rootLogs })
 
-      const url = new URL('http://localhost:3000/api/logs?folderIds=root')
+      const url = new URL('http://localhost:3000/api/logs?workspaceId=workspace-123&folderIds=root')
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -616,7 +645,9 @@ describe('Workflow Logs API Route', () => {
       )
       setupDatabaseMock({ logs: rootAndFolder1Logs })
 
-      const url = new URL('http://localhost:3000/api/logs?folderIds=root,folder-1')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&folderIds=root,folder-1'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -636,7 +667,7 @@ describe('Workflow Logs API Route', () => {
       setupDatabaseMock({ logs: filteredLogs })
 
       const url = new URL(
-        'http://localhost:3000/api/logs?folderIds=folder-1&workflowIds=workflow-1'
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&folderIds=folder-1&workflowIds=workflow-1'
       )
       const req = new Request(url.toString())
 
@@ -654,7 +685,7 @@ describe('Workflow Logs API Route', () => {
       setupDatabaseMock({ logs: [] })
 
       const url = new URL(
-        'http://localhost:3000/api/logs?folderIds=folder-1&workflowIds=workflow-2'
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&folderIds=folder-1&workflowIds=workflow-2'
       )
       const req = new Request(url.toString())
 
@@ -673,7 +704,9 @@ describe('Workflow Logs API Route', () => {
       )
       setupDatabaseMock({ logs: filteredLogs })
 
-      const url = new URL('http://localhost:3000/api/logs?folderIds=folder-1&level=info')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&folderIds=folder-1&level=info'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -689,7 +722,9 @@ describe('Workflow Logs API Route', () => {
     it('should return empty result when no workflows match folder filter', async () => {
       setupDatabaseMock({ logs: [] })
 
-      const url = new URL('http://localhost:3000/api/logs?folderIds=non-existent-folder')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&folderIds=non-existent-folder'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')
@@ -705,7 +740,9 @@ describe('Workflow Logs API Route', () => {
       const folder1Logs = mockWorkflowLogs.filter((log) => log.workflowId === 'workflow-1')
       setupDatabaseMock({ logs: folder1Logs })
 
-      const url = new URL('http://localhost:3000/api/logs?folderIds=folder-1&includeWorkflow=true')
+      const url = new URL(
+        'http://localhost:3000/api/logs?workspaceId=workspace-123&folderIds=folder-1&includeWorkflow=true'
+      )
       const req = new Request(url.toString())
 
       const { GET } = await import('./route')

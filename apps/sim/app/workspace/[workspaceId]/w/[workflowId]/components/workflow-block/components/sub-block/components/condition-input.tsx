@@ -52,7 +52,7 @@ export function ConditionInput({
   disabled = false,
 }: ConditionInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-  const editorRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [visualLineHeights, setVisualLineHeights] = useState<{
     [key: string]: number[]
   }>({})
@@ -233,10 +233,10 @@ export function ConditionInput({
 
   // Update the line counting logic to be block-specific
   useEffect(() => {
-    if (!editorRef.current || conditionalBlocks.length === 0) return
+    if (!containerRef.current || conditionalBlocks.length === 0) return
 
     const calculateVisualLines = () => {
-      const preElement = editorRef.current?.querySelector('pre')
+      const preElement = containerRef.current?.querySelector('pre')
       if (!preElement) return
 
       const newVisualLineHeights: { [key: string]: number[] } = {}
@@ -296,7 +296,7 @@ export function ConditionInput({
     calculateVisualLines()
 
     const resizeObserver = new ResizeObserver(calculateVisualLines)
-    resizeObserver.observe(editorRef.current)
+    resizeObserver.observe(containerRef.current)
 
     return () => resizeObserver.disconnect()
   }, [conditionalBlocks])
@@ -332,7 +332,7 @@ export function ConditionInput({
       const data = JSON.parse(e.dataTransfer.getData('application/json'))
       if (data.type !== 'connectionBlock') return
 
-      const textarea: any = editorRef.current?.querySelector(
+      const textarea: any = containerRef.current?.querySelector(
         `[data-block-id="${blockId}"] textarea`
       )
       const dropPosition = textarea?.selectionStart ?? 0
@@ -434,7 +434,7 @@ export function ConditionInput({
 
     // Focus the new block's editor after a short delay
     setTimeout(() => {
-      const textarea: any = editorRef.current?.querySelector(
+      const textarea: any = containerRef.current?.querySelector(
         `[data-block-id="${newBlock.id}"] textarea`
       )
       if (textarea) {
@@ -479,7 +479,7 @@ export function ConditionInput({
   // Add useEffect to handle keyboard events for both dropdowns
   useEffect(() => {
     conditionalBlocks.forEach((block) => {
-      const textarea = editorRef.current?.querySelector(`[data-block-id="${block.id}"] textarea`)
+      const textarea = containerRef.current?.querySelector(`[data-block-id="${block.id}"] textarea`)
       if (textarea) {
         textarea.addEventListener('keydown', (e: Event) => {
           if ((e as KeyboardEvent).key === 'Escape') {
@@ -511,7 +511,7 @@ export function ConditionInput({
   }
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4' ref={containerRef}>
       {conditionalBlocks.map((block, index) => (
         <div
           key={block.id}
@@ -642,11 +642,7 @@ export function ConditionInput({
                 {renderLineNumbers(block.id)}
               </div>
 
-              <div
-                className='relative mt-0 pt-0 pl-[30px]'
-                ref={editorRef}
-                data-block-id={block.id}
-              >
+              <div className='relative mt-0 pt-0 pl-[30px]' data-block-id={block.id}>
                 {block.value.length === 0 && (
                   <div className='pointer-events-none absolute top-[12px] left-[42px] select-none text-muted-foreground/50'>
                     {'<response> === true'}
@@ -656,7 +652,7 @@ export function ConditionInput({
                   value={block.value}
                   onValueChange={(newCode) => {
                     if (!isPreview && !disabled) {
-                      const textarea = editorRef.current?.querySelector(
+                      const textarea = containerRef.current?.querySelector(
                         `[data-block-id="${block.id}"] textarea`
                       ) as HTMLTextAreaElement | null
                       if (textarea) {

@@ -74,4 +74,4 @@ jobs:
         working-directory: ./apps/sim
         env:
           DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || secrets.STAGING_DATABASE_URL }}
-        run: bunx drizzle-kit push
+        run: bunx drizzle-kit migrate
