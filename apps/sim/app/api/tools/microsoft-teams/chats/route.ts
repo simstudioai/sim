@@ -115,7 +115,7 @@ const getChatDisplayName = async (
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  
+
   try {
     const session = await getSession()
     const body = await request.json()
