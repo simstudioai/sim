@@ -41,10 +41,12 @@ export async function verifyWorkflowAccess(
 
     const { userId: workflowUserId, workspaceId, name: workflowName } = workflowData[0]
 
-    // Check if user owns the workflow
+    // Check if user owns the workflow - treat as admin
     if (workflowUserId === userId) {
-      logger.debug(`User ${userId} has owner access to workflow ${workflowId} (${workflowName})`)
-      return { hasAccess: true, role: 'owner', workspaceId: workspaceId || undefined }
+      logger.debug(
+        `User ${userId} has admin access to workflow ${workflowId} (${workflowName}) as owner`
+      )
+      return { hasAccess: true, role: 'admin', workspaceId: workspaceId || undefined }
     }
 
     // Check workspace membership if workflow belongs to a workspace
@@ -90,19 +92,6 @@ export async function verifyOperationPermission(
 
     // Define operation permissions based on role
     const rolePermissions = {
-      owner: [
-        'add',
-        'remove',
-        'update',
-        'update-position',
-        'update-name',
-        'toggle-enabled',
-        'update-parent',
-        'update-wide',
-        'update-advanced-mode',
-        'toggle-handles',
-        'duplicate',
-      ],
       admin: [
         'add',
         'remove',
@@ -116,7 +105,7 @@ export async function verifyOperationPermission(
         'toggle-handles',
         'duplicate',
       ],
-      member: [
+      write: [
         'add',
         'remove',
         'update',
@@ -129,7 +118,7 @@ export async function verifyOperationPermission(
         'toggle-handles',
         'duplicate',
       ],
-      viewer: ['update-position'], // Viewers can only move things around
+      read: ['update-position'], // Read-only users can only move things around
     }
 
     const allowedOperations = rolePermissions[accessInfo.role as keyof typeof rolePermissions] || []
