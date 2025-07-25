@@ -87,6 +87,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=build-v2
           cache-to: type=gha,mode=max,scope=build-v2
+          provenance: false
+          sbom: false
 
   create-manifests:
     runs-on: ubuntu-latest
