@@ -87,6 +87,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=build-v2
           cache-to: type=gha,mode=max,scope=build-v2
+          provenance: false
+          sbom: false
 
   create-manifests:
     runs-on: ubuntu-latest
@@ -125,23 +127,33 @@ jobs:
 
       - name: Create and push manifest
         run: |
-          # Extract the tags from metadata
-          TAGS="${{ steps.meta.outputs.tags }}"
+          # Extract the tags from metadata (these are the final manifest tags we want)
+          MANIFEST_TAGS="${{ steps.meta.outputs.tags }}"
 
           # Create manifest for each tag
-          for tag in $TAGS; do
-            echo "Creating manifest for $tag"
-            echo "Looking for images: ${tag}-amd64 and ${tag}-arm64"
+          for manifest_tag in $MANIFEST_TAGS; do
+            echo "Creating manifest for $manifest_tag"
 
-            # Check if both architecture images exist before creating manifest
-            if docker manifest inspect ${tag}-amd64 >/dev/null 2>&1 && docker manifest inspect ${tag}-arm64 >/dev/null 2>&1; then
-              docker manifest create $tag \
-                ${tag}-amd64 \
-                ${tag}-arm64
-              docker manifest push $tag
-              echo "Successfully created and pushed manifest for $tag"
+            # The architecture-specific images have -amd64 and -arm64 suffixes
+            amd64_image="${manifest_tag}-amd64"
+            arm64_image="${manifest_tag}-arm64"
+
+            echo "Looking for images: $amd64_image and $arm64_image"
+
+            # Check if both architecture images exist
+            if docker manifest inspect "$amd64_image" >/dev/null 2>&1 && docker manifest inspect "$arm64_image" >/dev/null 2>&1; then
+              echo "Both images found, creating manifest..."
+              docker manifest create "$manifest_tag" \
+                "$amd64_image" \
+                "$arm64_image"
+              docker manifest push "$manifest_tag"
+              echo "Successfully created and pushed manifest for $manifest_tag"
             else
-              echo "Warning: One or both architecture images not found for $tag"
-              echo "Skipping manifest creation for this tag"
+              echo "Error: One or both architecture images not found"
+              echo "Checking AMD64 image: $amd64_image"
+              docker manifest inspect "$amd64_image" || echo "AMD64 image not found"
+              echo "Checking ARM64 image: $arm64_image"
+              docker manifest inspect "$arm64_image" || echo "ARM64 image not found"
+              exit 1
             fi
           done
