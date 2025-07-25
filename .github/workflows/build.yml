@@ -2,7 +2,7 @@ name: Build and Publish Docker Image
 
 on:
   push:
-    branches: [main, test-build-action-fix]
+    branches: [main]
     tags: ['v*']
 
 jobs:
