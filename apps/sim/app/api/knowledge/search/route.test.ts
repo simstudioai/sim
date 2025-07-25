@@ -51,6 +51,10 @@ vi.mock('@/providers/utils', () => ({
   }),
 }))
 
+vi.mock('@/app/api/knowledge/utils', () => ({
+  checkKnowledgeBaseAccess: vi.fn(),
+}))
+
 mockConsoleLogger()
 
 describe('Knowledge Search API Route', () => {
@@ -63,6 +67,7 @@ describe('Knowledge Search API Route', () => {
   }
 
   const mockGetUserId = vi.fn()
+  const mockCheckKnowledgeBaseAccess = vi.fn()
   const mockFetch = vi.fn()
 
   const mockEmbedding = [0.1, 0.2, 0.3, 0.4, 0.5]
@@ -94,6 +99,10 @@ describe('Knowledge Search API Route', () => {
 
     vi.doMock('@/app/api/auth/oauth/utils', () => ({
       getUserId: mockGetUserId,
+    }))
+
+    vi.doMock('@/app/api/knowledge/utils', () => ({
+      checkKnowledgeBaseAccess: mockCheckKnowledgeBaseAccess,
     }))
 
     Object.values(mockDbChain).forEach((fn) => {
@@ -132,7 +141,11 @@ describe('Knowledge Search API Route', () => {
     it('should perform search successfully with single knowledge base', async () => {
       mockGetUserId.mockResolvedValue('user-123')
 
-      mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases)
+      // Mock knowledge base access check to return success
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: mockKnowledgeBases[0],
+      })
 
       mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
 
@@ -171,7 +184,10 @@ describe('Knowledge Search API Route', () => {
 
       mockGetUserId.mockResolvedValue('user-123')
 
-      mockDbChain.where.mockResolvedValueOnce(multiKbs)
+      // Mock knowledge base access check to return success for both KBs
+      mockCheckKnowledgeBaseAccess
+        .mockResolvedValueOnce({ hasAccess: true, knowledgeBase: multiKbs[0] })
+        .mockResolvedValueOnce({ hasAccess: true, knowledgeBase: multiKbs[1] })
 
       mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
 
@@ -201,9 +217,13 @@ describe('Knowledge Search API Route', () => {
 
       mockGetUserId.mockResolvedValue('user-123')
 
-      mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases) // First call: get knowledge bases
+      // Mock knowledge base access check to return success
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: mockKnowledgeBases[0],
+      })
 
-      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults) // Second call: search results
+      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults) // Search results
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -255,7 +275,11 @@ describe('Knowledge Search API Route', () => {
     it('should return not found for non-existent knowledge base', async () => {
       mockGetUserId.mockResolvedValue('user-123')
 
-      mockDbChain.where.mockResolvedValueOnce([]) // No knowledge bases found
+      // Mock knowledge base access check to return no access
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: false,
+        notFound: true,
+      })
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('./route')
@@ -274,7 +298,10 @@ describe('Knowledge Search API Route', () => {
 
       mockGetUserId.mockResolvedValue('user-123')
 
-      mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases) // Only kb-123 found
+      // Mock access check: first KB has access, second doesn't
+      mockCheckKnowledgeBaseAccess
+        .mockResolvedValueOnce({ hasAccess: true, knowledgeBase: mockKnowledgeBases[0] })
+        .mockResolvedValueOnce({ hasAccess: false, notFound: true })
 
       const req = createMockRequest('POST', multiKbData)
       const { POST } = await import('./route')
@@ -282,7 +309,7 @@ describe('Knowledge Search API Route', () => {
       const data = await response.json()
 
       expect(response.status).toBe(404)
-      expect(data.error).toBe('Knowledge bases not found: kb-missing')
+      expect(data.error).toBe('Knowledge bases not found or access denied: kb-missing')
     })
 
     it.concurrent('should validate search parameters', async () => {
@@ -310,9 +337,13 @@ describe('Knowledge Search API Route', () => {
 
       mockGetUserId.mockResolvedValue('user-123')
 
-      mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases) // First call: get knowledge bases
+      // Mock knowledge base access check to return success
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: mockKnowledgeBases[0],
+      })
 
-      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults) // Second call: search results
+      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults) // Search results
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -416,7 +447,13 @@ describe('Knowledge Search API Route', () => {
     describe('Cost tracking', () => {
       it.concurrent('should include cost information in successful search response', async () => {
         mockGetUserId.mockResolvedValue('user-123')
-        mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases)
+
+        // Mock knowledge base access check to return success
+        mockCheckKnowledgeBaseAccess.mockResolvedValue({
+          hasAccess: true,
+          knowledgeBase: mockKnowledgeBases[0],
+        })
+
         mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
 
         mockFetch.mockResolvedValue({
@@ -458,7 +495,13 @@ describe('Knowledge Search API Route', () => {
         const { calculateCost } = await import('@/providers/utils')
 
         mockGetUserId.mockResolvedValue('user-123')
-        mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases)
+
+        // Mock knowledge base access check to return success
+        mockCheckKnowledgeBaseAccess.mockResolvedValue({
+          hasAccess: true,
+          knowledgeBase: mockKnowledgeBases[0],
+        })
+
         mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
 
         mockFetch.mockResolvedValue({
@@ -509,7 +552,13 @@ describe('Knowledge Search API Route', () => {
         }
 
         mockGetUserId.mockResolvedValue('user-123')
-        mockDbChain.where.mockResolvedValueOnce(mockKnowledgeBases)
+
+        // Mock knowledge base access check to return success
+        mockCheckKnowledgeBaseAccess.mockResolvedValue({
+          hasAccess: true,
+          knowledgeBase: mockKnowledgeBases[0],
+        })
+
         mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
 
         mockFetch.mockResolvedValue({
