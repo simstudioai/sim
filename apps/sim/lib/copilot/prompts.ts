@@ -376,10 +376,11 @@ export const TITLE_GENERATION_USER_PROMPT = (userMessage: string) =>
   `Generate a concise title for a conversation that starts with this user message: "${userMessage}"\n\nReturn only the title text, nothing else.`
 
 /**
- * YAML Workflow Reference Guide
  * Comprehensive guide for LLMs on how to write end-to-end YAML workflows correctly
+ * Lazy loaded to prevent memory issues during static generation
  */
-export const YAML_WORKFLOW_PROMPT = `# Comprehensive Guide to Writing End-to-End YAML Workflows in Sim Studio
+export const getYamlWorkflowPrompt =
+  () => `# Comprehensive Guide to Writing End-to-End YAML Workflows in Sim Studio
 
 ## Fundamental Structure
 
