@@ -36,6 +36,7 @@ export type SubBlockType =
   | 'document-selector' // Document selector for knowledge bases
   | 'input-format' // Input structure format
   | 'response-format' // Response structure format
+  | 'hidden' // Hidden computed value for conditions
   | 'file-upload' // File uploader
 
 // Component width setting

@@ -3,7 +3,6 @@ import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DropdownProps {
@@ -42,10 +41,6 @@ export function Dropdown({
 
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-
-  // For response dataMode conversion - get builderData and data sub-blocks
-  const [builderData] = useSubBlockValue<any[]>(blockId, 'builderData')
-  const [, setData] = useSubBlockValue<string>(blockId, 'data')
 
   // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -104,20 +99,6 @@ export function Dropdown({
   // Event handlers
   const handleSelect = (selectedValue: string) => {
     if (!isPreview && !disabled) {
-      // Handle conversion when switching from Builder to Editor mode in response blocks
-      if (
-        subBlockId === 'dataMode' &&
-        storeValue === 'structured' &&
-        selectedValue === 'json' &&
-        builderData &&
-        Array.isArray(builderData) &&
-        builderData.length > 0
-      ) {
-        // Convert builderData to JSON string for editor mode
-        const jsonString = ResponseBlockHandler.convertBuilderDataToJsonString(builderData)
-        setData(jsonString)
-      }
-
       setStoreValue(selectedValue)
     }
     setOpen(false)

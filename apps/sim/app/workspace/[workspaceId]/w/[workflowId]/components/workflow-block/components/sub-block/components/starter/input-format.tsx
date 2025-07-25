@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Plus, Trash } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface Field {
@@ -37,6 +38,7 @@ interface FieldFormatProps {
   valuePlaceholder?: string
   isConnecting?: boolean
   config?: any
+  targetWorkflowFields?: Field[] // Fields pre-defined from target workflow
 }
 
 // Default values
@@ -62,6 +64,7 @@ export function FieldFormat({
   valuePlaceholder = 'Enter value or <variable.name>',
   isConnecting = false,
   config,
+  targetWorkflowFields,
 }: FieldFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const [tagDropdownStates, setTagDropdownStates] = useState<
@@ -80,9 +83,27 @@ export function FieldFormat({
   const value = isPreview ? previewValue : storeValue
   const fields: Field[] = value || []
 
+  // Check if we're using fields from a target workflow (read-only names/types)
+  // We're in workflow context if targetWorkflowFields was provided (even if null/empty)
+  const isUsingTargetWorkflow = typeof targetWorkflowFields !== 'undefined'
+  // console.log('FieldFormat render:', { isUsingTargetWorkflow, targetWorkflowFieldsCount: targetWorkflowFields?.length, fieldsCount: fields.length, hasStoreValue: !!storeValue })
+
+  // Initialize store value with target workflow fields when provided (only once)
+  useEffect(() => {
+    if (
+      targetWorkflowFields &&
+      targetWorkflowFields.length > 0 &&
+      !isPreview &&
+      !disabled &&
+      !storeValue
+    ) {
+      setStoreValue(targetWorkflowFields)
+    }
+  }, [targetWorkflowFields, setStoreValue, isPreview, disabled, storeValue])
+
   // Field operations
   const addField = () => {
-    if (isPreview || disabled) return
+    if (isPreview || disabled || isUsingTargetWorkflow) return
 
     const newField: Field = {
       ...DEFAULT_FIELD,
@@ -92,7 +113,7 @@ export function FieldFormat({
   }
 
   const removeField = (id: string) => {
-    if (isPreview || disabled) return
+    if (isPreview || disabled || isUsingTargetWorkflow) return
     setStoreValue(fields.filter((field: Field) => field.id !== id))
   }
 
@@ -199,6 +220,9 @@ export function FieldFormat({
   const updateField = (id: string, field: keyof Field, value: any) => {
     if (isPreview || disabled) return
 
+    // For target workflow fields, only allow updating values
+    if (isUsingTargetWorkflow && field !== 'value' && field !== 'collapsed') return
+
     // Validate field name if it's being updated
     if (field === 'name' && typeof value === 'string') {
       value = validateFieldName(value)
@@ -209,7 +233,7 @@ export function FieldFormat({
 
   const toggleCollapse = (id: string) => {
     if (isPreview || disabled) return
-    setStoreValue(fields.map((f: Field) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f)))
+    updateField(id, 'collapsed', !fields.find((f) => f.id === id)?.collapsed)
   }
 
   // Field header
@@ -237,27 +261,31 @@ export function FieldFormat({
           )}
         </div>
         <div className='flex items-center gap-1' onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant='ghost'
-            size='icon'
-            onClick={addField}
-            disabled={isPreview || disabled}
-            className='h-6 w-6 rounded-full'
-          >
-            <Plus className='h-3.5 w-3.5' />
-            <span className='sr-only'>Add {title}</span>
-          </Button>
+          {!isUsingTargetWorkflow && (
+            <>
+              <Button
+                variant='ghost'
+                size='icon'
+                onClick={addField}
+                disabled={isPreview || disabled}
+                className='h-6 w-6 rounded-full'
+              >
+                <Plus className='h-3.5 w-3.5' />
+                <span className='sr-only'>Add {title}</span>
+              </Button>
 
-          <Button
-            variant='ghost'
-            size='icon'
-            onClick={() => removeField(field.id)}
-            disabled={isPreview || disabled}
-            className='h-6 w-6 rounded-full text-destructive hover:text-destructive'
-          >
-            <Trash className='h-3.5 w-3.5' />
-            <span className='sr-only'>Delete Field</span>
-          </Button>
+              <Button
+                variant='ghost'
+                size='icon'
+                onClick={() => removeField(field.id)}
+                disabled={isPreview || disabled}
+                className='h-6 w-6 rounded-full text-destructive hover:text-destructive'
+              >
+                <Trash className='h-3.5 w-3.5' />
+                <span className='sr-only'>Delete Field</span>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     )
@@ -269,16 +297,18 @@ export function FieldFormat({
       {fields.length === 0 ? (
         <div className='flex flex-col items-center justify-center rounded-md border border-input/50 border-dashed py-8'>
           <p className='mb-3 text-muted-foreground text-sm'>{emptyMessage}</p>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={addField}
-            disabled={isPreview || disabled}
-            className='h-8'
-          >
-            <Plus className='mr-1.5 h-3.5 w-3.5' />
-            Add {title}
-          </Button>
+          {!isUsingTargetWorkflow && (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={addField}
+              disabled={isPreview || disabled}
+              className='h-8'
+            >
+              <Plus className='mr-1.5 h-3.5 w-3.5' />
+              Add {title}
+            </Button>
+          )}
         </div>
       ) : (
         fields.map((field, index) => {
@@ -305,12 +335,16 @@ export function FieldFormat({
                       value={field.name}
                       onChange={(e) => updateField(field.id, 'name', e.target.value)}
                       placeholder={placeholder}
-                      disabled={isPreview || disabled}
-                      className='h-9 placeholder:text-muted-foreground/50'
+                      disabled={isPreview || disabled || isUsingTargetWorkflow}
+                      readOnly={isUsingTargetWorkflow}
+                      className={cn(
+                        'h-9 placeholder:text-muted-foreground/50',
+                        isUsingTargetWorkflow && 'cursor-not-allowed bg-muted/50'
+                      )}
                     />
                   </div>
 
-                  {showType && (
+                  {showType && !isUsingTargetWorkflow && (
                     <div className='space-y-1.5'>
                       <Label className='text-xs'>Type</Label>
                       <DropdownMenu>
@@ -389,7 +423,8 @@ export function FieldFormat({
                           placeholder={valuePlaceholder}
                           disabled={isPreview || disabled}
                           className={cn(
-                            'h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50',
+                            'h-9 placeholder:text-muted-foreground/50',
+                            field.value ? 'text-transparent caret-foreground' : 'text-foreground',
                             dragHighlight[field.id] && 'ring-2 ring-blue-500 ring-offset-2',
                             isConnecting &&
                               config?.connectionDroppable !== false &&
@@ -432,12 +467,177 @@ export function FieldFormat({
   )
 }
 
+// Enhanced component that can fetch input format from workflows
+function WorkflowAwareInputFormat({
+  blockId,
+  subBlockId,
+  isPreview = false,
+  previewValue,
+  disabled = false,
+  title = 'Field',
+  placeholder = 'fieldName',
+  emptyMessage = 'No fields defined',
+  showType = true,
+  showValue = false,
+  valuePlaceholder = 'Enter value or <variable.name>',
+  isConnecting = false,
+  config,
+}: FieldFormatProps) {
+  const [targetWorkflowInputFormat, setTargetWorkflowInputFormat] = useState<Field[] | null>(null)
+  const [isLoadingFormat, setIsLoadingFormat] = useState(false)
+
+  // Get the parent block type to determine context
+  const parentBlockType = useWorkflowStore((state) => state.blocks[blockId]?.type)
+
+  // Get the selected workflow ID from the workflowId subblock
+  const [selectedWorkflowId] = useSubBlockValue<string>(blockId, 'workflowId')
+
+  // Check if we're specifically handling workflow input format (not just any input-format)
+  const isInWorkflowBlock = parentBlockType === 'workflow' && subBlockId === 'workflowInputFormat'
+
+  // Debug logging removed to prevent console spam
+  // console.log('WorkflowAwareInputFormat render:', { blockId, subBlockId, selectedWorkflowId, isInWorkflowBlock })
+
+  // Fetch input format from selected workflow and set hasInputFields flag
+  useEffect(() => {
+    if (!isInWorkflowBlock) {
+      return
+    }
+
+    if (!selectedWorkflowId) {
+      setTargetWorkflowInputFormat(null)
+      return
+    }
+
+    // Reset state immediately when workflow changes
+    setTargetWorkflowInputFormat(null)
+    // console.log('Workflow changed to:', selectedWorkflowId)
+
+    const fetchWorkflowInputFormat = async () => {
+      setIsLoadingFormat(true)
+      try {
+        const response = await fetch(`/api/workflows/${selectedWorkflowId}`)
+        if (!response.ok) {
+          console.error('Failed to fetch workflow:', response.statusText)
+          setTargetWorkflowInputFormat(null)
+          return
+        }
+
+        const workflowData = await response.json()
+        const blocks = workflowData.data?.state?.blocks || {}
+
+        // Find the starter block
+        const starterBlock = Object.values(blocks).find(
+          (block: any) => block.type === 'starter'
+        ) as any
+
+        if (starterBlock) {
+          const inputFormat = starterBlock.subBlocks?.inputFormat?.value
+          if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
+            // Convert to Field format, ensuring each field has an id and clearing values
+            const formattedFields: Field[] = inputFormat.map((field: any, index: number) => ({
+              id: field.id || `field-${index}`,
+              name: field.name || '',
+              type: field.type || 'string',
+              value: '', // Clear values - user needs to fill these in
+              collapsed: false,
+            }))
+            setTargetWorkflowInputFormat(formattedFields)
+            // console.log('Found input fields for workflow:', selectedWorkflowId, 'fields:', formattedFields)
+          } else {
+            setTargetWorkflowInputFormat([])
+            // console.log('No input fields found for workflow:', selectedWorkflowId)
+          }
+        } else {
+          setTargetWorkflowInputFormat([])
+        }
+      } catch (error) {
+        console.error('Error fetching workflow input format:', error)
+        setTargetWorkflowInputFormat(null)
+      } finally {
+        setIsLoadingFormat(false)
+      }
+    }
+
+    fetchWorkflowInputFormat()
+  }, [isInWorkflowBlock, selectedWorkflowId])
+
+  if (isInWorkflowBlock) {
+    if (isLoadingFormat) {
+      return (
+        <div className='flex items-center justify-center rounded-md border border-input/50 border-dashed py-8'>
+          <p className='text-muted-foreground text-sm'>Loading input fields...</p>
+        </div>
+      )
+    }
+
+    if (!selectedWorkflowId) {
+      // Return null when no workflow selected - this will hide the entire subblock
+      return null
+    }
+
+    if (targetWorkflowInputFormat === null) {
+      return (
+        <div className='flex items-center justify-center rounded-md border border-input/50 border-dashed py-8'>
+          <p className='text-muted-foreground text-sm'>Failed to load workflow input format</p>
+        </div>
+      )
+    }
+
+    if (targetWorkflowInputFormat.length === 0) {
+      // Return null when no input fields are found - this will hide the entire subblock
+      return null
+    }
+
+    // Use the target workflow's input format as the initial value
+    // but allow users to fill in their own values
+    return (
+      <FieldFormat
+        blockId={blockId}
+        subBlockId={subBlockId}
+        isPreview={isPreview}
+        previewValue={previewValue}
+        disabled={disabled}
+        title={title}
+        placeholder={placeholder}
+        emptyMessage={emptyMessage}
+        showType={showType}
+        showValue={true} // Always show values for workflow input
+        valuePlaceholder={valuePlaceholder || 'Enter value or <variable.name>'}
+        isConnecting={isConnecting}
+        config={config}
+        // Pass the target workflow's input format structure
+        targetWorkflowFields={targetWorkflowInputFormat}
+      />
+    )
+  }
+
+  // For non-workflow blocks, use regular FieldFormat
+  return (
+    <FieldFormat
+      blockId={blockId}
+      subBlockId={subBlockId}
+      isPreview={isPreview}
+      previewValue={previewValue}
+      disabled={disabled}
+      title={title}
+      placeholder={placeholder}
+      emptyMessage={emptyMessage}
+      showType={showType}
+      showValue={showValue}
+      valuePlaceholder={valuePlaceholder}
+      isConnecting={isConnecting}
+      config={config}
+    />
+  )
+}
+
 // Export specific components for backward compatibility
 export function InputFormat(
   props: Omit<FieldFormatProps, 'title' | 'placeholder' | 'emptyMessage'>
 ) {
   return (
-    <FieldFormat
+    <WorkflowAwareInputFormat
       {...props}
       title='Field'
       placeholder='firstName'

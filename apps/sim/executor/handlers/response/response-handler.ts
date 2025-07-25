@@ -56,10 +56,9 @@ export class ResponseBlockHandler implements BlockHandler {
   }
 
   private parseResponseData(inputs: Record<string, any>): any {
-    const dataMode = inputs.dataMode || 'structured'
-
-    if (dataMode === 'json' && inputs.data) {
-      // Handle JSON mode - data comes from code editor
+    // Priority: JSON data (advanced mode) over builderData (basic mode)
+    if (inputs.data) {
+      // Handle advanced mode - data comes from code editor
       if (typeof inputs.data === 'string') {
         try {
           return JSON.parse(inputs.data)
@@ -74,14 +73,14 @@ export class ResponseBlockHandler implements BlockHandler {
       return inputs.data
     }
 
-    if (dataMode === 'structured' && inputs.builderData) {
-      // Handle structured mode - convert builderData to JSON
+    if (inputs.builderData) {
+      // Handle basic mode - convert builderData to JSON
       const convertedData = this.convertBuilderDataToJson(inputs.builderData)
       return this.parseObjectStrings(convertedData)
     }
 
-    // Fallback to inputs.data for backward compatibility
-    return inputs.data || {}
+    // Fallback to empty object
+    return {}
   }
 
   private convertBuilderDataToJson(builderData: JSONProperty[]): any {
