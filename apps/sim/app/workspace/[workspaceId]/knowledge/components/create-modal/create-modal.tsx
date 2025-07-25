@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, CheckCircle2, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -74,6 +75,9 @@ interface SubmitStatus {
 }
 
 export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: CreateModalProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus | null>(null)
@@ -246,6 +250,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       const knowledgeBasePayload = {
         name: data.name,
         description: data.description || undefined,
+        workspaceId: workspaceId,
         chunkingConfig: {
           maxSize: data.maxChunkSize,
           minSize: data.minChunkSize,

@@ -4,12 +4,9 @@ import { getCostMultiplier } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { snapshotService } from '@/lib/logs/snapshot-service'
 import { db } from '@/db'
-import { userStats, workflow, workflowExecutionBlocks, workflowExecutionLogs } from '@/db/schema'
+import { userStats, workflow, workflowExecutionLogs } from '@/db/schema'
 import type {
-  BlockExecutionLog,
-  BlockInputData,
   BlockOutputData,
-  CostBreakdown,
   ExecutionEnvironment,
   ExecutionTrigger,
   ExecutionLoggerService as IExecutionLoggerService,
@@ -108,102 +105,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
         createdAt: workflowLog.createdAt.toISOString(),
       },
       snapshot: snapshotResult.snapshot,
-    }
-  }
-
-  async logBlockExecution(params: {
-    executionId: string
-    workflowId: string
-    blockId: string
-    blockName: string
-    blockType: string
-    input: BlockInputData
-    output: BlockOutputData
-    timing: {
-      startedAt: string
-      endedAt: string
-      durationMs: number
-    }
-    status: BlockExecutionLog['status']
-    error?: {
-      message: string
-      stackTrace?: string
-    }
-    cost?: CostBreakdown
-    metadata?: BlockExecutionLog['metadata']
-    toolCalls?: ToolCall[]
-  }): Promise<BlockExecutionLog> {
-    const {
-      executionId,
-      workflowId,
-      blockId,
-      blockName,
-      blockType,
-      input,
-      output,
-      timing,
-      status,
-      error,
-      cost,
-      metadata,
-      toolCalls,
-    } = params
-
-    logger.debug(`Logging block execution ${blockId} for execution ${executionId}`)
-
-    const blockLogId = uuidv4()
-
-    const [blockLog] = await db
-      .insert(workflowExecutionBlocks)
-      .values({
-        id: blockLogId,
-        executionId,
-        workflowId,
-        blockId,
-        blockName,
-        blockType,
-        startedAt: new Date(timing.startedAt),
-        endedAt: new Date(timing.endedAt),
-        durationMs: timing.durationMs,
-        status,
-        errorMessage: error?.message || null,
-        errorStackTrace: error?.stackTrace || null,
-        inputData: input,
-        outputData: output,
-        costInput: cost?.input ? cost.input.toString() : null,
-        costOutput: cost?.output ? cost.output.toString() : null,
-        costTotal: cost?.total ? cost.total.toString() : null,
-        tokensPrompt: cost?.tokens?.prompt || null,
-        tokensCompletion: cost?.tokens?.completion || null,
-        tokensTotal: cost?.tokens?.total || null,
-        modelUsed: cost?.model || null,
-        metadata: {
-          ...(metadata || {}),
-          ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
-        },
-      })
-      .returning()
-
-    logger.debug(`Created block log ${blockLog.id} for block ${blockId}`)
-
-    return {
-      id: blockLog.id,
-      executionId: blockLog.executionId,
-      workflowId: blockLog.workflowId,
-      blockId: blockLog.blockId,
-      blockName: blockLog.blockName || '',
-      blockType: blockLog.blockType,
-      startedAt: blockLog.startedAt.toISOString(),
-      endedAt: blockLog.endedAt?.toISOString() || timing.endedAt,
-      durationMs: blockLog.durationMs || timing.durationMs,
-      status: blockLog.status as BlockExecutionLog['status'],
-      errorMessage: blockLog.errorMessage || undefined,
-      errorStackTrace: blockLog.errorStackTrace || undefined,
-      inputData: input,
-      outputData: output,
-      cost: cost || null,
-      metadata: (blockLog.metadata as BlockExecutionLog['metadata']) || {},
-      createdAt: blockLog.createdAt.toISOString(),
     }
   }
 
@@ -314,51 +215,6 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
       metadata: updatedLog.metadata as WorkflowExecutionLog['metadata'],
       createdAt: updatedLog.createdAt.toISOString(),
     }
-  }
-
-  async getBlockExecutionsForWorkflow(executionId: string): Promise<BlockExecutionLog[]> {
-    const blockLogs = await db
-      .select()
-      .from(workflowExecutionBlocks)
-      .where(eq(workflowExecutionBlocks.executionId, executionId))
-      .orderBy(workflowExecutionBlocks.startedAt)
-
-    return blockLogs.map((log) => ({
-      id: log.id,
-      executionId: log.executionId,
-      workflowId: log.workflowId,
-      blockId: log.blockId,
-      blockName: log.blockName || '',
-      blockType: log.blockType,
-      startedAt: log.startedAt.toISOString(),
-      endedAt: log.endedAt?.toISOString() || log.startedAt.toISOString(),
-      durationMs: log.durationMs || 0,
-      status: log.status as BlockExecutionLog['status'],
-      errorMessage: log.errorMessage || undefined,
-      errorStackTrace: log.errorStackTrace || undefined,
-      inputData: log.inputData as BlockInputData,
-      outputData: log.outputData as BlockOutputData,
-      cost: log.costTotal
-        ? {
-            input: Number(log.costInput) || 0,
-            output: Number(log.costOutput) || 0,
-            total: Number(log.costTotal) || 0,
-            tokens: {
-              prompt: log.tokensPrompt || 0,
-              completion: log.tokensCompletion || 0,
-              total: log.tokensTotal || 0,
-            },
-            model: log.modelUsed || '',
-            pricing: {
-              input: 0,
-              output: 0,
-              updatedAt: new Date().toISOString(),
-            },
-          }
-        : null,
-      metadata: (log.metadata as BlockExecutionLog['metadata']) || {},
-      createdAt: log.createdAt.toISOString(),
-    }))
   }
 
   async getWorkflowExecution(executionId: string): Promise<WorkflowExecutionLog | null> {

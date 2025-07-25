@@ -7,7 +7,11 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { document } from '@/db/schema'
-import { checkKnowledgeBaseAccess, processDocumentAsync } from '../../utils'
+import {
+  checkKnowledgeBaseAccess,
+  checkKnowledgeBaseWriteAccess,
+  processDocumentAsync,
+} from '../../utils'
 
 const logger = createLogger('DocumentsAPI')
 
@@ -322,7 +326,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: errorMessage }, { status: statusCode })
     }
 
-    const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
+    const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, userId)
 
     if (!accessCheck.hasAccess) {
       if ('notFound' in accessCheck && accessCheck.notFound) {
@@ -491,7 +495,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
+    const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, session.user.id)
 
     if (!accessCheck.hasAccess) {
       if ('notFound' in accessCheck && accessCheck.notFound) {

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json()
     const { logs, executionId, result } = body
 
-    // If result is provided, use persistExecutionLogs for full tool call extraction
+    // If result is provided, use enhanced logging system for full tool call extraction
     if (result) {
       logger.info(`[${requestId}] Persisting execution result for workflow: ${id}`, {
         executionId,

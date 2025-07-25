@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { PackageSearchIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,8 +35,10 @@ export function KnowledgeBaseSelector({
   isPreview = false,
   previewValue,
 }: KnowledgeBaseSelectorProps) {
-  const { getKnowledgeBasesList, knowledgeBasesList, loadingKnowledgeBasesList } =
-    useKnowledgeStore()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
+  const { loadingKnowledgeBasesList } = useKnowledgeStore()
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseData[]>([])
   const [loading, setLoading] = useState(false)
@@ -69,13 +72,32 @@ export function KnowledgeBaseSelector({
     return []
   }, [value, knowledgeBases])
 
-  // Fetch knowledge bases
+  // Fetch knowledge bases directly from API
   const fetchKnowledgeBases = useCallback(async () => {
     setLoading(true)
     setError(null)
 
     try {
-      const data = await getKnowledgeBasesList()
+      const url = workspaceId ? `/api/knowledge?workspaceId=${workspaceId}` : '/api/knowledge'
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch knowledge bases: ${response.status} ${response.statusText}`
+        )
+      }
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch knowledge bases')
+      }
+
+      const data = result.data || []
       setKnowledgeBases(data)
       setInitialFetchDone(true)
     } catch (err) {
@@ -85,7 +107,7 @@ export function KnowledgeBaseSelector({
     } finally {
       setLoading(false)
     }
-  }, [getKnowledgeBasesList])
+  }, [workspaceId])
 
   // Handle dropdown open/close - fetch knowledge bases when opening
   const handleOpenChange = (isOpen: boolean) => {
@@ -93,8 +115,8 @@ export function KnowledgeBaseSelector({
 
     setOpen(isOpen)
 
-    // Only fetch knowledge bases when opening the dropdown if we haven't fetched yet
-    if (isOpen && (!initialFetchDone || knowledgeBasesList.length === 0)) {
+    // Always fetch fresh knowledge bases when opening the dropdown
+    if (isOpen) {
       fetchKnowledgeBases()
     }
   }
@@ -147,14 +169,6 @@ export function KnowledgeBaseSelector({
 
     onKnowledgeBaseSelect?.(selectedIds)
   }
-
-  // Use cached data if available
-  useEffect(() => {
-    if (knowledgeBasesList.length > 0 && !initialFetchDone) {
-      setKnowledgeBases(knowledgeBasesList)
-      setInitialFetchDone(true)
-    }
-  }, [knowledgeBasesList, initialFetchDone])
 
   // If we have a value but no knowledge base info and haven't fetched yet, fetch
   useEffect(() => {

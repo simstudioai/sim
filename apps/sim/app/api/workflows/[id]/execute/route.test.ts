@@ -157,11 +157,6 @@ describe('Workflow Execution API Route', () => {
       getRotatingApiKey: vi.fn().mockReturnValue('rotated-api-key'),
     }))
 
-    vi.doMock('@/lib/logs/execution-logger', () => ({
-      persistExecutionLogs: vi.fn().mockResolvedValue(undefined),
-      persistExecutionError: vi.fn().mockResolvedValue(undefined),
-    }))
-
     vi.doMock('@/lib/logs/enhanced-logging-session', () => ({
       EnhancedLoggingSession: vi.fn().mockImplementation(() => ({
         safeStart: vi.fn().mockResolvedValue(undefined),

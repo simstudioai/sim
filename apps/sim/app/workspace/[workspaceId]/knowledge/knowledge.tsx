@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { LibraryBig, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 import { BaseOverview } from './components/base-overview/base-overview'
@@ -17,8 +20,12 @@ interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
 }
 
 export function Knowledge() {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const { knowledgeBases, isLoading, error, addKnowledgeBase, refreshList } =
-    useKnowledgeBasesList()
+    useKnowledgeBasesList(workspaceId)
+  const userPermissions = useUserPermissionsContext()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -68,10 +75,22 @@ export function Knowledge() {
                     placeholder='Search knowledge bases...'
                   />
 
-                  <PrimaryButton onClick={() => setIsCreateModalOpen(true)}>
-                    <Plus className='h-3.5 w-3.5' />
-                    <span>Create</span>
-                  </PrimaryButton>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PrimaryButton
+                        onClick={() => setIsCreateModalOpen(true)}
+                        disabled={userPermissions.canEdit !== true}
+                      >
+                        <Plus className='h-3.5 w-3.5' />
+                        <span>Create</span>
+                      </PrimaryButton>
+                    </TooltipTrigger>
+                    {userPermissions.canEdit !== true && (
+                      <TooltipContent>
+                        Write permission required to create knowledge bases
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 </div>
 
                 {/* Error State */}
@@ -96,9 +115,21 @@ export function Knowledge() {
                       knowledgeBases.length === 0 ? (
                         <EmptyStateCard
                           title='Create your first knowledge base'
-                          description='Upload your documents to create a knowledge base for your agents.'
-                          buttonText='Create Knowledge Base'
-                          onClick={() => setIsCreateModalOpen(true)}
+                          description={
+                            userPermissions.canEdit === true
+                              ? 'Upload your documents to create a knowledge base for your agents.'
+                              : 'Knowledge bases will appear here. Contact an admin to create knowledge bases.'
+                          }
+                          buttonText={
+                            userPermissions.canEdit === true
+                              ? 'Create Knowledge Base'
+                              : 'Contact Admin'
+                          }
+                          onClick={
+                            userPermissions.canEdit === true
+                              ? () => setIsCreateModalOpen(true)
+                              : () => {}
+                          }
                           icon={<LibraryBig className='h-4 w-4 text-muted-foreground' />}
                         />
                       ) : (

@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useFilterStore } from '@/app/workspace/[workspaceId]/logs/stores/store'
+import { useFilterStore } from '@/stores/logs/filters/store'
 
 interface WorkflowOption {
   id: string
@@ -69,19 +69,30 @@ export default function Workflow() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant='outline' size='sm' className='w-full justify-between font-normal text-sm'>
+        <Button
+          variant='outline'
+          size='sm'
+          className='w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] font-normal text-sm dark:border-[#414141] dark:bg-[#202020]'
+        >
           {loading ? 'Loading workflows...' : getSelectedWorkflowsText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='start' className='max-h-[300px] w-[180px] overflow-y-auto'>
+      <DropdownMenuContent
+        align='start'
+        className='max-h-[300px] w-[180px] overflow-y-auto rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[#202020]'
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
         <DropdownMenuItem
           key='all'
           onSelect={(e) => {
             e.preventDefault()
             clearSelections()
           }}
-          className='flex cursor-pointer items-center justify-between p-2 text-sm'
+          className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
         >
           <span>All workflows</span>
           {workflowIds.length === 0 && <Check className='h-4 w-4 text-primary' />}
@@ -97,7 +108,7 @@ export default function Workflow() {
                 e.preventDefault()
                 toggleWorkflowId(workflow.id)
               }}
-              className='flex cursor-pointer items-center justify-between p-2 text-sm'
+              className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
             >
               <div className='flex items-center'>
                 <div
@@ -111,7 +122,10 @@ export default function Workflow() {
           ))}
 
         {loading && (
-          <DropdownMenuItem disabled className='p-2 text-muted-foreground text-sm'>
+          <DropdownMenuItem
+            disabled
+            className='rounded-md px-3 py-2 font-[380] text-muted-foreground text-sm'
+          >
             Loading workflows...
           </DropdownMenuItem>
         )}

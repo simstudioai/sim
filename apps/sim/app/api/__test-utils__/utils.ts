@@ -279,11 +279,6 @@ export function mockExecutionDependencies() {
     }
   })
 
-  vi.mock('@/lib/logs/execution-logger', () => ({
-    persistExecutionLogs: vi.fn().mockResolvedValue(undefined),
-    persistExecutionError: vi.fn().mockResolvedValue(undefined),
-  }))
-
   vi.mock('@/lib/logs/trace-spans', () => ({
     buildTraceSpans: vi.fn().mockReturnValue({
       traceSpans: [],
@@ -380,7 +375,6 @@ export function mockWorkflowAccessValidation(shouldSucceed = true) {
 
 export async function getMockedDependencies() {
   const utilsModule = await import('@/lib/utils')
-  const logsModule = await import('@/lib/logs/execution-logger')
   const traceSpansModule = await import('@/lib/logs/trace-spans')
   const workflowUtilsModule = await import('@/lib/workflows/utils')
   const executorModule = await import('@/executor')
@@ -389,8 +383,6 @@ export async function getMockedDependencies() {
 
   return {
     decryptSecret: utilsModule.decryptSecret,
-    persistExecutionLogs: logsModule.persistExecutionLogs,
-    persistExecutionError: logsModule.persistExecutionError,
     buildTraceSpans: traceSpansModule.buildTraceSpans,
     updateWorkflowRunCounts: workflowUtilsModule.updateWorkflowRunCounts,
     Executor: executorModule.Executor,
@@ -646,6 +638,15 @@ export function mockKnowledgeSchemas() {
       tag6: 'tag6',
       tag7: 'tag7',
       createdAt: 'created_at',
+    },
+    permissions: {
+      id: 'permission_id',
+      userId: 'user_id',
+      entityType: 'entity_type',
+      entityId: 'entity_id',
+      permissionType: 'permission_type',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
     },
   }))
 }

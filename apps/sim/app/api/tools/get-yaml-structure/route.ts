@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { YAML_WORKFLOW_PROMPT } from '../../../../lib/copilot/prompts'
+import { getYamlWorkflowPrompt } from '@/lib/copilot/prompts'
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,7 +10,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        guide: YAML_WORKFLOW_PROMPT,
+        guide: getYamlWorkflowPrompt(),
         message: 'Complete YAML workflow syntax guide with examples and best practices',
       },
     })
@@ -17,7 +19,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to get YAML structure guide',
+        error: 'Failed to get YAML structure',
       },
       { status: 500 }
     )

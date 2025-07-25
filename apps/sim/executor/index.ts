@@ -1123,12 +1123,13 @@ export class Executor {
           const conditionId = conn.sourceHandle.replace('condition-', '')
           const selectedCondition = context.decisions.condition.get(conn.source)
 
-          // If source is executed and this is not the selected path, dependency is NOT met
+          // If source is executed and this is not the selected path, treat as "not applicable"
+          // This allows blocks with multiple condition paths to execute via any selected path
           if (sourceExecuted && selectedCondition && conditionId !== selectedCondition) {
-            return false
+            return true // Changed from false to true - unselected paths don't block execution
           }
 
-          // Otherwise, this dependency is met only if source is executed and this is the selected path
+          // This dependency is met only if source is executed and this is the selected path
           return sourceExecuted && conditionId === selectedCondition
         }
       }

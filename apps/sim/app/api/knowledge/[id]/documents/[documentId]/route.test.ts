@@ -15,7 +15,12 @@ import {
 mockKnowledgeSchemas()
 
 vi.mock('../../../utils', () => ({
+  checkKnowledgeBaseAccess: vi.fn(),
+  checkKnowledgeBaseWriteAccess: vi.fn(),
   checkDocumentAccess: vi.fn(),
+  checkDocumentWriteAccess: vi.fn(),
+  checkChunkAccess: vi.fn(),
+  generateEmbeddings: vi.fn(),
   processDocumentAsync: vi.fn(),
 }))
 
@@ -37,8 +42,7 @@ describe('Document By ID API Route', () => {
     transaction: vi.fn(),
   }
 
-  const mockCheckDocumentAccess = vi.fn()
-  const mockProcessDocumentAsync = vi.fn()
+  // Mock functions will be imported dynamically in tests
 
   const mockDocument = {
     id: 'doc-123',
@@ -69,8 +73,7 @@ describe('Document By ID API Route', () => {
         }
       }
     })
-    mockCheckDocumentAccess.mockClear().mockReset()
-    mockProcessDocumentAsync.mockClear().mockReset()
+    // Mock functions are cleared automatically by vitest
   }
 
   beforeEach(async () => {
@@ -80,10 +83,7 @@ describe('Document By ID API Route', () => {
       db: mockDbChain,
     }))
 
-    vi.doMock('../../../utils', () => ({
-      checkDocumentAccess: mockCheckDocumentAccess,
-      processDocumentAsync: mockProcessDocumentAsync,
-    }))
+    // Utils are mocked at the top level
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
@@ -98,10 +98,13 @@ describe('Document By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123', documentId: 'doc-123' })
 
     it('should retrieve document successfully for authenticated user', async () => {
+      const { checkDocumentAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentAccess).mockResolvedValue({
         hasAccess: true,
         document: mockDocument,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
       const req = createMockRequest('GET')
@@ -113,7 +116,7 @@ describe('Document By ID API Route', () => {
       expect(data.success).toBe(true)
       expect(data.data.id).toBe('doc-123')
       expect(data.data.filename).toBe('test-document.pdf')
-      expect(mockCheckDocumentAccess).toHaveBeenCalledWith('kb-123', 'doc-123', 'user-123')
+      expect(vi.mocked(checkDocumentAccess)).toHaveBeenCalledWith('kb-123', 'doc-123', 'user-123')
     })
 
     it('should return unauthorized for unauthenticated user', async () => {
@@ -129,8 +132,10 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return not found for non-existent document', async () => {
+      const { checkDocumentAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentAccess).mockResolvedValue({
         hasAccess: false,
         notFound: true,
         reason: 'Document not found',
@@ -146,8 +151,10 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return unauthorized for document without access', async () => {
+      const { checkDocumentAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentAccess).mockResolvedValue({
         hasAccess: false,
         reason: 'Access denied',
       })
@@ -162,8 +169,10 @@ describe('Document By ID API Route', () => {
     })
 
     it('should handle database errors', async () => {
+      const { checkDocumentAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockRejectedValue(new Error('Database error'))
+      vi.mocked(checkDocumentAccess).mockRejectedValue(new Error('Database error'))
 
       const req = createMockRequest('GET')
       const { GET } = await import('./route')
@@ -185,10 +194,13 @@ describe('Document By ID API Route', () => {
     }
 
     it('should update document successfully', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: mockDocument,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
       // Create a sequence of mocks for the database operations
@@ -224,10 +236,13 @@ describe('Document By ID API Route', () => {
     })
 
     it('should validate update data', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: mockDocument,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
       const invalidData = {
@@ -251,6 +266,8 @@ describe('Document By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123', documentId: 'doc-123' })
 
     it('should mark document as failed due to timeout successfully', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       const processingDocument = {
         ...mockDocument,
         processingStatus: 'processing',
@@ -258,9 +275,10 @@ describe('Document By ID API Route', () => {
       }
 
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: processingDocument,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
       // Create a sequence of mocks for the database operations
@@ -302,10 +320,13 @@ describe('Document By ID API Route', () => {
     })
 
     it('should reject marking failed for non-processing document', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: { ...mockDocument, processingStatus: 'completed' },
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
       const req = createMockRequest('PUT', { markFailedDueToTimeout: true })
@@ -318,6 +339,8 @@ describe('Document By ID API Route', () => {
     })
 
     it('should reject marking failed for recently started processing', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       const recentProcessingDocument = {
         ...mockDocument,
         processingStatus: 'processing',
@@ -325,9 +348,10 @@ describe('Document By ID API Route', () => {
       }
 
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: recentProcessingDocument,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
       const req = createMockRequest('PUT', { markFailedDueToTimeout: true })
@@ -344,6 +368,8 @@ describe('Document By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123', documentId: 'doc-123' })
 
     it('should retry processing successfully', async () => {
+      const { checkDocumentWriteAccess, processDocumentAsync } = await import('../../../utils')
+
       const failedDocument = {
         ...mockDocument,
         processingStatus: 'failed',
@@ -351,9 +377,10 @@ describe('Document By ID API Route', () => {
       }
 
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: failedDocument,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
       // Mock transaction
@@ -371,7 +398,7 @@ describe('Document By ID API Route', () => {
         return await callback(mockTx)
       })
 
-      mockProcessDocumentAsync.mockResolvedValue(undefined)
+      vi.mocked(processDocumentAsync).mockResolvedValue(undefined)
 
       const req = createMockRequest('PUT', { retryProcessing: true })
       const { PUT } = await import('./route')
@@ -383,14 +410,17 @@ describe('Document By ID API Route', () => {
       expect(data.data.status).toBe('pending')
       expect(data.data.message).toBe('Document retry processing started')
       expect(mockDbChain.transaction).toHaveBeenCalled()
-      expect(mockProcessDocumentAsync).toHaveBeenCalled()
+      expect(vi.mocked(processDocumentAsync)).toHaveBeenCalled()
     })
 
     it('should reject retry for non-failed document', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: { ...mockDocument, processingStatus: 'completed' },
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
       const req = createMockRequest('PUT', { retryProcessing: true })
@@ -420,8 +450,10 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return not found for non-existent document', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: false,
         notFound: true,
         reason: 'Document not found',
@@ -437,10 +469,13 @@ describe('Document By ID API Route', () => {
     })
 
     it('should handle database errors during update', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: mockDocument,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
       mockDbChain.set.mockRejectedValue(new Error('Database error'))
 
@@ -458,10 +493,13 @@ describe('Document By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123', documentId: 'doc-123' })
 
     it('should delete document successfully', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: mockDocument,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
 
       // Properly chain the mock database operations for soft delete
@@ -498,8 +536,10 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return not found for non-existent document', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: false,
         notFound: true,
         reason: 'Document not found',
@@ -515,8 +555,10 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return unauthorized for document without access', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: false,
         reason: 'Access denied',
       })
@@ -531,10 +573,13 @@ describe('Document By ID API Route', () => {
     })
 
     it('should handle database errors during deletion', async () => {
+      const { checkDocumentWriteAccess } = await import('../../../utils')
+
       mockAuth$.mockAuthenticatedUser()
-      mockCheckDocumentAccess.mockResolvedValue({
+      vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
         hasAccess: true,
         document: mockDocument,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
       mockDbChain.set.mockRejectedValue(new Error('Database error'))
 

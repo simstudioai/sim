@@ -113,35 +113,6 @@ export interface WorkflowExecutionLog {
 export type WorkflowExecutionLogInsert = Omit<WorkflowExecutionLog, 'id' | 'createdAt'>
 export type WorkflowExecutionLogSelect = WorkflowExecutionLog
 
-export interface BlockExecutionLog {
-  id: string
-  executionId: string
-  workflowId: string
-  blockId: string
-  blockName: string
-  blockType: string
-  startedAt: string
-  endedAt: string
-  durationMs: number
-  status: 'success' | 'error' | 'skipped'
-  errorMessage?: string
-  errorStackTrace?: string
-  inputData: BlockInputData
-  outputData: BlockOutputData
-  cost: CostBreakdown | null
-  metadata: {
-    toolCalls?: ToolCall[]
-    iterationIndex?: number
-    virtualBlockId?: string
-    parentBlockId?: string
-    environmentSnapshot?: Record<string, string>
-  }
-  createdAt: string
-}
-
-export type BlockExecutionLogInsert = Omit<BlockExecutionLog, 'id' | 'createdAt'>
-export type BlockExecutionLogSelect = BlockExecutionLog
-
 export interface TraceSpan {
   id: string
   name: string
@@ -200,7 +171,7 @@ export interface BlockExecutionSummary {
   startedAt: string
   endedAt: string
   durationMs: number
-  status: BlockExecutionLog['status']
+  status: 'success' | 'error' | 'skipped'
   errorMessage?: string
   cost?: CostBreakdown
   inputSummary: {
@@ -212,13 +183,6 @@ export interface BlockExecutionSummary {
     outputType: string
     hasError: boolean
   }
-}
-
-export interface BlockExecutionDetail extends BlockExecutionSummary {
-  inputData: BlockInputData
-  outputData: BlockOutputData
-  metadata: BlockExecutionLog['metadata']
-  toolCalls?: ToolCall[]
 }
 
 export interface PaginatedResponse<T> {
@@ -328,28 +292,6 @@ export interface ExecutionLoggerService {
     workflowLog: WorkflowExecutionLog
     snapshot: WorkflowExecutionSnapshot
   }>
-
-  logBlockExecution(params: {
-    executionId: string
-    workflowId: string
-    blockId: string
-    blockName: string
-    blockType: string
-    input: BlockInputData
-    output: BlockOutputData
-    timing: {
-      startedAt: string
-      endedAt: string
-      durationMs: number
-    }
-    status: BlockExecutionLog['status']
-    error?: {
-      message: string
-      stackTrace?: string
-    }
-    cost?: CostBreakdown
-    metadata?: BlockExecutionLog['metadata']
-  }): Promise<BlockExecutionLog>
 
   completeWorkflowExecution(params: {
     executionId: string
