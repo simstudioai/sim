@@ -8,6 +8,7 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { ThemeImage } from '@/components/ui/theme-image'
+import { Video } from '@/components/ui/video'
 
 The Router block uses AI to intelligently decide which path your workflow should take next. Unlike Condition blocks that use simple rules, Router blocks can understand context and make smart routing decisions based on content analysis.
 
@@ -103,7 +104,7 @@ Choose an AI model to power the routing decision:
 **Local Models**: Any model running on Ollama 
 
 <div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/router-model-dropdown.mp4"></video>
+  <Video src="router-model-dropdown.mp4" />
 </div>
 
 **Recommendation**: Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for more accurate routing decisions.

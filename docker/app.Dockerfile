@@ -25,6 +25,9 @@ RUN bun install --omit dev --ignore-scripts
 FROM base AS builder
 WORKDIR /app
 
+# Install turbo globally in builder stage
+RUN bun install -g turbo
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
