@@ -1437,6 +1437,104 @@ export async function fetchAndProcessAirtablePayloads(
 /**
  * Process webhook verification and authorization
  */
+/**
+ * Handle Microsoft Teams webhooks with immediate acknowledgment
+ */
+async function processMicrosoftTeamsWebhook(
+  foundWebhook: any,
+  foundWorkflow: any,
+  input: any,
+  executionId: string,
+  requestId: string
+): Promise<NextResponse> {
+  logger.info(
+    `[${requestId}] Acknowledging Microsoft Teams webhook ${foundWebhook.id} and executing workflow ${foundWorkflow.id} asynchronously (Execution: ${executionId})`
+  )
+
+  // Execute workflow asynchronously without waiting for completion
+  executeWorkflowFromPayload(
+    foundWorkflow,
+    input,
+    executionId,
+    requestId,
+    foundWebhook.blockId
+  ).catch((error) => {
+    // Log any errors that occur during async execution
+    logger.error(
+      `[${requestId}] Error during async workflow execution for webhook ${foundWebhook.id} (Execution: ${executionId})`,
+      error
+    )
+  })
+
+  // Return immediate acknowledgment for Microsoft Teams
+  return NextResponse.json(
+    {
+      type: 'message',
+      text: 'Sim Studio',
+    },
+    { status: 200 }
+  )
+}
+
+/**
+ * Handle standard webhooks with synchronous execution
+ */
+async function processStandardWebhook(
+  foundWebhook: any,
+  foundWorkflow: any,
+  input: any,
+  executionId: string,
+  requestId: string
+): Promise<NextResponse> {
+  logger.info(
+    `[${requestId}] Executing workflow ${foundWorkflow.id} for webhook ${foundWebhook.id} (Execution: ${executionId})`
+  )
+
+  await executeWorkflowFromPayload(
+    foundWorkflow,
+    input,
+    executionId,
+    requestId,
+    foundWebhook.blockId
+  )
+
+  // Since executeWorkflowFromPayload handles logging and errors internally,
+  // we just need to return a standard success response for synchronous webhooks.
+  // Note: The actual result isn't typically returned in the webhook response itself.
+
+  return NextResponse.json({ message: 'Webhook processed' }, { status: 200 })
+}
+
+/**
+ * Handle webhook processing errors with provider-specific responses
+ */
+function handleWebhookError(
+  error: any,
+  foundWebhook: any,
+  executionId: string,
+  requestId: string
+): NextResponse {
+  logger.error(
+    `[${requestId}] Error in processWebhook for ${foundWebhook.id} (Execution: ${executionId})`,
+    error
+  )
+
+  // For Microsoft Teams outgoing webhooks, return the expected error format
+  if (foundWebhook.provider === 'microsoftteams') {
+    return NextResponse.json(
+      {
+        type: 'message',
+        text: 'Webhook processing failed',
+      },
+      { status: 200 }
+    ) // Still return 200 to prevent Teams from showing additional error messages
+  }
+
+  return new NextResponse(`Internal Server Error: ${error.message}`, {
+    status: 500,
+  })
+}
+
 export async function processWebhook(
   foundWebhook: any,
   foundWorkflow: any,
@@ -1449,11 +1547,7 @@ export async function processWebhook(
     // --- Handle Airtable differently - it should always use fetchAndProcessAirtablePayloads ---
     if (foundWebhook.provider === 'airtable') {
       logger.info(`[${requestId}] Routing Airtable webhook through dedicated processor`)
-
-      // Use the dedicated Airtable payload fetcher and processor
       await fetchAndProcessAirtablePayloads(foundWebhook, foundWorkflow, requestId)
-
-      // Return standard success response
       return NextResponse.json({ message: 'Airtable webhook processed' }, { status: 200 })
     }
 
@@ -1475,60 +1569,20 @@ export async function processWebhook(
       return new NextResponse('No messages in WhatsApp payload', { status: 200 })
     }
 
-    // --- Send immediate acknowledgment and execute workflow asynchronously ---
-    logger.info(
-      `[${requestId}] Acknowledging webhook ${foundWebhook.id} and executing workflow ${foundWorkflow.id} asynchronously (Execution: ${executionId})`
-    )
-
-    // Execute workflow asynchronously without waiting for completion
-    executeWorkflowFromPayload(
-      foundWorkflow,
-      input,
-      executionId,
-      requestId,
-      foundWebhook.blockId
-    ).catch((error) => {
-      // Log any errors that occur during async execution
-      logger.error(
-        `[${requestId}] Error during async workflow execution for webhook ${foundWebhook.id} (Execution: ${executionId})`,
-        error
-      )
-    })
-
-    // Return immediate acknowledgment to the webhook provider
-    // For Microsoft Teams outgoing webhooks, return the expected response format
+    // --- Route to appropriate processor based on provider ---
     if (foundWebhook.provider === 'microsoftteams') {
-      return NextResponse.json(
-        {
-          type: 'message',
-          text: 'Sim Studio',
-        },
-        { status: 200 }
+      return await processMicrosoftTeamsWebhook(
+        foundWebhook,
+        foundWorkflow,
+        input,
+        executionId,
+        requestId
       )
     }
 
-    return NextResponse.json({ message: 'Webhook received' }, { status: 200 })
+    return await processStandardWebhook(foundWebhook, foundWorkflow, input, executionId, requestId)
   } catch (error: any) {
-    // Catch errors *before* calling executeWorkflowFromPayload (e.g., auth errors)
-    logger.error(
-      `[${requestId}] Error in processWebhook *before* execution for ${foundWebhook.id} (Execution: ${executionId})`,
-      error
-    )
-
-    // For Microsoft Teams outgoing webhooks, return the expected error format
-    if (foundWebhook.provider === 'microsoftteams') {
-      return NextResponse.json(
-        {
-          type: 'message',
-          text: 'Request received but processing failed',
-        },
-        { status: 200 }
-      ) // Still return 200 to prevent Teams from showing additional error messages
-    }
-
-    return new NextResponse(`Internal Server Error: ${error.message}`, {
-      status: 500,
-    })
+    return handleWebhookError(error, foundWebhook, executionId, requestId)
   }
 }
 
