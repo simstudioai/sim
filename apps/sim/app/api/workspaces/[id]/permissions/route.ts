@@ -3,6 +3,9 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getUsersWithPermissions, hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
+
+export const dynamic = 'force-dynamic'
+
 import { db } from '@/db'
 import { permissions, type permissionTypeEnum } from '@/db/schema'
 

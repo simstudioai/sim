@@ -7,6 +7,9 @@ import {
   updateOrganizationSeats,
 } from '@/lib/billing/validation/seat-management'
 import { createLogger } from '@/lib/logs/console-logger'
+
+export const dynamic = 'force-dynamic'
+
 import { db } from '@/db'
 import { member, organization } from '@/db/schema'
 

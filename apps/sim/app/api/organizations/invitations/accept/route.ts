@@ -9,6 +9,8 @@ import { invitation, member, permissions, workspaceInvitation } from '@/db/schem
 
 const logger = createLogger('OrganizationInvitationAcceptance')
 
+export const dynamic = 'force-dynamic'
+
 // Accept an organization invitation and any associated workspace invitations
 export async function GET(req: NextRequest) {
   const invitationId = req.nextUrl.searchParams.get('id')

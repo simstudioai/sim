@@ -8,6 +8,8 @@ import { workflow, workflowBlocks } from '@/db/schema'
 
 const logger = createLogger('WorkflowAPI')
 
+export const dynamic = 'force-dynamic'
+
 // Schema for workflow creation
 const CreateWorkflowSchema = z.object({
   name: z.string().min(1, 'Name is required'),

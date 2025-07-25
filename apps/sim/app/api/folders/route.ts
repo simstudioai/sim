@@ -8,6 +8,8 @@ import { workflowFolder } from '@/db/schema'
 
 const logger = createLogger('FoldersAPI')
 
+export const dynamic = 'force-dynamic'
+
 // GET - Fetch folders for a workspace
 export async function GET(request: NextRequest) {
   try {

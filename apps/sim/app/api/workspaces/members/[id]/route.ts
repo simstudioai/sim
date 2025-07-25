@@ -5,6 +5,8 @@ import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { permissions } from '@/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: userId } = await params

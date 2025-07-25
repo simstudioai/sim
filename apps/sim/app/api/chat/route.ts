@@ -14,6 +14,8 @@ import { chat } from '@/db/schema'
 
 const logger = createLogger('ChatAPI')
 
+export const dynamic = 'force-dynamic'
+
 const chatSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   subdomain: z
