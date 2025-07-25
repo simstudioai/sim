@@ -5,6 +5,8 @@ import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { workspaceInvitation } from '@/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 // DELETE /api/workspaces/invitations/[id] - Delete a workspace invitation
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

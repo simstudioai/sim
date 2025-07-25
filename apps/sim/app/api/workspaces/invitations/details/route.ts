@@ -4,6 +4,8 @@ import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { workspace, workspaceInvitation } from '@/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 // Get invitation details by token
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')

@@ -6,6 +6,8 @@ import { env } from '@/lib/env'
 import { db } from '@/db'
 import { permissions, user, workspace, workspaceInvitation } from '@/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 // Accept an invitation via token
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
