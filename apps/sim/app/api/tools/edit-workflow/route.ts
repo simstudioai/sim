@@ -14,6 +14,8 @@ import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { convertYamlToWorkflow, parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('EditWorkflowAPI')
 
 export async function POST(request: NextRequest) {
