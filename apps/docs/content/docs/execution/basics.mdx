@@ -20,6 +20,7 @@ import {
   LoopIcon,
   ParallelIcon,
 } from '@/components/icons'
+import { Video } from '@/components/ui/video'
 
 When you run a workflow in Sim Studio, the execution engine follows a systematic process to ensure blocks are executed in the correct order with proper data flow.
 
@@ -162,7 +163,7 @@ Run workflows on-demand through the Sim Studio interface by clicking the "Run" b
 - Workflows that need human supervision
 
 <div className="mx-auto w-full overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/input-format.mp4"></video>
+  <Video src="input-format.mp4" />
 </div>
 
 ### Scheduled Execution
@@ -175,7 +176,7 @@ Configure workflows to run automatically on a specified schedule:
 - Set minimum and maximum execution intervals
 
 <div className="mx-auto w-full overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/configure-schedule.mp4"></video>
+  <Video src="configure-schedule.mp4" />
 </div>
 
 ### API Endpoints
@@ -188,7 +189,7 @@ Each workflow can be exposed as an API endpoint:
 - Receive execution results as JSON responses
 
 <div className="mx-auto w-full overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/api-deployment.mp4"></video>
+  <Video src="api-deployment.mp4" />
 </div>
 
 #### Viewing Deployed APIs
@@ -196,7 +197,7 @@ Each workflow can be exposed as an API endpoint:
 Monitor your deployed workflow APIs and their current state:
 
 <div className="mx-auto w-full overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/api-redeployment.mp4"></video>
+  <Video src="api-redeployment.mp4" />
 </div>
 
 This shows how to view the deployed state and compare with the original deployed API configuration.
@@ -211,7 +212,7 @@ Configure workflows to execute in response to external events:
 - Support for specialized webhooks (GitHub, Stripe, etc.)
 
 <div className="mx-auto w-full overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/webhooks.mp4"></video>
+  <Video src="webhooks.mp4" />
 </div>
 
 <Callout type="info">

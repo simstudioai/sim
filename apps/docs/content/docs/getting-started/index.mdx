@@ -23,6 +23,7 @@ import {
   PerplexityIcon,
   SlackIcon,
 } from '@/components/icons'
+import { Video } from '@/components/ui/video'
 
 This tutorial will guide you through building your first AI workflow in Sim Studio. We'll create a people research agent that can find information about individuals using state-of-the-art LLM-Search tools.
 
@@ -63,7 +64,7 @@ A people research agent that:
     - **User Prompt**: Drag the connection from the Start block's output into this field (this connects `<start.input>` to the user prompt)
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-2.mp4"></video>
+      <Video src="examples/started-2.mp4" />
     </div>
   </Step>
   
@@ -77,7 +78,7 @@ A people research agent that:
     - Add your API keys for both tools (this allows the agent to search the web and access additional information)
     
     <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-3.mp4"></video>
+      <Video src="examples/started-3.mp4" />
     </div>
   </Step>
   
@@ -92,7 +93,7 @@ A people research agent that:
     You should see the agent's response analyzing the person described in your text.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-4.mp4"></video>
+      <Video src="examples/started-4.mp4" />
     </div>
   </Step>
   
@@ -105,7 +106,7 @@ A people research agent that:
     - The AI will generate a JSON schema for you automatically
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-5.mp4"></video>
+      <Video src="examples/started-5.mp4" />
     </div>
   </Step>
   
@@ -120,7 +121,7 @@ A people research agent that:
     You should now see structured JSON output with the person's information organized into location, profession, and education fields.
     
     <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/static/examples/started/started-6.mp4"></video>
+      <Video src="examples/started-6.mp4" />
     </div>
   </Step>
 </Steps>
