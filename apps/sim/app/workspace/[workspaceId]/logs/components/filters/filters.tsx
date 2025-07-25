@@ -57,19 +57,19 @@ export function Filters() {
       <h2 className='mb-4 pl-2 font-medium text-sm'>Filters</h2>
 
       {/* Timeline Filter */}
-      <FilterSection title='Timeline' defaultOpen={true} content={<Timeline />} />
+      <FilterSection title='Timeline' content={<Timeline />} />
 
       {/* Level Filter */}
-      <FilterSection title='Level' defaultOpen={true} content={<Level />} />
+      <FilterSection title='Level' content={<Level />} />
 
       {/* Trigger Filter */}
-      <FilterSection title='Trigger' defaultOpen={true} content={<Trigger />} />
+      <FilterSection title='Trigger' content={<Trigger />} />
 
       {/* Folder Filter */}
-      <FilterSection title='Folder' defaultOpen={true} content={<FolderFilter />} />
+      <FilterSection title='Folder' content={<FolderFilter />} />
 
       {/* Workflow Filter */}
-      <FilterSection title='Workflow' defaultOpen={true} content={<Workflow />} />
+      <FilterSection title='Workflow' content={<Workflow />} />
     </div>
   )
 }
