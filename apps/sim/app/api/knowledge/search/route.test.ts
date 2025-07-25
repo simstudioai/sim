@@ -51,8 +51,9 @@ vi.mock('@/providers/utils', () => ({
   }),
 }))
 
+const mockCheckKnowledgeBaseAccess = vi.fn()
 vi.mock('@/app/api/knowledge/utils', () => ({
-  checkKnowledgeBaseAccess: vi.fn(),
+  checkKnowledgeBaseAccess: mockCheckKnowledgeBaseAccess,
 }))
 
 mockConsoleLogger()
@@ -67,7 +68,6 @@ describe('Knowledge Search API Route', () => {
   }
 
   const mockGetUserId = vi.fn()
-  const mockCheckKnowledgeBaseAccess = vi.fn()
   const mockFetch = vi.fn()
 
   const mockEmbedding = [0.1, 0.2, 0.3, 0.4, 0.5]
@@ -99,10 +99,6 @@ describe('Knowledge Search API Route', () => {
 
     vi.doMock('@/app/api/auth/oauth/utils', () => ({
       getUserId: mockGetUserId,
-    }))
-
-    vi.doMock('@/app/api/knowledge/utils', () => ({
-      checkKnowledgeBaseAccess: mockCheckKnowledgeBaseAccess,
     }))
 
     Object.values(mockDbChain).forEach((fn) => {
@@ -161,6 +157,10 @@ describe('Knowledge Search API Route', () => {
       const { POST } = await import('./route')
       const response = await POST(req)
       const data = await response.json()
+
+      if (response.status !== 200) {
+        console.log('Test failed with response:', data)
+      }
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
