@@ -12,6 +12,8 @@ import {
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('AutoLayoutAPI')
 
 const AutoLayoutRequestSchema = z.object({
