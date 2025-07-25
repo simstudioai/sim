@@ -4,6 +4,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
+
+export const dynamic = 'force-dynamic'
+
 import { apiKey as apiKeyTable } from '@/db/schema'
 import { createErrorResponse } from '../../workflows/utils'
 

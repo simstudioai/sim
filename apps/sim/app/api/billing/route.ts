@@ -9,6 +9,8 @@ import { member } from '@/db/schema'
 
 const logger = createLogger('UnifiedBillingAPI')
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Unified Billing Endpoint
  */

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
@@ -6,8 +6,9 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
+import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
-import { embedding, knowledgeBase } from '@/db/schema'
+import { embedding } from '@/db/schema'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('VectorSearchAPI')
@@ -261,39 +262,37 @@ export async function POST(request: NextRequest) {
         ? validatedData.knowledgeBaseIds
         : [validatedData.knowledgeBaseIds]
 
-      const [kb, queryEmbedding] = await Promise.all([
-        db
-          .select()
-          .from(knowledgeBase)
-          .where(
-            and(
-              inArray(knowledgeBase.id, knowledgeBaseIds),
-              eq(knowledgeBase.userId, userId),
-              isNull(knowledgeBase.deletedAt)
-            )
-          ),
-        generateSearchEmbedding(validatedData.query),
-      ])
+      // Check access permissions for each knowledge base using proper workspace-based permissions
+      const accessibleKbIds: string[] = []
+      for (const kbId of knowledgeBaseIds) {
+        const accessCheck = await checkKnowledgeBaseAccess(kbId, userId)
+        if (accessCheck.hasAccess) {
+          accessibleKbIds.push(kbId)
+        }
+      }
 
-      if (kb.length === 0) {
+      if (accessibleKbIds.length === 0) {
         return NextResponse.json(
           { error: 'Knowledge base not found or access denied' },
           { status: 404 }
         )
       }
 
-      const foundKbIds = kb.map((k) => k.id)
-      const missingKbIds = knowledgeBaseIds.filter((id) => !foundKbIds.includes(id))
+      // Generate query embedding in parallel with access checks
+      const queryEmbedding = await generateSearchEmbedding(validatedData.query)
 
-      if (missingKbIds.length > 0) {
+      // Check if any requested knowledge bases were not accessible
+      const inaccessibleKbIds = knowledgeBaseIds.filter((id) => !accessibleKbIds.includes(id))
+
+      if (inaccessibleKbIds.length > 0) {
         return NextResponse.json(
-          { error: `Knowledge bases not found: ${missingKbIds.join(', ')}` },
+          { error: `Knowledge bases not found or access denied: ${inaccessibleKbIds.join(', ')}` },
           { status: 404 }
         )
       }
 
-      // Adaptive query strategy based on KB count and parameters
-      const strategy = getQueryStrategy(foundKbIds.length, validatedData.topK)
+      // Adaptive query strategy based on accessible KB count and parameters
+      const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
       const queryVector = JSON.stringify(queryEmbedding)
 
       let results: any[]
@@ -301,7 +300,7 @@ export async function POST(request: NextRequest) {
       if (strategy.useParallel) {
         // Execute parallel queries for better performance with many KBs
         const parallelResults = await executeParallelQueries(
-          foundKbIds,
+          accessibleKbIds,
           queryVector,
           validatedData.topK,
           strategy.distanceThreshold,
@@ -311,7 +310,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Execute single optimized query for fewer KBs
         results = await executeSingleQuery(
-          foundKbIds,
+          accessibleKbIds,
           queryVector,
           validatedData.topK,
           strategy.distanceThreshold,
@@ -350,8 +349,8 @@ export async function POST(request: NextRequest) {
             similarity: 1 - result.distance,
           })),
           query: validatedData.query,
-          knowledgeBaseIds: foundKbIds,
-          knowledgeBaseId: foundKbIds[0],
+          knowledgeBaseIds: accessibleKbIds,
+          knowledgeBaseId: accessibleKbIds[0],
           topK: validatedData.topK,
           totalResults: results.length,
           ...(cost && tokenCount

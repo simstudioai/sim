@@ -9,6 +9,8 @@ import { customTools } from '@/db/schema'
 
 const logger = createLogger('CustomToolsAPI')
 
+export const dynamic = 'force-dynamic'
+
 // Define validation schema for custom tools
 const CustomToolSchema = z.object({
   tools: z.array(

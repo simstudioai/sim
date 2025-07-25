@@ -93,7 +93,9 @@ export class WorkflowBlockHandler implements BlockHandler {
       })
 
       const startTime = performance.now()
-      const result = await subExecutor.execute(executionId)
+      // Use the actual child workflow ID for authentication, not the execution ID
+      // This ensures knowledge base and other API calls can properly authenticate
+      const result = await subExecutor.execute(workflowId)
       const duration = performance.now() - startTime
 
       // Remove current execution from stack after completion
