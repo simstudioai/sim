@@ -99,27 +99,32 @@ export function Document({
   )
 
   // Function to build document tags from data and definitions
-  const buildDocumentTags = useCallback((docData: DocumentData, definitions: any[]) => {
-    const tags: DocumentTag[] = []
-    const tagSlots = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+  const buildDocumentTags = useCallback(
+    (docData: DocumentData, definitions: any[], currentTags?: DocumentTag[]) => {
+      const tags: DocumentTag[] = []
+      const tagSlots = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
 
-    tagSlots.forEach((slot) => {
-      const value = docData[slot]
-      const definition = definitions.find((def) => def.tagSlot === slot)
+      tagSlots.forEach((slot) => {
+        const value = docData[slot]
+        const definition = definitions.find((def) => def.tagSlot === slot)
+        const currentTag = currentTags?.find((tag) => tag.slot === slot)
 
-      // Only include tag if the document actually has a value for it
-      if (value?.trim()) {
-        tags.push({
-          slot,
-          displayName: definition?.displayName || '',
-          fieldType: definition?.fieldType || 'text',
-          value: value.trim(),
-        })
-      }
-    })
+        // Only include tag if the document actually has a value for it
+        if (value?.trim()) {
+          tags.push({
+            slot,
+            // Preserve existing displayName if definition is not found yet
+            displayName: definition?.displayName || currentTag?.displayName || '',
+            fieldType: definition?.fieldType || currentTag?.fieldType || 'text',
+            value: value.trim(),
+          })
+        }
+      })
 
-    return tags
-  }, [])
+      return tags
+    },
+    []
+  )
 
   // Handle tag updates (local state only, no API calls)
   const handleTagsChange = useCallback((newTags: DocumentTag[]) => {
@@ -233,7 +238,7 @@ export function Document({
         if (result.success) {
           setDocumentData(result.data)
           // Initialize tags from fetched document
-          const initialTags = buildDocumentTags(result.data, tagDefinitions)
+          const initialTags = buildDocumentTags(result.data, tagDefinitions, [])
           setDocumentTags(initialTags)
         } else {
           throw new Error(result.error || 'Failed to fetch document')
@@ -254,7 +259,7 @@ export function Document({
   // Separate effect to rebuild tags when tag definitions change (without re-fetching document)
   useEffect(() => {
     if (documentData) {
-      const rebuiltTags = buildDocumentTags(documentData, tagDefinitions)
+      const rebuiltTags = buildDocumentTags(documentData, tagDefinitions, documentTags)
       setDocumentTags(rebuiltTags)
     }
   }, [documentData, tagDefinitions, buildDocumentTags])

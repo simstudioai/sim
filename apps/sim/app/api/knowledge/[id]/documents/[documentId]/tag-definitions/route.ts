@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { and, eq, isNotNull, or } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -25,83 +25,54 @@ const BulkTagDefinitionsSchema = z.object({
 // Helper function to clean up unused tag definitions
 async function cleanupUnusedTagDefinitions(knowledgeBaseId: string, requestId: string) {
   try {
-    // Get all current tag definitions for this KB
-    const currentDefinitions = await db
-      .select({
-        id: knowledgeBaseTagDefinitions.id,
-        displayName: knowledgeBaseTagDefinitions.displayName,
-        tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-      })
+    logger.info(`[${requestId}] Starting cleanup for KB ${knowledgeBaseId}`)
+
+    // Get all tag definitions for this KB
+    const allDefinitions = await db
+      .select()
       .from(knowledgeBaseTagDefinitions)
       .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
 
-    if (currentDefinitions.length === 0) {
-      return 0 // No definitions to clean up
+    logger.info(`[${requestId}] Found ${allDefinitions.length} tag definitions to check`)
+
+    if (allDefinitions.length === 0) {
+      return 0
     }
 
-    // Check which tag names are actually in use by documents
-    const documentsWithTags = await db
-      .select({
-        tag1: document.tag1,
-        tag2: document.tag2,
-        tag3: document.tag3,
-        tag4: document.tag4,
-        tag5: document.tag5,
-        tag6: document.tag6,
-        tag7: document.tag7,
-      })
-      .from(document)
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBaseId),
-          or(
-            isNotNull(document.tag1),
-            isNotNull(document.tag2),
-            isNotNull(document.tag3),
-            isNotNull(document.tag4),
-            isNotNull(document.tag5),
-            isNotNull(document.tag6),
-            isNotNull(document.tag7)
-          )
-        )
+    let cleanedCount = 0
+
+    // For each tag definition, check if any documents use that tag slot
+    for (const definition of allDefinitions) {
+      const slot = definition.tagSlot
+
+      // Use raw SQL with proper column name injection
+      const countResult = await db.execute(sql`
+        SELECT count(*) as count
+        FROM document
+        WHERE knowledge_base_id = ${knowledgeBaseId}
+        AND ${sql.raw(slot)} IS NOT NULL
+        AND trim(${sql.raw(slot)}) != ''
+      `)
+      const count = Number(countResult[0]?.count) || 0
+
+      logger.info(
+        `[${requestId}] Tag ${definition.displayName} (${slot}): ${count} documents using it`
       )
 
-    // Collect all tag names that are actually in use
-    const usedTagNames = new Set<string>()
-    for (const doc of documentsWithTags) {
-      const tagSlots = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-      for (const slot of tagSlots) {
-        const tagValue = doc[slot]
-        if (tagValue?.trim()) {
-          // Find the tag definition for this slot to get the display name
-          const definition = currentDefinitions.find((def) => def.tagSlot === slot)
-          if (definition) {
-            usedTagNames.add(definition.displayName)
-          }
-        }
+      // If count is 0, remove this tag definition
+      if (count === 0) {
+        await db
+          .delete(knowledgeBaseTagDefinitions)
+          .where(eq(knowledgeBaseTagDefinitions.id, definition.id))
+
+        cleanedCount++
+        logger.info(
+          `[${requestId}] Removed unused tag definition: ${definition.displayName} (${definition.tagSlot})`
+        )
       }
     }
 
-    // Find definitions that are not in use
-    const unusedDefinitions = currentDefinitions.filter((def) => !usedTagNames.has(def.displayName))
-
-    if (unusedDefinitions.length === 0) {
-      return 0 // No unused definitions
-    }
-
-    // Remove unused definitions
-    const unusedIds = unusedDefinitions.map((def) => def.id)
-    await db
-      .delete(knowledgeBaseTagDefinitions)
-      .where(
-        and(
-          eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId),
-          or(...unusedIds.map((id) => eq(knowledgeBaseTagDefinitions.id, id)))
-        )
-      )
-
-    logger.info(`[${requestId}] Cleaned up ${unusedDefinitions.length} unused tag definitions`)
-    return unusedDefinitions.length
+    return cleanedCount
   } catch (error) {
     logger.warn(`[${requestId}] Failed to cleanup unused tag definitions:`, error)
     return 0 // Don't fail the main operation if cleanup fails
@@ -199,7 +170,22 @@ export async function POST(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
-    const body = await req.json()
+    let body
+    try {
+      body = await req.json()
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to parse JSON body:`, error)
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
+    }
+
+    if (!body || typeof body !== 'object') {
+      logger.error(`[${requestId}] Invalid request body:`, body)
+      return NextResponse.json(
+        { error: 'Request body must be a valid JSON object' },
+        { status: 400 }
+      )
+    }
+
     const validatedData = BulkTagDefinitionsSchema.parse(body)
 
     // Validate no duplicate tag slots
@@ -328,10 +314,10 @@ export async function DELETE(
 ) {
   const requestId = randomUUID().slice(0, 8)
   const { id: knowledgeBaseId, documentId } = await params
+  const { searchParams } = new URL(req.url)
+  const action = searchParams.get('action') // 'cleanup' or 'all'
 
   try {
-    logger.info(`[${requestId}] Deleting tag definitions for document ${documentId}`)
-
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -343,19 +329,29 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Delete tag definitions for the knowledge base
+    if (action === 'cleanup') {
+      // Just run cleanup
+      logger.info(`[${requestId}] Running cleanup for KB ${knowledgeBaseId}`)
+      const cleanedUpCount = await cleanupUnusedTagDefinitions(knowledgeBaseId, requestId)
+
+      return NextResponse.json({
+        success: true,
+        data: { cleanedUp: cleanedUpCount },
+      })
+    }
+    // Delete all tag definitions (original behavior)
+    logger.info(`[${requestId}] Deleting all tag definitions for KB ${knowledgeBaseId}`)
+
     const result = await db
       .delete(knowledgeBaseTagDefinitions)
       .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
-
-    logger.info(`[${requestId}] Deleted tag definitions for document ${documentId}`)
 
     return NextResponse.json({
       success: true,
       message: 'Tag definitions deleted successfully',
     })
   } catch (error) {
-    logger.error(`[${requestId}] Error deleting tag definitions`, error)
-    return NextResponse.json({ error: 'Failed to delete tag definitions' }, { status: 500 })
+    logger.error(`[${requestId}] Error with tag definitions operation`, error)
+    return NextResponse.json({ error: 'Failed to process tag definitions' }, { status: 500 })
   }
 }

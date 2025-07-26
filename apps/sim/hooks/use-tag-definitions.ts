@@ -74,6 +74,11 @@ export function useTagDefinitions(
         throw new Error('Knowledge base ID and document ID are required')
       }
 
+      // Simple validation
+      const validDefinitions = (definitions || []).filter(
+        (def) => def && def.tagSlot && def.displayName && def.displayName.trim()
+      )
+
       try {
         const response = await fetch(
           `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/tag-definitions`,
@@ -82,7 +87,7 @@ export function useTagDefinitions(
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ definitions }),
+            body: JSON.stringify({ definitions: validDefinitions }),
           }
         )
 
