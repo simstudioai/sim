@@ -139,26 +139,18 @@ export function DocumentTagEntry({
 
     const updatedTags = [...tags, newTag]
 
-    // Save both operations - if either fails, revert the local state
+    // SIMPLE ATOMIC OPERATION - NO CLEANUP
     try {
-      console.log('Creating new tag:', { tagName, value, fieldType, slot: newTag.slot })
-
-      // First save the tag definitions to ensure they exist
-      console.log('Saving tag definitions...')
+      // 1. Save tag definition first
       await handleSaveDefinitions(updatedTags)
 
-      // Then save the document tag values
-      console.log('Saving document values...')
+      // 2. Save document values
       if (onSave) {
         await onSave(updatedTags)
       }
 
-      // Only update local state after both operations succeed
-      console.log('Both operations succeeded, updating local state')
+      // 3. Update UI
       onTagsChange(updatedTags)
-
-      // Refresh tag definitions for dropdown
-      await refreshTagDefinitions()
     } catch (error) {
       console.error('Failed to save tag:', error)
       alert(`Failed to save tag "${tagName}". Please try again.`)
@@ -172,19 +164,16 @@ export function DocumentTagEntry({
       i === index ? { ...tag, value: newValue.trim() } : tag
     )
 
-    // FULLY SYNCHRONOUS - DO NOT UPDATE UI UNTIL BOTH OPERATIONS COMPLETE
+    // SIMPLE ATOMIC OPERATION - NO CLEANUP
     try {
-      // First save the document tag values
+      // 1. Save document values
       if (onSave) {
         await onSave(updatedTags)
       }
-      // Then save the tag definitions
+      // 2. Save tag definitions
       await handleSaveDefinitions(updatedTags)
-      // ONLY NOW update the UI
+      // 3. Update UI
       onTagsChange(updatedTags)
-
-      // Refresh tag definitions for dropdown (in case cleanup removed unused ones)
-      await refreshTagDefinitions()
     } catch (error) {
       console.error('Failed to update tag:', error)
     }

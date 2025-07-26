@@ -280,15 +280,7 @@ export async function POST(
       }
     })
 
-    // Run cleanup immediately - document values should be saved before tag definitions
-    const cleanedUpCount = await cleanupUnusedTagDefinitions(knowledgeBaseId, requestId)
-    if (cleanedUpCount > 0) {
-      logger.info(
-        `[${requestId}] Created/updated ${createdDefinitions.length} tag definitions, cleaned up ${cleanedUpCount} unused definitions`
-      )
-    } else {
-      logger.info(`[${requestId}] Created/updated ${createdDefinitions.length} tag definitions`)
-    }
+    logger.info(`[${requestId}] Created/updated ${createdDefinitions.length} tag definitions`)
 
     return NextResponse.json({
       success: true,
