@@ -28,7 +28,7 @@ describe('Forget Password API Route', () => {
     })
 
     const { POST } = await import('@/app/api/auth/forget-password/route')
-    console.log('POST', POST)
+
     const response = await POST(req)
     const data = await response.json()
 

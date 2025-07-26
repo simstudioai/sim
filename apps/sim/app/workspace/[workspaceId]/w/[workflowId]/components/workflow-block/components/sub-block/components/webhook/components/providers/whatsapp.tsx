@@ -1,10 +1,12 @@
 import { Network } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { ConfigField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/config-field'
-import { ConfigSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/config-section'
-import { CopyableField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/copyable'
-import { InstructionsSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/instructions-section'
-import { TestResultDisplay } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/test-result'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui'
+import {
+  ConfigField,
+  ConfigSection,
+  CopyableField,
+  InstructionsSection,
+  TestResultDisplay,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui'
 
 interface WhatsAppConfigProps {
   verificationToken: string

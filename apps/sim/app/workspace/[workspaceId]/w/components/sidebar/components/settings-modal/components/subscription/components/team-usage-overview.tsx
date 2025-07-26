@@ -7,9 +7,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { EditMemberLimitDialog } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components/edit-member-limit-dialog'
 import { useOrganizationStore } from '@/stores/organization'
 import type { MemberUsageData } from '@/stores/organization/types'
+import { EditMemberLimitDialog } from './'
 
 const logger = createLogger('TeamUsageOverview')
 

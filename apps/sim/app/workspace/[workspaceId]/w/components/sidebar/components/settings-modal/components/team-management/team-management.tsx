@@ -1,20 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Skeleton,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { TeamSeatsDialog } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components/team-seats-dialog'
-import { TeamUsageOverview } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components/team-usage-overview'
-import { MemberInvitationCard } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components/member-invitation-card'
-import { NoOrganizationView } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components/no-organization-view'
-import { OrganizationSettingsTab } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components/organization-settings-tab'
-import { PendingInvitationsList } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components/pending-invitations-list'
-import { RemoveMemberDialog } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components/remove-member-dialog'
-import { TeamMembersList } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components/team-members-list'
-import { TeamSeatsOverview } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components/team-seats-overview'
+import {
+  TeamSeatsDialog,
+  TeamUsageOverview,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
+import {
+  MemberInvitationCard,
+  NoOrganizationView,
+  OrganizationSettingsTab,
+  PendingInvitationsList,
+  RemoveMemberDialog,
+  TeamMembersList,
+  TeamSeatsOverview,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components'
 import { generateSlug, useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 

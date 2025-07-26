@@ -1,33 +1,34 @@
 import { useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
-import { Label } from '@/components/ui/label'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ChannelSelectorInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/channel-selector/channel-selector-input'
-import { CheckboxList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/checkbox-list'
-import { Code } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/code'
-import { ComboBox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/combobox'
-import { ConditionInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/condition-input'
-import { CredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/credential-selector'
-import { DateInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/date-input'
-import { DocumentSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/document-selector/document-selector'
-import { Dropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/dropdown'
-import { EvalInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/eval-input'
-import { FileSelectorInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/file-selector-input'
-import { FileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-upload'
-import { FolderSelectorInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/folder-selector/components/folder-selector-input'
-import { KnowledgeBaseSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/knowledge-base-selector/knowledge-base-selector'
-import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/long-input'
-import { ProjectSelectorInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/project-selector/project-selector-input'
-import { ResponseFormat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/response/response-format'
-import { ScheduleConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/schedule/schedule-config'
-import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/short-input'
-import { SliderInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/slider-input'
-import { InputFormat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/starter/input-format'
-import { Switch } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/switch'
-import { Table } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/table'
-import { TimeInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/time-input'
-import { ToolInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/tool-input'
-import { WebhookConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/webhook'
+import { Label, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import {
+  ChannelSelectorInput,
+  CheckboxList,
+  Code,
+  ComboBox,
+  ConditionInput,
+  CredentialSelector,
+  DateInput,
+  DocumentSelector,
+  Dropdown,
+  EvalInput,
+  FileSelectorInput,
+  FileUpload,
+  FolderSelectorInput,
+  InputFormat,
+  KnowledgeBaseSelector,
+  LongInput,
+  ProjectSelectorInput,
+  ResponseFormat,
+  ScheduleConfig,
+  ShortInput,
+  SliderInput,
+  Switch,
+  Table,
+  TimeInput,
+  ToolInput,
+  WebhookConfig,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
 import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'

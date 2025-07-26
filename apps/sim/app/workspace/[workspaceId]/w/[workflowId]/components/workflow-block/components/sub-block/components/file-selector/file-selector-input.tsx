@@ -3,22 +3,24 @@
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getEnv } from '@/lib/env'
-import type { ConfluenceFileInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/confluence-file-selector'
-import { ConfluenceFileSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/confluence-file-selector'
-import type { DiscordChannelInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/discord-channel-selector'
-import { DiscordChannelSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/discord-channel-selector'
-import type { GoogleCalendarInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/google-calendar-selector'
-import { GoogleCalendarSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/google-calendar-selector'
-import type { FileInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/google-drive-picker'
-import { GoogleDrivePicker } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/google-drive-picker'
-import type { JiraIssueInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/jira-issue-selector'
-import { JiraIssueSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/jira-issue-selector'
-import type { MicrosoftFileInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/microsoft-file-selector'
-import { MicrosoftFileSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/microsoft-file-selector'
-import type { TeamsMessageInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/teams-message-selector'
-import { TeamsMessageSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/teams-message-selector'
-import type { WealthboxItemInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/wealthbox-file-selector'
-import { WealthboxFileSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components/wealthbox-file-selector'
+import {
+  type ConfluenceFileInfo,
+  ConfluenceFileSelector,
+  type DiscordChannelInfo,
+  DiscordChannelSelector,
+  type FileInfo,
+  type GoogleCalendarInfo,
+  GoogleCalendarSelector,
+  GoogleDrivePicker,
+  type JiraIssueInfo,
+  JiraIssueSelector,
+  type MicrosoftFileInfo,
+  MicrosoftFileSelector,
+  type TeamsMessageInfo,
+  TeamsMessageSelector,
+  WealthboxFileSelector,
+  type WealthboxItemInfo,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
