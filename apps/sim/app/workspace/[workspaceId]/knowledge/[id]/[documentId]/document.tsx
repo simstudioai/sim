@@ -86,7 +86,7 @@ export function Document({
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [showTagEntry, setShowTagEntry] = useState(false)
+
   const [documentTags, setDocumentTags] = useState<DocumentTag[]>([])
   const [documentData, setDocumentData] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
@@ -107,13 +107,13 @@ export function Document({
       const value = docData[slot]
       const definition = definitions.find((def) => def.tagSlot === slot)
 
-      // Include tag if it has a value OR if it has a custom definition
-      if (value?.trim() || definition?.displayName?.trim()) {
+      // Only include tag if the document actually has a value for it
+      if (value?.trim()) {
         tags.push({
           slot,
           displayName: definition?.displayName || '',
           fieldType: definition?.fieldType || 'text',
-          value: value?.trim() || '',
+          value: value.trim(),
         })
       }
     })
@@ -249,7 +249,15 @@ export function Document({
     if (knowledgeBaseId && documentId) {
       fetchDocument()
     }
-  }, [knowledgeBaseId, documentId, getCachedDocuments, buildDocumentTags, tagDefinitions])
+  }, [knowledgeBaseId, documentId, getCachedDocuments, buildDocumentTags])
+
+  // Separate effect to rebuild tags when tag definitions change (without re-fetching document)
+  useEffect(() => {
+    if (documentData) {
+      const rebuiltTags = buildDocumentTags(documentData, tagDefinitions)
+      setDocumentTags(rebuiltTags)
+    }
+  }, [documentData, tagDefinitions, buildDocumentTags])
 
   const knowledgeBase = getCachedKnowledgeBase(knowledgeBaseId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
@@ -510,118 +518,8 @@ export function Document({
                 </Button>
               </div>
 
-              {/* Document Tags Display */}
-              {documentData &&
-                (() => {
-                  const tags = [
-                    {
-                      label:
-                        tagDefinitions.find((def) => def.tagSlot === 'tag1')?.displayName ||
-                        'Tag 1',
-                      value: documentData.tag1,
-                      slot: 'tag1',
-                    },
-                    {
-                      label:
-                        tagDefinitions.find((def) => def.tagSlot === 'tag2')?.displayName ||
-                        'Tag 2',
-                      value: documentData.tag2,
-                      slot: 'tag2',
-                    },
-                    {
-                      label:
-                        tagDefinitions.find((def) => def.tagSlot === 'tag3')?.displayName ||
-                        'Tag 3',
-                      value: documentData.tag3,
-                      slot: 'tag3',
-                    },
-                    {
-                      label:
-                        tagDefinitions.find((def) => def.tagSlot === 'tag4')?.displayName ||
-                        'Tag 4',
-                      value: documentData.tag4,
-                      slot: 'tag4',
-                    },
-                    {
-                      label:
-                        tagDefinitions.find((def) => def.tagSlot === 'tag5')?.displayName ||
-                        'Tag 5',
-                      value: documentData.tag5,
-                      slot: 'tag5',
-                    },
-                    {
-                      label:
-                        tagDefinitions.find((def) => def.tagSlot === 'tag6')?.displayName ||
-                        'Tag 6',
-                      value: documentData.tag6,
-                      slot: 'tag6',
-                    },
-                    {
-                      label:
-                        tagDefinitions.find((def) => def.tagSlot === 'tag7')?.displayName ||
-                        'Tag 7',
-                      value: documentData.tag7,
-                      slot: 'tag7',
-                    },
-                  ].filter((tag) => tag.value?.trim())
-
-                  return tags.length > 0 ? (
-                    <div className='mb-4 rounded-md bg-muted/50 p-3'>
-                      <div className='flex flex-wrap items-center gap-2'>
-                        {tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className='inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-primary text-xs'
-                          >
-                            <span className='font-medium'>{tag.label}:</span>
-                            <span>{tag.value}</span>
-                          </span>
-                        ))}
-                        {userPermissions.canEdit && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => setShowTagEntry(!showTagEntry)}
-                                className='h-6 w-6 p-0 text-muted-foreground hover:text-foreground'
-                              >
-                                <Plus className='h-3 w-3' />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{showTagEntry ? 'Hide tag editor' : 'Edit document tags'}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </div>
-                    </div>
-                  ) : userPermissions.canEdit ? (
-                    <div className='mb-4 rounded-md border border-muted-foreground/25 border-dashed p-3'>
-                      <div className='flex items-center justify-between'>
-                        <p className='text-muted-foreground text-xs'>No document tags set</p>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={() => setShowTagEntry(!showTagEntry)}
-                              className='h-6 w-6 p-0 text-muted-foreground hover:text-foreground'
-                            >
-                              <Plus className='h-3 w-3' />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{showTagEntry ? 'Hide tag editor' : 'Add document tags'}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>
-                  ) : null
-                })()}
-
               {/* Document Tag Entry */}
-              {showTagEntry && userPermissions.canEdit && (
+              {userPermissions.canEdit && (
                 <div className='mb-4 rounded-md border p-4'>
                   <DocumentTagEntry
                     tags={documentTags}

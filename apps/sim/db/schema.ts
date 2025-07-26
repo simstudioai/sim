@@ -794,13 +794,13 @@ export const document = pgTable(
   })
 )
 
-export const documentTagDefinitions = pgTable(
-  'document_tag_definitions',
+export const knowledgeBaseTagDefinitions = pgTable(
+  'knowledge_base_tag_definitions',
   {
     id: text('id').primaryKey(),
-    documentId: text('document_id')
+    knowledgeBaseId: text('knowledge_base_id')
       .notNull()
-      .references(() => document.id, { onDelete: 'cascade' }),
+      .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
     tagSlot: text('tag_slot', {
       enum: ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'],
     }).notNull(),
@@ -810,13 +810,13 @@ export const documentTagDefinitions = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    // Ensure unique tag slot per document
-    documentTagSlotIdx: uniqueIndex('doc_tag_definitions_doc_slot_idx').on(
-      table.documentId,
+    // Ensure unique tag slot per knowledge base
+    kbTagSlotIdx: uniqueIndex('kb_tag_definitions_kb_slot_idx').on(
+      table.knowledgeBaseId,
       table.tagSlot
     ),
-    // Index for querying by document
-    documentIdIdx: index('doc_tag_definitions_doc_id_idx').on(table.documentId),
+    // Index for querying by knowledge base
+    kbIdIdx: index('kb_tag_definitions_kb_id_idx').on(table.knowledgeBaseId),
   })
 )
 

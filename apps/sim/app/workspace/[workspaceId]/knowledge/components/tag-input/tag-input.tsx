@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useTagDefinitions } from '@/hooks/use-tag-definitions'
+import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 
 export interface TagData {
   tag1?: string
@@ -49,7 +49,7 @@ export function TagInput({
   const [showAllTags, setShowAllTags] = useState(false)
 
   // Use custom tag definitions if available
-  const { getTagLabel } = useTagDefinitions(knowledgeBaseId, documentId)
+  const { getTagLabel } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
   const handleTagChange = (tagKey: keyof TagData, value: string) => {
     onTagsChange({

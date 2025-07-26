@@ -2,8 +2,15 @@
 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useTagDefinitions } from '@/hooks/use-tag-definitions'
+import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface KnowledgeTagFilterProps {
@@ -35,39 +42,85 @@ export function KnowledgeTagFilter({
     knowledgeBaseIdSingleValue ||
     (typeof knowledgeBaseIdValue === 'string' ? knowledgeBaseIdValue.split(',')[0] : null)
 
-  // Use tag definitions hook to get custom label
-  const { getTagLabel } = useTagDefinitions(knowledgeBaseId, documentIdValue)
+  // Use KB tag definitions hook to get available tags
+  const { tagDefinitions, isLoading, getTagLabel } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
-  // Extract tag slot from subBlock id (e.g., 'tag1', 'tag2', 'createTag1', etc.)
-  const tagSlot = subBlock.id.startsWith('createTag')
-    ? subBlock.id.replace('createTag', 'tag').toLowerCase()
-    : subBlock.id
-
-  // Get the custom label or fallback to default
-  const customLabel = getTagLabel(tagSlot)
-
-  // Use preview value if in preview mode, otherwise use store value
-  const currentValue = isPreview ? previewValue : storeValue
-
-  const handleChange = (value: string) => {
-    if (isPreview) return
-    setStoreValue(value.trim() || null)
+  // Parse the current value to extract tag name and value
+  const parseTagFilter = (filterValue: string) => {
+    if (!filterValue) return { tagName: '', tagValue: '' }
+    const [tagName, ...valueParts] = filterValue.split(':')
+    return { tagName: tagName?.trim() || '', tagValue: valueParts.join(':').trim() || '' }
   }
 
-  // Get placeholder text
-  const placeholder = subBlock.placeholder || `Filter by ${customLabel.toLowerCase()}`
+  const currentValue = isPreview ? previewValue : storeValue
+  const { tagName, tagValue } = parseTagFilter(currentValue || '')
+
+  const handleTagNameChange = (newTagName: string) => {
+    if (isPreview) return
+    const newValue =
+      newTagName && tagValue ? `${newTagName}:${tagValue}` : newTagName || tagValue || ''
+    setStoreValue(newValue.trim() || null)
+  }
+
+  const handleTagValueChange = (newTagValue: string) => {
+    if (isPreview) return
+    const newValue =
+      tagName && newTagValue ? `${tagName}:${newTagValue}` : tagName || newTagValue || ''
+    setStoreValue(newValue.trim() || null)
+  }
+
+  if (isPreview) {
+    return (
+      <div className='space-y-1'>
+        <Label className='font-medium text-muted-foreground text-xs'>Tag Filter</Label>
+        <Input
+          value={currentValue || ''}
+          disabled
+          placeholder='Tag filter preview'
+          className='text-sm'
+        />
+      </div>
+    )
+  }
 
   return (
-    <div className='space-y-1'>
-      <Label className='font-medium text-muted-foreground text-xs'>{customLabel}</Label>
-      <Input
-        type='text'
-        value={currentValue || ''}
-        onChange={(e) => handleChange(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled || isPreview}
-        className='text-sm'
-      />
+    <div className='space-y-3'>
+      <Label className='font-medium text-muted-foreground text-xs'>Tag Filter</Label>
+
+      <div className='grid grid-cols-2 gap-2'>
+        {/* Tag Name Selector */}
+        <div className='space-y-1'>
+          <Label className='text-muted-foreground text-xs'>Tag Name</Label>
+          <Select
+            value={tagName}
+            onValueChange={handleTagNameChange}
+            disabled={disabled || isConnecting || isLoading}
+          >
+            <SelectTrigger className='text-sm'>
+              <SelectValue placeholder='Select tag' />
+            </SelectTrigger>
+            <SelectContent>
+              {tagDefinitions.map((tag) => (
+                <SelectItem key={tag.id} value={tag.displayName}>
+                  {tag.displayName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Tag Value Input */}
+        <div className='space-y-1'>
+          <Label className='text-muted-foreground text-xs'>Tag Value</Label>
+          <Input
+            value={tagValue}
+            onChange={(e) => handleTagValueChange(e.target.value)}
+            placeholder='Enter value'
+            disabled={disabled || isConnecting}
+            className='text-sm'
+          />
+        </div>
+      </div>
     </div>
   )
 }

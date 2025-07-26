@@ -1,12 +1,12 @@
 import { randomUUID } from 'crypto'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNotNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
-import { document, documentTagDefinitions } from '@/db/schema'
+import { document, knowledgeBaseTagDefinitions } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +21,92 @@ const TagDefinitionSchema = z.object({
 const BulkTagDefinitionsSchema = z.object({
   definitions: z.array(TagDefinitionSchema).max(7, 'Cannot define more than 7 tags'),
 })
+
+// Helper function to clean up unused tag definitions
+async function cleanupUnusedTagDefinitions(knowledgeBaseId: string, requestId: string) {
+  try {
+    // Get all current tag definitions for this KB
+    const currentDefinitions = await db
+      .select({
+        id: knowledgeBaseTagDefinitions.id,
+        displayName: knowledgeBaseTagDefinitions.displayName,
+        tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+      })
+      .from(knowledgeBaseTagDefinitions)
+      .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+
+    if (currentDefinitions.length === 0) {
+      return 0 // No definitions to clean up
+    }
+
+    // Check which tag names are actually in use by documents
+    const documentsWithTags = await db
+      .select({
+        tag1: document.tag1,
+        tag2: document.tag2,
+        tag3: document.tag3,
+        tag4: document.tag4,
+        tag5: document.tag5,
+        tag6: document.tag6,
+        tag7: document.tag7,
+      })
+      .from(document)
+      .where(
+        and(
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          or(
+            isNotNull(document.tag1),
+            isNotNull(document.tag2),
+            isNotNull(document.tag3),
+            isNotNull(document.tag4),
+            isNotNull(document.tag5),
+            isNotNull(document.tag6),
+            isNotNull(document.tag7)
+          )
+        )
+      )
+
+    // Collect all tag names that are actually in use
+    const usedTagNames = new Set<string>()
+    for (const doc of documentsWithTags) {
+      const tagSlots = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+      for (const slot of tagSlots) {
+        const tagValue = doc[slot]
+        if (tagValue?.trim()) {
+          // Find the tag definition for this slot to get the display name
+          const definition = currentDefinitions.find((def) => def.tagSlot === slot)
+          if (definition) {
+            usedTagNames.add(definition.displayName)
+          }
+        }
+      }
+    }
+
+    // Find definitions that are not in use
+    const unusedDefinitions = currentDefinitions.filter((def) => !usedTagNames.has(def.displayName))
+
+    if (unusedDefinitions.length === 0) {
+      return 0 // No unused definitions
+    }
+
+    // Remove unused definitions
+    const unusedIds = unusedDefinitions.map((def) => def.id)
+    await db
+      .delete(knowledgeBaseTagDefinitions)
+      .where(
+        and(
+          eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId),
+          or(...unusedIds.map((id) => eq(knowledgeBaseTagDefinitions.id, id)))
+        )
+      )
+
+    logger.info(`[${requestId}] Cleaned up ${unusedDefinitions.length} unused tag definitions`)
+    return unusedDefinitions.length
+  } catch (error) {
+    logger.warn(`[${requestId}] Failed to cleanup unused tag definitions:`, error)
+    return 0 // Don't fail the main operation if cleanup fails
+  }
+}
 
 // GET /api/knowledge/[id]/documents/[documentId]/tag-definitions - Get tag definitions for a document
 export async function GET(
@@ -55,18 +141,18 @@ export async function GET(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
-    // Get tag definitions for the document
+    // Get tag definitions for the knowledge base
     const tagDefinitions = await db
       .select({
-        id: documentTagDefinitions.id,
-        tagSlot: documentTagDefinitions.tagSlot,
-        displayName: documentTagDefinitions.displayName,
-        fieldType: documentTagDefinitions.fieldType,
-        createdAt: documentTagDefinitions.createdAt,
-        updatedAt: documentTagDefinitions.updatedAt,
+        id: knowledgeBaseTagDefinitions.id,
+        tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+        displayName: knowledgeBaseTagDefinitions.displayName,
+        fieldType: knowledgeBaseTagDefinitions.fieldType,
+        createdAt: knowledgeBaseTagDefinitions.createdAt,
+        updatedAt: knowledgeBaseTagDefinitions.updatedAt,
       })
-      .from(documentTagDefinitions)
-      .where(eq(documentTagDefinitions.documentId, documentId))
+      .from(knowledgeBaseTagDefinitions)
+      .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
 
     logger.info(`[${requestId}] Retrieved ${tagDefinitions.length} tag definitions`)
 
@@ -126,31 +212,97 @@ export async function POST(
     const now = new Date()
     const createdDefinitions = []
 
+    // Get existing definitions count before transaction for cleanup check
+    const existingDefinitions = await db
+      .select()
+      .from(knowledgeBaseTagDefinitions)
+      .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+
     // Use transaction to ensure consistency
     await db.transaction(async (tx) => {
-      // First, delete existing definitions for this document
-      await tx
-        .delete(documentTagDefinitions)
-        .where(eq(documentTagDefinitions.documentId, documentId))
+      // Create maps for lookups
+      const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
+      const existingBySlot = new Map(existingDefinitions.map((def) => [def.tagSlot, def]))
 
-      // Then insert new definitions if any
-      if (validatedData.definitions.length > 0) {
-        const newDefinitions = validatedData.definitions.map((definition) => ({
-          id: randomUUID(),
-          documentId,
-          tagSlot: definition.tagSlot,
-          displayName: definition.displayName,
-          fieldType: definition.fieldType,
-          createdAt: now,
-          updatedAt: now,
-        }))
+      // Process each new definition
+      for (const definition of validatedData.definitions) {
+        const existingByDisplayName = existingByName.get(definition.displayName)
+        const existingByTagSlot = existingBySlot.get(definition.tagSlot)
 
-        await tx.insert(documentTagDefinitions).values(newDefinitions)
-        createdDefinitions.push(...newDefinitions)
+        if (existingByDisplayName) {
+          // Update existing definition (same display name)
+          if (existingByDisplayName.tagSlot !== definition.tagSlot) {
+            // Slot is changing - check if target slot is available
+            if (existingByTagSlot && existingByTagSlot.id !== existingByDisplayName.id) {
+              // Target slot is occupied by a different definition - this is a conflict
+              // For now, keep the existing slot to avoid constraint violation
+              logger.warn(
+                `[${requestId}] Slot conflict for ${definition.displayName}: keeping existing slot ${existingByDisplayName.tagSlot}`
+              )
+              createdDefinitions.push(existingByDisplayName)
+              continue
+            }
+          }
+
+          await tx
+            .update(knowledgeBaseTagDefinitions)
+            .set({
+              tagSlot: definition.tagSlot,
+              fieldType: definition.fieldType,
+              updatedAt: now,
+            })
+            .where(eq(knowledgeBaseTagDefinitions.id, existingByDisplayName.id))
+
+          createdDefinitions.push({
+            ...existingByDisplayName,
+            tagSlot: definition.tagSlot,
+            fieldType: definition.fieldType,
+            updatedAt: now,
+          })
+        } else if (existingByTagSlot) {
+          // Slot is occupied by a different display name - update it
+          await tx
+            .update(knowledgeBaseTagDefinitions)
+            .set({
+              displayName: definition.displayName,
+              fieldType: definition.fieldType,
+              updatedAt: now,
+            })
+            .where(eq(knowledgeBaseTagDefinitions.id, existingByTagSlot.id))
+
+          createdDefinitions.push({
+            ...existingByTagSlot,
+            displayName: definition.displayName,
+            fieldType: definition.fieldType,
+            updatedAt: now,
+          })
+        } else {
+          // Create new definition
+          const newDefinition = {
+            id: randomUUID(),
+            knowledgeBaseId,
+            tagSlot: definition.tagSlot,
+            displayName: definition.displayName,
+            fieldType: definition.fieldType,
+            createdAt: now,
+            updatedAt: now,
+          }
+
+          await tx.insert(knowledgeBaseTagDefinitions).values(newDefinition)
+          createdDefinitions.push(newDefinition)
+        }
       }
     })
 
-    logger.info(`[${requestId}] Created/updated ${createdDefinitions.length} tag definitions`)
+    // Run cleanup immediately - document values should be saved before tag definitions
+    const cleanedUpCount = await cleanupUnusedTagDefinitions(knowledgeBaseId, requestId)
+    if (cleanedUpCount > 0) {
+      logger.info(
+        `[${requestId}] Created/updated ${createdDefinitions.length} tag definitions, cleaned up ${cleanedUpCount} unused definitions`
+      )
+    } else {
+      logger.info(`[${requestId}] Created/updated ${createdDefinitions.length} tag definitions`)
+    }
 
     return NextResponse.json({
       success: true,
@@ -191,10 +343,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Delete tag definitions for the document
+    // Delete tag definitions for the knowledge base
     const result = await db
-      .delete(documentTagDefinitions)
-      .where(eq(documentTagDefinitions.documentId, documentId))
+      .delete(knowledgeBaseTagDefinitions)
+      .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
 
     logger.info(`[${requestId}] Deleted tag definitions for document ${documentId}`)
 
