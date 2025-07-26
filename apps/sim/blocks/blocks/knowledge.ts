@@ -43,6 +43,31 @@ export const KnowledgeBlock: BlockConfig = {
           throw new Error('Document ID is required for upload_chunk operation')
         }
 
+        // For create_document operation, map createTag fields to tag fields
+        if (params.operation === 'create_document') {
+          const mappedParams = { ...params }
+
+          // Map createTag fields to tag fields
+          if (params.createTag1) mappedParams.tag1 = params.createTag1
+          if (params.createTag2) mappedParams.tag2 = params.createTag2
+          if (params.createTag3) mappedParams.tag3 = params.createTag3
+          if (params.createTag4) mappedParams.tag4 = params.createTag4
+          if (params.createTag5) mappedParams.tag5 = params.createTag5
+          if (params.createTag6) mappedParams.tag6 = params.createTag6
+          if (params.createTag7) mappedParams.tag7 = params.createTag7
+
+          // Remove createTag fields from the final params
+          mappedParams.createTag1 = undefined
+          mappedParams.createTag2 = undefined
+          mappedParams.createTag3 = undefined
+          mappedParams.createTag4 = undefined
+          mappedParams.createTag5 = undefined
+          mappedParams.createTag6 = undefined
+          mappedParams.createTag7 = undefined
+
+          return mappedParams
+        }
+
         return params
       },
     },
@@ -64,6 +89,14 @@ export const KnowledgeBlock: BlockConfig = {
     tag5: { type: 'string', required: false },
     tag6: { type: 'string', required: false },
     tag7: { type: 'string', required: false },
+    // Tag values for create document
+    createTag1: { type: 'string', required: false },
+    createTag2: { type: 'string', required: false },
+    createTag3: { type: 'string', required: false },
+    createTag4: { type: 'string', required: false },
+    createTag5: { type: 'string', required: false },
+    createTag6: { type: 'string', required: false },
+    createTag7: { type: 'string', required: false },
   },
   outputs: {
     results: 'json',
@@ -119,8 +152,8 @@ export const KnowledgeBlock: BlockConfig = {
     },
     {
       id: 'tag1',
-      title: 'Tag 1 Filter',
-      type: 'short-input',
+      title: 'Tag 1 Filter', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Filter by tag 1',
       condition: { field: 'operation', value: 'search' },
@@ -128,8 +161,8 @@ export const KnowledgeBlock: BlockConfig = {
     },
     {
       id: 'tag2',
-      title: 'Tag 2 Filter',
-      type: 'short-input',
+      title: 'Tag 2 Filter', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Filter by tag 2',
       condition: { field: 'operation', value: 'search' },
@@ -137,8 +170,8 @@ export const KnowledgeBlock: BlockConfig = {
     },
     {
       id: 'tag3',
-      title: 'Tag 3 Filter',
-      type: 'short-input',
+      title: 'Tag 3 Filter', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Filter by tag 3',
       condition: { field: 'operation', value: 'search' },
@@ -146,8 +179,8 @@ export const KnowledgeBlock: BlockConfig = {
     },
     {
       id: 'tag4',
-      title: 'Tag 4 Filter',
-      type: 'short-input',
+      title: 'Tag 4 Filter', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Filter by tag 4',
       condition: { field: 'operation', value: 'search' },
@@ -155,8 +188,8 @@ export const KnowledgeBlock: BlockConfig = {
     },
     {
       id: 'tag5',
-      title: 'Tag 5 Filter',
-      type: 'short-input',
+      title: 'Tag 5 Filter', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Filter by tag 5',
       condition: { field: 'operation', value: 'search' },
@@ -164,8 +197,8 @@ export const KnowledgeBlock: BlockConfig = {
     },
     {
       id: 'tag6',
-      title: 'Tag 6 Filter',
-      type: 'short-input',
+      title: 'Tag 6 Filter', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Filter by tag 6',
       condition: { field: 'operation', value: 'search' },
@@ -173,8 +206,8 @@ export const KnowledgeBlock: BlockConfig = {
     },
     {
       id: 'tag7',
-      title: 'Tag 7 Filter',
-      type: 'short-input',
+      title: 'Tag 7 Filter', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Filter by tag 7',
       condition: { field: 'operation', value: 'search' },
@@ -216,63 +249,63 @@ export const KnowledgeBlock: BlockConfig = {
     },
     // Tag inputs for Create Document (in advanced mode)
     {
-      id: 'tag1',
-      title: 'Tag 1',
-      type: 'short-input',
+      id: 'createTag1',
+      title: 'Tag 1', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Enter tag 1 value',
       condition: { field: 'operation', value: 'create_document' },
       mode: 'advanced',
     },
     {
-      id: 'tag2',
-      title: 'Tag 2',
-      type: 'short-input',
+      id: 'createTag2',
+      title: 'Tag 2', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Enter tag 2 value',
       condition: { field: 'operation', value: 'create_document' },
       mode: 'advanced',
     },
     {
-      id: 'tag3',
-      title: 'Tag 3',
-      type: 'short-input',
+      id: 'createTag3',
+      title: 'Tag 3', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Enter tag 3 value',
       condition: { field: 'operation', value: 'create_document' },
       mode: 'advanced',
     },
     {
-      id: 'tag4',
-      title: 'Tag 4',
-      type: 'short-input',
+      id: 'createTag4',
+      title: 'Tag 4', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Enter tag 4 value',
       condition: { field: 'operation', value: 'create_document' },
       mode: 'advanced',
     },
     {
-      id: 'tag5',
-      title: 'Tag 5',
-      type: 'short-input',
+      id: 'createTag5',
+      title: 'Tag 5', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Enter tag 5 value',
       condition: { field: 'operation', value: 'create_document' },
       mode: 'advanced',
     },
     {
-      id: 'tag6',
-      title: 'Tag 6',
-      type: 'short-input',
+      id: 'createTag6',
+      title: 'Tag 6', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Enter tag 6 value',
       condition: { field: 'operation', value: 'create_document' },
       mode: 'advanced',
     },
     {
-      id: 'tag7',
-      title: 'Tag 7',
-      type: 'short-input',
+      id: 'createTag7',
+      title: 'Tag 7', // This will be dynamically updated by the component
+      type: 'knowledge-tag-filter',
       layout: 'half',
       placeholder: 'Enter tag 7 value',
       condition: { field: 'operation', value: 'create_document' },

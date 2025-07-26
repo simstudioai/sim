@@ -22,6 +22,14 @@ const UpdateDocumentSchema = z.object({
   processingError: z.string().optional(),
   markFailedDueToTimeout: z.boolean().optional(),
   retryProcessing: z.boolean().optional(),
+  // Tag fields
+  tag1: z.string().optional(),
+  tag2: z.string().optional(),
+  tag3: z.string().optional(),
+  tag4: z.string().optional(),
+  tag5: z.string().optional(),
+  tag6: z.string().optional(),
+  tag7: z.string().optional(),
 })
 
 export async function GET(
@@ -209,9 +217,39 @@ export async function PUT(
           updateData.processingStatus = validatedData.processingStatus
         if (validatedData.processingError !== undefined)
           updateData.processingError = validatedData.processingError
+
+        // Tag field updates
+        if (validatedData.tag1 !== undefined) updateData.tag1 = validatedData.tag1
+        if (validatedData.tag2 !== undefined) updateData.tag2 = validatedData.tag2
+        if (validatedData.tag3 !== undefined) updateData.tag3 = validatedData.tag3
+        if (validatedData.tag4 !== undefined) updateData.tag4 = validatedData.tag4
+        if (validatedData.tag5 !== undefined) updateData.tag5 = validatedData.tag5
+        if (validatedData.tag6 !== undefined) updateData.tag6 = validatedData.tag6
+        if (validatedData.tag7 !== undefined) updateData.tag7 = validatedData.tag7
       }
 
-      await db.update(document).set(updateData).where(eq(document.id, documentId))
+      await db.transaction(async (tx) => {
+        // Update the document
+        await tx.update(document).set(updateData).where(eq(document.id, documentId))
+
+        // If any tag fields were updated, also update the embeddings
+        const tagFields = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+        const hasTagUpdates = tagFields.some((field) => validatedData[field] !== undefined)
+
+        if (hasTagUpdates) {
+          const embeddingUpdateData: Record<string, string | null> = {}
+          tagFields.forEach((field) => {
+            if (validatedData[field] !== undefined) {
+              embeddingUpdateData[field] = validatedData[field] || null
+            }
+          })
+
+          await tx
+            .update(embedding)
+            .set(embeddingUpdateData)
+            .where(eq(embedding.documentId, documentId))
+        }
+      })
 
       // Fetch the updated document
       const updatedDocument = await db

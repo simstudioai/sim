@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useTagDefinitions } from '@/hooks/use-tag-definitions'
 
 export interface TagData {
   tag1?: string
@@ -22,6 +23,8 @@ interface TagInputProps {
   onTagsChange: (tags: TagData) => void
   disabled?: boolean
   className?: string
+  knowledgeBaseId?: string | null
+  documentId?: string | null
 }
 
 const TAG_LABELS = [
@@ -34,9 +37,19 @@ const TAG_LABELS = [
   { key: 'tag7' as keyof TagData, label: 'Tag 7', placeholder: 'Enter tag value' },
 ]
 
-export function TagInput({ tags, onTagsChange, disabled = false, className = '' }: TagInputProps) {
+export function TagInput({
+  tags,
+  onTagsChange,
+  disabled = false,
+  className = '',
+  knowledgeBaseId = null,
+  documentId = null,
+}: TagInputProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showAllTags, setShowAllTags] = useState(false)
+
+  // Use custom tag definitions if available
+  const { getTagLabel } = useTagDefinitions(knowledgeBaseId, documentId)
 
   const handleTagChange = (tagKey: keyof TagData, value: string) => {
     onTagsChange({
@@ -53,7 +66,15 @@ export function TagInput({ tags, onTagsChange, disabled = false, className = '' 
   }
 
   const hasAnyTags = Object.values(tags).some((tag) => tag?.trim())
-  const visibleTags = showAllTags ? TAG_LABELS : TAG_LABELS.slice(0, 2)
+
+  // Create tag labels using custom definitions or fallback to defaults
+  const tagLabels = TAG_LABELS.map(({ key, placeholder }) => ({
+    key,
+    label: getTagLabel(key),
+    placeholder,
+  }))
+
+  const visibleTags = showAllTags ? tagLabels : tagLabels.slice(0, 2)
 
   return (
     <div className={className}>
@@ -153,7 +174,7 @@ export function TagInput({ tags, onTagsChange, disabled = false, className = '' 
                 <div className='flex flex-wrap gap-1'>
                   {Object.entries(tags).map(([key, value]) => {
                     if (!value?.trim()) return null
-                    const tagLabel = TAG_LABELS.find((t) => t.key === key)?.label || key
+                    const tagLabel = getTagLabel(key)
                     return (
                       <span
                         key={key}
