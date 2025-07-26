@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowYamlStore } from '@/stores/workflows/yaml/store'
 import { searchDocumentation } from './service'

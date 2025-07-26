@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '../../../../stores/logs/filters/store'
@@ -160,7 +160,7 @@ export default function Logs() {
         }
 
         const queryParams = buildQueryParams(pageNum, LOGS_PER_PAGE)
-        const response = await fetch(`/api/logs/enhanced?${queryParams}`)
+        const response = await fetch(`/api/logs?${queryParams}`)
 
         if (!response.ok) {
           throw new Error(`Error fetching logs: ${response.statusText}`)
@@ -273,7 +273,7 @@ export default function Logs() {
       try {
         setLoading(true)
         const queryParams = buildQueryParams(1, LOGS_PER_PAGE)
-        const response = await fetch(`/api/logs/enhanced?${queryParams}`)
+        const response = await fetch(`/api/logs?${queryParams}`)
 
         if (!response.ok) {
           throw new Error(`Error fetching logs: ${response.statusText}`)

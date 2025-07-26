@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { CopilotChat } from '@/lib/copilot/api'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import { CheckpointPanel } from '../checkpoint-panel'
 import { ProfessionalInput } from '../professional-input/professional-input'

@@ -13,7 +13,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Logger } from '@/lib/logs/console-logger'
+import { Logger } from '@/lib/logs/console/logger'
 import {
   type Credential,
   getProviderIdFromServiceId,

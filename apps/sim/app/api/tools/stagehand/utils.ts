@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Logger } from '@/lib/logs/console-logger'
+import type { Logger } from '@/lib/logs/console/logger'
 
 // Convert JSON schema to Zod schema (reused from extract route)
 function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.ZodTypeAny {

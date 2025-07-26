@@ -2,7 +2,7 @@
  * Utility functions for tokenization
  */
 
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getProviderFromModel } from '@/providers/utils'
 import { LLM_BLOCK_TYPES, MAX_PREVIEW_LENGTH, TOKENIZATION_CONFIG } from './constants'
 import { createTokenizationError } from './errors'

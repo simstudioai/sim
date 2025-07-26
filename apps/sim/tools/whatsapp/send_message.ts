@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WhatsAppResponse, WhatsAppSendMessageParams } from '@/tools/whatsapp/types'
 

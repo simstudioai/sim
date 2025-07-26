@@ -5,9 +5,9 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing'
-import { createLogger } from '@/lib/logs/console-logger'
-import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import {
@@ -78,7 +78,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
     throw new Error('Execution is already running')
   }
 
-  const loggingSession = new EnhancedLoggingSession(workflowId, executionId, 'api', requestId)
+  const loggingSession = new LoggingSession(workflowId, executionId, 'api', requestId)
 
   // Rate limiting is now handled before entering the sync queue
 
@@ -292,7 +292,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
       workflowVariables
     )
 
-    // Set up enhanced logging on the executor
+    // Set up logging on the executor
     loggingSession.setupExecutor(executor)
 
     const result = await executor.execute(workflowId)

@@ -1,7 +1,7 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isDev } from './lib/environment'
-import { createLogger } from './lib/logs/console-logger'
+import { createLogger } from './lib/logs/console/logger'
 import { getBaseDomain } from './lib/urls/utils'
 
 const logger = createLogger('Middleware')

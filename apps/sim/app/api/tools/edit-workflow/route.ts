@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { autoLayoutWorkflow } from '@/lib/autolayout/service'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,

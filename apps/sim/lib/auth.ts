@@ -22,7 +22,7 @@ import {
 import { getBaseURL } from '@/lib/auth-client'
 import { env, isTruthy } from '@/lib/env'
 import { isProd } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
 import * as schema from '@/db/schema'

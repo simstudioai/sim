@@ -1,14 +1,14 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import { enhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
+import { createLogger } from '@/lib/logs/console/logger'
+import { executionLogger } from '@/lib/logs/execution/logger'
 import {
   calculateCostSummary,
   createEnvironmentObject,
   createTriggerObject,
   loadWorkflowStateForExecution,
-} from '@/lib/logs/enhanced-logging-factory'
+} from '@/lib/logs/execution/logging-factory'
 import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from '@/lib/logs/types'
 
-const logger = createLogger('EnhancedLoggingSession')
+const logger = createLogger('LoggingSession')
 
 export interface SessionStartParams {
   userId?: string
@@ -24,7 +24,7 @@ export interface SessionCompleteParams {
   traceSpans?: any[]
 }
 
-export class EnhancedLoggingSession {
+export class LoggingSession {
   private workflowId: string
   private executionId: string
   private triggerType: ExecutionTrigger['type']
@@ -32,7 +32,6 @@ export class EnhancedLoggingSession {
   private trigger?: ExecutionTrigger
   private environment?: ExecutionEnvironment
   private workflowState?: WorkflowState
-  private enhancedLogger = enhancedExecutionLogger
 
   constructor(
     workflowId: string,
@@ -60,7 +59,7 @@ export class EnhancedLoggingSession {
       )
       this.workflowState = await loadWorkflowStateForExecution(this.workflowId)
 
-      await enhancedExecutionLogger.startWorkflowExecution({
+      await executionLogger.startWorkflowExecution({
         workflowId: this.workflowId,
         executionId: this.executionId,
         trigger: this.trigger,
@@ -69,28 +68,24 @@ export class EnhancedLoggingSession {
       })
 
       if (this.requestId) {
-        logger.debug(
-          `[${this.requestId}] Started enhanced logging for execution ${this.executionId}`
-        )
+        logger.debug(`[${this.requestId}] Started logging for execution ${this.executionId}`)
       }
     } catch (error) {
       if (this.requestId) {
-        logger.error(`[${this.requestId}] Failed to start enhanced logging:`, error)
+        logger.error(`[${this.requestId}] Failed to start logging:`, error)
       }
       throw error
     }
   }
 
   /**
-   * Set up enhanced logging on an executor instance
-   * Note: Enhanced logging now works through trace spans only, no direct executor integration needed
+   * Set up logging on an executor instance
+   * Note: Logging now works through trace spans only, no direct executor integration needed
    */
   setupExecutor(executor: any): void {
-    // No longer setting enhanced logger on executor - trace spans handle everything
+    // No longer setting logger on executor - trace spans handle everything
     if (this.requestId) {
-      logger.debug(
-        `[${this.requestId}] Enhanced logging session ready for execution ${this.executionId}`
-      )
+      logger.debug(`[${this.requestId}] Logging session ready for execution ${this.executionId}`)
     }
   }
 
@@ -100,7 +95,7 @@ export class EnhancedLoggingSession {
     try {
       const costSummary = calculateCostSummary(traceSpans || [])
 
-      await enhancedExecutionLogger.completeWorkflowExecution({
+      await executionLogger.completeWorkflowExecution({
         executionId: this.executionId,
         endedAt: endedAt || new Date().toISOString(),
         totalDurationMs: totalDurationMs || 0,
@@ -110,13 +105,11 @@ export class EnhancedLoggingSession {
       })
 
       if (this.requestId) {
-        logger.debug(
-          `[${this.requestId}] Completed enhanced logging for execution ${this.executionId}`
-        )
+        logger.debug(`[${this.requestId}] Completed logging for execution ${this.executionId}`)
       }
     } catch (error) {
       if (this.requestId) {
-        logger.error(`[${this.requestId}] Failed to complete enhanced logging:`, error)
+        logger.error(`[${this.requestId}] Failed to complete logging:`, error)
       }
     }
   }
@@ -133,7 +126,7 @@ export class EnhancedLoggingSession {
         models: {},
       }
 
-      await enhancedExecutionLogger.completeWorkflowExecution({
+      await executionLogger.completeWorkflowExecution({
         executionId: this.executionId,
         endedAt: new Date().toISOString(),
         totalDurationMs: 0,
@@ -143,16 +136,11 @@ export class EnhancedLoggingSession {
       })
 
       if (this.requestId) {
-        logger.debug(
-          `[${this.requestId}] Completed enhanced logging with error for execution ${this.executionId}`
-        )
+        logger.debug(`[${this.requestId}] Completed logging for execution ${this.executionId}`)
       }
     } catch (enhancedError) {
       if (this.requestId) {
-        logger.error(
-          `[${this.requestId}] Failed to complete enhanced logging for error:`,
-          enhancedError
-        )
+        logger.error(`[${this.requestId}] Failed to complete logging:`, enhancedError)
       }
     }
   }
@@ -163,10 +151,7 @@ export class EnhancedLoggingSession {
       return true
     } catch (error) {
       if (this.requestId) {
-        logger.error(
-          `[${this.requestId}] Enhanced logging start failed, continuing execution:`,
-          error
-        )
+        logger.error(`[${this.requestId}] Logging start failed:`, error)
       }
       return false
     }
@@ -177,7 +162,7 @@ export class EnhancedLoggingSession {
       await this.complete(params)
     } catch (error) {
       if (this.requestId) {
-        logger.error(`[${this.requestId}] Enhanced logging completion failed:`, error)
+        logger.error(`[${this.requestId}] Logging completion failed:`, error)
       }
     }
   }
@@ -187,7 +172,7 @@ export class EnhancedLoggingSession {
       await this.completeWithError(error)
     } catch (enhancedError) {
       if (this.requestId) {
-        logger.error(`[${this.requestId}] Enhanced logging error completion failed:`, enhancedError)
+        logger.error(`[${this.requestId}] Logging error completion failed:`, enhancedError)
       }
     }
   }

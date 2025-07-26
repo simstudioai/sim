@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, test } from 'vitest'
-import { EnhancedExecutionLogger } from '@/lib/logs/enhanced-execution-logger'
+import { ExecutionLogger } from '@/lib/logs/execution/logger'
 
-describe('EnhancedExecutionLogger', () => {
-  let logger: EnhancedExecutionLogger
+describe('ExecutionLogger', () => {
+  let logger: ExecutionLogger
 
   beforeEach(() => {
-    logger = new EnhancedExecutionLogger()
+    logger = new ExecutionLogger()
   })
 
   describe('class instantiation', () => {
     test('should create logger instance', () => {
       expect(logger).toBeDefined()
-      expect(logger).toBeInstanceOf(EnhancedExecutionLogger)
+      expect(logger).toBeInstanceOf(ExecutionLogger)
     })
   })
 
@@ -28,7 +28,4 @@ describe('EnhancedExecutionLogger', () => {
       expect(getTriggerPrefix('unknown' as any)).toBe('Unknown')
     })
   })
-
-  // Note: Database integration tests would require proper mocking setup
-  // For now, we're testing the basic functionality without database calls
 })

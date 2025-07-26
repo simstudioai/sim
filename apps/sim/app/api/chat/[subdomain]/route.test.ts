@@ -75,7 +75,7 @@ describe('Chat Subdomain API Route', () => {
       executeWorkflowForChat: mockExecuteWorkflowForChat,
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         debug: vi.fn(),
         info: vi.fn(),

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
 import { useSubBlockStore } from '../subblock/store'
 import { useWorkflowStore } from '../workflow/store'

@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from './registry/store'
 import { mergeSubblockState } from './utils'
 import { useWorkflowStore } from './workflow/store'

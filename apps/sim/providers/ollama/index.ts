@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useOllamaStore } from '@/stores/ollama/store'
 import { executeTool } from '@/tools'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'

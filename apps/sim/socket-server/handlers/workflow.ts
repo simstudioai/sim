@@ -1,4 +1,4 @@
-import { createLogger } from '../../lib/logs/console-logger'
+import { createLogger } from '../../lib/logs/console/logger'
 import { getWorkflowState } from '../database/operations'
 import type { AuthenticatedSocket } from '../middleware/auth'
 import { verifyWorkflowAccess } from '../middleware/permissions'

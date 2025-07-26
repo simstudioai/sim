@@ -1,5 +1,5 @@
 import { ZodError } from 'zod'
-import { createLogger } from '../../lib/logs/console-logger'
+import { createLogger } from '../../lib/logs/console/logger'
 import { persistWorkflowOperation } from '../database/operations'
 import type { AuthenticatedSocket } from '../middleware/auth'
 import { verifyOperationPermission } from '../middleware/permissions'

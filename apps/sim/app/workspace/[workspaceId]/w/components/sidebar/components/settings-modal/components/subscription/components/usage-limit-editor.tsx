@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
 const logger = createLogger('UsageLimitEditor')

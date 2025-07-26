@@ -18,8 +18,8 @@ vi.mock('@/lib/utils', () => ({
   decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'test-secret' }),
 }))
 
-vi.mock('@/lib/logs/enhanced-logging-session', () => ({
-  EnhancedLoggingSession: vi.fn().mockImplementation(() => ({
+vi.mock('@/lib/logs/execution/logging-session', () => ({
+  LoggingSession: vi.fn().mockImplementation(() => ({
     safeStart: vi.fn().mockResolvedValue(undefined),
     safeComplete: vi.fn().mockResolvedValue(undefined),
     safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
@@ -42,7 +42,7 @@ describe('Chat API Utils', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         info: vi.fn(),
         error: vi.fn(),

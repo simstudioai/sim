@@ -51,7 +51,7 @@ describe('Codegen API Route', () => {
       env: mockEnv,
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 

@@ -6,7 +6,7 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(),
 }))
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/logger', () => ({
   createLogger: vi.fn(() => ({
     debug: vi.fn(),
     info: vi.fn(),

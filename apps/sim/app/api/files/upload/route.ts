@@ -2,7 +2,7 @@ import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { isUsingCloudStorage, uploadFile } from '@/lib/uploads'
 import { UPLOAD_DIR } from '@/lib/uploads/setup'
 // Import to ensure the uploads directory is created

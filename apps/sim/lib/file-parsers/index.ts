@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises'
 import path from 'path'
 import { RawPdfParser } from '@/lib/file-parsers/raw-pdf-parser'
 import type { FileParseResult, FileParser, SupportedFileType } from '@/lib/file-parsers/types'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('FileParser')
 

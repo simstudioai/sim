@@ -1,5 +1,5 @@
 import { getCostMultiplier, isHosted } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { anthropicProvider } from './anthropic'
 import { azureOpenAIProvider } from './azure-openai'

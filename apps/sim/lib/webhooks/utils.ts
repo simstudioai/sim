@@ -1,8 +1,8 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console-logger'
-import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
+import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -488,12 +488,7 @@ export async function executeWorkflowFromPayload(
     triggerSource: 'webhook-payload',
   })
 
-  const loggingSession = new EnhancedLoggingSession(
-    foundWorkflow.id,
-    executionId,
-    'webhook',
-    requestId
-  )
+  const loggingSession = new LoggingSession(foundWorkflow.id, executionId, 'webhook', requestId)
 
   try {
     // Load workflow data from normalized tables
@@ -703,7 +698,7 @@ export async function executeWorkflowFromPayload(
       workflowVariables
     )
 
-    // Set up enhanced logging on the executor
+    // Set up logging on the executor
     loggingSession.setupExecutor(executor)
 
     // Log workflow execution start time for tracking
@@ -768,7 +763,7 @@ export async function executeWorkflowFromPayload(
         .where(eq(userStats.userId, foundWorkflow.userId))
     }
 
-    // Calculate total duration for enhanced logging
+    // Calculate total duration for logging
     const totalDuration = executionResult.metadata?.duration || 0
 
     const traceSpans = (executionResult.logs || []).map((blockLog: any, index: number) => {
@@ -829,7 +824,7 @@ export async function executeWorkflowFromPayload(
       error: error.message,
       stack: error.stack,
     })
-    // Error logging handled by enhanced logging session
+    // Error logging handled by logging session
 
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
@@ -1023,7 +1018,7 @@ export async function fetchAndProcessAirtablePayloads(
   workflowData: any,
   requestId: string // Original request ID from the ping, used for the final execution log
 ) {
-  // Enhanced logging handles all error logging
+  // Logging handles all error logging
   let currentCursor: number | null = null
   let mightHaveMore = true
   let payloadsFetched = 0 // Track total payloads fetched
@@ -1051,7 +1046,7 @@ export async function fetchAndProcessAirtablePayloads(
       logger.error(
         `[${requestId}] Missing baseId or externalId in providerConfig for webhook ${webhookData.id}. Cannot fetch payloads.`
       )
-      // Error logging handled by enhanced logging session
+      // Error logging handled by logging session
       return // Exit early
     }
 
@@ -1087,7 +1082,7 @@ export async function fetchAndProcessAirtablePayloads(
           error: initError.message,
           stack: initError.stack,
         })
-        // Error logging handled by enhanced logging session
+        // Error logging handled by logging session
       }
     }
 
@@ -1125,7 +1120,7 @@ export async function fetchAndProcessAirtablePayloads(
           userId: workflowData.userId,
         }
       )
-      // Error logging handled by enhanced logging session
+      // Error logging handled by logging session
       return // Exit early
     }
 
@@ -1189,7 +1184,7 @@ export async function fetchAndProcessAirtablePayloads(
               error: errorMessage,
             }
           )
-          // Error logging handled by enhanced logging session
+          // Error logging handled by logging session
           mightHaveMore = false
           break
         }
@@ -1333,7 +1328,7 @@ export async function fetchAndProcessAirtablePayloads(
               cursor: currentCursor,
               error: dbError.message,
             })
-            // Error logging handled by enhanced logging session
+            // Error logging handled by logging session
             mightHaveMore = false
             throw new Error('Failed to save Airtable cursor, stopping processing.') // Re-throw to break loop clearly
           }
@@ -1353,7 +1348,7 @@ export async function fetchAndProcessAirtablePayloads(
           `[${requestId}] Network error calling Airtable GET /payloads (Call ${apiCallCount}) for webhook ${webhookData.id}`,
           fetchError
         )
-        // Error logging handled by enhanced logging session
+        // Error logging handled by logging session
         mightHaveMore = false
         break
       }
@@ -1422,7 +1417,7 @@ export async function fetchAndProcessAirtablePayloads(
         error: (error as Error).message,
       }
     )
-    // Error logging handled by enhanced logging session
+    // Error logging handled by logging session
   }
 
   // DEBUG: Log function completion

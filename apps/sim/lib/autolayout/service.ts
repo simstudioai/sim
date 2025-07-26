@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { calculateHierarchicalLayout } from './algorithms/hierarchical'
 import { calculateSmartLayout } from './algorithms/smart'
 import type { LayoutEdge, LayoutNode, LayoutOptions, LayoutResult, WorkflowGraph } from './types'

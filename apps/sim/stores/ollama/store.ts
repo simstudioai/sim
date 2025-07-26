@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { updateOllamaProviderModels } from '@/providers/utils'
 import type { OllamaStore } from './types'
 

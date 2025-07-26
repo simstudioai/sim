@@ -2,7 +2,7 @@ import { unstable_noStore as noStore } from 'next/cache'
 import { type NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'edge'

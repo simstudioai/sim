@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'vitest'
-import { SnapshotService } from '@/lib/logs/snapshot-service'
+import { SnapshotService } from '@/lib/logs/execution/snapshot/service'
 import type { WorkflowState } from '@/lib/logs/types'
 
 describe('SnapshotService', () => {

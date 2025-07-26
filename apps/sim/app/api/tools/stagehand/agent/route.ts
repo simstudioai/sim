@@ -2,7 +2,7 @@ import { Stagehand } from '@browserbasehq/stagehand'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { ensureZodObject, normalizeUrl } from '../utils'
 
 const logger = createLogger('StagehandAgentAPI')

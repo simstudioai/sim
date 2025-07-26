@@ -2,7 +2,7 @@
  * Cost calculation functions for tokenization
  */
 
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { createTokenizationError } from '@/lib/tokenization/errors'
 import {
   estimateInputTokens,

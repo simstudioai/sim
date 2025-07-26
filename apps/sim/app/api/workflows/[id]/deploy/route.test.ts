@@ -22,7 +22,7 @@ describe('Workflow Deployment API Route', () => {
       randomUUID: vi.fn().mockReturnValue('mock-request-id'),
     })
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         debug: vi.fn(),
         info: vi.fn(),

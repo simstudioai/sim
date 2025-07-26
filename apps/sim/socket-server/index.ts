@@ -1,6 +1,6 @@
 import { createServer } from 'http'
 import { env } from '@/lib/env'
-import { createLogger } from '../lib/logs/console-logger'
+import { createLogger } from '../lib/logs/console/logger'
 import { createSocketIOServer } from './config/socket'
 import { setupAllHandlers } from './handlers'
 import { type AuthenticatedSocket, authenticateSocket } from './middleware/auth'

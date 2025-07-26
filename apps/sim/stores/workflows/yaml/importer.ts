@@ -1,6 +1,6 @@
 import { load as yamlParse } from 'js-yaml'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
 import {
   type ConnectionsFormat,

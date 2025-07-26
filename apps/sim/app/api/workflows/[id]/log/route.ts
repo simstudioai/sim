@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
-import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json()
     const { logs, executionId, result } = body
 
-    // If result is provided, use enhanced logging system for full tool call extraction
+    // If result is provided, use logging system for full tool call extraction
     if (result) {
       logger.info(`[${requestId}] Persisting execution result for workflow: ${id}`, {
         executionId,
@@ -33,9 +33,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Check if this execution is from chat using only the explicit source flag
       const isChatExecution = result.metadata?.source === 'chat'
 
-      // Also log to enhanced system
+      // Also log to logging system
       const triggerType = isChatExecution ? 'chat' : 'manual'
-      const loggingSession = new EnhancedLoggingSession(id, executionId, triggerType, requestId)
+      const loggingSession = new LoggingSession(id, executionId, triggerType, requestId)
 
       await loggingSession.safeStart({
         userId: '', // TODO: Get from session

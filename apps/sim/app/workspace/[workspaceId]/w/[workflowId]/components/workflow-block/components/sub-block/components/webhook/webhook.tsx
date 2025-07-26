@@ -13,7 +13,7 @@ import {
   WhatsAppIcon,
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ToolCredentialSelector } from '../tool-input/components/tool-credential-selector'

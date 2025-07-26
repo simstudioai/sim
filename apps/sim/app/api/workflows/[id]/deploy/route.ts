@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { generateApiKey } from '@/lib/utils'
 import { db } from '@/db'
 import { apiKey, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'

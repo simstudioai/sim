@@ -128,7 +128,7 @@ describe('Custom Tools API Routes', () => {
     }))
 
     // Mock logger
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         info: vi.fn(),
         error: vi.fn(),

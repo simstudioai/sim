@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ProxyTTSStreamAPI')
 

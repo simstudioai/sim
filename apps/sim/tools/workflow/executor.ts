@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('WorkflowExecutorTool')

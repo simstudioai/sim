@@ -39,7 +39,7 @@ describe('OAuth Utils', () => {
       refreshOAuthToken: mockRefreshOAuthToken,
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
   })

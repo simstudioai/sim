@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../../db'
 import { workflow } from '../../db/schema'
-import { createLogger } from '../../lib/logs/console-logger'
+import { createLogger } from '../../lib/logs/console/logger'
 import { getUserEntityPermissions } from '../../lib/permissions/utils'
 
 const logger = createLogger('SocketPermissions')

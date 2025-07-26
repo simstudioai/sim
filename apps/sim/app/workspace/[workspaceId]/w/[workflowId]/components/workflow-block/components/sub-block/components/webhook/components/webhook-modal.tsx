@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { type ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook'
 import { AirtableConfig } from './providers/airtable'
 import { DiscordConfig } from './providers/discord'

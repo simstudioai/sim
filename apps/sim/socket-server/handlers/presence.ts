@@ -1,4 +1,4 @@
-import { createLogger } from '../../lib/logs/console-logger'
+import { createLogger } from '../../lib/logs/console/logger'
 import type { AuthenticatedSocket } from '../middleware/auth'
 import type { RoomManager } from '../rooms/manager'
 import type { HandlerDependencies } from './workflow'

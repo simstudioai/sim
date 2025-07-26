@@ -1,5 +1,5 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getRotatingApiKey } from '@/lib/utils'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
 import { db } from '@/db'

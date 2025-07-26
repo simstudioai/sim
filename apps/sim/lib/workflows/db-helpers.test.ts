@@ -67,7 +67,7 @@ vi.doMock('drizzle-orm', () => ({
   eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
 }))
 
-vi.doMock('@/lib/logs/console-logger', () => ({
+vi.doMock('@/lib/logs/console/logger', () => ({
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     error: vi.fn(),

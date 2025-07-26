@@ -25,7 +25,7 @@ describe('Subscription Transfer API Routes', () => {
       }),
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 

@@ -32,7 +32,7 @@ vi.mock('@/stores/execution/store', () => ({
   },
 }))
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: () => ({
     error: vi.fn(),
     info: vi.fn(),

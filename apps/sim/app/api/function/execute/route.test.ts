@@ -41,7 +41,7 @@ describe('Function Execute API Route', () => {
       },
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 
@@ -657,7 +657,7 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
     vi.resetModules()
     vi.resetAllMocks()
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 

@@ -13,7 +13,7 @@ import {
   sendStreamingMessage,
   updateChatMessages,
 } from '@/lib/copilot/api'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { CopilotStore } from './types'
 
 const logger = createLogger('CopilotStore')

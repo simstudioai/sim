@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { client } from '@/lib/auth-client'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { OrganizationStore, Subscription, WorkspaceInvitation } from './types'
 import { calculateSeatUsage, generateSlug, validateEmail, validateSlug } from './utils'
 

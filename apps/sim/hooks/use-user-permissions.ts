@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { PermissionType, WorkspacePermissions } from './use-workspace-permissions'
 
 const logger = createLogger('useUserPermissions')

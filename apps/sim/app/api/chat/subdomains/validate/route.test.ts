@@ -41,7 +41,7 @@ describe('Subdomain Validation API Route', () => {
     }))
 
     // Mock the logger
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         info: vi.fn(),
         error: vi.fn(),

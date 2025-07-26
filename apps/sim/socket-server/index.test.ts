@@ -5,7 +5,7 @@
  */
 import { createServer } from 'http'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createLogger } from '../lib/logs/console-logger'
+import { createLogger } from '../lib/logs/console/logger'
 import { createSocketIOServer } from './config/socket'
 import { RoomManager } from './rooms/manager'
 import { createHttpHandler } from './routes/http'

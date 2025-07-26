@@ -1,5 +1,5 @@
 import { SupabaseIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import type { SupabaseResponse } from '@/tools/supabase/types'
 
