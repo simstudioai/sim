@@ -161,7 +161,7 @@ describe('Workflow Execution API Route', () => {
       })),
     }))
 
-    vi.doMock('@/lib/logs/execution/execution-logger', () => ({
+    vi.doMock('@/lib/logs/execution/logger', () => ({
       executionLogger: {
         startWorkflowExecution: vi.fn().mockResolvedValue(undefined),
         logBlockExecution: vi.fn().mockResolvedValue(undefined),
@@ -457,7 +457,7 @@ describe('Workflow Execution API Route', () => {
    */
   it('should handle execution errors gracefully', async () => {
     const mockCompleteWorkflowExecution = vi.fn().mockResolvedValue({})
-    vi.doMock('@/lib/logs/execution/execution-logger', () => ({
+    vi.doMock('@/lib/logs/execution/logger', () => ({
       executionLogger: {
         completeWorkflowExecution: mockCompleteWorkflowExecution,
       },

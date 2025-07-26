@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { getEnv } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import {
   type Credential,
   getProviderIdFromServiceId,

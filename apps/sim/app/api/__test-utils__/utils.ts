@@ -655,7 +655,7 @@ export function mockKnowledgeSchemas() {
  * Mock console logger
  */
 export function mockConsoleLogger() {
-  vi.doMock('@/lib/logs/console/console-logger', () => ({
+  vi.doMock('@/lib/logs/console/logger', () => ({
     createLogger: vi.fn().mockReturnValue(mockLogger),
   }))
 }

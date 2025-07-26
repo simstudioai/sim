@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { getBlock } from '@/blocks'

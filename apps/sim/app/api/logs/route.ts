@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, lte, or, type SQL, sql } from 'drizzle-orm
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { permissions, workflow, workflowExecutionLogs } from '@/db/schema'
 

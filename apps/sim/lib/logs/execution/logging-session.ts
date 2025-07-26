@@ -1,5 +1,5 @@
-import { createLogger } from '@/lib/logs/console/console-logger'
-import { executionLogger } from '@/lib/logs/execution/execution-logger'
+import { createLogger } from '@/lib/logs/console/logger'
+import { executionLogger } from '@/lib/logs/execution/logger'
 import {
   calculateCostSummary,
   createEnvironmentObject,

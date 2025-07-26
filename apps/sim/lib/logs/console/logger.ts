@@ -1,5 +1,5 @@
 /**
- * console-logger.ts
+ * logger.ts
  *
  * This module provides standardized console logging utilities for internal application logging.
  * It is separate from the user-facing logging system in logging.ts.
@@ -256,7 +256,7 @@ export class Logger {
  *
  * Usage example:
  * ```
- * import { createLogger } from '@/lib/console-logger'
+ * import { createLogger } from '@/lib/logger'
  *
  * const logger = createLogger('MyComponent')
  *

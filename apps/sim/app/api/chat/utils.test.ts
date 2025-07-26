@@ -42,7 +42,7 @@ describe('Chat API Utils', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    vi.doMock('@/lib/logs/console/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         info: vi.fn(),
         error: vi.fn(),

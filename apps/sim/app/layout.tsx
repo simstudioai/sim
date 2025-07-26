@@ -2,7 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata, Viewport } from 'next'
 import { PublicEnvScript } from 'next-runtime-env'
-import { createLogger } from '@/lib/logs/console/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
 import './globals.css'
 

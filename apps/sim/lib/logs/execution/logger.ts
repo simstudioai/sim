@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console/console-logger'
-import { snapshotService } from '@/lib/logs/execution/snapshot/snapshot-service'
+import { createLogger } from '@/lib/logs/console/logger'
+import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { db } from '@/db'
 import { userStats, workflow, workflowExecutionLogs } from '@/db/schema'
 import type {
