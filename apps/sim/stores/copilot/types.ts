@@ -9,7 +9,40 @@ export interface Citation {
 }
 
 /**
- * Copilot message structure
+ * Tool call interface for copilot
+ */
+export interface CopilotToolCall {
+  id: string
+  name: string
+  displayName: string
+  input: Record<string, any>
+  state: 'executing' | 'completed' | 'error' | 'ready_for_review' | 'applied' | 'rejected'
+  startTime?: number
+  endTime?: number
+  duration?: number
+  result?: any
+  error?: string
+}
+
+/**
+ * Content block types for preserving chronological order
+ */
+export interface TextContentBlock {
+  type: 'text'
+  content: string
+  timestamp: number
+}
+
+export interface ToolCallContentBlock {
+  type: 'tool_call'
+  toolCall: CopilotToolCall
+  timestamp: number
+}
+
+export type ContentBlock = TextContentBlock | ToolCallContentBlock
+
+/**
+ * Copilot message interface
  */
 export interface CopilotMessage {
   id: string
@@ -17,6 +50,8 @@ export interface CopilotMessage {
   content: string
   timestamp: string
   citations?: Citation[]
+  toolCalls?: CopilotToolCall[]
+  contentBlocks?: ContentBlock[] // New chronological content structure
 }
 
 /**
@@ -46,6 +81,7 @@ export interface CopilotChat {
   model: string
   messages: CopilotMessage[]
   messageCount: number
+  previewYaml: string | null // YAML content for pending workflow preview
   createdAt: Date
   updatedAt: Date
 }
@@ -96,11 +132,15 @@ export interface CopilotState {
   isSendingMessage: boolean
   isSaving: boolean
   isRevertingCheckpoint: boolean
+  isAborting: boolean
 
   // Error states
   error: string | null
   saveError: string | null
   checkpointError: string | null
+
+  // Abort controller for cancelling requests
+  abortController: AbortController | null
 }
 
 /**
@@ -111,7 +151,7 @@ export interface CopilotActions {
   setMode: (mode: CopilotMode) => void
 
   // Chat management
-  setWorkflowId: (workflowId: string | null) => void
+  setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean
   loadChats: () => Promise<void>
   selectChat: (chat: CopilotChat) => Promise<void>
@@ -120,12 +160,22 @@ export interface CopilotActions {
 
   // Message handling
   sendMessage: (message: string, options?: SendMessageOptions) => Promise<void>
+  abortMessage: () => void
+  sendImplicitFeedback: (
+    implicitFeedback: string,
+    toolCallState?: 'applied' | 'rejected'
+  ) => Promise<void>
+  updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected') => void
   sendDocsMessage: (query: string, options?: SendDocsMessageOptions) => Promise<void>
   saveChatMessages: (chatId: string) => Promise<void>
 
   // Checkpoint management
   loadCheckpoints: (chatId: string) => Promise<void>
   revertToCheckpoint: (checkpointId: string) => Promise<void>
+
+  // Preview management
+  setPreviewYaml: (yamlContent: string) => Promise<void>
+  clearPreviewYaml: () => Promise<void>
 
   // Utility actions
   clearMessages: () => void
@@ -136,8 +186,13 @@ export interface CopilotActions {
   reset: () => void
 
   // Internal helpers (not exposed publicly)
-  handleStreamingResponse: (stream: ReadableStream, messageId: string) => Promise<void>
+  handleStreamingResponse: (
+    stream: ReadableStream,
+    messageId: string,
+    isContinuation?: boolean
+  ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
+  updateDiffStore: (yamlContent: string) => Promise<void>
 }
 
 /**

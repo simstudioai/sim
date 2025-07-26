@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useCurrentWorkflow } from '../../hooks'
 import { ParallelBadges } from './components/parallel-badges'
 
 const ParallelNodeStyles: React.FC = () => {
@@ -89,6 +90,11 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
   const blockRef = useRef<HTMLDivElement>(null)
 
+  // Use the clean abstraction for current workflow state
+  const currentWorkflow = useCurrentWorkflow()
+  const currentBlock = currentWorkflow.getBlockById(id)
+  const diffStatus = currentBlock?.is_diff
+
   // Check if this is preview mode
   const isPreview = data?.isPreview || false
 
@@ -142,7 +148,11 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             data?.state === 'valid',
             nestingLevel > 0 &&
               `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`,
-            data?.hasNestedError && 'border-2 border-red-500 bg-red-50/50'
+            data?.hasNestedError && 'border-2 border-red-500 bg-red-50/50',
+            // Diff highlighting
+            diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
+            diffStatus === 'edited' &&
+              'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10'
           )}
           style={{
             width: data.width || 500,

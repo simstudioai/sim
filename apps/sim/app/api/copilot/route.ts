@@ -28,6 +28,7 @@ const SendMessageSchema = z.object({
   mode: z.enum(['ask', 'agent']).optional().default('ask'),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(false),
+  implicitFeedback: z.string().optional(),
 })
 
 // Schema for docs queries
@@ -73,6 +74,7 @@ const UpdateChatSchema = z.object({
     )
     .optional(),
   title: z.string().optional(),
+  previewYaml: z.string().nullable().optional(),
 })
 
 // Schema for listing chats
@@ -91,7 +93,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { message, chatId, workflowId, mode, createNewChat, stream } =
+    const { message, chatId, workflowId, mode, createNewChat, stream, implicitFeedback } =
       SendMessageSchema.parse(body)
 
     const session = await getSession()
@@ -116,6 +118,7 @@ export async function POST(req: NextRequest) {
       mode,
       createNewChat,
       stream,
+      implicitFeedback,
       userId: session.user.id,
     })
 
@@ -152,68 +155,46 @@ export async function POST(req: NextRequest) {
     }
 
     if (streamToRead) {
-      logger.info(`[${requestId}] Returning streaming response`)
-
-      const encoder = new TextEncoder()
-
-      return new Response(
-        new ReadableStream({
-          async start(controller) {
-            const reader = streamToRead!.getReader()
-            let accumulatedResponse = ''
-
-            // Send initial metadata
-            const metadata = {
-              type: 'metadata',
-              chatId: result.chatId,
-              metadata: {
-                requestId,
-                message,
-              },
-            }
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`))
-
-            try {
-              while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-
-                const chunkText = new TextDecoder().decode(value)
-                accumulatedResponse += chunkText
-
-                const contentChunk = {
-                  type: 'content',
-                  content: chunkText,
-                }
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`))
-              }
-
-              // Send completion signal
-              const completion = {
-                type: 'complete',
-                finalContent: accumulatedResponse,
-              }
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(completion)}\n\n`))
-              controller.close()
-            } catch (error) {
-              logger.error(`[${requestId}] Streaming error:`, error)
-              const errorChunk = {
-                type: 'error',
-                error: 'Streaming failed',
-              }
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorChunk)}\n\n`))
-              controller.close()
-            }
-          },
-        }),
-        {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-          },
-        }
+      logger.info(
+        `[${requestId}] Returning native SSE streaming response with chatId: ${result.chatId}`
       )
+
+      // Create a new stream that first sends the chatId, then forwards the actual response
+      const transformedStream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder()
+
+          // First, send the chatId as an SSE event
+          if (result.chatId) {
+            const chatIdEvent = `data: ${JSON.stringify({ type: 'chat_id', chatId: result.chatId })}\n\n`
+            controller.enqueue(encoder.encode(chatIdEvent))
+          }
+
+          // Then forward the actual stream
+          const reader = streamToRead.getReader()
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              controller.enqueue(value)
+            }
+          } catch (error) {
+            logger.error(`[${requestId}] Error forwarding stream:`, error)
+            controller.error(error)
+          } finally {
+            controller.close()
+          }
+        },
+      })
+
+      // Pass through native Anthropic SSE events directly to the frontend
+      return new Response(transformedStream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      })
     }
 
     // Handle non-streaming response
@@ -344,7 +325,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { chatId, messages, title } = UpdateChatSchema.parse(body)
+    const { chatId, messages, title, previewYaml } = UpdateChatSchema.parse(body)
 
     logger.info(`Updating chat ${chatId} for user ${session.user.id}`)
 
@@ -371,6 +352,7 @@ export async function PATCH(req: NextRequest) {
     const chat = await updateChat(chatId, session.user.id, {
       messages,
       title: titleToUse,
+      previewYaml: previewYaml !== undefined ? previewYaml : undefined,
     })
 
     if (!chat) {

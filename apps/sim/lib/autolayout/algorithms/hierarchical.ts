@@ -316,9 +316,15 @@ function calculatePositions(
       // Calculate layer width (max node width in this layer)
       const layerWidth = Math.max(...layer.map((node) => node.width), 0)
 
-      // Calculate total layer height
+      // Improved vertical spacing calculation to prevent overlaps
+      // Use a minimum spacing that accounts for block heights plus extra buffer
+      const minVerticalSpacing = Math.max(spacing.vertical, 100)
+      const adaptiveSpacing =
+        layer.length > 1 ? Math.max(minVerticalSpacing, spacing.vertical * 1.2) : minVerticalSpacing
+
+      // Calculate total layer height with improved spacing
       const totalHeight =
-        layer.reduce((sum, node) => sum + node.height, 0) + (layer.length - 1) * spacing.vertical
+        layer.reduce((sum, node) => sum + node.height, 0) + (layer.length - 1) * adaptiveSpacing
 
       // Starting Y position based on alignment
       let startY: number
@@ -336,12 +342,18 @@ function calculatePositions(
 
       let currentY = startY
 
-      layer.forEach((node) => {
+      layer.forEach((node, nodeIndex) => {
         positions.push({
           id: node.id,
           position: { x: currentX, y: currentY },
         })
-        currentY += node.height + spacing.vertical
+
+        // Use adaptive spacing that considers the current node's height
+        if (nodeIndex < layer.length - 1) {
+          const nextNode = layer[nodeIndex + 1]
+          const dynamicSpacing = Math.max(adaptiveSpacing, (node.height + nextNode.height) / 2 + 30)
+          currentY += node.height + dynamicSpacing
+        }
       })
 
       currentX += layerWidth + spacing.layer
@@ -354,9 +366,16 @@ function calculatePositions(
       // Calculate layer height (max node height in this layer)
       const layerHeight = Math.max(...layer.map((node) => node.height), 0)
 
-      // Calculate total layer width
+      // Improved horizontal spacing calculation
+      const minHorizontalSpacing = Math.max(spacing.horizontal, 80)
+      const adaptiveSpacing =
+        layer.length > 1
+          ? Math.max(minHorizontalSpacing, spacing.horizontal * 1.2)
+          : minHorizontalSpacing
+
+      // Calculate total layer width with improved spacing
       const totalWidth =
-        layer.reduce((sum, node) => sum + node.width, 0) + (layer.length - 1) * spacing.horizontal
+        layer.reduce((sum, node) => sum + node.width, 0) + (layer.length - 1) * adaptiveSpacing
 
       // Starting X position based on alignment
       let startX: number
@@ -374,12 +393,18 @@ function calculatePositions(
 
       let currentX = startX
 
-      layer.forEach((node) => {
+      layer.forEach((node, nodeIndex) => {
         positions.push({
           id: node.id,
           position: { x: currentX, y: currentY },
         })
-        currentX += node.width + spacing.horizontal
+
+        // Use adaptive spacing that considers the current node's width
+        if (nodeIndex < layer.length - 1) {
+          const nextNode = layer[nodeIndex + 1]
+          const dynamicSpacing = Math.max(adaptiveSpacing, (node.width + nextNode.width) / 2 + 25)
+          currentX += node.width + dynamicSpacing
+        }
       })
 
       currentY += layerHeight + spacing.layer

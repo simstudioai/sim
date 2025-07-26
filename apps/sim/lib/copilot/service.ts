@@ -1,31 +1,22 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getRotatingApiKey } from '@/lib/utils'
-import { generateEmbeddings } from '@/app/api/knowledge/utils'
+// Dynamic import to avoid client-side bundling of file-parsers
 import { db } from '@/db'
 import { copilotChats, docsEmbeddings } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import type { ProviderToolConfig } from '@/providers/types'
 import { getApiKey } from '@/providers/utils'
 import { getCopilotConfig, getCopilotModel } from './config'
+import { WORKFLOW_EXAMPLES } from './examples'
 import {
   AGENT_MODE_SYSTEM_PROMPT,
   ASK_MODE_SYSTEM_PROMPT,
   TITLE_GENERATION_SYSTEM_PROMPT,
   TITLE_GENERATION_USER_PROMPT,
-  validateSystemPrompts,
 } from './prompts'
 
 const logger = createLogger('CopilotService')
-
-// Validate system prompts on module load
-const promptValidation = validateSystemPrompts()
-if (!promptValidation.askMode.valid) {
-  logger.error('Ask mode system prompt validation failed:', promptValidation.askMode.issues)
-}
-if (!promptValidation.agentMode.valid) {
-  logger.error('Agent mode system prompt validation failed:', promptValidation.agentMode.issues)
-}
 
 /**
  * Citation information for documentation references
@@ -57,6 +48,7 @@ export interface CopilotChat {
   model: string
   messages: CopilotMessage[]
   messageCount: number
+  previewYaml: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -70,6 +62,8 @@ export interface GenerateChatResponseOptions {
   requestId?: string
   mode?: 'ask' | 'agent'
   chatId?: string
+  implicitFeedback?: string
+  userId?: string
 }
 
 /**
@@ -82,6 +76,7 @@ export interface SendMessageRequest {
   mode?: 'ask' | 'agent'
   createNewChat?: boolean
   stream?: boolean
+  implicitFeedback?: string
   userId: string
 }
 
@@ -120,6 +115,7 @@ export interface CreateChatOptions {
 export interface UpdateChatOptions {
   title?: string
   messages?: CopilotMessage[]
+  previewYaml?: string | null
 }
 
 /**
@@ -154,7 +150,8 @@ function getProviderApiKey(provider: string, model: string): string {
 function buildConversationMessages(
   message: string,
   conversationHistory: CopilotMessage[],
-  maxHistory: number
+  maxHistory: number,
+  implicitFeedback?: string
 ): Array<{ role: 'user' | 'assistant' | 'system'; content: string }> {
   const messages = []
 
@@ -165,6 +162,14 @@ function buildConversationMessages(
     messages.push({
       role: msg.role as 'user' | 'assistant' | 'system',
       content: msg.content,
+    })
+  }
+
+  // Add implicit system feedback if provided (for preview accept/reject)
+  if (implicitFeedback) {
+    messages.push({
+      role: 'system' as const,
+      content: implicitFeedback,
     })
   }
 
@@ -224,6 +229,25 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
       },
     },
     {
+      id: 'get_workflow_examples',
+      name: 'Get Workflow Examples',
+      description: `Get proven YAML workflow examples by ID to reference when building workflows. Available IDs: ${Object.keys(WORKFLOW_EXAMPLES as Record<string, string>).join(', ')}`,
+      params: {},
+      parameters: {
+        type: 'object',
+        properties: {
+          exampleIds: {
+            type: 'array',
+            items: {
+              type: 'string',
+            },
+            description: 'Array of example IDs to retrieve',
+          },
+        },
+        required: ['exampleIds'],
+      },
+    },
+    {
       id: 'get_blocks_and_tools',
       name: 'Get All Blocks and Tools',
       description:
@@ -279,30 +303,187 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
       },
     },
     {
-      id: 'edit_workflow',
-      name: 'Edit Workflow',
+      id: 'preview_workflow',
+      name: 'Preview Workflow',
       description:
-        'Save/edit the current workflow by providing YAML content. This performs the same action as saving in the YAML code editor.',
+        'Generate a sandbox preview of the workflow without saving it. This allows users to see the proposed changes before applying them. This is the ONLY way to propose workflow changes. IMPORTANT: After calling this tool, you MUST stop your response immediately and wait for the user to either accept, reject, or provide additional feedback before continuing the conversation.',
       params: {},
       parameters: {
         type: 'object',
         properties: {
           yamlContent: {
             type: 'string',
-            description: 'The complete YAML workflow content to save',
+            description: 'The complete YAML workflow content to preview',
           },
           description: {
             type: 'string',
-            description: 'Optional description of the changes being made',
+            description: 'Optional description of the proposed changes',
           },
         },
         required: ['yamlContent'],
       },
     },
+    // {
+    //   id: 'edit_workflow',
+    //   name: 'Edit Workflow',
+    //   description:
+    //     'Save/edit the current workflow by providing YAML content. This performs the same action as saving in the YAML code editor.',
+    //   params: {},
+    //   parameters: {
+    //     type: 'object',
+    //     properties: {
+    //       yamlContent: {
+    //         type: 'string',
+    //         description: 'The complete YAML workflow content to save',
+    //       },
+    //       description: {
+    //         type: 'string',
+    //         description: 'Optional description of the changes being made',
+    //       },
+    //     },
+    //     required: ['yamlContent'],
+    //   },
+    // },
+    {
+      id: 'serper_search',
+      name: 'Web Search',
+      description:
+        'Search the internet for real-time information using Google search results. Useful for finding current information, news, facts, and general web content that may not be available in the documentation.',
+      params: {
+        apiKey: process.env.SERPER_API_KEY || '',
+      },
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The search query to find relevant information on the web',
+          },
+          num: {
+            type: 'number',
+            description: 'Number of search results to return (default: 10, max: 100)',
+            default: 10,
+          },
+          type: {
+            type: 'string',
+            enum: ['search', 'news', 'places', 'images'],
+            description: 'Type of search to perform (default: search)',
+            default: 'search',
+          },
+          gl: {
+            type: 'string',
+            description: 'Country code for localized results (e.g., "us", "uk", "ca")',
+          },
+          hl: {
+            type: 'string',
+            description: 'Language code for results (e.g., "en", "es", "fr")',
+          },
+        },
+        required: ['query'],
+      },
+    },
+    {
+      id: 'get_environment_variables',
+      name: 'Get Environment Variables',
+      description:
+        'Get a list of available environment variable names that the user has configured. This helps understand what API keys and secrets are available for use in workflows. Returns only the variable names, not their values.',
+      params: {},
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+    {
+      id: 'set_environment_variables',
+      name: 'Set Environment Variables',
+      description:
+        'Set or update environment variables that can be used in workflows. New variables will be added, and existing variables with the same names will be updated. Other existing variables will be preserved. Use this to configure API keys, secrets, and other configuration values.',
+      params: {
+        variables: {
+          type: 'object',
+          description:
+            'A key-value object containing the environment variables to set. Example: {"API_KEY": "your-key", "DATABASE_URL": "your-url"}',
+        },
+      },
+      parameters: {
+        type: 'object',
+        properties: {
+          variables: {
+            type: 'object',
+            description:
+              'A key-value object containing the environment variables to set. Example: {"API_KEY": "your-key", "DATABASE_URL": "your-url"}',
+          },
+        },
+        required: ['variables'],
+      },
+    },
+    {
+      id: 'get_workflow_console',
+      name: 'Get Workflow Console Logs',
+      description:
+        'Get console logs and execution history from the current workflow. This shows real-time execution logs including block inputs, outputs, execution times, and any errors or warnings from recent workflow runs.',
+      params: {},
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: {
+            type: 'number',
+            description: 'Maximum number of console entries to return (default: 50, max: 100)',
+            default: 50,
+          },
+          includeDetails: {
+            type: 'boolean',
+            description:
+              'Whether to include detailed input/output data for each console entry (default: false)',
+            default: false,
+          },
+        },
+        required: [],
+      },
+    },
+    {
+      id: 'targeted_updates',
+      name: 'Targeted Updates',
+      description:
+        'Make targeted updates to the workflow with atomic add, edit, or delete operations. Allows precise modifications to specific blocks without affecting the entire workflow.',
+      params: {},
+      parameters: {
+        type: 'object',
+        properties: {
+          operations: {
+            type: 'array',
+            description: 'Array of targeted update operations to perform',
+            items: {
+              type: 'object',
+              properties: {
+                operation_type: {
+                  type: 'string',
+                  enum: ['add', 'edit', 'delete'],
+                  description: 'Type of operation to perform',
+                },
+                block_id: {
+                  type: 'string',
+                  description:
+                    'Block ID for the operation. For add operations, this will be the desired ID for the new block.',
+                },
+                params: {
+                  type: 'object',
+                  description:
+                    'Parameters for the operation. For add: {type: "block_type", name: "Block Name", inputs: {...}, connections: {...}}, for edit: {inputs: {...}, connections: {...}}, for delete: empty',
+                },
+              },
+              required: ['operation_type', 'block_id'],
+            },
+          },
+        },
+        required: ['operations'],
+      },
+    },
   ]
 
   // Filter tools based on mode
-  return mode === 'ask' ? allTools.filter((tool) => tool.id !== 'edit_workflow') : allTools
+  return mode === 'ask' ? allTools.filter((tool) => tool.id !== 'preview_workflow') : allTools
 }
 
 /**
@@ -355,6 +536,7 @@ export async function searchDocumentation(
 
   try {
     // Generate embedding for the query
+    const { generateEmbeddings } = await import('@/app/api/knowledge/utils')
     const embeddings = await generateEmbeddings([query])
     const queryEmbedding = embeddings[0]
 
@@ -413,7 +595,8 @@ export async function generateChatResponse(
     const messages = buildConversationMessages(
       message,
       conversationHistory,
-      config.general.maxConversationHistory
+      config.general.maxConversationHistory,
+      options.implicitFeedback
     )
 
     // Get available tools for the mode
@@ -437,6 +620,7 @@ export async function generateChatResponse(
       streamToolCalls: true, // Enable tool call streaming for copilot
       workflowId: options.workflowId,
       chatId: options.chatId,
+      userId: options.userId || 'unknown_user', // Pass userId to provider request
     })
 
     // Handle StreamingExecution (from providers with tool calls)
@@ -527,6 +711,7 @@ export async function createChat(
       model: newChat.model,
       messages: Array.isArray(newChat.messages) ? newChat.messages : [],
       messageCount: Array.isArray(newChat.messages) ? newChat.messages.length : 0,
+      previewYaml: newChat.previewYaml,
       createdAt: newChat.createdAt,
       updatedAt: newChat.updatedAt,
     }
@@ -559,6 +744,7 @@ export async function getChat(chatId: string, userId: string): Promise<CopilotCh
       model: chat.model,
       messages: Array.isArray(chat.messages) ? chat.messages : [],
       messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
+      previewYaml: chat.previewYaml,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
     }
@@ -593,6 +779,7 @@ export async function listChats(
       model: chat.model,
       messages: Array.isArray(chat.messages) ? chat.messages : [],
       messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
+      previewYaml: chat.previewYaml,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
     }))
@@ -624,6 +811,7 @@ export async function updateChat(
 
     if (updates.title !== undefined) updateData.title = updates.title
     if (updates.messages !== undefined) updateData.messages = updates.messages
+    if (updates.previewYaml !== undefined) updateData.previewYaml = updates.previewYaml
 
     // Update the chat
     const [updatedChat] = await db
@@ -642,6 +830,7 @@ export async function updateChat(
       model: updatedChat.model,
       messages: Array.isArray(updatedChat.messages) ? updatedChat.messages : [],
       messageCount: Array.isArray(updatedChat.messages) ? updatedChat.messages.length : 0,
+      previewYaml: updatedChat.previewYaml,
       createdAt: updatedChat.createdAt,
       updatedAt: updatedChat.updatedAt,
     }
@@ -699,6 +888,8 @@ export async function sendMessage(request: SendMessageRequest): Promise<{
       workflowId,
       mode,
       chatId: currentChat?.id,
+      implicitFeedback: request.implicitFeedback,
+      userId: userId, // Pass userId to generateChatResponse
     })
 
     // For non-streaming responses, save immediately

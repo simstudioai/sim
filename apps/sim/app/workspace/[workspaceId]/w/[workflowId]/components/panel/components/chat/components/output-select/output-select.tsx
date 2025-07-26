@@ -3,6 +3,7 @@ import { Check, ChevronDown } from 'lucide-react'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -24,6 +25,10 @@ export function OutputSelect({
   const [isOutputDropdownOpen, setIsOutputDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
+  const { isShowingDiff, diffWorkflow } = useWorkflowDiffStore()
+
+  // Use diff blocks when in diff mode, otherwise use main blocks
+  const workflowBlocks = isShowingDiff && diffWorkflow ? diffWorkflow.blocks : blocks
 
   // Get workflow outputs for the dropdown
   const workflowOutputs = useMemo(() => {
@@ -39,7 +44,7 @@ export function OutputSelect({
     if (!workflowId) return outputs
 
     // Process blocks to extract outputs
-    Object.values(blocks).forEach((block) => {
+    Object.values(workflowBlocks).forEach((block) => {
       // Skip starter/start blocks
       if (block.type === 'starter') return
 
@@ -50,7 +55,11 @@ export function OutputSelect({
           : `block-${block.id}`
 
       // Check for custom response format first
-      const responseFormatValue = useSubBlockStore.getState().getValue(block.id, 'responseFormat')
+      // In diff mode, get value from diff blocks; otherwise use store
+      const responseFormatValue =
+        isShowingDiff && diffWorkflow
+          ? diffWorkflow.blocks[block.id]?.subBlocks?.responseFormat?.value
+          : useSubBlockStore.getState().getValue(block.id, 'responseFormat')
       const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
 
       let outputsToProcess: Record<string, any> = {}
@@ -131,7 +140,7 @@ export function OutputSelect({
     })
 
     return outputs
-  }, [blocks, workflowId])
+  }, [workflowBlocks, workflowId, isShowingDiff])
 
   // Get selected outputs display text
   const selectedOutputsDisplayText = useMemo(() => {

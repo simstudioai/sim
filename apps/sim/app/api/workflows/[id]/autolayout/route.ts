@@ -130,14 +130,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         strategy: layoutOptions.strategy,
         direction: layoutOptions.direction,
         spacing: {
-          horizontal: layoutOptions.spacing?.horizontal || 400,
-          vertical: layoutOptions.spacing?.vertical || 200,
-          layer: layoutOptions.spacing?.layer || 600,
+          horizontal: layoutOptions.spacing?.horizontal || 500, // Updated from 400 to match improved spacing
+          vertical: layoutOptions.spacing?.vertical || 400, // Updated from 200 to match improved spacing
+          layer: layoutOptions.spacing?.layer || 700, // Updated from 600 to match improved spacing
         },
         alignment: layoutOptions.alignment,
         padding: {
-          x: layoutOptions.padding?.x || 200,
-          y: layoutOptions.padding?.y || 200,
+          x: layoutOptions.padding?.x || 250, // Updated from 200 to match improved spacing
+          y: layoutOptions.padding?.y || 250, // Updated from 200 to match improved spacing
         },
       }
     )

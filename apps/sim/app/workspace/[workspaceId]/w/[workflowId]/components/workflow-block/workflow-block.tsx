@@ -12,10 +12,12 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/compone
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCurrentWorkflow } from '../../hooks'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
@@ -28,6 +30,7 @@ interface WorkflowBlockProps {
   isPending?: boolean
   isPreview?: boolean
   subBlockValues?: Record<string, any>
+  blockState?: any // Block state data passed in preview mode
 }
 
 // Combine both interfaces into a single component
@@ -62,10 +65,73 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
   // Workflow store selectors
   const lastUpdate = useWorkflowStore((state) => state.lastUpdate)
-  const isEnabled = useWorkflowStore((state) => state.blocks[id]?.enabled ?? true)
-  const horizontalHandles = useWorkflowStore(
-    (state) => state.blocks[id]?.horizontalHandles ?? false
-  )
+
+  // Use the clean abstraction for current workflow state
+  const currentWorkflow = useCurrentWorkflow()
+  const currentBlock = currentWorkflow.getBlockById(id)
+
+  const isEnabled = currentBlock?.enabled ?? true
+
+  // Get diff status from the block itself (set by diff engine)
+  const diffStatus =
+    currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).is_diff : undefined
+
+  // Get field-level diff information
+  const fieldDiff =
+    currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).field_diff : undefined
+
+  // Debug: Log diff status for this block
+  useEffect(() => {
+    if (currentWorkflow.isDiffMode) {
+      console.log(`[WorkflowBlock ${id}] Diff status:`, {
+        blockId: id,
+        blockName: currentBlock?.name,
+        isDiffMode: currentWorkflow.isDiffMode,
+        diffStatus,
+        hasFieldDiff: !!fieldDiff,
+        timestamp: Date.now(),
+      })
+    }
+  }, [id, currentWorkflow.isDiffMode, diffStatus, fieldDiff, currentBlock?.name])
+
+  // Check if this block is marked for deletion (in original workflow, not diff)
+  const diffAnalysis = useWorkflowDiffStore((state) => state.diffAnalysis)
+  const isShowingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
+  const isDeletedBlock = !isShowingDiff && diffAnalysis?.deleted_blocks?.includes(id)
+
+  // Debug: Log when in diff mode or when blocks are marked for deletion
+  useEffect(() => {
+    if (currentWorkflow.isDiffMode) {
+      console.log(
+        `[WorkflowBlock ${id}] Diff mode active, block exists: ${!!currentBlock}, diff status: ${diffStatus}`
+      )
+      if (fieldDiff) {
+        console.log(`[WorkflowBlock ${id}] Field diff:`, fieldDiff)
+      }
+    }
+    if (diffAnalysis && !isShowingDiff) {
+      console.log(`[WorkflowBlock ${id}] Diff analysis available in original workflow:`, {
+        deleted_blocks: diffAnalysis.deleted_blocks,
+        isDeletedBlock,
+        isShowingDiff,
+      })
+    }
+    if (isDeletedBlock) {
+      console.log(`[WorkflowBlock ${id}] Block marked for deletion in original workflow`)
+    }
+  }, [
+    currentWorkflow.isDiffMode,
+    currentBlock,
+    diffStatus,
+    fieldDiff || null,
+    isDeletedBlock,
+    diffAnalysis,
+    isShowingDiff,
+    id,
+  ])
+  const horizontalHandles = data.isPreview
+    ? (data.blockState?.horizontalHandles ?? true) // In preview mode, use blockState and default to horizontal
+    : useWorkflowStore((state) => state.blocks[id]?.horizontalHandles ?? true) // Changed default to true for consistency
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
   // Get per-block webhook status by checking if webhook is configured
@@ -313,6 +379,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     if (data.isPreview && data.subBlockValues) {
       // In preview mode, use the preview values
       stateToUse = data.subBlockValues
+    } else if (currentWorkflow.isDiffMode && currentBlock) {
+      // In diff mode, use the diff workflow's subblock values
+      stateToUse = currentBlock.subBlocks || {}
     } else {
       // In normal mode, use merged state
       const blocks = useWorkflowStore.getState().blocks
@@ -458,6 +527,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           !isEnabled && 'shadow-sm',
           isActive && 'animate-pulse-ring ring-2 ring-blue-500',
           isPending && 'ring-2 ring-amber-500',
+          // Diff highlighting
+          diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
+          diffStatus === 'edited' && 'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10',
+          // Deleted block highlighting (in original workflow)
+          isDeletedBlock && 'bg-red-50/50 ring-2 ring-red-500 dark:bg-red-900/10',
           'z-[20]'
         )}
       >
@@ -793,6 +867,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         isPreview={data.isPreview}
                         subBlockValues={data.subBlockValues}
                         disabled={!userPermissions.canEdit}
+                        fieldDiffStatus={
+                          fieldDiff?.changed_fields?.includes(subBlock.id)
+                            ? 'changed'
+                            : fieldDiff?.unchanged_fields?.includes(subBlock.id)
+                              ? 'unchanged'
+                              : undefined
+                        }
                       />
                     </div>
                   ))}

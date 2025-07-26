@@ -378,23 +378,44 @@ function optimizeSpacing(
   }
 }
 
-// Simplified layered layout for medium complexity workflows
+// Improved layered layout for medium complexity workflows with parallel branches
 function calculateLayeredLayout(
   nodes: LayoutNode[],
   edges: LayoutEdge[],
   options: LayoutOptions
 ): LayoutResult {
-  // For now, delegate to hierarchical layout with adjusted spacing
-  const adjustedOptions = {
+  // Analyze the workflow to detect parallel paths
+  const outgoing = new Map<string, string[]>()
+  edges.forEach((edge) => {
+    if (!outgoing.has(edge.source)) outgoing.set(edge.source, [])
+    outgoing.get(edge.source)!.push(edge.target)
+  })
+
+  // Count nodes with multiple outputs (branching points)
+  const branchingNodes = Array.from(outgoing.entries()).filter(([_, targets]) => targets.length > 1)
+  const hasSignificantBranching = branchingNodes.length > 0
+
+  // Adjust spacing based on workflow characteristics
+  const adjustedOptions: LayoutOptions = {
     ...options,
     spacing: {
-      ...options.spacing,
-      vertical: options.spacing.vertical * 1.2,
-      layer: options.spacing.layer * 0.9,
+      horizontal: hasSignificantBranching
+        ? options.spacing.horizontal * 1.2
+        : options.spacing.horizontal,
+      vertical: hasSignificantBranching
+        ? Math.max(options.spacing.vertical * 1.8, 350)
+        : options.spacing.vertical * 1.2,
+      layer: options.spacing.layer * 1.1,
     },
   }
 
-  return calculateHierarchicalLayout(nodes, edges, adjustedOptions)
+  // Use the improved hierarchical layout with better spacing
+  const result = calculateHierarchicalLayout(nodes, edges, adjustedOptions)
+
+  // Update metadata to reflect this is a layered layout
+  result.metadata.strategy = 'layered'
+
+  return result
 }
 
 // Simplified force-directed layout for complex workflows

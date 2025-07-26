@@ -34,14 +34,14 @@ export class AutoLayoutService {
         strategy: 'smart',
         direction: 'auto',
         spacing: {
-          horizontal: 400,
-          vertical: 200,
-          layer: 600,
+          horizontal: 500, // Increased from 400 for better separation
+          vertical: 180, // Reduced from 400 to prevent excessive vertical spacing
+          layer: 700, // Increased from 600 for better layer separation
         },
         alignment: 'center',
         padding: {
-          x: 200,
-          y: 200,
+          x: 250, // Increased from 200 for better margins
+          y: 250, // Increased from 200 for better margins
         },
         ...options,
       }
@@ -108,7 +108,7 @@ export class AutoLayoutService {
         const category = BLOCK_CATEGORIES[block.type] || 'processing'
         const isContainer = block.type === 'loop' || block.type === 'parallel'
 
-        // Determine dimensions
+        // Determine dimensions with better height detection
         let dimensions = BLOCK_DIMENSIONS.default
         if (isContainer) {
           dimensions = BLOCK_DIMENSIONS.container
@@ -116,17 +116,40 @@ export class AutoLayoutService {
           dimensions = BLOCK_DIMENSIONS.wide
         }
 
-        // Use actual height if available
-        if (block.height && block.height > 0) {
-          dimensions = { ...dimensions, height: block.height }
+        // Use actual block dimensions with proper fallbacks
+        let actualWidth = dimensions.width
+        let actualHeight = dimensions.height
+
+        // Check for actual width from block data
+        if (block.data?.width && block.data.width > 0) {
+          actualWidth = block.data.width
+        } else if (block.width && block.width > 0) {
+          actualWidth = block.width
+        }
+
+        // Check for actual height from block data with more comprehensive detection
+        if (block.data?.height && block.data.height > 0) {
+          actualHeight = Math.max(block.data.height, dimensions.height)
+        } else if (block.height && block.height > 0) {
+          actualHeight = Math.max(block.height, dimensions.height)
+        } else {
+          // For blocks without explicit height, estimate based on content
+          const hasLongContent = block.subBlocks && Object.keys(block.subBlocks).length > 3
+          const isComplexBlock = ['agent', 'api', 'function'].includes(block.type)
+
+          if (hasLongContent || isComplexBlock) {
+            actualHeight = Math.max(actualHeight * 1.8, 200) // Increase estimated height for content-heavy blocks
+          } else if (Object.keys(block.subBlocks || {}).length > 0) {
+            actualHeight = Math.max(actualHeight * 1.3, 150) // Moderate increase for blocks with some content
+          }
         }
 
         return {
           id: block.id,
           type: block.type,
           name: block.name || `${block.type} Block`,
-          width: dimensions.width,
-          height: dimensions.height,
+          width: actualWidth,
+          height: actualHeight,
           position: block.position,
           category,
           isContainer,
@@ -232,14 +255,14 @@ export class AutoLayoutService {
             strategy: 'smart',
             direction: 'auto',
             spacing: {
-              horizontal: 300,
-              vertical: 150,
-              layer: 400,
+              horizontal: 400, // Increased from 300 for better child separation
+              vertical: 120, // Reduced from 250 to prevent excessive vertical spacing in containers
+              layer: 500, // Increased from 400 for better child layer separation
             },
             alignment: 'center',
             padding: {
-              x: 50,
-              y: 80,
+              x: 80, // Increased from 50 for better child margins
+              y: 120, // Increased from 80 for better child margins
             },
           }
 
@@ -308,6 +331,7 @@ export class AutoLayoutService {
       const category = BLOCK_CATEGORIES[block.type] || 'processing'
       const isContainer = block.type === 'loop' || block.type === 'parallel'
 
+      // Determine dimensions with better height detection
       let dimensions = BLOCK_DIMENSIONS.default
       if (isContainer) {
         dimensions = BLOCK_DIMENSIONS.container
@@ -315,16 +339,40 @@ export class AutoLayoutService {
         dimensions = BLOCK_DIMENSIONS.wide
       }
 
-      if (block.height && block.height > 0) {
-        dimensions = { ...dimensions, height: block.height }
+      // Use actual block dimensions with proper fallbacks
+      let actualWidth = dimensions.width
+      let actualHeight = dimensions.height
+
+      // Check for actual width from block data
+      if (block.data?.width && block.data.width > 0) {
+        actualWidth = block.data.width
+      } else if (block.width && block.width > 0) {
+        actualWidth = block.width
+      }
+
+      // Check for actual height from block data with more comprehensive detection
+      if (block.data?.height && block.data.height > 0) {
+        actualHeight = Math.max(block.data.height, dimensions.height)
+      } else if (block.height && block.height > 0) {
+        actualHeight = Math.max(block.height, dimensions.height)
+      } else {
+        // For blocks without explicit height, estimate based on content
+        const hasLongContent = block.subBlocks && Object.keys(block.subBlocks).length > 3
+        const isComplexBlock = ['agent', 'api', 'function'].includes(block.type)
+
+        if (hasLongContent || isComplexBlock) {
+          actualHeight = Math.max(actualHeight * 1.8, 200) // Increase estimated height for content-heavy blocks
+        } else if (Object.keys(block.subBlocks || {}).length > 0) {
+          actualHeight = Math.max(actualHeight * 1.3, 150) // Moderate increase for blocks with some content
+        }
       }
 
       return {
         id: block.id,
         type: block.type,
         name: block.name || `${block.type} Block`,
-        width: dimensions.width,
-        height: dimensions.height,
+        width: actualWidth,
+        height: actualHeight,
         position: block.position,
         category,
         isContainer,

@@ -11,8 +11,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console-logger'
+import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useCopilotSandbox } from '../../../../hooks/use-copilot-sandbox'
+import { CopilotSandboxModal } from '../../../copilot-sandbox-modal/copilot-sandbox-modal'
 import { CheckpointPanel } from './components/checkpoint-panel'
 import { CopilotModal } from './components/copilot-modal/copilot-modal'
 import { ProfessionalInput } from './components/professional-input/professional-input'
@@ -48,8 +51,16 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     const scrollAreaRef = useRef<HTMLDivElement>(null)
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
     const [showCheckpoints, setShowCheckpoints] = useState(false)
+    const scannedChatRef = useRef<string | null>(null)
 
     const { activeWorkflowId } = useWorkflowRegistry()
+
+    // Use copilot sandbox for workflow previews
+    const { sandboxState, showSandbox, closeSandbox, applyToCurrentWorkflow, saveAsNewWorkflow } =
+      useCopilotSandbox()
+
+    // Use preview store to track seen previews
+    const { scanAndMarkExistingPreviews, isToolCallSeen, markToolCallAsSeen } = usePreviewStore()
 
     // Use the new copilot store
     const {
@@ -59,6 +70,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       isLoading,
       isLoadingChats,
       isSendingMessage,
+      isAborting,
       error,
       workflowId,
       mode,
@@ -68,6 +80,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       createNewChat,
       deleteChat,
       sendMessage,
+      abortMessage,
       clearMessages,
       clearError,
       setMode,
@@ -76,9 +89,16 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     // Sync workflow ID with store
     useEffect(() => {
       if (activeWorkflowId !== workflowId) {
-        setWorkflowId(activeWorkflowId)
+        setWorkflowId(activeWorkflowId).catch((error) => {
+          console.error('Failed to set workflow ID:', error)
+        })
       }
     }, [activeWorkflowId, workflowId, setWorkflowId])
+
+    // Clear any existing preview when component mounts or workflow changes
+    useEffect(() => {
+      // Preview clearing is now handled automatically by the copilot store
+    }, [activeWorkflowId])
 
     // Safety check: Clear any chat that doesn't belong to current workflow
     useEffect(() => {
@@ -100,6 +120,26 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       }
     }, [messages])
 
+    // Watch for completed preview_workflow tool calls in the new format
+    useEffect(() => {
+      if (!messages.length) return
+
+      const lastMessage = messages[messages.length - 1]
+      if (lastMessage.role !== 'assistant' || !lastMessage.toolCalls) return
+
+      // Check for completed preview_workflow tool calls
+      const previewToolCall = lastMessage.toolCalls.find(
+        (tc) => tc.name === 'preview_workflow' && tc.state === 'completed' && !isToolCallSeen(tc.id)
+      )
+
+      if (previewToolCall?.result) {
+        logger.info('Preview workflow completed via native SSE - handling result')
+        // Mark as seen to prevent duplicate processing
+        markToolCallAsSeen(previewToolCall.id)
+        // Tool call handling logic would go here if needed
+      }
+    }, [messages, isToolCallSeen, markToolCallAsSeen])
+
     // Handle chat deletion
     const handleDeleteChat = useCallback(
       async (chatId: string) => {
@@ -115,6 +155,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
 
     // Handle new chat creation
     const handleStartNewChat = useCallback(() => {
+      // Preview clearing is now handled automatically by the copilot store
       clearMessages()
       logger.info('Started new chat')
     }, [clearMessages])
@@ -312,20 +353,24 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
               {showCheckpoints ? (
                 <CheckpointPanel />
               ) : (
-                <ScrollArea ref={scrollAreaRef} className='max-w-full flex-1 overflow-hidden'>
-                  {messages.length === 0 ? (
-                    <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
-                  ) : (
-                    messages.map((message) => (
-                      <ProfessionalMessage
-                        key={message.id}
-                        message={message}
-                        isStreaming={
-                          isSendingMessage && message.id === messages[messages.length - 1]?.id
-                        }
-                      />
-                    ))
-                  )}
+                <ScrollArea ref={scrollAreaRef} className='flex-1 overflow-hidden px-2'>
+                  <div className='space-y-1'>
+                    {messages.length === 0 ? (
+                      <div className='flex h-full items-center justify-center p-4'>
+                        <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
+                      </div>
+                    ) : (
+                      messages.map((message) => (
+                        <ProfessionalMessage
+                          key={message.id}
+                          message={message}
+                          isStreaming={
+                            isSendingMessage && message.id === messages[messages.length - 1]?.id
+                          }
+                        />
+                      ))
+                    )}
+                  </div>
                 </ScrollArea>
               )}
 
@@ -367,8 +412,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
                   {/* Input area */}
                   <ProfessionalInput
                     onSubmit={handleSubmit}
+                    onAbort={abortMessage}
                     disabled={!activeWorkflowId}
                     isLoading={isSendingMessage}
+                    isAborting={isAborting}
                   />
                 </>
               )}
@@ -384,7 +431,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
           setCopilotMessage={(message) => onFullscreenInputChange?.(message)}
           messages={messages}
           onSendMessage={handleModalSendMessage}
+          onAbortMessage={abortMessage}
           isLoading={isSendingMessage}
+          isAborting={isAborting}
           isLoadingChats={isLoadingChats}
           chats={chats}
           currentChat={currentChat}
@@ -393,6 +442,20 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
           onDeleteChat={handleDeleteChat}
           mode={mode}
           onModeChange={setMode}
+        />
+
+        {/* Copilot Sandbox Modal */}
+        <CopilotSandboxModal
+          isOpen={sandboxState.isOpen}
+          onClose={closeSandbox}
+          proposedWorkflowState={sandboxState.proposedWorkflowState}
+          yamlContent={sandboxState.yamlContent}
+          description={sandboxState.description}
+          onApplyToCurrentWorkflow={applyToCurrentWorkflow}
+          onSaveAsNewWorkflow={async (name: string) => {
+            await saveAsNewWorkflow(name)
+          }}
+          isProcessing={sandboxState.isProcessing}
         />
       </>
     )

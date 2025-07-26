@@ -79,8 +79,8 @@ export async function applyWorkflowDiff(
           warnings: result.warnings || [],
         })
 
-        // Trigger auto layout after successful save
-        window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
+        // Auto layout is now handled automatically by the backend system
+        // when applyAutoLayout is true in the request
 
         // Calculate applied operations (blocks + edges)
         const appliedOperations = (result.data?.blocksCount || 0) + (result.data?.edgesCount || 0)
@@ -151,8 +151,8 @@ export async function applyWorkflowDiff(
           edgesCount: result.edgesCount,
         })
 
-        // Trigger auto layout after successful save
-        window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
+        // Auto layout would need to be called separately for JSON format if needed
+        // JSON format doesn't automatically apply auto layout like YAML does
 
         // Calculate applied operations
         const appliedOperations = (result.blocksCount || 0) + (result.edgesCount || 0)

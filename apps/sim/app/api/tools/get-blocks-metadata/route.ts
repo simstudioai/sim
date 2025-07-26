@@ -26,6 +26,110 @@ const DOCS_FILE_MAPPING: Record<string, string> = {
   webhook: 'webhook_trigger',
 }
 
+// Special blocks that aren't in the standard registry but need metadata
+const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
+  loop: {
+    type: 'loop',
+    name: 'Loop',
+    description: 'Control flow block for iterating over collections or repeating actions',
+    longDescription:
+      'Execute a set of blocks repeatedly, either for a fixed number of iterations or for each item in a collection. Loop blocks create sub-workflows that run multiple times with different iteration data.',
+    category: 'blocks',
+    bgColor: '#9333EA',
+    subBlocks: [
+      {
+        id: 'iterationType',
+        title: 'Iteration Type',
+        type: 'dropdown',
+        layout: 'full',
+        options: [
+          { label: 'Fixed Count', id: 'fixed' },
+          { label: 'For Each Item', id: 'forEach' },
+        ],
+        description: 'Choose how the loop should iterate',
+      },
+      {
+        id: 'iterationCount',
+        title: 'Iteration Count',
+        type: 'short-input',
+        layout: 'half',
+        placeholder: '5',
+        condition: { field: 'iterationType', value: 'fixed' },
+        description: 'Number of times to repeat the loop',
+      },
+      {
+        id: 'collection',
+        title: 'Collection',
+        type: 'short-input',
+        layout: 'full',
+        placeholder: 'Reference to array or object',
+        condition: { field: 'iterationType', value: 'forEach' },
+        description: 'Array or object to iterate over',
+      },
+    ],
+    inputs: {
+      iterationType: { type: 'string', required: true },
+      iterationCount: { type: 'number', required: false },
+      collection: { type: 'array|object', required: false },
+    },
+    outputs: {
+      results: 'array',
+      iterations: 'number',
+    },
+    tools: { access: [] },
+  },
+  parallel: {
+    type: 'parallel',
+    name: 'Parallel',
+    description: 'Control flow block for executing multiple branches simultaneously',
+    longDescription:
+      'Execute multiple sets of blocks simultaneously, either with a fixed number of parallel branches or by distributing items from a collection across parallel executions.',
+    category: 'blocks',
+    bgColor: '#059669',
+    subBlocks: [
+      {
+        id: 'parallelType',
+        title: 'Parallel Type',
+        type: 'dropdown',
+        layout: 'full',
+        options: [
+          { label: 'Fixed Count', id: 'count' },
+          { label: 'Collection Distribution', id: 'collection' },
+        ],
+        description: 'Choose how parallel execution should work',
+      },
+      {
+        id: 'parallelCount',
+        title: 'Parallel Count',
+        type: 'short-input',
+        layout: 'half',
+        placeholder: '3',
+        condition: { field: 'parallelType', value: 'count' },
+        description: 'Number of parallel branches to execute',
+      },
+      {
+        id: 'collection',
+        title: 'Collection',
+        type: 'short-input',
+        layout: 'full',
+        placeholder: 'Reference to array to distribute',
+        condition: { field: 'parallelType', value: 'collection' },
+        description: 'Array to distribute across parallel executions',
+      },
+    ],
+    inputs: {
+      parallelType: { type: 'string', required: true },
+      parallelCount: { type: 'number', required: false },
+      collection: { type: 'array', required: false },
+    },
+    outputs: {
+      results: 'array',
+      branches: 'number',
+    },
+    tools: { access: [] },
+  },
+}
+
 // Helper function to read YAML schema from dedicated YAML documentation files
 function getYamlSchemaFromDocs(blockType: string): string | null {
   try {
@@ -80,6 +184,65 @@ export async function POST(request: NextRequest) {
 
     for (const blockId of blockIds) {
       const blockConfig = blockRegistry[blockId]
+
+      // Check if it's a special block not in the standard registry
+      if (!blockConfig && SPECIAL_BLOCKS_METADATA[blockId]) {
+        const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
+
+        // Check if this special block has YAML documentation
+        if (CORE_BLOCKS_WITH_DOCS.includes(blockId)) {
+          const yamlSchema = getYamlSchemaFromDocs(blockId)
+
+          if (yamlSchema) {
+            result[blockId] = {
+              type: 'block',
+              description: specialBlock.description || '',
+              longDescription: specialBlock.longDescription,
+              category: specialBlock.category || '',
+              yamlSchema: yamlSchema,
+              docsLink: specialBlock.docsLink,
+              codeSchemas: {
+                inputs: specialBlock.inputs,
+                outputs: specialBlock.outputs,
+                subBlocks: specialBlock.subBlocks,
+              },
+            }
+          } else {
+            // Fallback to regular metadata if YAML schema not found
+            result[blockId] = {
+              type: 'block',
+              description: specialBlock.description || '',
+              longDescription: specialBlock.longDescription,
+              category: specialBlock.category || '',
+              inputs: specialBlock.inputs,
+              outputs: specialBlock.outputs,
+              subBlocks: specialBlock.subBlocks,
+              codeSchemas: {
+                inputs: specialBlock.inputs,
+                outputs: specialBlock.outputs,
+                subBlocks: specialBlock.subBlocks,
+              },
+            }
+          }
+        } else {
+          // For special blocks without YAML docs
+          result[blockId] = {
+            type: 'block',
+            description: specialBlock.description || '',
+            longDescription: specialBlock.longDescription,
+            category: specialBlock.category || '',
+            inputs: specialBlock.inputs,
+            outputs: specialBlock.outputs,
+            subBlocks: specialBlock.subBlocks,
+            codeSchemas: {
+              inputs: specialBlock.inputs,
+              outputs: specialBlock.outputs,
+              subBlocks: specialBlock.subBlocks,
+            },
+          }
+        }
+        continue
+      }
 
       if (!blockConfig) {
         logger.warn(`Block not found: ${blockId}`)

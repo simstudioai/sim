@@ -31,7 +31,29 @@ export async function POST(request: NextRequest) {
         blockToToolsMapping[blockType] = blockTools
       })
 
-    const totalBlocks = Object.keys(blockRegistry).length
+    // Add special blocks that aren't in the standard registry
+    // Loop and parallel blocks are handled differently but should be available
+    const specialBlocks = {
+      loop: {
+        tools: [], // Loop blocks don't use standard tools
+        category: 'blocks',
+        description: 'Control flow block for iterating over collections or repeating actions',
+      },
+      parallel: {
+        tools: [], // Parallel blocks don't use standard tools
+        category: 'blocks',
+        description: 'Control flow block for executing multiple branches simultaneously',
+      },
+    }
+
+    // Add special blocks if they pass the category filter
+    Object.entries(specialBlocks).forEach(([blockType, blockInfo]) => {
+      if (!filterCategory || blockInfo.category === filterCategory) {
+        blockToToolsMapping[blockType] = blockInfo.tools
+      }
+    })
+
+    const totalBlocks = Object.keys(blockRegistry).length + Object.keys(specialBlocks).length
     const includedBlocks = Object.keys(blockToToolsMapping).length
     const filteredBlocksCount = totalBlocks - includedBlocks
 
@@ -47,6 +69,11 @@ export async function POST(request: NextRequest) {
       filterCategory,
       blockToolsMapping: blockToolsInfo,
       outputMapping: blockToToolsMapping,
+      specialBlocksAdded: Object.keys(specialBlocks).filter(
+        (blockType) =>
+          !filterCategory ||
+          specialBlocks[blockType as keyof typeof specialBlocks].category === filterCategory
+      ),
     })
 
     return NextResponse.json({

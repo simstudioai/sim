@@ -2,14 +2,20 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { editWorkflowTool } from '@/tools/blocks/edit-workflow'
 import { getAllBlocksTool } from '@/tools/blocks/get-all'
 import { getBlockMetadataTool } from '@/tools/blocks/get-metadata'
 import { getYamlStructureTool } from '@/tools/blocks/get-yaml-structure'
+// import { editWorkflowTool } from '@/tools/blocks/edit-workflow' // Commented out - only preview is allowed
+import { previewWorkflowTool } from '@/tools/blocks/preview-workflow'
 import { docsSearchTool } from '@/tools/docs/search'
+import { getEnvironmentVariablesTool } from '@/tools/environment/get-variables'
+import { setEnvironmentVariablesTool } from '@/tools/environment/set-variables'
 import { tools } from '@/tools/registry'
 import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
+import { getWorkflowConsoleTool } from '@/tools/workflow/get-console'
+import { getWorkflowExamplesTool } from '@/tools/workflow/get-examples'
 import { getUserWorkflowTool } from '@/tools/workflow/get-yaml'
+import { targetedUpdatesTool } from '@/tools/workflow/targeted-updates'
 
 const logger = createLogger('ToolsUtils')
 
@@ -17,10 +23,16 @@ const logger = createLogger('ToolsUtils')
 const internalTools: Record<string, ToolConfig> = {
   docs_search_internal: docsSearchTool,
   get_user_workflow: getUserWorkflowTool,
+  get_workflow_console: getWorkflowConsoleTool,
+  get_workflow_examples: getWorkflowExamplesTool,
   get_blocks_and_tools: getAllBlocksTool,
   get_blocks_metadata: getBlockMetadataTool,
   get_yaml_structure: getYamlStructureTool,
-  edit_workflow: editWorkflowTool,
+  get_environment_variables: getEnvironmentVariablesTool,
+  set_environment_variables: setEnvironmentVariablesTool,
+  // edit_workflow: editWorkflowTool, // Commented out - only preview is allowed
+  targeted_updates: targetedUpdatesTool,
+  preview_workflow: previewWorkflowTool,
 }
 
 // Export the list of internal tool IDs for filtering purposes

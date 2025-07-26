@@ -297,14 +297,14 @@ export async function POST(request: NextRequest) {
           strategy: 'smart',
           direction: 'auto',
           spacing: {
-            horizontal: 400,
-            vertical: 200,
-            layer: 600,
+            horizontal: 500, // Increased from 400 to match UI button
+            vertical: 400, // Increased from 200 to match UI button
+            layer: 700, // Increased from 600 to match UI button
           },
           alignment: 'center',
           padding: {
-            x: 200,
-            y: 200,
+            x: 250, // Increased from 200 to match UI button
+            y: 250, // Increased from 200 to match UI button
           },
         }
       )

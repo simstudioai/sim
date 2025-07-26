@@ -227,6 +227,12 @@ export function generateWorkflowYaml(
 
     // Process each block
     Object.entries(workflowState.blocks).forEach(([blockId, blockState]) => {
+      // Skip blocks without type or name (these are layout-only blocks)
+      if (!blockState.type || !blockState.name) {
+        logger.info(`Skipping block ${blockId} - missing type or name`)
+        return
+      }
+
       const rawInputs = extractBlockInputs(blockState, blockId, subBlockValues)
 
       // Clean up condition inputs to use semantic format

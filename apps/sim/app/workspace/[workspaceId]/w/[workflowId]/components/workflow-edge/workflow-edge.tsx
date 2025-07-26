@@ -1,5 +1,13 @@
+import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff'
+import { useCurrentWorkflow } from '../../hooks'
+
+interface WorkflowEdgeProps extends EdgeProps {
+  sourceHandle?: string | null
+  targetHandle?: string | null
+}
 
 export const WorkflowEdge = ({
   id,
@@ -11,7 +19,11 @@ export const WorkflowEdge = ({
   targetPosition,
   data,
   style,
-}: EdgeProps) => {
+  source,
+  target,
+  sourceHandle,
+  targetHandle,
+}: WorkflowEdgeProps) => {
   const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
@@ -30,11 +42,125 @@ export const WorkflowEdge = ({
   const isInsideLoop = data?.isInsideLoop ?? false
   const parentLoopId = data?.parentLoopId
 
-  // Merge any style props passed from parent
+  // Get edge diff status
+  const diffAnalysis = useWorkflowDiffStore((state) => state.diffAnalysis)
+  const isShowingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
+  const isDiffReady = useWorkflowDiffStore((state) => state.isDiffReady)
+  const currentWorkflow = useCurrentWorkflow()
+
+  // Generate edge identifier using block names (not IDs) to match diff analysis
+  // This must exactly match the logic in /api/workflows/diff route
+  const generateEdgeIdentity = (
+    sourceName: string,
+    targetName: string,
+    sourceHandle?: string | null,
+    targetHandle?: string | null
+  ): string => {
+    // The API route uses "success" as the default handle when sourceHandle is null/undefined
+    // We need to match this logic exactly
+    const effectiveSourceHandle = sourceHandle || 'success'
+    return `${sourceName}:${effectiveSourceHandle}->${targetName}${targetHandle ? `:${targetHandle}` : ''}`
+  }
+
+  // Get block names from workflow - handle both diff and normal modes
+  const sourceBlock = currentWorkflow.getBlockById(source)
+  const targetBlock = currentWorkflow.getBlockById(target)
+  const sourceName = sourceBlock?.name
+  const targetName = targetBlock?.name
+
+  // Generate edge identifier using the exact same logic as the API route
+  const edgeIdentifier =
+    sourceName && targetName
+      ? generateEdgeIdentity(sourceName, targetName, sourceHandle, targetHandle)
+      : null
+
+  // Debug logging to understand what's happening
+  useEffect(() => {
+    if (edgeIdentifier && diffAnalysis?.edge_diff) {
+      console.log(`[Edge Debug] Edge ${id}:`, {
+        edgeIdentifier,
+        sourceName,
+        targetName,
+        sourceHandle,
+        targetHandle,
+        sourceBlockId: source,
+        targetBlockId: target,
+        isShowingDiff,
+        isDiffMode: currentWorkflow.isDiffMode,
+        edgeDiffAnalysis: diffAnalysis.edge_diff,
+        // Show actual array contents to see why matching fails
+        newEdgesArray: diffAnalysis.edge_diff.new_edges,
+        deletedEdgesArray: diffAnalysis.edge_diff.deleted_edges,
+        unchangedEdgesArray: diffAnalysis.edge_diff.unchanged_edges,
+        // Check if this edge matches any in the diff analysis
+        matchesNew: diffAnalysis.edge_diff.new_edges.includes(edgeIdentifier),
+        matchesDeleted: diffAnalysis.edge_diff.deleted_edges.includes(edgeIdentifier),
+        matchesUnchanged: diffAnalysis.edge_diff.unchanged_edges.includes(edgeIdentifier),
+      })
+    }
+  }, [
+    edgeIdentifier,
+    diffAnalysis,
+    isShowingDiff,
+    id,
+    sourceName,
+    targetName,
+    sourceHandle,
+    targetHandle,
+    source,
+    target,
+    currentWorkflow.isDiffMode,
+  ])
+
+  // One-time debug log of full diff analysis
+  useEffect(() => {
+    if (diffAnalysis && id === Object.keys(currentWorkflow.blocks)[0]) {
+      // Only log once per diff
+      console.log('[Full Diff Analysis]:', {
+        edge_diff: diffAnalysis.edge_diff,
+        new_blocks: diffAnalysis.new_blocks,
+        edited_blocks: diffAnalysis.edited_blocks,
+        deleted_blocks: diffAnalysis.deleted_blocks,
+        isShowingDiff,
+        currentWorkflowEdgeCount: currentWorkflow.edges.length,
+        currentWorkflowBlockCount: Object.keys(currentWorkflow.blocks).length,
+      })
+    }
+  }, [diffAnalysis, id, currentWorkflow.blocks, currentWorkflow.edges, isShowingDiff])
+
+  // Determine edge diff status
+  let edgeDiffStatus: 'new' | 'deleted' | 'unchanged' | null = null
+
+  // Only attempt to determine diff status if all required data is available
+  if (diffAnalysis?.edge_diff && edgeIdentifier && sourceName && targetName && isDiffReady) {
+    if (isShowingDiff) {
+      // In diff view, show new edges
+      if (diffAnalysis.edge_diff.new_edges.includes(edgeIdentifier)) {
+        edgeDiffStatus = 'new'
+      } else if (diffAnalysis.edge_diff.unchanged_edges.includes(edgeIdentifier)) {
+        edgeDiffStatus = 'unchanged'
+      }
+    } else {
+      // In original workflow, show deleted edges
+      if (diffAnalysis.edge_diff.deleted_edges.includes(edgeIdentifier)) {
+        edgeDiffStatus = 'deleted'
+      }
+    }
+  }
+
+  // Merge any style props passed from parent with diff highlighting
+  const getEdgeColor = () => {
+    if (edgeDiffStatus === 'new') return '#22c55e' // Green for new edges
+    if (edgeDiffStatus === 'deleted') return '#ef4444' // Red for deleted edges
+    if (isSelected) return '#475569'
+    return '#94a3b8'
+  }
+
   const edgeStyle = {
-    strokeWidth: isSelected ? 2.5 : 2,
-    stroke: isSelected ? '#475569' : '#94a3b8',
-    strokeDasharray: '5,5',
+    strokeWidth: edgeDiffStatus ? 3 : isSelected ? 2.5 : 2,
+    stroke: getEdgeColor(),
+    strokeDasharray: edgeDiffStatus === 'deleted' ? '10,5' : '5,5', // Longer dashes for deleted
+    opacity: edgeDiffStatus === 'deleted' ? 0.7 : 1,
     ...style,
   }
 
@@ -50,11 +176,12 @@ export const WorkflowEdge = ({
         data-is-selected={isSelected ? 'true' : 'false'}
         data-is-inside-loop={isInsideLoop ? 'true' : 'false'}
       />
+      {/* Animate dash offset for edge movement effect */}
       <animate
         attributeName='stroke-dashoffset'
-        from='10'
+        from={edgeDiffStatus === 'deleted' ? '15' : '10'}
         to='0'
-        dur='1s'
+        dur={edgeDiffStatus === 'deleted' ? '2s' : '1s'}
         repeatCount='indefinite'
       />
 
