@@ -279,7 +279,7 @@ export function mockExecutionDependencies() {
     }
   })
 
-  vi.mock('@/lib/logs/trace-spans', () => ({
+  vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
     buildTraceSpans: vi.fn().mockReturnValue({
       traceSpans: [],
       totalDuration: 100,
