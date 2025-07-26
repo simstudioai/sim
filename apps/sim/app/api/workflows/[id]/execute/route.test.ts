@@ -252,7 +252,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await GET(req, { params })
 
@@ -297,7 +297,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await POST(req, { params })
 
@@ -351,7 +351,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await POST(req, { params })
 
@@ -379,7 +379,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await POST(req, { params })
 
@@ -414,7 +414,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await POST(req, { params })
 
@@ -442,7 +442,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'invalid-workflow-id' })
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await GET(req, { params })
 
@@ -483,7 +483,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await GET(req, { params })
 
@@ -575,7 +575,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-with-vars-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
     await POST(req, { params })
 

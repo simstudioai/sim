@@ -18,9 +18,9 @@ import {
   createLoopWorkflowState,
   createMinimalWorkflowState,
   createMissingMetadataWorkflow,
-} from './__test-utils__/test-workflows'
-import { Serializer } from './index'
-import type { SerializedWorkflow } from './types'
+} from '@/serializer/__test-utils__/test-workflows'
+import { Serializer } from '@/serializer/index'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 // Mock getBlock function
 vi.mock('@/blocks', () => ({

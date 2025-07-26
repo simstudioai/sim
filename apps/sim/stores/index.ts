@@ -2,16 +2,16 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCopilotStore } from './copilot/store'
-import { useCustomToolsStore } from './custom-tools/store'
-import { useExecutionStore } from './execution/store'
-import { useConsoleStore } from './panel/console/store'
-import { useVariablesStore } from './panel/variables/store'
-import { useEnvironmentStore } from './settings/environment/store'
-import { useSubscriptionStore } from './subscription/store'
-import { useWorkflowRegistry } from './workflows/registry/store'
-import { useSubBlockStore } from './workflows/subblock/store'
-import { useWorkflowStore } from './workflows/workflow/store'
+import { useCopilotStore } from '@/stores/copilot/store'
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useSubscriptionStore } from '@/stores/subscription/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Stores')
 

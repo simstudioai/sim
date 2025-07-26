@@ -6,12 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { BillingSummary } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components/billing-summary'
+import { CancelSubscription } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components/cancel-subscription'
+import { TeamSeatsDialog } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components/team-seats-dialog'
+import { UsageLimitEditor } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components/usage-limit-editor'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
-import { BillingSummary } from './components/billing-summary'
-import { CancelSubscription } from './components/cancel-subscription'
-import { TeamSeatsDialog } from './components/team-seats-dialog'
-import { UsageLimitEditor } from './components/usage-limit-editor'
 
 const logger = createLogger('Subscription')
 

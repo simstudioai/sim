@@ -1,7 +1,7 @@
+import { searchDocumentation } from '@/lib/copilot/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowYamlStore } from '@/stores/workflows/yaml/store'
-import { searchDocumentation } from './service'
 
 const logger = createLogger('CopilotTools')
 

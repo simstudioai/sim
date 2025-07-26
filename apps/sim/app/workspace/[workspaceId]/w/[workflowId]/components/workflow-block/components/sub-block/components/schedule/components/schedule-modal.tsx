@@ -23,10 +23,10 @@ import {
 } from '@/components/ui/select'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { TimeInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/time-input'
+import { UnsavedChangesDialog } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/confirmation'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useSubBlockValue } from '../../../hooks/use-sub-block-value'
-import { TimeInput } from '../../time-input'
-import { UnsavedChangesDialog } from '../../webhook/components/ui/confirmation'
 
 const logger = createLogger('ScheduleModal')
 

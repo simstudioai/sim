@@ -3,13 +3,13 @@
 import { TimerOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { isProd } from '@/lib/environment'
+import FilterSection from '@/app/workspace/[workspaceId]/logs/components/filters/components/filter-section'
+import FolderFilter from '@/app/workspace/[workspaceId]/logs/components/filters/components/folder'
+import Level from '@/app/workspace/[workspaceId]/logs/components/filters/components/level'
+import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
+import Trigger from '@/app/workspace/[workspaceId]/logs/components/filters/components/trigger'
+import Workflow from '@/app/workspace/[workspaceId]/logs/components/filters/components/workflow'
 import { useSubscriptionStore } from '@/stores/subscription/store'
-import FilterSection from './components/filter-section'
-import FolderFilter from './components/folder'
-import Level from './components/level'
-import Timeline from './components/timeline'
-import Trigger from './components/trigger'
-import Workflow from './components/workflow'
 
 /**
  * Filters component for logs page - includes timeline and other filter options

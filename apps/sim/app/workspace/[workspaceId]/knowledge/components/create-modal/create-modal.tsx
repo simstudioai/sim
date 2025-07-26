@@ -14,9 +14,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
+import {
+  type TagData,
+  TagInput,
+} from '@/app/workspace/[workspaceId]/knowledge/components/tag-input/tag-input'
+import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
-import { useKnowledgeUpload } from '../../hooks/use-knowledge-upload'
-import { type TagData, TagInput } from '../tag-input/tag-input'
 
 const logger = createLogger('CreateModal')
 

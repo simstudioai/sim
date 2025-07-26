@@ -1064,7 +1064,7 @@ export const auth = betterAuth({
 
               // Initialize usage limits for new user
               try {
-                const { initializeUserUsageLimit } = await import('./billing')
+                const { initializeUserUsageLimit } = await import('@/lib/billing')
                 await initializeUserUsageLimit(user.id)
                 logger.info('Usage limits initialized for new user', { userId: user.id })
               } catch (error) {
@@ -1267,8 +1267,10 @@ export const auth = betterAuth({
 
                 // Sync usage limits and initialize billing period for the user/organization
                 try {
-                  const { syncUsageLimitsFromSubscription } = await import('./billing')
-                  const { initializeBillingPeriod } = await import('./billing/core/billing-periods')
+                  const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
+                  const { initializeBillingPeriod } = await import(
+                    '@/lib/billing/core/billing-periods'
+                  )
 
                   await syncUsageLimitsFromSubscription(subscription.referenceId)
                   logger.info('Usage limits synced after subscription creation', {
@@ -1314,7 +1316,7 @@ export const auth = betterAuth({
 
                 // Sync usage limits for the user/organization
                 try {
-                  const { syncUsageLimitsFromSubscription } = await import('./billing')
+                  const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
                   await syncUsageLimitsFromSubscription(subscription.referenceId)
                   logger.info('Usage limits synced after subscription update', {
                     referenceId: subscription.referenceId,

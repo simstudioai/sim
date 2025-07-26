@@ -3,9 +3,9 @@
 import { motion } from 'framer-motion'
 import { GitBranch, RefreshCcw } from 'lucide-react'
 import ReactFlow, { ConnectionLineType, Position, ReactFlowProvider } from 'reactflow'
+import { DotPattern } from '@/app/(landing)/components/dot-pattern'
+import { HeroBlock } from '@/app/(landing)/components/hero-block'
 import { OrbitingCircles } from '@/app/(landing)/components/magicui/orbiting-circles'
-import { DotPattern } from '../dot-pattern'
-import { HeroBlock } from '../hero-block'
 
 function Integrations() {
   return (

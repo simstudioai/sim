@@ -151,7 +151,7 @@ import {
   checkKnowledgeBaseAccess,
   generateEmbeddings,
   processDocumentAsync,
-} from './utils'
+} from '@/app/api/knowledge/utils'
 
 describe('Knowledge Utils', () => {
   beforeEach(() => {

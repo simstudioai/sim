@@ -11,22 +11,22 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/search-modal/search-modal'
+import { CreateMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/create-menu/create-menu'
+import { FolderTree } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/folder-tree/folder-tree'
+import { HelpModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/help-modal/help-modal'
+import { LogsFilters } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/logs-filters/logs-filters'
+import { SettingsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/settings-modal'
+import { Toolbar } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/toolbar/toolbar'
+import { WorkspaceHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/workspace-header'
+import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/components/invite-modal/invite-modal'
+import { WorkspaceSelector } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/workspace-selector'
 import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { SearchModal } from '../search-modal/search-modal'
-import { CreateMenu } from './components/create-menu/create-menu'
-import { FolderTree } from './components/folder-tree/folder-tree'
-import { HelpModal } from './components/help-modal/help-modal'
-import { LogsFilters } from './components/logs-filters/logs-filters'
-import { SettingsModal } from './components/settings-modal/settings-modal'
-import { Toolbar } from './components/toolbar/toolbar'
-import { WorkspaceHeader } from './components/workspace-header/workspace-header'
-import { InviteModal } from './components/workspace-selector/components/invite-modal/invite-modal'
-import { WorkspaceSelector } from './components/workspace-selector/workspace-selector'
 
 const logger = createLogger('Sidebar')
 

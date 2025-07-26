@@ -1,7 +1,7 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
-import { env } from './env'
+import { env } from '@/lib/env'
 
 /**
  * Is the application running in production mode

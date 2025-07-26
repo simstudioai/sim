@@ -1,4 +1,4 @@
-import type { Organization } from './types'
+import type { Organization } from '@/stores/organization/types'
 
 /**
  * Calculate seat usage for an organization

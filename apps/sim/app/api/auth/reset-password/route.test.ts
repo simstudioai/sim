@@ -27,7 +27,7 @@ describe('Reset Password API Route', () => {
       newPassword: 'newSecurePassword123',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -52,7 +52,7 @@ describe('Reset Password API Route', () => {
       newPassword: 'newSecurePassword123',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -91,7 +91,7 @@ describe('Reset Password API Route', () => {
       newPassword: 'newSecurePassword123',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -111,7 +111,7 @@ describe('Reset Password API Route', () => {
       newPassword: '',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -140,7 +140,7 @@ describe('Reset Password API Route', () => {
       newPassword: 'newSecurePassword123',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -171,7 +171,7 @@ describe('Reset Password API Route', () => {
       newPassword: 'newSecurePassword123',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/reset-password/route')
 
     const response = await POST(req)
     const data = await response.json()

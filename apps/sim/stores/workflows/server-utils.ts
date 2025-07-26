@@ -8,7 +8,7 @@
  * or React hooks, making it safe for use in Next.js API routes.
  */
 
-import type { BlockState, SubBlockState } from './workflow/types'
+import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
 /**
  * Server-safe version of mergeSubblockState for API routes

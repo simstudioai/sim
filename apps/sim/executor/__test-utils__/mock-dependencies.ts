@@ -55,8 +55,8 @@ vi.mock('@/providers/utils', async (importOriginal) => {
 })
 
 // Executor utilities
-vi.mock('../../path')
-vi.mock('../../resolver', () => ({
+vi.mock('@/executor/path')
+vi.mock('@/executor/resolver', () => ({
   InputResolver: vi.fn(),
 }))
 

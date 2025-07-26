@@ -66,7 +66,7 @@ describe('Chat API Utils', () => {
 
   describe('Auth token utils', () => {
     it.concurrent('should encrypt and validate auth tokens', async () => {
-      const { encryptAuthToken, validateAuthToken } = await import('./utils')
+      const { encryptAuthToken, validateAuthToken } = await import('@/app/api/chat/utils')
 
       const subdomainId = 'test-subdomain-id'
       const type = 'password'
@@ -83,7 +83,7 @@ describe('Chat API Utils', () => {
     })
 
     it.concurrent('should reject expired tokens', async () => {
-      const { validateAuthToken } = await import('./utils')
+      const { validateAuthToken } = await import('@/app/api/chat/utils')
 
       const subdomainId = 'test-subdomain-id'
       // Create an expired token by directly constructing it with an old timestamp
@@ -98,7 +98,7 @@ describe('Chat API Utils', () => {
 
   describe('Cookie handling', () => {
     it.concurrent('should set auth cookie correctly', async () => {
-      const { setChatAuthCookie } = await import('./utils')
+      const { setChatAuthCookie } = await import('@/app/api/chat/utils')
 
       const mockSet = vi.fn()
       const mockResponse = {
@@ -127,7 +127,7 @@ describe('Chat API Utils', () => {
 
   describe('CORS handling', () => {
     it.concurrent('should add CORS headers for localhost in development', async () => {
-      const { addCorsHeaders } = await import('./utils')
+      const { addCorsHeaders } = await import('@/app/api/chat/utils')
 
       const mockRequest = {
         headers: {
@@ -162,7 +162,7 @@ describe('Chat API Utils', () => {
     })
 
     it.concurrent('should handle OPTIONS request', async () => {
-      const { OPTIONS } = await import('./utils')
+      const { OPTIONS } = await import('@/app/api/chat/utils')
 
       const mockRequest = {
         headers: {
@@ -178,7 +178,7 @@ describe('Chat API Utils', () => {
 
   describe('Chat auth validation', () => {
     beforeEach(() => {
-      vi.doMock('./utils', async (importOriginal) => {
+      vi.doMock('@/app/api/chat/utils', async (importOriginal) => {
         const original = (await importOriginal()) as any
         return {
           ...original,
@@ -200,7 +200,7 @@ describe('Chat API Utils', () => {
     })
 
     it.concurrent('should allow access to public chats', async () => {
-      const utils = await import('./utils')
+      const utils = await import('@/app/api/chat/utils')
       const { validateChatAuth } = utils
 
       const deployment = {
@@ -220,7 +220,7 @@ describe('Chat API Utils', () => {
     })
 
     it.concurrent('should request password auth for GET requests', async () => {
-      const { validateChatAuth } = await import('./utils')
+      const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
         id: 'chat-id',
@@ -241,7 +241,7 @@ describe('Chat API Utils', () => {
     })
 
     it('should validate password for POST requests', async () => {
-      const { validateChatAuth } = await import('./utils')
+      const { validateChatAuth } = await import('@/app/api/chat/utils')
       const { decryptSecret } = await import('@/lib/utils')
 
       const deployment = {
@@ -268,7 +268,7 @@ describe('Chat API Utils', () => {
     })
 
     it.concurrent('should reject incorrect password', async () => {
-      const { validateChatAuth } = await import('./utils')
+      const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
         id: 'chat-id',
@@ -294,7 +294,7 @@ describe('Chat API Utils', () => {
     })
 
     it.concurrent('should request email auth for email-protected chats', async () => {
-      const { validateChatAuth } = await import('./utils')
+      const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
         id: 'chat-id',
@@ -316,7 +316,7 @@ describe('Chat API Utils', () => {
     })
 
     it.concurrent('should check allowed emails for email auth', async () => {
-      const { validateChatAuth } = await import('./utils')
+      const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
         id: 'chat-id',

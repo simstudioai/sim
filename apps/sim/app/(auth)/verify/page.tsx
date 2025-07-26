@@ -1,7 +1,7 @@
 import { env } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { VerifyContent } from './verify-content'
+import { VerifyContent } from '@/app/(auth)/verify/verify-content'
 
 // Force dynamic rendering to avoid prerender errors with search params
 export const dynamic = 'force-dynamic'

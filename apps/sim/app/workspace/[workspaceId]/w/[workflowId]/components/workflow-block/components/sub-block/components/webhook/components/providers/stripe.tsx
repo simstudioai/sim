@@ -1,7 +1,7 @@
 import { ShieldCheck } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay } from '../ui/test-result'
+import { InstructionsSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/instructions-section'
+import { TestResultDisplay } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/test-result'
 
 interface StripeConfigProps {
   isLoadingToken: boolean

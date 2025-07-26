@@ -19,8 +19,8 @@ import { ApiEndpoint } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { ApiKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-key/api-key'
 import { DeployStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components/deploy-status/deploy-status'
 import { ExampleCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
+import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deployment-controls/components/deployed-workflow-modal'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { DeployedWorkflowModal } from '../../../deployment-controls/components/deployed-workflow-modal'
 
 interface WorkflowDeploymentInfo {
   isDeployed: boolean

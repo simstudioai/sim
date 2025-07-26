@@ -10,9 +10,9 @@ import {
   Section,
   Text,
 } from '@react-email/components'
+import { baseStyles } from '@/components/emails/base-styles'
+import EmailFooter from '@/components/emails/footer'
 import { env } from '@/lib/env'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
 
 interface OTPVerificationEmailProps {
   otp: string

@@ -6,9 +6,13 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
 
+import {
+  checkDocumentAccess,
+  checkDocumentWriteAccess,
+  processDocumentAsync,
+} from '@/app/api/knowledge/utils'
 import { db } from '@/db'
 import { document, embedding } from '@/db/schema'
-import { checkDocumentAccess, checkDocumentWriteAccess, processDocumentAsync } from '../../../utils'
 
 const logger = createLogger('DocumentByIdAPI')
 

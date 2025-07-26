@@ -7,9 +7,12 @@ import { BookOpen, Building2, LibraryBig, ScrollText, Search, Shapes, Workflow }
 import { useParams, useRouter } from 'next/navigation'
 import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import {
+  TemplateCard,
+  TemplateCardSkeleton,
+} from '@/app/workspace/[workspaceId]/templates/components/template-card'
+import { getKeyboardShortcutText } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { getAllBlocks } from '@/blocks'
-import { TemplateCard, TemplateCardSkeleton } from '../../../templates/components/template-card'
-import { getKeyboardShortcutText } from '../../hooks/use-keyboard-shortcuts'
 
 interface SearchModalProps {
   open: boolean

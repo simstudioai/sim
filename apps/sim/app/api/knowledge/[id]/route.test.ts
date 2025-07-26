@@ -79,7 +79,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.limit.mockResolvedValueOnce([mockKnowledgeBase])
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -94,7 +94,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -108,7 +108,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -122,7 +122,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'different-user' }])
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -135,7 +135,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.limit.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -165,7 +165,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.limit.mockResolvedValueOnce([{ ...mockKnowledgeBase, ...validUpdateData }])
 
       const req = createMockRequest('PUT', validUpdateData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -179,7 +179,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('PUT', validUpdateData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -196,7 +196,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('PUT', validUpdateData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -217,7 +217,7 @@ describe('Knowledge Base By ID API Route', () => {
       }
 
       const req = createMockRequest('PUT', invalidData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -234,7 +234,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.where.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('PUT', validUpdateData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -257,7 +257,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.where.mockResolvedValueOnce(undefined)
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 
@@ -271,7 +271,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 
@@ -288,7 +288,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.limit.mockResolvedValueOnce([])
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 
@@ -305,7 +305,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.limit.mockResolvedValueOnce([{ id: 'kb-123', userId: 'different-user' }])
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 
@@ -321,7 +321,7 @@ describe('Knowledge Base By ID API Route', () => {
       mockDbChain.where.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 

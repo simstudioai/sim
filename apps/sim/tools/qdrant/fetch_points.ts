@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { QdrantFetchParams, QdrantResponse } from './types'
+import type { QdrantFetchParams, QdrantResponse } from '@/tools/qdrant/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
   id: 'qdrant_fetch_points',

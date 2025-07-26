@@ -4,11 +4,11 @@ import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
+import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { validateWorkflowAccess } from '../../middleware'
-import { createErrorResponse, createSuccessResponse } from '../../utils'
 
 const logger = createLogger('RevertToDeployedAPI')
 

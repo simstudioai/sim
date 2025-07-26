@@ -11,7 +11,7 @@ import {
   WebhookIcon,
   WhatsAppIcon,
 } from '@/components/icons'
-import type { BlockConfig } from '../types'
+import type { BlockConfig } from '@/blocks/types'
 
 const getWebhookProviderIcon = (provider: string) => {
   const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {

@@ -17,7 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Logger } from '@/lib/logs/console/logger'
 import { JSONView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components/json-view/json-view'
-import { ConfigSection } from '../ui/config-section'
+import { ConfigSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/config-section'
 
 const logger = new Logger('GmailConfig')
 

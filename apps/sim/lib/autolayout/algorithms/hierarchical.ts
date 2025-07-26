@@ -1,4 +1,4 @@
-import type { LayoutEdge, LayoutNode, LayoutOptions, LayoutResult } from '../types'
+import type { LayoutEdge, LayoutNode, LayoutOptions, LayoutResult } from '@/lib/autolayout/types'
 
 interface LayerNode {
   node: LayoutNode

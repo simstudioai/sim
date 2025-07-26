@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { userRateLimits } from '@/db/schema'
-import { RATE_LIMITS, type SubscriptionPlan, type TriggerType } from './types'
+import { RATE_LIMITS, type SubscriptionPlan, type TriggerType } from '@/services/queue/types'
 
 const logger = createLogger('RateLimiter')
 

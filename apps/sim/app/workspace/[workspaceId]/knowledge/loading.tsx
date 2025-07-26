@@ -2,8 +2,8 @@
 
 import { Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { KnowledgeHeader } from './components/knowledge-header/knowledge-header'
-import { KnowledgeBaseCardSkeletonGrid } from './components/skeletons/knowledge-base-card-skeleton'
+import { KnowledgeHeader } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-header/knowledge-header'
+import { KnowledgeBaseCardSkeletonGrid } from '@/app/workspace/[workspaceId]/knowledge/components/skeletons/knowledge-base-card-skeleton'
 
 export default function KnowledgeLoading() {
   const breadcrumbs = [{ id: 'knowledge', label: 'Knowledge' }]

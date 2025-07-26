@@ -28,7 +28,7 @@ describe('OAuth Token API Routes', () => {
       randomUUID: vi.fn().mockReturnValue(mockUUID),
     })
 
-    vi.doMock('../utils', () => ({
+    vi.doMock('@/app/api/auth/oauth/utils', () => ({
       getUserId: mockGetUserId,
       getCredential: mockGetCredential,
       refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
@@ -67,7 +67,7 @@ describe('OAuth Token API Routes', () => {
       })
 
       // Import handler after setting up mocks
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/auth/oauth/token/route')
 
       // Call handler
       const response = await POST(req)
@@ -102,7 +102,7 @@ describe('OAuth Token API Routes', () => {
         workflowId: 'workflow-id',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await POST(req)
       const data = await response.json()
@@ -121,7 +121,7 @@ describe('OAuth Token API Routes', () => {
     it('should handle missing credentialId', async () => {
       const req = createMockRequest('POST', {})
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await POST(req)
       const data = await response.json()
@@ -138,7 +138,7 @@ describe('OAuth Token API Routes', () => {
         credentialId: 'credential-id',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await POST(req)
       const data = await response.json()
@@ -155,7 +155,7 @@ describe('OAuth Token API Routes', () => {
         workflowId: 'nonexistent-workflow-id',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await POST(req)
       const data = await response.json()
@@ -172,7 +172,7 @@ describe('OAuth Token API Routes', () => {
         credentialId: 'nonexistent-credential-id',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await POST(req)
       const data = await response.json()
@@ -196,7 +196,7 @@ describe('OAuth Token API Routes', () => {
         credentialId: 'credential-id',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await POST(req)
       const data = await response.json()
@@ -228,7 +228,7 @@ describe('OAuth Token API Routes', () => {
         'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
       )
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await GET(req as any)
       const data = await response.json()
@@ -244,7 +244,7 @@ describe('OAuth Token API Routes', () => {
     it('should handle missing credentialId', async () => {
       const req = new Request('http://localhost:3000/api/auth/oauth/token')
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await GET(req as any)
       const data = await response.json()
@@ -261,7 +261,7 @@ describe('OAuth Token API Routes', () => {
         'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
       )
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await GET(req as any)
       const data = await response.json()
@@ -278,7 +278,7 @@ describe('OAuth Token API Routes', () => {
         'http://localhost:3000/api/auth/oauth/token?credentialId=nonexistent-credential-id'
       )
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await GET(req as any)
       const data = await response.json()
@@ -300,7 +300,7 @@ describe('OAuth Token API Routes', () => {
         'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
       )
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await GET(req as any)
       const data = await response.json()
@@ -325,7 +325,7 @@ describe('OAuth Token API Routes', () => {
         'http://localhost:3000/api/auth/oauth/token?credentialId=credential-id'
       )
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/auth/oauth/token/route')
 
       const response = await GET(req as any)
       const data = await response.json()

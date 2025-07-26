@@ -9,6 +9,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, validateName } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/action-bar/action-bar'
+import { ConnectionBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/connection-blocks/connection-blocks'
+import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/sub-block'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -16,9 +19,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { ActionBar } from './components/action-bar/action-bar'
-import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
-import { SubBlock } from './components/sub-block/sub-block'
 
 interface WorkflowBlockProps {
   type: string

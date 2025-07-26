@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ChatMessage } from '../components/message/message'
+import type { ChatMessage } from '@/app/chat/[subdomain]/components/message/message'
 
 const logger = createLogger('UseChatStreaming')
 

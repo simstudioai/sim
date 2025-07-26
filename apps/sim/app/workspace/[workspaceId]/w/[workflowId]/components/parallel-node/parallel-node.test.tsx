@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-node'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { ParallelNodeComponent } from './parallel-node'
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(),
@@ -63,9 +63,12 @@ vi.mock('@/lib/utils', () => ({
   cn: (...classes: any[]) => classes.filter(Boolean).join(' '),
 }))
 
-vi.mock('./components/parallel-badges', () => ({
-  ParallelBadges: ({ parallelId }: any) => ({ parallelId }),
-}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/components/parallel-badges',
+  () => ({
+    ParallelBadges: ({ parallelId }: any) => ({ parallelId }),
+  })
+)
 
 describe('ParallelNodeComponent', () => {
   const mockRemoveBlock = vi.fn()

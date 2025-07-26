@@ -73,7 +73,7 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    vi.doMock('../../middleware', () => ({
+    vi.doMock('@/app/api/workflows/middleware', () => ({
       validateWorkflowAccess: vi.fn().mockResolvedValue({
         workflow: {
           id: 'workflow-id',
@@ -82,7 +82,7 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    vi.doMock('../../utils', () => ({
+    vi.doMock('@/app/api/workflows/utils', () => ({
       createSuccessResponse: vi.fn().mockImplementation((data) => {
         return new Response(JSON.stringify(data), {
           status: 200,
@@ -203,7 +203,7 @@ describe('Workflow Deployment API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/workflows/[id]/deploy/route')
 
     const response = await GET(req, { params })
 
@@ -281,7 +281,7 @@ describe('Workflow Deployment API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/deploy/route')
 
     const response = await POST(req, { params })
 
@@ -359,7 +359,7 @@ describe('Workflow Deployment API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/deploy/route')
 
     const response = await POST(req, { params })
 
@@ -391,7 +391,7 @@ describe('Workflow Deployment API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { DELETE } = await import('./route')
+    const { DELETE } = await import('@/app/api/workflows/[id]/deploy/route')
 
     const response = await DELETE(req, { params })
 
@@ -410,7 +410,7 @@ describe('Workflow Deployment API Route', () => {
    * Test error handling
    */
   it('should handle errors when workflow is not found', async () => {
-    vi.doMock('../../middleware', () => ({
+    vi.doMock('@/app/api/workflows/middleware', () => ({
       validateWorkflowAccess: vi.fn().mockResolvedValue({
         error: {
           message: 'Workflow not found',
@@ -423,7 +423,7 @@ describe('Workflow Deployment API Route', () => {
 
     const params = Promise.resolve({ id: 'invalid-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/deploy/route')
 
     const response = await POST(req, { params })
 
@@ -438,7 +438,7 @@ describe('Workflow Deployment API Route', () => {
    * Test unauthorized access
    */
   it('should handle unauthorized access to workflow', async () => {
-    vi.doMock('../../middleware', () => ({
+    vi.doMock('@/app/api/workflows/middleware', () => ({
       validateWorkflowAccess: vi.fn().mockResolvedValue({
         error: {
           message: 'Unauthorized access',
@@ -451,7 +451,7 @@ describe('Workflow Deployment API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/deploy/route')
 
     const response = await POST(req, { params })
 

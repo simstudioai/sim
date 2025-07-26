@@ -24,7 +24,7 @@ function getParserInstances(): Record<string, FileParser> {
         try {
           // First try to use the pdf-parse library
           // Import the PdfParser using ES module import to avoid test file access
-          const { PdfParser } = require('./pdf-parser')
+          const { PdfParser } = require('@/lib/file-parsers/pdf-parser')
           parserInstances.pdf = new PdfParser()
           logger.info('PDF parser loaded successfully')
         } catch (pdfParseError) {
@@ -63,35 +63,35 @@ function getParserInstances(): Record<string, FileParser> {
       }
 
       try {
-        const { CsvParser } = require('./csv-parser')
+        const { CsvParser } = require('@/lib/file-parsers/csv-parser')
         parserInstances.csv = new CsvParser()
       } catch (error) {
         logger.error('Failed to load CSV parser:', error)
       }
 
       try {
-        const { DocxParser } = require('./docx-parser')
+        const { DocxParser } = require('@/lib/file-parsers/docx-parser')
         parserInstances.docx = new DocxParser()
       } catch (error) {
         logger.error('Failed to load DOCX parser:', error)
       }
 
       try {
-        const { TxtParser } = require('./txt-parser')
+        const { TxtParser } = require('@/lib/file-parsers/txt-parser')
         parserInstances.txt = new TxtParser()
       } catch (error) {
         logger.error('Failed to load TXT parser:', error)
       }
 
       try {
-        const { MdParser } = require('./md-parser')
+        const { MdParser } = require('@/lib/file-parsers/md-parser')
         parserInstances.md = new MdParser()
       } catch (error) {
         logger.error('Failed to load MD parser:', error)
       }
 
       try {
-        const { XlsxParser } = require('./xlsx-parser')
+        const { XlsxParser } = require('@/lib/file-parsers/xlsx-parser')
         parserInstances.xlsx = new XlsxParser()
         parserInstances.xls = new XlsxParser() // Both xls and xlsx use the same parser
       } catch (error) {

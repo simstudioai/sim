@@ -1,8 +1,8 @@
 import { render } from '@react-email/components'
-import { BatchInvitationEmail } from './batch-invitation-email'
-import { InvitationEmail } from './invitation-email'
-import { OTPVerificationEmail } from './otp-verification-email'
-import { ResetPasswordEmail } from './reset-password-email'
+import { BatchInvitationEmail } from '@/components/emails/batch-invitation-email'
+import { InvitationEmail } from '@/components/emails/invitation-email'
+import { OTPVerificationEmail } from '@/components/emails/otp-verification-email'
+import { ResetPasswordEmail } from '@/components/emails/reset-password-email'
 
 export async function renderOTPEmail(
   otp: string,

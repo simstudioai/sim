@@ -1,4 +1,4 @@
-import { ResponseFormat as SharedResponseFormat } from '../starter/input-format'
+import { ResponseFormat as SharedResponseFormat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/starter/input-format'
 
 export interface JSONProperty {
   id: string

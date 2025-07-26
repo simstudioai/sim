@@ -8,7 +8,7 @@ import type {
   SubscriptionStore,
   UsageData,
   UsageLimitData,
-} from './types'
+} from '@/stores/subscription/types'
 
 const logger = createLogger('SubscriptionStore')
 

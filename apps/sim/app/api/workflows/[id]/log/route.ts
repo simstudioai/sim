@@ -2,8 +2,8 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { validateWorkflowAccess } from '../../middleware'
-import { createErrorResponse, createSuccessResponse } from '../../utils'
+import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowLogAPI')
 

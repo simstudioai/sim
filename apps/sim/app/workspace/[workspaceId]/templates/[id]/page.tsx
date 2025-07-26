@@ -2,10 +2,10 @@ import { and, eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import TemplateDetails from '@/app/workspace/[workspaceId]/templates/[id]/template'
+import type { Template } from '@/app/workspace/[workspaceId]/templates/templates'
 import { db } from '@/db'
 import { templateStars, templates } from '@/db/schema'
-import type { Template } from '../templates'
-import TemplateDetails from './template'
 
 const logger = createLogger('TemplatePage')
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { BlogCard } from '../blog-card'
+import { BlogCard } from '@/app/(landing)/components/blog-card'
 
 function Blogs() {
   return (

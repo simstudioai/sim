@@ -3,8 +3,17 @@ import { devtools } from 'zustand/middleware'
 import { client } from '@/lib/auth-client'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { OrganizationStore, Subscription, WorkspaceInvitation } from './types'
-import { calculateSeatUsage, generateSlug, validateEmail, validateSlug } from './utils'
+import type {
+  OrganizationStore,
+  Subscription,
+  WorkspaceInvitation,
+} from '@/stores/organization/types'
+import {
+  calculateSeatUsage,
+  generateSlug,
+  validateEmail,
+  validateSlug,
+} from '@/stores/organization/utils'
 
 const logger = createLogger('OrganizationStore')
 

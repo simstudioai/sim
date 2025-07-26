@@ -1,6 +1,6 @@
 'use client'
 
-import { ChatHeader } from '../header/header'
+import { ChatHeader } from '@/app/chat/[subdomain]/components/header/header'
 
 interface ChatErrorStateProps {
   error: string

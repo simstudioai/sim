@@ -6,8 +6,8 @@ import { StartIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { LoopBadges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-node/components/loop-badges'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { LoopBadges } from './components/loop-badges'
 
 // Add these styles to your existing global CSS file or create a separate CSS module
 const LoopNodeStyles: React.FC = () => {

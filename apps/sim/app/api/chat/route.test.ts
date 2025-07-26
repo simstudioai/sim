@@ -89,7 +89,7 @@ describe('Chat API Route', () => {
       }))
 
       const req = new NextRequest('http://localhost:3000/api/chat')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/route')
       const response = await GET(req)
 
       expect(response.status).toBe(401)
@@ -107,7 +107,7 @@ describe('Chat API Route', () => {
       mockWhere.mockResolvedValue(mockDeployments)
 
       const req = new NextRequest('http://localhost:3000/api/chat')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/route')
       const response = await GET(req)
 
       expect(response.status).toBe(200)
@@ -125,7 +125,7 @@ describe('Chat API Route', () => {
       mockWhere.mockRejectedValue(new Error('Database error'))
 
       const req = new NextRequest('http://localhost:3000/api/chat')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/route')
       const response = await GET(req)
 
       expect(response.status).toBe(500)
@@ -143,7 +143,7 @@ describe('Chat API Route', () => {
         method: 'POST',
         body: JSON.stringify({}),
       })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
       expect(response.status).toBe(401)
@@ -163,7 +163,7 @@ describe('Chat API Route', () => {
         method: 'POST',
         body: JSON.stringify(invalidData),
       })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -192,7 +192,7 @@ describe('Chat API Route', () => {
         method: 'POST',
         body: JSON.stringify(validData),
       })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)
@@ -223,7 +223,7 @@ describe('Chat API Route', () => {
         method: 'POST',
         body: JSON.stringify(validData),
       })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
       expect(response.status).toBe(404)
@@ -268,7 +268,7 @@ describe('Chat API Route', () => {
         method: 'POST',
         body: JSON.stringify(validData),
       })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -310,7 +310,7 @@ describe('Chat API Route', () => {
         method: 'POST',
         body: JSON.stringify(validData),
       })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -343,7 +343,7 @@ describe('Chat API Route', () => {
         method: 'POST',
         body: JSON.stringify(validData),
       })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
       expect(response.status).toBe(404)
@@ -378,7 +378,7 @@ describe('Chat API Route', () => {
         method: 'POST',
         body: JSON.stringify(validData),
       })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -412,7 +412,7 @@ describe('Chat API Route', () => {
         method: 'POST',
         body: JSON.stringify(validData),
       })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
       expect(response.status).toBe(400)

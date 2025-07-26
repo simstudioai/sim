@@ -11,13 +11,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console/logger'
+import { CheckpointPanel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/checkpoint-panel'
+import { CopilotModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-modal/copilot-modal'
+import { ProfessionalInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/professional-input/professional-input'
+import { ProfessionalMessage } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/professional-message/professional-message'
+import { CopilotWelcome } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/welcome/welcome'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { CheckpointPanel } from './components/checkpoint-panel'
-import { CopilotModal } from './components/copilot-modal/copilot-modal'
-import { ProfessionalInput } from './components/professional-input/professional-input'
-import { ProfessionalMessage } from './components/professional-message/professional-message'
-import { CopilotWelcome } from './components/welcome/welcome'
 
 const logger = createLogger('Copilot')
 

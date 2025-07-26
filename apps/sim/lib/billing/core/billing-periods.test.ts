@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { calculateBillingPeriod, calculateNextBillingPeriod } from './billing-periods'
+import {
+  calculateBillingPeriod,
+  calculateNextBillingPeriod,
+} from '@/lib/billing/core/billing-periods'
 
 vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: vi.fn().mockReturnValue({

@@ -3,8 +3,6 @@ import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
-import { db } from '@/db'
-import { userStats, workflow, workflowExecutionLogs } from '@/db/schema'
 import type {
   BlockOutputData,
   ExecutionEnvironment,
@@ -14,7 +12,9 @@ import type {
   WorkflowExecutionLog,
   WorkflowExecutionSnapshot,
   WorkflowState,
-} from '../types'
+} from '@/lib/logs/types'
+import { db } from '@/db'
+import { userStats, workflow, workflowExecutionLogs } from '@/db/schema'
 
 export interface ToolCall {
   name: string

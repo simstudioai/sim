@@ -12,9 +12,9 @@ import {
   Text,
 } from '@react-email/components'
 import { format } from 'date-fns'
+import { baseStyles } from '@/components/emails/base-styles'
+import EmailFooter from '@/components/emails/footer'
 import { env } from '@/lib/env'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
 
 interface ResetPasswordEmailProps {
   username?: string

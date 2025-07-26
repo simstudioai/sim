@@ -14,7 +14,7 @@ import {
 
 mockKnowledgeSchemas()
 
-vi.mock('../../utils', () => ({
+vi.mock('@/app/api/knowledge/utils', () => ({
   checkKnowledgeBaseAccess: vi.fn(),
   checkKnowledgeBaseWriteAccess: vi.fn(),
   checkDocumentAccess: vi.fn(),
@@ -95,10 +95,13 @@ describe('Knowledge Base Documents API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123' })
 
     it('should retrieve documents successfully for authenticated user', async () => {
-      const { checkKnowledgeBaseAccess } = await import('../../utils')
+      const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
 
       // Mock the count query (first query)
       mockDbChain.where.mockResolvedValueOnce([{ count: 1 }])
@@ -107,7 +110,7 @@ describe('Knowledge Base Documents API Route', () => {
       mockDbChain.offset.mockResolvedValue([mockDocument])
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -120,10 +123,13 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should filter disabled documents by default', async () => {
-      const { checkKnowledgeBaseAccess } = await import('../../utils')
+      const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
 
       // Mock the count query (first query)
       mockDbChain.where.mockResolvedValueOnce([{ count: 1 }])
@@ -132,7 +138,7 @@ describe('Knowledge Base Documents API Route', () => {
       mockDbChain.offset.mockResolvedValue([mockDocument])
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await GET(req, { params: mockParams })
 
       expect(response.status).toBe(200)
@@ -140,10 +146,13 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should include disabled documents when requested', async () => {
-      const { checkKnowledgeBaseAccess } = await import('../../utils')
+      const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
 
       // Mock the count query (first query)
       mockDbChain.where.mockResolvedValueOnce([{ count: 1 }])
@@ -154,7 +163,7 @@ describe('Knowledge Base Documents API Route', () => {
       const url = 'http://localhost:3000/api/knowledge/kb-123/documents?includeDisabled=true'
       const req = new Request(url, { method: 'GET' }) as any
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await GET(req, { params: mockParams })
 
       expect(response.status).toBe(200)
@@ -164,7 +173,7 @@ describe('Knowledge Base Documents API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -173,13 +182,16 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should return not found for non-existent knowledge base', async () => {
-      const { checkKnowledgeBaseAccess } = await import('../../utils')
+      const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: false, notFound: true })
+      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({
+        hasAccess: false,
+        notFound: true,
+      })
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -188,13 +200,13 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should return unauthorized for knowledge base without access', async () => {
-      const { checkKnowledgeBaseAccess } = await import('../../utils')
+      const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: false })
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -203,14 +215,17 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should handle database errors', async () => {
-      const { checkKnowledgeBaseAccess } = await import('../../utils')
+      const { checkKnowledgeBaseAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
       mockDbChain.orderBy.mockRejectedValue(new Error('Database error'))
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -229,14 +244,17 @@ describe('Knowledge Base Documents API Route', () => {
     }
 
     it('should create single document successfully', async () => {
-      const { checkKnowledgeBaseWriteAccess } = await import('../../utils')
+      const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
       mockDbChain.values.mockResolvedValue(undefined)
 
       const req = createMockRequest('POST', validDocumentData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -248,10 +266,13 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should validate single document data', async () => {
-      const { checkKnowledgeBaseWriteAccess } = await import('../../utils')
+      const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
 
       const invalidData = {
         filename: '', // Invalid: empty filename
@@ -261,7 +282,7 @@ describe('Knowledge Base Documents API Route', () => {
       }
 
       const req = createMockRequest('POST', invalidData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -299,10 +320,15 @@ describe('Knowledge Base Documents API Route', () => {
     }
 
     it('should create bulk documents successfully', async () => {
-      const { checkKnowledgeBaseWriteAccess, processDocumentAsync } = await import('../../utils')
+      const { checkKnowledgeBaseWriteAccess, processDocumentAsync } = await import(
+        '@/app/api/knowledge/utils'
+      )
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
 
       // Mock transaction to return the created documents
       mockDbChain.transaction.mockImplementation(async (callback) => {
@@ -317,7 +343,7 @@ describe('Knowledge Base Documents API Route', () => {
       vi.mocked(processDocumentAsync).mockResolvedValue(undefined)
 
       const req = createMockRequest('POST', validBulkData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -330,10 +356,13 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should validate bulk document data', async () => {
-      const { checkKnowledgeBaseWriteAccess } = await import('../../utils')
+      const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
 
       const invalidBulkData = {
         bulk: true,
@@ -355,7 +384,7 @@ describe('Knowledge Base Documents API Route', () => {
       }
 
       const req = createMockRequest('POST', invalidBulkData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -365,10 +394,15 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should handle processing errors gracefully', async () => {
-      const { checkKnowledgeBaseWriteAccess, processDocumentAsync } = await import('../../utils')
+      const { checkKnowledgeBaseWriteAccess, processDocumentAsync } = await import(
+        '@/app/api/knowledge/utils'
+      )
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
 
       // Mock transaction to succeed but processing to fail
       mockDbChain.transaction.mockImplementation(async (callback) => {
@@ -384,7 +418,7 @@ describe('Knowledge Base Documents API Route', () => {
       vi.mocked(processDocumentAsync).mockResolvedValue(undefined)
 
       const req = createMockRequest('POST', validBulkData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -408,7 +442,7 @@ describe('Knowledge Base Documents API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('POST', validDocumentData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -417,7 +451,7 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should return not found for non-existent knowledge base', async () => {
-      const { checkKnowledgeBaseWriteAccess } = await import('../../utils')
+      const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
@@ -426,7 +460,7 @@ describe('Knowledge Base Documents API Route', () => {
       })
 
       const req = createMockRequest('POST', validDocumentData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -435,13 +469,13 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should return unauthorized for knowledge base without access', async () => {
-      const { checkKnowledgeBaseWriteAccess } = await import('../../utils')
+      const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: false })
 
       const req = createMockRequest('POST', validDocumentData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -450,14 +484,17 @@ describe('Knowledge Base Documents API Route', () => {
     })
 
     it('should handle database errors during creation', async () => {
-      const { checkKnowledgeBaseWriteAccess } = await import('../../utils')
+      const { checkKnowledgeBaseWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
-      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({ hasAccess: true })
+      vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { id: 'kb-123', userId: 'user-123' },
+      })
       mockDbChain.values.mockRejectedValue(new Error('Database error'))
 
       const req = createMockRequest('POST', validDocumentData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 

@@ -5,10 +5,12 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { isUsingCloudStorage, uploadFile } from '@/lib/uploads'
 import { UPLOAD_DIR } from '@/lib/uploads/setup'
-// Import to ensure the uploads directory is created
 import '@/lib/uploads/setup.server'
-
-import { createErrorResponse, createOptionsResponse, InvalidRequestError } from '../utils'
+import {
+  createErrorResponse,
+  createOptionsResponse,
+  InvalidRequestError,
+} from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 

@@ -31,7 +31,25 @@ describe('S3 Client', () => {
       getSignedUrl: mockGetSignedUrl,
     }))
 
-    vi.doMock('../setup', () => ({
+    vi.doMock('@/lib/env', () => ({
+      env: {
+        S3_BUCKET_NAME: 'test-bucket',
+        AWS_REGION: 'test-region',
+        AWS_ACCESS_KEY_ID: 'test-access-key',
+        AWS_SECRET_ACCESS_KEY: 'test-secret-key',
+      },
+    }))
+
+    vi.doMock('@/lib/logs/console/logger', () => ({
+      createLogger: vi.fn().mockReturnValue({
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      }),
+    }))
+
+    vi.doMock('@/lib/uploads/setup', () => ({
       S3_CONFIG: {
         bucket: 'test-bucket',
         region: 'test-region',
@@ -50,7 +68,7 @@ describe('S3 Client', () => {
     it('should upload a file to S3 and return file info', async () => {
       mockSend.mockResolvedValueOnce({})
 
-      const { uploadToS3 } = await import('./s3-client')
+      const { uploadToS3 } = await import('@/lib/uploads/s3/s3-client')
 
       const file = Buffer.from('test content')
       const fileName = 'test-file.txt'
@@ -83,7 +101,7 @@ describe('S3 Client', () => {
     it('should handle spaces in filenames', async () => {
       mockSend.mockResolvedValueOnce({})
 
-      const { uploadToS3 } = await import('./s3-client')
+      const { uploadToS3 } = await import('@/lib/uploads/s3/s3-client')
 
       const testFile = Buffer.from('test file content')
       const fileName = 'test file with spaces.txt'
@@ -103,7 +121,7 @@ describe('S3 Client', () => {
     it('should use provided size if available', async () => {
       mockSend.mockResolvedValueOnce({})
 
-      const { uploadToS3 } = await import('./s3-client')
+      const { uploadToS3 } = await import('@/lib/uploads/s3/s3-client')
 
       const testFile = Buffer.from('test file content')
       const fileName = 'test-file.txt'
@@ -119,7 +137,7 @@ describe('S3 Client', () => {
       const error = new Error('Upload failed')
       mockSend.mockRejectedValueOnce(error)
 
-      const { uploadToS3 } = await import('./s3-client')
+      const { uploadToS3 } = await import('@/lib/uploads/s3/s3-client')
 
       const testFile = Buffer.from('test file content')
       const fileName = 'test-file.txt'
@@ -133,7 +151,7 @@ describe('S3 Client', () => {
     it('should generate a presigned URL for a file', async () => {
       mockGetSignedUrl.mockResolvedValueOnce('https://example.com/presigned-url')
 
-      const { getPresignedUrl } = await import('./s3-client')
+      const { getPresignedUrl } = await import('@/lib/uploads/s3/s3-client')
 
       const key = 'test-file.txt'
       const expiresIn = 1800
@@ -153,7 +171,7 @@ describe('S3 Client', () => {
     it('should use default expiration if not provided', async () => {
       mockGetSignedUrl.mockResolvedValueOnce('https://example.com/presigned-url')
 
-      const { getPresignedUrl } = await import('./s3-client')
+      const { getPresignedUrl } = await import('@/lib/uploads/s3/s3-client')
 
       const key = 'test-file.txt'
 
@@ -170,7 +188,7 @@ describe('S3 Client', () => {
       const error = new Error('Presigned URL generation failed')
       mockGetSignedUrl.mockRejectedValueOnce(error)
 
-      const { getPresignedUrl } = await import('./s3-client')
+      const { getPresignedUrl } = await import('@/lib/uploads/s3/s3-client')
 
       const key = 'test-file.txt'
 
@@ -198,7 +216,7 @@ describe('S3 Client', () => {
         $metadata: { httpStatusCode: 200 },
       })
 
-      const { downloadFromS3 } = await import('./s3-client')
+      const { downloadFromS3 } = await import('@/lib/uploads/s3/s3-client')
 
       const key = 'test-file.txt'
 
@@ -229,7 +247,7 @@ describe('S3 Client', () => {
         $metadata: { httpStatusCode: 200 },
       })
 
-      const { downloadFromS3 } = await import('./s3-client')
+      const { downloadFromS3 } = await import('@/lib/uploads/s3/s3-client')
 
       const key = 'test-file.txt'
 
@@ -240,7 +258,7 @@ describe('S3 Client', () => {
       const error = new Error('Download failed')
       mockSend.mockRejectedValueOnce(error)
 
-      const { downloadFromS3 } = await import('./s3-client')
+      const { downloadFromS3 } = await import('@/lib/uploads/s3/s3-client')
 
       const key = 'test-file.txt'
 
@@ -252,7 +270,7 @@ describe('S3 Client', () => {
     it('should delete a file from S3', async () => {
       mockSend.mockResolvedValueOnce({})
 
-      const { deleteFromS3 } = await import('./s3-client')
+      const { deleteFromS3 } = await import('@/lib/uploads/s3/s3-client')
 
       const key = 'test-file.txt'
 
@@ -270,7 +288,7 @@ describe('S3 Client', () => {
       const error = new Error('Delete failed')
       mockSend.mockRejectedValueOnce(error)
 
-      const { deleteFromS3 } = await import('./s3-client')
+      const { deleteFromS3 } = await import('@/lib/uploads/s3/s3-client')
 
       const key = 'test-file.txt'
 
@@ -280,17 +298,24 @@ describe('S3 Client', () => {
 
   describe('s3Client initialization', () => {
     it('should initialize with correct configuration when credentials are available', async () => {
-      // Mock env with credentials
-      vi.doMock('../../env', () => ({
+      vi.doMock('@/lib/env', () => ({
         env: {
+          S3_BUCKET_NAME: 'test-bucket',
+          AWS_REGION: 'test-region',
           AWS_ACCESS_KEY_ID: 'test-access-key',
           AWS_SECRET_ACCESS_KEY: 'test-secret-key',
         },
       }))
 
-      // Re-import to get fresh module with mocked env
+      vi.doMock('@/lib/uploads/setup', () => ({
+        S3_CONFIG: {
+          bucket: 'test-bucket',
+          region: 'test-region',
+        },
+      }))
+
       vi.resetModules()
-      const { getS3Client } = await import('./s3-client')
+      const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
       const { S3Client } = await import('@aws-sdk/client-s3')
 
       const client = getS3Client()
@@ -306,15 +331,24 @@ describe('S3 Client', () => {
     })
 
     it('should initialize without credentials when env vars are not available', async () => {
-      vi.doMock('../../env', () => ({
+      vi.doMock('@/lib/env', () => ({
         env: {
+          S3_BUCKET_NAME: 'test-bucket',
+          AWS_REGION: 'test-region',
           AWS_ACCESS_KEY_ID: undefined,
           AWS_SECRET_ACCESS_KEY: undefined,
         },
       }))
 
+      vi.doMock('@/lib/uploads/setup', () => ({
+        S3_CONFIG: {
+          bucket: 'test-bucket',
+          region: 'test-region',
+        },
+      }))
+
       vi.resetModules()
-      const { getS3Client } = await import('./s3-client')
+      const { getS3Client } = await import('@/lib/uploads/s3/s3-client')
       const { S3Client } = await import('@aws-sdk/client-s3')
 
       const client = getS3Client()

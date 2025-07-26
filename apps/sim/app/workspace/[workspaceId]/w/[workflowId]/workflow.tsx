@@ -18,16 +18,8 @@ import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-node/loop-node'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
 import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-node'
-import { getBlock } from '@/blocks'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { WorkflowBlock } from './components/workflow-block/workflow-block'
-import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
+import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
+import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import {
   applyAutoLayoutSmooth,
   detectHandleOrientation,
@@ -37,7 +29,15 @@ import {
   isPointInLoopNode,
   resizeLoopNodes,
   updateNodeParent as updateNodeParentUtil,
-} from './utils'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import { getBlock } from '@/blocks'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Workflow')
 

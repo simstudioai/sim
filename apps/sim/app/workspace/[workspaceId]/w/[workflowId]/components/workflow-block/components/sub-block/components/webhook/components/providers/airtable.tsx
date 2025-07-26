@@ -5,11 +5,11 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
-import { WebhookConfigField } from '../ui/webhook-config-field'
+import { ConfigField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/config-field'
+import { ConfigSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/config-section'
+import { InstructionsSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/instructions-section'
+import { TestResultDisplay as WebhookTestResult } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/test-result'
+import { WebhookConfigField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/webhook-config-field'
 
 interface AirtableConfigProps {
   baseId: string

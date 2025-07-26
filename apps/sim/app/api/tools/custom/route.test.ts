@@ -163,7 +163,7 @@ describe('Custom Tools API Routes', () => {
       mockWhere.mockReturnValueOnce(Promise.resolve(sampleTools))
 
       // Import handler after mocks are set up
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await GET(req)
@@ -190,7 +190,7 @@ describe('Custom Tools API Routes', () => {
       }))
 
       // Import handler after mocks are set up
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await GET(req)
@@ -206,7 +206,7 @@ describe('Custom Tools API Routes', () => {
       const req = new NextRequest('http://localhost:3000/api/tools/custom?workflowId=workflow-123')
 
       // Import handler after mocks are set up
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const _response = await GET(req)
@@ -247,7 +247,7 @@ describe('Custom Tools API Routes', () => {
       const req = createMockRequest('POST', { tools: [newTool] })
 
       // Import handler after mocks are set up
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await POST(req)
@@ -289,7 +289,7 @@ describe('Custom Tools API Routes', () => {
       const req = createMockRequest('POST', { tools: [updateTool] })
 
       // Import handler after mocks are set up
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await POST(req)
@@ -315,7 +315,7 @@ describe('Custom Tools API Routes', () => {
       const req = createMockRequest('POST', { tools: [] })
 
       // Import handler after mocks are set up
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await POST(req)
@@ -337,7 +337,7 @@ describe('Custom Tools API Routes', () => {
       const req = createMockRequest('POST', { tools: [invalidTool] })
 
       // Import handler after mocks are set up
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await POST(req)
@@ -362,7 +362,7 @@ describe('Custom Tools API Routes', () => {
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=tool-1')
 
       // Import handler after mocks are set up
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await DELETE(req)
@@ -382,7 +382,7 @@ describe('Custom Tools API Routes', () => {
       const req = createMockRequest('DELETE')
 
       // Import handler after mocks are set up
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await DELETE(req)
@@ -401,7 +401,7 @@ describe('Custom Tools API Routes', () => {
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=non-existent')
 
       // Import handler after mocks are set up
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await DELETE(req)
@@ -421,7 +421,7 @@ describe('Custom Tools API Routes', () => {
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=tool-1')
 
       // Import handler after mocks are set up
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await DELETE(req)
@@ -442,7 +442,7 @@ describe('Custom Tools API Routes', () => {
       const req = new NextRequest('http://localhost:3000/api/tools/custom?id=tool-1')
 
       // Import handler after mocks are set up
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/tools/custom/route')
 
       // Call the handler
       const response = await DELETE(req)

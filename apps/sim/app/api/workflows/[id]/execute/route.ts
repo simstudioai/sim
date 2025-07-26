@@ -15,6 +15,8 @@ import {
   updateWorkflowRunCounts,
   workflowHasResponseBlock,
 } from '@/lib/workflows/utils'
+import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import { environment as environmentTable, subscription, userStats } from '@/db/schema'
 import { Executor } from '@/executor'
@@ -26,8 +28,6 @@ import {
   type TriggerType,
 } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import { validateWorkflowAccess } from '../../middleware'
-import { createErrorResponse, createSuccessResponse } from '../../utils'
 
 const logger = createLogger('WorkflowExecuteAPI')
 

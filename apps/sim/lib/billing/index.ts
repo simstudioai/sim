@@ -3,31 +3,31 @@
  * Provides clean, organized exports for the billing system
  */
 
-export * from './calculations/usage-monitor'
-export * from './core/billing'
-export * from './core/billing-periods'
-export * from './core/organization-billing'
-export * from './core/subscription'
+export * from '@/lib/billing/calculations/usage-monitor'
+export * from '@/lib/billing/core/billing'
+export * from '@/lib/billing/core/billing-periods'
+export * from '@/lib/billing/core/organization-billing'
+export * from '@/lib/billing/core/subscription'
 export {
   getHighestPrioritySubscription as getActiveSubscription,
   getUserSubscriptionState as getSubscriptionState,
   isEnterprisePlan as hasEnterprisePlan,
   isProPlan as hasProPlan,
   isTeamPlan as hasTeamPlan,
-} from './core/subscription'
-export * from './core/usage'
+} from '@/lib/billing/core/subscription'
+export * from '@/lib/billing/core/usage'
 export {
   checkUsageStatus,
   getTeamUsageLimits,
   getUserUsageData as getUsageData,
   getUserUsageLimit as getUsageLimit,
   updateUserUsageLimit as updateUsageLimit,
-} from './core/usage'
-export * from './subscriptions/utils'
+} from '@/lib/billing/core/usage'
+export * from '@/lib/billing/subscriptions/utils'
 export {
   calculateDefaultUsageLimit as getDefaultLimit,
   canEditUsageLimit as canEditLimit,
   getMinimumUsageLimit as getMinimumLimit,
-} from './subscriptions/utils'
-export * from './types'
-export * from './validation/seat-management'
+} from '@/lib/billing/subscriptions/utils'
+export * from '@/lib/billing/types'
+export * from '@/lib/billing/validation/seat-management'

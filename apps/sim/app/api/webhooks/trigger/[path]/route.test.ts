@@ -63,11 +63,11 @@ vi.mock('@/lib/webhooks/utils', () => ({
   processWebhook: processWebhookMock,
 }))
 
-vi.mock('./utils', () => ({
+vi.mock('@/app/api/webhooks/utils', () => ({
   generateRequestHash: generateRequestHashMock,
 }))
 
-vi.mock('../../utils', () => ({
+vi.mock('@/app/api/webhooks/utils', () => ({
   validateSlackSignature: validateSlackSignatureMock,
 }))
 
@@ -230,7 +230,7 @@ describe('Webhook Trigger API Route', () => {
     const params = Promise.resolve({ path: 'whatsapp' })
 
     // Import the handler after mocks are set up
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/webhooks/trigger/[path]/route')
 
     // Call the handler
     const response = await GET(req, { params })
@@ -271,7 +271,7 @@ describe('Webhook Trigger API Route', () => {
     const params = Promise.resolve({ path: 'non-existent-path' })
 
     // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
 
     // Call the handler
     const response = await POST(req, { params })
@@ -328,7 +328,7 @@ describe('Webhook Trigger API Route', () => {
     const params = Promise.resolve({ path: 'test-path' })
 
     // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
 
     // Call the handler
     const response = await POST(req, { params })
@@ -398,7 +398,7 @@ describe('Webhook Trigger API Route', () => {
     const params = Promise.resolve({ path: 'test-path' })
 
     // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
 
     // Call the handler
     const response = await POST(req, { params })
@@ -484,7 +484,7 @@ describe('Webhook Trigger API Route', () => {
     const params = Promise.resolve({ path: 'airtable-path' })
 
     // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/webhooks/trigger/[path]/route')
 
     // Call the handler
     const response = await POST(req, { params })

@@ -1,11 +1,11 @@
 import { createServer } from 'http'
 import { env } from '@/lib/env'
-import { createLogger } from '../lib/logs/console/logger'
-import { createSocketIOServer } from './config/socket'
-import { setupAllHandlers } from './handlers'
-import { type AuthenticatedSocket, authenticateSocket } from './middleware/auth'
-import { RoomManager } from './rooms/manager'
-import { createHttpHandler } from './routes/http'
+import { createLogger } from '@/lib/logs/console/logger'
+import { createSocketIOServer } from '@/socket-server/config/socket'
+import { setupAllHandlers } from '@/socket-server/handlers'
+import { type AuthenticatedSocket, authenticateSocket } from '@/socket-server/middleware/auth'
+import { RoomManager } from '@/socket-server/rooms/manager'
+import { createHttpHandler } from '@/socket-server/routes/http'
 
 const logger = createLogger('CollaborativeSocketServer')
 

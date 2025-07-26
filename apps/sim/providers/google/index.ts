@@ -1,9 +1,18 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import type {
+  ProviderConfig,
+  ProviderRequest,
+  ProviderResponse,
+  TimeSegment,
+} from '@/providers/types'
+import {
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  trackForcedToolUsage,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
-import { getProviderDefaultModel, getProviderModels } from '../models'
-import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('GoogleProvider')
 

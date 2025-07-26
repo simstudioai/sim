@@ -7,8 +7,8 @@ import { db } from '@/db'
 
 export const dynamic = 'force-dynamic'
 
+import { createErrorResponse } from '@/app/api/workflows/utils'
 import { apiKey as apiKeyTable } from '@/db/schema'
-import { createErrorResponse } from '../../workflows/utils'
 
 const logger = createLogger('TaskStatusAPI')
 
