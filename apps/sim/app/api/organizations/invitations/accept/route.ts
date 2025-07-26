@@ -7,7 +7,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { invitation, member, permissions, workspaceInvitation } from '@/db/schema'
 
-const logger = createLogger('OrganizationInvitationAcceptance')
+const logger = createLogger('OrganizationInvitationAcceptanceAPI')
 
 export const dynamic = 'force-dynamic'
 

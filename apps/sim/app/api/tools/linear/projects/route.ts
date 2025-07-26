@@ -7,7 +7,7 @@ import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('LinearProjects')
+const logger = createLogger('LinearProjectsAPI')
 
 export async function POST(request: Request) {
   try {

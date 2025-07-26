@@ -11,7 +11,7 @@ import { subscription, user, workflow, workflowExecutionLogs } from '@/db/schema
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('LogsCleanup')
+const logger = createLogger('LogsCleanupAPI')
 
 const BATCH_SIZE = 2000
 const S3_CONFIG = {
