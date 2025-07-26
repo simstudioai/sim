@@ -309,6 +309,7 @@ export function useWorkflowExecution() {
               // Check if execution was cancelled
               if (
                 result &&
+                'success' in result &&
                 !result.success &&
                 result.error === 'Workflow execution was cancelled'
               ) {
