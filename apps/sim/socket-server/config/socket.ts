@@ -2,7 +2,7 @@ import type { Server as HttpServer } from 'http'
 import { Server } from 'socket.io'
 import { env } from '@/lib/env'
 import { isProd } from '@/lib/environment'
-import { createLogger } from '../../lib/logs/console/logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SocketIOConfig')
 

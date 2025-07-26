@@ -53,7 +53,7 @@ const mockToolConfig = {
   },
 }
 
-vi.mock('./utils', () => ({
+vi.mock('@/tools/utils', () => ({
   getTool: vi.fn((toolId: string) => {
     if (toolId === 'test_tool') {
       return mockToolConfig

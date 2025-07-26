@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useConsoleStore } from './store'
-import type { ConsoleUpdate } from './types'
+import { useConsoleStore } from '@/stores/panel/console/store'
+import type { ConsoleUpdate } from '@/stores/panel/console/types'
 
 vi.stubGlobal('crypto', {
   randomUUID: vi.fn(() => 'test-uuid-123'),

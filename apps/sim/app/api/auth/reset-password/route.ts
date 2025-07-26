@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('PasswordReset')
+const logger = createLogger('PasswordResetAPI')
 
 export async function POST(request: NextRequest) {
   try {

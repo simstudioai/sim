@@ -47,7 +47,7 @@ describe('File Upload API Route', () => {
       body: formData,
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/upload/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -77,7 +77,7 @@ describe('File Upload API Route', () => {
       body: formData,
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/upload/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -108,7 +108,7 @@ describe('File Upload API Route', () => {
       body: formData,
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/upload/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -128,7 +128,7 @@ describe('File Upload API Route', () => {
       body: formData,
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/upload/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -157,7 +157,7 @@ describe('File Upload API Route', () => {
       body: formData,
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/upload/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -168,7 +168,7 @@ describe('File Upload API Route', () => {
   })
 
   it('should handle CORS preflight requests', async () => {
-    const { OPTIONS } = await import('./route')
+    const { OPTIONS } = await import('@/app/api/files/upload/route')
 
     const response = await OPTIONS()
 

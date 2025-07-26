@@ -7,9 +7,9 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
 
+import { checkChunkAccess } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
 import { document, embedding } from '@/db/schema'
-import { checkChunkAccess } from '../../../../../utils'
 
 const logger = createLogger('ChunkByIdAPI')
 

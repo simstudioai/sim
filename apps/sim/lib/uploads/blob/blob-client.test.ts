@@ -5,7 +5,6 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock Azure Storage Blob
 const mockUpload = vi.fn()
 const mockDownload = vi.fn()
 const mockDelete = vi.fn()
@@ -30,8 +29,8 @@ vi.mock('@azure/storage-blob', () => ({
 describe('Azure Blob Storage Client', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.resetModules()
 
-    // Mock the blob client chain
     mockGetBlockBlobClient.mockReturnValue({
       upload: mockUpload,
       download: mockDownload,
@@ -55,25 +54,32 @@ describe('Azure Blob Storage Client', () => {
       toString: () => 'sv=2021-06-08&se=2023-01-01T00%3A00%3A00Z&sr=b&sp=r&sig=test',
     })
 
-    // Mock BLOB_CONFIG
-    vi.doMock('../setup', () => ({
+    vi.doMock('@/lib/env', () => ({
+      env: {
+        AZURE_ACCOUNT_NAME: 'testaccount',
+        AZURE_ACCOUNT_KEY: 'testkey',
+        AZURE_CONNECTION_STRING:
+          'DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey;EndpointSuffix=core.windows.net',
+        AZURE_STORAGE_CONTAINER_NAME: 'testcontainer',
+      },
+    }))
+
+    vi.doMock('@/lib/logs/console/logger', () => ({
+      createLogger: vi.fn().mockReturnValue({
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      }),
+    }))
+
+    vi.doMock('@/lib/uploads/setup', () => ({
       BLOB_CONFIG: {
         accountName: 'testaccount',
         accountKey: 'testkey',
         connectionString:
           'DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey;EndpointSuffix=core.windows.net',
         containerName: 'testcontainer',
-      },
-    }))
-
-    // Mock env
-    vi.doMock('../../env', () => ({
-      env: {
-        AZURE_STORAGE_ACCOUNT_NAME: 'testaccount',
-        AZURE_STORAGE_ACCOUNT_KEY: 'testkey',
-        AZURE_STORAGE_CONNECTION_STRING:
-          'DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey;EndpointSuffix=core.windows.net',
-        AZURE_STORAGE_CONTAINER_NAME: 'testcontainer',
       },
     }))
   })
@@ -84,7 +90,7 @@ describe('Azure Blob Storage Client', () => {
 
   describe('uploadToBlob', () => {
     it('should upload a file to Azure Blob Storage', async () => {
-      const { uploadToBlob } = await import('./blob-client')
+      const { uploadToBlob } = await import('@/lib/uploads/blob/blob-client')
 
       const testBuffer = Buffer.from('test file content')
       const fileName = 'test-file.txt'
@@ -114,7 +120,7 @@ describe('Azure Blob Storage Client', () => {
     })
 
     it('should handle custom blob configuration', async () => {
-      const { uploadToBlob } = await import('./blob-client')
+      const { uploadToBlob } = await import('@/lib/uploads/blob/blob-client')
 
       const testBuffer = Buffer.from('test file content')
       const fileName = 'test-file.txt'
@@ -129,7 +135,6 @@ describe('Azure Blob Storage Client', () => {
 
       const result = await uploadToBlob(testBuffer, fileName, contentType, customConfig)
 
-      // Verify the container client is called with correct custom configuration
       expect(mockGetContainerClient).toHaveBeenCalledWith('customcontainer')
       expect(result.name).toBe(fileName)
       expect(result.type).toBe(contentType)
@@ -138,12 +143,11 @@ describe('Azure Blob Storage Client', () => {
 
   describe('downloadFromBlob', () => {
     it('should download a file from Azure Blob Storage', async () => {
-      const { downloadFromBlob } = await import('./blob-client')
+      const { downloadFromBlob } = await import('@/lib/uploads/blob/blob-client')
 
       const testKey = 'test-file-key'
       const testContent = Buffer.from('downloaded content')
 
-      // Mock the readable stream
       const mockReadableStream = {
         on: vi.fn((event, callback) => {
           if (event === 'data') {
@@ -168,7 +172,7 @@ describe('Azure Blob Storage Client', () => {
 
   describe('deleteFromBlob', () => {
     it('should delete a file from Azure Blob Storage', async () => {
-      const { deleteFromBlob } = await import('./blob-client')
+      const { deleteFromBlob } = await import('@/lib/uploads/blob/blob-client')
 
       const testKey = 'test-file-key'
 
@@ -183,7 +187,7 @@ describe('Azure Blob Storage Client', () => {
 
   describe('getPresignedUrl', () => {
     it('should generate a presigned URL for Azure Blob Storage', async () => {
-      const { getPresignedUrl } = await import('./blob-client')
+      const { getPresignedUrl } = await import('@/lib/uploads/blob/blob-client')
 
       const testKey = 'test-file-key'
       const expiresIn = 3600
@@ -207,7 +211,7 @@ describe('Azure Blob Storage Client', () => {
     ]
 
     test.each(testCases)('should sanitize "$input" to "$expected"', async ({ input, expected }) => {
-      const { sanitizeFilenameForMetadata } = await import('./blob-client')
+      const { sanitizeFilenameForMetadata } = await import('@/lib/uploads/blob/blob-client')
       expect(sanitizeFilenameForMetadata(input)).toBe(expected)
     })
   })

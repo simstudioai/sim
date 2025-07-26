@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
+import { DELETE } from '@/app/api/workspaces/invitations/[id]/route'
 import { db } from '@/db'
 import { workspaceInvitation } from '@/db/schema'
-import { DELETE } from './route'
 
 vi.mock('@/lib/auth', () => ({
   getSession: vi.fn(),

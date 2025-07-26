@@ -1,7 +1,7 @@
-export { RateLimiter } from './RateLimiter'
+export { RateLimiter } from '@/services/queue/RateLimiter'
 export type {
   RateLimitConfig,
   SubscriptionPlan,
   TriggerType,
-} from './types'
-export { RATE_LIMITS, RateLimitError } from './types'
+} from '@/services/queue/types'
+export { RATE_LIMITS, RateLimitError } from '@/services/queue/types'

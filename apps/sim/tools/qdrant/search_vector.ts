@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { QdrantResponse, QdrantSearchParams } from './types'
+import type { QdrantResponse, QdrantSearchParams } from '@/tools/qdrant/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = {
   id: 'qdrant_search_vector',

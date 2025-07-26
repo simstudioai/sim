@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useFilterStore } from '@/stores/logs/filters/store'
-import type { TriggerType } from '../../../../../../../stores/logs/filters/types'
+import type { TriggerType } from '@/stores/logs/filters/types'
 
 export default function Trigger() {
   const { triggers, toggleTrigger, setTriggers } = useFilterStore()

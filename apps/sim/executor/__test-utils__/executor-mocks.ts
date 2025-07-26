@@ -28,7 +28,7 @@ export const createMockHandler = (
  * Setup all handler mocks with default behaviors
  */
 export const setupHandlerMocks = () => {
-  vi.doMock('../handlers', () => ({
+  vi.doMock('@/executor/handlers', () => ({
     AgentBlockHandler: createMockHandler('agent'),
     RouterBlockHandler: createMockHandler('router'),
     ConditionBlockHandler: createMockHandler('condition'),
@@ -99,14 +99,14 @@ export const setupStoreMocks = (options?: {
  * Setup core executor mocks (PathTracker, InputResolver, LoopManager, ParallelManager)
  */
 export const setupExecutorCoreMocks = () => {
-  vi.doMock('../path', () => ({
+  vi.doMock('@/executor/path', () => ({
     PathTracker: vi.fn().mockImplementation(() => ({
       updateExecutionPaths: vi.fn(),
       isInActivePath: vi.fn().mockReturnValue(true),
     })),
   }))
 
-  vi.doMock('../resolver', () => ({
+  vi.doMock('@/executor/resolver', () => ({
     InputResolver: vi.fn().mockImplementation(() => ({
       resolveInputs: vi.fn().mockReturnValue({}),
       resolveBlockReferences: vi.fn().mockImplementation((value) => value),
@@ -115,7 +115,7 @@ export const setupExecutorCoreMocks = () => {
     })),
   }))
 
-  vi.doMock('../loops', () => ({
+  vi.doMock('@/executor/loops', () => ({
     LoopManager: vi.fn().mockImplementation(() => ({
       processLoopIterations: vi.fn().mockResolvedValue(false),
       getLoopIndex: vi.fn().mockImplementation((loopId, blockId, context) => {
@@ -124,7 +124,7 @@ export const setupExecutorCoreMocks = () => {
     })),
   }))
 
-  vi.doMock('../parallels', () => ({
+  vi.doMock('@/executor/parallels', () => ({
     ParallelManager: vi.fn().mockImplementation(() => ({
       processParallelIterations: vi.fn().mockResolvedValue(false),
       createVirtualBlockInstances: vi.fn().mockReturnValue([]),
@@ -904,14 +904,14 @@ export const setupParallelTestMocks = (options?: {
   setupExecutorCoreMocks()
 
   // Setup parallel manager with correct relative path
-  vi.doMock('../parallels', () =>
+  vi.doMock('@/executor/parallels', () =>
     createParallelManagerMock({
       maxChecks: options?.maxParallelChecks,
     })
   )
 
   // Setup loop manager with correct relative path
-  vi.doMock('../loops', () => createLoopManagerMock())
+  vi.doMock('@/executor/loops', () => createLoopManagerMock())
 }
 
 /**

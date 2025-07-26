@@ -49,10 +49,10 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import type { Template } from '@/app/workspace/[workspaceId]/templates/templates'
+import { categories } from '@/app/workspace/[workspaceId]/templates/templates'
 import { WorkflowPreview } from '@/app/workspace/[workspaceId]/w/components/workflow-preview/workflow-preview'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import type { Template } from '../templates'
-import { categories } from '../templates'
 
 const logger = createLogger('TemplateDetails')
 

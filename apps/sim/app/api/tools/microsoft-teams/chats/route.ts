@@ -5,7 +5,7 @@ import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('teams-chats')
+const logger = createLogger('TeamsChatsAPI')
 
 // Helper function to get chat members and create a meaningful name
 const getChatDisplayName = async (

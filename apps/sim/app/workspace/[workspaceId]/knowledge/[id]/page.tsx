@@ -1,4 +1,4 @@
-import { KnowledgeBase } from './base'
+import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 
 interface PageProps {
   params: Promise<{

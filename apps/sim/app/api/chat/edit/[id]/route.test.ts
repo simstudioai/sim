@@ -94,7 +94,7 @@ describe('Chat Edit API Route', () => {
       }))
 
       const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/edit/[id]/route')
       const response = await GET(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(401)
@@ -111,7 +111,7 @@ describe('Chat Edit API Route', () => {
       mockCheckChatAccess.mockResolvedValue({ hasAccess: false })
 
       const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/edit/[id]/route')
       const response = await GET(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(404)
@@ -138,7 +138,7 @@ describe('Chat Edit API Route', () => {
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
 
       const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/edit/[id]/route')
       const response = await GET(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
@@ -164,7 +164,7 @@ describe('Chat Edit API Route', () => {
         method: 'PATCH',
         body: JSON.stringify({ title: 'Updated Chat' }),
       })
-      const { PATCH } = await import('./route')
+      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(401)
@@ -184,7 +184,7 @@ describe('Chat Edit API Route', () => {
         method: 'PATCH',
         body: JSON.stringify({ title: 'Updated Chat' }),
       })
-      const { PATCH } = await import('./route')
+      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(404)
@@ -212,7 +212,7 @@ describe('Chat Edit API Route', () => {
         method: 'PATCH',
         body: JSON.stringify({ title: 'Updated Chat', description: 'Updated description' }),
       })
-      const { PATCH } = await import('./route')
+      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
@@ -245,7 +245,7 @@ describe('Chat Edit API Route', () => {
         method: 'PATCH',
         body: JSON.stringify({ subdomain: 'new-subdomain' }),
       })
-      const { PATCH } = await import('./route')
+      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(400)
@@ -273,7 +273,7 @@ describe('Chat Edit API Route', () => {
         method: 'PATCH',
         body: JSON.stringify({ authType: 'password' }), // No password provided
       })
-      const { PATCH } = await import('./route')
+      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(400)
@@ -304,7 +304,7 @@ describe('Chat Edit API Route', () => {
         method: 'PATCH',
         body: JSON.stringify({ title: 'Admin Updated Chat' }),
       })
-      const { PATCH } = await import('./route')
+      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
@@ -321,7 +321,7 @@ describe('Chat Edit API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
         method: 'DELETE',
       })
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/chat/edit/[id]/route')
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(401)
@@ -340,7 +340,7 @@ describe('Chat Edit API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
         method: 'DELETE',
       })
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/chat/edit/[id]/route')
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(404)
@@ -361,7 +361,7 @@ describe('Chat Edit API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
         method: 'DELETE',
       })
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/chat/edit/[id]/route')
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
@@ -385,7 +385,7 @@ describe('Chat Edit API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
         method: 'DELETE',
       })
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/chat/edit/[id]/route')
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)

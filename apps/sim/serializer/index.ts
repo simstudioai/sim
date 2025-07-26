@@ -1,8 +1,8 @@
 import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
-import type { SerializedBlock, SerializedWorkflow } from './types'
 
 const logger = createLogger('Serializer')
 

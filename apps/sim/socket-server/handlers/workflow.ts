@@ -1,8 +1,8 @@
-import { createLogger } from '../../lib/logs/console/logger'
-import { getWorkflowState } from '../database/operations'
-import type { AuthenticatedSocket } from '../middleware/auth'
-import { verifyWorkflowAccess } from '../middleware/permissions'
-import type { RoomManager, UserPresence, WorkflowRoom } from '../rooms/manager'
+import { createLogger } from '@/lib/logs/console/logger'
+import { getWorkflowState } from '@/socket-server/database/operations'
+import type { AuthenticatedSocket } from '@/socket-server/middleware/auth'
+import { verifyWorkflowAccess } from '@/socket-server/middleware/permissions'
+import type { RoomManager, UserPresence, WorkflowRoom } from '@/socket-server/rooms/manager'
 
 const logger = createLogger('WorkflowHandlers')
 

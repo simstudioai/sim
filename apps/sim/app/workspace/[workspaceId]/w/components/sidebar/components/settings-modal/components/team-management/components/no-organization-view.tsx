@@ -2,7 +2,7 @@ import { RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { OrganizationCreationDialog } from './organization-creation-dialog'
+import { OrganizationCreationDialog } from './'
 
 interface NoOrganizationViewProps {
   hasTeamPlan: boolean

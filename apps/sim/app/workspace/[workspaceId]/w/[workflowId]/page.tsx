@@ -1,3 +1,3 @@
-import WorkFlow from './workflow'
+import WorkFlow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
 
 export default WorkFlow

@@ -1,8 +1,14 @@
+import { calculateHierarchicalLayout } from '@/lib/autolayout/algorithms/hierarchical'
+import { calculateSmartLayout } from '@/lib/autolayout/algorithms/smart'
+import type {
+  LayoutEdge,
+  LayoutNode,
+  LayoutOptions,
+  LayoutResult,
+  WorkflowGraph,
+} from '@/lib/autolayout/types'
+import { BLOCK_CATEGORIES, BLOCK_DIMENSIONS } from '@/lib/autolayout/types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { calculateHierarchicalLayout } from './algorithms/hierarchical'
-import { calculateSmartLayout } from './algorithms/smart'
-import type { LayoutEdge, LayoutNode, LayoutOptions, LayoutResult, WorkflowGraph } from './types'
-import { BLOCK_CATEGORIES, BLOCK_DIMENSIONS } from './types'
 
 const logger = createLogger('AutoLayoutService')
 

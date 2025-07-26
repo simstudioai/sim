@@ -19,7 +19,7 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
-import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('WealthboxFileSelector')
 

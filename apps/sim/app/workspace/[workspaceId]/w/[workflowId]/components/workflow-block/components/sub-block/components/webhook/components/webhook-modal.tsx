@@ -9,20 +9,26 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console/logger'
-import { type ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook'
-import { AirtableConfig } from './providers/airtable'
-import { DiscordConfig } from './providers/discord'
-import { GenericConfig } from './providers/generic'
-import { GithubConfig } from './providers/github'
-import { GmailConfig } from './providers/gmail'
-import { MicrosoftTeamsConfig } from './providers/microsoftteams'
-import { SlackConfig } from './providers/slack'
-import { StripeConfig } from './providers/stripe'
-import { TelegramConfig } from './providers/telegram'
-import { WhatsAppConfig } from './providers/whatsapp'
-import { DeleteConfirmDialog, UnsavedChangesDialog } from './ui/confirmation'
-import { WebhookDialogFooter } from './ui/webhook-footer'
-import { WebhookUrlField } from './ui/webhook-url'
+import {
+  AirtableConfig,
+  DeleteConfirmDialog,
+  DiscordConfig,
+  GenericConfig,
+  GithubConfig,
+  GmailConfig,
+  MicrosoftTeamsConfig,
+  SlackConfig,
+  StripeConfig,
+  TelegramConfig,
+  UnsavedChangesDialog,
+  WebhookDialogFooter,
+  WebhookUrlField,
+  WhatsAppConfig,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
+import {
+  type ProviderConfig,
+  WEBHOOK_PROVIDERS,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/webhook'
 
 const logger = createLogger('WebhookModal')
 

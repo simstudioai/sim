@@ -25,7 +25,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -51,7 +51,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -75,7 +75,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -99,7 +99,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -124,7 +124,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const largeFileSize = 150 * 1024 * 1024 // 150MB (exceeds 100MB limit)
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
@@ -150,7 +150,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -182,7 +182,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest(
         'http://localhost:3000/api/files/presigned?type=knowledge-base',
@@ -210,7 +210,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 'blob',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -250,7 +250,7 @@ describe('/api/files/presigned', () => {
         isUsingCloudStorage: vi.fn().mockReturnValue(true),
       }))
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -293,7 +293,7 @@ describe('/api/files/presigned', () => {
         getSignedUrl: vi.fn().mockRejectedValue(new Error('S3 service unavailable')),
       }))
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -339,7 +339,7 @@ describe('/api/files/presigned', () => {
         sanitizeFilenameForMetadata: vi.fn((filename) => filename),
       }))
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -364,7 +364,7 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/files/presigned/route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -382,7 +382,7 @@ describe('/api/files/presigned', () => {
 
   describe('OPTIONS', () => {
     it('should handle CORS preflight requests', async () => {
-      const { OPTIONS } = await import('./route')
+      const { OPTIONS } = await import('@/app/api/files/presigned/route')
 
       const response = await OPTIONS()
 

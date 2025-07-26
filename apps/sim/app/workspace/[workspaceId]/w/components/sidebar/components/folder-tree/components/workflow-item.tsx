@@ -6,10 +6,10 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
+import { WorkflowContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { useFolderStore, useIsWorkflowSelected } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { WorkflowContextMenu } from '../../workflow-context-menu/workflow-context-menu'
 
 const logger = createLogger('WorkflowItem')
 

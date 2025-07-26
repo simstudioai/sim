@@ -96,7 +96,7 @@ describe('OAuth Connections API Route', () => {
     mockDb.limit.mockResolvedValueOnce(mockUserRecord)
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/connections/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -121,7 +121,7 @@ describe('OAuth Connections API Route', () => {
     mockGetSession.mockResolvedValueOnce(null)
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/connections/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -146,7 +146,7 @@ describe('OAuth Connections API Route', () => {
     mockDb.limit.mockResolvedValueOnce([])
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/connections/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -165,7 +165,7 @@ describe('OAuth Connections API Route', () => {
     mockDb.where.mockRejectedValueOnce(new Error('Database error'))
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/connections/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -209,7 +209,7 @@ describe('OAuth Connections API Route', () => {
     mockDb.limit.mockResolvedValueOnce([])
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/connections/route')
 
     const response = await GET(req)
     const data = await response.json()

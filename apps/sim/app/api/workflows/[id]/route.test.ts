@@ -45,7 +45,7 @@ describe('Workflow By ID API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(401)
@@ -75,7 +75,7 @@ describe('Workflow By ID API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/nonexistent')
       const params = Promise.resolve({ id: 'nonexistent' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(404)
@@ -113,7 +113,7 @@ describe('Workflow By ID API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(200)
@@ -156,7 +156,7 @@ describe('Workflow By ID API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(200)
@@ -199,7 +199,7 @@ describe('Workflow By ID API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(403)
@@ -249,7 +249,7 @@ describe('Workflow By ID API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(200)
@@ -298,7 +298,7 @@ describe('Workflow By ID API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/workflows/[id]/route')
       const response = await DELETE(req, { params })
 
       expect(response.status).toBe(200)
@@ -349,7 +349,7 @@ describe('Workflow By ID API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/workflows/[id]/route')
       const response = await DELETE(req, { params })
 
       expect(response.status).toBe(200)
@@ -393,7 +393,7 @@ describe('Workflow By ID API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/workflows/[id]/route')
       const response = await DELETE(req, { params })
 
       expect(response.status).toBe(403)
@@ -444,7 +444,7 @@ describe('Workflow By ID API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/workflows/[id]/route')
       const response = await PUT(req, { params })
 
       expect(response.status).toBe(200)
@@ -498,7 +498,7 @@ describe('Workflow By ID API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/workflows/[id]/route')
       const response = await PUT(req, { params })
 
       expect(response.status).toBe(200)
@@ -545,7 +545,7 @@ describe('Workflow By ID API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/workflows/[id]/route')
       const response = await PUT(req, { params })
 
       expect(response.status).toBe(403)
@@ -588,7 +588,7 @@ describe('Workflow By ID API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/workflows/[id]/route')
       const response = await PUT(req, { params })
 
       expect(response.status).toBe(400)
@@ -620,7 +620,7 @@ describe('Workflow By ID API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(500)

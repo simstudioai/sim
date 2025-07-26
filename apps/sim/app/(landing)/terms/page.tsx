@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { GridPattern } from '../components/grid-pattern'
-import NavWrapper from '../components/nav-wrapper'
-import Footer from '../components/sections/footer'
+import { GridPattern } from '@/app/(landing)/components/grid-pattern'
+import NavWrapper from '@/app/(landing)/components/nav-wrapper'
+import Footer from '@/app/(landing)/components/sections/footer'
 
 export default function TermsOfService() {
   const handleOpenTypeformLink = () => {

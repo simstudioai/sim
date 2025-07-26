@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useWorkflowRegistry } from '../registry/store'
-import { useSubBlockStore } from '../subblock/store'
-import { useWorkflowStore } from './store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 describe('workflow store', () => {
   beforeEach(() => {

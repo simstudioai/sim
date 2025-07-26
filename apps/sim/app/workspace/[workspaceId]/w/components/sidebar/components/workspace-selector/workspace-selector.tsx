@@ -20,7 +20,7 @@ import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-import { InviteModal } from './components/invite-modal/invite-modal'
+import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/components/invite-modal/invite-modal'
 
 const logger = createLogger('WorkspaceSelector')
 

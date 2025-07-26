@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Slider } from '@/components/ui/slider'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 
 interface SliderInputProps {
   blockId: string

@@ -4,17 +4,16 @@ import { Wand2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
-
 import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { CodePromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/code-prompt-bar/code-prompt-bar'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useCodeGeneration } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-code-generation'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { CodePromptBar } from '../../../../code-prompt-bar/code-prompt-bar'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 const logger = createLogger('Code')
 

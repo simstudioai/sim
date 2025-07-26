@@ -19,11 +19,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { CopilotChat } from '@/lib/copilot/api'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  CheckpointPanel,
+  CopilotWelcome,
+  ProfessionalInput,
+  ProfessionalMessage,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import type { CopilotMessage } from '@/stores/copilot/types'
-import { CheckpointPanel } from '../checkpoint-panel'
-import { ProfessionalInput } from '../professional-input/professional-input'
-import { ProfessionalMessage } from '../professional-message/professional-message'
-import { CopilotWelcome } from '../welcome/welcome'
 
 const logger = createLogger('CopilotModal')
 

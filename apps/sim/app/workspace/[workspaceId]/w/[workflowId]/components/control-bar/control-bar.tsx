@@ -26,13 +26,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import {
+  DeploymentControls,
+  ExportControls,
+  TemplateModal,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components'
+import { WorkflowTextEditorModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-text-editor-modal'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import {
+  getKeyboardShortcutText,
+  useKeyboardShortcuts,
+} from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { useFolderStore } from '@/stores/folders/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -41,15 +54,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import {
-  getKeyboardShortcutText,
-  useKeyboardShortcuts,
-} from '../../../hooks/use-keyboard-shortcuts'
-import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
-import { WorkflowTextEditorModal } from '../workflow-text-editor/workflow-text-editor-modal'
-import { DeploymentControls } from './components/deployment-controls/deployment-controls'
-import { ExportControls } from './components/export-controls/export-controls'
-import { TemplateModal } from './components/template-modal/template-modal'
 
 const logger = createLogger('ControlBar')
 

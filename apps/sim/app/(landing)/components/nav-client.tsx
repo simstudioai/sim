@@ -15,7 +15,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { usePrefetchOnHover } from '../utils/prefetch'
+import { usePrefetchOnHover } from '@/app/(landing)/utils/prefetch'
 
 // --- Framer Motion Variants ---
 const desktopNavContainerVariants = {

@@ -17,9 +17,9 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
-import { HeroBlock } from './hero-block'
-import { HeroEdge } from './hero-edge'
-import { useWindowSize } from './use-window-size'
+import { HeroBlock } from '@/app/(landing)/components/hero-block'
+import { HeroEdge } from '@/app/(landing)/components/hero-edge'
+import { useWindowSize } from '@/app/(landing)/components/use-window-size'
 
 const nodeTypes: NodeTypes = { heroBlock: HeroBlock }
 const edgeTypes: EdgeTypes = { heroEdge: HeroEdge }

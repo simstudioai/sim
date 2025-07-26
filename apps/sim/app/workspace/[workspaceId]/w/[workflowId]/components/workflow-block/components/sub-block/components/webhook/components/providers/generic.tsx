@@ -1,11 +1,11 @@
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { CopyableField } from '../ui/copyable'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay } from '../ui/test-result'
+import { Checkbox, Input, Label } from '@/components/ui'
+import {
+  ConfigField,
+  ConfigSection,
+  CopyableField,
+  InstructionsSection,
+  TestResultDisplay,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 interface GenericConfigProps {
   requireAuth: boolean

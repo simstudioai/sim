@@ -1,5 +1,5 @@
-import { getOAuthProviderStatus } from '../components/oauth-provider-checker'
-import LoginForm from './login-form'
+import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-checker'
+import LoginForm from '@/app/(auth)/login/login-form'
 
 // Force dynamic rendering to avoid prerender errors with search params
 export const dynamic = 'force-dynamic'

@@ -3,8 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { CheckCircle, Heart, Info, Loader2, XCircle } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
 
 interface UnsubscribeData {
   success: boolean

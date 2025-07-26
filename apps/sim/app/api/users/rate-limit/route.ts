@@ -5,10 +5,10 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
 
+import { createErrorResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import { apiKey as apiKeyTable, subscription } from '@/db/schema'
 import { RateLimiter } from '@/services/queue'
-import { createErrorResponse } from '../../workflows/utils'
 
 const logger = createLogger('RateLimitAPI')
 

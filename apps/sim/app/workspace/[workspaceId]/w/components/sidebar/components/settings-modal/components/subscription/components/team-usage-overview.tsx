@@ -9,7 +9,7 @@ import { useActiveOrganization } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useOrganizationStore } from '@/stores/organization'
 import type { MemberUsageData } from '@/stores/organization/types'
-import { EditMemberLimitDialog } from './edit-member-limit-dialog'
+import { EditMemberLimitDialog } from './'
 
 const logger = createLogger('TeamUsageOverview')
 

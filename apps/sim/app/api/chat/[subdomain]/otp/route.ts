@@ -5,10 +5,10 @@ import { renderOTPEmail } from '@/components/emails/render-email'
 import { sendEmail } from '@/lib/email/mailer'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient, markMessageAsProcessed, releaseLock } from '@/lib/redis'
+import { addCorsHeaders, setChatAuthCookie } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import { chat } from '@/db/schema'
-import { addCorsHeaders, setChatAuthCookie } from '../../utils'
 
 const logger = createLogger('ChatOtpAPI')
 

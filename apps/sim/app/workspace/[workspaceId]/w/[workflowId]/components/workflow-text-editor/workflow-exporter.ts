@@ -1,10 +1,10 @@
 import { dump as yamlDump, load as yamlLoad } from 'js-yaml'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
+import type { EditorFormat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-text-editor'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type { EditorFormat } from './workflow-text-editor'
 
 const logger = createLogger('WorkflowExporter')
 

@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import type { ChatMessage, ChatStore } from './types'
+import type { ChatMessage, ChatStore } from '@/stores/panel/chat/types'
 
 // MAX across all workflows
 const MAX_MESSAGES = 50

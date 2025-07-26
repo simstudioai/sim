@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ToolConfig } from '../types'
-import type { WealthboxWriteParams, WealthboxWriteResponse } from './types'
+import type { ToolConfig } from '@/tools/types'
+import type { WealthboxWriteParams, WealthboxWriteResponse } from '@/tools/wealthbox/types'
 
 const logger = createLogger('WealthboxWriteTask')
 

@@ -4,11 +4,11 @@ import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ToolbarBlock } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/toolbar/components/toolbar-block/toolbar-block'
+import LoopToolbarItem from '@/app/workspace/[workspaceId]/w/components/sidebar/components/toolbar/components/toolbar-loop-block/toolbar-loop-block'
+import ParallelToolbarItem from '@/app/workspace/[workspaceId]/w/components/sidebar/components/toolbar/components/toolbar-parallel-block/toolbar-parallel-block'
 import { getAllBlocks } from '@/blocks'
 import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
-import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
-import LoopToolbarItem from './components/toolbar-loop-block/toolbar-loop-block'
-import ParallelToolbarItem from './components/toolbar-parallel-block/toolbar-parallel-block'
 
 interface ToolbarProps {
   userPermissions: WorkspaceUserPermissions

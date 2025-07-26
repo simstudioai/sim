@@ -9,7 +9,7 @@ import {
   parseBlockConnections,
   validateBlockReferences,
   validateBlockStructure,
-} from './parsing-utils'
+} from '@/stores/workflows/yaml/parsing-utils'
 
 const logger = createLogger('WorkflowYamlImporter')
 

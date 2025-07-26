@@ -6,12 +6,12 @@ import { Dialog } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { formatDateTime } from '@/lib/utils'
+import { ScheduleModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/schedule/components/schedule-modal'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { getBlockWithValues, getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
-import { ScheduleModal } from './components/schedule-modal'
 
 const logger = createLogger('ScheduleConfig')
 

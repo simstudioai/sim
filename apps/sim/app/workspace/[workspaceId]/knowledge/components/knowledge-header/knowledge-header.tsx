@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { WorkspaceSelector } from '../workspace-selector/workspace-selector'
+import { WorkspaceSelector } from '@/app/workspace/[workspaceId]/knowledge/components'
 
 interface BreadcrumbItem {
   label: string

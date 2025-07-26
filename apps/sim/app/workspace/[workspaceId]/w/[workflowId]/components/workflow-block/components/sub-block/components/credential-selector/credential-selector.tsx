@@ -21,9 +21,9 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
+import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
-import { OAuthRequiredModal } from './components/oauth-required-modal'
 
 const logger = createLogger('CredentialSelector')
 

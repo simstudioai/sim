@@ -211,12 +211,12 @@ const mockWorkflowState: WorkflowState = {
 }
 
 describe('Database Helpers', () => {
-  let dbHelpers: typeof import('./db-helpers')
+  let dbHelpers: typeof import('@/lib/workflows/db-helpers')
 
   beforeEach(async () => {
     vi.clearAllMocks()
     // Import the module after mocks are set up
-    dbHelpers = await import('./db-helpers')
+    dbHelpers = await import('@/lib/workflows/db-helpers')
   })
 
   afterEach(() => {

@@ -60,7 +60,7 @@ describe('Knowledge Base API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/route')
       const response = await GET(req)
       const data = await response.json()
 
@@ -73,7 +73,7 @@ describe('Knowledge Base API Route', () => {
       mockDbChain.orderBy.mockRejectedValue(new Error('Database error'))
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/route')
       const response = await GET(req)
       const data = await response.json()
 
@@ -97,7 +97,7 @@ describe('Knowledge Base API Route', () => {
       mockAuth$.mockAuthenticatedUser()
 
       const req = createMockRequest('POST', validKnowledgeBaseData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -112,7 +112,7 @@ describe('Knowledge Base API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('POST', validKnowledgeBaseData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -124,7 +124,7 @@ describe('Knowledge Base API Route', () => {
       mockAuth$.mockAuthenticatedUser()
 
       const req = createMockRequest('POST', { description: 'Missing name' })
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -146,7 +146,7 @@ describe('Knowledge Base API Route', () => {
       }
 
       const req = createMockRequest('POST', invalidData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -159,7 +159,7 @@ describe('Knowledge Base API Route', () => {
 
       const minimalData = { name: 'Test KB' }
       const req = createMockRequest('POST', minimalData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -178,7 +178,7 @@ describe('Knowledge Base API Route', () => {
       mockDbChain.values.mockRejectedValue(new Error('Database error'))
 
       const req = createMockRequest('POST', validKnowledgeBaseData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/route')
       const response = await POST(req)
       const data = await response.json()
 

@@ -13,21 +13,15 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
-import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
-import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-node/loop-node'
-import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
-import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-node'
-import { getBlock } from '@/blocks'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { WorkflowBlock } from './components/workflow-block/workflow-block'
-import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
+import {
+  ControlBar,
+  ErrorBoundary,
+  LoopNodeComponent,
+  Panel,
+  ParallelNodeComponent,
+  WorkflowBlock,
+  WorkflowEdge,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import {
   applyAutoLayoutSmooth,
   detectHandleOrientation,
@@ -37,7 +31,15 @@ import {
   isPointInLoopNode,
   resizeLoopNodes,
   updateNodeParent as updateNodeParentUtil,
-} from './utils'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import { getBlock } from '@/blocks'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Workflow')
 

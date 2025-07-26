@@ -108,7 +108,7 @@ let blockConfigCache: Record<string, BlockConfig> | null = null
 function getBlockConfigurations(): Record<string, BlockConfig> {
   if (!blockConfigCache) {
     try {
-      const { getAllBlocks } = require('../blocks')
+      const { getAllBlocks } = require('@/blocks')
       const allBlocks = getAllBlocks()
       blockConfigCache = {}
       allBlocks.forEach((block: BlockConfig) => {

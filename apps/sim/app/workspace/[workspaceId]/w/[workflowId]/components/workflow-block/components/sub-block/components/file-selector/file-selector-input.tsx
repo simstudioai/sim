@@ -3,27 +3,29 @@
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getEnv } from '@/lib/env'
+import {
+  type ConfluenceFileInfo,
+  ConfluenceFileSelector,
+  type DiscordChannelInfo,
+  DiscordChannelSelector,
+  type FileInfo,
+  type GoogleCalendarInfo,
+  GoogleCalendarSelector,
+  GoogleDrivePicker,
+  type JiraIssueInfo,
+  JiraIssueSelector,
+  type MicrosoftFileInfo,
+  MicrosoftFileSelector,
+  type TeamsMessageInfo,
+  TeamsMessageSelector,
+  WealthboxFileSelector,
+  type WealthboxItemInfo,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/components'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
-import type { ConfluenceFileInfo } from './components/confluence-file-selector'
-import { ConfluenceFileSelector } from './components/confluence-file-selector'
-import type { DiscordChannelInfo } from './components/discord-channel-selector'
-import { DiscordChannelSelector } from './components/discord-channel-selector'
-import type { GoogleCalendarInfo } from './components/google-calendar-selector'
-import { GoogleCalendarSelector } from './components/google-calendar-selector'
-import type { FileInfo } from './components/google-drive-picker'
-import { GoogleDrivePicker } from './components/google-drive-picker'
-import type { JiraIssueInfo } from './components/jira-issue-selector'
-import { JiraIssueSelector } from './components/jira-issue-selector'
-import type { MicrosoftFileInfo } from './components/microsoft-file-selector'
-import { MicrosoftFileSelector } from './components/microsoft-file-selector'
-import type { TeamsMessageInfo } from './components/teams-message-selector'
-import { TeamsMessageSelector } from './components/teams-message-selector'
-import type { WealthboxItemInfo } from './components/wealthbox-file-selector'
-import { WealthboxFileSelector } from './components/wealthbox-file-selector'
 
 interface FileSelectorInputProps {
   blockId: string

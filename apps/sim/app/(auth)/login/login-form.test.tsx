@@ -6,7 +6,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { client } from '@/lib/auth-client'
-import LoginPage from './login-form'
+import LoginPage from '@/app/(auth)/login/login-form'
 
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(),

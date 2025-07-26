@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { HelpForm } from './components/help-form/help-form'
+import { HelpForm } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/help-modal/components/help-form/help-form'
 
 interface HelpModalProps {
   open: boolean

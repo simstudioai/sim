@@ -1,7 +1,7 @@
+import { AGENT_MODE_SYSTEM_PROMPT } from '@/lib/copilot/prompts'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getProviderDefaultModel } from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
-import { AGENT_MODE_SYSTEM_PROMPT } from './prompts'
 
 const logger = createLogger('CopilotConfig')
 

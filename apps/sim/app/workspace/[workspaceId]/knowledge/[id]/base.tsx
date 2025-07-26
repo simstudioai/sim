@@ -30,16 +30,20 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
-import { PrimaryButton } from '@/app/workspace/[workspaceId]/knowledge/components/primary-button/primary-button'
-import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import {
+  ActionBar,
+  KnowledgeBaseLoading,
+  UploadModal,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import {
+  getDocumentIcon,
+  KnowledgeHeader,
+  PrimaryButton,
+  SearchInput,
+} from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
-import { useUserPermissionsContext } from '../../components/providers/workspace-permissions-provider'
-import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
-import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowledge-base-loading'
-import { UploadModal } from './components/upload-modal/upload-modal'
 
 const logger = createLogger('KnowledgeBase')
 

@@ -12,24 +12,24 @@ vi.mock('resend', () => {
   }
 })
 
-vi.mock('./unsubscribe', () => ({
+vi.mock('@/lib/email/unsubscribe', () => ({
   isUnsubscribed: vi.fn(),
   generateUnsubscribeToken: vi.fn(),
 }))
 
-vi.mock('../env', () => ({
+vi.mock('@/lib/env', () => ({
   env: {
     RESEND_API_KEY: 'test-api-key',
     NEXT_PUBLIC_APP_URL: 'https://test.simstudio.ai',
   },
 }))
 
-vi.mock('../urls/utils', () => ({
+vi.mock('@/lib/urls/utils', () => ({
   getEmailDomain: vi.fn().mockReturnValue('simstudio.ai'),
 }))
 
-import { type EmailType, sendEmail } from './mailer'
-import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
+import { type EmailType, sendEmail } from '@/lib/email/mailer'
+import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/email/unsubscribe'
 
 describe('mailer', () => {
   const testEmailOptions = {

@@ -5,7 +5,7 @@ import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('teams-teams')
+const logger = createLogger('TeamsTeamsAPI')
 
 export async function POST(request: Request) {
   try {

@@ -1,6 +1,6 @@
 import { Label } from '@/components/ui/label'
 import { Switch as UISwitch } from '@/components/ui/switch'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 
 interface SwitchProps {
   blockId: string

@@ -15,6 +15,28 @@ import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { OAuthProvider, OAuthService } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
+import {
+  ChannelSelectorInput,
+  CheckboxList,
+  Code,
+  ComboBox,
+  DateInput,
+  FileSelectorInput,
+  FileUpload,
+  LongInput,
+  ProjectSelectorInput,
+  ShortInput,
+  SliderInput,
+  Table,
+  TimeInput,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
+import {
+  type CustomTool,
+  CustomToolModal,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
+import { ToolCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-command/tool-command'
+import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-credential-selector'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { getAllBlocks } from '@/blocks'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
@@ -26,23 +48,6 @@ import {
   isPasswordParameter,
   type ToolParameterConfig,
 } from '@/tools/params'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
-import { ChannelSelectorInput } from '../channel-selector/channel-selector-input'
-import { CheckboxList } from '../checkbox-list'
-import { Code } from '../code'
-import { ComboBox } from '../combobox'
-import { DateInput } from '../date-input'
-import { FileSelectorInput } from '../file-selector/file-selector-input'
-import { FileUpload } from '../file-upload'
-import { LongInput } from '../long-input'
-import { ProjectSelectorInput } from '../project-selector/project-selector-input'
-import { ShortInput } from '../short-input'
-import { SliderInput } from '../slider-input'
-import { Table } from '../table'
-import { TimeInput } from '../time-input'
-import { type CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
-import { ToolCommand } from './components/tool-command/tool-command'
-import { ToolCredentialSelector } from './components/tool-credential-selector'
 
 interface ToolInputProps {
   blockId: string

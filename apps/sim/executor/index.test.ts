@@ -339,7 +339,7 @@ describe('Executor', () => {
       setupAllMocks({ isDebugModeEnabled: true })
 
       // Import Executor AFTER setting up mocks
-      const { Executor } = await import('./index')
+      const { Executor } = await import('@/executor/index')
 
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
@@ -357,7 +357,7 @@ describe('Executor', () => {
       setupAllMocks({ isDebugModeEnabled: false })
 
       // Import Executor AFTER setting up mocks
-      const { Executor } = await import('./index')
+      const { Executor } = await import('@/executor/index')
 
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http'
-import type { RoomManager } from '../rooms/manager'
+import type { RoomManager } from '@/socket-server/rooms/manager'
 
 interface Logger {
   info: (message: string, ...args: any[]) => void

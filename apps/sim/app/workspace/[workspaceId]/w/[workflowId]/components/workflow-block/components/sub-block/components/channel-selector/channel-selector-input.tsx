@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  type SlackChannelInfo,
+  SlackChannelSelector,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/channel-selector/components/slack-channel-selector'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
-import { type SlackChannelInfo, SlackChannelSelector } from './components/slack-channel-selector'
 
 interface ChannelSelectorInputProps {
   blockId: string
