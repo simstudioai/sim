@@ -3,24 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/search-modal/search-modal'
-import { CreateMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/create-menu/create-menu'
-import { FolderTree } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/folder-tree/folder-tree'
-import { HelpModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/help-modal/help-modal'
-import { LogsFilters } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/logs-filters/logs-filters'
-import { SettingsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/settings-modal'
-import { Toolbar } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/toolbar/toolbar'
-import { WorkspaceHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/workspace-header'
+import {
+  CreateMenu,
+  FolderTree,
+  HelpModal,
+  LogsFilters,
+  SettingsModal,
+  Toolbar,
+  WorkspaceHeader,
+  WorkspaceSelector,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/components/invite-modal/invite-modal'
-import { WorkspaceSelector } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/workspace-selector'
 import {
   getKeyboardShortcutText,
   useGlobalShortcuts,

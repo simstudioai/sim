@@ -12,7 +12,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/compone
 import {
   ImportControls,
   type ImportControlsRef,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/create-menu/import-controls'
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/create-menu'
 import { useFolderStore } from '@/stores/folders/store'
 
 interface CreateMenuProps {

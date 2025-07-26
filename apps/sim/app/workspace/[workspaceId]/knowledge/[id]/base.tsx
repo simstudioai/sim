@@ -31,13 +31,17 @@ import { SearchHighlight } from '@/components/ui/search-highlight'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
-import { KnowledgeBaseLoading } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/knowledge-base-loading/knowledge-base-loading'
-import { UploadModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/upload-modal/upload-modal'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
-import { KnowledgeHeader } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-header/knowledge-header'
-import { PrimaryButton } from '@/app/workspace/[workspaceId]/knowledge/components/primary-button/primary-button'
-import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
+import {
+  ActionBar,
+  KnowledgeBaseLoading,
+  UploadModal,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import {
+  getDocumentIcon,
+  KnowledgeHeader,
+  PrimaryButton,
+  SearchInput,
+} from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 

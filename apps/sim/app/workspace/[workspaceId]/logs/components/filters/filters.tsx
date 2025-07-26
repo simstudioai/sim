@@ -1,14 +1,16 @@
 'use client'
 
 import { TimerOff } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui'
 import { isProd } from '@/lib/environment'
-import FilterSection from '@/app/workspace/[workspaceId]/logs/components/filters/components/filter-section'
-import FolderFilter from '@/app/workspace/[workspaceId]/logs/components/filters/components/folder'
-import Level from '@/app/workspace/[workspaceId]/logs/components/filters/components/level'
-import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
-import Trigger from '@/app/workspace/[workspaceId]/logs/components/filters/components/trigger'
-import Workflow from '@/app/workspace/[workspaceId]/logs/components/filters/components/workflow'
+import {
+  FilterSection,
+  FolderFilter,
+  Level,
+  Timeline,
+  Trigger,
+  Workflow,
+} from '@/app/workspace/[workspaceId]/logs/components/filters/components'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
 /**

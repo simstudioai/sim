@@ -9,22 +9,22 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console/logger'
-import { AirtableConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/airtable'
-import { DiscordConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/discord'
-import { GenericConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/generic'
-import { GithubConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/github'
-import { GmailConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/gmail'
-import { MicrosoftTeamsConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/microsoftteams'
-import { SlackConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/slack'
-import { StripeConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/stripe'
-import { TelegramConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/telegram'
-import { WhatsAppConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/providers/whatsapp'
 import {
+  AirtableConfig,
   DeleteConfirmDialog,
+  DiscordConfig,
+  GenericConfig,
+  GithubConfig,
+  GmailConfig,
+  MicrosoftTeamsConfig,
+  SlackConfig,
+  StripeConfig,
+  TelegramConfig,
   UnsavedChangesDialog,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/confirmation'
-import { WebhookDialogFooter } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/webhook-footer'
-import { WebhookUrlField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/webhook-url'
+  WebhookDialogFooter,
+  WebhookUrlField,
+  WhatsAppConfig,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 import {
   type ProviderConfig,
   WEBHOOK_PROVIDERS,

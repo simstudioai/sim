@@ -13,11 +13,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
 import {
+  getDocumentIcon,
   type TagData,
   TagInput,
-} from '@/app/workspace/[workspaceId]/knowledge/components/tag-input/tag-input'
+} from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 

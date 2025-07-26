@@ -2,20 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
 import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { Account } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/account/account'
-import { ApiKeys } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/api-keys/api-keys'
-import { Credentials } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/credentials/credentials'
-import { EnvironmentVariables } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/environment/environment'
-import { General } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/general/general'
-import { Privacy } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/privacy/privacy'
-import { SettingsNavigation } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/settings-navigation/settings-navigation'
-import { Subscription } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/subscription'
-import { TeamManagement } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/team-management'
+import {
+  Account,
+  ApiKeys,
+  Credentials,
+  EnvironmentVariables,
+  General,
+  Privacy,
+  SettingsNavigation,
+  Subscription,
+  TeamManagement,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components'
 import { useOrganizationStore } from '@/stores/organization'
 import { useGeneralStore } from '@/stores/settings/general/store'
 

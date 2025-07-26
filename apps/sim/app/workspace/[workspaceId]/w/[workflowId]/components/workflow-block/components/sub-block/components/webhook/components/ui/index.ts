@@ -1,6 +1,6 @@
 export { ConfigField } from './config-field'
 export { ConfigSection } from './config-section'
-export { UnsavedChangesDialog } from './confirmation'
+export { DeleteConfirmDialog, UnsavedChangesDialog } from './confirmation'
 export { CopyableField } from './copyable'
 export { InstructionsSection } from './instructions-section'
 export { TestResultDisplay } from './test-result'

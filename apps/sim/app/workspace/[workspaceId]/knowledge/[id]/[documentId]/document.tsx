@@ -3,19 +3,24 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus, Trash2 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { SearchHighlight } from '@/components/ui/search-highlight'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Button,
+  Checkbox,
+  SearchHighlight,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-import { CreateChunkModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/create-chunk-modal/create-chunk-modal'
-import { DeleteChunkModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/delete-chunk-modal/delete-chunk-modal'
-import { DocumentLoading } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/document-loading'
-import { EditChunkModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/edit-chunk-modal/edit-chunk-modal'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
-import { KnowledgeHeader } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-header/knowledge-header'
-import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
+import {
+  CreateChunkModal,
+  DeleteChunkModal,
+  DocumentLoading,
+  EditChunkModal,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
+import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { KnowledgeHeader, SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 

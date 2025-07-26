@@ -1,11 +1,11 @@
 import { Terminal } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { CodeBlock } from '@/components/ui/code-block'
-import { Input } from '@/components/ui/input'
-import { ConfigField } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/config-field'
-import { ConfigSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/config-section'
-import { InstructionsSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/instructions-section'
-import { TestResultDisplay } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui/test-result'
+import { Alert, AlertDescription, AlertTitle, CodeBlock, Input } from '@/components/ui'
+import {
+  ConfigField,
+  ConfigSection,
+  InstructionsSection,
+  TestResultDisplay,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 interface DiscordConfigProps {
   webhookName: string

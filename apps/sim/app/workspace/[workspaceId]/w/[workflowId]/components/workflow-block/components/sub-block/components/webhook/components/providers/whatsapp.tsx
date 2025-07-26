@@ -6,7 +6,7 @@ import {
   CopyableField,
   InstructionsSection,
   TestResultDisplay,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components/ui'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 interface WhatsAppConfigProps {
   verificationToken: string

@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDownToLine, CircleSlash, X } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/chat'
-import { ChatModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/chat-modal/chat-modal'
-import { Console } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/console'
-import { Copilot } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/copilot'
-import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/variables/variables'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import {
+  Chat,
+  Console,
+  Copilot,
+  Variables,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components'
+import { ChatModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { usePanelStore } from '@/stores/panel/store'

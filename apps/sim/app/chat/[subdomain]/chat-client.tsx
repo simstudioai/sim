@@ -5,17 +5,18 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { noop } from '@/lib/utils'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
-import EmailAuth from '@/app/chat/[subdomain]/components/auth/email/email-auth'
-import PasswordAuth from '@/app/chat/[subdomain]/components/auth/password/password-auth'
-import { ChatErrorState } from '@/app/chat/[subdomain]/components/error-state/error-state'
-import { ChatHeader } from '@/app/chat/[subdomain]/components/header/header'
-import { ChatInput } from '@/app/chat/[subdomain]/components/input/input'
-import { ChatLoadingState } from '@/app/chat/[subdomain]/components/loading-state/loading-state'
-import type { ChatMessage } from '@/app/chat/[subdomain]/components/message/message'
-import { ChatMessageContainer } from '@/app/chat/[subdomain]/components/message-container/message-container'
-import { VoiceInterface } from '@/app/chat/[subdomain]/components/voice-interface/voice-interface'
-import { useAudioStreaming } from '@/app/chat/[subdomain]/hooks/use-audio-streaming'
-import { useChatStreaming } from '@/app/chat/[subdomain]/hooks/use-chat-streaming'
+import {
+  ChatErrorState,
+  ChatHeader,
+  ChatInput,
+  ChatLoadingState,
+  type ChatMessage,
+  ChatMessageContainer,
+  EmailAuth,
+  PasswordAuth,
+  VoiceInterface,
+} from '@/app/chat/[subdomain]/components'
+import { useAudioStreaming, useChatStreaming } from '@/app/chat/[subdomain]/hooks'
 
 const logger = createLogger('ChatClient')
 

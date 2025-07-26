@@ -26,16 +26,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-import { DeploymentControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deployment-controls/deployment-controls'
-import { ExportControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/export-controls/export-controls'
-import { TemplateModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/template-modal/template-modal'
+import {
+  DeploymentControls,
+  ExportControls,
+  TemplateModal,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components'
 import { WorkflowTextEditorModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-text-editor-modal'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import {

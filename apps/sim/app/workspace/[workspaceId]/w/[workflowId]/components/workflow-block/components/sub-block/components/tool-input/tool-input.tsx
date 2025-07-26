@@ -15,19 +15,21 @@ import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { OAuthProvider, OAuthService } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
-import { ChannelSelectorInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/channel-selector/channel-selector-input'
-import { CheckboxList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/checkbox-list'
-import { Code } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/code'
-import { ComboBox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/combobox'
-import { DateInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/date-input'
-import { FileSelectorInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-selector/file-selector-input'
-import { FileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/file-upload'
-import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/long-input'
-import { ProjectSelectorInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/project-selector/project-selector-input'
-import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/short-input'
-import { SliderInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/slider-input'
-import { Table } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/table'
-import { TimeInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/time-input'
+import {
+  ChannelSelectorInput,
+  CheckboxList,
+  Code,
+  ComboBox,
+  DateInput,
+  FileSelectorInput,
+  FileUpload,
+  LongInput,
+  ProjectSelectorInput,
+  ShortInput,
+  SliderInput,
+  Table,
+  TimeInput,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
 import {
   type CustomTool,
   CustomToolModal,

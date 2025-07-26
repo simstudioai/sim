@@ -5,13 +5,15 @@ import { LibraryBig, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-import { BaseOverview } from '@/app/workspace/[workspaceId]/knowledge/components/base-overview/base-overview'
-import { CreateModal } from '@/app/workspace/[workspaceId]/knowledge/components/create-modal/create-modal'
-import { EmptyStateCard } from '@/app/workspace/[workspaceId]/knowledge/components/empty-state-card/empty-state-card'
-import { KnowledgeHeader } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-header/knowledge-header'
-import { PrimaryButton } from '@/app/workspace/[workspaceId]/knowledge/components/primary-button/primary-button'
-import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
-import { KnowledgeBaseCardSkeletonGrid } from '@/app/workspace/[workspaceId]/knowledge/components/skeletons/knowledge-base-card-skeleton'
+import {
+  BaseOverview,
+  CreateModal,
+  EmptyStateCard,
+  KnowledgeBaseCardSkeletonGrid,
+  KnowledgeHeader,
+  PrimaryButton,
+  SearchInput,
+} from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 

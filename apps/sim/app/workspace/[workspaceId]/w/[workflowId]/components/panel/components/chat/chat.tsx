@@ -11,8 +11,10 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/response-format'
-import { ChatMessage } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/chat-message/chat-message'
-import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/output-select/output-select'
+import {
+  ChatMessage,
+  OutputSelect,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution/store'

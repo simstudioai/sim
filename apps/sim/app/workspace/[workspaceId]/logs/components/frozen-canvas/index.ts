@@ -1,2 +1,2 @@
-export { FrozenCanvas } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas'
-export { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas-modal'
+export { FrozenCanvas } from './frozen-canvas'
+export { FrozenCanvasModal } from './frozen-canvas-modal'

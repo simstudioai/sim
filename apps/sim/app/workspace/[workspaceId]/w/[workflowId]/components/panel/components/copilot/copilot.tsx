@@ -2,20 +2,22 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Bot, ChevronDown, History, MessageSquarePlus, MoreHorizontal, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import {
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { ScrollArea } from '@/components/ui/scroll-area'
+  ScrollArea,
+} from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import { CheckpointPanel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/checkpoint-panel'
-import { CopilotModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-modal/copilot-modal'
-import { ProfessionalInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/professional-input/professional-input'
-import { ProfessionalMessage } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/professional-message/professional-message'
-import { CopilotWelcome } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/welcome/welcome'
+import {
+  CheckpointPanel,
+  CopilotModal,
+  CopilotWelcome,
+  ProfessionalInput,
+  ProfessionalMessage,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
