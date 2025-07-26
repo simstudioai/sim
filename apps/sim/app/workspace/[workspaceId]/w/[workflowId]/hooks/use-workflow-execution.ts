@@ -306,6 +306,21 @@ export function useWorkflowExecution() {
             try {
               const result = await executeWorkflow(workflowInput, onStream, executionId)
 
+              // Check if execution was cancelled
+              if (
+                result &&
+                'success' in result &&
+                !result.success &&
+                result.error === 'Workflow execution was cancelled'
+              ) {
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ event: 'cancelled', data: result })}\n\n`
+                  )
+                )
+                return
+              }
+
               await Promise.all(streamReadingPromises)
 
               if (result && 'success' in result) {
@@ -737,6 +752,28 @@ export function useWorkflowExecution() {
     resetDebugState()
   }, [resetDebugState])
 
+  /**
+   * Handles cancelling the current workflow execution
+   */
+  const handleCancelExecution = useCallback(() => {
+    logger.info('Workflow execution cancellation requested')
+
+    // Cancel the executor if it exists
+    if (executor) {
+      executor.cancel()
+    }
+
+    // Reset execution state
+    setIsExecuting(false)
+    setIsDebugging(false)
+    setActiveBlocks(new Set())
+
+    // If in debug mode, also reset debug state
+    if (isDebugging) {
+      resetDebugState()
+    }
+  }, [executor, isDebugging, resetDebugState, setIsExecuting, setIsDebugging, setActiveBlocks])
+
   return {
     isExecuting,
     isDebugging,
@@ -746,5 +783,6 @@ export function useWorkflowExecution() {
     handleStepDebug,
     handleResumeDebug,
     handleCancelDebug,
+    handleCancelExecution,
   }
 }
