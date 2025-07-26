@@ -315,7 +315,7 @@ export function useWorkflowExecution() {
               ) {
                 controller.enqueue(
                   encoder.encode(
-                    `data: ${JSON.stringify({ event: 'cancelled', data: result })}\\n\\n`
+                    `data: ${JSON.stringify({ event: 'cancelled', data: result })}\n\n`
                   )
                 )
                 return
