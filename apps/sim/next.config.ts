@@ -96,8 +96,8 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Exclude Vercel internal resources and static assets from strict COEP
-        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|api/tools/drive).*)',
+        // Exclude Vercel internal resources and static assets from strict COEP, Google Drive Picker to prevent 'refused to connect' issue
+        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive).*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -119,7 +119,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
+            value: 'same-origin-allow-popups',
           },
         ],
       },
