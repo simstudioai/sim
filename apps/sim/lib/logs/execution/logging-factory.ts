@@ -133,7 +133,6 @@ export function calculateCostSummary(traceSpans: any[]): {
       models[model].input += span.cost.input || 0
       models[model].output += span.cost.output || 0
       models[model].total += span.cost.total || 0
-      // Tokens are at span.tokens, not span.cost.tokens
       models[model].tokens.prompt += span.tokens?.prompt || 0
       models[model].tokens.completion += span.tokens?.completion || 0
       models[model].tokens.total += span.tokens?.total || 0

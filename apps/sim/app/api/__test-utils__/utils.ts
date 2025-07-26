@@ -375,7 +375,7 @@ export function mockWorkflowAccessValidation(shouldSucceed = true) {
 
 export async function getMockedDependencies() {
   const utilsModule = await import('@/lib/utils')
-  const traceSpansModule = await import('@/lib/logs/trace-spans')
+  const traceSpansModule = await import('@/lib/logs/execution/trace-spans/trace-spans')
   const workflowUtilsModule = await import('@/lib/workflows/utils')
   const executorModule = await import('@/executor')
   const serializerModule = await import('@/serializer')
@@ -655,7 +655,7 @@ export function mockKnowledgeSchemas() {
  * Mock console logger
  */
 export function mockConsoleLogger() {
-  vi.doMock('@/lib/logs/console-logger', () => ({
+  vi.doMock('@/lib/logs/console/console-logger', () => ({
     createLogger: vi.fn().mockReturnValue(mockLogger),
   }))
 }

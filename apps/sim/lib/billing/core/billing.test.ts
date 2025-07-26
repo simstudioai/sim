@@ -11,7 +11,7 @@ vi.mock('@/db', () => ({
   },
 }))
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/console/console-logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
