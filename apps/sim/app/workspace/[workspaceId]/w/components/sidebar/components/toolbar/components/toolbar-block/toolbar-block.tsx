@@ -40,14 +40,14 @@ export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
       onDragStart={handleDragStart}
       onClick={handleClick}
       className={cn(
-        'group flex items-center gap-3 rounded-lg p-2 transition-colors',
+        'group flex h-9 items-center gap-[10px] rounded-[8px] p-2 transition-colors',
         disabled
           ? 'cursor-not-allowed opacity-60'
           : 'cursor-pointer hover:bg-accent/50 active:cursor-grabbing'
       )}
     >
       <div
-        className='relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md'
+        className='relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-[8px]'
         style={{ backgroundColor: config.bgColor }}
       >
         <config.icon
@@ -58,7 +58,7 @@ export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
           )}
         />
       </div>
-      <span className='font-medium text-sm leading-none'>{config.name}</span>
+      <span className='font-[460] text-sm leading-none'>{config.name}</span>
     </div>
   )
 

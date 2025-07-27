@@ -179,7 +179,7 @@ export function CreateMenu({
           <Button
             variant='ghost'
             size='icon'
-            className='h-9 w-9 shrink-0 rounded-lg border bg-card shadow-xs hover:bg-accent focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='h-8 w-8 shrink-0 rounded-[8px] border bg-background shadow-xs hover:bg-accent focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             title='Create Workflow (Hover, right-click, or long press for more options)'
             disabled={isCreatingWorkflow}
             onClick={handleButtonClick}
@@ -201,9 +201,9 @@ export function CreateMenu({
             'fade-in-0 zoom-in-95 data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
             'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2',
             'data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
-            'z-50 animate-in overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+            'z-50 animate-in overflow-hidden rounded-[8px] border bg-popover p-1 text-popover-foreground shadow-md',
             'data-[state=closed]:animate-out',
-            'w-48'
+            'w-42'
           )}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
@@ -212,7 +212,7 @@ export function CreateMenu({
         >
           <button
             className={cn(
-              'flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 font-[380] text-card-foreground text-sm outline-none hover:bg-secondary/50 focus:bg-secondary/50',
+              'flex h-8 w-full cursor-pointer items-center gap-2 rounded-[8px] px-3 py-2 font-[380] text-card-foreground text-sm outline-none hover:bg-secondary/50 focus:bg-secondary/50',
               isCreatingWorkflow && 'cursor-not-allowed opacity-50'
             )}
             onClick={handleCreateWorkflow}
@@ -224,7 +224,7 @@ export function CreateMenu({
 
           <button
             className={cn(
-              'flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 font-[380] text-card-foreground text-sm outline-none hover:bg-secondary/50 focus:bg-secondary/50',
+              'flex h-8 w-full cursor-pointer items-center gap-2 rounded-[8px] px-3 py-2 font-[380] text-card-foreground text-sm outline-none hover:bg-secondary/50 focus:bg-secondary/50',
               isCreating && 'cursor-not-allowed opacity-50'
             )}
             onClick={handleCreateFolder}
@@ -236,7 +236,7 @@ export function CreateMenu({
 
           {userPermissions.canEdit && (
             <button
-              className='flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 font-[380] text-card-foreground text-sm outline-none hover:bg-secondary/50 focus:bg-secondary/50'
+              className='flex h-8 w-full cursor-pointer items-center gap-2 rounded-[8px] px-3 py-2 font-[380] text-card-foreground text-sm outline-none hover:bg-secondary/50 focus:bg-secondary/50'
               onClick={handleImportWorkflow}
             >
               <Upload className='h-4 w-4' />

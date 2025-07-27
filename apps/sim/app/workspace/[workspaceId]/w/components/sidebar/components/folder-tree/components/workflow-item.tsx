@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
+import { Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
-import { WorkflowContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import { useFolderStore, useIsWorkflowSelected } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -43,6 +45,7 @@ export function WorkflowItem({
   const { selectedWorkflows, selectOnly, toggleWorkflowSelection } = useFolderStore()
   const isSelected = useIsWorkflowSelected(workflow.id)
   const { updateWorkflow } = useWorkflowRegistry()
+  const userPermissions = useUserPermissionsContext()
 
   // Update editValue when workflow name changes
   useEffect(() => {
@@ -156,7 +159,7 @@ export function WorkflowItem({
             href={`/workspace/${workspaceId}/w/${workflow.id}`}
             data-workflow-id={workflow.id}
             className={clsx(
-              'mx-auto mb-1 flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
+              'mx-auto mb-1 flex h-8 w-8 items-center justify-center rounded-[8px] transition-colors',
               active && !isDragOver
                 ? 'bg-accent text-foreground'
                 : 'text-muted-foreground hover:bg-accent/50',
@@ -171,7 +174,7 @@ export function WorkflowItem({
             onClick={handleClick}
           >
             <div
-              className='h-[14px] w-[14px] flex-shrink-0 rounded'
+              className='h-[14px] w-[14px] flex-shrink-0 rounded-[8px]'
               style={{ backgroundColor: workflow.color }}
             />
           </Link>
@@ -187,21 +190,21 @@ export function WorkflowItem({
   }
 
   return (
-    <div className='group mb-1'>
+    <div className='mb-1'>
       <div
         className={clsx(
-          'flex h-9 items-center rounded-lg px-2 py-2 font-medium text-sm transition-colors',
+          'flex h-8 items-center rounded-[8px] px-2 py-2 font-[460] font-sans text-sm transition-colors',
           active && !isDragOver
             ? 'bg-accent text-foreground'
             : 'text-muted-foreground hover:bg-accent/50',
           isSelected && selectedWorkflows.size > 1 && !active && !isDragOver ? 'bg-accent/70' : '',
           isDragging ? 'opacity-50' : '',
           'cursor-pointer',
-          isFirstItem ? 'mr-[44px]' : ''
+          isFirstItem ? 'mr-[36px]' : ''
         )}
         style={{
           maxWidth: isFirstItem
-            ? `${164 - (level >= 0 ? (level + 1) * 20 + 8 : 0) - (level > 0 ? 8 : 0)}px`
+            ? `${166 - (level >= 0 ? (level + 1) * 20 + 8 : 0) - (level > 0 ? 8 : 0)}px`
             : `${206 - (level >= 0 ? (level + 1) * 20 + 8 : 0) - (level > 0 ? 8 : 0)}px`,
         }}
         draggable={!isMarketplace && !isEditing}
@@ -215,7 +218,7 @@ export function WorkflowItem({
           onClick={handleClick}
         >
           <div
-            className='mr-2 h-[14px] w-[14px] flex-shrink-0 rounded'
+            className='mr-2 h-[14px] w-[14px] flex-shrink-0 rounded-[8px]'
             style={{ backgroundColor: workflow.color }}
           />
           {isEditing ? (
@@ -225,7 +228,7 @@ export function WorkflowItem({
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleInputBlur}
-              className={`min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 ${
+              className={`min-w-0 flex-1 border-0 bg-transparent p-0 font-[460] font-sans text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 ${
                 active && !isDragOver ? 'text-foreground' : 'text-muted-foreground'
               }`}
               maxLength={100}
@@ -237,7 +240,7 @@ export function WorkflowItem({
               spellCheck='false'
             />
           ) : (
-            <span className='min-w-0 flex-1 select-none truncate'>
+            <span className='min-w-0 flex-1 select-none truncate font-[460] font-sans'>
               {workflow.name}
               {isMarketplace && ' (Preview)'}
             </span>
@@ -246,7 +249,20 @@ export function WorkflowItem({
 
         {!isMarketplace && !isEditing && (
           <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
-            <WorkflowContextMenu onStartEdit={handleStartEdit} />
+            {userPermissions.canEdit && (
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-4 w-4 p-0 opacity-0 transition-opacity hover:bg-transparent hover:opacity-100 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleStartEdit()
+                }}
+              >
+                <Pencil className='h-2.5 w-2.5 text-muted-foreground' />
+                <span className='sr-only'>Rename workflow</span>
+              </Button>
+            )}
           </div>
         )}
       </div>

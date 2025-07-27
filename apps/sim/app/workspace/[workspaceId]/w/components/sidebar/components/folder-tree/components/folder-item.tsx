@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { Folder, FolderOpen } from 'lucide-react'
+import { Folder, FolderOpen, Pencil, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   AlertDialog,
@@ -14,9 +14,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
-import { FolderContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('FolderItem')
@@ -58,6 +59,7 @@ export function FolderItem({
   const isExpanded = expandedFolders.has(folder.id)
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pendingStateRef = useRef<boolean | null>(null)
+  const userPermissions = useUserPermissionsContext()
 
   // Update editValue when folder name changes
   useEffect(() => {
@@ -210,7 +212,7 @@ export function FolderItem({
           <TooltipTrigger asChild>
             <div
               className={clsx(
-                'group mx-auto mb-1 flex h-9 w-9 cursor-pointer items-center justify-center',
+                'group mx-auto mb-1 flex h-8 w-8 cursor-pointer items-center justify-center',
                 isDragging ? 'opacity-50' : ''
               )}
               onDragOver={onDragOver}
@@ -274,15 +276,15 @@ export function FolderItem({
 
   return (
     <>
-      <div className='group mb-1' onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      <div className='mb-1' onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
         <div
           className={clsx(
-            'flex h-9 cursor-pointer items-center rounded-lg px-2 py-2 text-sm transition-colors hover:bg-accent/50',
+            'flex h-8 cursor-pointer items-center rounded-[8px] px-2 py-2 font-[460] font-sans text-sm transition-colors hover:bg-accent/50',
             isDragging ? 'opacity-50' : '',
-            isFirstItem ? 'mr-[44px]' : ''
+            isFirstItem ? 'mr-[36px]' : ''
           )}
           style={{
-            maxWidth: isFirstItem ? `${164 - level * 20}px` : `${206 - level * 20}px`,
+            maxWidth: isFirstItem ? `${166 - level * 20}px` : `${206 - level * 20}px`,
           }}
           onClick={handleClick}
           draggable={!isEditing}
@@ -304,7 +306,7 @@ export function FolderItem({
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleInputBlur}
-              className='min-w-0 flex-1 border-0 bg-transparent p-0 text-muted-foreground text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='min-w-0 flex-1 border-0 bg-transparent p-0 font-[460] font-sans text-muted-foreground text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
               maxLength={50}
               disabled={isRenaming}
               onClick={(e) => e.stopPropagation()} // Prevent folder toggle when clicking input
@@ -314,21 +316,44 @@ export function FolderItem({
               spellCheck='false'
             />
           ) : (
-            <span className='min-w-0 flex-1 select-none truncate text-muted-foreground'>
+            <span className='min-w-0 flex-1 select-none truncate font-[460] font-sans text-muted-foreground'>
               {folder.name}
             </span>
           )}
 
           {!isEditing && (
-            <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
-              <FolderContextMenu
-                folderId={folder.id}
-                folderName={folder.name}
-                onCreateWorkflow={onCreateWorkflow}
-                onDelete={handleDelete}
-                onStartEdit={handleStartEdit}
-                level={level}
-              />
+            <div
+              className='flex items-center justify-center gap-1'
+              onClick={(e) => e.stopPropagation()}
+            >
+              {userPermissions.canEdit && (
+                <>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    className='h-4 w-4 p-0 opacity-0 transition-opacity hover:bg-transparent hover:opacity-100 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleStartEdit()
+                    }}
+                  >
+                    <Pencil className='h-2.5 w-2.5 text-muted-foreground' />
+                    <span className='sr-only'>Rename folder</span>
+                  </Button>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    className='h-4 w-4 p-0 opacity-0 transition-opacity hover:bg-transparent hover:text-red-500 hover:opacity-100 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete()
+                    }}
+                  >
+                    <Trash2 className='h-2.5 w-2.5 text-muted-foreground' />
+                    <span className='sr-only'>Delete folder</span>
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>
