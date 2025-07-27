@@ -84,43 +84,35 @@ export function KnowledgeTagFilter({
   }
 
   return (
-    <div className='space-y-3'>
-      <Label className='font-medium text-muted-foreground text-xs'>Tag Filter</Label>
+    <div className='space-y-2'>
+      {/* Tag Name Selector */}
+      <Select
+        value={tagName}
+        onValueChange={handleTagNameChange}
+        disabled={disabled || isConnecting || isLoading}
+      >
+        <SelectTrigger className='text-sm'>
+          <SelectValue placeholder='Select tag' />
+        </SelectTrigger>
+        <SelectContent>
+          {tagDefinitions.map((tag) => (
+            <SelectItem key={tag.id} value={tag.displayName}>
+              {tag.displayName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-      <div className='grid grid-cols-2 gap-2'>
-        {/* Tag Name Selector */}
-        <div className='space-y-1'>
-          <Label className='text-muted-foreground text-xs'>Tag Name</Label>
-          <Select
-            value={tagName}
-            onValueChange={handleTagNameChange}
-            disabled={disabled || isConnecting || isLoading}
-          >
-            <SelectTrigger className='text-sm'>
-              <SelectValue placeholder='Select tag' />
-            </SelectTrigger>
-            <SelectContent>
-              {tagDefinitions.map((tag) => (
-                <SelectItem key={tag.id} value={tag.displayName}>
-                  {tag.displayName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Tag Value Input */}
-        <div className='space-y-1'>
-          <Label className='text-muted-foreground text-xs'>Tag Value</Label>
-          <Input
-            value={tagValue}
-            onChange={(e) => handleTagValueChange(e.target.value)}
-            placeholder='Enter value'
-            disabled={disabled || isConnecting}
-            className='text-sm'
-          />
-        </div>
-      </div>
+      {/* Tag Value Input - only show if tag is selected */}
+      {tagName && (
+        <Input
+          value={tagValue}
+          onChange={(e) => handleTagValueChange(e.target.value)}
+          placeholder={`Enter ${tagName} value`}
+          disabled={disabled || isConnecting}
+          className='text-sm'
+        />
+      )}
     </div>
   )
 }

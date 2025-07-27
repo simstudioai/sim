@@ -20,6 +20,7 @@ import { FileUpload } from './components/file-upload'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
 import { KnowledgeBaseSelector } from './components/knowledge-base-selector/knowledge-base-selector'
 import { KnowledgeTagFilter } from './components/knowledge-tag-filter/knowledge-tag-filter'
+import { KnowledgeTagFilters } from './components/knowledge-tag-filters/knowledge-tag-filters'
 import { LongInput } from './components/long-input'
 import { ProjectSelectorInput } from './components/project-selector/project-selector-input'
 import { ResponseFormat } from './components/response/response-format'
@@ -356,6 +357,17 @@ export function SubBlock({
       case 'knowledge-tag-filter':
         return (
           <KnowledgeTagFilter
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
+            isConnecting={isConnecting}
+          />
+        )
+      case 'knowledge-tag-filters':
+        return (
+          <KnowledgeTagFilters
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}

@@ -28,8 +28,8 @@ export const KnowledgeBlock: BlockConfig = {
       },
       params: (params) => {
         // Validate required fields for each operation
-        if (params.operation === 'search' && !params.knowledgeBaseIds) {
-          throw new Error('Knowledge base IDs are required for search operation')
+        if (params.operation === 'search' && !params.knowledgeBaseId) {
+          throw new Error('Knowledge base ID is required for search operation')
         }
         if (
           (params.operation === 'upload_chunk' || params.operation === 'create_document') &&
@@ -74,21 +74,14 @@ export const KnowledgeBlock: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', required: true },
-    knowledgeBaseIds: { type: 'string', required: false },
     knowledgeBaseId: { type: 'string', required: false },
     query: { type: 'string', required: false },
     topK: { type: 'number', required: false },
     documentId: { type: 'string', required: false },
     content: { type: 'string', required: false },
     name: { type: 'string', required: false },
-    // Tag filters for search
-    tag1: { type: 'string', required: false },
-    tag2: { type: 'string', required: false },
-    tag3: { type: 'string', required: false },
-    tag4: { type: 'string', required: false },
-    tag5: { type: 'string', required: false },
-    tag6: { type: 'string', required: false },
-    tag7: { type: 'string', required: false },
+    // Dynamic tag filters for search
+    tagFilters: { type: 'string', required: false },
     // Tag values for create document
     createTag1: { type: 'string', required: false },
     createTag2: { type: 'string', required: false },
@@ -117,22 +110,13 @@ export const KnowledgeBlock: BlockConfig = {
       value: () => 'search',
     },
     {
-      id: 'knowledgeBaseIds',
-      title: 'Knowledge Bases',
-      type: 'knowledge-base-selector',
-      layout: 'full',
-      placeholder: 'Select knowledge bases',
-      multiSelect: true,
-      condition: { field: 'operation', value: 'search' },
-    },
-    {
       id: 'knowledgeBaseId',
       title: 'Knowledge Base',
       type: 'knowledge-base-selector',
       layout: 'full',
       placeholder: 'Select knowledge base',
       multiSelect: false,
-      condition: { field: 'operation', value: ['upload_chunk', 'create_document'] },
+      condition: { field: 'operation', value: ['search', 'upload_chunk', 'create_document'] },
     },
     {
       id: 'query',
@@ -151,65 +135,11 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'search' },
     },
     {
-      id: 'tag1',
-      title: 'Tag 1 Filter', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Filter by tag 1',
-      condition: { field: 'operation', value: 'search' },
-      mode: 'advanced',
-    },
-    {
-      id: 'tag2',
-      title: 'Tag 2 Filter', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Filter by tag 2',
-      condition: { field: 'operation', value: 'search' },
-      mode: 'advanced',
-    },
-    {
-      id: 'tag3',
-      title: 'Tag 3 Filter', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Filter by tag 3',
-      condition: { field: 'operation', value: 'search' },
-      mode: 'advanced',
-    },
-    {
-      id: 'tag4',
-      title: 'Tag 4 Filter', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Filter by tag 4',
-      condition: { field: 'operation', value: 'search' },
-      mode: 'advanced',
-    },
-    {
-      id: 'tag5',
-      title: 'Tag 5 Filter', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Filter by tag 5',
-      condition: { field: 'operation', value: 'search' },
-      mode: 'advanced',
-    },
-    {
-      id: 'tag6',
-      title: 'Tag 6 Filter', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Filter by tag 6',
-      condition: { field: 'operation', value: 'search' },
-      mode: 'advanced',
-    },
-    {
-      id: 'tag7',
-      title: 'Tag 7 Filter', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Filter by tag 7',
+      id: 'tagFilters',
+      title: 'Tag Filters',
+      type: 'knowledge-tag-filters',
+      layout: 'full',
+      placeholder: 'Add tag filters',
       condition: { field: 'operation', value: 'search' },
       mode: 'advanced',
     },
