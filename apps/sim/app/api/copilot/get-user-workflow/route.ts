@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm'
+import { dump as yamlDump } from 'js-yaml'
 import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
@@ -145,44 +146,15 @@ export async function getUserWorkflow(params: any) {
     {}
   )
 
-  // Prepare response with clear context markers
-  const response: any = {
-    workflowContext: 'USER_SPECIFIC_WORKFLOW',
-    note: 'This data represents only the blocks and configurations that the user has actually built in their current workflow, not all available Sim Studio capabilities.',
-    yaml,
-    format: 'yaml',
-    summary: {
-      workflowName: workflowRecord.name,
-      blockCount: Object.keys(workflowState.blocks).length,
-      edgeCount: (workflowState.edges || []).length,
-      blockTypes,
-      categories,
-      hasLoops: Object.keys(workflowState.loops || {}).length > 0,
-      hasParallels: Object.keys(workflowState.parallels || {}).length > 0,
-    },
-    userBuiltBlocks: blockSchemas,
-  }
-
-  // Add metadata if requested
-  if (includeMetadata) {
-    response.metadata = {
-      workflowId: workflowRecord.id,
-      name: workflowRecord.name,
-      description: workflowRecord.description,
-      workspaceId: workflowRecord.workspaceId,
-      createdAt: workflowRecord.createdAt,
-      updatedAt: workflowRecord.updatedAt,
-    }
-  }
-
-  logger.info('Successfully fetched user workflow YAML', {
+  logger.info('Successfully fetched user workflow as YAML', {
     workflowId,
-    blockCount: response.summary.blockCount,
+    blockCount: Object.keys(workflowState.blocks).length,
     yamlLength: yaml.length,
   })
 
+  // Return the condensed YAML format directly, just like the YAML editor does
   return {
     success: true,
-    output: response,
+    data: yaml,
   }
 }
