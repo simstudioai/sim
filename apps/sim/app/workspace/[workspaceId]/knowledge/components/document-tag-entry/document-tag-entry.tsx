@@ -75,7 +75,7 @@ export function DocumentTagEntry({
 
     // Create definitions for tags that have display names
     const definitions: TagDefinitionInput[] = currentTags
-      .filter((tag) => tag && tag.displayName && tag.displayName.trim())
+      .filter((tag) => tag?.displayName?.trim())
       .map((tag) => ({
         tagSlot: tag.slot,
         displayName: tag.displayName.trim(),

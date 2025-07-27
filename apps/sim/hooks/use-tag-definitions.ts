@@ -76,7 +76,7 @@ export function useTagDefinitions(
 
       // Simple validation
       const validDefinitions = (definitions || []).filter(
-        (def) => def && def.tagSlot && def.displayName && def.displayName.trim()
+        (def) => def?.tagSlot && def.displayName && def.displayName.trim()
       )
 
       try {

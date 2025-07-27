@@ -87,7 +87,7 @@ export function KnowledgeTagFilters({
     return (
       <div className='space-y-1'>
         <Label className='font-medium text-muted-foreground text-xs'>Tag Filters</Label>
-        <div className='text-sm text-muted-foreground'>
+        <div className='text-muted-foreground text-sm'>
           {filters.length > 0 ? `${filters.length} filter(s)` : 'No filters'}
         </div>
       </div>
@@ -105,20 +105,20 @@ export function KnowledgeTagFilters({
           disabled={disabled || isConnecting || isLoading}
           className='h-6 px-2 text-xs'
         >
-          <Plus className='h-3 w-3 mr-1' />
+          <Plus className='mr-1 h-3 w-3' />
           Add Filter
         </Button>
       </div>
 
       {filters.length === 0 && (
-        <div className='text-center py-4 text-muted-foreground text-sm'>
+        <div className='py-4 text-center text-muted-foreground text-sm'>
           No tag filters. Click "Add Filter" to add one.
         </div>
       )}
 
       <div className='space-y-2'>
         {filters.map((filter) => (
-          <div key={filter.id} className='flex items-center gap-2 p-2 border rounded-md'>
+          <div key={filter.id} className='flex items-center gap-2 rounded-md border p-2'>
             {/* Tag Name Selector */}
             <div className='flex-1'>
               <Select
@@ -126,7 +126,7 @@ export function KnowledgeTagFilters({
                 onValueChange={(value) => updateFilter(filter.id, 'tagName', value)}
                 disabled={disabled || isConnecting || isLoading}
               >
-                <SelectTrigger className='text-sm h-8'>
+                <SelectTrigger className='h-8 text-sm'>
                   <SelectValue placeholder='Select tag' />
                 </SelectTrigger>
                 <SelectContent>
@@ -146,7 +146,7 @@ export function KnowledgeTagFilters({
                 onChange={(e) => updateFilter(filter.id, 'tagValue', e.target.value)}
                 placeholder={filter.tagName ? `Enter ${filter.tagName} value` : 'Enter value'}
                 disabled={disabled || isConnecting}
-                className='text-sm h-8'
+                className='h-8 text-sm'
               />
             </div>
 
