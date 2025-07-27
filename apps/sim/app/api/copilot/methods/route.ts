@@ -24,7 +24,7 @@ const MethodExecutionSchema = z.object({
 // Simple internal API key authentication
 function checkInternalApiKey(req: NextRequest) {
   const apiKey = req.headers.get('x-api-key')
-  const expectedApiKey = process.env.INTERNAL_API_KEY
+  const expectedApiKey = process.env.INTERNAL_API_SECRET
   
   if (!expectedApiKey) {
     return { success: false, error: 'Internal API key not configured' }

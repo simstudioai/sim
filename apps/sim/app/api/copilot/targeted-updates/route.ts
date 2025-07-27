@@ -10,16 +10,6 @@ const logger = createLogger('TargetedUpdatesAPI')
 
 export async function targetedUpdates(params: any) {
   try {
-    // Get authenticated user ID from params (assumes authentication is handled by the methods route)
-    const authenticatedUserId = params.userId
-    
-    if (!authenticatedUserId) {
-      return {
-        success: false,
-        error: 'User authentication required',
-      }
-    }
-
     const { operations, workflowId } = params
 
     if (!operations || !Array.isArray(operations)) {
@@ -37,24 +27,30 @@ export async function targetedUpdates(params: any) {
     }
 
     logger.info('Processing targeted update request', { 
-      userId: authenticatedUserId 
+      workflowId,
+      operationCount: operations.length 
     })
 
     // Execute the copilot tool
     const result = await executeCopilotTool('targeted_updates', {
       operations: params.operations,
       _context: { 
-        workflowId: params.workflowId,
-        userId: authenticatedUserId 
+        workflowId: params.workflowId
       },
     })
 
     logger.info('Targeted update completed successfully')
 
-    return {
-      success: true,
-      data: result,
+    // Return the tool result directly if successful
+    if (result.success && result.data) {
+      return {
+        success: true,
+        data: result.data,
+      }
     }
+
+    // Return error result as-is
+    return result
   } catch (error) {
     logger.error('Targeted update failed:', error)
     return {

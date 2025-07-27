@@ -240,23 +240,43 @@ const sseHandlers: Record<string, SSEHandler> = {
       })
 
       // Handle successful preview_workflow tool result
-      if (toolCall.name === 'preview_workflow' && parsedResult?.yamlContent) {
-        logger.info('Setting preview YAML from tool_result event', {
-          yamlLength: parsedResult.yamlContent.length,
-          yamlPreview: parsedResult.yamlContent.substring(0, 100),
-        })
-        get().setPreviewYaml(parsedResult.yamlContent)
-        get().updateDiffStore(parsedResult.yamlContent)
+      if (toolCall.name === 'preview_workflow') {
+        // Check both direct yamlContent and nested data.yamlContent
+        const yamlContent = parsedResult?.yamlContent || parsedResult?.data?.yamlContent
+        if (yamlContent) {
+          logger.info('Setting preview YAML from tool_result event', {
+            yamlLength: yamlContent.length,
+            yamlPreview: yamlContent.substring(0, 100),
+          })
+          get().setPreviewYaml(yamlContent)
+          get().updateDiffStore(yamlContent)
+        } else {
+          logger.warn('No yamlContent found in preview_workflow result', {
+            hasDirectYaml: !!parsedResult?.yamlContent,
+            hasNestedYaml: !!parsedResult?.data?.yamlContent,
+            resultStructure: Object.keys(parsedResult || {})
+          })
+        }
       }
 
       // Handle successful targeted_updates tool result
-      if (toolCall.name === 'targeted_updates' && parsedResult?.yamlContent) {
-        logger.info('Setting preview YAML from targeted_updates tool_result event', {
-          yamlLength: parsedResult.yamlContent.length,
-          yamlPreview: parsedResult.yamlContent.substring(0, 200),
-        })
-        get().setPreviewYaml(parsedResult.yamlContent)
-        get().updateDiffStore(parsedResult.yamlContent)
+      if (toolCall.name === 'targeted_updates') {
+        // Check both direct yamlContent and nested data.yamlContent
+        const yamlContent = parsedResult?.yamlContent || parsedResult?.data?.yamlContent
+        if (yamlContent) {
+          logger.info('Setting preview YAML from targeted_updates tool_result event', {
+            yamlLength: yamlContent.length,
+            yamlPreview: yamlContent.substring(0, 200),
+          })
+          get().setPreviewYaml(yamlContent)
+          get().updateDiffStore(yamlContent)
+        } else {
+          logger.warn('No yamlContent found in targeted_updates result', {
+            hasDirectYaml: !!parsedResult?.yamlContent,
+            hasNestedYaml: !!parsedResult?.data?.yamlContent,
+            resultStructure: Object.keys(parsedResult || {})
+          })
+        }
       }
     } else {
       // Tool execution failed
@@ -344,22 +364,18 @@ const sseHandlers: Record<string, SSEHandler> = {
     const toolData = data.data
     if (!toolData) return
     
-    // Log partial tool calls for debugging
-    if (toolData.partial) {
-      logger.debug('Received partial tool_call', {
-        id: toolData.id,
-        name: toolData.name,
-        partial: true
-      })
-      return
-    }
-    
     // Check if this tool call already exists (in case of duplicate events)
     const existingToolCall = context.toolCalls.find(tc => tc.id === toolData.id)
     if (existingToolCall) {
-      logger.warn('Tool call already exists, skipping duplicate', {
+      // If it's a partial update, we might want to update the existing tool call
+      if (toolData.partial && toolData.arguments) {
+        // Update partial arguments if needed
+        existingToolCall.input = { ...existingToolCall.input, ...toolData.arguments }
+      }
+      logger.debug('Tool call already exists, skipping or updating', {
         id: toolData.id,
         name: toolData.name,
+        partial: toolData.partial,
         existingState: existingToolCall.state
       })
       return
@@ -368,7 +384,8 @@ const sseHandlers: Record<string, SSEHandler> = {
     logger.info('Creating tool call from tool_call event', {
       id: toolData.id,
       name: toolData.name,
-      hasArguments: !!toolData.arguments
+      hasArguments: !!toolData.arguments,
+      partial: toolData.partial
     })
     
     const toolCall = {
@@ -440,10 +457,33 @@ const sseHandlers: Record<string, SSEHandler> = {
         updateStreamingMessage(set, context)
 
         // Handle preview_workflow completion
-        if (context.toolCallBuffer.name === 'preview_workflow' && context.toolCallBuffer.input?.yamlContent) {
-          logger.info('Setting preview YAML from completed preview_workflow tool call')
-          get().setPreviewYaml(context.toolCallBuffer.input.yamlContent)
-          get().updateDiffStore(context.toolCallBuffer.input.yamlContent)
+        if (context.toolCallBuffer.name === 'preview_workflow') {
+          // Check both direct yamlContent and nested data.yamlContent
+          const yamlContent = context.toolCallBuffer.input?.yamlContent || 
+                             context.toolCallBuffer.input?.data?.yamlContent
+          if (yamlContent) {
+            logger.info('Setting preview YAML from completed preview_workflow tool call', {
+              yamlLength: yamlContent.length,
+              yamlPreview: yamlContent.substring(0, 100)
+            })
+            get().setPreviewYaml(yamlContent)
+            get().updateDiffStore(yamlContent)
+          }
+        }
+
+        // Handle targeted_updates completion
+        if (context.toolCallBuffer.name === 'targeted_updates') {
+          // Check both direct yamlContent and nested data.yamlContent
+          const yamlContent = context.toolCallBuffer.input?.yamlContent || 
+                             context.toolCallBuffer.input?.data?.yamlContent
+          if (yamlContent) {
+            logger.info('Setting preview YAML from completed targeted_updates tool call', {
+              yamlLength: yamlContent.length,
+              yamlPreview: yamlContent.substring(0, 100)
+            })
+            get().setPreviewYaml(yamlContent)
+            get().updateDiffStore(yamlContent)
+          }
         }
       } catch (error) {
         logger.error('Error parsing tool call input:', error)
@@ -1634,7 +1674,18 @@ export const useCopilotStore = create<CopilotStore>()(
           // Import diff store dynamically to avoid circular dependencies
           const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
 
-          logger.info('Updating diff store with copilot YAML')
+          logger.info('Updating diff store with copilot YAML', {
+            yamlLength: yamlContent.length,
+            yamlPreview: yamlContent.substring(0, 200)
+          })
+
+          // Check current diff store state before update
+          const diffStoreBefore = useWorkflowDiffStore.getState()
+          logger.info('Diff store state before update:', {
+            isShowingDiff: diffStoreBefore.isShowingDiff,
+            isDiffReady: diffStoreBefore.isDiffReady,
+            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow
+          })
 
           // Generate diff analysis by comparing current vs proposed YAML
           let diffAnalysis = null
@@ -1642,6 +1693,11 @@ export const useCopilotStore = create<CopilotStore>()(
             // Get current workflow as YAML for comparison
             const { useWorkflowYamlStore } = await import('@/stores/workflows/yaml/store')
             const currentYaml = useWorkflowYamlStore.getState().getYaml()
+
+            logger.info('Got current workflow YAML for diff:', {
+              currentYamlLength: currentYaml?.length || 0,
+              hasCurrentYaml: !!currentYaml
+            })
 
             // Call the diff API to compare current vs proposed YAML
             const diffResponse = await fetch('/api/workflows/diff', {
@@ -1675,6 +1731,15 @@ export const useCopilotStore = create<CopilotStore>()(
           // The diff store now handles all YAML parsing and conversion internally
           const diffStore = useWorkflowDiffStore.getState()
           await diffStore.setProposedChanges(yamlContent, diffAnalysis)
+
+          // Check diff store state after update
+          const diffStoreAfter = useWorkflowDiffStore.getState()
+          logger.info('Diff store state after update:', {
+            isShowingDiff: diffStoreAfter.isShowingDiff,
+            isDiffReady: diffStoreAfter.isDiffReady,
+            hasDiffWorkflow: !!diffStoreAfter.diffWorkflow,
+            diffWorkflowBlockCount: diffStoreAfter.diffWorkflow ? Object.keys(diffStoreAfter.diffWorkflow.blocks).length : 0
+          })
 
           logger.info('Successfully updated diff store with proposed workflow changes')
         } catch (error) {

@@ -578,61 +578,26 @@ const targetedUpdatesTool: CopilotTool = {
         }
       }
 
-      // Get current workflow state from database
-      const { db } = await import('@/db')
-      const { workflow, workflowBlocks } = await import('@/db/schema')
-      const { eq } = await import('drizzle-orm')
+      // Get current workflow YAML directly by calling the function
+      const { getUserWorkflow } = await import('@/app/api/copilot/get-user-workflow/route')
+      
+      const getUserWorkflowResult = await getUserWorkflow({
+        workflowId: workflowId,
+        includeMetadata: false,
+      })
 
-      const workflowData = await db
-        .select()
-        .from(workflow)
-        .where(eq(workflow.id, workflowId))
-        .limit(1)
-
-      if (!workflowData.length) {
-        return {
-          success: false,
-          error: 'Workflow not found',
-        }
-      }
-
-      // Get current workflow YAML directly from the API endpoint (not the client-side store)
-      const workflowResponse = await fetch(
-        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/get-user-workflow`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            workflowId: workflowId,
-            includeMetadata: false,
-          }),
-        }
-      )
-
-      if (!workflowResponse.ok) {
-        return {
-          success: false,
-          error: `Failed to get current workflow YAML: ${workflowResponse.status} ${workflowResponse.statusText}`,
-        }
-      }
-
-      const getUserWorkflowResult = await workflowResponse.json()
-
-      if (!getUserWorkflowResult.success || !getUserWorkflowResult.output?.yaml) {
+      if (!getUserWorkflowResult.success || !getUserWorkflowResult.data) {
         return {
           success: false,
           error: 'Failed to get current workflow YAML',
         }
       }
 
-      const currentYaml = getUserWorkflowResult.output.yaml
+      const currentYaml = getUserWorkflowResult.data
 
       logger.info('Retrieved current workflow YAML', {
         yamlLength: currentYaml.length,
         yamlPreview: currentYaml.substring(0, 200),
-        getUserWorkflowData: getUserWorkflowResult.output,
       })
 
       // Apply operations to generate modified YAML
