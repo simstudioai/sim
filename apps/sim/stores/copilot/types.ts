@@ -192,7 +192,7 @@ export interface CopilotActions {
     isContinuation?: boolean
   ) => Promise<void>
   handleNewChatCreation: (newChatId: string) => Promise<void>
-  updateDiffStore: (yamlContent: string) => Promise<void>
+  updateDiffStore: (yamlContent: string, toolName?: string) => Promise<void>
 }
 
 /**

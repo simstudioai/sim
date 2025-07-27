@@ -25,6 +25,7 @@ interface WorkflowDiffState {
 
 interface WorkflowDiffActions {
   setProposedChanges: (yamlContent: string, diffAnalysis?: DiffAnalysis) => Promise<void>
+  mergeProposedChanges: (yamlContent: string, diffAnalysis?: DiffAnalysis) => Promise<void>
   clearDiff: () => void
   getCurrentWorkflowForCanvas: () => WorkflowState
   toggleDiffView: () => void
@@ -81,6 +82,45 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           // Reset isDiffReady on failure
           set({ isDiffReady: false })
           throw new Error(result.errors?.join(', ') || 'Failed to create diff')
+        }
+      },
+
+      mergeProposedChanges: async (yamlContent: string, diffAnalysis?: DiffAnalysis) => {
+        logger.info('Merging proposed changes via YAML')
+
+        // First, set isDiffReady to false to prevent premature rendering
+        set({ isDiffReady: false })
+
+        const result = await diffEngine.mergeDiffFromYaml(yamlContent, diffAnalysis)
+
+        if (result.success && result.diff) {
+          // Debug: Log the diff state being merged
+          const sampleBlockId = Object.keys(result.diff.proposedState.blocks)[0]
+          const sampleBlock = sampleBlockId ? result.diff.proposedState.blocks[sampleBlockId] : null
+          const sampleDiffStatus = sampleBlock ? (sampleBlock as any).is_diff : undefined
+
+          console.log('[DiffStore] Merging diff:', {
+            blockCount: Object.keys(result.diff.proposedState.blocks).length,
+            sampleBlockId,
+            sampleDiffStatus,
+            hasDiffAnalysis: !!result.diff.diffAnalysis,
+            timestamp: Date.now(),
+          })
+
+          // Set all state at once, with isDiffReady true to indicate everything is ready
+          set({
+            isShowingDiff: true,
+            isDiffReady: true, // Now it's safe to render
+            diffWorkflow: result.diff.proposedState,
+            diffAnalysis: result.diff.diffAnalysis || null,
+            diffMetadata: result.diff.metadata,
+          })
+          logger.info('Diff merged successfully')
+        } else {
+          logger.error('Failed to merge diff:', result.errors)
+          // Reset isDiffReady on failure
+          set({ isDiffReady: false })
+          throw new Error(result.errors?.join(', ') || 'Failed to merge diff')
         }
       },
 

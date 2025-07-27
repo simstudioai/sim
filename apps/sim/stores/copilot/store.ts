@@ -249,7 +249,7 @@ const sseHandlers: Record<string, SSEHandler> = {
             yamlPreview: yamlContent.substring(0, 100),
           })
           get().setPreviewYaml(yamlContent)
-          get().updateDiffStore(yamlContent)
+          get().updateDiffStore(yamlContent, 'preview_workflow')
         } else {
           logger.warn('No yamlContent found in preview_workflow result', {
             hasDirectYaml: !!parsedResult?.yamlContent,
@@ -269,7 +269,7 @@ const sseHandlers: Record<string, SSEHandler> = {
             yamlPreview: yamlContent.substring(0, 200),
           })
           get().setPreviewYaml(yamlContent)
-          get().updateDiffStore(yamlContent)
+          get().updateDiffStore(yamlContent, 'targeted_updates')
         } else {
           logger.warn('No yamlContent found in targeted_updates result', {
             hasDirectYaml: !!parsedResult?.yamlContent,
@@ -467,7 +467,7 @@ const sseHandlers: Record<string, SSEHandler> = {
               yamlPreview: yamlContent.substring(0, 100)
             })
             get().setPreviewYaml(yamlContent)
-            get().updateDiffStore(yamlContent)
+            get().updateDiffStore(yamlContent, 'preview_workflow')
           }
         }
 
@@ -482,7 +482,7 @@ const sseHandlers: Record<string, SSEHandler> = {
               yamlPreview: yamlContent.substring(0, 100)
             })
             get().setPreviewYaml(yamlContent)
-            get().updateDiffStore(yamlContent)
+            get().updateDiffStore(yamlContent, 'targeted_updates')
           }
         }
       } catch (error) {
@@ -1669,14 +1669,15 @@ export const useCopilotStore = create<CopilotStore>()(
       },
 
       // Update the diff store with proposed workflow changes
-      updateDiffStore: async (yamlContent: string) => {
+      updateDiffStore: async (yamlContent: string, toolName?: string) => {
         try {
           // Import diff store dynamically to avoid circular dependencies
           const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
 
           logger.info('Updating diff store with copilot YAML', {
             yamlLength: yamlContent.length,
-            yamlPreview: yamlContent.substring(0, 200)
+            yamlPreview: yamlContent.substring(0, 200),
+            toolName: toolName || 'unknown'
           })
 
           // Check current diff store state before update
@@ -1685,6 +1686,24 @@ export const useCopilotStore = create<CopilotStore>()(
             isShowingDiff: diffStoreBefore.isShowingDiff,
             isDiffReady: diffStoreBefore.isDiffReady,
             hasDiffWorkflow: !!diffStoreBefore.diffWorkflow
+          })
+
+          // Determine if we should clear or merge based on tool type and message context
+          const { messages } = get()
+          const currentMessage = messages[messages.length - 1]
+          const messageHasExistingEdits = currentMessage?.toolCalls?.some(
+            tc => (tc.name === 'preview_workflow' || tc.name === 'targeted_updates') && 
+                  tc.state !== 'executing'
+          ) || false
+
+          const shouldClearDiff = 
+            toolName === 'preview_workflow' || // preview_workflow always clears
+            (toolName === 'targeted_updates' && !messageHasExistingEdits) // first targeted_updates in message clears
+
+          logger.info('Diff merge strategy:', {
+            toolName,
+            messageHasExistingEdits,
+            shouldClearDiff
           })
 
           // Generate diff analysis by comparing current vs proposed YAML
@@ -1727,10 +1746,15 @@ export const useCopilotStore = create<CopilotStore>()(
             // Continue without diff analysis - blocks will be marked as unchanged
           }
 
-          // Set the proposed changes in the diff store
-          // The diff store now handles all YAML parsing and conversion internally
+          // Set or merge the proposed changes in the diff store based on the strategy
           const diffStore = useWorkflowDiffStore.getState()
-          await diffStore.setProposedChanges(yamlContent, diffAnalysis)
+          if (shouldClearDiff || !diffStoreBefore.diffWorkflow) {
+            // Use setProposedChanges which will create a new diff
+            await diffStore.setProposedChanges(yamlContent, diffAnalysis)
+          } else {
+            // Use mergeProposedChanges which will merge into existing diff
+            await diffStore.mergeProposedChanges(yamlContent, diffAnalysis)
+          }
 
           // Check diff store state after update
           const diffStoreAfter = useWorkflowDiffStore.getState()
