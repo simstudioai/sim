@@ -367,9 +367,9 @@ export async function POST(request: NextRequest) {
       operations: operations.map((op) => ({ type: op.operation_type, blockId: op.block_id })),
     })
 
-    const result = await executeCopilotTool('targeted_updates', {
+    const result = await targetedUpdates({
       operations,
-      _context: { workflowId },
+      workflowId,
     })
 
     return NextResponse.json(result)

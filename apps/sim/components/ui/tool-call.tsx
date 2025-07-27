@@ -5,7 +5,6 @@ import { CheckCircle, ChevronDown, ChevronRight, Loader2, Settings, XCircle } fr
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { getToolDisplayName } from '@/lib/tool-call-parser'
 import { cn } from '@/lib/utils'
 import type { ToolCallGroup, ToolCallState } from '@/types/tool-call'
 
@@ -132,7 +131,7 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
                   isError && 'text-red-800 dark:text-red-200'
                 )}
               >
-                {getToolDisplayName(toolCall.name, true)}
+                {toolCall.displayName || toolCall.name}
               </span>
               {toolCall.duration && (
                 <Badge
