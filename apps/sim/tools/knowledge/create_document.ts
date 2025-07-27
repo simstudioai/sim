@@ -57,6 +57,11 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       required: false,
       description: 'Tag 7 value for the document',
     },
+    documentTagsData: {
+      type: 'array',
+      required: false,
+      description: 'Structured tag data with names, types, and values',
+    },
   },
   request: {
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents`,
@@ -95,20 +100,31 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
 
       const dataUri = `data:text/plain;base64,${base64Content}`
 
+      // Handle tag data - either from structured documentTagsData or individual tag params
+      const tagData: Record<string, string> = {}
+
+      if (params.documentTagsData && Array.isArray(params.documentTagsData)) {
+        // Use structured tag data - pass it to the API for proper handling
+        // The API will create tag definitions and map to slots
+        tagData.documentTagsData = JSON.stringify(params.documentTagsData)
+      } else {
+        // Fallback to individual tag parameters
+        if (params.tag1) tagData.tag1 = params.tag1
+        if (params.tag2) tagData.tag2 = params.tag2
+        if (params.tag3) tagData.tag3 = params.tag3
+        if (params.tag4) tagData.tag4 = params.tag4
+        if (params.tag5) tagData.tag5 = params.tag5
+        if (params.tag6) tagData.tag6 = params.tag6
+        if (params.tag7) tagData.tag7 = params.tag7
+      }
+
       const documents = [
         {
           filename: documentName.endsWith('.txt') ? documentName : `${documentName}.txt`,
           fileUrl: dataUri,
           fileSize: contentBytes,
           mimeType: 'text/plain',
-          // Include tags if provided
-          tag1: params.tag1 || undefined,
-          tag2: params.tag2 || undefined,
-          tag3: params.tag3 || undefined,
-          tag4: params.tag4 || undefined,
-          tag5: params.tag5 || undefined,
-          tag6: params.tag6 || undefined,
-          tag7: params.tag7 || undefined,
+          ...tagData,
         },
       ]
 

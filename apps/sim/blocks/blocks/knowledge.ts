@@ -43,27 +43,26 @@ export const KnowledgeBlock: BlockConfig = {
           throw new Error('Document ID is required for upload_chunk operation')
         }
 
-        // For create_document operation, map createTag fields to tag fields
+        // For create_document operation, map documentTags to individual tag fields
         if (params.operation === 'create_document') {
           const mappedParams = { ...params }
 
-          // Map createTag fields to tag fields
-          if (params.createTag1) mappedParams.tag1 = params.createTag1
-          if (params.createTag2) mappedParams.tag2 = params.createTag2
-          if (params.createTag3) mappedParams.tag3 = params.createTag3
-          if (params.createTag4) mappedParams.tag4 = params.createTag4
-          if (params.createTag5) mappedParams.tag5 = params.createTag5
-          if (params.createTag6) mappedParams.tag6 = params.createTag6
-          if (params.createTag7) mappedParams.tag7 = params.createTag7
+          // Parse documentTags and pass to API for proper handling
+          if (params.documentTags) {
+            try {
+              const tags = JSON.parse(params.documentTags)
+              if (Array.isArray(tags)) {
+                // Pass the structured tag data to the API
+                // The API will handle tag definition creation and slot mapping
+                mappedParams.documentTagsData = tags
+              }
+            } catch (error) {
+              console.warn('Failed to parse documentTags:', error)
+            }
+          }
 
-          // Remove createTag fields from the final params
-          mappedParams.createTag1 = undefined
-          mappedParams.createTag2 = undefined
-          mappedParams.createTag3 = undefined
-          mappedParams.createTag4 = undefined
-          mappedParams.createTag5 = undefined
-          mappedParams.createTag6 = undefined
-          mappedParams.createTag7 = undefined
+          // Remove documentTags field from the final params
+          mappedParams.documentTags = undefined
 
           return mappedParams
         }
@@ -82,14 +81,8 @@ export const KnowledgeBlock: BlockConfig = {
     name: { type: 'string', required: false },
     // Dynamic tag filters for search
     tagFilters: { type: 'string', required: false },
-    // Tag values for create document
-    createTag1: { type: 'string', required: false },
-    createTag2: { type: 'string', required: false },
-    createTag3: { type: 'string', required: false },
-    createTag4: { type: 'string', required: false },
-    createTag5: { type: 'string', required: false },
-    createTag6: { type: 'string', required: false },
-    createTag7: { type: 'string', required: false },
+    // Document tags for create document (JSON string of tag objects)
+    documentTags: { type: 'string', required: false },
   },
   outputs: {
     results: 'json',
@@ -177,69 +170,13 @@ export const KnowledgeBlock: BlockConfig = {
       rows: 6,
       condition: { field: 'operation', value: ['create_document'] },
     },
-    // Tag inputs for Create Document (in advanced mode)
+    // Dynamic tag entry for Create Document
     {
-      id: 'createTag1',
-      title: 'Tag 1', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Enter tag 1 value',
+      id: 'documentTags',
+      title: 'Document Tags',
+      type: 'document-tag-entry',
+      layout: 'full',
       condition: { field: 'operation', value: 'create_document' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTag2',
-      title: 'Tag 2', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Enter tag 2 value',
-      condition: { field: 'operation', value: 'create_document' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTag3',
-      title: 'Tag 3', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Enter tag 3 value',
-      condition: { field: 'operation', value: 'create_document' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTag4',
-      title: 'Tag 4', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Enter tag 4 value',
-      condition: { field: 'operation', value: 'create_document' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTag5',
-      title: 'Tag 5', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Enter tag 5 value',
-      condition: { field: 'operation', value: 'create_document' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTag6',
-      title: 'Tag 6', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Enter tag 6 value',
-      condition: { field: 'operation', value: 'create_document' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTag7',
-      title: 'Tag 7', // This will be dynamically updated by the component
-      type: 'knowledge-tag-filter',
-      layout: 'half',
-      placeholder: 'Enter tag 7 value',
-      condition: { field: 'operation', value: 'create_document' },
-      mode: 'advanced',
     },
   ],
 }

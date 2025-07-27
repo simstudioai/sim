@@ -13,6 +13,7 @@ import { ConditionInput } from './components/condition-input'
 import { CredentialSelector } from './components/credential-selector/credential-selector'
 import { DateInput } from './components/date-input'
 import { DocumentSelector } from './components/document-selector/document-selector'
+import { DocumentTagEntry } from './components/document-tag-entry/document-tag-entry'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector/file-selector-input'
@@ -368,6 +369,18 @@ export function SubBlock({
       case 'knowledge-tag-filters':
         return (
           <KnowledgeTagFilters
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
+            isConnecting={isConnecting}
+          />
+        )
+
+      case 'document-tag-entry':
+        return (
+          <DocumentTagEntry
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}
