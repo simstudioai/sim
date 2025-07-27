@@ -989,13 +989,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     try {
-      // Get the session cookie from document.cookie
-      const sessionCookie = document.cookie
-      
       console.log('Test Auth Debug:', {
         workflowId: activeWorkflowId,
         userId: session.user.id,
-        cookieLength: sessionCookie.length,
       })
 
       const response = await fetch('/api/test-auth', {
@@ -1004,7 +1000,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          cookie: sessionCookie,
           workflowId: activeWorkflowId,
           userId: session.user.id,
         }),

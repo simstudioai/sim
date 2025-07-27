@@ -3,10 +3,14 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('SimAgentClient')
 
+// Base URL for the sim-agent service
+const SIM_AGENT_BASE_URL = env.NODE_ENV === 'development' 
+  ? 'http://localhost:8000'
+  : (env.NEXT_PUBLIC_SIM_AGENT_URL || 'https://sim-agent.vercel.app')
+
 export interface SimAgentRequest {
   workflowId: string
   userId?: string
-  cookie?: string
   data?: Record<string, any>
 }
 
@@ -22,11 +26,7 @@ class SimAgentClient {
   private apiKey: string
 
   constructor() {
-    // Determine base URL based on environment
-    this.baseUrl = env.NODE_ENV === 'development' 
-      ? 'http://localhost:8000'
-      : (env.NEXT_PUBLIC_SIM_AGENT_URL || 'https://sim-agent.vercel.app')
-      
+    this.baseUrl = SIM_AGENT_BASE_URL
     this.apiKey = env.SIM_AGENT_API_KEY || ''
     
     if (!this.apiKey) {
@@ -43,11 +43,10 @@ class SimAgentClient {
       method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
       body?: Record<string, any>
       headers?: Record<string, string>
-      cookie?: string
     } = {}
   ): Promise<SimAgentResponse<T>> {
     const requestId = crypto.randomUUID().slice(0, 8)
-    const { method = 'POST', body, headers = {}, cookie } = options
+    const { method = 'POST', body, headers = {} } = options
 
     try {
       const url = `${this.baseUrl}${endpoint}`
@@ -58,16 +57,10 @@ class SimAgentClient {
         ...headers,
       }
 
-      // Add cookie if provided
-      if (cookie) {
-        requestHeaders['Cookie'] = cookie
-      }
-
       logger.info(`[${requestId}] Making request to sim-agent`, {
         url,
         method,
         hasApiKey: !!this.apiKey,
-        hasCookie: !!cookie,
         hasBody: !!body,
       })
 
@@ -126,12 +119,10 @@ class SimAgentClient {
     return this.makeRequest('/api/test-auth', {
       method: 'POST',
       body: {
-        cookie: request.cookie,
         workflowId: request.workflowId,
         userId: request.userId,
         ...request.data,
       },
-      cookie: request.cookie,
     })
   }
 
@@ -159,7 +150,6 @@ class SimAgentClient {
         userId: request.userId,
         ...request.data,
       },
-      cookie: request.cookie,
     })
   }
 

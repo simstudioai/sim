@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     // Get session for user info
     const session = await getSession()
     const body = await request.json()
-    const { cookie, workflowId, userId } = body
+    const { workflowId, userId } = body
 
     if (!workflowId) {
       return NextResponse.json(
@@ -24,15 +24,13 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Test auth request`, {
       workflowId,
       userId: userId || session?.user?.id,
-      hasCookie: !!cookie,
       hasSession: !!session,
     })
 
-    // Use the sim-agent client
+    // Use the sim-agent client - only send data, no cookies
     const result = await simAgentClient.testAuth({
       workflowId,
       userId: userId || session?.user?.id,
-      cookie: cookie || request.headers.get('Cookie') || '',
     })
 
     logger.info(`[${requestId}] Sim-agent response`, {
