@@ -152,6 +152,8 @@ export async function getUserWorkflow(params: any) {
     yamlLength: yaml.length,
   })
 
+  logger.info('YAML', { yaml })
+
   // Return the condensed YAML format directly, just like the YAML editor does
   return {
     success: true,

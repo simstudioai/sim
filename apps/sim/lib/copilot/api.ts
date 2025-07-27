@@ -356,11 +356,12 @@ export async function sendStreamingMessage(
 ): Promise<StreamingResponse> {
   try {
     const { abortSignal, ...requestBody } = request
-    const response = await fetch('/api/copilot', {
+    const response = await fetch('/api/copilot/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...requestBody, stream: true }),
       signal: abortSignal,
+      credentials: 'include', // Include cookies for session authentication
     })
 
     if (!response.ok) {
@@ -446,6 +447,7 @@ export async function sendStreamingDocsMessage(
         stream: true,
       }),
       signal: abortSignal,
+      credentials: 'include', // Include cookies for session authentication
     })
 
     if (!response.ok) {

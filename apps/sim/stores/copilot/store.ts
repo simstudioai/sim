@@ -121,6 +121,396 @@ function getToolDisplayName(toolName: string): string {
 }
 
 /**
+ * SSE event handlers for different event types
+ */
+interface StreamingContext {
+  messageId: string
+  accumulatedContent: string
+  toolCalls: any[]
+  contentBlocks: any[]
+  currentTextBlock: any | null
+  currentBlockType: 'text' | 'tool_use' | null
+  toolCallBuffer: any | null
+  newChatId?: string
+  doneEventCount: number
+  streamComplete?: boolean
+}
+
+interface SSEHandler {
+  (data: any, context: StreamingContext, get: () => CopilotStore, set: any): Promise<void> | void
+}
+
+const sseHandlers: Record<string, SSEHandler> = {
+  // Handle chat ID event (custom event)
+  chat_id: async (data, context, get) => {
+    context.newChatId = data.chatId
+    logger.info('Received chatId from stream:', context.newChatId)
+
+    const { currentChat } = get()
+    if (!currentChat && context.newChatId) {
+      await get().handleNewChatCreation(context.newChatId)
+    }
+  },
+
+  // Handle tool result events (custom event for preview_workflow)
+  tool_result: (data, context, get, set) => {
+    const { toolCallId, result, success } = data
+    logger.info('Received tool_result event', { toolCallId, success, hasResult: !!result })
+    
+    if (!toolCallId) return
+    
+    const toolCall = context.toolCalls.find((tc) => tc.id === toolCallId)
+    if (!toolCall) return
+    
+    logger.info('Found existing tool call for result', {
+      name: toolCall.name,
+      toolCallId,
+    })
+    
+    if (success) {
+      toolCall.result = result
+      toolCall.endTime = Date.now()
+      toolCall.duration = toolCall.endTime - (toolCall.startTime || Date.now())
+      
+      // Set appropriate state based on tool type
+      if (toolCall.name === 'preview_workflow' || toolCall.name === 'targeted_updates') {
+        toolCall.state = 'ready_for_review'
+      } else {
+        toolCall.state = 'completed'
+      }
+      
+      logger.info('Updated tool call result:', toolCallId, toolCall.name)
+
+      // Handle successful preview_workflow tool result
+      if (toolCall.name === 'preview_workflow' && result?.yamlContent) {
+        logger.info('Setting preview YAML from tool_result event', {
+          yamlLength: result.yamlContent.length,
+          yamlPreview: result.yamlContent.substring(0, 100),
+        })
+        get().setPreviewYaml(result.yamlContent)
+        get().updateDiffStore(result.yamlContent)
+      }
+
+      // Handle successful targeted_updates tool result
+      if (toolCall.name === 'targeted_updates' && result?.yamlContent) {
+        logger.info('Setting preview YAML from targeted_updates tool_result event', {
+          yamlLength: result.yamlContent.length,
+          yamlPreview: result.yamlContent.substring(0, 200),
+        })
+        get().setPreviewYaml(result.yamlContent)
+        get().updateDiffStore(result.yamlContent)
+      }
+    } else {
+      // Tool execution failed
+      toolCall.state = 'error'
+      toolCall.error = result || 'Tool execution failed'
+      logger.error('Tool call failed:', toolCallId, toolCall.name, result)
+
+      // If preview_workflow failed, send error back for retry
+      if (toolCall.name === 'preview_workflow') {
+        logger.info('Preview workflow tool execution failed, sending error back to agent for retry')
+        setTimeout(() => {
+          get().sendImplicitFeedback(
+            `The previous workflow YAML generation failed with error: "${toolCall.error}". Please analyze the error and try generating the workflow YAML again with the necessary fixes.`
+          )
+        }, 1000)
+      }
+    }
+
+    // Update contentBlocks with the updated tool call
+    updateContentBlockToolCall(context.contentBlocks, toolCallId, toolCall)
+    
+    // Update message
+    updateStreamingMessage(set, context)
+  },
+
+  // Handle Anthropic content block start
+  content_block_start: (data, context, get, set) => {
+    context.currentBlockType = data.content_block?.type
+
+    if (context.currentBlockType === 'text') {
+      context.currentTextBlock = {
+        type: 'text',
+        content: '',
+        timestamp: Date.now(),
+      }
+    } else if (context.currentBlockType === 'tool_use') {
+      // Start buffering a tool call
+      context.toolCallBuffer = {
+        id: data.content_block.id,
+        name: data.content_block.name,
+        displayName: getToolDisplayName(data.content_block.name),
+        input: {},
+        partialInput: '',
+        state: 'executing',
+        startTime: Date.now(),
+      }
+      context.toolCalls.push(context.toolCallBuffer)
+
+      // Add tool call to content blocks
+      context.contentBlocks.push({
+        type: 'tool_call',
+        toolCall: context.toolCallBuffer,
+        timestamp: Date.now(),
+      })
+
+      logger.info(`Starting tool call: ${data.content_block.name}`)
+      updateStreamingMessage(set, context)
+    }
+  },
+
+  // Handle sim agent's content format
+  content: (data, context, get, set) => {
+    if (!data.data) return
+    
+    context.accumulatedContent += data.data
+    
+    // Create or update text block
+    if (!context.currentTextBlock) {
+      context.currentTextBlock = {
+        type: 'text',
+        content: data.data,
+        timestamp: Date.now(),
+      }
+      context.contentBlocks.push(context.currentTextBlock)
+    } else {
+      context.currentTextBlock.content += data.data
+      updateContentBlockText(context.contentBlocks, context.currentTextBlock)
+    }
+    
+    updateStreamingMessage(set, context)
+  },
+
+  // Handle sim agent's tool call format
+  tool_call: (data, context, get, set) => {
+    const toolData = data.data
+    if (!toolData || toolData.partial) return
+    
+    const toolCall = {
+      id: toolData.id,
+      name: toolData.name,
+      input: toolData.arguments || {},
+      state: 'executing',
+      timestamp: Date.now(),
+      displayName: getToolDisplayName(toolData.name),
+      startTime: Date.now(),
+    }
+    context.toolCalls.push(toolCall)
+    
+    context.contentBlocks.push({
+      type: 'tool_call',
+      toolCall,
+      timestamp: Date.now(),
+    })
+    
+    updateStreamingMessage(set, context)
+  },
+
+  // Handle tool execution event
+  tool_execution: (data, context, get, set) => {
+    logger.info('Tool execution started:', data.toolName)
+    const toolCall = context.toolCalls.find(tc => tc.id === data.toolCallId)
+    if (!toolCall) return
+    
+    toolCall.state = 'executing'
+    updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
+    updateStreamingMessage(set, context)
+  },
+
+  // Handle content block delta
+  content_block_delta: (data, context, get, set) => {
+    if (context.currentBlockType === 'text' && data.delta?.text) {
+      context.accumulatedContent += data.delta.text
+      
+      if (context.currentTextBlock) {
+        context.currentTextBlock.content += data.delta.text
+        updateContentBlockText(context.contentBlocks, context.currentTextBlock)
+      }
+      
+      updateStreamingMessage(set, context)
+    } else if (context.currentBlockType === 'tool_use' && data.delta?.partial_json && context.toolCallBuffer) {
+      context.toolCallBuffer.partialInput += data.delta.partial_json
+    }
+  },
+
+  // Handle content block stop
+  content_block_stop: (data, context, get, set) => {
+    if (context.currentBlockType === 'text') {
+      context.currentTextBlock = null
+    } else if (context.currentBlockType === 'tool_use' && context.toolCallBuffer) {
+      try {
+        // Parse complete tool call input
+        context.toolCallBuffer.input = JSON.parse(context.toolCallBuffer.partialInput || '{}')
+        context.toolCallBuffer.state = 
+          context.toolCallBuffer.name === 'preview_workflow' || 
+          context.toolCallBuffer.name === 'targeted_updates'
+            ? 'ready_for_review'
+            : 'completed'
+        context.toolCallBuffer.endTime = Date.now()
+        context.toolCallBuffer.duration = context.toolCallBuffer.endTime - context.toolCallBuffer.startTime
+        
+        logger.info(`Tool call completed: ${context.toolCallBuffer.name}`, context.toolCallBuffer.input)
+        
+        updateContentBlockToolCall(context.contentBlocks, context.toolCallBuffer.id, context.toolCallBuffer)
+        updateStreamingMessage(set, context)
+
+        // Handle preview_workflow completion
+        if (context.toolCallBuffer.name === 'preview_workflow' && context.toolCallBuffer.input?.yamlContent) {
+          logger.info('Setting preview YAML from completed preview_workflow tool call')
+          get().setPreviewYaml(context.toolCallBuffer.input.yamlContent)
+          get().updateDiffStore(context.toolCallBuffer.input.yamlContent)
+        }
+      } catch (error) {
+        logger.error('Error parsing tool call input:', error)
+        context.toolCallBuffer.state = 'error'
+        context.toolCallBuffer.endTime = Date.now()
+        context.toolCallBuffer.duration = context.toolCallBuffer.endTime - context.toolCallBuffer.startTime
+        context.toolCallBuffer.error = error instanceof Error ? error.message : String(error)
+
+        // Retry on preview_workflow failure
+        if (context.toolCallBuffer.name === 'preview_workflow') {
+          setTimeout(() => {
+            get().sendImplicitFeedback(
+              `The previous workflow YAML generation failed with error: "${context.toolCallBuffer.error}". Please analyze the error and try generating the workflow YAML again with the necessary fixes.`
+            )
+          }, 1000)
+        }
+      }
+      context.toolCallBuffer = null
+    }
+    context.currentBlockType = null
+  },
+
+  // Handle sim agent's done event
+  done: (data, context) => {
+    context.doneEventCount++
+    logger.info('Received done event from sim agent', {
+      doneEventCount: context.doneEventCount,
+    })
+    
+    context.currentTextBlock = null
+    
+    // Complete stream after multiple done events (sim agent sends one after tools and one at end)
+    if (context.doneEventCount >= 2) {
+      logger.info('Received final done event, completing stream')
+      context.streamComplete = true
+    }
+  },
+
+  // Handle errors
+  error: (data, context, get, set) => {
+    logger.error('Received error:', data.error)
+    set((state: CopilotStore) => ({
+      messages: state.messages.map((msg: CopilotMessage) =>
+        msg.id === context.messageId
+          ? {
+              ...msg,
+              content: context.accumulatedContent || 'An error occurred while processing your request.',
+              error: data.error,
+            }
+          : msg
+      ),
+    }))
+    context.streamComplete = true
+  },
+
+  // Handle tool errors
+  tool_error: (data, context) => {
+    logger.error('Tool error:', data.toolName, data.error)
+    const toolCall = context.toolCalls.find(tc => tc.id === data.toolCallId)
+    if (toolCall) {
+      toolCall.state = 'error'
+      toolCall.error = data.error
+    }
+  },
+
+  // Default handler for unhandled events
+  default: (data) => {
+    // Silently handle these common events
+    const silentEvents = ['message_start', 'message_delta', 'message_stop']
+    if (!silentEvents.includes(data.type)) {
+      logger.debug('Unhandled SSE event type:', data.type)
+    }
+  }
+}
+
+/**
+ * Helper function to update content block with tool call
+ */
+function updateContentBlockToolCall(contentBlocks: any[], toolCallId: string, toolCall: any) {
+  for (let i = 0; i < contentBlocks.length; i++) {
+    const block = contentBlocks[i]
+    if (block.type === 'tool_call' && block.toolCall.id === toolCallId) {
+      contentBlocks[i] = {
+        type: 'tool_call',
+        toolCall: { ...toolCall },
+        timestamp: block.timestamp,
+      }
+      break
+    }
+  }
+}
+
+/**
+ * Helper function to update content block with text
+ */
+function updateContentBlockText(contentBlocks: any[], textBlock: any) {
+  for (let i = contentBlocks.length - 1; i >= 0; i--) {
+    if (contentBlocks[i] === textBlock || 
+        (contentBlocks[i].type === 'text' && contentBlocks[i].timestamp === textBlock.timestamp)) {
+      contentBlocks[i] = { ...textBlock }
+      break
+    }
+  }
+}
+
+/**
+ * Helper function to update streaming message in state
+ */
+function updateStreamingMessage(set: any, context: StreamingContext) {
+  set((state: CopilotStore) => ({
+    messages: state.messages.map((msg: CopilotMessage) =>
+      msg.id === context.messageId
+        ? {
+            ...msg,
+            content: context.accumulatedContent,
+            toolCalls: [...context.toolCalls],
+            contentBlocks: [...context.contentBlocks],
+            lastUpdated: Date.now(),
+          }
+        : msg
+    ),
+  }))
+}
+
+/**
+ * Parse SSE stream and handle events
+ */
+async function* parseSSEStream(reader: ReadableStreamDefaultReader<Uint8Array>, decoder: TextDecoder) {
+  let buffer = ''
+  
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    
+    for (const line of lines) {
+      if (line.trim() === '') continue
+      if (line.startsWith('data: ')) {
+        try {
+          yield JSON.parse(line.slice(6))
+        } catch (error) {
+          logger.warn('Failed to parse SSE data:', error)
+        }
+      }
+    }
+  }
+}
+
+/**
  * Copilot store using the new unified API
  */
 export const useCopilotStore = create<CopilotStore>()(
@@ -792,460 +1182,88 @@ export const useCopilotStore = create<CopilotStore>()(
         const reader = stream.getReader()
         const decoder = new TextDecoder()
 
-        // If this is a continuation, start with the existing message content
-        let accumulatedContent = ''
+        // Initialize streaming context
+        const context: StreamingContext = {
+          messageId,
+          accumulatedContent: '',
+          toolCalls: [],
+          contentBlocks: [],
+          currentTextBlock: null,
+          currentBlockType: null,
+          toolCallBuffer: null,
+          doneEventCount: 0,
+        }
+
+        // If continuation, start with existing message content
         if (isContinuation) {
           const { messages } = get()
           const existingMessage = messages.find((msg) => msg.id === messageId)
-          accumulatedContent = existingMessage?.content || ''
+          context.accumulatedContent = existingMessage?.content || ''
         }
-
-        let newChatId: string | undefined
-        let streamComplete = false
-
-        // Track tool calls for native Anthropic events
-        let currentBlockType: 'text' | 'tool_use' | null = null
-        let toolCallBuffer: any = null
-        const toolCalls: any[] = []
-
-        // Track content blocks chronologically
-        const contentBlocks: any[] = []
-        let currentTextBlock: any = null
 
         // Add timeout to prevent hanging
         const timeoutId = setTimeout(() => {
           logger.warn('Stream timeout reached, completing response')
-          streamComplete = true
+          reader.cancel()
         }, 120000) // 2 minute timeout
 
         try {
-          while (true) {
+          // Process SSE events
+          for await (const data of parseSSEStream(reader, decoder)) {
             const { abortController } = get()
 
             // Check if we should abort
             if (abortController?.signal.aborted) {
               logger.info('Stream reading aborted')
-              streamComplete = true
               break
             }
 
-            const { done, value } = await reader.read()
-
-            if (done || streamComplete) {
-              logger.info('Stream ended - done:', done, 'streamComplete:', streamComplete)
+            // Get handler for this event type
+            const handler = sseHandlers[data.type] || sseHandlers.default
+            await handler(data, context, get, set)
+            
+            // Check if handler set stream completion flag
+            if (context.streamComplete) {
               break
-            }
-
-            const chunk = decoder.decode(value, { stream: true })
-            const lines = chunk.split('\n')
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6))
-
-                  // Handle chat ID event (our custom event)
-                  if (data.type === 'chat_id') {
-                    newChatId = data.chatId
-                    logger.info('Received chatId from stream:', newChatId)
-
-                    // Update current chat if we don't have one
-                    const { currentChat } = get()
-                    if (!currentChat && newChatId) {
-                      await get().handleNewChatCreation(newChatId)
-                    }
-                  }
-                  // Handle tool result events (our custom event for preview_workflow)
-                  else if (data.type === 'tool_result') {
-                    const { toolCallId, result, success } = data
-                    logger.info('Received tool_result event', {
-                      toolCallId,
-                      success,
-                      hasResult: !!result,
-                    })
-                    if (toolCallId) {
-                      // Find the corresponding tool call and update its result
-                      const existingToolCall = toolCalls.find((tc) => tc.id === toolCallId)
-                      if (existingToolCall) {
-                        logger.info('Found existing tool call for result', {
-                          name: existingToolCall.name,
-                          toolCallId,
-                        })
-                        if (success) {
-                          existingToolCall.result = result
-                          logger.info(
-                            'Updated tool call result:',
-                            toolCallId,
-                            existingToolCall.name
-                          )
-
-                          // Handle successful preview_workflow tool result
-                          if (existingToolCall.name === 'preview_workflow' && result?.yamlContent) {
-                            logger.info('Setting preview YAML from tool_result event', {
-                              yamlLength: result.yamlContent.length,
-                              yamlPreview: result.yamlContent.substring(0, 100),
-                            })
-                            get().setPreviewYaml(result.yamlContent)
-                            get().updateDiffStore(result.yamlContent)
-                          }
-
-                          // Handle successful targeted_updates tool result
-                          if (existingToolCall.name === 'targeted_updates') {
-                            logger.info('Targeted updates tool_result received', {
-                              hasResult: !!result,
-                              resultType: typeof result,
-                              resultKeys: result ? Object.keys(result) : [],
-                              hasYamlContent: !!result?.yamlContent,
-                              // Log the full result structure for debugging
-                              fullResult: JSON.stringify(result, null, 2),
-                            })
-
-                            // The targeted_updates tool returns yamlContent directly in the result
-                            if (result?.yamlContent) {
-                              logger.info(
-                                'Setting preview YAML from targeted_updates tool_result event',
-                                {
-                                  yamlLength: result.yamlContent.length,
-                                  yamlPreview: result.yamlContent.substring(0, 200),
-                                  // Log the full YAML for debugging
-                                  fullYaml: result.yamlContent,
-                                }
-                              )
-                              get().setPreviewYaml(result.yamlContent)
-                              get().updateDiffStore(result.yamlContent)
-
-                              // Set the tool call state to ready_for_review like preview_workflow
-                              existingToolCall.state = 'ready_for_review'
-                            } else {
-                              logger.error('Targeted updates tool_result missing yamlContent', {
-                                expectedPath: 'result.yamlContent',
-                                actualStructure: JSON.stringify(result, null, 2),
-                              })
-                              // Set to error state if yamlContent is missing
-                              existingToolCall.state = 'error'
-                              existingToolCall.error = 'Missing yamlContent in result'
-                            }
-                          }
-                        } else {
-                          // Tool execution failed
-                          existingToolCall.state = 'error'
-                          existingToolCall.error = result || 'Tool execution failed'
-                          logger.error(
-                            'Tool call failed:',
-                            toolCallId,
-                            existingToolCall.name,
-                            result
-                          )
-
-                          // If this is a preview_workflow tool that failed, send error back to agent
-                          if (existingToolCall.name === 'preview_workflow') {
-                            logger.info(
-                              'Preview workflow tool execution failed, sending error back to agent for retry'
-                            )
-                            // Send the error back to the agent after a brief delay to let the UI update
-                            setTimeout(() => {
-                              get().sendImplicitFeedback(
-                                `The previous workflow YAML generation failed with error: "${existingToolCall.error}". Please analyze the error and try generating the workflow YAML again with the necessary fixes.`
-                              )
-                            }, 1000)
-                          }
-                        }
-
-                        // Update message with the result and content blocks
-                        set((state) => ({
-                          messages: state.messages.map((msg) =>
-                            msg.id === messageId
-                              ? {
-                                  ...msg,
-                                  content: accumulatedContent,
-                                  toolCalls: [...toolCalls],
-                                  contentBlocks: msg.contentBlocks?.map((block) =>
-                                    block.type === 'tool_call' && block.toolCall.id === toolCallId
-                                      ? { ...block, toolCall: { ...existingToolCall } }
-                                      : block
-                                  ),
-                                }
-                              : msg
-                          ),
-                        }))
-                      }
-                    }
-                  }
-                  // Handle native Anthropic SSE events
-                  else if (data.type === 'message_start') {
-                    logger.info('Message started')
-                  } else if (data.type === 'content_block_start') {
-                    currentBlockType = data.content_block?.type
-
-                    if (currentBlockType === 'text') {
-                      // Start a new text block
-                      currentTextBlock = {
-                        type: 'text',
-                        content: '',
-                        timestamp: Date.now(),
-                      }
-                    } else if (currentBlockType === 'tool_use') {
-                      // Start buffering a tool call
-                      toolCallBuffer = {
-                        id: data.content_block.id,
-                        name: data.content_block.name,
-                        displayName: getToolDisplayName(data.content_block.name),
-                        input: {},
-                        partialInput: '',
-                        state: 'executing',
-                        startTime: Date.now(),
-                      }
-                      toolCalls.push(toolCallBuffer)
-
-                      // Add tool call to content blocks
-                      const toolCallBlock = {
-                        type: 'tool_call',
-                        toolCall: toolCallBuffer,
-                        timestamp: Date.now(),
-                      }
-                      contentBlocks.push(toolCallBlock)
-
-                      logger.info(`Starting tool call: ${data.content_block.name}`)
-
-                      // Update message with content blocks
-                      set((state) => ({
-                        messages: state.messages.map((msg) =>
-                          msg.id === messageId
-                            ? {
-                                ...msg,
-                                content: accumulatedContent,
-                                toolCalls: [...toolCalls],
-                                contentBlocks: [...contentBlocks],
-                              }
-                            : msg
-                        ),
-                      }))
-                    }
-                  } else if (data.type === 'content_block_delta') {
-                    if (currentBlockType === 'text' && data.delta?.text) {
-                      // Add text content to accumulated content
-                      if (
-                        isContinuation &&
-                        accumulatedContent &&
-                        !accumulatedContent.endsWith(' ') &&
-                        data.delta.text &&
-                        !data.delta.text.startsWith(' ')
-                      ) {
-                        accumulatedContent += ` ${data.delta.text}`
-                      } else {
-                        accumulatedContent += data.delta.text
-                      }
-
-                      // Add text to current text block
-                      if (currentTextBlock) {
-                        currentTextBlock.content += data.delta.text
-
-                        // Update the content blocks array with the streaming text block
-                        const updatedContentBlocks = [...contentBlocks]
-                        const existingBlockIndex = updatedContentBlocks.findIndex(
-                          (block) =>
-                            block.type === 'text' && block.timestamp === currentTextBlock.timestamp
-                        )
-
-                        if (existingBlockIndex >= 0) {
-                          // Update existing block
-                          updatedContentBlocks[existingBlockIndex] = { ...currentTextBlock }
-                        } else {
-                          // Add new text block to content blocks for real-time display
-                          updatedContentBlocks.push({ ...currentTextBlock })
-                        }
-
-                        // Replace contentBlocks array contents
-                        contentBlocks.splice(0, contentBlocks.length, ...updatedContentBlocks)
-                      }
-
-                      // Update message in real-time
-                      set((state) => ({
-                        messages: state.messages.map((msg) =>
-                          msg.id === messageId
-                            ? {
-                                ...msg,
-                                content: accumulatedContent,
-                                toolCalls: [...toolCalls],
-                                contentBlocks: [...contentBlocks],
-                              }
-                            : msg
-                        ),
-                      }))
-                    } else if (
-                      currentBlockType === 'tool_use' &&
-                      data.delta?.partial_json &&
-                      toolCallBuffer
-                    ) {
-                      // Buffer partial JSON for tool calls (silently)
-                      toolCallBuffer.partialInput += data.delta.partial_json
-                    }
-                  } else if (data.type === 'content_block_stop') {
-                    if (currentBlockType === 'text' && currentTextBlock) {
-                      // Text block is already in contentBlocks from streaming, just clean up
-                      currentTextBlock = null
-                    } else if (currentBlockType === 'tool_use' && toolCallBuffer) {
-                      try {
-                        // Parse complete tool call input
-                        toolCallBuffer.input = JSON.parse(toolCallBuffer.partialInput || '{}')
-                        // Set preview_workflow and targeted_updates tools to ready_for_review, others to completed
-                        toolCallBuffer.state =
-                          toolCallBuffer.name === 'preview_workflow' ||
-                          toolCallBuffer.name === 'targeted_updates'
-                            ? 'ready_for_review'
-                            : 'completed'
-                        toolCallBuffer.endTime = Date.now()
-                        toolCallBuffer.duration = toolCallBuffer.endTime - toolCallBuffer.startTime
-                        logger.info(
-                          `Tool call completed: ${toolCallBuffer.name}`,
-                          toolCallBuffer.input
-                        )
-
-                        // Update message with completed tool call and content blocks
-                        set((state) => ({
-                          messages: state.messages.map((msg) =>
-                            msg.id === messageId
-                              ? {
-                                  ...msg,
-                                  content: accumulatedContent,
-                                  toolCalls: [...toolCalls],
-                                  contentBlocks: contentBlocks.map((block) =>
-                                    block.type === 'tool_call' &&
-                                    block.toolCall.id === toolCallBuffer.id
-                                      ? { ...block, toolCall: { ...toolCallBuffer } }
-                                      : block
-                                  ),
-                                }
-                              : msg
-                          ),
-                        }))
-
-                        // If this is a preview_workflow tool call, set the preview YAML and diff store
-                        if (toolCallBuffer.name === 'preview_workflow') {
-                          logger.info(
-                            'Preview workflow tool completed with input:',
-                            toolCallBuffer.input
-                          )
-
-                          if (toolCallBuffer.input?.yamlContent) {
-                            logger.info(
-                              'Setting preview YAML from completed preview_workflow tool call',
-                              {
-                                yamlLength: toolCallBuffer.input.yamlContent.length,
-                                yamlPreview: toolCallBuffer.input.yamlContent.substring(0, 100),
-                              }
-                            )
-                            get().setPreviewYaml(toolCallBuffer.input.yamlContent)
-
-                            // Also update the diff store with the proposed workflow state
-                            get().updateDiffStore(toolCallBuffer.input.yamlContent)
-                          } else {
-                            logger.warn(
-                              'Preview workflow tool completed but no yamlContent found in input'
-                            )
-                          }
-                        }
-
-                        // Don't handle targeted_updates here - it needs to wait for the tool_result event
-                        // The result isn't available yet at content_block_stop, only the input
-                      } catch (error) {
-                        logger.error('Error parsing tool call input:', error)
-                        toolCallBuffer.state = 'error'
-                        toolCallBuffer.endTime = Date.now()
-                        toolCallBuffer.duration = toolCallBuffer.endTime - toolCallBuffer.startTime
-                        toolCallBuffer.error =
-                          error instanceof Error ? error.message : String(error)
-
-                        // If this is a preview_workflow tool that failed, send error back to agent
-                        if (toolCallBuffer.name === 'preview_workflow') {
-                          logger.info(
-                            'Preview workflow tool failed, sending error back to agent for retry'
-                          )
-                          // Send the error back to the agent after a brief delay to let the UI update
-                          setTimeout(() => {
-                            get().sendImplicitFeedback(
-                              `The previous workflow YAML generation failed with error: "${toolCallBuffer.error}". Please analyze the error and try generating the workflow YAML again with the necessary fixes.`
-                            )
-                          }, 1000)
-                        }
-                      }
-                      toolCallBuffer = null
-                    }
-                    currentBlockType = null
-                  } else if (data.type === 'message_delta') {
-                    // Handle token usage updates silently
-                    if (data.delta?.stop_reason === 'tool_use') {
-                      logger.info(
-                        'Message stopped for tool use - backend will handle execution and continue'
-                      )
-                    }
-                  } else if (data.type === 'message_stop') {
-                    // Backend will continue streaming if there are tools to execute
-                    // Don't break the loop - just continue listening for more events
-                    logger.info('Message stopped - backend may continue after tool execution')
-
-                    // Reset block state for potential continuation
-                    currentBlockType = null
-                    toolCallBuffer = null
-                  } else if (data.type === 'error') {
-                    // Handle error events from backend
-                    logger.error('Backend error:', data.error)
-                    streamComplete = true
-                    break
-                  } else {
-                    // Log unhandled event types for debugging
-                    logger.debug('Unhandled SSE event type:', data.type)
-                  }
-                } catch (parseError) {
-                  logger.warn('Failed to parse SSE data:', parseError)
-                }
-              }
             }
           }
 
-          // Stream ended naturally - finalize the message
-          logger.info(`Completed streaming response, content length: ${accumulatedContent.length}`)
+          // Stream ended - finalize the message
+          logger.info(`Completed streaming response, content length: ${context.accumulatedContent.length}`)
 
-          // Text blocks are already in contentBlocks from streaming, no need to add again
-
-          // Final update when stream actually ends
+          // Final update
           set((state) => ({
             messages: state.messages.map((msg) =>
               msg.id === messageId
                 ? {
                     ...msg,
-                    content: accumulatedContent,
-                    toolCalls: [...toolCalls],
-                    contentBlocks: [...contentBlocks],
+                    content: context.accumulatedContent,
+                    toolCalls: context.toolCalls,
+                    contentBlocks: context.contentBlocks,
                   }
                 : msg
             ),
             isSendingMessage: false,
-            abortController: null, // Clear abort controller when streaming completes
+            abortController: null,
           }))
 
           // Auto-save messages after streaming completes
           const { currentChat } = get()
-          const chatIdToSave = currentChat?.id || newChatId
+          const chatIdToSave = currentChat?.id || context.newChatId
 
           if (chatIdToSave) {
             try {
-              logger.info(
-                'Auto-saving chat messages after streaming completion to chat:',
-                chatIdToSave
-              )
+              logger.info('Auto-saving chat messages after streaming completion')
               await get().saveChatMessages(chatIdToSave)
             } catch (error) {
               logger.error('Failed to auto-save chat messages:', error)
             }
-          } else {
-            logger.warn('No chat ID available for auto-saving messages')
           }
         } catch (error) {
-          // Handle AbortError gracefully - this is expected when user aborts
+          // Handle AbortError gracefully
           if (error instanceof Error && error.name === 'AbortError') {
             logger.info('Stream reading was aborted by user')
-            return // Don't throw or log as error
+            return
           }
 
           logger.error('Error handling streaming response:', error)
