@@ -1,9 +1,10 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { verifyInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
+import { apiKey as apiKeyTable, copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
 
 const logger = createLogger('RevertCheckpointAPI')
 
@@ -16,13 +17,61 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const checkpointId = (await params).id
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Check for internal JWT token for server-side calls
+    const authHeader = request.headers.get('authorization')
+    let isInternalCall = false
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1]
+      isInternalCall = await verifyInternalToken(token)
     }
 
+    let authenticatedUserId: string | null = null
+
+    if (isInternalCall) {
+      // For internal calls, get the checkpoint owner as the user context
+      const [checkpointData] = await db
+        .select({ userId: copilotCheckpoints.userId })
+        .from(copilotCheckpoints)
+        .where(eq(copilotCheckpoints.id, checkpointId))
+        .limit(1)
+      
+      if (!checkpointData) {
+        return NextResponse.json({ error: 'Checkpoint not found' }, { status: 404 })
+      }
+      authenticatedUserId = checkpointData.userId
+    } else {
+      // Try session auth first (for web UI)
+      const session = await getSession()
+      authenticatedUserId = session?.user?.id || null
+
+      // If no session, check for API key auth
+      if (!authenticatedUserId) {
+        const apiKeyHeader = request.headers.get('x-api-key')
+        if (apiKeyHeader) {
+          // Verify API key
+          const [apiKeyRecord] = await db
+            .select({ userId: apiKeyTable.userId })
+            .from(apiKeyTable)
+            .where(eq(apiKeyTable.key, apiKeyHeader))
+            .limit(1)
+
+          if (apiKeyRecord) {
+            authenticatedUserId = apiKeyRecord.userId
+          }
+        }
+      }
+
+      if (!authenticatedUserId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+    }
+
+    // TypeScript assertion: authenticatedUserId is guaranteed non-null at this point
+    const userId = authenticatedUserId as string
+
     logger.info(`[${requestId}] Reverting to checkpoint: ${checkpointId}`, {
-      userId: session.user.id,
+      userId,
     })
 
     // Get the checkpoint
@@ -30,7 +79,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .select()
       .from(copilotCheckpoints)
       .where(
-        and(eq(copilotCheckpoints.id, checkpointId), eq(copilotCheckpoints.userId, session.user.id))
+        and(eq(copilotCheckpoints.id, checkpointId), eq(copilotCheckpoints.userId, userId))
       )
       .limit(1)
 

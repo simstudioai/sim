@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
@@ -11,6 +12,15 @@ const logger = createLogger('GetUserWorkflowAPI')
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication (session, API key, or internal JWT)
+    const authResult = await checkHybridAuth(request)
+    if (!authResult.success) {
+      return NextResponse.json(
+        { success: false, error: authResult.error },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { workflowId, includeMetadata = false } = body
 
@@ -21,7 +31,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.info('Fetching user workflow', { workflowId })
+    logger.info('Fetching user workflow', { 
+      workflowId, 
+      authType: authResult.authType,
+      userId: authResult.userId
+    })
 
     // Fetch workflow from database
     const [workflowRecord] = await db

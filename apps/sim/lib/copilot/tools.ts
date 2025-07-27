@@ -372,16 +372,28 @@ const docsSearchTool: CopilotTool = {
   execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
     try {
       const { query, topK = 10 } = args
-      const results = await searchDocumentation(query, { topK })
 
-      return {
-        success: true,
-        data: {
-          results,
-          query,
-          totalResults: results.length,
-        },
+      // Call the API route directly
+      const response = await fetch(
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/docs-search-internal`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query, topK }),
+        }
+      )
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Documentation search failed: ${response.status} ${response.statusText}`,
+        }
       }
+
+      const result = await response.json()
+      return result
     } catch (error) {
       logger.error('Documentation search failed', error)
       return {
@@ -402,38 +414,41 @@ const getUserWorkflowTool: CopilotTool = {
     'Get the current user workflow as YAML format. This shows all blocks, their configurations, inputs, and connections in the workflow.',
   parameters: {
     type: 'object',
-    properties: {},
+    properties: {
+      includeMetadata: {
+        type: 'boolean',
+        description: 'Whether to include additional metadata about the workflow (default: false)',
+        default: false,
+      },
+    },
     required: [],
   },
   execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
     try {
-      // Get the current workflow YAML using the same logic as export
-      const yamlContent = useWorkflowYamlStore.getState().getYaml()
+      const { includeMetadata = false, _context } = args
+      const workflowId = _context?.workflowId
 
-      // Get workflow metadata
-      const registry = useWorkflowRegistry.getState()
-      const activeWorkflowId = registry.activeWorkflowId
-      const activeWorkflow = activeWorkflowId ? registry.workflows[activeWorkflowId] : null
+      // Call the API route directly
+      const response = await fetch(
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/get-user-workflow`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ workflowId, includeMetadata }),
+        }
+      )
 
-      let metadata: WorkflowMetadata | undefined
-      if (activeWorkflow && activeWorkflowId) {
-        metadata = {
-          workflowId: activeWorkflowId,
-          name: activeWorkflow.name || 'Untitled Workflow',
-          description: activeWorkflow.description,
-          workspaceId: activeWorkflow.workspaceId || '',
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Failed to get user workflow: ${response.status} ${response.statusText}`,
         }
       }
 
-      const data: UserWorkflowData = {
-        yaml: yamlContent,
-        metadata,
-      }
-
-      return {
-        success: true,
-        data,
-      }
+      const result = await response.json()
+      return result
     } catch (error) {
       logger.error('Get user workflow failed', error)
       return {
@@ -583,7 +598,7 @@ const targetedUpdatesTool: CopilotTool = {
 
       // Get current workflow YAML directly from the API endpoint (not the client-side store)
       const workflowResponse = await fetch(
-        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/tools/get-user-workflow`,
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/get-user-workflow`,
         {
           method: 'POST',
           headers: {
@@ -677,18 +692,15 @@ const previewWorkflowTool: CopilotTool = {
     try {
       const { yamlContent, description } = args
 
-      // Make direct API call to workflow preview endpoint
+      // Call the API route directly
       const response = await fetch(
-        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/workflows/preview`,
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/preview-workflow`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            yamlContent,
-            applyAutoLayout: true,
-          }),
+          body: JSON.stringify({ yamlContent, description }),
         }
       )
 
@@ -699,29 +711,296 @@ const previewWorkflowTool: CopilotTool = {
         }
       }
 
-      const previewData = await response.json()
-
-      if (!previewData.success) {
-        return {
-          success: false,
-          error: `Preview generation failed: ${previewData.message || 'Unknown error'}`,
-        }
-      }
-
-      // Return in the format expected by the UI for diff functionality
-      return {
-        success: true,
-        data: {
-          ...previewData,
-          yamlContent, // Include the original YAML for diff functionality
-          description,
-        },
-      }
+      const result = await response.json()
+      return result
     } catch (error) {
       logger.error('Preview workflow execution failed:', error)
       return {
         success: false,
         error: `Preview workflow failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }
+    }
+  },
+}
+
+/**
+ * Additional copilot tools
+ */
+const getBlocksAndToolsTool: CopilotTool = {
+  id: 'get_blocks_and_tools',
+  name: 'Get All Blocks and Tools',
+  description: 'Get a comprehensive list of all available blocks and tools in Sim Studio',
+  parameters: {
+    type: 'object',
+    properties: {
+      includeDetails: {
+        type: 'boolean',
+        description: 'Whether to include detailed information (default: false)',
+        default: false,
+      },
+      filterCategory: {
+        type: 'string',
+        description: 'Optional category filter for blocks',
+      },
+    },
+    required: [],
+  },
+  execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
+    try {
+      const { includeDetails = false, filterCategory } = args
+
+      const response = await fetch(
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/get-blocks-and-tools`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ includeDetails, filterCategory }),
+        }
+      )
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Failed to get blocks and tools: ${response.status} ${response.statusText}`,
+        }
+      }
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to get blocks and tools: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }
+    }
+  },
+}
+
+const getBlocksMetadataTool: CopilotTool = {
+  id: 'get_blocks_metadata',
+  name: 'Get Block Metadata',
+  description: 'Get detailed metadata for specific blocks',
+  parameters: {
+    type: 'object',
+    properties: {
+      blockIds: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Array of block IDs to get metadata for',
+      },
+    },
+    required: ['blockIds'],
+  },
+  execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
+    try {
+      const { blockIds } = args
+
+      const response = await fetch(
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/get-blocks-metadata`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ blockIds }),
+        }
+      )
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Failed to get blocks metadata: ${response.status} ${response.statusText}`,
+        }
+      }
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to get blocks metadata: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }
+    }
+  },
+}
+
+const getYamlStructureTool: CopilotTool = {
+  id: 'get_yaml_structure',
+  name: 'Get YAML Structure Guide',
+  description: 'Get YAML workflow syntax guide and examples',
+  parameters: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+  execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/get-yaml-structure`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        }
+      )
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Failed to get YAML structure: ${response.status} ${response.statusText}`,
+        }
+      }
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to get YAML structure: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }
+    }
+  },
+}
+
+const getEnvironmentVariablesTool: CopilotTool = {
+  id: 'get_environment_variables',
+  name: 'Get Environment Variables',
+  description: 'Get a list of available environment variable names',
+  parameters: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+  execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/get-environment-variables`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        }
+      )
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Failed to get environment variables: ${response.status} ${response.statusText}`,
+        }
+      }
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to get environment variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }
+    }
+  },
+}
+
+const setEnvironmentVariablesTool: CopilotTool = {
+  id: 'set_environment_variables',
+  name: 'Set Environment Variables',
+  description: 'Set or update environment variables',
+  parameters: {
+    type: 'object',
+    properties: {
+      variables: {
+        type: 'object',
+        description: 'Key-value object of environment variables to set',
+      },
+    },
+    required: ['variables'],
+  },
+  execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
+    try {
+      const { variables } = args
+
+      const response = await fetch(
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/set-environment-variables`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ variables }),
+        }
+      )
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Failed to set environment variables: ${response.status} ${response.statusText}`,
+        }
+      }
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to set environment variables: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }
+    }
+  },
+}
+
+const getWorkflowConsoleTool: CopilotTool = {
+  id: 'get_workflow_console',
+  name: 'Get Workflow Console',
+  description: 'Get console logs and execution history from the workflow',
+  parameters: {
+    type: 'object',
+    properties: {
+      limit: {
+        type: 'number',
+        description: 'Maximum number of console entries to return (default: 50)',
+        default: 50,
+      },
+      includeDetails: {
+        type: 'boolean',
+        description: 'Whether to include detailed input/output data (default: false)',
+        default: false,
+      },
+    },
+    required: [],
+  },
+  execute: async (args: Record<string, any>): Promise<CopilotToolResult> => {
+    try {
+      const { limit = 50, includeDetails = false } = args
+
+      const response = await fetch(
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/copilot/get-workflow-console`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ limit, includeDetails }),
+        }
+      )
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Failed to get workflow console: ${response.status} ${response.statusText}`,
+        }
+      }
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to get workflow console: ${error instanceof Error ? error.message : 'Unknown error'}`,
       }
     }
   },
@@ -734,8 +1013,14 @@ const copilotTools: Record<string, CopilotTool> = {
   docs_search_internal: docsSearchTool,
   get_user_workflow: getUserWorkflowTool,
   get_workflow_examples: getWorkflowExamplesTool,
-  targeted_updates: targetedUpdatesTool,
+  get_blocks_and_tools: getBlocksAndToolsTool,
+  get_blocks_metadata: getBlocksMetadataTool,
+  get_yaml_structure: getYamlStructureTool,
   preview_workflow: previewWorkflowTool,
+  targeted_updates: targetedUpdatesTool,
+  get_environment_variables: getEnvironmentVariablesTool,
+  set_environment_variables: setEnvironmentVariablesTool,
+  get_workflow_console: getWorkflowConsoleTool,
 }
 
 /**
@@ -780,3 +1065,4 @@ export async function executeCopilotTool(
 export function getAllCopilotTools(): CopilotTool[] {
   return Object.values(copilotTools)
 }
+

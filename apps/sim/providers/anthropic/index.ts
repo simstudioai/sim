@@ -414,7 +414,16 @@ ${fieldDescriptions}
                       : {}),
                   }
 
-                  const result = await executeTool(toolCall.name, mergedArgs, true)
+                  // Choose tool execution method based on request type
+                  let result
+                  if (request.isCopilotRequest) {
+                    // Use copilot tool system for copilot requests
+                    const { executeCopilotToolForProvider } = await import('@/lib/copilot/provider-bridge')
+                    result = await executeCopilotToolForProvider(toolCall.name, mergedArgs)
+                  } else {
+                    // Use general tool system for regular requests
+                    result = await executeTool(toolCall.name, mergedArgs, true)
+                  }
                   const toolCallEndTime = Date.now()
 
                   logger.info(`Tool ${toolCall.name} ${result.success ? 'succeeded' : 'failed'}`)
@@ -784,7 +793,16 @@ ${fieldDescriptions}
                     : {}),
                 }
 
-                const result = await executeTool(toolName, executionParams, true)
+                // Choose tool execution method based on request type
+                let result
+                if (request.isCopilotRequest) {
+                  // Use copilot tool system for copilot requests
+                  const { executeCopilotToolForProvider } = await import('@/lib/copilot/provider-bridge')
+                  result = await executeCopilotToolForProvider(toolName, executionParams)
+                } else {
+                  // Use general tool system for regular requests
+                  result = await executeTool(toolName, executionParams, true)
+                }
                 const toolCallEndTime = Date.now()
                 const toolCallDuration = toolCallEndTime - toolCallStartTime
 
@@ -1221,7 +1239,16 @@ ${fieldDescriptions}
                 ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
               }
 
-              const result = await executeTool(toolName, executionParams, true)
+              // Choose tool execution method based on request type
+              let result
+              if (request.isCopilotRequest) {
+                                 // Use copilot tool system for copilot requests
+                 const { executeCopilotToolForProvider } = await import('@/lib/copilot/provider-bridge')
+                 result = await executeCopilotToolForProvider(toolName, executionParams)
+              } else {
+                // Use general tool system for regular requests
+                result = await executeTool(toolName, executionParams, true)
+              }
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 

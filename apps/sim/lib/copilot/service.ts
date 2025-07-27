@@ -621,6 +621,7 @@ export async function generateChatResponse(
       workflowId: options.workflowId,
       chatId: options.chatId,
       userId: options.userId || 'unknown_user', // Pass userId to provider request
+      isCopilotRequest: true, // Flag to indicate this is from the copilot system
     })
 
     // Handle StreamingExecution (from providers with tool calls)

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import {
   createChat,
   deleteChat,
@@ -92,13 +93,22 @@ export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID()
 
   try {
+    // Check authentication (session, API key, or internal JWT)
+    const authResult = await checkHybridAuth(req)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: 401 })
+    }
+
+    // For routes that might not have userId (like internal calls without workflow context)
+    const userId = authResult.userId
+
     const body = await req.json()
     const { message, chatId, workflowId, mode, createNewChat, stream, implicitFeedback } =
       SendMessageSchema.parse(body)
 
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // If no userId from auth, we need workflowId for internal calls
+    if (!userId && !workflowId) {
+      return NextResponse.json({ error: 'workflowId required for internal calls without user context' }, { status: 400 })
     }
 
     logger.info(`[${requestId}] Copilot message: "${message}"`, {
@@ -107,7 +117,8 @@ export async function POST(req: NextRequest) {
       mode,
       createNewChat,
       stream,
-      userId: session.user.id,
+      userId,
+      authType: authResult.authType,
     })
 
     // Send message using the service
@@ -119,7 +130,7 @@ export async function POST(req: NextRequest) {
       createNewChat,
       stream,
       implicitFeedback,
-      userId: session.user.id,
+      userId: userId || 'internal', // Use 'internal' for system calls without user context
     })
 
     // Handle streaming response (ReadableStream or StreamingExecution)
@@ -228,9 +239,15 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Check authentication (session, API key, or internal JWT)
+    const authResult = await checkHybridAuth(req)
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: 401 })
+    }
+
+    const userId = authResult.userId
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID required for this operation' }, { status: 400 })
     }
 
     const { searchParams } = new URL(req.url)
@@ -238,7 +255,7 @@ export async function GET(req: NextRequest) {
 
     // If chatId is provided, get specific chat
     if (chatId) {
-      const chat = await getChat(chatId, session.user.id)
+      const chat = await getChat(chatId, userId)
       if (!chat) {
         return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
       }
@@ -261,7 +278,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const chats = await listChats(session.user.id, workflowId, { limit, offset })
+    const chats = await listChats(userId, workflowId, { limit, offset })
 
     return NextResponse.json({
       success: true,

@@ -1,13 +1,51 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
+import { getSession } from '@/lib/auth'
 import { executeCopilotTool } from '@/lib/copilot/tools'
 import { createLogger } from '@/lib/logs/console-logger'
+import { db } from '@/db'
+import { apiKey as apiKeyTable } from '@/db/schema'
 
 const logger = createLogger('TargetedUpdatesAPI')
 
 export async function POST(request: NextRequest) {
   try {
+    // Try session auth first (for web UI)
+    const session = await getSession()
+    let authenticatedUserId: string | null = session?.user?.id || null
+
+    // If no session, check for API key auth
+    if (!authenticatedUserId) {
+      const apiKeyHeader = request.headers.get('x-api-key')
+      if (apiKeyHeader) {
+        // Verify API key
+        const [apiKeyRecord] = await db
+          .select({ userId: apiKeyTable.userId })
+          .from(apiKeyTable)
+          .where(eq(apiKeyTable.key, apiKeyHeader))
+          .limit(1)
+
+        if (apiKeyRecord) {
+          authenticatedUserId = apiKeyRecord.userId
+        }
+      }
+    }
+
+    // Parse body early to check for workflowId
     const body = await request.json()
     const { operations, workflowId } = body
+
+    // If no authentication but workflowId is provided, allow internal calls
+    // This maintains backward compatibility for internal copilot tool calls
+    if (!authenticatedUserId) {
+      if (!workflowId) {
+        return NextResponse.json({ error: 'Unauthorized - authentication or workflowId required' }, { status: 401 })
+      }
+      
+      // For internal calls without auth, we'll validate the workflow exists
+      // but won't enforce user ownership (as this was the original behavior)
+      logger.info('Allowing internal call to targeted-updates without authentication', { workflowId })
+    }
 
     if (!operations || !Array.isArray(operations)) {
       return NextResponse.json(
@@ -25,6 +63,7 @@ export async function POST(request: NextRequest) {
 
     logger.info('Executing targeted updates', {
       workflowId,
+      userId: authenticatedUserId || 'internal_call',
       operationCount: operations.length,
       operations: operations.map((op) => ({ type: op.operation_type, blockId: op.block_id })),
     })
