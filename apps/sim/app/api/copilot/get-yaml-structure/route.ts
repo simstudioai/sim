@@ -3,6 +3,26 @@ import { getYamlWorkflowPrompt } from '@/lib/copilot/prompts'
 
 export const dynamic = 'force-dynamic'
 
+export async function getYamlStructure(params: any) {
+  try {
+    console.log('[get-yaml-structure] API endpoint called')
+
+    return {
+      success: true,
+      data: {
+        guide: getYamlWorkflowPrompt(),
+        message: 'Complete YAML workflow syntax guide with examples and best practices',
+      },
+    }
+  } catch (error) {
+    console.error('[get-yaml-structure] Error:', error)
+    return {
+      success: false,
+      error: 'Failed to get YAML structure',
+    }
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('[get-yaml-structure] API endpoint called')

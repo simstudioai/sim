@@ -8,6 +8,62 @@ import { apiKey as apiKeyTable } from '@/db/schema'
 
 const logger = createLogger('TargetedUpdatesAPI')
 
+export async function targetedUpdates(params: any) {
+  try {
+    // Get authenticated user ID from params (assumes authentication is handled by the methods route)
+    const authenticatedUserId = params.userId
+    
+    if (!authenticatedUserId) {
+      return {
+        success: false,
+        error: 'User authentication required',
+      }
+    }
+
+    const { operations, workflowId } = params
+
+    if (!operations || !Array.isArray(operations)) {
+      return {
+        success: false,
+        error: 'operations must be an array',
+      }
+    }
+
+    if (!workflowId) {
+      return {
+        success: false,
+        error: 'workflowId is required',
+      }
+    }
+
+    logger.info('Processing targeted update request', { 
+      userId: authenticatedUserId 
+    })
+
+    // Execute the copilot tool
+    const result = await executeCopilotTool('targeted_updates', {
+      operations: params.operations,
+      _context: { 
+        workflowId: params.workflowId,
+        userId: authenticatedUserId 
+      },
+    })
+
+    logger.info('Targeted update completed successfully')
+
+    return {
+      success: true,
+      data: result,
+    }
+  } catch (error) {
+    logger.error('Targeted update failed:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Try session auth first (for web UI)

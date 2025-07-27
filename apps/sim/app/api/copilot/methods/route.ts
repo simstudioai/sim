@@ -9,6 +9,9 @@ import { previewWorkflow } from '../preview-workflow/route'
 import { docsSearchInternal } from '../docs-search-internal/route'
 import { getWorkflowConsole } from '../get-workflow-console/route'
 import { getUserWorkflow } from '../get-user-workflow/route'
+import { getBlocksMetadata } from '../get-blocks-metadata/route'
+import { getYamlStructure } from '../get-yaml-structure/route'
+import { targetedUpdates } from '../targeted-updates/route'
 
 const logger = createLogger('CopilotMethodsAPI')
 
@@ -48,6 +51,9 @@ const METHODS = {
   'docs_search_internal': docsSearchInternal,
   'get_workflow_console': getWorkflowConsole,
   'get_user_workflow': getUserWorkflow,
+  'get_blocks_metadata': getBlocksMetadata,
+  'get_yaml_structure': getYamlStructure,
+  'targeted_updates': targetedUpdates,
 } as const
 
 /**

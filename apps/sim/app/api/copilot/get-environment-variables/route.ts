@@ -1,38 +1,53 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { getEnvironmentVariableKeys } from '@/lib/environment/utils'
+import { getUserId } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('GetEnvironmentVariablesAPI')
 
 export async function getEnvironmentVariables(params: any) {
-  logger.info('Getting environment variables for copilot')
+  logger.info('Getting environment variables for copilot', { params })
 
-  // Forward the request to the existing environment variables endpoint
-  const envUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/environment/variables`
-  
-  const response = await fetch(envUrl, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
+  const { userId: directUserId, workflowId } = params
 
-  if (!response.ok) {
-    logger.error('Environment variables API failed', { 
-      status: response.status, 
-      statusText: response.statusText 
+  try {
+    // Resolve userId from workflowId if needed
+    const userId = directUserId || (workflowId ? await getUserId('copilot-env-vars', workflowId) : undefined)
+
+    logger.info('Resolved userId', { 
+      directUserId, 
+      workflowId, 
+      resolvedUserId: userId 
     })
-    throw new Error('Failed to get environment variables')
-  }
 
-  const envData = await response.json()
+    if (!userId) {
+      logger.warn('No userId could be determined', { directUserId, workflowId })
+      return {
+        success: false,
+        error: 'Either userId or workflowId is required',
+      }
+    }
 
-  // Extract just the variable names (not values) for security
-  const variableNames = envData.data ? Object.keys(envData.data) : []
+    // Get environment variable keys directly
+    const result = await getEnvironmentVariableKeys(userId)
 
-  return {
-    success: true,
-    data: {
-      variableNames,
-      count: variableNames.length,
-    },
+    logger.info('Environment variable keys retrieved', { 
+      userId,
+      result,
+      variableCount: result.count 
+    })
+
+    return {
+      success: true,
+      data: {
+        variableNames: result.variableNames,
+        count: result.count,
+      },
+    }
+  } catch (error) {
+    logger.error('Failed to get environment variables', error)
+    return {
+      success: false,
+      error: 'Failed to get environment variables',
+    }
   }
 } 
