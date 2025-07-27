@@ -3,14 +3,84 @@
 import { type FC, memo, useMemo } from 'react'
 import { Bot, Copy, User } from 'lucide-react'
 import { useTheme } from 'next-themes'
+import { highlight, languages } from 'prismjs'
 import ReactMarkdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import 'prismjs/components/prism-javascript'
+import 'prismjs/components/prism-typescript'
+import 'prismjs/components/prism-jsx'
+import 'prismjs/components/prism-tsx'
+import 'prismjs/components/prism-python'
+import 'prismjs/components/prism-bash'
+import 'prismjs/components/prism-json'
+import 'prismjs/components/prism-css'
+import 'prismjs/components/prism-sql'
+import 'prismjs/components/prism-yaml'
+import 'prismjs/components/prism-markdown'
+import 'prismjs/themes/prism.css'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { ToolCallCompletion, ToolCallExecution } from '@/components/ui/tool-call'
 import { parseMessageContent, stripToolCallIndicators } from '@/lib/tool-call-parser'
 import type { CopilotMessage } from '@/stores/copilot/types'
+
+// Add dark mode styling for Prism.js
+if (typeof document !== 'undefined') {
+  const styleId = 'professional-message-prism-dark-mode'
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style')
+    style.id = styleId
+    style.textContent = `
+      .dark .token.comment,
+      .dark .token.prolog,
+      .dark .token.doctype,
+      .dark .token.cdata {
+        color: #6a9955;
+      }
+      .dark .token.punctuation {
+        color: #d4d4d4;
+      }
+      .dark .token.property,
+      .dark .token.tag,
+      .dark .token.boolean,
+      .dark .token.number,
+      .dark .token.constant,
+      .dark .token.symbol,
+      .dark .token.deleted {
+        color: #b5cea8;
+      }
+      .dark .token.selector,
+      .dark .token.attr-name,
+      .dark .token.string,
+      .dark .token.char,
+      .dark .token.builtin,
+      .dark .token.inserted {
+        color: #ce9178;
+      }
+      .dark .token.operator,
+      .dark .token.entity,
+      .dark .token.url,
+      .dark .language-css .token.string,
+      .dark .style .token.string {
+        color: #d4d4d4;
+      }
+      .dark .token.atrule,
+      .dark .token.attr-value,
+      .dark .token.keyword {
+        color: #569cd6;
+      }
+      .dark .token.function,
+      .dark .token.class-name {
+        color: #dcdcaa;
+      }
+      .dark .token.regex,
+      .dark .token.important,
+      .dark .token.variable {
+        color: #d16969;
+      }
+    `
+    document.head.appendChild(style)
+  }
+}
 
 interface ProfessionalMessageProps {
   message: CopilotMessage
@@ -52,56 +122,46 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
   const markdownComponents = {
     code: ({ inline, className, children, ...props }: any) => {
       const match = /language-(\w+)/.exec(className || '')
-      const language = match ? match[1] : ''
+      const language = match ? match[1] : 'text'
 
-      if (!inline && language) {
+      if (!inline && languages[language]) {
+        const code = String(children).replace(/\n$/, '')
+        const highlighted = highlight(code, languages[language], language)
+
         return (
           <div className='group relative my-3 w-full max-w-full overflow-hidden rounded-lg border bg-muted/30'>
-            <div
-              className='w-full max-w-full overflow-x-auto'
-              style={{ maxWidth: '100%', width: '100%' }}
-            >
-              <div style={{ maxWidth: '100%', overflow: 'hidden' }}>
-                <SyntaxHighlighter
-                  style={theme === 'dark' ? oneDark : oneLight}
-                  language={language}
-                  PreTag='div'
-                  className='!m-0 !bg-transparent !max-w-full !w-full'
-                  showLineNumbers={language !== 'bash' && language !== 'shell'}
-                  wrapLines={true}
-                  wrapLongLines={true}
-                  customStyle={{
-                    margin: '0 !important',
-                    padding: '1rem',
-                    fontSize: '0.875rem',
-                    maxWidth: '100% !important',
-                    width: '100% !important',
-                    overflow: 'auto',
+            <div className='w-full max-w-full overflow-x-auto'>
+              <div className='relative'>
+                <pre
+                  className='m-0 max-w-full overflow-auto p-4 text-sm leading-relaxed'
+                  style={{
                     whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
+                    wordBreak: 'break-word',
+                    maxWidth: '100%',
+                    width: '100%',
                   }}
-                  codeTagProps={{
-                    style: {
+                >
+                  <code
+                    className={`language-${language}`}
+                    dangerouslySetInnerHTML={{ __html: highlighted }}
+                    style={{
                       maxWidth: '100%',
                       overflow: 'hidden',
-                      wordBreak: 'break-all',
+                      wordBreak: 'break-word',
                       whiteSpace: 'pre-wrap',
-                    },
-                  }}
-                  {...props}
+                    }}
+                  />
+                </pre>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='absolute top-2 right-2 h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100'
+                  onClick={() => navigator.clipboard.writeText(code)}
                 >
-                  {String(children).replace(/\n$/, '')}
-                </SyntaxHighlighter>
+                  <Copy className='h-3 w-3' />
+                </Button>
               </div>
             </div>
-            <Button
-              variant='ghost'
-              size='sm'
-              className='absolute top-2 right-2 h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100'
-              onClick={() => navigator.clipboard.writeText(String(children))}
-            >
-              <Copy className='h-3 w-3' />
-            </Button>
           </div>
         )
       }

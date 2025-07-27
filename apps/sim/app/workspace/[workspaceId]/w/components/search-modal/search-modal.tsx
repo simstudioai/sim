@@ -551,9 +551,9 @@ export function SearchModal({
       <DialogPortal>
         <DialogOverlay
           className='bg-white/50 dark:bg-black/50'
-          style={{ backdropFilter: 'blur(4.8px)' }}
+          style={{ backdropFilter: 'blur(1.5px)' }}
         />
-        <DialogPrimitive.Content className='data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 flex h-[580px] w-[700px] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-background p-0 shadow-lg duration-200 focus:outline-none focus-visible:outline-none data-[state=closed]:animate-out data-[state=open]:animate-in'>
+        <DialogPrimitive.Content className='data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 flex h-[580px] w-[700px] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-[8px] border border-border bg-background p-0 shadow-lg duration-200 focus:outline-none focus-visible:outline-none data-[state=closed]:animate-out data-[state=open]:animate-in'>
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
           </VisuallyHidden.Root>
@@ -595,10 +595,10 @@ export function SearchModal({
                           <button
                             key={block.id}
                             onClick={() => handleBlockClick(block.type)}
-                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-[8px] bg-secondary p-2 transition-colors hover:bg-secondary/80'
                           >
                             <div
-                              className='flex h-5 w-5 items-center justify-center rounded-md'
+                              className='flex h-5 w-5 items-center justify-center rounded-[8px]'
                               style={{ backgroundColor: block.bgColor }}
                             >
                               <block.icon className='h-4 w-4 text-white' />
@@ -621,10 +621,10 @@ export function SearchModal({
                           <button
                             key={block.id}
                             onClick={() => handleBlockClick(block.type)}
-                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-[8px] bg-secondary p-2 transition-colors hover:bg-secondary/80'
                           >
                             <div
-                              className='flex h-5 w-5 items-center justify-center rounded-md'
+                              className='flex h-5 w-5 items-center justify-center rounded-[8px]'
                               style={{ backgroundColor: block.bgColor }}
                             >
                               <block.icon className='h-4 w-4 text-white' />
@@ -658,10 +658,10 @@ export function SearchModal({
                         <button
                           key={tool.id}
                           onClick={() => handleBlockClick(tool.type)}
-                          className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                          className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-[8px] bg-secondary p-2 transition-colors hover:bg-secondary/80'
                         >
                           <div
-                            className='flex h-5 w-5 items-center justify-center rounded-md'
+                            className='flex h-5 w-5 items-center justify-center rounded-[8px]'
                             style={{ backgroundColor: tool.bgColor }}
                           >
                             <tool.icon className='h-4 w-4 text-white' />
@@ -684,10 +684,10 @@ export function SearchModal({
                           <button
                             key={tool.id}
                             onClick={() => handleBlockClick(tool.type)}
-                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-[8px] bg-secondary p-2 transition-colors hover:bg-secondary/80'
                           >
                             <div
-                              className='flex h-5 w-5 items-center justify-center rounded-md'
+                              className='flex h-5 w-5 items-center justify-center rounded-[8px]'
                               style={{ backgroundColor: tool.bgColor }}
                             >
                               <tool.icon className='h-4 w-4 text-white' />
@@ -753,7 +753,7 @@ export function SearchModal({
                             : handleNavigationClick(workspace.href)
                         }
                         data-search-item={`workspace-${workspace.id}`}
-                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                        className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
                           isItemSelected(workspace, 'workspace')
                             ? 'bg-accent text-accent-foreground'
                             : 'hover:bg-accent/60 focus:bg-accent/60'
@@ -788,7 +788,7 @@ export function SearchModal({
                             : handleNavigationClick(workflow.href)
                         }
                         data-search-item={`workflow-${workflow.id}`}
-                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                        className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
                           isItemSelected(workflow, 'workflow')
                             ? 'bg-accent text-accent-foreground'
                             : 'hover:bg-accent/60 focus:bg-accent/60'
@@ -819,7 +819,7 @@ export function SearchModal({
                         key={page.id}
                         onClick={() => handlePageClick(page.href)}
                         data-search-item={`page-${page.id}`}
-                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                        className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
                           isItemSelected(page, 'page')
                             ? 'bg-accent text-accent-foreground'
                             : 'hover:bg-accent/60 focus:bg-accent/60'
@@ -832,7 +832,7 @@ export function SearchModal({
                           {page.name}
                         </span>
                         {page.shortcut && (
-                          <kbd className='flex h-6 w-10 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]'>
+                          <kbd className='flex h-6 w-10 items-center justify-center rounded-[8px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]'>
                             <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
                               <span className='text-lg'>⌘</span>
                               <span className='pb-[4px] text-lg'>⇧</span>
@@ -858,7 +858,7 @@ export function SearchModal({
                         key={doc.id}
                         onClick={() => handleDocsClick(doc.href)}
                         data-search-item={`doc-${doc.id}`}
-                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                        className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
                           isItemSelected(doc, 'doc')
                             ? 'bg-accent text-accent-foreground'
                             : 'hover:bg-accent/60 focus:bg-accent/60'

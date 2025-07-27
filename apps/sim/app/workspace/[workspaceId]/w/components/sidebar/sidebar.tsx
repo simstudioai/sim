@@ -39,7 +39,7 @@ const SIDEBAR_HEIGHTS = {
   SEARCH: 48, // h-12
   WORKFLOW_SELECTOR: 212, // h-[212px]
   NAVIGATION: 48, // h-12 buttons
-  WORKSPACE_SELECTOR: 183, // accurate height: p-2(16) + h-[116px](116) + mt-2(8) + border-t(1) + pt-2(8) + h-8(32) = 181px
+  WORKSPACE_SELECTOR: 171, // optimized height: p-2(16) + h-[104px](104) + mt-2(8) + border-t(1) + pt-2(8) + h-8(32) = 169px
 }
 
 /**
@@ -777,14 +777,13 @@ export function Sidebar() {
               onToggleSidebar={toggleSidebarCollapsed}
               activeWorkspace={activeWorkspace}
               isWorkspacesLoading={isWorkspacesLoading}
-              updateWorkspaceName={updateWorkspaceName}
             />
           </div>
 
-          {/* 2. Workspace Selector - Conditionally rendered */}
+          {/* 2. Workspace Selector */}
           <div
             className={`pointer-events-auto flex-shrink-0 ${
-              !isWorkspaceSelectorVisible || isSidebarCollapsed ? 'hidden' : ''
+              !isWorkspaceSelectorVisible ? 'hidden' : ''
             }`}
           >
             <WorkspaceSelector
@@ -796,6 +795,7 @@ export function Sidebar() {
               onCreateWorkspace={handleCreateWorkspace}
               onDeleteWorkspace={confirmDeleteWorkspace}
               onLeaveWorkspace={handleLeaveWorkspace}
+              updateWorkspaceName={updateWorkspaceName}
               isDeleting={isDeleting}
               isLeaving={isLeaving}
               isCreating={isCreatingWorkspace}
@@ -808,7 +808,7 @@ export function Sidebar() {
           >
             <button
               onClick={() => setShowSearchModal(true)}
-              className='flex h-12 w-full cursor-pointer items-center gap-2 rounded-[14px] border bg-card pr-[10px] pl-3 shadow-xs transition-colors hover:bg-muted/50'
+              className='flex h-12 w-full cursor-pointer items-center gap-2 rounded-[10px] border bg-background pr-[10px] pl-3 shadow-xs transition-colors hover:bg-muted/50'
             >
               <Search className='h-4 w-4 text-muted-foreground' strokeWidth={2} />
               <span className='flex h-8 flex-1 items-center px-0 text-muted-foreground text-sm leading-none'>
@@ -825,7 +825,7 @@ export function Sidebar() {
 
           {/* 4. Workflow Selector */}
           <div
-            className={`pointer-events-auto relative h-[212px] flex-shrink-0 rounded-[14px] border bg-card shadow-xs ${
+            className={`pointer-events-auto relative h-[212px] flex-shrink-0 rounded-[10px] border bg-background shadow-xs ${
               isSidebarCollapsed ? 'hidden' : ''
             }`}
           >
@@ -855,7 +855,7 @@ export function Sidebar() {
 
       {/* Floating Toolbar - Only on workflow pages */}
       <div
-        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[14px] border bg-card shadow-xs ${
+        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[10px] border bg-background shadow-xs ${
           !isOnWorkflowPage || isSidebarCollapsed ? 'hidden' : ''
         }`}
         style={{
@@ -871,7 +871,7 @@ export function Sidebar() {
 
       {/* Floating Logs Filters - Only on logs page */}
       <div
-        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[14px] border bg-card shadow-xs ${
+        className={`pointer-events-auto fixed left-4 z-50 w-56 rounded-[10px] border bg-background shadow-xs ${
           !isOnLogsPage || isSidebarCollapsed ? 'hidden' : ''
         }`}
         style={{
@@ -938,7 +938,7 @@ const NavigationItem = ({ item }: NavigationItemProps) => {
       variant='outline'
       onClick={item.onClick}
       className={cn(
-        'h-[42px] w-[42px] rounded-[11px] border bg-card text-card-foreground shadow-xs transition-all duration-200',
+        'h-[42px] w-[42px] rounded-[10px] border bg-background text-foreground shadow-xs transition-all duration-200',
         isGrayHover && 'hover:bg-secondary',
         !isGrayHover && 'hover:border-[#701FFC] hover:bg-[#701FFC] hover:text-white',
         item.active && 'border-[#701FFC] bg-[#701FFC] text-white'
