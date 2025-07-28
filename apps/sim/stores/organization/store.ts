@@ -64,52 +64,24 @@ export const useOrganizationStore = create<OrganizationStore>()(
         set({ isLoading: true, error: null })
 
         try {
-          // First check billing data to see if user has team/enterprise plans
-          const billingResponse = await fetch('/api/billing?context=user')
-          
+          // Load organizations, active organization, and user subscription info in parallel
+          const [orgsResponse, activeOrgResponse, billingResponse] = await Promise.all([
+            client.organization.list(),
+            client.organization.getFullOrganization().catch(() => ({ data: null })),
+            fetch('/api/billing?context=user'),
+          ])
+
+          const organizations = orgsResponse.data || []
+          const activeOrganization = activeOrgResponse.data || null
+
           let hasTeamPlan = false
           let hasEnterprisePlan = false
-          let shouldLoadOrganizations = false
 
           if (billingResponse.ok) {
             const billingResult = await billingResponse.json()
             const billingData = billingResult.data
             hasTeamPlan = billingData.isTeam
             hasEnterprisePlan = billingData.isEnterprise
-            shouldLoadOrganizations = hasTeamPlan || hasEnterprisePlan
-          }
-
-          let organizations: any[] = []
-          let activeOrganization: any = null
-
-          // Only load organization data if user has team/enterprise plans
-          if (shouldLoadOrganizations) {
-            logger.debug('User has team/enterprise plan, loading organization data')
-            const [orgsResponse, activeOrgResponse] = await Promise.all([
-              client.organization.list().catch((error) => {
-                // Suppress 404 errors for users who don't have organizations yet
-                if (error.status === 404 || error.code === 404) {
-                  logger.debug('User has no organizations yet, returning empty list')
-                  return { data: [] }
-                }
-                logger.error('Unexpected error loading organizations:', error)
-                throw error
-              }),
-              client.organization.getFullOrganization().catch((error) => {
-                // Suppress 404 errors for users who don't have an active organization yet
-                if (error.status === 404 || error.code === 404) {
-                  logger.debug('User has no active organization yet, returning null')
-                  return { data: null }
-                }
-                logger.error('Unexpected error loading active organization:', error)
-                return { data: null }
-              }),
-            ])
-
-            organizations = orgsResponse.data || []
-            activeOrganization = activeOrgResponse.data || null
-          } else {
-            logger.debug('User has no team/enterprise plan, skipping organization loading')
           }
 
           set({
@@ -356,13 +328,7 @@ export const useOrganizationStore = create<OrganizationStore>()(
         if (!activeOrganization?.id) return
 
         try {
-          const fullOrgResponse = await client.organization.getFullOrganization().catch((error) => {
-            if (error.status === 404) {
-              logger.debug('User has no active organization (404) during refresh, returning null')
-              return { data: null }
-            }
-            throw error
-          })
+          const fullOrgResponse = await client.organization.getFullOrganization()
           const updatedOrg = fullOrgResponse.data
 
           set({ activeOrganization: updatedOrg })
@@ -422,13 +388,7 @@ export const useOrganizationStore = create<OrganizationStore>()(
         try {
           await client.organization.setActive({ organizationId: orgId })
 
-          const activeOrgResponse = await client.organization.getFullOrganization().catch((error) => {
-            if (error.status === 404) {
-              logger.debug('User has no active organization (404) during setActive, returning null')
-              return { data: null }
-            }
-            throw error
-          })
+          const activeOrgResponse = await client.organization.getFullOrganization()
           const activeOrganization = activeOrgResponse.data
 
           set({ activeOrganization })

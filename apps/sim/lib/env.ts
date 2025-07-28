@@ -1,4 +1,3 @@
-// biome-ignore format: keep alignment for readability
 import { createEnv } from '@t3-oss/env-nextjs'
 import { env as runtimeEnv } from 'next-runtime-env'
 import { z } from 'zod'
@@ -11,6 +10,7 @@ import { z } from 'zod'
  */
 const getEnv = (variable: string) => runtimeEnv(variable) ?? process.env[variable]
 
+// biome-ignore format: keep alignment for readability
 export const env = createEnv({
   skipValidation: true,
 
