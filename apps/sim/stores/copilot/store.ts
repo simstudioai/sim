@@ -642,22 +642,28 @@ export const useCopilotStore = create<CopilotStore>()(
           const data = await response.json()
           
           if (data.success && Array.isArray(data.chats)) {
-            const { currentChat } = get()
             
             set({ 
               chats: data.chats,
               isLoadingChats: false 
             })
             
-            // Auto-select the most recent chat if no chat is currently selected
-            // and there are chats available (they're already sorted by updatedAt desc)
-            if (!currentChat && data.chats.length > 0) {
+            // Auto-select the most recent chat if there are any chats for this workflow
+            // Since chats are filtered by workflow ID, any existing currentChat would be stale
+            if (data.chats.length > 0) {
               const mostRecentChat = data.chats[0]
               set({
                 currentChat: mostRecentChat,
                 messages: mostRecentChat.messages || [],
               })
-              logger.info(`Auto-selected most recent chat: ${mostRecentChat.title || 'Untitled'}`)
+              logger.info(`Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`)
+            } else {
+              // Ensure we clear everything if there are no chats for this workflow
+              set({
+                currentChat: null,
+                messages: [],
+              })
+              logger.info(`No chats found for workflow ${workflowId}, cleared chat state`)
             }
             
             logger.info(`Loaded ${data.chats.length} chats for workflow ${workflowId}`)

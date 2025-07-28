@@ -113,29 +113,6 @@ class SimAgentClient {
   }
 
   /**
-   * Test authentication with the sim-agent service
-   */
-  async testAuth(request: SimAgentRequest): Promise<SimAgentResponse> {
-    return this.makeRequest('/api/test-auth', {
-      method: 'POST',
-      body: {
-        workflowId: request.workflowId,
-        userId: request.userId,
-        ...request.data,
-      },
-    })
-  }
-
-  /**
-   * Health check endpoint
-   */
-  async healthCheck(): Promise<SimAgentResponse> {
-    return this.makeRequest('/api/health', {
-      method: 'GET',
-    })
-  }
-
-  /**
    * Generic method for custom API calls
    */
   async call<T = any>(

@@ -973,84 +973,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     )
   }
 
-    /**
-   * Handle test auth API call
-   */
-  const handleTestAuth = async () => {
-    if (!activeWorkflowId) {
-      console.error('No active workflow ID')
-      return
-    }
-
-    if (!session?.user?.id) {
-      console.error('No user session')
-      alert('Please log in to test the sim-agent connection')
-      return
-    }
-
-    try {
-      console.log('Test Auth Debug:', {
-        workflowId: activeWorkflowId,
-        userId: session.user.id,
-      })
-
-      const response = await fetch('/api/test-auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          workflowId: activeWorkflowId,
-          userId: session.user.id,
-        }),
-      })
-
-      console.log('Response status:', response.status)
-      
-      let result
-      try {
-        const responseText = await response.text()
-        console.log('Raw response text:', responseText)
-        result = JSON.parse(responseText)
-      } catch (parseError) {
-        console.error('Failed to parse response as JSON:', parseError)
-        alert(`Failed to parse response as JSON. Status: ${response.status}`)
-        return
-      }
-      
-      if (result.success) {
-        console.log('Sim-agent test successful:', result)
-        alert('✅ Sim-agent connection successful! Check console for details.')
-      } else {
-        console.error('Sim-agent test failed:', result)
-        alert(`❌ Sim-agent test failed: ${result.error || 'Unknown error'}`)
-      }
-    } catch (error) {
-      console.error('Test auth error:', error)
-      alert(`❌ Test auth error: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
-
-  /**
-   * Render test auth button
-   */
-  const renderTestAuthButton = () => {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant='outline'
-            onClick={handleTestAuth}
-            className='h-12 w-12 rounded-[11px] border bg-red-500 text-white shadow-xs hover:bg-red-600'
-          >
-            <span className='text-lg font-bold'>🧪</span>
-            <span className='sr-only'>Test Auth API</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Test Auth API</TooltipContent>
-      </Tooltip>
-    )
-  }
+  
 
   /**
    * Render control bar toggle button
@@ -1090,7 +1013,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       {!isDebugging && renderDebugModeToggle()}
       {renderPublishButton()}
       {renderDeployButton()}
-      {renderTestAuthButton()}
       {isDebugging ? renderDebugControlsBar() : renderRunButton()}
 
       {/* Template Modal */}
