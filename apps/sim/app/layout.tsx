@@ -12,7 +12,7 @@ import { ZoomPrevention } from '@/app/zoom-prevention'
 const logger = createLogger('RootLayout')
 
 const shouldEnableAnalytics = () => {
-  if (isTruthy(env.NEXT_TELEMETRY_DISABLED)) {
+  if (isTruthy(env.DOCKER_BUILD)) {
     return false
   }
   
