@@ -208,6 +208,20 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
   },
 
+  // Handle chat title update event (custom event)
+  title_updated: async (data, context, get, set) => {
+    const { title } = data
+    logger.info('Received title update from stream:', title)
+
+    set((state: CopilotStore) => ({
+      currentChat: state.currentChat ? {
+        ...state.currentChat,
+        title,
+        updatedAt: new Date(),
+      } : state.currentChat,
+    }))
+  },
+
   // Handle tool result events - simplified
   tool_result: (data, context, get, set) => {
     const { toolCallId, result, success } = data

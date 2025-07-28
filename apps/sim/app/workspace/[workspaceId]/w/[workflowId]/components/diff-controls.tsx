@@ -29,38 +29,38 @@ export function DiffControls() {
     toggleDiffView()
   }
 
-  const handleAccept = async () => {
-    logger.info('Accepting proposed changes')
+  const handleAccept = () => {
+    logger.info('Accepting proposed changes (optimistic)')
 
-    try {
-      // Accept the changes in the diff store (this updates the main workflow store)
-      await acceptChanges()
+    // Immediately update UI state (optimistic)
+    updatePreviewToolCallState('applied')
+    clearPreviewYaml().catch((error) => {
+      logger.warn('Failed to clear preview YAML:', error)
+    })
 
-      // Update the copilot tool call state and clear preview YAML
-      updatePreviewToolCallState('applied')
-      await clearPreviewYaml()
+    // Start background save without awaiting
+    acceptChanges().catch((error) => {
+      logger.error('Failed to accept changes in background:', error)
+      // TODO: Consider showing a toast notification for save failures
+      // For now, the optimistic update stands since the UI state is already correct
+    })
 
-      logger.info('Successfully accepted proposed changes')
-    } catch (error) {
-      logger.error('Failed to accept changes:', error)
-    }
+    logger.info('Optimistically applied changes, saving in background')
   }
 
-  const handleReject = async () => {
-    logger.info('Rejecting proposed changes')
+  const handleReject = () => {
+    logger.info('Rejecting proposed changes (optimistic)')
 
-    try {
-      // Reject the changes in the diff store
-      rejectChanges()
+    // Immediately update UI state (optimistic)
+    updatePreviewToolCallState('rejected')
+    clearPreviewYaml().catch((error) => {
+      logger.warn('Failed to clear preview YAML:', error)
+    })
 
-      // Update the copilot tool call state and clear preview YAML
-      updatePreviewToolCallState('rejected')
-      await clearPreviewYaml()
+    // Reject is immediate (no server save needed)
+    rejectChanges()
 
-      logger.info('Successfully rejected proposed changes')
-    } catch (error) {
-      logger.error('Failed to reject changes:', error)
-    }
+    logger.info('Successfully rejected proposed changes')
   }
 
   return (

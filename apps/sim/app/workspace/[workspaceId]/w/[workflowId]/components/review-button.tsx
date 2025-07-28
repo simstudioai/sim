@@ -8,6 +8,8 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { CopilotSandboxModal } from './copilot-sandbox-modal/copilot-sandbox-modal'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('ReviewButton')
 
@@ -195,102 +197,26 @@ export function ReviewButton() {
   }
 
   const handleApply = async () => {
-    if (!currentChat?.previewYaml) return
+    if (!currentChat?.previewYaml) {
+      logger.error('No YAML content to apply')
+      return
+    }
 
     try {
       setIsProcessing(true)
-
-      logger.info('Applying preview to current workflow (store-first)', {
-        workflowId: activeWorkflowId,
+      
+      // Optimistically update tool call state immediately
+      updatePreviewToolCallState('applied')
+      
+      logger.info('Applying preview workflow', {
         yamlLength: currentChat.previewYaml.length,
+        yamlPreview: currentChat.previewYaml.substring(0, 200),
       })
 
-      // STEP 1: Parse YAML and update local store immediately
-      try {
-        // Import the necessary modules
-        const { convertYamlToWorkflowState } = await import('@/lib/workflows/yaml-converter')
-        const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-
-        // Convert YAML to workflow state using our unified converter
-        const conversionResult = await convertYamlToWorkflowState(currentChat.previewYaml, {
-          generateNewIds: false, // Keep existing IDs for preview
-        })
-
-        if (!conversionResult.success || !conversionResult.workflowState) {
-          throw new Error(`Failed to convert YAML: ${conversionResult.errors.join(', ')}`)
-        }
-
-        const {
-          blocks: workflowBlocks,
-          edges: workflowEdges,
-          loops,
-          parallels,
-        } = conversionResult.workflowState
-
-        // Apply auto layout using the shared utility
-        const { applyAutoLayoutToBlocks } = await import('../utils/auto-layout')
-        const layoutResult = await applyAutoLayoutToBlocks(workflowBlocks, workflowEdges)
-
-        const layoutedBlocks = layoutResult.success ? layoutResult.layoutedBlocks! : workflowBlocks
-
-        if (layoutResult.success) {
-          logger.info('Successfully applied auto layout to preview blocks')
-        } else {
-          logger.warn('Auto layout failed, using original positions:', layoutResult.error)
-        }
-
-        // Update workflow store immediately
-        const workflowStore = useWorkflowStore.getState()
-        const newWorkflowState = {
-          blocks: layoutedBlocks,
-          edges: workflowEdges,
-          loops,
-          parallels,
-          lastSaved: Date.now(),
-          isDeployed: workflowStore.isDeployed,
-          deployedAt: workflowStore.deployedAt,
-          deploymentStatuses: workflowStore.deploymentStatuses,
-          hasActiveWebhook: workflowStore.hasActiveWebhook,
-        }
-
-        useWorkflowStore.setState(newWorkflowState)
-
-        // Extract and update subblock values
-        const subblockValues: Record<string, Record<string, any>> = {}
-        Object.values(layoutedBlocks).forEach((block: any) => {
-          if (block.subBlocks) {
-            const blockValues: Record<string, any> = {}
-            Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
-              if (subBlock.value !== undefined && subBlock.value !== null) {
-                blockValues[subBlockId] = subBlock.value
-              }
-            })
-            if (Object.keys(blockValues).length > 0) {
-              subblockValues[block.id] = blockValues
-            }
-          }
-        })
-
-        // Update subblock store
-        if (Object.keys(subblockValues).length > 0) {
-          useSubBlockStore.setState((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [activeWorkflowId!]: subblockValues,
-            },
-          }))
-        }
-
-        logger.info('Successfully updated local stores with preview content')
-      } catch (parseError) {
-        logger.error('Failed to parse and apply preview locally:', parseError)
-        throw parseError
-      }
-
-      // STEP 2: Save to database (in background, don't await to keep UI responsive)
-      const saveToDatabase = async () => {
+      // Rest of the async operations happen in background
+      const applyInBackground = async () => {
         try {
+          // Apply the workflow YAML content
           const response = await fetch(`/api/workflows/${activeWorkflowId}/yaml`, {
             method: 'PUT',
             headers: {
@@ -298,9 +224,9 @@ export function ReviewButton() {
             },
             body: JSON.stringify({
               yamlContent: currentChat.previewYaml,
-              description: 'Applied copilot proposal',
+              description: 'Applied from copilot proposal',
               source: 'copilot',
-              applyAutoLayout: true,
+              applyAutoLayout: false,
               createCheckpoint: true,
             }),
           })
@@ -313,22 +239,41 @@ export function ReviewButton() {
           const result = await response.json()
 
           if (!result.success) {
-            throw new Error(result.message || 'Failed to apply workflow changes')
+            throw new Error(result.message || 'Failed to apply workflow')
           }
 
-          logger.info('Successfully saved preview to database')
-        } catch (dbError) {
-          logger.error('Failed to save preview to database (store already updated):', dbError)
-          // Don't throw - the store is already updated, so the UI is correct
-          // The socket will eventually sync when the database is available
+          logger.info('Successfully applied preview to main workflow')
+
+          // Update local stores to reflect the applied changes
+          const { blocksUpdated, edgesUpdated, subBlocksUpdated } = result
+
+          if (blocksUpdated) {
+            useWorkflowStore.setState({ blocks: blocksUpdated })
+          }
+          if (edgesUpdated) {
+            useWorkflowStore.setState({ edges: edgesUpdated })
+          }
+          if (subBlocksUpdated) {
+            useSubBlockStore.setState((state: any) => ({
+              workflowValues: {
+                ...state.workflowValues,
+                [activeWorkflowId as string]: subBlocksUpdated,
+              },
+            }))
+          }
+
+          logger.info('Updated local stores with applied workflow state')
+        } catch (error) {
+          logger.error('Failed to apply preview in background:', error)
+          // TODO: Consider showing a toast notification for save failures
+          // The optimistic UI update already happened, so the user sees the intended state
         }
       }
 
-      // Save to database without blocking UI
-      saveToDatabase()
+      // Start background apply
+      applyInBackground()
 
-      // Clear preview YAML after successful store update (user has accepted)
-      updatePreviewToolCallState('applied')
+      // Clear preview YAML after optimistic update
       await clearPreviewYaml()
       setShowModal(false)
       setPreviewWorkflowState(null)
@@ -349,51 +294,65 @@ export function ReviewButton() {
 
     try {
       setIsProcessing(true)
+      
+      // Optimistically update tool call state immediately
+      updatePreviewToolCallState('applied')
 
       logger.info('Creating new workflow from preview', {
         name,
         yamlLength: currentChat.previewYaml.length,
       })
 
-      // First create a new workflow
-      const newWorkflowId = await createWorkflow({
-        name,
-        description: 'Created from copilot proposal',
-        workspaceId,
-      })
+      // Background save operation
+      const saveInBackground = async () => {
+        try {
+          // First create a new workflow
+          const newWorkflowId = await createWorkflow({
+            name,
+            description: 'Created from copilot proposal',
+            workspaceId,
+          })
 
-      if (!newWorkflowId) {
-        throw new Error('Failed to create new workflow')
+          if (!newWorkflowId) {
+            throw new Error('Failed to create new workflow')
+          }
+
+          // Then apply the YAML content to the new workflow
+          const response = await fetch(`/api/workflows/${newWorkflowId}/yaml`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              yamlContent: currentChat.previewYaml,
+              description: 'Created from copilot proposal',
+              source: 'copilot',
+              applyAutoLayout: true,
+              createCheckpoint: false,
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.message || `Failed to save workflow: ${response.statusText}`)
+          }
+
+          const result = await response.json()
+
+          if (!result.success) {
+            throw new Error(result.message || 'Failed to save workflow')
+          }
+
+          logger.info('Successfully created new workflow from preview')
+        } catch (error) {
+          logger.error('Failed to save preview as new workflow in background:', error)
+          // TODO: Consider showing a toast notification for save failures
+        }
       }
 
-      // Then apply the YAML content to the new workflow
-      const response = await fetch(`/api/workflows/${newWorkflowId}/yaml`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          yamlContent: currentChat.previewYaml,
-          description: 'Created from copilot proposal',
-          source: 'copilot',
-          applyAutoLayout: true,
-          createCheckpoint: false,
-        }),
-      })
+      // Start background save
+      saveInBackground()
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || `Failed to save workflow: ${response.statusText}`)
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to save workflow')
-      }
-
-      logger.info('Successfully created new workflow from preview')
-      updatePreviewToolCallState('applied')
       await clearPreviewYaml()
       setShowModal(false)
       setPreviewWorkflowState(null)
@@ -411,7 +370,10 @@ export function ReviewButton() {
 
     try {
       setIsProcessing(true)
+      
+      // Optimistically update tool call state immediately
       updatePreviewToolCallState('rejected')
+      
       await clearPreviewYaml()
       setShowModal(false)
       setPreviewWorkflowState(null)

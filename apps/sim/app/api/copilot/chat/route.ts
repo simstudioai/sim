@@ -49,14 +49,14 @@ async function generateChatTitle(userMessage: string): Promise<string> {
         logger.warn(`Failed to get rotating API key for Anthropic:`, e)
       }
     }
-    
+
     const response = await executeProviderRequest(provider, {
       model,
       systemPrompt: TITLE_GENERATION_SYSTEM_PROMPT,
       context: TITLE_GENERATION_USER_PROMPT(userMessage),
       temperature: 0.3,
       maxTokens: 50,
-      apiKey: apiKey || '', // Use rotating key or empty string
+      apiKey: apiKey || '',
       stream: false,
     })
 
@@ -68,6 +68,47 @@ async function generateChatTitle(userMessage: string): Promise<string> {
   } catch (error) {
     logger.error('Failed to generate chat title:', error)
     return 'New Chat'
+  }
+}
+
+/**
+ * Generate chat title asynchronously and update the database
+ */
+async function generateChatTitleAsync(
+  chatId: string, 
+  userMessage: string, 
+  requestId: string,
+  streamController?: ReadableStreamDefaultController<Uint8Array>
+): Promise<void> {
+  try {
+    logger.info(`[${requestId}] Starting async title generation for chat ${chatId}`)
+    
+    const title = await generateChatTitle(userMessage)
+    
+    // Update the chat with the generated title
+    await db
+      .update(copilotChats)
+      .set({
+        title,
+        updatedAt: new Date(),
+      })
+      .where(eq(copilotChats.id, chatId))
+    
+    // Send title_updated event to client if streaming
+    if (streamController) {
+      const encoder = new TextEncoder()
+      const titleEvent = `data: ${JSON.stringify({ 
+        type: 'title_updated', 
+        title: title 
+      })}\n\n`
+      streamController.enqueue(encoder.encode(titleEvent))
+      logger.debug(`[${requestId}] Sent title_updated event to client: "${title}"`)
+    }
+    
+    logger.info(`[${requestId}] Generated title for chat ${chatId}: "${title}"`)
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to generate title for chat ${chatId}:`, error)
+    // Don't throw - this is a background operation
   }
 }
 
@@ -182,6 +223,11 @@ export async function POST(req: NextRequest) {
       content: message,
     })
 
+    // Start title generation in parallel if this is a new chat with first message
+    if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
+      logger.info(`[${requestId}] Will start parallel title generation inside stream`)
+    }
+
     // Forward to sim agent API
     logger.info(`[${requestId}] Sending request to sim agent API`, {
       messageCount: messages.length,
@@ -245,6 +291,15 @@ export async function POST(req: NextRequest) {
             })}\n\n`
             controller.enqueue(encoder.encode(chatIdEvent))
             logger.debug(`[${requestId}] Sent initial chatId event to client`)
+          }
+
+          // Start title generation in parallel if needed
+          if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
+            logger.info(`[${requestId}] Starting title generation with stream updates`)
+            generateChatTitleAsync(actualChatId, message, requestId, controller)
+              .catch(error => {
+                logger.error(`[${requestId}] Title generation failed:`, error)
+              })
           }
 
           // Forward the sim agent stream and capture assistant response
@@ -390,25 +445,17 @@ export async function POST(req: NextRequest) {
 
               const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
 
-              // Generate title if this is the first message
-              let titleToUse = currentChat.title
-              if (!titleToUse && conversationHistory.length === 0) {
-                titleToUse = await generateChatTitle(message)
-              }
-
-              // Update chat in database
+              // Update chat in database immediately (without title)
               await db
                 .update(copilotChats)
                 .set({
                   messages: updatedMessages,
-                  title: titleToUse || currentChat.title,
                   updatedAt: new Date(),
                 })
                 .where(eq(copilotChats.id, actualChatId!))
 
               logger.info(`[${requestId}] Updated chat ${actualChatId} with new messages`, {
                 messageCount: updatedMessages.length,
-                title: titleToUse || currentChat.title
               })
             }
           } catch (error) {
@@ -483,21 +530,23 @@ export async function POST(req: NextRequest) {
 
       const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
 
-      // Generate title if this is the first message
-      let titleToUse = currentChat.title
-      if (!titleToUse && conversationHistory.length === 0) {
-        titleToUse = await generateChatTitle(message)
+      // Start title generation in parallel if this is first message (non-streaming)
+      if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
+        logger.info(`[${requestId}] Starting title generation for non-streaming response`)
+        generateChatTitleAsync(actualChatId, message, requestId)
+          .catch(error => {
+            logger.error(`[${requestId}] Title generation failed:`, error)
+          })
       }
 
-      // Update chat in database
+      // Update chat in database immediately (without blocking for title)
       await db
         .update(copilotChats)
         .set({
           messages: updatedMessages,
-          title: titleToUse || currentChat.title,
           updatedAt: new Date(),
         })
-                 .where(eq(copilotChats.id, actualChatId!))
+        .where(eq(copilotChats.id, actualChatId!))
     }
 
     logger.info(`[${requestId}] Returning non-streaming response`, {
