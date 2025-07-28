@@ -5,14 +5,14 @@ import { getBlocksAndToolsTool } from './blocks/get-blocks-and-tools'
 import { getBlocksMetadataTool } from './blocks/get-blocks-metadata'
 import { getWorkflowExamplesTool } from './blocks/get-workflow-examples'
 import { getYamlStructureTool } from './blocks/get-yaml-structure'
-import { docsSearchInternalTool } from './docs/docs-search-internal'
+import { searchDocsTool } from './docs/search-docs'
 import { onlineSearchTool } from './other/online-search'
 import { getEnvironmentVariablesTool } from './user/get-environment-variables'
 import { setEnvironmentVariablesTool } from './user/set-environment-variables'
 import { getUserWorkflowTool } from './workflow/get-user-workflow'
-import { previewWorkflowTool } from './workflow/preview-workflow'
+import { buildWorkflowTool } from './workflow/build-workflow'
 import { getWorkflowConsoleTool } from './workflow/get-workflow-console'
-import { targetedUpdatesTool } from './workflow/targeted-updates'
+import { editWorkflowTool } from './workflow/edit-workflow'
 
 // Registry of all copilot tools
 export class CopilotToolRegistry {
@@ -90,14 +90,14 @@ copilotToolRegistry.register(getBlocksAndToolsTool)
 copilotToolRegistry.register(getBlocksMetadataTool)
 copilotToolRegistry.register(getWorkflowExamplesTool)
 copilotToolRegistry.register(getYamlStructureTool)
-copilotToolRegistry.register(docsSearchInternalTool)
+copilotToolRegistry.register(searchDocsTool)
 copilotToolRegistry.register(onlineSearchTool)
 copilotToolRegistry.register(getEnvironmentVariablesTool)
 copilotToolRegistry.register(setEnvironmentVariablesTool)
 copilotToolRegistry.register(getUserWorkflowTool)
-copilotToolRegistry.register(previewWorkflowTool)
+copilotToolRegistry.register(buildWorkflowTool)
 copilotToolRegistry.register(getWorkflowConsoleTool)
-copilotToolRegistry.register(targetedUpdatesTool)
+copilotToolRegistry.register(editWorkflowTool)
 
 // Dynamically generated constants - single source of truth
 export const COPILOT_TOOL_IDS = copilotToolRegistry.getAvailableIds()

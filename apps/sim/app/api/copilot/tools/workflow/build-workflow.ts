@@ -1,31 +1,31 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { BaseCopilotTool } from '../base'
 
-interface PreviewWorkflowParams {
+interface BuildWorkflowParams {
   yamlContent: string
   description?: string
 }
 
-interface PreviewWorkflowResult {
+interface BuildWorkflowResult {
   yamlContent: string
   description?: string
   [key: string]: any // For the preview data fields
 }
 
-class PreviewWorkflowTool extends BaseCopilotTool<PreviewWorkflowParams, PreviewWorkflowResult> {
+class BuildWorkflowTool extends BaseCopilotTool<BuildWorkflowParams, BuildWorkflowResult> {
   readonly id = 'build_workflow'
-  readonly displayName = 'Preview workflow changes'
+  readonly displayName = 'Building workflow'
 
-  protected async executeImpl(params: PreviewWorkflowParams): Promise<PreviewWorkflowResult> {
-    return previewWorkflow(params)
+  protected async executeImpl(params: BuildWorkflowParams): Promise<BuildWorkflowResult> {
+    return buildWorkflow(params)
   }
 }
 
 // Export the tool instance
-export const previewWorkflowTool = new PreviewWorkflowTool()
+export const buildWorkflowTool = new BuildWorkflowTool()
 
 // Implementation function
-async function previewWorkflow(params: PreviewWorkflowParams): Promise<PreviewWorkflowResult> {
+async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflowResult> {
   const logger = createLogger('PreviewWorkflow')
   const { yamlContent, description } = params
 

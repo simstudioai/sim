@@ -1,9 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('TargetedUpdatesAPI')
+const logger = createLogger('EditWorkflowAPI')
 
 // Types for operations
-interface TargetedUpdateOperation {
+interface EditWorkflowOperation {
   operation_type: 'add' | 'edit' | 'delete'
   block_id: string
   params?: Record<string, any>
@@ -14,7 +14,7 @@ interface TargetedUpdateOperation {
  */
 async function applyOperationsToYaml(
   currentYaml: string,
-  operations: TargetedUpdateOperation[]
+  operations: EditWorkflowOperation[]
 ): Promise<string> {
   const { parseWorkflowYaml } = await import('@/stores/workflows/yaml/importer')
   const yaml = await import('yaml')
@@ -228,30 +228,30 @@ async function applyOperationsToYaml(
 
 import { BaseCopilotTool } from '../base'
 
-interface TargetedUpdatesParams {
-  operations: TargetedUpdateOperation[]
+interface EditWorkflowParams {
+  operations: EditWorkflowOperation[]
   workflowId: string
 }
 
-interface TargetedUpdatesResult {
+interface EditWorkflowResult {
   yamlContent: string
   operations: Array<{ type: string; blockId: string }>
 }
 
-class TargetedUpdatesTool extends BaseCopilotTool<TargetedUpdatesParams, TargetedUpdatesResult> {
+class EditWorkflowTool extends BaseCopilotTool<EditWorkflowParams, EditWorkflowResult> {
   readonly id = 'edit_workflow'
   readonly displayName = 'Updating workflow'
 
-  protected async executeImpl(params: TargetedUpdatesParams): Promise<TargetedUpdatesResult> {
-    return targetedUpdates(params)
+  protected async executeImpl(params: EditWorkflowParams): Promise<EditWorkflowResult> {
+    return editWorkflow(params)
   }
 }
 
 // Export the tool instance
-export const targetedUpdatesTool = new TargetedUpdatesTool()
+export const editWorkflowTool = new EditWorkflowTool()
 
 // Implementation function
-async function targetedUpdates(params: TargetedUpdatesParams): Promise<TargetedUpdatesResult> {
+async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowResult> {
   const { operations, workflowId } = params
 
   logger.info('Processing targeted update request', { 

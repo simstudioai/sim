@@ -25,20 +25,20 @@ interface DocsSearchResult {
   totalResults: number
 }
 
-class DocsSearchInternalTool extends BaseCopilotTool<DocsSearchParams, DocsSearchResult> {
+class SearchDocsTool extends BaseCopilotTool<DocsSearchParams, DocsSearchResult> {
   readonly id = 'search_documentation'
   readonly displayName = 'Searching documentation'
 
   protected async executeImpl(params: DocsSearchParams): Promise<DocsSearchResult> {
-    return docsSearch(params)
+    return searchDocs(params)
   }
 }
 
 // Export the tool instance
-export const docsSearchInternalTool = new DocsSearchInternalTool()
+export const searchDocsTool = new SearchDocsTool()
 
 // Implementation function
-async function docsSearch(params: DocsSearchParams): Promise<DocsSearchResult> {
+async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
   const logger = createLogger('DocsSearch')
   const { query, topK = 10, threshold } = params
 
