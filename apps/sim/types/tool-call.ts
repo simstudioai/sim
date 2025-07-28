@@ -3,7 +3,7 @@ export interface ToolCallState {
   name: string
   displayName?: string
   parameters?: Record<string, any>
-  state: 'detecting' | 'executing' | 'completed' | 'error'
+  state: 'detecting' | 'executing' | 'completed' | 'error' | 'aborted'
   startTime?: number
   endTime?: number
   duration?: number

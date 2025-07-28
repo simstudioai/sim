@@ -728,22 +728,41 @@ export const useCopilotStore = create<CopilotStore>()(
           // Abort the request
           abortController.abort()
 
-          // Find the last streaming message and replace it with an aborted message
+          // Find the last streaming message and mark any executing tool calls as aborted
           const lastMessage = messages[messages.length - 1]
-          if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content === '') {
-            const abortedMessage = createErrorMessage(
-              lastMessage.id,
-              'Message was cancelled. You can continue the conversation below.'
-            )
+          if (lastMessage && lastMessage.role === 'assistant') {
+            // Mark any executing tool calls as aborted
+            const updatedToolCalls = lastMessage.toolCalls?.map(toolCall => 
+              toolCall.state === 'executing' 
+                ? { ...toolCall, state: 'aborted' as const, endTime: Date.now() }
+                : toolCall
+            ) || []
+
+            // Update content blocks to reflect aborted tool calls
+            const updatedContentBlocks = lastMessage.contentBlocks?.map(block => 
+              block.type === 'tool_call' && block.toolCall.state === 'executing'
+                ? { ...block, toolCall: { ...block.toolCall, state: 'aborted' as const, endTime: Date.now() } }
+                : block
+            ) || []
+
+            const abortedCount = updatedToolCalls.filter(tc => tc.state === 'aborted').length
 
             set((state) => ({
               messages: state.messages.map((msg) =>
-                msg.id === lastMessage.id ? abortedMessage : msg
+                msg.id === lastMessage.id 
+                  ? {
+                      ...msg,
+                      toolCalls: updatedToolCalls,
+                      contentBlocks: updatedContentBlocks,
+                    }
+                  : msg
               ),
               isSendingMessage: false,
               isAborting: false,
               abortController: null,
             }))
+
+            logger.info(`Message streaming aborted successfully. Marked ${abortedCount} tool calls as aborted.`)
           } else {
             // No streaming message found, just reset the state
             set({
@@ -751,9 +770,8 @@ export const useCopilotStore = create<CopilotStore>()(
               isAborting: false,
               abortController: null,
             })
+            logger.info('Message streaming aborted successfully')
           }
-
-          logger.info('Message streaming aborted successfully')
         } catch (error) {
           logger.error('Error during abort:', error)
           set({

@@ -33,6 +33,8 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
         return <CheckCircle className='h-3 w-3 text-green-600 dark:text-green-400' />
       case 'rejected':
         return <XCircle className='h-3 w-3 text-orange-600 dark:text-orange-400' />
+      case 'aborted':
+        return <XCircle className='h-3 w-3 text-orange-600 dark:text-orange-400' />
       case 'error':
         return <XCircle className='h-3 w-3 text-red-600 dark:text-red-400' />
       default:
@@ -53,6 +55,8 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
       case 'applied':
         return 'border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950 dark:text-green-100'
       case 'rejected':
+        return 'border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100'
+      case 'aborted':
         return 'border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100'
       case 'error':
         return 'border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100'
@@ -82,6 +86,8 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
             'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 dark:border-green-800 dark:from-green-950/50 dark:to-emerald-950/50',
           tool.state === 'rejected' &&
             'border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 dark:border-orange-800 dark:from-orange-950/50 dark:to-amber-950/50',
+          tool.state === 'aborted' &&
+            'border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 dark:border-orange-800 dark:from-orange-950/50 dark:to-amber-950/50',
           tool.state === 'error' &&
             'border-red-200 bg-gradient-to-r from-red-50 to-pink-50 dark:border-red-800 dark:from-red-950/50 dark:to-pink-950/50'
         )}
@@ -94,6 +100,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
               tool.state === 'ready_for_review' && 'bg-purple-100 dark:bg-purple-900',
               tool.state === 'applied' && 'bg-green-100 dark:bg-green-900',
               tool.state === 'rejected' && 'bg-orange-100 dark:bg-orange-900',
+              tool.state === 'aborted' && 'bg-orange-100 dark:bg-orange-900',
               tool.state === 'error' && 'bg-red-100 dark:bg-red-900'
             )}
           >
@@ -109,6 +116,9 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
             {tool.state === 'rejected' && (
               <XCircle className='h-4 w-4 text-orange-600 dark:text-orange-400' />
             )}
+            {tool.state === 'aborted' && (
+              <XCircle className='h-4 w-4 text-orange-600 dark:text-orange-400' />
+            )}
             {tool.state === 'error' && (
               <XCircle className='h-4 w-4 text-red-600 dark:text-red-400' />
             )}
@@ -121,6 +131,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
                 tool.state === 'ready_for_review' && 'text-purple-900 dark:text-purple-100',
                 tool.state === 'applied' && 'text-green-900 dark:text-green-100',
                 tool.state === 'rejected' && 'text-orange-900 dark:text-orange-100',
+                tool.state === 'aborted' && 'text-orange-900 dark:text-orange-100',
                 tool.state === 'error' && 'text-red-900 dark:text-red-100'
               )}
             >
@@ -137,6 +148,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
                 tool.state === 'ready_for_review' && 'text-purple-700 dark:text-purple-300',
                 tool.state === 'applied' && 'text-green-700 dark:text-green-300',
                 tool.state === 'rejected' && 'text-orange-700 dark:text-orange-300',
+                tool.state === 'aborted' && 'text-orange-700 dark:text-orange-300',
                 tool.state === 'error' && 'text-red-700 dark:text-red-300'
               )}
             >
@@ -150,9 +162,11 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
                     ? 'Applied changes'
                     : tool.state === 'rejected'
                       ? 'Rejected changes'
-                      : tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-                        ? 'Workflow editing failed'
-                        : 'Workflow generation failed'}
+                      : tool.state === 'aborted'
+                        ? 'Aborted'
+                        : tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+                          ? 'Workflow editing failed'
+                          : 'Workflow generation failed'}
             </div>
           </div>
           {tool.duration &&

@@ -328,8 +328,16 @@ export async function POST(req: NextRequest) {
                 break
               }
               
-              // Forward the chunk to client immediately
-              controller.enqueue(value)
+              // Check if client disconnected before processing chunk
+              try {
+                // Forward the chunk to client immediately
+                controller.enqueue(value)
+              } catch (error) {
+                // Client disconnected - stop reading from sim agent
+                logger.info(`[${requestId}] Client disconnected, stopping stream processing`)
+                reader.cancel() // Stop reading from sim agent
+                break
+              }
               const chunkSize = value.byteLength
               
               // Decode and parse SSE events for logging and capturing content
@@ -448,16 +456,23 @@ export async function POST(req: NextRequest) {
               toolNames: toolCalls.map(tc => tc?.name).filter(Boolean)
             })
 
-            // Save messages to database after streaming completes
-            if (currentChat && assistantContent) {
-              const assistantMessage = {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: assistantContent,
-                timestamp: new Date().toISOString(),
-              }
+            // Save messages to database after streaming completes (including aborted messages)
+            if (currentChat) {
+              let updatedMessages = [...conversationHistory, userMessage]
 
-              const updatedMessages = [...conversationHistory, userMessage, assistantMessage]
+              // Save assistant message if there's any content (even partial from abort)
+              if (assistantContent.trim()) {
+                const assistantMessage = {
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  content: assistantContent,
+                  timestamp: new Date().toISOString(),
+                }
+                updatedMessages.push(assistantMessage)
+                logger.info(`[${requestId}] Saving assistant message with content (${assistantContent.length} chars)`)
+              } else {
+                logger.info(`[${requestId}] No assistant content to save (aborted before response)`)
+              }
 
               // Update chat in database immediately (without title)
               await db
@@ -470,6 +485,8 @@ export async function POST(req: NextRequest) {
 
               logger.info(`[${requestId}] Updated chat ${actualChatId} with new messages`, {
                 messageCount: updatedMessages.length,
+                savedUserMessage: true,
+                savedAssistantMessage: assistantContent.trim().length > 0,
               })
             }
           } catch (error) {
