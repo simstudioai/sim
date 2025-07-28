@@ -380,6 +380,19 @@ export function getInvalidCharacters(name: string): string[] {
 }
 
 /**
+ * Get the full URL for an asset stored in Vercel Blob or local fallback
+ * - If CDN is configured (NEXT_PUBLIC_BLOB_BASE_URL), uses CDN URL
+ * - Otherwise falls back to local static assets served from root path
+ */
+export function getAssetUrl(filename: string) {
+  const cdnBaseUrl = env.NEXT_PUBLIC_BLOB_BASE_URL
+  if (cdnBaseUrl) {
+    return `${cdnBaseUrl}/${filename}`
+  }
+  return `/${filename}`
+}
+
+/**
  * No-operation function for use as default callback
  */
 export const noop = () => {}

@@ -9,13 +9,23 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Get the full URL for a video asset stored in Vercel Blob
+ * Get the full URL for an asset stored in Vercel Blob or local fallback
+ * - If CDN is configured (NEXT_PUBLIC_BLOB_BASE_URL), uses CDN URL
+ * - Otherwise falls back to local static assets served from root path
+ */
+export function getAssetUrl(filename: string) {
+  const cdnBaseUrl = process.env.NEXT_PUBLIC_BLOB_BASE_URL
+  if (cdnBaseUrl) {
+    return `${cdnBaseUrl}/${filename}`
+  }
+  return `/${filename}`
+}
+
+/**
+ * Get the full URL for a video asset stored in Vercel Blob or local fallback
+ * - If CDN is configured (NEXT_PUBLIC_BLOB_BASE_URL), uses CDN URL
+ * - Otherwise falls back to local static assets served from root path
  */
 export function getVideoUrl(filename: string) {
-  const baseUrl = process.env.NEXT_PUBLIC_BLOB_BASE_URL
-  if (!baseUrl) {
-    console.warn('NEXT_PUBLIC_BLOB_BASE_URL not configured, falling back to local path')
-    return `/${filename}`
-  }
-  return `${baseUrl}/${filename}`
+  return getAssetUrl(filename)
 }

@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from 'next'
 import { PublicEnvScript } from 'next-runtime-env'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getAssetUrl } from '@/lib/utils'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
 import '@/app/globals.css'
 
@@ -118,7 +119,7 @@ export const metadata: Metadata = {
     siteName: 'Sim Studio',
     images: [
       {
-        url: 'https://simstudio.ai/social/facebook.png',
+        url: getAssetUrl('social/facebook.png'),
         width: 1200,
         height: 630,
         alt: 'Sim Studio',
@@ -130,7 +131,7 @@ export const metadata: Metadata = {
     title: 'Sim Studio',
     description:
       'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-    images: ['https://simstudio.ai/social/twitter.png'],
+    images: [getAssetUrl('social/twitter.png')],
     creator: '@simstudioai',
     site: '@simstudioai',
   },
@@ -231,7 +232,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='twitter:domain' content='simstudio.ai' />
 
         {/* Additional image sources */}
-        <link rel='image_src' href='https://simstudio.ai/social/facebook.png' />
+        <link rel='image_src' href={getAssetUrl('social/facebook.png')} />
 
         <PublicEnvScript />
       </head>
