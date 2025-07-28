@@ -1,7 +1,8 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
 
@@ -29,16 +30,45 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         workflow: {
           id: workflow.id,
           name: workflow.name,
+          userId: workflow.userId,
+          workspaceId: workflow.workspaceId,
         },
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(and(eq(webhook.id, id), eq(workflow.userId, session.user.id)))
+      .where(eq(webhook.id, id))
       .limit(1)
 
     if (webhooks.length === 0) {
       logger.warn(`[${requestId}] Webhook not found: ${id}`)
       return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
+    }
+
+    const webhookData = webhooks[0]
+
+    // Check if user has permission to access this webhook
+    let hasAccess = false
+
+    // Case 1: User owns the workflow
+    if (webhookData.workflow.userId === session.user.id) {
+      hasAccess = true
+    }
+
+    // Case 2: Workflow belongs to a workspace and user has any permission
+    if (!hasAccess && webhookData.workflow.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        webhookData.workflow.workspaceId
+      )
+      if (userPermission !== null) {
+        hasAccess = true
+      }
+    }
+
+    if (!hasAccess) {
+      logger.warn(`[${requestId}] User ${session.user.id} denied access to webhook: ${id}`)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     logger.info(`[${requestId}] Successfully retrieved webhook: ${id}`)
@@ -66,13 +96,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json()
     const { path, provider, providerConfig, isActive } = body
 
-    // Find the webhook and check ownership
+    // Find the webhook and check permissions
     const webhooks = await db
       .select({
         webhook: webhook,
         workflow: {
           id: workflow.id,
           userId: workflow.userId,
+          workspaceId: workflow.workspaceId,
         },
       })
       .from(webhook)
@@ -85,9 +116,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }
 
-    if (webhooks[0].workflow.userId !== session.user.id) {
-      logger.warn(`[${requestId}] Unauthorized webhook update attempt for webhook: ${id}`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    const webhookData = webhooks[0]
+
+    // Check if user has permission to modify this webhook
+    let canModify = false
+
+    // Case 1: User owns the workflow
+    if (webhookData.workflow.userId === session.user.id) {
+      canModify = true
+    }
+
+    // Case 2: Workflow belongs to a workspace and user has write or admin permission
+    if (!canModify && webhookData.workflow.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        webhookData.workflow.workspaceId
+      )
+      if (userPermission === 'write' || userPermission === 'admin') {
+        canModify = true
+      }
+    }
+
+    if (!canModify) {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} denied permission to modify webhook: ${id}`
+      )
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     logger.debug(`[${requestId}] Updating webhook properties`, {
@@ -136,13 +191,14 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Find the webhook and check ownership
+    // Find the webhook and check permissions
     const webhooks = await db
       .select({
         webhook: webhook,
         workflow: {
           id: workflow.id,
           userId: workflow.userId,
+          workspaceId: workflow.workspaceId,
         },
       })
       .from(webhook)
@@ -155,12 +211,36 @@ export async function DELETE(
       return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }
 
-    if (webhooks[0].workflow.userId !== session.user.id) {
-      logger.warn(`[${requestId}] Unauthorized webhook deletion attempt for webhook: ${id}`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    const webhookData = webhooks[0]
+
+    // Check if user has permission to delete this webhook
+    let canDelete = false
+
+    // Case 1: User owns the workflow
+    if (webhookData.workflow.userId === session.user.id) {
+      canDelete = true
     }
 
-    const foundWebhook = webhooks[0].webhook
+    // Case 2: Workflow belongs to a workspace and user has write or admin permission
+    if (!canDelete && webhookData.workflow.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        webhookData.workflow.workspaceId
+      )
+      if (userPermission === 'write' || userPermission === 'admin') {
+        canDelete = true
+      }
+    }
+
+    if (!canDelete) {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} denied permission to delete webhook: ${id}`
+      )
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    const foundWebhook = webhookData.webhook
 
     // If it's a Telegram webhook, delete it from Telegram first
     if (foundWebhook.provider === 'telegram') {

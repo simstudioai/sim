@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
@@ -94,16 +95,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Check if the workflow belongs to the user
-    const workflows = await db
-      .select({ id: workflow.id }) // Select only necessary field
+    // Check if the workflow exists and user has permission to modify it
+    const workflowData = await db
+      .select({
+        id: workflow.id,
+        userId: workflow.userId,
+        workspaceId: workflow.workspaceId,
+      })
       .from(workflow)
-      .where(and(eq(workflow.id, workflowId), eq(workflow.userId, userId)))
+      .where(eq(workflow.id, workflowId))
       .limit(1)
 
-    if (workflows.length === 0) {
-      logger.warn(`[${requestId}] Workflow not found or not owned by user: ${workflowId}`)
+    if (workflowData.length === 0) {
+      logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    const workflowRecord = workflowData[0]
+
+    // Check if user has permission to modify this workflow
+    let canModify = false
+
+    // Case 1: User owns the workflow
+    if (workflowRecord.userId === userId) {
+      canModify = true
+    }
+
+    // Case 2: Workflow belongs to a workspace and user has write or admin permission
+    if (!canModify && workflowRecord.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        userId,
+        'workspace',
+        workflowRecord.workspaceId
+      )
+      if (userPermission === 'write' || userPermission === 'admin') {
+        canModify = true
+      }
+    }
+
+    if (!canModify) {
+      logger.warn(
+        `[${requestId}] User ${userId} denied permission to modify webhook for workflow ${workflowId}`
+      )
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     // Check if a webhook with the same path already exists
