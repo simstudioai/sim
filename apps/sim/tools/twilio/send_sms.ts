@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { TwilioSendSMSParams, TwilioSMSBlockOutput } from '@/tools/twilio/types'
 import type { ToolConfig } from '@/tools/types'
 

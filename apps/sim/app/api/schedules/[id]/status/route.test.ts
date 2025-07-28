@@ -20,7 +20,7 @@ const mockSchedule = {
 beforeEach(() => {
   vi.resetModules()
 
-  vi.doMock('@/lib/logs/console-logger', () => ({
+  vi.doMock('@/lib/logs/console/logger', () => ({
     createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
   }))
 
@@ -44,7 +44,7 @@ describe('Schedule Status API Route', () => {
 
     const req = createMockRequest('GET')
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/schedules/[id]/status/route')
 
     const res = await GET(req, { params: Promise.resolve({ id: 'schedule-id' }) })
 
@@ -67,7 +67,7 @@ describe('Schedule Status API Route', () => {
     }))
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/schedules/[id]/status/route')
     const res = await GET(req, { params: Promise.resolve({ id: 'schedule-id' }) })
 
     expect(res.status).toBe(200)
@@ -85,7 +85,7 @@ describe('Schedule Status API Route', () => {
     }))
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/schedules/[id]/status/route')
     const res = await GET(req, { params: Promise.resolve({ id: 'missing-id' }) })
 
     expect(res.status).toBe(404)
@@ -101,7 +101,7 @@ describe('Schedule Status API Route', () => {
     }))
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/schedules/[id]/status/route')
     const res = await GET(req, { params: Promise.resolve({ id: 'schedule-id' }) })
 
     expect(res.status).toBe(404)
@@ -117,7 +117,7 @@ describe('Schedule Status API Route', () => {
     }))
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/schedules/[id]/status/route')
     const res = await GET(req, { params: Promise.resolve({ id: 'schedule-id' }) })
 
     expect(res.status).toBe(403)
@@ -133,7 +133,7 @@ describe('Schedule Status API Route', () => {
     }))
 
     const req = createMockRequest('GET')
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/schedules/[id]/status/route')
     const res = await GET(req, { params: Promise.resolve({ id: 'schedule-id' }) })
 
     expect(res.status).toBe(401)

@@ -49,6 +49,7 @@ export const cspDirectives: CSPDirectives = {
     'https://*.atlassian.com',
     'https://cdn.discordapp.com',
     'https://*.githubusercontent.com',
+    'https://*.public.blob.vercel-storage.com',
   ],
 
   'media-src': ["'self'", 'blob:'],

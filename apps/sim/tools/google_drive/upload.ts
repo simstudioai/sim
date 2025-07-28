@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
 import { GOOGLE_WORKSPACE_MIME_TYPES, SOURCE_MIME_TYPES } from '@/tools/google_drive/utils'
 import type { ToolConfig } from '@/tools/types'

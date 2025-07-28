@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('WorkspacePage')
 

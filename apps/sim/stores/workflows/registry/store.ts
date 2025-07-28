@@ -1,14 +1,18 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { generateCreativeWorkflowName } from '@/lib/naming'
+import { API_ENDPOINTS } from '@/stores/constants'
 import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
-import { API_ENDPOINTS } from '../../constants'
-import { useSubBlockStore } from '../subblock/store'
-import { useWorkflowStore } from '../workflow/store'
-import type { BlockState } from '../workflow/types'
-import type { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from './types'
-import { getNextWorkflowColor } from './utils'
+import type {
+  DeploymentStatus,
+  WorkflowMetadata,
+  WorkflowRegistry,
+} from '@/stores/workflows/registry/types'
+import { getNextWorkflowColor } from '@/stores/workflows/registry/utils'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowRegistry')
 

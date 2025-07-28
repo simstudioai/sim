@@ -1,12 +1,12 @@
 import { create } from 'zustand'
-import { useGeneralStore } from '@/stores/settings/general/store'
 import {
   type ExecutionActions,
   type ExecutionState,
   initialState,
   type PanToBlockCallback,
   type SetPanToBlockCallback,
-} from './types'
+} from '@/stores/execution/types'
+import { useGeneralStore } from '@/stores/settings/general/store'
 
 // Global callback for panning to active blocks
 let panToBlockCallback: PanToBlockCallback | null = null

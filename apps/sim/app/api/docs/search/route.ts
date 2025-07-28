@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { searchDocumentation } from '@/lib/copilot/service'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('DocsSearchAPI')
 

@@ -6,13 +6,13 @@ import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
+import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 import { useDebounce } from '@/hooks/use-debounce'
-import { useFilterStore } from '../../../../stores/logs/filters/store'
-import type { LogsResponse, WorkflowLog } from '../../../../stores/logs/filters/types'
-import { Sidebar } from './components/sidebar/sidebar'
-import { formatDate } from './utils/format-date'
+import { useFilterStore } from '@/stores/logs/filters/store'
+import type { LogsResponse, WorkflowLog } from '@/stores/logs/filters/types'
 
 const logger = createLogger('Logs')
 const LOGS_PER_PAGE = 50
@@ -160,7 +160,7 @@ export default function Logs() {
         }
 
         const queryParams = buildQueryParams(pageNum, LOGS_PER_PAGE)
-        const response = await fetch(`/api/logs/enhanced?${queryParams}`)
+        const response = await fetch(`/api/logs?${queryParams}`)
 
         if (!response.ok) {
           throw new Error(`Error fetching logs: ${response.statusText}`)
@@ -273,7 +273,7 @@ export default function Logs() {
       try {
         setLoading(true)
         const queryParams = buildQueryParams(1, LOGS_PER_PAGE)
-        const response = await fetch(`/api/logs/enhanced?${queryParams}`)
+        const response = await fetch(`/api/logs?${queryParams}`)
 
         if (!response.ok) {
           throw new Error(`Error fetching logs: ${response.statusText}`)

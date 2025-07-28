@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { API_ENDPOINTS } from '@/stores/constants'
+import type { Variable, VariablesStore } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import type { Variable, VariablesStore } from './types'
 
 const logger = createLogger('VariablesStore')
 const SAVE_DEBOUNCE_DELAY = 200 // Reduced debounce for variables (not real-time collaborative)

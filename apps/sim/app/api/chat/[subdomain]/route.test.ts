@@ -67,7 +67,7 @@ describe('Chat Subdomain API Route', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    vi.doMock('../utils', () => ({
+    vi.doMock('@/app/api/chat/utils', () => ({
       addCorsHeaders: mockAddCorsHeaders,
       validateChatAuth: mockValidateChatAuth,
       setChatAuthCookie: mockSetChatAuthCookie,
@@ -75,7 +75,7 @@ describe('Chat Subdomain API Route', () => {
       executeWorkflowForChat: mockExecuteWorkflowForChat,
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         debug: vi.fn(),
         info: vi.fn(),
@@ -138,7 +138,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('GET')
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await GET(req, { params })
 
@@ -169,7 +169,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('GET')
       const params = Promise.resolve({ subdomain: 'nonexistent' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await GET(req, { params })
 
@@ -203,7 +203,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('GET')
       const params = Promise.resolve({ subdomain: 'inactive-chat' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await GET(req, { params })
 
@@ -224,7 +224,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('GET')
       const params = Promise.resolve({ subdomain: 'password-protected-chat' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await GET(req, { params })
 
@@ -245,7 +245,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('POST', { password: 'test-password' })
       const params = Promise.resolve({ subdomain: 'password-protected-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await POST(req, { params })
 
@@ -261,7 +261,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('POST', {})
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await POST(req, { params })
 
@@ -282,7 +282,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('POST', { input: 'Hello' })
       const params = Promise.resolve({ subdomain: 'protected-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await POST(req, { params })
 
@@ -345,7 +345,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('POST', { input: 'Hello' })
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await POST(req, { params })
 
@@ -360,7 +360,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('POST', { input: 'Hello world', conversationId: 'conv-123' })
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await POST(req, { params })
 
@@ -377,7 +377,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('POST', { input: 'Hello world' })
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await POST(req, { params })
 
@@ -407,7 +407,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('POST', { input: 'Trigger error' })
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await POST(req, { params })
 
@@ -426,12 +426,13 @@ describe('Chat Subdomain API Route', () => {
       // Create a request with invalid JSON
       const req = {
         method: 'POST',
+        headers: new Headers(),
         json: vi.fn().mockRejectedValue(new Error('Invalid JSON')),
       } as any
 
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       const response = await POST(req, { params })
 
@@ -449,7 +450,7 @@ describe('Chat Subdomain API Route', () => {
       })
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       await POST(req, { params })
 
@@ -464,7 +465,7 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('POST', { input: 'Hello world' })
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/chat/[subdomain]/route')
 
       await POST(req, { params })
 

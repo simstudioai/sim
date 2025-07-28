@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { uploadFile } from '@/lib/uploads/storage-client'
 import { getBaseUrl } from '@/lib/urls/utils'
 

@@ -63,7 +63,7 @@ describe('OAuth Credentials API Route', () => {
       jwtDecode: vi.fn(),
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
   })
@@ -111,7 +111,7 @@ describe('OAuth Credentials API Route', () => {
 
     const req = createMockRequestWithQuery('GET', '?provider=google-email')
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -135,7 +135,7 @@ describe('OAuth Credentials API Route', () => {
 
     const req = createMockRequestWithQuery('GET', '?provider=google')
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -152,7 +152,7 @@ describe('OAuth Credentials API Route', () => {
 
     const req = createMockRequestWithQuery('GET')
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -177,7 +177,7 @@ describe('OAuth Credentials API Route', () => {
 
     const req = createMockRequestWithQuery('GET', '?provider=github')
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -220,7 +220,7 @@ describe('OAuth Credentials API Route', () => {
 
     const req = createMockRequestWithQuery('GET', '?provider=google')
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -244,7 +244,7 @@ describe('OAuth Credentials API Route', () => {
 
     const req = createMockRequestWithQuery('GET', '?provider=google')
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/auth/oauth/credentials/route')
 
     const response = await GET(req)
     const data = await response.json()

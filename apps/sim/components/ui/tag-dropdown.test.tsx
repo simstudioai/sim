@@ -1,8 +1,8 @@
 import { describe, expect, test, vi } from 'vitest'
+import { checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks } from '@/stores/workflows/workflow/utils'
-import { checkTagTrigger } from './tag-dropdown'
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(() => ({

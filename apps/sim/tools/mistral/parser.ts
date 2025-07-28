@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { MistralParserInput, MistralParserOutput } from '@/tools/mistral/types'
 import type { ToolConfig } from '@/tools/types'

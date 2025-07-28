@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
 import { getBlock } from '@/blocks'

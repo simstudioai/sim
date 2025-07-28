@@ -1,6 +1,6 @@
 import { FreestyleSandboxes } from 'freestyle-sandboxes'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('Freestyle')
 

@@ -1,15 +1,21 @@
 import { Info } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
-import { WebhookConfigField } from '../ui/webhook-config-field'
+import {
+  Button,
+  Input,
+  Label,
+  Skeleton,
+  Switch,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui'
+import {
+  ConfigField,
+  ConfigSection,
+  InstructionsSection,
+  WebhookConfigField,
+  TestResultDisplay as WebhookTestResult,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 interface AirtableConfigProps {
   baseId: string

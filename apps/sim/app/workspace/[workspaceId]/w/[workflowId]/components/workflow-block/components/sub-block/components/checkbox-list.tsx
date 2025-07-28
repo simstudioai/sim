@@ -1,7 +1,7 @@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 
 interface CheckboxListProps {
   blockId: string

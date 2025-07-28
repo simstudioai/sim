@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/auth-client'
-import { usePrefetchOnHover } from '../../utils/prefetch'
-import useIsMobile from '../hooks/use-is-mobile'
+import useIsMobile from '@/app/(landing)/components/hooks/use-is-mobile'
+import { usePrefetchOnHover } from '@/app/(landing)/utils/prefetch'
 
 function Footer() {
   const router = useRouter()

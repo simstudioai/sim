@@ -156,7 +156,7 @@ describe('Schedule Configuration API Route', () => {
     })
 
     // Import the route handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/schedules/route')
 
     // Call the handler
     const response = await POST(req)
@@ -251,7 +251,7 @@ describe('Schedule Configuration API Route', () => {
     }))
 
     // Import the route handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/schedules/route')
 
     // Call the handler
     const response = await POST(req)
@@ -328,7 +328,7 @@ describe('Schedule Configuration API Route', () => {
     })
 
     // Import the route handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/schedules/route')
 
     // Call the handler
     const response = await POST(req)
@@ -370,7 +370,7 @@ describe('Schedule Configuration API Route', () => {
     })
 
     // Import the route handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/schedules/route')
 
     // Call the handler
     const response = await POST(req)
@@ -397,7 +397,7 @@ describe('Schedule Configuration API Route', () => {
     })
 
     // Import the route handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/schedules/route')
 
     // Call the handler
     const response = await POST(req)
@@ -420,7 +420,7 @@ describe('Schedule Configuration API Route', () => {
     })
 
     // Import the route handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/schedules/route')
 
     // Call the handler
     const response = await POST(req)

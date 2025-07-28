@@ -5,7 +5,7 @@
  * No Node.js APIs (like process.on, crypto, fs, etc.) are allowed here.
  */
 
-import { createLogger } from './lib/logs/console-logger'
+import { createLogger } from './lib/logs/console/logger'
 
 const logger = createLogger('EdgeInstrumentation')
 

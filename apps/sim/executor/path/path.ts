@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
 import { Routing } from '@/executor/routing/routing'
 import type { BlockState, ExecutionContext } from '@/executor/types'

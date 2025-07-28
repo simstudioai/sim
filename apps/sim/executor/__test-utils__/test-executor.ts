@@ -4,8 +4,8 @@
  * A testable version of the Executor class that can be used in tests
  * without requiring all the complex dependencies.
  */
-import { Executor } from '..'
-import type { ExecutionResult, NormalizedBlockOutput } from '../types'
+import { Executor } from '@/executor'
+import type { ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
 
 /**
  * Test implementation of Executor for unit testing.

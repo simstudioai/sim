@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { LoopNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-node/loop-node'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { LoopNodeComponent } from './loop-node'
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: vi.fn(),
 }))
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/logger', () => ({
   createLogger: vi.fn(() => ({
     debug: vi.fn(),
     info: vi.fn(),
@@ -56,7 +56,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...classes: any[]) => classes.filter(Boolean).join(' '),
 }))
 
-vi.mock('./components/loop-badges', () => ({
+vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/components/loop-badges', () => ({
   LoopBadges: ({ loopId }: any) => ({ loopId }),
 }))
 

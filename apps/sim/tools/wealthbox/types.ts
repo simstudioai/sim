@@ -1,6 +1,5 @@
-import type { ToolResponse } from '../types'
+import type { ToolResponse } from '@/tools/types'
 
-// Entity type definitions based on Wealthbox API responses
 export interface WealthboxNote {
   id: number
   creator: number

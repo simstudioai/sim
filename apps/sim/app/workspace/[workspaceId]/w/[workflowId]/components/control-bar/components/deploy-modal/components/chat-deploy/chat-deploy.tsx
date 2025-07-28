@@ -30,10 +30,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseDomain, getEmailDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
-import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/output-select/output-select'
+import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components'
 import type { OutputConfig } from '@/stores/panel/chat/types'
 
 const logger = createLogger('ChatDeploy')

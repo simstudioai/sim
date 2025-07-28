@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
-import { db } from '../db'
-import { user, workflow, workspace } from '../db/schema'
+import { db } from '@/db'
+import { user, workflow, workspace } from '@/db/schema'
 
 const testWorkflowState = {
   blocks: {

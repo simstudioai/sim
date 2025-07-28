@@ -2,7 +2,7 @@ import { readFile } from 'fs/promises'
 // @ts-ignore
 import * as pdfParseLib from 'pdf-parse/lib/pdf-parse.js'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('PdfParser')
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type {
   BillingStatus,
   SubscriptionData,
@@ -8,7 +8,7 @@ import type {
   SubscriptionStore,
   UsageData,
   UsageLimitData,
-} from './types'
+} from '@/stores/subscription/types'
 
 const logger = createLogger('SubscriptionStore')
 

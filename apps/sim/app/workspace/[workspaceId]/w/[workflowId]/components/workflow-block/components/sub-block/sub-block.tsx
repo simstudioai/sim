@@ -1,7 +1,34 @@
 import { useState } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
-import { Label } from '@/components/ui/label'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Label, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import {
+  ChannelSelectorInput,
+  CheckboxList,
+  Code,
+  ComboBox,
+  ConditionInput,
+  CredentialSelector,
+  DateInput,
+  DocumentSelector,
+  Dropdown,
+  EvalInput,
+  FileSelectorInput,
+  FileUpload,
+  FolderSelectorInput,
+  InputFormat,
+  KnowledgeBaseSelector,
+  LongInput,
+  ProjectSelectorInput,
+  ResponseFormat,
+  ScheduleConfig,
+  ShortInput,
+  SliderInput,
+  Switch,
+  Table,
+  TimeInput,
+  ToolInput,
+  WebhookConfig,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
 import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'

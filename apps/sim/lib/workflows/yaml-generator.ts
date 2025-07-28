@@ -1,6 +1,6 @@
 import { dump as yamlDump } from 'js-yaml'
 import type { Edge } from 'reactflow'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'

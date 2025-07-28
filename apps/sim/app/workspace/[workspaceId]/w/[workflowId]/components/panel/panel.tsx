@@ -2,16 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDownToLine, CircleSlash, X } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
+import {
+  Chat,
+  Console,
+  Copilot,
+  Variables,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components'
+import { ChatModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { Chat } from './components/chat/chat'
-import { ChatModal } from './components/chat/components/chat-modal/chat-modal'
-import { Console } from './components/console/console'
-import { Copilot } from './components/copilot/copilot'
-import { Variables } from './components/variables/variables'
 
 export function Panel() {
   const [chatMessage, setChatMessage] = useState<string>('')

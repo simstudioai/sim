@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { ToolCallCompletion, ToolCallExecution } from '@/components/ui/tool-call'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { parseMessageContent, stripToolCallIndicators } from '@/lib/tool-call-parser'
-import MarkdownRenderer from './components/markdown-renderer'
+import MarkdownRenderer from '@/app/chat/[subdomain]/components/message/components/markdown-renderer'
 
 export interface ChatMessage {
   id: string

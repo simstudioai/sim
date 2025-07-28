@@ -22,12 +22,12 @@ import {
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { CodePromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/code-prompt-bar/code-prompt-bar'
+import { CodeEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/code-editor/code-editor'
 import { useCodeGeneration } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-code-generation'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { CodePromptBar } from '../../../../../../../code-prompt-bar/code-prompt-bar'
-import { CodeEditor } from '../code-editor/code-editor'
 
 const logger = createLogger('CustomToolModal')
 

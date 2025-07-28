@@ -1,5 +1,5 @@
 import { ScheduleIcon } from '@/components/icons'
-import type { BlockConfig } from '../types'
+import type { BlockConfig } from '@/blocks/types'
 
 export const ScheduleBlock: BlockConfig = {
   type: 'schedule',

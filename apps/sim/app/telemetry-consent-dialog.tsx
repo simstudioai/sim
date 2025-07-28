@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { isDev } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
 declare global {

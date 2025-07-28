@@ -4,10 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
+import { NavigationTabs } from '@/app/workspace/[workspaceId]/templates/components/navigation-tabs'
+import {
+  TemplateCard,
+  TemplateCardSkeleton,
+} from '@/app/workspace/[workspaceId]/templates/components/template-card'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { NavigationTabs } from './components/navigation-tabs'
-import { TemplateCard, TemplateCardSkeleton } from './components/template-card'
 
 const logger = createLogger('TemplatesPage')
 

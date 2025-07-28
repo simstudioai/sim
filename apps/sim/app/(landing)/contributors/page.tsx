@@ -26,10 +26,10 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { GridPattern } from '../components/grid-pattern'
-import NavWrapper from '../components/nav-wrapper'
-import Footer from '../components/sections/footer'
-import { getCachedContributorsData, prefetchContributorsData } from '../utils/prefetch'
+import { GridPattern } from '@/app/(landing)/components/grid-pattern'
+import NavWrapper from '@/app/(landing)/components/nav-wrapper'
+import Footer from '@/app/(landing)/components/sections/footer'
+import { getCachedContributorsData, prefetchContributorsData } from '@/app/(landing)/utils/prefetch'
 
 interface Contributor {
   login: string

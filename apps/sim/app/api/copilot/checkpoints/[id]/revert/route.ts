@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
 

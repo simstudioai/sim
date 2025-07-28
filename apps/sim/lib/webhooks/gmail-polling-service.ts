@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { Logger } from '@/lib/logs/console-logger'
+import { Logger } from '@/lib/logs/console/logger'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'

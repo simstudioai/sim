@@ -5,11 +5,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { CopyableField } from '../ui/copyable'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay } from '../ui/test-result'
+import {
+  ConfigField,
+  ConfigSection,
+  CopyableField,
+  InstructionsSection,
+  TestResultDisplay,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 interface GithubConfigProps {
   contentType: string

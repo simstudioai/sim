@@ -9,8 +9,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { generateFolderName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import {
+  ImportControls,
+  type ImportControlsRef,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/create-menu'
 import { useFolderStore } from '@/stores/folders/store'
-import { ImportControls, type ImportControlsRef } from './import-controls'
 
 interface CreateMenuProps {
   onCreateWorkflow: (folderId?: string) => Promise<string>

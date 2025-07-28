@@ -135,7 +135,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -160,7 +160,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -178,7 +178,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -200,7 +200,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -222,7 +222,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -244,7 +244,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -266,7 +266,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -300,7 +300,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       await PUT(req, { params })
 
@@ -321,7 +321,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -347,7 +347,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -372,7 +372,7 @@ describe('Individual Folder API Route', () => {
 
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -404,7 +404,7 @@ describe('Individual Folder API Route', () => {
       })
       const params = Promise.resolve({ id: 'folder-3' })
 
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/folders/[id]/route')
 
       const response = await PUT(req, { params })
 
@@ -430,7 +430,7 @@ describe('Individual Folder API Route', () => {
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/folders/[id]/route')
 
       const response = await DELETE(req, { params })
 
@@ -450,7 +450,7 @@ describe('Individual Folder API Route', () => {
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/folders/[id]/route')
 
       const response = await DELETE(req, { params })
 
@@ -470,7 +470,7 @@ describe('Individual Folder API Route', () => {
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/folders/[id]/route')
 
       const response = await DELETE(req, { params })
 
@@ -490,7 +490,7 @@ describe('Individual Folder API Route', () => {
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/folders/[id]/route')
 
       const response = await DELETE(req, { params })
 
@@ -512,7 +512,7 @@ describe('Individual Folder API Route', () => {
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/folders/[id]/route')
 
       const response = await DELETE(req, { params })
 
@@ -533,7 +533,7 @@ describe('Individual Folder API Route', () => {
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
 
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/folders/[id]/route')
 
       const response = await DELETE(req, { params })
 

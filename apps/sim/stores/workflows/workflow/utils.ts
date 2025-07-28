@@ -1,4 +1,4 @@
-import type { BlockState, Loop, Parallel } from './types'
+import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 const DEFAULT_LOOP_ITERATIONS = 5
 

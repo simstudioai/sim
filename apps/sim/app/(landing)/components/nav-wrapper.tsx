@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
-import { getFormattedGitHubStars } from '../actions/github'
-import GitHubStarsClient from './github-stars-client'
-import NavClient from './nav-client'
+import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
+import GitHubStarsClient from '@/app/(landing)/components/github-stars-client'
+import NavClient from '@/app/(landing)/components/nav-client'
 
 interface NavWrapperProps {
   onOpenTypeformLink: () => void

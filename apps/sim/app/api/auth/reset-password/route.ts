@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('PasswordReset')
+const logger = createLogger('PasswordResetAPI')
 
 export async function POST(request: NextRequest) {
   try {

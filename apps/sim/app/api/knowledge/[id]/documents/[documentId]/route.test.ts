@@ -14,7 +14,7 @@ import {
 
 mockKnowledgeSchemas()
 
-vi.mock('../../../utils', () => ({
+vi.mock('@/app/api/knowledge/utils', () => ({
   checkKnowledgeBaseAccess: vi.fn(),
   checkKnowledgeBaseWriteAccess: vi.fn(),
   checkDocumentAccess: vi.fn(),
@@ -98,7 +98,7 @@ describe('Document By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123', documentId: 'doc-123' })
 
     it('should retrieve document successfully for authenticated user', async () => {
-      const { checkDocumentAccess } = await import('../../../utils')
+      const { checkDocumentAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentAccess).mockResolvedValue({
@@ -108,7 +108,7 @@ describe('Document By ID API Route', () => {
       })
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -123,7 +123,7 @@ describe('Document By ID API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -132,7 +132,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return not found for non-existent document', async () => {
-      const { checkDocumentAccess } = await import('../../../utils')
+      const { checkDocumentAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentAccess).mockResolvedValue({
@@ -142,7 +142,7 @@ describe('Document By ID API Route', () => {
       })
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -151,7 +151,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return unauthorized for document without access', async () => {
-      const { checkDocumentAccess } = await import('../../../utils')
+      const { checkDocumentAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentAccess).mockResolvedValue({
@@ -160,7 +160,7 @@ describe('Document By ID API Route', () => {
       })
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -169,13 +169,13 @@ describe('Document By ID API Route', () => {
     })
 
     it('should handle database errors', async () => {
-      const { checkDocumentAccess } = await import('../../../utils')
+      const { checkDocumentAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentAccess).mockRejectedValue(new Error('Database error'))
 
       const req = createMockRequest('GET')
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await GET(req, { params: mockParams })
       const data = await response.json()
 
@@ -194,7 +194,7 @@ describe('Document By ID API Route', () => {
     }
 
     it('should update document successfully', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -223,7 +223,7 @@ describe('Document By ID API Route', () => {
       mockDbChain.select.mockReturnValue(selectChain)
 
       const req = createMockRequest('PUT', validUpdateData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -236,7 +236,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should validate update data', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -252,7 +252,7 @@ describe('Document By ID API Route', () => {
       }
 
       const req = createMockRequest('PUT', invalidData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -266,7 +266,7 @@ describe('Document By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123', documentId: 'doc-123' })
 
     it('should mark document as failed due to timeout successfully', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       const processingDocument = {
         ...mockDocument,
@@ -303,7 +303,7 @@ describe('Document By ID API Route', () => {
       mockDbChain.select.mockReturnValue(selectChain)
 
       const req = createMockRequest('PUT', { markFailedDueToTimeout: true })
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -320,7 +320,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should reject marking failed for non-processing document', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -330,7 +330,7 @@ describe('Document By ID API Route', () => {
       })
 
       const req = createMockRequest('PUT', { markFailedDueToTimeout: true })
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -339,7 +339,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should reject marking failed for recently started processing', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       const recentProcessingDocument = {
         ...mockDocument,
@@ -355,7 +355,7 @@ describe('Document By ID API Route', () => {
       })
 
       const req = createMockRequest('PUT', { markFailedDueToTimeout: true })
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -368,7 +368,9 @@ describe('Document By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123', documentId: 'doc-123' })
 
     it('should retry processing successfully', async () => {
-      const { checkDocumentWriteAccess, processDocumentAsync } = await import('../../../utils')
+      const { checkDocumentWriteAccess, processDocumentAsync } = await import(
+        '@/app/api/knowledge/utils'
+      )
 
       const failedDocument = {
         ...mockDocument,
@@ -401,7 +403,7 @@ describe('Document By ID API Route', () => {
       vi.mocked(processDocumentAsync).mockResolvedValue(undefined)
 
       const req = createMockRequest('PUT', { retryProcessing: true })
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -414,7 +416,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should reject retry for non-failed document', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -424,7 +426,7 @@ describe('Document By ID API Route', () => {
       })
 
       const req = createMockRequest('PUT', { retryProcessing: true })
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -441,7 +443,7 @@ describe('Document By ID API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('PUT', validUpdateData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -450,7 +452,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return not found for non-existent document', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -460,7 +462,7 @@ describe('Document By ID API Route', () => {
       })
 
       const req = createMockRequest('PUT', validUpdateData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -469,7 +471,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should handle database errors during update', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -480,7 +482,7 @@ describe('Document By ID API Route', () => {
       mockDbChain.set.mockRejectedValue(new Error('Database error'))
 
       const req = createMockRequest('PUT', validUpdateData)
-      const { PUT } = await import('./route')
+      const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await PUT(req, { params: mockParams })
       const data = await response.json()
 
@@ -493,7 +495,7 @@ describe('Document By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123', documentId: 'doc-123' })
 
     it('should delete document successfully', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -508,7 +510,7 @@ describe('Document By ID API Route', () => {
       mockDbChain.where.mockResolvedValue(undefined) // Update operation resolves
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 
@@ -527,7 +529,7 @@ describe('Document By ID API Route', () => {
       mockAuth$.mockUnauthenticated()
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 
@@ -536,7 +538,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return not found for non-existent document', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -546,7 +548,7 @@ describe('Document By ID API Route', () => {
       })
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 
@@ -555,7 +557,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should return unauthorized for document without access', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -564,7 +566,7 @@ describe('Document By ID API Route', () => {
       })
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 
@@ -573,7 +575,7 @@ describe('Document By ID API Route', () => {
     })
 
     it('should handle database errors during deletion', async () => {
-      const { checkDocumentWriteAccess } = await import('../../../utils')
+      const { checkDocumentWriteAccess } = await import('@/app/api/knowledge/utils')
 
       mockAuth$.mockAuthenticatedUser()
       vi.mocked(checkDocumentWriteAccess).mockResolvedValue({
@@ -584,7 +586,7 @@ describe('Document By ID API Route', () => {
       mockDbChain.set.mockRejectedValue(new Error('Database error'))
 
       const req = createMockRequest('DELETE')
-      const { DELETE } = await import('./route')
+      const { DELETE } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
       const response = await DELETE(req, { params: mockParams })
       const data = await response.json()
 

@@ -1,16 +1,16 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { chat, workflow } from '@/db/schema'
+import { createLogger } from '@/lib/logs/console/logger'
 import {
   addCorsHeaders,
   executeWorkflowForChat,
   setChatAuthCookie,
   validateAuthToken,
   validateChatAuth,
-} from '../utils'
+} from '@/app/api/chat/utils'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { db } from '@/db'
+import { chat, workflow } from '@/db/schema'
 
 const logger = createLogger('ChatSubdomainAPI')
 

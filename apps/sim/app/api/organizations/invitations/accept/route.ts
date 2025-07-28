@@ -3,11 +3,11 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { invitation, member, permissions, workspaceInvitation } from '@/db/schema'
 
-const logger = createLogger('OrganizationInvitationAcceptance')
+const logger = createLogger('OrganizationInvitationAcceptanceAPI')
 
 export const dynamic = 'force-dynamic'
 

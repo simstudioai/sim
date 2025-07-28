@@ -37,7 +37,7 @@ describe('Workflow Variables API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(401)
@@ -54,7 +54,7 @@ describe('Workflow Variables API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/nonexistent/variables')
       const params = Promise.resolve({ id: 'nonexistent' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(404)
@@ -80,7 +80,7 @@ describe('Workflow Variables API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(200)
@@ -110,7 +110,7 @@ describe('Workflow Variables API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(200)
@@ -146,7 +146,7 @@ describe('Workflow Variables API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(401)
@@ -172,7 +172,7 @@ describe('Workflow Variables API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(200)
@@ -196,7 +196,7 @@ describe('Workflow Variables API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(200)
@@ -230,7 +230,7 @@ describe('Workflow Variables API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await POST(req, { params })
 
       expect(response.status).toBe(200)
@@ -265,7 +265,7 @@ describe('Workflow Variables API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await POST(req, { params })
 
       expect(response.status).toBe(401)
@@ -295,7 +295,7 @@ describe('Workflow Variables API Route', () => {
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await POST(req, { params })
 
       expect(response.status).toBe(400)
@@ -314,7 +314,7 @@ describe('Workflow Variables API Route', () => {
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workflows/[id]/variables/route')
       const response = await GET(req, { params })
 
       expect(response.status).toBe(500)

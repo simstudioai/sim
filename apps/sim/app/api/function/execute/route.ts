@@ -1,6 +1,6 @@
 import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'

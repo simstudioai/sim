@@ -32,7 +32,7 @@ vi.mock('@/stores/execution/store', () => ({
   },
 }))
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: () => ({
     error: vi.fn(),
     info: vi.fn(),
@@ -339,7 +339,7 @@ describe('Executor', () => {
       setupAllMocks({ isDebugModeEnabled: true })
 
       // Import Executor AFTER setting up mocks
-      const { Executor } = await import('./index')
+      const { Executor } = await import('@/executor/index')
 
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
@@ -357,7 +357,7 @@ describe('Executor', () => {
       setupAllMocks({ isDebugModeEnabled: false })
 
       // Import Executor AFTER setting up mocks
-      const { Executor } = await import('./index')
+      const { Executor } = await import('@/executor/index')
 
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
@@ -880,6 +880,91 @@ describe('Executor', () => {
       // Empty connections should return true
       const result = checkDependencies([], executedBlocks, mockContext)
       expect(result).toBe(true)
+    })
+  })
+
+  /**
+   * Cancellation tests
+   */
+  describe('workflow cancellation', () => {
+    test('should set cancellation flag when cancel() is called', () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+
+      // Initially not cancelled
+      expect((executor as any).isCancelled).toBe(false)
+
+      // Cancel and check flag
+      executor.cancel()
+      expect((executor as any).isCancelled).toBe(true)
+    })
+
+    test('should handle cancellation in debug mode continueExecution', async () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+
+      // Create mock context
+      const mockContext = createMockContext()
+      mockContext.blockStates.set('starter', {
+        output: { input: {} },
+        executed: true,
+        executionTime: 0,
+      })
+
+      // Cancel before continue execution
+      executor.cancel()
+
+      const result = await executor.continueExecution(['block1'], mockContext)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Workflow execution was cancelled')
+    })
+
+    test('should handle multiple cancel() calls gracefully', () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+
+      // Multiple cancellations should not cause issues
+      executor.cancel()
+      executor.cancel()
+      executor.cancel()
+
+      expect((executor as any).isCancelled).toBe(true)
+    })
+
+    test('should prevent new execution on cancelled executor', async () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+
+      // Cancel first
+      executor.cancel()
+
+      // Try to execute
+      const result = await executor.execute('test-workflow-id')
+
+      // Should immediately return cancelled result
+      if ('success' in result) {
+        expect(result.success).toBe(false)
+        expect(result.error).toBe('Workflow execution was cancelled')
+      }
+    })
+
+    test('should return cancelled result when cancellation flag is checked', async () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+
+      // Test cancellation during the execution loop check
+      // Mock the while loop condition by setting cancelled before execution
+
+      ;(executor as any).isCancelled = true
+
+      const result = await executor.execute('test-workflow-id')
+
+      // Should return cancelled result
+      if ('success' in result) {
+        expect(result.success).toBe(false)
+        expect(result.error).toBe('Workflow execution was cancelled')
+      }
     })
   })
 })

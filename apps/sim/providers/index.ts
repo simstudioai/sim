@@ -1,12 +1,12 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
-import type { ProviderRequest, ProviderResponse } from './types'
+import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   calculateCost,
   generateStructuredOutputInstructions,
   getProvider,
   supportsTemperature,
-} from './utils'
+} from '@/providers/utils'
 
 const logger = createLogger('Providers')
 

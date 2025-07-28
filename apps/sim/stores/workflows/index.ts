@@ -1,8 +1,8 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import { useWorkflowRegistry } from './registry/store'
-import { mergeSubblockState } from './utils'
-import { useWorkflowStore } from './workflow/store'
-import type { BlockState, WorkflowState } from './workflow/types'
+import { createLogger } from '@/lib/logs/console/logger'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('Workflows')
 
@@ -149,10 +149,10 @@ export function getAllWorkflowsWithValues() {
   return result
 }
 
-export { useWorkflowRegistry } from './registry/store'
-export type { WorkflowMetadata } from './registry/types'
-export { useSubBlockStore } from './subblock/store'
-export type { SubBlockStore } from './subblock/types'
-export { mergeSubblockState } from './utils'
-export { useWorkflowStore } from './workflow/store'
-export type { WorkflowState } from './workflow/types'
+export { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+export type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+export { useSubBlockStore } from '@/stores/workflows/subblock/store'
+export type { SubBlockStore } from '@/stores/workflows/subblock/types'
+export { mergeSubblockState } from '@/stores/workflows/utils'
+export { useWorkflowStore } from '@/stores/workflows/workflow/store'
+export type { WorkflowState } from '@/stores/workflows/workflow/types'

@@ -110,7 +110,7 @@ describe('Workspace Invitations API Route', () => {
     it('should return 401 when user is not authenticated', async () => {
       mockGetSession.mockResolvedValue(null)
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('GET')
       const response = await GET(req)
       const data = await response.json()
@@ -123,7 +123,7 @@ describe('Workspace Invitations API Route', () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
       mockDbResults = [[], []] // No workspaces, no invitations
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('GET')
       const response = await GET(req)
       const data = await response.json()
@@ -141,7 +141,7 @@ describe('Workspace Invitations API Route', () => {
       ]
       mockDbResults = [mockWorkspaces, mockInvitations]
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('GET')
       const response = await GET(req)
       const data = await response.json()
@@ -155,7 +155,7 @@ describe('Workspace Invitations API Route', () => {
     it('should return 401 when user is not authenticated', async () => {
       mockGetSession.mockResolvedValue(null)
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('POST', {
         workspaceId: 'workspace-1',
         email: 'test@example.com',
@@ -170,7 +170,7 @@ describe('Workspace Invitations API Route', () => {
     it('should return 400 when workspaceId is missing', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('POST', { email: 'test@example.com' })
       const response = await POST(req)
       const data = await response.json()
@@ -182,7 +182,7 @@ describe('Workspace Invitations API Route', () => {
     it('should return 400 when email is missing', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('POST', { workspaceId: 'workspace-1' })
       const response = await POST(req)
       const data = await response.json()
@@ -194,7 +194,7 @@ describe('Workspace Invitations API Route', () => {
     it('should return 400 when permission type is invalid', async () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('POST', {
         workspaceId: 'workspace-1',
         email: 'test@example.com',
@@ -213,7 +213,7 @@ describe('Workspace Invitations API Route', () => {
       mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
       mockDbResults = [[]] // No admin permissions found
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('POST', {
         workspaceId: 'workspace-1',
         email: 'test@example.com',
@@ -232,7 +232,7 @@ describe('Workspace Invitations API Route', () => {
         [], // Workspace not found
       ]
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('POST', {
         workspaceId: 'workspace-1',
         email: 'test@example.com',
@@ -253,7 +253,7 @@ describe('Workspace Invitations API Route', () => {
         [{ permissionType: 'read' }], // User already has access
       ]
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('POST', {
         workspaceId: 'workspace-1',
         email: 'test@example.com',
@@ -277,7 +277,7 @@ describe('Workspace Invitations API Route', () => {
         [mockInvitation], // Invitation exists
       ]
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('POST', {
         workspaceId: 'workspace-1',
         email: 'test@example.com',
@@ -303,7 +303,7 @@ describe('Workspace Invitations API Route', () => {
         [], // No existing invitation
       ]
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/workspaces/invitations/route')
       const req = createMockRequest('POST', {
         workspaceId: 'workspace-1',
         email: 'test@example.com',

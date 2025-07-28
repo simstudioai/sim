@@ -7,11 +7,9 @@ import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 
-// Mock file system modules
 const mockExistsSync = vi.fn().mockReturnValue(true)
 const mockReadFile = vi.fn().mockResolvedValue(Buffer.from('test content'))
 
-// Mock parser functions
 const mockPdfParseFile = vi.fn().mockResolvedValue({
   content: 'Parsed PDF content',
   metadata: {
@@ -53,9 +51,7 @@ const mockMdParseFile = vi.fn().mockResolvedValue({
   },
 })
 
-// Create mock module implementation
 const createMockModule = () => {
-  // Create mock parsers
   const mockParsers: Record<string, FileParser> = {
     pdf: { parseFile: mockPdfParseFile },
     csv: { parseFile: mockCsvParseFile },
@@ -64,7 +60,6 @@ const createMockModule = () => {
     md: { parseFile: mockMdParseFile },
   }
 
-  // Create the mock module implementation
   return {
     parseFile: async (filePath: string): Promise<FileParseResult> => {
       if (!filePath) {
@@ -94,11 +89,9 @@ const createMockModule = () => {
 }
 
 describe('File Parsers', () => {
-  // Setup required mocks before each test
   beforeEach(() => {
     vi.resetModules()
 
-    // Mock file system modules
     vi.doMock('fs', () => ({
       existsSync: mockExistsSync,
     }))
@@ -107,29 +100,27 @@ describe('File Parsers', () => {
       readFile: mockReadFile,
     }))
 
-    // Mock the file parser module with our implementation
-    vi.doMock('./index', () => createMockModule())
+    vi.doMock('@/lib/file-parsers/index', () => createMockModule())
 
-    // Mock parser classes
-    vi.doMock('./pdf-parser', () => ({
+    vi.doMock('@/lib/file-parsers/pdf-parser', () => ({
       PdfParser: vi.fn().mockImplementation(() => ({
         parseFile: mockPdfParseFile,
       })),
     }))
 
-    vi.doMock('./csv-parser', () => ({
+    vi.doMock('@/lib/file-parsers/csv-parser', () => ({
       CsvParser: vi.fn().mockImplementation(() => ({
         parseFile: mockCsvParseFile,
       })),
     }))
 
-    vi.doMock('./docx-parser', () => ({
+    vi.doMock('@/lib/file-parsers/docx-parser', () => ({
       DocxParser: vi.fn().mockImplementation(() => ({
         parseFile: mockDocxParseFile,
       })),
     }))
 
-    vi.doMock('./raw-pdf-parser', () => ({
+    vi.doMock('@/lib/file-parsers/raw-pdf-parser', () => ({
       RawPdfParser: vi.fn().mockImplementation(() => ({
         parseFile: vi.fn().mockResolvedValue({
           content: 'Raw parsed PDF content',
@@ -140,19 +131,18 @@ describe('File Parsers', () => {
       })),
     }))
 
-    vi.doMock('./txt-parser', () => ({
+    vi.doMock('@/lib/file-parsers/txt-parser', () => ({
       TxtParser: vi.fn().mockImplementation(() => ({
         parseFile: mockTxtParseFile,
       })),
     }))
 
-    vi.doMock('./md-parser', () => ({
+    vi.doMock('@/lib/file-parsers/md-parser', () => ({
       MdParser: vi.fn().mockImplementation(() => ({
         parseFile: mockMdParseFile,
       })),
     }))
 
-    // Silence console output during tests
     global.console = {
       ...console,
       log: vi.fn(),
@@ -170,11 +160,9 @@ describe('File Parsers', () => {
 
   describe('parseFile', () => {
     it('should validate file existence', async () => {
-      // Mock file not existing for this test only
       mockExistsSync.mockReturnValueOnce(false)
 
-      // Dynamically import the module after mocks are set up
-      const { parseFile } = await import('./index')
+      const { parseFile } = await import('@/lib/file-parsers/index')
 
       const testFilePath = '/test/files/test.pdf'
       await expect(parseFile(testFilePath)).rejects.toThrow('File not found')
@@ -182,7 +170,7 @@ describe('File Parsers', () => {
     })
 
     it('should throw error if file path is empty', async () => {
-      const { parseFile } = await import('./index')
+      const { parseFile } = await import('@/lib/file-parsers/index')
       await expect(parseFile('')).rejects.toThrow('No file path provided')
     })
 
@@ -199,7 +187,7 @@ describe('File Parsers', () => {
       mockPdfParseFile.mockResolvedValueOnce(expectedResult)
       mockExistsSync.mockReturnValue(true)
 
-      const { parseFile } = await import('./index')
+      const { parseFile } = await import('@/lib/file-parsers/index')
       const result = await parseFile('/test/files/document.pdf')
 
       expect(result).toEqual(expectedResult)
@@ -217,7 +205,7 @@ describe('File Parsers', () => {
       mockCsvParseFile.mockResolvedValueOnce(expectedResult)
       mockExistsSync.mockReturnValue(true)
 
-      const { parseFile } = await import('./index')
+      const { parseFile } = await import('@/lib/file-parsers/index')
       const result = await parseFile('/test/files/data.csv')
 
       expect(result).toEqual(expectedResult)
@@ -235,7 +223,7 @@ describe('File Parsers', () => {
       mockDocxParseFile.mockResolvedValueOnce(expectedResult)
       mockExistsSync.mockReturnValue(true)
 
-      const { parseFile } = await import('./index')
+      const { parseFile } = await import('@/lib/file-parsers/index')
       const result = await parseFile('/test/files/document.docx')
 
       expect(result).toEqual(expectedResult)
@@ -253,7 +241,7 @@ describe('File Parsers', () => {
       mockTxtParseFile.mockResolvedValueOnce(expectedResult)
       mockExistsSync.mockReturnValue(true)
 
-      const { parseFile } = await import('./index')
+      const { parseFile } = await import('@/lib/file-parsers/index')
       const result = await parseFile('/test/files/document.txt')
 
       expect(result).toEqual(expectedResult)
@@ -271,35 +259,33 @@ describe('File Parsers', () => {
       mockMdParseFile.mockResolvedValueOnce(expectedResult)
       mockExistsSync.mockReturnValue(true)
 
-      const { parseFile } = await import('./index')
+      const { parseFile } = await import('@/lib/file-parsers/index')
       const result = await parseFile('/test/files/document.md')
     })
 
     it('should throw error for unsupported file types', async () => {
-      // Make sure the file "exists" for this test
       mockExistsSync.mockReturnValue(true)
 
-      const { parseFile } = await import('./index')
+      const { parseFile } = await import('@/lib/file-parsers/index')
       const unsupportedFilePath = '/test/files/image.png'
 
       await expect(parseFile(unsupportedFilePath)).rejects.toThrow('Unsupported file type')
     })
 
     it('should handle errors during parsing', async () => {
-      // Make sure the file "exists" for this test
       mockExistsSync.mockReturnValue(true)
 
       const parsingError = new Error('CSV parsing failed')
       mockCsvParseFile.mockRejectedValueOnce(parsingError)
 
-      const { parseFile } = await import('./index')
+      const { parseFile } = await import('@/lib/file-parsers/index')
       await expect(parseFile('/test/files/data.csv')).rejects.toThrow('CSV parsing failed')
     })
   })
 
   describe('isSupportedFileType', () => {
     it('should return true for supported file types', async () => {
-      const { isSupportedFileType } = await import('./index')
+      const { isSupportedFileType } = await import('@/lib/file-parsers/index')
 
       expect(isSupportedFileType('pdf')).toBe(true)
       expect(isSupportedFileType('csv')).toBe(true)
@@ -309,14 +295,14 @@ describe('File Parsers', () => {
     })
 
     it('should return false for unsupported file types', async () => {
-      const { isSupportedFileType } = await import('./index')
+      const { isSupportedFileType } = await import('@/lib/file-parsers/index')
 
       expect(isSupportedFileType('png')).toBe(false)
       expect(isSupportedFileType('unknown')).toBe(false)
     })
 
     it('should handle uppercase extensions', async () => {
-      const { isSupportedFileType } = await import('./index')
+      const { isSupportedFileType } = await import('@/lib/file-parsers/index')
 
       expect(isSupportedFileType('PDF')).toBe(true)
       expect(isSupportedFileType('CSV')).toBe(true)
@@ -325,20 +311,16 @@ describe('File Parsers', () => {
     })
 
     it('should handle errors gracefully', async () => {
-      // Create a mock that throws an error when called
       const errorMockModule = {
         isSupportedFileType: () => {
           throw new Error('Failed to get parsers')
         },
       }
 
-      // Mock the module with our error-throwing implementation
-      vi.doMock('./index', () => errorMockModule)
+      vi.doMock('@/lib/file-parsers/index', () => errorMockModule)
 
-      // Import and test
-      const { isSupportedFileType } = await import('./index')
+      const { isSupportedFileType } = await import('@/lib/file-parsers/index')
 
-      // Should catch the error and return false
       expect(() => isSupportedFileType('pdf')).toThrow('Failed to get parsers')
     })
   })

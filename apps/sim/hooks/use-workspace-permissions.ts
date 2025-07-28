@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { permissionTypeEnum } from '@/db/schema'
 import { API_ENDPOINTS } from '@/stores/constants'
 

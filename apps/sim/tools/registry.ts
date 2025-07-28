@@ -30,6 +30,8 @@ import {
   githubPrTool,
   githubRepoInfoTool,
 } from '@/tools/github'
+import { gmailDraftTool, gmailReadTool, gmailSearchTool, gmailSendTool } from '@/tools/gmail'
+import { searchTool as googleSearchTool } from '@/tools/google'
 import {
   googleCalendarCreateTool,
   googleCalendarGetTool,
@@ -126,8 +128,6 @@ import { whatsappSendMessageTool } from '@/tools/whatsapp'
 import { workflowExecutorTool } from '@/tools/workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from '@/tools/x'
 import { youtubeSearchTool } from '@/tools/youtube'
-import { gmailDraftTool, gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
-import { searchTool as googleSearchTool } from './google'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {

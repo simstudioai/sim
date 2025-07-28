@@ -51,7 +51,7 @@ describe('Codegen API Route', () => {
       env: mockEnv,
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 
@@ -94,7 +94,7 @@ describe('Codegen API Route', () => {
       generationType: 'json-schema',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -136,7 +136,7 @@ describe('Codegen API Route', () => {
       generationType: 'javascript-function-body',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -188,7 +188,7 @@ describe('Codegen API Route', () => {
       generationType: 'custom-tool-schema',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -217,7 +217,7 @@ describe('Codegen API Route', () => {
       context: 'existing function code here',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
 
@@ -260,7 +260,7 @@ describe('Codegen API Route', () => {
       ],
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
 
@@ -287,7 +287,7 @@ describe('Codegen API Route', () => {
       generationType: 'json-schema',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -302,7 +302,7 @@ describe('Codegen API Route', () => {
       prompt: '',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -319,7 +319,7 @@ describe('Codegen API Route', () => {
       generationType: 'invalid-type',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -348,7 +348,7 @@ describe('Codegen API Route', () => {
       generationType: 'javascript-function-body',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -377,7 +377,7 @@ describe('Codegen API Route', () => {
       generationType: 'json-schema',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/codegen/route')
 
     const response = await POST(req)
     const data = await response.json()

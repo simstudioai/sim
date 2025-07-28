@@ -4,7 +4,7 @@ import path from 'path'
 import { sql } from 'drizzle-orm'
 import { DocsChunker } from '@/lib/documents/docs-chunker'
 import { isDev } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { docsEmbeddings } from '@/db/schema'
 

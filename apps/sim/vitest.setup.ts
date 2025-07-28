@@ -8,7 +8,7 @@ global.fetch = vi.fn(() =>
   })
 ) as any
 
-vi.mock('@/lib/logs/console-logger', () => {
+vi.mock('@/lib/logs/console/logger', () => {
   const createLogger = vi.fn(() => ({
     debug: vi.fn(),
     info: vi.fn(),

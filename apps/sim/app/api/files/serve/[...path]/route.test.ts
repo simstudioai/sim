@@ -61,7 +61,7 @@ describe('File Serve API Route', () => {
   it('should serve local file successfully', async () => {
     const req = new NextRequest('http://localhost:3000/api/files/serve/test-file.txt')
     const params = { path: ['test-file.txt'] }
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
     const response = await GET(req, { params: Promise.resolve(params) })
 
@@ -107,7 +107,7 @@ describe('File Serve API Route', () => {
 
     const req = new NextRequest('http://localhost:3000/api/files/serve/nested/path/file.txt')
     const params = { path: ['nested', 'path', 'file.txt'] }
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
     const response = await GET(req, { params: Promise.resolve(params) })
 
@@ -163,7 +163,7 @@ describe('File Serve API Route', () => {
 
     const req = new NextRequest('http://localhost:3000/api/files/serve/s3/1234567890-image.png')
     const params = { path: ['s3', '1234567890-image.png'] }
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
     const response = await GET(req, { params: Promise.resolve(params) })
 
@@ -208,7 +208,7 @@ describe('File Serve API Route', () => {
 
     const req = new NextRequest('http://localhost:3000/api/files/serve/nonexistent.txt')
     const params = { path: ['nonexistent.txt'] }
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
     const response = await GET(req, { params: Promise.resolve(params) })
 
@@ -249,7 +249,7 @@ describe('File Serve API Route', () => {
 
         const req = new NextRequest(`http://localhost:3000/api/files/serve/file.${test.ext}`)
         const params = { path: [`file.${test.ext}`] }
-        const { GET } = await import('./route')
+        const { GET } = await import('@/app/api/files/serve/[...path]/route')
 
         const response = await GET(req, { params: Promise.resolve(params) })
 

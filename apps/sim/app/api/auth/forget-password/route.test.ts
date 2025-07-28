@@ -27,7 +27,7 @@ describe('Forget Password API Route', () => {
       redirectTo: 'https://example.com/reset',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/forget-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -56,7 +56,7 @@ describe('Forget Password API Route', () => {
       email: 'test@example.com',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/forget-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -79,7 +79,7 @@ describe('Forget Password API Route', () => {
 
     const req = createMockRequest('POST', {})
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/forget-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -98,7 +98,7 @@ describe('Forget Password API Route', () => {
       email: '',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/forget-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -126,7 +126,7 @@ describe('Forget Password API Route', () => {
       email: 'nonexistent@example.com',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/forget-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -134,7 +134,7 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(500)
     expect(data.message).toBe(errorMessage)
 
-    const logger = await import('@/lib/logs/console-logger')
+    const logger = await import('@/lib/logs/console/logger')
     const mockLogger = logger.createLogger('ForgetPasswordTest')
     expect(mockLogger.error).toHaveBeenCalledWith('Error requesting password reset:', {
       error: expect.any(Error),
@@ -156,7 +156,7 @@ describe('Forget Password API Route', () => {
       email: 'test@example.com',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/forget-password/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -164,7 +164,7 @@ describe('Forget Password API Route', () => {
     expect(response.status).toBe(500)
     expect(data.message).toBe('Failed to send password reset email. Please try again later.')
 
-    const logger = await import('@/lib/logs/console-logger')
+    const logger = await import('@/lib/logs/console/logger')
     const mockLogger = logger.createLogger('ForgetPasswordTest')
     expect(mockLogger.error).toHaveBeenCalled()
   })

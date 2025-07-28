@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { GridPattern } from '../(landing)/components/grid-pattern'
+import { GridPattern } from '@/app/(landing)/components/grid-pattern'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -24,8 +24,8 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: '@/lib/logs/console-logger',
-        replacement: path.resolve(__dirname, 'lib/logs/console-logger.ts'),
+        find: '@/lib/logs/console/logger',
+        replacement: path.resolve(__dirname, 'lib/logs/console/logger.ts'),
       },
       {
         find: '@/stores/console/store',

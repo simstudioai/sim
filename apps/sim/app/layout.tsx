@@ -2,13 +2,27 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata, Viewport } from 'next'
 import { PublicEnvScript } from 'next-runtime-env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { env, isTruthy } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console/logger'
+import { getAssetUrl } from '@/lib/utils'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
-import './globals.css'
+import '@/app/globals.css'
 
-import { ZoomPrevention } from './zoom-prevention'
+import { ZoomPrevention } from '@/app/zoom-prevention'
 
 const logger = createLogger('RootLayout')
+
+const shouldEnableAnalytics = () => {
+  if (isTruthy(env.DOCKER_BUILD)) {
+    return false
+  }
+
+  if (!env.VERCEL_ENV) {
+    return false
+  }
+
+  return true
+}
 
 const BROWSER_EXTENSION_ATTRIBUTES = [
   'data-new-gr-c-s-check-loaded',
@@ -105,7 +119,7 @@ export const metadata: Metadata = {
     siteName: 'Sim Studio',
     images: [
       {
-        url: 'https://simstudio.ai/social/facebook.png',
+        url: getAssetUrl('social/facebook.png'),
         width: 1200,
         height: 630,
         alt: 'Sim Studio',
@@ -117,7 +131,7 @@ export const metadata: Metadata = {
     title: 'Sim Studio',
     description:
       'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-    images: ['https://simstudio.ai/social/twitter.png'],
+    images: [getAssetUrl('social/twitter.png')],
     creator: '@simstudioai',
     site: '@simstudioai',
   },
@@ -194,7 +208,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
 
-        {/* Enhanced meta tags for better SEO */}
+        {/* Meta tags for better SEO */}
         <meta name='theme-color' content='#ffffff' />
         <meta name='color-scheme' content='light' />
         <meta name='format-detection' content='telephone=no' />
@@ -210,7 +224,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta property='og:site_name' content='Sim Studio' />
         <meta property='og:locale' content='en_US' />
 
-        {/* Enhanced Twitter Card tags */}
+        {/* Twitter Card tags */}
         <meta name='twitter:image:width' content='1200' />
         <meta name='twitter:image:height' content='675' />
         <meta name='twitter:image:alt' content='Sim Studio - AI Agent Builder' />
@@ -218,7 +232,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='twitter:domain' content='simstudio.ai' />
 
         {/* Additional image sources */}
-        <link rel='image_src' href='https://simstudio.ai/social/facebook.png' />
+        <link rel='image_src' href={getAssetUrl('social/facebook.png')} />
 
         <PublicEnvScript />
       </head>
@@ -226,8 +240,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ZoomPrevention />
         <TelemetryConsentDialog />
         {children}
-        <SpeedInsights />
-        <Analytics />
+        {shouldEnableAnalytics() && (
+          <>
+            <SpeedInsights />
+            <Analytics />
+          </>
+        )}
       </body>
     </html>
   )

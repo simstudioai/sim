@@ -1,9 +1,10 @@
 import { task } from '@trigger.dev/sdk/v3'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console-logger'
-import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { checkServerSideUsageLimits } from '@/lib/billing'
+import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
@@ -37,17 +38,28 @@ export const workflowExecution = task({
       executionId,
     })
 
-    // Initialize enhanced logging session
+    // Initialize logging session
     const triggerType =
       (payload.triggerType as 'api' | 'webhook' | 'schedule' | 'manual' | 'chat') || 'api'
-    const loggingSession = new EnhancedLoggingSession(
-      workflowId,
-      executionId,
-      triggerType,
-      requestId
-    )
+    const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
 
     try {
+      const usageCheck = await checkServerSideUsageLimits(payload.userId)
+      if (usageCheck.isExceeded) {
+        logger.warn(
+          `[${requestId}] User ${payload.userId} has exceeded usage limits. Skipping workflow execution.`,
+          {
+            currentUsage: usageCheck.currentUsage,
+            limit: usageCheck.limit,
+            workflowId: payload.workflowId,
+          }
+        )
+        throw new Error(
+          usageCheck.message ||
+            'Usage limit exceeded. Please upgrade your plan to continue using workflows.'
+        )
+      }
+
       // Load workflow data from normalized tables
       const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
       if (!normalizedData) {
@@ -102,7 +114,7 @@ export const workflowExecution = task({
         decryptedEnvVars = Object.fromEntries(decryptedPairs)
       }
 
-      // Start enhanced logging session
+      // Start logging session
       await loggingSession.safeStart({
         userId: payload.userId,
         workspaceId: '', // TODO: Get from workflow if needed
@@ -127,7 +139,7 @@ export const workflowExecution = task({
         {} // workflow variables
       )
 
-      // Set up enhanced logging on the executor
+      // Set up logging on the executor
       loggingSession.setupExecutor(executor)
 
       const result = await executor.execute(workflowId)
@@ -165,7 +177,7 @@ export const workflowExecution = task({
           .where(eq(userStats.userId, payload.userId))
       }
 
-      // Build trace spans and complete logging session
+      // Build trace spans and complete logging session (for both success and failure)
       const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
       await loggingSession.safeComplete({

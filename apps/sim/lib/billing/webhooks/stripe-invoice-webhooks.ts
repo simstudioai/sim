@@ -1,5 +1,5 @@
 import type Stripe from 'stripe'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StripeInvoiceWebhooks')
 

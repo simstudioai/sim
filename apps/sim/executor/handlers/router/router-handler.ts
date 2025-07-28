@@ -1,5 +1,5 @@
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'

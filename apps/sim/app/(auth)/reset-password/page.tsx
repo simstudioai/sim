@@ -11,8 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { createLogger } from '@/lib/logs/console-logger'
-import { SetNewPasswordForm } from './reset-password-form'
+import { createLogger } from '@/lib/logs/console/logger'
+import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
 
 const logger = createLogger('ResetPasswordPage')
 

@@ -41,7 +41,7 @@ describe('Subdomain Validation API Route', () => {
     }))
 
     // Mock the logger
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         info: vi.fn(),
         error: vi.fn(),
@@ -93,7 +93,7 @@ describe('Subdomain Validation API Route', () => {
 
     const req = new NextRequest('http://localhost:3000/api/chat/subdomains/validate?subdomain=test')
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/chat/subdomains/validate/route')
 
     const response = await GET(req)
 
@@ -110,7 +110,7 @@ describe('Subdomain Validation API Route', () => {
 
     const req = new NextRequest('http://localhost:3000/api/chat/subdomains/validate')
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/chat/subdomains/validate/route')
 
     const response = await GET(req)
 
@@ -129,7 +129,7 @@ describe('Subdomain Validation API Route', () => {
       'http://localhost:3000/api/chat/subdomains/validate?subdomain=Invalid_Subdomain!'
     )
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/chat/subdomains/validate/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -156,7 +156,7 @@ describe('Subdomain Validation API Route', () => {
       'http://localhost:3000/api/chat/subdomains/validate?subdomain=available-subdomain'
     )
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/chat/subdomains/validate/route')
 
     const response = await GET(req)
 
@@ -178,7 +178,7 @@ describe('Subdomain Validation API Route', () => {
       'http://localhost:3000/api/chat/subdomains/validate?subdomain=telemetry'
     )
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/chat/subdomains/validate/route')
 
     const response = await GET(req)
     const data = await response.json()
@@ -205,7 +205,7 @@ describe('Subdomain Validation API Route', () => {
       'http://localhost:3000/api/chat/subdomains/validate?subdomain=used-subdomain'
     )
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/chat/subdomains/validate/route')
 
     const response = await GET(req)
 
@@ -229,7 +229,7 @@ describe('Subdomain Validation API Route', () => {
       'http://localhost:3000/api/chat/subdomains/validate?subdomain=error-subdomain'
     )
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/chat/subdomains/validate/route')
 
     const response = await GET(req)
 
