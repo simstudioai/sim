@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { apiKey as apiKeyTable, copilotChats } from '@/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, desc } from 'drizzle-orm'
 import { executeProviderRequest } from '@/providers'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { 
@@ -618,6 +618,69 @@ export async function POST(req: NextRequest) {
     
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
+  }
+} 
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const workflowId = searchParams.get('workflowId')
+
+    if (!workflowId) {
+      return NextResponse.json({ error: 'workflowId is required' }, { status: 400 })
+    }
+
+    // Get authenticated user
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const authenticatedUserId = session.user.id
+
+    // Fetch chats for this user and workflow
+    const chats = await db
+      .select({
+        id: copilotChats.id,
+        title: copilotChats.title,
+        model: copilotChats.model,
+        messages: copilotChats.messages,
+        createdAt: copilotChats.createdAt,
+        updatedAt: copilotChats.updatedAt,
+      })
+      .from(copilotChats)
+      .where(
+        and(
+          eq(copilotChats.userId, authenticatedUserId),
+          eq(copilotChats.workflowId, workflowId)
+        )
+      )
+      .orderBy(desc(copilotChats.updatedAt))
+
+    // Transform the data to include message count
+    const transformedChats = chats.map((chat) => ({
+      id: chat.id,
+      title: chat.title,
+      model: chat.model,
+      messages: Array.isArray(chat.messages) ? chat.messages : [],
+      messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
+      previewYaml: null, // Not needed for chat list
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+    }))
+
+    logger.info(`Retrieved ${transformedChats.length} chats for workflow ${workflowId}`)
+
+    return NextResponse.json({
+      success: true,
+      chats: transformedChats,
+    })
+  } catch (error) {
+    logger.error('Error fetching copilot chats:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch chats' },
       { status: 500 }
     )
   }

@@ -620,10 +620,58 @@ export const useCopilotStore = create<CopilotStore>()(
         // The interface expects Promise<void>, not Promise<boolean>
       },
 
-      // Load chats - now a no-op
+      // Load chats for current workflow
       loadChats: async () => {
-        logger.warn('Chat loading not implemented without API endpoint')
-        set({ chats: [] })
+        const { workflowId } = get()
+        
+        if (!workflowId) {
+          logger.warn('No workflow ID set, cannot load chats')
+          set({ chats: [], isLoadingChats: false })
+          return
+        }
+
+        set({ isLoadingChats: true })
+        
+        try {
+          const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch chats: ${response.status}`)
+          }
+          
+          const data = await response.json()
+          
+          if (data.success && Array.isArray(data.chats)) {
+            const { currentChat } = get()
+            
+            set({ 
+              chats: data.chats,
+              isLoadingChats: false 
+            })
+            
+            // Auto-select the most recent chat if no chat is currently selected
+            // and there are chats available (they're already sorted by updatedAt desc)
+            if (!currentChat && data.chats.length > 0) {
+              const mostRecentChat = data.chats[0]
+              set({
+                currentChat: mostRecentChat,
+                messages: mostRecentChat.messages || [],
+              })
+              logger.info(`Auto-selected most recent chat: ${mostRecentChat.title || 'Untitled'}`)
+            }
+            
+            logger.info(`Loaded ${data.chats.length} chats for workflow ${workflowId}`)
+          } else {
+            throw new Error('Invalid response format')
+          }
+        } catch (error) {
+          logger.error('Failed to load chats:', error)
+          set({ 
+            chats: [], 
+            isLoadingChats: false,
+            error: error instanceof Error ? error.message : 'Failed to load chats'
+          })
+        }
       },
 
       // Send a message

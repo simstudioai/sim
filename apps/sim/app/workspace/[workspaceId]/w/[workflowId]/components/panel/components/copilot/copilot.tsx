@@ -69,9 +69,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
       clearMessages,
       clearError,
       setMode,
+      loadChats,
     } = useCopilotStore()
 
-    // Sync workflow ID with store
+    // Sync workflow ID with store and load chats
     useEffect(() => {
       if (activeWorkflowId !== workflowId) {
         setWorkflowId(activeWorkflowId).catch((error) => {
@@ -79,6 +80,15 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
         })
       }
     }, [activeWorkflowId, workflowId, setWorkflowId])
+
+    // Load chats when workflow ID is set
+    useEffect(() => {
+      if (workflowId && workflowId === activeWorkflowId) {
+        loadChats().catch((error) => {
+          console.error('Failed to load chats:', error)
+        })
+      }
+    }, [workflowId, activeWorkflowId, loadChats])
 
     // Clear any existing preview when component mounts or workflow changes
     useEffect(() => {
