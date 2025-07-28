@@ -1,13 +1,33 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { BaseCopilotTool } from '../base'
 
-const logger = createLogger('PreviewWorkflowAPI')
+interface PreviewWorkflowParams {
+  yamlContent: string
+  description?: string
+}
 
-export async function previewWorkflow(params: any) {
-  const { yamlContent, description } = params
+interface PreviewWorkflowResult {
+  yamlContent: string
+  description?: string
+  [key: string]: any // For the preview data fields
+}
 
-  if (!yamlContent) {
-    throw new Error('yamlContent is required')
+class PreviewWorkflowTool extends BaseCopilotTool<PreviewWorkflowParams, PreviewWorkflowResult> {
+  readonly id = 'build_workflow'
+  readonly displayName = 'Preview workflow changes'
+
+  protected async executeImpl(params: PreviewWorkflowParams): Promise<PreviewWorkflowResult> {
+    return previewWorkflow(params)
   }
+}
+
+// Export the tool instance
+export const previewWorkflowTool = new PreviewWorkflowTool()
+
+// Implementation function
+async function previewWorkflow(params: PreviewWorkflowParams): Promise<PreviewWorkflowResult> {
+  const logger = createLogger('PreviewWorkflow')
+  const { yamlContent, description } = params
 
   logger.info('Generating workflow preview for copilot', { 
     yamlLength: yamlContent.length,
@@ -44,11 +64,8 @@ export async function previewWorkflow(params: any) {
 
   // Return in the format expected by the copilot for diff functionality
   return {
-    success: true,
-    data: {
-      ...previewData,
-      yamlContent, // Include the original YAML for diff functionality
-      description,
-    },
+    ...previewData,
+    yamlContent, // Include the original YAML for diff functionality
+    description,
   }
 } 

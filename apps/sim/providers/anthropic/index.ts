@@ -5,6 +5,7 @@ import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
+import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 
 const logger = createLogger('AnthropicProvider')
 
@@ -428,10 +429,16 @@ ${fieldDescriptions}
 
                   logger.info(`Tool ${toolCall.name} ${result.success ? 'succeeded' : 'failed'}`)
 
-                  // Send tool result event to frontend for preview_workflow and targeted_updates tools
-                  if (
-                    (toolCall.name === 'preview_workflow' ||
-                      toolCall.name === 'targeted_updates') &&
+                      // Send tool result event to frontend for workflow tools
+    const toolDisplayName = COPILOT_TOOL_DISPLAY_NAMES[toolCall.name]
+    const isWorkflowTool = toolDisplayName && 
+      (toolDisplayName.includes('Building') ||
+       toolDisplayName.includes('Updating') ||
+       toolDisplayName.includes('Preview') ||
+       toolDisplayName.includes('Edit'))
+    
+    if (
+      isWorkflowTool &&
                     result.success
                   ) {
                     const toolResultEvent = {
@@ -526,12 +533,16 @@ ${fieldDescriptions}
                   continuationToolCalls = []
                 }
 
-                // Also check for any preview_workflow or targeted_updates results in continuation
+                // Also check for any workflow tool results in continuation
                 continuationToolCalls.forEach((toolCall) => {
-                  if (
-                    toolCall.name === 'preview_workflow' ||
-                    toolCall.name === 'targeted_updates'
-                  ) {
+                  const toolDisplayName = COPILOT_TOOL_DISPLAY_NAMES[toolCall.name]
+                  const isWorkflowTool = toolDisplayName && 
+                    (toolDisplayName.includes('Building') ||
+                     toolDisplayName.includes('Updating') ||
+                     toolDisplayName.includes('Preview') ||
+                     toolDisplayName.includes('Edit'))
+                  
+                  if (isWorkflowTool) {
                     logger.info(
                       `Found ${toolCall.name} in continuation, will send result after execution`
                     )

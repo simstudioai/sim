@@ -1,20 +1,33 @@
 import { eq } from 'drizzle-orm'
-import { dump as yamlDump } from 'js-yaml'
 import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
 import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
+import { BaseCopilotTool } from '../base'
 
-const logger = createLogger('GetUserWorkflowAPI')
+interface GetUserWorkflowParams {
+  workflowId: string
+  includeMetadata?: boolean
+}
 
-export async function getUserWorkflow(params: any) {
-  const { workflowId, includeMetadata = false } = params
+class GetUserWorkflowTool extends BaseCopilotTool<GetUserWorkflowParams, string> {
+  readonly id = 'get_user_workflow'
+  readonly displayName = 'Analyzing your workflow'
 
-  if (!workflowId) {
-    throw new Error('Workflow ID is required')
+  protected async executeImpl(params: GetUserWorkflowParams): Promise<string> {
+    return getUserWorkflow(params)
   }
+}
+
+// Export the tool instance
+export const getUserWorkflowTool = new GetUserWorkflowTool()
+
+// Implementation function
+async function getUserWorkflow(params: GetUserWorkflowParams): Promise<string> {
+  const logger = createLogger('GetUserWorkflow')
+  const { workflowId, includeMetadata = false } = params
 
   logger.info('Fetching user workflow', { workflowId })
 
@@ -155,8 +168,5 @@ export async function getUserWorkflow(params: any) {
   logger.info('YAML', { yaml })
 
   // Return the condensed YAML format directly, just like the YAML editor does
-  return {
-    success: true,
-    data: yaml,
-  }
+  return yaml
 }

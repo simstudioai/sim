@@ -1,9 +1,4 @@
-import { type NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { apiKey as apiKeyTable } from '@/db/schema'
 
 const logger = createLogger('TargetedUpdatesAPI')
 
@@ -231,156 +226,75 @@ async function applyOperationsToYaml(
   return yaml.stringify(workflowData)
 }
 
-export async function targetedUpdates(params: any) {
-  try {
-    const { operations, workflowId } = params
+import { BaseCopilotTool } from '../base'
 
-    if (!operations || !Array.isArray(operations)) {
-      return {
-        success: false,
-        error: 'operations must be an array',
-      }
-    }
+interface TargetedUpdatesParams {
+  operations: TargetedUpdateOperation[]
+  workflowId: string
+}
 
-    if (!workflowId) {
-      return {
-        success: false,
-        error: 'workflowId is required',
-      }
-    }
+interface TargetedUpdatesResult {
+  yamlContent: string
+  operations: Array<{ type: string; blockId: string }>
+}
 
-    logger.info('Processing targeted update request', { 
-      workflowId,
-      operationCount: operations.length 
-    })
+class TargetedUpdatesTool extends BaseCopilotTool<TargetedUpdatesParams, TargetedUpdatesResult> {
+  readonly id = 'edit_workflow'
+  readonly displayName = 'Updating workflow'
 
-    // Get current workflow YAML directly by calling the function
-    const { getUserWorkflow } = await import('@/app/api/copilot/get-user-workflow/route')
-    
-    const getUserWorkflowResult = await getUserWorkflow({
-      workflowId: workflowId,
-      includeMetadata: false,
-    })
-
-    if (!getUserWorkflowResult.success || !getUserWorkflowResult.data) {
-      return {
-        success: false,
-        error: 'Failed to get current workflow YAML',
-      }
-    }
-
-    const currentYaml = getUserWorkflowResult.data
-
-    logger.info('Retrieved current workflow YAML', {
-      yamlLength: currentYaml.length,
-      yamlPreview: currentYaml.substring(0, 200),
-    })
-
-    // Apply operations to generate modified YAML
-    const modifiedYaml = await applyOperationsToYaml(currentYaml, operations)
-
-    logger.info('Applied operations to YAML', {
-      operationCount: operations.length,
-      currentYamlLength: currentYaml.length,
-      modifiedYamlLength: modifiedYaml.length,
-      operations: operations.map((op) => ({ type: op.operation_type, blockId: op.block_id })),
-    })
-
-    logger.info(
-      `Successfully generated modified YAML for ${operations.length} targeted update operations`
-    )
-
-    // Return the modified YAML directly - the UI will handle preview generation via updateDiffStore()
-    return {
-      success: true,
-      data: {
-        yamlContent: modifiedYaml,
-        operations: operations.map((op) => ({ type: op.operation_type, blockId: op.block_id })),
-      },
-    }
-  } catch (error) {
-    logger.error('Targeted update failed:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
+  protected async executeImpl(params: TargetedUpdatesParams): Promise<TargetedUpdatesResult> {
+    return targetedUpdates(params)
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    // Try session auth first (for web UI)
-    const session = await getSession()
-    let authenticatedUserId: string | null = session?.user?.id || null
+// Export the tool instance
+export const targetedUpdatesTool = new TargetedUpdatesTool()
 
-    // If no session, check for API key auth
-    if (!authenticatedUserId) {
-      const apiKeyHeader = request.headers.get('x-api-key')
-      if (apiKeyHeader) {
-        // Verify API key
-        const [apiKeyRecord] = await db
-          .select({ userId: apiKeyTable.userId })
-          .from(apiKeyTable)
-          .where(eq(apiKeyTable.key, apiKeyHeader))
-          .limit(1)
+// Implementation function
+async function targetedUpdates(params: TargetedUpdatesParams): Promise<TargetedUpdatesResult> {
+  const { operations, workflowId } = params
 
-        if (apiKeyRecord) {
-          authenticatedUserId = apiKeyRecord.userId
-        }
-      }
-    }
+  logger.info('Processing targeted update request', { 
+    workflowId,
+    operationCount: operations.length 
+  })
 
-    // Parse body early to check for workflowId
-    const body = await request.json()
-    const { operations, workflowId } = body
+  // Get current workflow YAML directly by calling the function
+  const { getUserWorkflowTool } = await import('./get-user-workflow')
+  
+  const getUserWorkflowResult = await getUserWorkflowTool.execute({
+    workflowId: workflowId,
+    includeMetadata: false,
+  })
 
-    // If no authentication but workflowId is provided, allow internal calls
-    // This maintains backward compatibility for internal copilot tool calls
-    if (!authenticatedUserId) {
-      if (!workflowId) {
-        return NextResponse.json({ error: 'Unauthorized - authentication or workflowId required' }, { status: 401 })
-      }
-      
-      // For internal calls without auth, we'll validate the workflow exists
-      // but won't enforce user ownership (as this was the original behavior)
-      logger.info('Allowing internal call to targeted-updates without authentication', { workflowId })
-    }
+  if (!getUserWorkflowResult.success || !getUserWorkflowResult.data) {
+    throw new Error('Failed to get current workflow YAML')
+  }
 
-    if (!operations || !Array.isArray(operations)) {
-      return NextResponse.json(
-        { success: false, error: 'Operations array is required' },
-        { status: 400 }
-      )
-    }
+  const currentYaml = getUserWorkflowResult.data
 
-    if (!workflowId) {
-      return NextResponse.json(
-        { success: false, error: 'Workflow ID is required' },
-        { status: 400 }
-      )
-    }
+  logger.info('Retrieved current workflow YAML', {
+    yamlLength: currentYaml.length,
+    yamlPreview: currentYaml.substring(0, 200),
+  })
 
-    logger.info('Executing targeted updates', {
-      workflowId,
-      userId: authenticatedUserId || 'internal_call',
-      operationCount: operations.length,
-      operations: operations.map((op) => ({ type: op.operation_type, blockId: op.block_id })),
-    })
+  // Apply operations to generate modified YAML
+  const modifiedYaml = await applyOperationsToYaml(currentYaml, operations)
 
-    const result = await targetedUpdates({
-      operations,
-      workflowId,
-    })
+  logger.info('Applied operations to YAML', {
+    operationCount: operations.length,
+    currentYamlLength: currentYaml.length,
+    modifiedYamlLength: modifiedYaml.length,
+    operations: operations.map((op) => ({ type: op.operation_type, blockId: op.block_id })),
+  })
 
-    return NextResponse.json(result)
-  } catch (error) {
-    logger.error('Targeted updates API failed:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+  logger.info(
+    `Successfully generated modified YAML for ${operations.length} targeted update operations`
+  )
+
+  // Return the modified YAML directly - the UI will handle preview generation via updateDiffStore()
+  return {
+    yamlContent: modifiedYaml,
+    operations: operations.map((op) => ({ type: op.operation_type, blockId: op.block_id })),
   }
 }

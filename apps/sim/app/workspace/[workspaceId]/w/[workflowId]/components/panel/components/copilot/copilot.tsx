@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console-logger'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
+import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useCopilotSandbox } from '../../../../hooks/use-copilot-sandbox'
 import { CopilotSandboxModal } from '../../../copilot-sandbox-modal/copilot-sandbox-modal'
@@ -129,7 +130,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
 
       // Check for completed preview_workflow tool calls
       const previewToolCall = lastMessage.toolCalls.find(
-        (tc) => tc.name === 'preview_workflow' && tc.state === 'completed' && !isToolCallSeen(tc.id)
+        (tc) => tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW && tc.state === 'completed' && !isToolCallSeen(tc.id)
       )
 
       if (previewToolCall?.result) {

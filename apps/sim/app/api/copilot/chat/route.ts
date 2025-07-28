@@ -27,7 +27,7 @@ const ChatMessageSchema = z.object({
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
-const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY || 'sk-simagent-api01-440c1bd94254e1d8e412e3a57f706c48bfeddb60346e41a5564e5850cd9747abb3542170c33b6ee13353a79eb3fa725e'
+const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 /**
  * Generate a chat title using LLM
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': SIM_AGENT_API_KEY,
+        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
         messages,

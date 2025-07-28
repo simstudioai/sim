@@ -2,15 +2,38 @@ import { desc, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflowExecutionLogs } from '@/db/schema'
+import { BaseCopilotTool } from '../base'
 
-const logger = createLogger('GetWorkflowConsoleAPI')
+interface GetWorkflowConsoleParams {
+  workflowId: string
+  limit?: number
+  includeDetails?: boolean
+}
 
-export async function getWorkflowConsole(params: any) {
-  const { workflowId, limit = 50, includeDetails = false } = params
+interface WorkflowConsoleResult {
+  entries: any[]
+  totalEntries: number
+  workflowId: string
+  retrievedAt: string
+  hasBlockDetails: boolean
+}
 
-  if (!workflowId) {
-    throw new Error('Workflow ID is required')
+class GetWorkflowConsoleTool extends BaseCopilotTool<GetWorkflowConsoleParams, WorkflowConsoleResult> {
+  readonly id = 'get_workflow_console'
+  readonly displayName = 'Getting workflow console'
+
+  protected async executeImpl(params: GetWorkflowConsoleParams): Promise<WorkflowConsoleResult> {
+    return getWorkflowConsole(params)
   }
+}
+
+// Export the tool instance
+export const getWorkflowConsoleTool = new GetWorkflowConsoleTool()
+
+// Implementation function
+async function getWorkflowConsole(params: GetWorkflowConsoleParams): Promise<WorkflowConsoleResult> {
+  const logger = createLogger('GetWorkflowConsole')
+  const { workflowId, limit = 50, includeDetails = false } = params
 
   logger.info('Fetching workflow console logs', { workflowId, limit, includeDetails })
 
@@ -62,13 +85,10 @@ export async function getWorkflowConsole(params: any) {
   })
 
   return {
-    success: true,
-    data: {
-      entries: formattedEntries,
-      totalEntries: formattedEntries.length,
-      workflowId,
-      retrievedAt: new Date().toISOString(),
-      hasBlockDetails: false,
-    },
+    entries: formattedEntries,
+    totalEntries: formattedEntries.length,
+    workflowId,
+    retrievedAt: new Date().toISOString(),
+    hasBlockDetails: false,
   }
 }

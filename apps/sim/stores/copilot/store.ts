@@ -1,3 +1,5 @@
+'use client'
+
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import {
@@ -15,6 +17,8 @@ import {
 } from '@/lib/copilot/api'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { CopilotStore } from './types'
+import { COPILOT_TOOL_IDS } from './constants'
+import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 
 const logger = createLogger('CopilotStore')
 
@@ -90,34 +94,8 @@ function handleStoreError(error: unknown, fallbackMessage: string): string {
  * Helper function to get a display name for a tool
  */
 function getToolDisplayName(toolName: string): string {
-  switch (toolName) {
-    case 'docs_search_internal':
-      return 'Searching documentation'
-    case 'get_user_workflow':
-      return 'Analyzing your workflow'
-    case 'preview_workflow':
-      return 'Preview workflow changes'
-    case 'get_blocks_and_tools':
-      return 'Getting block information'
-    case 'get_blocks_metadata':
-      return 'Getting block metadata'
-    case 'get_yaml_structure':
-      return 'Analyzing workflow structure'
-    case 'edit_workflow':
-      return 'Editing your workflow'
-    case 'serper_search':
-      return 'Searching online'
-    case 'get_workflow_examples':
-      return 'Reviewing the design'
-    case 'get_environment_variables':
-      return 'Checking your environment variables'
-    case 'set_environment_variables':
-      return 'Setting your environment variables'
-    case 'targeted_updates':
-      return 'Editing workflow'
-    default:
-      return toolName.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
-  }
+  // Use dynamically generated display names from the tool registry
+  return COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
 }
 
 /**
@@ -219,7 +197,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       toolCall.duration = toolCall.endTime - (toolCall.startTime || Date.now())
       
       // Set appropriate state based on tool type
-      if (toolCall.name === 'preview_workflow' || toolCall.name === 'targeted_updates') {
+              if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
         toolCall.state = 'ready_for_review'
       } else {
         toolCall.state = 'completed'
@@ -239,8 +217,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         duration: toolCall.duration
       })
 
-      // Handle successful preview_workflow tool result
-      if (toolCall.name === 'preview_workflow') {
+              // Handle successful build_workflow tool result
+        if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW) {
         // Check both direct yamlContent and nested data.yamlContent
         const yamlContent = parsedResult?.yamlContent || parsedResult?.data?.yamlContent
         if (yamlContent) {
@@ -249,9 +227,9 @@ const sseHandlers: Record<string, SSEHandler> = {
             yamlPreview: yamlContent.substring(0, 100),
           })
           get().setPreviewYaml(yamlContent)
-          get().updateDiffStore(yamlContent, 'preview_workflow')
+          get().updateDiffStore(yamlContent, COPILOT_TOOL_IDS.BUILD_WORKFLOW)
         } else {
-          logger.warn('No yamlContent found in preview_workflow result', {
+                      logger.warn('No yamlContent found in build_workflow result', {
             hasDirectYaml: !!parsedResult?.yamlContent,
             hasNestedYaml: !!parsedResult?.data?.yamlContent,
             resultStructure: Object.keys(parsedResult || {})
@@ -259,19 +237,19 @@ const sseHandlers: Record<string, SSEHandler> = {
         }
       }
 
-      // Handle successful targeted_updates tool result
-      if (toolCall.name === 'targeted_updates') {
+              // Handle successful edit_workflow tool result
+        if (toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
         // Check both direct yamlContent and nested data.yamlContent
         const yamlContent = parsedResult?.yamlContent || parsedResult?.data?.yamlContent
         if (yamlContent) {
-          logger.info('Setting preview YAML from targeted_updates tool_result event', {
+          logger.info('Setting preview YAML from edit_workflow tool_result event', {
             yamlLength: yamlContent.length,
             yamlPreview: yamlContent.substring(0, 200),
           })
           get().setPreviewYaml(yamlContent)
-          get().updateDiffStore(yamlContent, 'targeted_updates')
+          get().updateDiffStore(yamlContent, COPILOT_TOOL_IDS.EDIT_WORKFLOW)
         } else {
-          logger.warn('No yamlContent found in targeted_updates result', {
+          logger.warn('No yamlContent found in edit_workflow result', {
             hasDirectYaml: !!parsedResult?.yamlContent,
             hasNestedYaml: !!parsedResult?.data?.yamlContent,
             resultStructure: Object.keys(parsedResult || {})
@@ -284,9 +262,9 @@ const sseHandlers: Record<string, SSEHandler> = {
       toolCall.error = result || 'Tool execution failed'
       logger.error('Tool call failed:', toolCallId, toolCall.name, result)
 
-      // If preview_workflow failed, send error back for retry
-      if (toolCall.name === 'preview_workflow') {
-        logger.info('Preview workflow tool execution failed, sending error back to agent for retry')
+              // If build_workflow failed, send error back for retry
+        if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW) {
+          logger.info('Build workflow tool execution failed, sending error back to agent for retry')
         setTimeout(() => {
           get().sendImplicitFeedback(
             `The previous workflow YAML generation failed with error: "${toolCall.error}". Please analyze the error and try generating the workflow YAML again with the necessary fixes.`
@@ -444,8 +422,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         // Parse complete tool call input
         context.toolCallBuffer.input = JSON.parse(context.toolCallBuffer.partialInput || '{}')
         context.toolCallBuffer.state = 
-          context.toolCallBuffer.name === 'preview_workflow' || 
-          context.toolCallBuffer.name === 'targeted_updates'
+                    context.toolCallBuffer.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+          context.toolCallBuffer.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
             ? 'ready_for_review'
             : 'completed'
         context.toolCallBuffer.endTime = Date.now()
@@ -456,33 +434,33 @@ const sseHandlers: Record<string, SSEHandler> = {
         updateContentBlockToolCall(context.contentBlocks, context.toolCallBuffer.id, context.toolCallBuffer)
         updateStreamingMessage(set, context)
 
-        // Handle preview_workflow completion
-        if (context.toolCallBuffer.name === 'preview_workflow') {
+        // Handle build_workflow completion
+        if (context.toolCallBuffer.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW) {
           // Check both direct yamlContent and nested data.yamlContent
           const yamlContent = context.toolCallBuffer.input?.yamlContent || 
                              context.toolCallBuffer.input?.data?.yamlContent
           if (yamlContent) {
-            logger.info('Setting preview YAML from completed preview_workflow tool call', {
+            logger.info('Setting preview YAML from completed build_workflow tool call', {
               yamlLength: yamlContent.length,
               yamlPreview: yamlContent.substring(0, 100)
             })
             get().setPreviewYaml(yamlContent)
-            get().updateDiffStore(yamlContent, 'preview_workflow')
+            get().updateDiffStore(yamlContent, COPILOT_TOOL_IDS.BUILD_WORKFLOW)
           }
         }
 
-        // Handle targeted_updates completion
-        if (context.toolCallBuffer.name === 'targeted_updates') {
+        // Handle edit_workflow completion
+        if (context.toolCallBuffer.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
           // Check both direct yamlContent and nested data.yamlContent
           const yamlContent = context.toolCallBuffer.input?.yamlContent || 
                              context.toolCallBuffer.input?.data?.yamlContent
           if (yamlContent) {
-            logger.info('Setting preview YAML from completed targeted_updates tool call', {
+            logger.info('Setting preview YAML from completed edit_workflow tool call', {
               yamlLength: yamlContent.length,
               yamlPreview: yamlContent.substring(0, 100)
             })
-            get().setPreviewYaml(yamlContent)
-            get().updateDiffStore(yamlContent, 'targeted_updates')
+                      get().setPreviewYaml(yamlContent)
+          get().updateDiffStore(yamlContent, COPILOT_TOOL_IDS.EDIT_WORKFLOW)
           }
         }
       } catch (error) {
@@ -492,8 +470,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         context.toolCallBuffer.duration = context.toolCallBuffer.endTime - context.toolCallBuffer.startTime
         context.toolCallBuffer.error = error instanceof Error ? error.message : String(error)
 
-        // Retry on preview_workflow failure
-        if (context.toolCallBuffer.name === 'preview_workflow') {
+        // Retry on build_workflow failure
+        if (context.toolCallBuffer.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW) {
           setTimeout(() => {
             get().sendImplicitFeedback(
               `The previous workflow YAML generation failed with error: "${context.toolCallBuffer.error}". Please analyze the error and try generating the workflow YAML again with the necessary fixes.`
@@ -1107,7 +1085,7 @@ export const useCopilotStore = create<CopilotStore>()(
             (msg) =>
               msg.role === 'assistant' &&
               msg.toolCalls?.some(
-                (tc) => tc.name === 'preview_workflow' || tc.name === 'targeted_updates'
+                (tc) => tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
               )
           )
 
@@ -1118,14 +1096,14 @@ export const useCopilotStore = create<CopilotStore>()(
                 ? {
                     ...msg,
                     toolCalls: msg.toolCalls?.map((tc) =>
-                      tc.name === 'preview_workflow' || tc.name === 'targeted_updates'
+                      tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                         ? { ...tc, state: toolCallState }
                         : tc
                     ),
                     contentBlocks: msg.contentBlocks?.map((block) =>
                       block.type === 'tool_call' &&
-                      (block.toolCall.name === 'preview_workflow' ||
-                        block.toolCall.name === 'targeted_updates')
+                      (block.toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+                        block.toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW)
                         ? { ...block, toolCall: { ...block.toolCall, state: toolCallState } }
                         : block
                     ),
@@ -1161,7 +1139,7 @@ export const useCopilotStore = create<CopilotStore>()(
               (msg) =>
                 msg.role === 'assistant' &&
                 msg.toolCalls?.some(
-                  (tc) => tc.name === 'preview_workflow' || tc.name === 'targeted_updates'
+                  (tc) => tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                 )
             )
 
@@ -1172,14 +1150,14 @@ export const useCopilotStore = create<CopilotStore>()(
                   ? {
                       ...msg,
                       toolCalls: msg.toolCalls?.map((tc) =>
-                        tc.name === 'preview_workflow' || tc.name === 'targeted_updates'
+                        tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                           ? { ...tc, state: toolCallState }
                           : tc
                       ),
                       contentBlocks: msg.contentBlocks?.map((block) =>
                         block.type === 'tool_call' &&
-                        (block.toolCall.name === 'preview_workflow' ||
-                          block.toolCall.name === 'targeted_updates')
+                        (block.toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+                          block.toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW)
                           ? { ...block, toolCall: { ...block.toolCall, state: toolCallState } }
                           : block
                       ),
@@ -1366,7 +1344,7 @@ export const useCopilotStore = create<CopilotStore>()(
             // Get handler for this event type
             const handler = sseHandlers[data.type] || sseHandlers.default
             await handler(data, context, get, set)
-            
+
             // Check if handler set stream completion flag
             if (context.streamComplete) {
               break
@@ -1377,11 +1355,11 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.info(`Completed streaming response, content length: ${context.accumulatedContent.length}`)
 
           // Final update
-          set((state) => ({
-            messages: state.messages.map((msg) =>
-              msg.id === messageId
-                ? {
-                    ...msg,
+                        set((state) => ({
+                          messages: state.messages.map((msg) =>
+                            msg.id === messageId
+                              ? {
+                                  ...msg,
                     content: context.accumulatedContent,
                     toolCalls: context.toolCalls,
                     contentBlocks: context.contentBlocks,
@@ -1692,13 +1670,13 @@ export const useCopilotStore = create<CopilotStore>()(
           const { messages } = get()
           const currentMessage = messages[messages.length - 1]
           const messageHasExistingEdits = currentMessage?.toolCalls?.some(
-            tc => (tc.name === 'preview_workflow' || tc.name === 'targeted_updates') && 
+            tc => (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) && 
                   tc.state !== 'executing'
           ) || false
 
           const shouldClearDiff = 
-            toolName === 'preview_workflow' || // preview_workflow always clears
-            (toolName === 'targeted_updates' && !messageHasExistingEdits) // first targeted_updates in message clears
+            toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || // build_workflow always clears
+            (toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW && !messageHasExistingEdits) // first edit_workflow in message clears
 
           logger.info('Diff merge strategy:', {
             toolName,
@@ -1750,7 +1728,7 @@ export const useCopilotStore = create<CopilotStore>()(
           const diffStore = useWorkflowDiffStore.getState()
           if (shouldClearDiff || !diffStoreBefore.diffWorkflow) {
             // Use setProposedChanges which will create a new diff
-            await diffStore.setProposedChanges(yamlContent, diffAnalysis)
+          await diffStore.setProposedChanges(yamlContent, diffAnalysis)
           } else {
             // Use mergeProposedChanges which will merge into existing diff
             await diffStore.mergeProposedChanges(yamlContent, diffAnalysis)

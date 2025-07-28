@@ -7,6 +7,7 @@ import { copilotChats, docsEmbeddings } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import type { ProviderToolConfig } from '@/providers/types'
 import { getApiKey } from '@/providers/utils'
+import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 import { getCopilotConfig, getCopilotModel } from './config'
 import { WORKFLOW_EXAMPLES } from './examples'
 import {
@@ -186,9 +187,24 @@ function buildConversationMessages(
  * Get available tools for the given mode
  */
 function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
+  // Use tool IDs from shared constants
+  const buildWorkflowId = Object.keys(COPILOT_TOOL_DISPLAY_NAMES).find(id => 
+    COPILOT_TOOL_DISPLAY_NAMES[id].includes('Building') || 
+    COPILOT_TOOL_DISPLAY_NAMES[id].includes('Preview')
+  ) || 'build_workflow'
+  
+  const editWorkflowId = Object.keys(COPILOT_TOOL_DISPLAY_NAMES).find(id => 
+    COPILOT_TOOL_DISPLAY_NAMES[id].includes('Updating') || 
+    COPILOT_TOOL_DISPLAY_NAMES[id].includes('Edit')
+  ) || 'edit_workflow'
+  
+  const searchDocsId = Object.keys(COPILOT_TOOL_DISPLAY_NAMES).find(id => 
+    COPILOT_TOOL_DISPLAY_NAMES[id].includes('documentation')
+  ) || 'search_documentation'
+
   const allTools: ProviderToolConfig[] = [
     {
-      id: 'docs_search_internal',
+      id: searchDocsId,
       name: 'Search Documentation',
       description:
         'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
@@ -198,12 +214,17 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
         properties: {
           query: {
             type: 'string',
-            description: 'The search query to find relevant documentation',
+            description: 'Search query for documentation',
           },
           topK: {
             type: 'number',
-            description: 'Number of results to return (default: 10, max: 10)',
+            description: 'Number of top results to return (default: 10)',
             default: 10,
+          },
+          threshold: {
+            type: 'number',
+            description: 'Similarity threshold for results (default: 0.7)',
+            default: 0.7,
           },
         },
         required: ['query'],
@@ -211,62 +232,25 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
     },
     {
       id: 'get_user_workflow',
-      name: "Get User's Specific Workflow",
+      name: 'Get User Workflow',
       description:
-        "Get the user's current workflow - this shows ONLY the blocks they have actually built and configured in their specific workflow, not general Sim Studio capabilities.",
+        'Retrieve the current YAML configuration of the user\'s workflow. This should be your FIRST step when analyzing or modifying workflows.',
       params: {},
       parameters: {
         type: 'object',
-        properties: {
-          includeMetadata: {
-            type: 'boolean',
-            description:
-              'Whether to include additional metadata about the workflow (default: false)',
-            default: false,
-          },
-        },
+        properties: {},
         required: [],
       },
     },
     {
-      id: 'get_workflow_examples',
-      name: 'Get Workflow Examples',
-      description: `Get proven YAML workflow examples by ID to reference when building workflows. Available IDs: ${Object.keys(WORKFLOW_EXAMPLES as Record<string, string>).join(', ')}`,
-      params: {},
-      parameters: {
-        type: 'object',
-        properties: {
-          exampleIds: {
-            type: 'array',
-            items: {
-              type: 'string',
-            },
-            description: 'Array of example IDs to retrieve',
-          },
-        },
-        required: ['exampleIds'],
-      },
-    },
-    {
       id: 'get_blocks_and_tools',
-      name: 'Get All Blocks and Tools',
+      name: 'Get Blocks and Tools',
       description:
-        'Get a comprehensive list of all available blocks and tools in Sim Studio with their descriptions, categories, and capabilities.',
+        'Get a comprehensive mapping of all available blocks and their associated tools. Essential for understanding what blocks are available for workflow creation.',
       params: {},
       parameters: {
         type: 'object',
-        properties: {
-          includeDetails: {
-            type: 'boolean',
-            description:
-              'Whether to include detailed information like inputs, outputs, and sub-blocks (default: false)',
-            default: false,
-          },
-          filterCategory: {
-            type: 'string',
-            description: 'Optional category filter for blocks (e.g., "tools", "blocks", "ai")',
-          },
-        },
+        properties: {},
         required: [],
       },
     },
@@ -292,9 +276,9 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
     },
     {
       id: 'get_yaml_structure',
-      name: 'Get YAML Workflow Structure Guide',
+      name: 'Get YAML Structure',
       description:
-        'Get comprehensive YAML workflow syntax guide and examples to understand how to structure Sim Studio workflows.',
+        'Get the YAML workflow structure guide and best practices for creating workflows.',
       params: {},
       parameters: {
         type: 'object',
@@ -303,8 +287,8 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
       },
     },
     {
-      id: 'preview_workflow',
-      name: 'Preview Workflow',
+      id: buildWorkflowId,
+      name: 'Build Workflow',
       description:
         'Generate a sandbox preview of the workflow without saving it. This allows users to see the proposed changes before applying them. This is the ONLY way to propose workflow changes. IMPORTANT: After calling this tool, you MUST stop your response immediately and wait for the user to either accept, reject, or provide additional feedback before continuing the conversation.',
       params: {},
@@ -323,74 +307,43 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
         required: ['yamlContent'],
       },
     },
-    // {
-    //   id: 'edit_workflow',
-    //   name: 'Edit Workflow',
-    //   description:
-    //     'Save/edit the current workflow by providing YAML content. This performs the same action as saving in the YAML code editor.',
-    //   params: {},
-    //   parameters: {
-    //     type: 'object',
-    //     properties: {
-    //       yamlContent: {
-    //         type: 'string',
-    //         description: 'The complete YAML workflow content to save',
-    //       },
-    //       description: {
-    //         type: 'string',
-    //         description: 'Optional description of the changes being made',
-    //       },
-    //     },
-    //     required: ['yamlContent'],
-    //   },
-    // },
     {
-      id: 'serper_search',
-      name: 'Web Search',
+      id: 'get_workflow_examples',
+      name: 'Get Workflow Examples',
       description:
-        'Search the internet for real-time information using Google search results. Useful for finding current information, news, facts, and general web content that may not be available in the documentation.',
-      params: {
-        apiKey: process.env.SERPER_API_KEY || '',
-      },
+        'Get example workflows for reference. Useful for understanding patterns and structures.',
+      params: {},
       parameters: {
         type: 'object',
         properties: {
-          query: {
-            type: 'string',
-            description: 'The search query to find relevant information on the web',
-          },
-          num: {
-            type: 'number',
-            description: 'Number of search results to return (default: 10, max: 100)',
-            default: 10,
-          },
-          type: {
-            type: 'string',
-            enum: ['search', 'news', 'places', 'images'],
-            description: 'Type of search to perform (default: search)',
-            default: 'search',
-          },
-          gl: {
-            type: 'string',
-            description: 'Country code for localized results (e.g., "us", "uk", "ca")',
-          },
-          hl: {
-            type: 'string',
-            description: 'Language code for results (e.g., "en", "es", "fr")',
+          exampleIds: {
+            type: 'array',
+            items: {
+              type: 'string',
+            },
+            description: 'Array of example IDs to retrieve',
           },
         },
-        required: ['query'],
+        required: ['exampleIds'],
       },
     },
     {
       id: 'get_environment_variables',
       name: 'Get Environment Variables',
-      description:
-        'Get a list of available environment variable names that the user has configured. This helps understand what API keys and secrets are available for use in workflows. Returns only the variable names, not their values.',
+      description: 'Get list of environment variable names (not values) that are set for the user.',
       params: {},
       parameters: {
         type: 'object',
-        properties: {},
+        properties: {
+          userId: {
+            type: 'string',
+            description: 'User ID (optional)',
+          },
+          workflowId: {
+            type: 'string',
+            description: 'Workflow ID (optional)',
+          },
+        },
         required: [],
       },
     },
@@ -398,21 +351,15 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
       id: 'set_environment_variables',
       name: 'Set Environment Variables',
       description:
-        'Set or update environment variables that can be used in workflows. New variables will be added, and existing variables with the same names will be updated. Other existing variables will be preserved. Use this to configure API keys, secrets, and other configuration values.',
-      params: {
-        variables: {
-          type: 'object',
-          description:
-            'A key-value object containing the environment variables to set. Example: {"API_KEY": "your-key", "DATABASE_URL": "your-url"}',
-        },
-      },
+        'Set environment variables for the user. This tool should only be used when the user explicitly asks to set environment variables.',
+      params: {},
       parameters: {
         type: 'object',
         properties: {
           variables: {
             type: 'object',
-            description:
-              'A key-value object containing the environment variables to set. Example: {"API_KEY": "your-key", "DATABASE_URL": "your-url"}',
+            description: 'Object containing variable names as keys and their values',
+            additionalProperties: true,
           },
         },
         required: ['variables'],
@@ -420,22 +367,21 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
     },
     {
       id: 'get_workflow_console',
-      name: 'Get Workflow Console Logs',
+      name: 'Get Workflow Console',
       description:
-        'Get console logs and execution history from the current workflow. This shows real-time execution logs including block inputs, outputs, execution times, and any errors or warnings from recent workflow runs.',
+        'Get console logs and execution history for a workflow to help debug issues.',
       params: {},
       parameters: {
         type: 'object',
         properties: {
           limit: {
             type: 'number',
-            description: 'Maximum number of console entries to return (default: 50, max: 100)',
+            description: 'Maximum number of log entries to return (default: 50)',
             default: 50,
           },
           includeDetails: {
             type: 'boolean',
-            description:
-              'Whether to include detailed input/output data for each console entry (default: false)',
+            description: 'Include detailed block execution information',
             default: false,
           },
         },
@@ -443,7 +389,43 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
       },
     },
     {
-      id: 'targeted_updates',
+      id: 'search_online',
+      name: 'Search Online',
+      description: 'Search online for information when documentation doesn\'t have the answer.',
+      params: {},
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Search query',
+          },
+          num: {
+            type: 'number',
+            description: 'Number of results to return (default: 10)',
+            default: 10,
+          },
+          type: {
+            type: 'string',
+            description: 'Type of search (default: "search")',
+            default: 'search',
+          },
+          gl: {
+            type: 'string',
+            description: 'Country code (default: "us")',
+            default: 'us',
+          },
+          hl: {
+            type: 'string',
+            description: 'Language code (default: "en")',
+            default: 'en',
+          },
+        },
+        required: ['query'],
+      },
+    },
+    {
+      id: editWorkflowId,
       name: 'Targeted Updates',
       description:
         'Make targeted updates to the workflow with atomic add, edit, or delete operations. Allows precise modifications to specific blocks without affecting the entire workflow.',
@@ -469,8 +451,8 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
                 },
                 params: {
                   type: 'object',
-                  description:
-                    'Parameters for the operation. For add: {type: "block_type", name: "Block Name", inputs: {...}, connections: {...}}, for edit: {inputs: {...}, connections: {...}}, for delete: empty',
+                  description: 'Parameters for the operation (required for add and edit operations)',
+                  additionalProperties: true,
                 },
               },
               required: ['operation_type', 'block_id'],
@@ -483,7 +465,7 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
   ]
 
   // Filter tools based on mode
-  return mode === 'ask' ? allTools.filter((tool) => tool.id !== 'preview_workflow') : allTools
+  return mode === 'ask' ? allTools.filter((tool) => tool.id !== buildWorkflowId) : allTools
 }
 
 /**

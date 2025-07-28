@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import type { ToolCallState } from '@/types/tool-call'
+import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 
 interface ProfessionalMessageProps {
   message: CopilotMessage
@@ -66,7 +67,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   }
 
   // Special handling for preview workflow and targeted updates
-  const isPreviewTool = tool.name === 'preview_workflow' || tool.name === 'targeted_updates'
+      const isPreviewTool = tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
 
   if (isPreviewTool) {
     return (
@@ -124,7 +125,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
               )}
             >
               {tool.state === 'executing'
-                ? tool.name === 'targeted_updates'
+                ? tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                   ? 'Editing workflow'
                   : 'Building workflow'
                 : tool.displayName || tool.name}
@@ -140,7 +141,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
               )}
             >
               {tool.state === 'executing'
-                ? tool.name === 'targeted_updates'
+                ? tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                   ? 'Editing workflow...'
                   : 'Building workflow...'
                 : tool.state === 'ready_for_review'
@@ -149,7 +150,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
                     ? 'Applied changes'
                     : tool.state === 'rejected'
                       ? 'Rejected changes'
-                      : tool.name === 'targeted_updates'
+                      : tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                         ? 'Workflow editing failed'
                         : 'Workflow generation failed'}
             </div>

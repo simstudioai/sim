@@ -1,6 +1,9 @@
+'use client'
+
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { CopilotMessage, CopilotToolCall } from './types'
+import { COPILOT_TOOL_IDS } from './constants'
 
 export interface PreviewData {
   id: string
@@ -203,7 +206,7 @@ export const usePreviewStore = create<PreviewStore>()(
           if (message.role === 'assistant' && message.toolCalls) {
             message.toolCalls.forEach((toolCall: CopilotToolCall) => {
               if (
-                toolCall.name === 'preview_workflow' &&
+                toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW &&
                 toolCall.state === 'completed' &&
                 toolCall.id
               ) {

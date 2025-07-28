@@ -217,7 +217,7 @@ blocks:
       model: gpt-4o
       apiKey: '{{OPENAI_API_KEY}}'`,
 
-  // Targeted Update Examples - for demonstrating targeted_updates tool usage patterns
+  // Targeted Update Examples - for demonstrating edit_workflow tool usage patterns
   targeted_add_block: `// Example: Adding a new agent block to an existing workflow
 // Operation: Add a new block after an existing agent
 {
