@@ -5,12 +5,11 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { createLogger } from '@/lib/logs/console/logger'
 import {
   type DocumentTag,
   DocumentTagEntry,
-} from '../../../components/document-tag-entry/document-tag-entry'
-import { createLogger } from '@/lib/logs/console/logger'
-import { type TagData, TagInput } from '@/app/workspace/[workspaceId]/knowledge/components'
+} from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('UploadModal')
@@ -157,7 +156,7 @@ export function UploadModal({
       // Create files with tags for upload
       const filesWithTags = files.map((file) => {
         // Add tags as custom properties to the file object
-        const fileWithTags = file as File & Record<string, string>
+        const fileWithTags = file as unknown as File & Record<string, string>
         Object.assign(fileWithTags, tagData)
         return fileWithTags
       })

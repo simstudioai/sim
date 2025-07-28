@@ -13,14 +13,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  getDocumentIcon,
-  type TagData,
-  TagInput,
-} from '@/app/workspace/[workspaceId]/knowledge/components'
+import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
-import { useKnowledgeUpload } from '../../hooks/use-knowledge-upload'
 
 const logger = createLogger('CreateModal')
 
@@ -308,7 +303,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         maxChunkSize: 1024,
         overlapSize: 200,
       })
-      setTags({})
 
       // Clean up file previews
       files.forEach((file) => URL.revokeObjectURL(file.preview))

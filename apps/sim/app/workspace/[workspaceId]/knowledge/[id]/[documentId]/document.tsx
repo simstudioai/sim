@@ -13,11 +13,6 @@ import {
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
-import {
-  type DocumentTag,
-  DocumentTagEntry,
-} from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
 import {
   CreateChunkModal,
   DeleteChunkModal,
@@ -26,6 +21,10 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { KnowledgeHeader, SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components'
+import {
+  type DocumentTag,
+  DocumentTagEntry,
+} from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { useTagDefinitions } from '@/hooks/use-tag-definitions'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
@@ -60,7 +59,6 @@ export function Document({
     getCachedKnowledgeBase,
     getCachedDocuments,
     updateDocument: updateDocumentInStore,
-    refreshDocuments,
   } = useKnowledgeStore()
   const { workspaceId } = useParams()
   const router = useRouter()
@@ -71,7 +69,6 @@ export function Document({
   const {
     chunks: paginatedChunks,
     allChunks,
-    filteredChunks,
     searchQuery,
     setSearchQuery,
     currentPage,
@@ -99,10 +96,7 @@ export function Document({
   const [error, setError] = useState<string | null>(null)
 
   // Use tag definitions hook for custom labels
-  const { getTagLabel, tagDefinitions, fetchTagDefinitions } = useTagDefinitions(
-    knowledgeBaseId,
-    documentId
-  )
+  const { tagDefinitions, fetchTagDefinitions } = useTagDefinitions(knowledgeBaseId, documentId)
 
   // Function to build document tags from data and definitions
   const buildDocumentTags = useCallback(
@@ -369,7 +363,7 @@ export function Document({
     }
   }
 
-  const handleChunkCreated = async (newChunk: ChunkData) => {
+  const handleChunkCreated = async () => {
     // Refresh the chunks list to include the new chunk
     await refreshChunks()
   }
@@ -872,7 +866,7 @@ export function Document({
       {/* Edit Chunk Modal */}
       <EditChunkModal
         chunk={selectedChunk}
-        document={document}
+        document={documentData}
         knowledgeBaseId={knowledgeBaseId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
@@ -910,7 +904,7 @@ export function Document({
       <CreateChunkModal
         open={isCreateChunkModalOpen}
         onOpenChange={setIsCreateChunkModalOpen}
-        document={document}
+        document={documentData}
         knowledgeBaseId={knowledgeBaseId}
         onChunkCreated={handleChunkCreated}
       />

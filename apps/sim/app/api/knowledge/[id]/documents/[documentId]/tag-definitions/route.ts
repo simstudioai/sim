@@ -3,7 +3,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
 import { document, knowledgeBaseTagDefinitions } from '@/db/schema'
@@ -196,7 +196,7 @@ export async function POST(
     }
 
     const now = new Date()
-    const createdDefinitions = []
+    const createdDefinitions: (typeof knowledgeBaseTagDefinitions.$inferSelect)[] = []
 
     // Get existing definitions count before transaction for cleanup check
     const existingDefinitions = await db

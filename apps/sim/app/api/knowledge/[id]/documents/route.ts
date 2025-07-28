@@ -5,15 +5,13 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { document, knowledgeBaseTagDefinitions } from '@/db/schema'
 import {
   checkKnowledgeBaseAccess,
   checkKnowledgeBaseWriteAccess,
   processDocumentAsync,
 } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
-import { document } from '@/db/schema'
+import { document, knowledgeBaseTagDefinitions } from '@/db/schema'
 
 const logger = createLogger('DocumentsAPI')
 
