@@ -218,8 +218,15 @@ describe('Document By ID API Route', () => {
         }),
       }
 
+      // Mock transaction
+      mockDbChain.transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          update: vi.fn().mockReturnValue(updateChain),
+        }
+        await callback(mockTx)
+      })
+
       // Mock db operations in sequence
-      mockDbChain.update.mockReturnValue(updateChain)
       mockDbChain.select.mockReturnValue(selectChain)
 
       const req = createMockRequest('PUT', validUpdateData)
@@ -231,7 +238,7 @@ describe('Document By ID API Route', () => {
       expect(data.success).toBe(true)
       expect(data.data.filename).toBe('updated-document.pdf')
       expect(data.data.enabled).toBe(false)
-      expect(mockDbChain.update).toHaveBeenCalled()
+      expect(mockDbChain.transaction).toHaveBeenCalled()
       expect(mockDbChain.select).toHaveBeenCalled()
     })
 
@@ -298,8 +305,15 @@ describe('Document By ID API Route', () => {
         }),
       }
 
+      // Mock transaction
+      mockDbChain.transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          update: vi.fn().mockReturnValue(updateChain),
+        }
+        await callback(mockTx)
+      })
+
       // Mock db operations in sequence
-      mockDbChain.update.mockReturnValue(updateChain)
       mockDbChain.select.mockReturnValue(selectChain)
 
       const req = createMockRequest('PUT', { markFailedDueToTimeout: true })
@@ -309,7 +323,7 @@ describe('Document By ID API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(mockDbChain.update).toHaveBeenCalled()
+      expect(mockDbChain.transaction).toHaveBeenCalled()
       expect(updateChain.set).toHaveBeenCalledWith(
         expect.objectContaining({
           processingStatus: 'failed',
@@ -479,7 +493,9 @@ describe('Document By ID API Route', () => {
         document: mockDocument,
         knowledgeBase: { id: 'kb-123', userId: 'user-123' },
       })
-      mockDbChain.set.mockRejectedValue(new Error('Database error'))
+
+      // Mock transaction to throw an error
+      mockDbChain.transaction.mockRejectedValue(new Error('Database error'))
 
       const req = createMockRequest('PUT', validUpdateData)
       const { PUT } = await import('@/app/api/knowledge/[id]/documents/[documentId]/route')
