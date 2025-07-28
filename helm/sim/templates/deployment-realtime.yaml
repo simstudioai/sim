@@ -1,0 +1,92 @@
+{{- if .Values.realtime.enabled }}
+{{- include "simstudio.validateSecrets" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "simstudio.fullname" . }}-realtime
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "simstudio.realtime.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.realtime.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "simstudio.realtime.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "simstudio.realtime.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "simstudio.serviceAccountName" . }}
+      {{- include "simstudio.podSecurityContext" .Values.realtime | nindent 6 }}
+      {{- include "simstudio.nodeSelector" .Values.realtime | nindent 6 }}
+      {{- include "simstudio.tolerations" .Values | nindent 6 }}
+      {{- include "simstudio.affinity" .Values | nindent 6 }}
+      containers:
+        - name: realtime
+          image: {{ include "simstudio.image" (dict "context" . "image" .Values.realtime.image) }}
+          imagePullPolicy: {{ .Values.realtime.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.realtime.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              value: {{ include "simstudio.databaseUrl" . | quote }}
+            {{- range $key, $value := .Values.realtime.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- if .Values.telemetry.enabled }}
+            # OpenTelemetry configuration
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://{{ include "simstudio.fullname" . }}-otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: simstudio-realtime
+            - name: OTEL_SERVICE_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=simstudio-realtime,service.version={{ .Chart.AppVersion }},deployment.environment={{ .Values.realtime.env.NODE_ENV }}"
+            {{- end }}
+            {{- with .Values.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.postgresql.enabled }}
+          envFrom:
+            - secretRef:
+                name: {{ include "simstudio.fullname" . }}-postgresql-secret
+          {{- else if .Values.externalDatabase.enabled }}
+          envFrom:
+            - secretRef:
+                name: {{ include "simstudio.fullname" . }}-external-db-secret
+          {{- end }}
+          {{- if .Values.realtime.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.realtime.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.realtime.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.realtime.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- include "simstudio.resources" .Values.realtime | nindent 10 }}
+          {{- include "simstudio.securityContext" .Values.realtime | nindent 10 }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
