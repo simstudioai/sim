@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { checkServerSideUsageLimits } from '@/lib/billing'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -329,6 +330,22 @@ export async function executeWorkflowForChat(
   const deployment = deploymentResult[0]
   const workflowId = deployment.workflowId
   const executionId = uuidv4()
+
+  const usageCheck = await checkServerSideUsageLimits(deployment.userId)
+  if (usageCheck.isExceeded) {
+    logger.warn(
+      `[${requestId}] User ${deployment.userId} has exceeded usage limits. Skipping chat execution.`,
+      {
+        currentUsage: usageCheck.currentUsage,
+        limit: usageCheck.limit,
+        workflowId: deployment.workflowId,
+        chatId,
+      }
+    )
+    throw new Error(
+      usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue using chat.'
+    )
+  }
 
   // Set up logging for chat execution
   const loggingSession = new LoggingSession(workflowId, executionId, 'chat', requestId)
