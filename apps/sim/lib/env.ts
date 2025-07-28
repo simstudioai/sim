@@ -8,136 +8,160 @@ import { z } from 'zod'
  * - Server-side: Falls back to process.env when runtimeEnv returns undefined
  * - Provides seamless Docker runtime variable support for NEXT_PUBLIC_ vars
  */
-const getEnv = (variable: string): string | undefined => {
-  return runtimeEnv(variable) ?? process.env[variable]
-}
+const getEnv = (variable: string) => runtimeEnv(variable) ?? process.env[variable]
 
+// biome-ignore format: keep alignment for readability
 export const env = createEnv({
   skipValidation: true,
 
   server: {
-    DATABASE_URL: z.string().url(),
-    BETTER_AUTH_URL: z.string().url(),
-    BETTER_AUTH_SECRET: z.string().min(32),
-    DISABLE_REGISTRATION: z.boolean().optional(),
-    ENCRYPTION_KEY: z.string().min(32),
-    INTERNAL_API_SECRET: z.string().min(32),
+    // Core Database & Authentication
+    DATABASE_URL:                         z.string().url(),                     // Primary database connection string
+    BETTER_AUTH_URL:                      z.string().url(),                     // Base URL for Better Auth service
+    BETTER_AUTH_SECRET:                   z.string().min(32),                   // Secret key for Better Auth JWT signing
+    DISABLE_REGISTRATION:                 z.boolean().optional(),               // Flag to disable new user registration
+    ENCRYPTION_KEY:                       z.string().min(32),                   // Key for encrypting sensitive data
+    INTERNAL_API_SECRET:                  z.string().min(32),                   // Secret for internal API authentication
 
-    POSTGRES_URL: z.string().url().optional(),
-    STRIPE_SECRET_KEY: z.string().min(1).optional(),
-    STRIPE_BILLING_WEBHOOK_SECRET: z.string().min(1).optional(),
-    STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
-    STRIPE_FREE_PRICE_ID: z.string().min(1).optional(),
-    FREE_TIER_COST_LIMIT: z.number().optional(),
-    STRIPE_PRO_PRICE_ID: z.string().min(1).optional(),
-    PRO_TIER_COST_LIMIT: z.number().optional(),
-    STRIPE_TEAM_PRICE_ID: z.string().min(1).optional(),
-    TEAM_TIER_COST_LIMIT: z.number().optional(),
-    STRIPE_ENTERPRISE_PRICE_ID: z.string().min(1).optional(),
-    ENTERPRISE_TIER_COST_LIMIT: z.number().optional(),
-    RESEND_API_KEY: z.string().min(1).optional(),
-    EMAIL_DOMAIN: z.string().min(1).optional(),
-    OPENAI_API_KEY: z.string().min(1).optional(),
-    OPENAI_API_KEY_1: z.string().min(1).optional(),
-    OPENAI_API_KEY_2: z.string().min(1).optional(),
-    OPENAI_API_KEY_3: z.string().min(1).optional(),
-    MISTRAL_API_KEY: z.string().min(1).optional(),
-    ANTHROPIC_API_KEY_1: z.string().min(1).optional(),
-    ANTHROPIC_API_KEY_2: z.string().min(1).optional(),
-    ANTHROPIC_API_KEY_3: z.string().min(1).optional(),
-    FREESTYLE_API_KEY: z.string().min(1).optional(),
-    TELEMETRY_ENDPOINT: z.string().url().optional(),
-    COST_MULTIPLIER: z.number().optional(),
-    JWT_SECRET: z.string().min(1).optional(),
-    BROWSERBASE_API_KEY: z.string().min(1).optional(),
-    BROWSERBASE_PROJECT_ID: z.string().min(1).optional(),
-    OLLAMA_URL: z.string().url().optional(),
-    SENTRY_ORG: z.string().optional(),
-    SENTRY_PROJECT: z.string().optional(),
-    SENTRY_AUTH_TOKEN: z.string().optional(),
-    REDIS_URL: z.string().url().optional(),
-    NEXT_RUNTIME: z.string().optional(),
-    VERCEL_ENV: z.string().optional(),
+    // Database & Storage
+    POSTGRES_URL:                         z.string().url().optional(),          // Alternative PostgreSQL connection string
+    REDIS_URL:                            z.string().url().optional(),          // Redis connection string for caching/sessions
 
-    // Trigger.dev
-    TRIGGER_SECRET_KEY: z.string().min(1).optional(),
+    // Payment & Billing (Stripe)
+    STRIPE_SECRET_KEY:                    z.string().min(1).optional(),         // Stripe secret key for payment processing
+    STRIPE_BILLING_WEBHOOK_SECRET:        z.string().min(1).optional(),         // Webhook secret for billing events
+    STRIPE_WEBHOOK_SECRET:                z.string().min(1).optional(),         // General Stripe webhook secret
+    STRIPE_FREE_PRICE_ID:                 z.string().min(1).optional(),         // Stripe price ID for free tier
+    FREE_TIER_COST_LIMIT:                 z.number().optional(),                // Cost limit for free tier users
+    STRIPE_PRO_PRICE_ID:                  z.string().min(1).optional(),         // Stripe price ID for pro tier
+    PRO_TIER_COST_LIMIT:                  z.number().optional(),                // Cost limit for pro tier users
+    STRIPE_TEAM_PRICE_ID:                 z.string().min(1).optional(),         // Stripe price ID for team tier
+    TEAM_TIER_COST_LIMIT:                 z.number().optional(),                // Cost limit for team tier users
+    STRIPE_ENTERPRISE_PRICE_ID:           z.string().min(1).optional(),         // Stripe price ID for enterprise tier
+    ENTERPRISE_TIER_COST_LIMIT:           z.number().optional(),                // Cost limit for enterprise tier users
 
-    // Storage
-    AWS_REGION: z.string().optional(),
-    AWS_ACCESS_KEY_ID: z.string().optional(),
-    AWS_SECRET_ACCESS_KEY: z.string().optional(),
-    S3_BUCKET_NAME: z.string().optional(),
-    S3_LOGS_BUCKET_NAME: z.string().optional(),
-    S3_KB_BUCKET_NAME: z.string().optional(),
-    AZURE_ACCOUNT_NAME: z.string().optional(),
-    AZURE_ACCOUNT_KEY: z.string().optional(),
-    AZURE_CONNECTION_STRING: z.string().optional(),
-    AZURE_STORAGE_CONTAINER_NAME: z.string().optional(),
-    AZURE_STORAGE_KB_CONTAINER_NAME: z.string().optional(),
+    // Email & Communication
+    RESEND_API_KEY:                       z.string().min(1).optional(),         // Resend API key for transactional emails
+    EMAIL_DOMAIN:                         z.string().min(1).optional(),         // Domain for sending emails
 
-    // Miscellaneous
-    CRON_SECRET: z.string().optional(),
-    FREE_PLAN_LOG_RETENTION_DAYS: z.string().optional(),
-    GITHUB_TOKEN: z.string().optional(),
-    ELEVENLABS_API_KEY: z.string().min(1).optional(),
-    AZURE_OPENAI_ENDPOINT: z.string().url().optional(),
-    AZURE_OPENAI_API_VERSION: z.string().optional(),
+    // AI/LLM Provider API Keys
+    OPENAI_API_KEY:                       z.string().min(1).optional(),         // Primary OpenAI API key
+    OPENAI_API_KEY_1:                     z.string().min(1).optional(),         // Additional OpenAI API key for load balancing
+    OPENAI_API_KEY_2:                     z.string().min(1).optional(),         // Additional OpenAI API key for load balancing
+    OPENAI_API_KEY_3:                     z.string().min(1).optional(),         // Additional OpenAI API key for load balancing
+    MISTRAL_API_KEY:                      z.string().min(1).optional(),         // Mistral AI API key
+    ANTHROPIC_API_KEY_1:                  z.string().min(1).optional(),         // Primary Anthropic Claude API key
+    ANTHROPIC_API_KEY_2:                  z.string().min(1).optional(),         // Additional Anthropic API key for load balancing
+    ANTHROPIC_API_KEY_3:                  z.string().min(1).optional(),         // Additional Anthropic API key for load balancing
+    FREESTYLE_API_KEY:                    z.string().min(1).optional(),         // Freestyle AI API key
+    OLLAMA_URL:                           z.string().url().optional(),          // Ollama local LLM server URL
+    ELEVENLABS_API_KEY:                   z.string().min(1).optional(),         // ElevenLabs API key for text-to-speech in deployed chat
 
-    // OAuth blocks (all optional)
-    GOOGLE_CLIENT_ID: z.string().optional(),
-    GOOGLE_CLIENT_SECRET: z.string().optional(),
-    GITHUB_CLIENT_ID: z.string().optional(),
-    GITHUB_CLIENT_SECRET: z.string().optional(),
-    GITHUB_REPO_CLIENT_ID: z.string().optional(),
-    GITHUB_REPO_CLIENT_SECRET: z.string().optional(),
-    X_CLIENT_ID: z.string().optional(),
-    X_CLIENT_SECRET: z.string().optional(),
-    CONFLUENCE_CLIENT_ID: z.string().optional(),
-    CONFLUENCE_CLIENT_SECRET: z.string().optional(),
-    JIRA_CLIENT_ID: z.string().optional(),
-    JIRA_CLIENT_SECRET: z.string().optional(),
-    AIRTABLE_CLIENT_ID: z.string().optional(),
-    AIRTABLE_CLIENT_SECRET: z.string().optional(),
-    SUPABASE_CLIENT_ID: z.string().optional(),
-    SUPABASE_CLIENT_SECRET: z.string().optional(),
-    NOTION_CLIENT_ID: z.string().optional(),
-    NOTION_CLIENT_SECRET: z.string().optional(),
-    DISCORD_CLIENT_ID: z.string().optional(),
-    DISCORD_CLIENT_SECRET: z.string().optional(),
-    MICROSOFT_CLIENT_ID: z.string().optional(),
-    MICROSOFT_CLIENT_SECRET: z.string().optional(),
-    HUBSPOT_CLIENT_ID: z.string().optional(),
-    HUBSPOT_CLIENT_SECRET: z.string().optional(),
-    WEALTHBOX_CLIENT_ID: z.string().optional(),
-    WEALTHBOX_CLIENT_SECRET: z.string().optional(),
-    DOCKER_BUILD: z.boolean().optional(),
-    LINEAR_CLIENT_ID: z.string().optional(),
-    LINEAR_CLIENT_SECRET: z.string().optional(),
-    SLACK_CLIENT_ID: z.string().optional(),
-    SLACK_CLIENT_SECRET: z.string().optional(),
-    REDDIT_CLIENT_ID: z.string().optional(),
-    REDDIT_CLIENT_SECRET: z.string().optional(),
-    SOCKET_SERVER_URL: z.string().url().optional(),
-    SOCKET_PORT: z.number().optional(),
-    PORT: z.number().optional(),
-    ALLOWED_ORIGINS: z.string().optional(),
-    JOB_RETENTION_DAYS: z.string().optional().default('1'),
+    // Azure OpenAI Configuration
+    AZURE_OPENAI_ENDPOINT:                z.string().url().optional(),          // Azure OpenAI service endpoint
+    AZURE_OPENAI_API_VERSION:             z.string().optional(),                // Azure OpenAI API version
+
+    // Monitoring & Analytics
+    TELEMETRY_ENDPOINT:                   z.string().url().optional(),          // Custom telemetry/analytics endpoint
+    COST_MULTIPLIER:                      z.number().optional(),                // Multiplier for cost calculations
+    SENTRY_ORG:                           z.string().optional(),                // Sentry organization for error tracking
+    SENTRY_PROJECT:                       z.string().optional(),                // Sentry project for error tracking
+    SENTRY_AUTH_TOKEN:                    z.string().optional(),                // Sentry authentication token
+
+    // External Services
+    JWT_SECRET:                           z.string().min(1).optional(),         // JWT signing secret for custom tokens
+    BROWSERBASE_API_KEY:                  z.string().min(1).optional(),         // Browserbase API key for browser automation
+    BROWSERBASE_PROJECT_ID:               z.string().min(1).optional(),         // Browserbase project ID
+    GITHUB_TOKEN:                         z.string().optional(),                // GitHub personal access token for API access
+
+    // Infrastructure & Deployment
+    NEXT_RUNTIME:                         z.string().optional(),                // Next.js runtime environment
+    VERCEL_ENV:                           z.string().optional(),                // Vercel deployment environment
+    DOCKER_BUILD:                         z.boolean().optional(),               // Flag indicating Docker build environment
+
+    // Background Jobs & Scheduling
+    TRIGGER_SECRET_KEY:                   z.string().min(1).optional(),         // Trigger.dev secret key for background jobs
+    CRON_SECRET:                          z.string().optional(),                // Secret for authenticating cron job requests
+    JOB_RETENTION_DAYS:                   z.string().optional().default('1'),   // Days to retain job logs/data
+
+    // Cloud Storage - AWS S3
+    AWS_REGION:                           z.string().optional(),                // AWS region for S3 buckets
+    AWS_ACCESS_KEY_ID:                    z.string().optional(),                // AWS access key ID
+    AWS_SECRET_ACCESS_KEY:                z.string().optional(),                // AWS secret access key
+    S3_BUCKET_NAME:                       z.string().optional(),                // S3 bucket for general file storage
+    S3_LOGS_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for storing logs
+    S3_KB_BUCKET_NAME:                    z.string().optional(),                // S3 bucket for knowledge base files
+
+    // Cloud Storage - Azure Blob
+    AZURE_ACCOUNT_NAME:                   z.string().optional(),                // Azure storage account name
+    AZURE_ACCOUNT_KEY:                    z.string().optional(),                // Azure storage account key
+    AZURE_CONNECTION_STRING:              z.string().optional(),                // Azure storage connection string
+    AZURE_STORAGE_CONTAINER_NAME:         z.string().optional(),                // Azure container for general files
+    AZURE_STORAGE_KB_CONTAINER_NAME:      z.string().optional(),                // Azure container for knowledge base files
+
+    // Data Retention
+    FREE_PLAN_LOG_RETENTION_DAYS:         z.string().optional(),                // Log retention days for free plan users
+
+    // Real-time Communication
+    SOCKET_SERVER_URL:                    z.string().url().optional(),          // WebSocket server URL for real-time features
+    SOCKET_PORT:                          z.number().optional(),                // Port for WebSocket server
+    PORT:                                 z.number().optional(),                // Main application port
+    ALLOWED_ORIGINS:                      z.string().optional(),                // CORS allowed origins
+
+    // OAuth Integration Credentials - All optional, enables third-party integrations
+    GOOGLE_CLIENT_ID:                     z.string().optional(),                // Google OAuth client ID for Google services
+    GOOGLE_CLIENT_SECRET:                 z.string().optional(),                // Google OAuth client secret
+    GITHUB_CLIENT_ID:                     z.string().optional(),                // GitHub OAuth client ID for GitHub integration
+    GITHUB_CLIENT_SECRET:                 z.string().optional(),                // GitHub OAuth client secret
+    GITHUB_REPO_CLIENT_ID:                z.string().optional(),                // GitHub OAuth client ID for repo access
+    GITHUB_REPO_CLIENT_SECRET:            z.string().optional(),                // GitHub OAuth client secret for repo access
+    X_CLIENT_ID:                          z.string().optional(),                // X (Twitter) OAuth client ID
+    X_CLIENT_SECRET:                      z.string().optional(),                // X (Twitter) OAuth client secret
+    CONFLUENCE_CLIENT_ID:                 z.string().optional(),                // Atlassian Confluence OAuth client ID
+    CONFLUENCE_CLIENT_SECRET:             z.string().optional(),                // Atlassian Confluence OAuth client secret
+    JIRA_CLIENT_ID:                       z.string().optional(),                // Atlassian Jira OAuth client ID
+    JIRA_CLIENT_SECRET:                   z.string().optional(),                // Atlassian Jira OAuth client secret
+    AIRTABLE_CLIENT_ID:                   z.string().optional(),                // Airtable OAuth client ID
+    AIRTABLE_CLIENT_SECRET:               z.string().optional(),                // Airtable OAuth client secret
+    SUPABASE_CLIENT_ID:                   z.string().optional(),                // Supabase OAuth client ID
+    SUPABASE_CLIENT_SECRET:               z.string().optional(),                // Supabase OAuth client secret
+    NOTION_CLIENT_ID:                     z.string().optional(),                // Notion OAuth client ID
+    NOTION_CLIENT_SECRET:                 z.string().optional(),                // Notion OAuth client secret
+    DISCORD_CLIENT_ID:                    z.string().optional(),                // Discord OAuth client ID
+    DISCORD_CLIENT_SECRET:                z.string().optional(),                // Discord OAuth client secret
+    MICROSOFT_CLIENT_ID:                  z.string().optional(),                // Microsoft OAuth client ID for Office 365/Teams
+    MICROSOFT_CLIENT_SECRET:              z.string().optional(),                // Microsoft OAuth client secret
+    HUBSPOT_CLIENT_ID:                    z.string().optional(),                // HubSpot OAuth client ID
+    HUBSPOT_CLIENT_SECRET:                z.string().optional(),                // HubSpot OAuth client secret
+    WEALTHBOX_CLIENT_ID:                  z.string().optional(),                // WealthBox OAuth client ID
+    WEALTHBOX_CLIENT_SECRET:              z.string().optional(),                // WealthBox OAuth client secret
+    LINEAR_CLIENT_ID:                     z.string().optional(),                // Linear OAuth client ID
+    LINEAR_CLIENT_SECRET:                 z.string().optional(),                // Linear OAuth client secret
+    SLACK_CLIENT_ID:                      z.string().optional(),                // Slack OAuth client ID
+    SLACK_CLIENT_SECRET:                  z.string().optional(),                // Slack OAuth client secret
+    REDDIT_CLIENT_ID:                     z.string().optional(),                // Reddit OAuth client ID
+    REDDIT_CLIENT_SECRET:                 z.string().optional(),                // Reddit OAuth client secret
   },
 
   client: {
-    NEXT_PUBLIC_APP_URL: z.string().url(),
-    NEXT_PUBLIC_VERCEL_URL: z.string().optional(),
-    NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
-    NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
-    NEXT_PUBLIC_GOOGLE_API_KEY: z.string().optional(),
-    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: z.string().optional(),
-    NEXT_PUBLIC_SOCKET_URL: z.string().url().optional(),
+    // Core Application URLs - Required for frontend functionality
+    NEXT_PUBLIC_APP_URL:                  z.string().url(),                     // Base URL of the application (e.g., https://app.simstudio.ai)
+    NEXT_PUBLIC_VERCEL_URL:               z.string().optional(),                // Vercel deployment URL for preview/production
+
+    // Client-side Services
+    NEXT_PUBLIC_SENTRY_DSN:               z.string().url().optional(),          // Sentry DSN for client-side error tracking
+    NEXT_PUBLIC_SOCKET_URL:               z.string().url().optional(),          // WebSocket server URL for real-time features
+
+    // Google Services - For client-side Google integrations
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID:         z.string().optional(),                // Google OAuth client ID for browser auth
+    NEXT_PUBLIC_GOOGLE_API_KEY:           z.string().optional(),                // Google API key for client-side API calls
+    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER:    z.string().optional(),                // Google project number for Drive picker
   },
 
   // Variables available on both server and client
   shared: {
-    NODE_ENV: z.enum(['development', 'test', 'production']).optional(),
-    NEXT_TELEMETRY_DISABLED: z.string().optional(),
+    NODE_ENV:                             z.enum(['development', 'test', 'production']).optional(), // Runtime environment
+    NEXT_TELEMETRY_DISABLED:              z.string().optional(),                // Disable Next.js telemetry collection
   },
 
   experimental__runtimeEnv: {
@@ -153,7 +177,7 @@ export const env = createEnv({
   },
 })
 
-// Needing this utility because t3-env is returning string for boolean values.
+// Need this utility because t3-env is returning string for boolean values.
 export const isTruthy = (value: string | boolean | number | undefined) =>
   typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value)
 

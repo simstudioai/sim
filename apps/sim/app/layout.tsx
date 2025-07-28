@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata, Viewport } from 'next'
 import { PublicEnvScript } from 'next-runtime-env'
+import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
 import '@/app/globals.css'
@@ -9,6 +10,18 @@ import '@/app/globals.css'
 import { ZoomPrevention } from '@/app/zoom-prevention'
 
 const logger = createLogger('RootLayout')
+
+const shouldEnableAnalytics = () => {
+  if (isTruthy(env.DOCKER_BUILD)) {
+    return false
+  }
+
+  if (!env.VERCEL_ENV) {
+    return false
+  }
+
+  return true
+}
 
 const BROWSER_EXTENSION_ATTRIBUTES = [
   'data-new-gr-c-s-check-loaded',
@@ -226,8 +239,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ZoomPrevention />
         <TelemetryConsentDialog />
         {children}
-        <SpeedInsights />
-        <Analytics />
+        {shouldEnableAnalytics() && (
+          <>
+            <SpeedInsights />
+            <Analytics />
+          </>
+        )}
       </body>
     </html>
   )
