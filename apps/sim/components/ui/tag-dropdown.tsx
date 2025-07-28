@@ -174,14 +174,14 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       // Special handling for evaluator blocks
       if (sourceBlock.type === 'evaluator') {
         // Get the evaluation metrics for the evaluator block
-        const metricsValue = useSubBlockStore
-          .getState()
-          .getValue(activeSourceBlockId, 'metrics')
-        
+        const metricsValue = useSubBlockStore.getState().getValue(activeSourceBlockId, 'metrics')
+
         if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
           // Use the metric names as the available outputs
           const validMetrics = metricsValue.filter((metric: any) => metric?.name)
-          blockTags = validMetrics.map((metric: any) => `${normalizedBlockName}.${metric.name.toLowerCase()}`)
+          blockTags = validMetrics.map(
+            (metric: any) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
+          )
         } else {
           // Fallback to default evaluator outputs if no metrics are defined
           const outputPaths = generateOutputPaths(blockConfig.outputs)
@@ -449,14 +449,14 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       // Special handling for evaluator blocks
       if (accessibleBlock.type === 'evaluator') {
         // Get the evaluation metrics for the evaluator block
-        const metricsValue = useSubBlockStore
-          .getState()
-          .getValue(accessibleBlockId, 'metrics')
-        
+        const metricsValue = useSubBlockStore.getState().getValue(accessibleBlockId, 'metrics')
+
         if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
           // Use the metric names as the available outputs
           const validMetrics = metricsValue.filter((metric: any) => metric?.name)
-          blockTags = validMetrics.map((metric: any) => `${normalizedBlockName}.${metric.name.toLowerCase()}`)
+          blockTags = validMetrics.map(
+            (metric: any) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
+          )
         } else {
           // Fallback to default evaluator outputs if no metrics are defined
           const outputPaths = generateOutputPaths(blockConfig.outputs)
