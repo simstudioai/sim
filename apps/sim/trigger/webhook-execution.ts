@@ -43,6 +43,9 @@ export const webhookExecution = task({
       executionId,
     })
 
+    // Initialize logging session outside try block so it's available in catch
+    const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
+
     try {
       // Check usage limits first
       const usageCheck = await checkServerSideUsageLimits(payload.userId)
@@ -93,14 +96,6 @@ export const webhookExecution = task({
         const decryptedPairs = await Promise.all(decryptionPromises)
         decryptedEnvVars = Object.fromEntries(decryptedPairs)
       }
-
-      // Initialize logging session
-      const loggingSession = new LoggingSession(
-        payload.workflowId,
-        executionId,
-        'webhook',
-        requestId
-      )
 
       // Start logging session
       await loggingSession.safeStart({
@@ -276,12 +271,6 @@ export const webhookExecution = task({
 
       // Complete logging session with error (matching workflow-execution pattern)
       try {
-        const loggingSession = new LoggingSession(
-          payload.workflowId,
-          executionId,
-          'webhook',
-          requestId
-        )
         await loggingSession.safeCompleteWithError({
           endedAt: new Date().toISOString(),
           totalDurationMs: 0,
