@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -392,8 +392,9 @@ export function WebhookModal({
     microsoftTeamsHmacSecret,
   ])
 
-  // Use the provided path or generate a UUID-based path
-  const formattedPath = webhookPath && webhookPath.trim() !== '' ? webhookPath : crypto.randomUUID()
+  const formattedPath = useMemo(() => {
+    return webhookPath && webhookPath.trim() !== '' ? webhookPath : crypto.randomUUID()
+  }, [webhookPath])
 
   // Construct the full webhook URL
   const baseUrl =
