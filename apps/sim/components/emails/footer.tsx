@@ -1,5 +1,6 @@
 import { Container, Img, Link, Section, Text } from '@react-email/components'
 import { env } from '@/lib/env'
+import { getAssetUrl } from '@/lib/utils'
 
 interface UnsubscribeOptions {
   unsubscribeToken?: string
@@ -25,13 +26,13 @@ export const EmailFooter = ({
                 <tr>
                   <td align='center' style={{ padding: '0 8px' }}>
                     <Link href='https://x.com/simstudioai' rel='noopener noreferrer'>
-                      <Img src={`${baseUrl}/static/x-icon.png`} width='24' height='24' alt='X' />
+                      <Img src={getAssetUrl('static/x-icon.png')} width='24' height='24' alt='X' />
                     </Link>
                   </td>
                   <td align='center' style={{ padding: '0 8px' }}>
                     <Link href='https://discord.gg/Hr4UWYEcTT' rel='noopener noreferrer'>
                       <Img
-                        src={`${baseUrl}/static/discord-icon.png`}
+                        src={getAssetUrl('static/discord-icon.png')}
                         width='24'
                         height='24'
                         alt='Discord'
@@ -41,7 +42,7 @@ export const EmailFooter = ({
                   <td align='center' style={{ padding: '0 8px' }}>
                     <Link href='https://github.com/simstudioai/sim' rel='noopener noreferrer'>
                       <Img
-                        src={`${baseUrl}/static/github-icon.png`}
+                        src={getAssetUrl('static/github-icon.png')}
                         width='24'
                         height='24'
                         alt='GitHub'

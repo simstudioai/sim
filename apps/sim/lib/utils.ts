@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { type ClassValue, clsx } from 'clsx'
 import { nanoid } from 'nanoid'
 import { twMerge } from 'tailwind-merge'
-import { env } from '@/lib/env'
+import { env, getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('Utils')
@@ -377,6 +377,18 @@ export function isValidName(name: string): boolean {
 export function getInvalidCharacters(name: string): string[] {
   const invalidChars = name.match(/[^a-zA-Z0-9_\s]/g)
   return invalidChars ? [...new Set(invalidChars)] : []
+}
+
+/**
+ * Get the full URL for an asset stored in Vercel Blob or local fallback
+ */
+export function getAssetUrl(filename: string) {
+  const baseUrl = env.NEXT_PUBLIC_BLOB_BASE_URL
+  if (!baseUrl) {
+    logger.warn('NEXT_PUBLIC_BLOB_BASE_URL not configured, falling back to local path')
+    return `/${filename}`
+  }
+  return `${baseUrl}/${filename}`
 }
 
 /**

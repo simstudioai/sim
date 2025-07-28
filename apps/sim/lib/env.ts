@@ -152,6 +152,9 @@ export const env = createEnv({
     NEXT_PUBLIC_SENTRY_DSN:               z.string().url().optional(),          // Sentry DSN for client-side error tracking
     NEXT_PUBLIC_SOCKET_URL:               z.string().url().optional(),          // WebSocket server URL for real-time features
 
+    // Asset Storage
+    NEXT_PUBLIC_BLOB_BASE_URL:            z.string().url().optional(),          // Base URL for Vercel Blob storage (CDN assets)
+
     // Google Services - For client-side Google integrations
     NEXT_PUBLIC_GOOGLE_CLIENT_ID:         z.string().optional(),                // Google OAuth client ID for browser auth
     NEXT_PUBLIC_GOOGLE_API_KEY:           z.string().optional(),                // Google API key for client-side API calls
@@ -168,6 +171,7 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_BLOB_BASE_URL: process.env.NEXT_PUBLIC_BLOB_BASE_URL,
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
     NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER,

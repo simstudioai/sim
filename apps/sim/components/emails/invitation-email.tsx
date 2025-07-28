@@ -13,6 +13,7 @@ import {
 } from '@react-email/components'
 import { format } from 'date-fns'
 import { env } from '@/lib/env'
+import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
@@ -59,7 +60,7 @@ export const InvitationEmail = ({
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={`${baseUrl}/static/sim.png`}
+                  src={getAssetUrl('static/sim.png')}
                   width='114'
                   alt='Sim Studio'
                   style={{
