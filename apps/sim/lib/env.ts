@@ -54,10 +54,12 @@ export const env = createEnv({
     ANTHROPIC_API_KEY_2:                  z.string().min(1).optional(),         // Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3:                  z.string().min(1).optional(),         // Additional Anthropic API key for load balancing
     FREESTYLE_API_KEY:                    z.string().min(1).optional(),         // Freestyle AI API key
-    AZURE_OPENAI_ENDPOINT:                z.string().url().optional(),          // Azure OpenAI service endpoint
-    AZURE_OPENAI_API_VERSION:             z.string().optional(),                // Azure OpenAI API version
     OLLAMA_URL:                           z.string().url().optional(),          // Ollama local LLM server URL
     ELEVENLABS_API_KEY:                   z.string().min(1).optional(),         // ElevenLabs API key for text-to-speech in deployed chat
+
+    // Azure OpenAI Configuration
+    AZURE_OPENAI_ENDPOINT:                z.string().url().optional(),          // Azure OpenAI service endpoint
+    AZURE_OPENAI_API_VERSION:             z.string().optional(),                // Azure OpenAI API version
 
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                   z.string().url().optional(),          // Custom telemetry/analytics endpoint
@@ -90,7 +92,7 @@ export const env = createEnv({
     S3_LOGS_BUCKET_NAME:                  z.string().optional(),                // S3 bucket for storing logs
     S3_KB_BUCKET_NAME:                    z.string().optional(),                // S3 bucket for knowledge base files
 
-    // Cloud Storage - Azure
+    // Cloud Storage - Azure Blob
     AZURE_ACCOUNT_NAME:                   z.string().optional(),                // Azure storage account name
     AZURE_ACCOUNT_KEY:                    z.string().optional(),                // Azure storage account key
     AZURE_CONNECTION_STRING:              z.string().optional(),                // Azure storage connection string
