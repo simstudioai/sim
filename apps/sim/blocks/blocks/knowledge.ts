@@ -43,30 +43,6 @@ export const KnowledgeBlock: BlockConfig = {
           throw new Error('Document ID is required for upload_chunk operation')
         }
 
-        // For create_document operation, map documentTags to individual tag fields
-        if (params.operation === 'create_document') {
-          const mappedParams = { ...params }
-
-          // Parse documentTags and pass to API for proper handling
-          if (params.documentTags) {
-            try {
-              const tags = JSON.parse(params.documentTags)
-              if (Array.isArray(tags)) {
-                // Pass the structured tag data to the API
-                // The API will handle tag definition creation and slot mapping
-                mappedParams.documentTagsData = tags
-              }
-            } catch (error) {
-              console.warn('Failed to parse documentTags:', error)
-            }
-          }
-
-          // Remove documentTags field from the final params
-          mappedParams.documentTags = undefined
-
-          return mappedParams
-        }
-
         return params
       },
     },

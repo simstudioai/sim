@@ -100,22 +100,24 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
 
       const dataUri = `data:text/plain;base64,${base64Content}`
 
-      // Handle tag data - either from structured documentTagsData or individual tag params
       const tagData: Record<string, string> = {}
 
-      if (params.documentTagsData && Array.isArray(params.documentTagsData)) {
-        // Use structured tag data - pass it to the API for proper handling
-        // The API will create tag definitions and map to slots
-        tagData.documentTagsData = JSON.stringify(params.documentTagsData)
-      } else {
-        // Fallback to individual tag parameters
-        if (params.tag1) tagData.tag1 = params.tag1
-        if (params.tag2) tagData.tag2 = params.tag2
-        if (params.tag3) tagData.tag3 = params.tag3
-        if (params.tag4) tagData.tag4 = params.tag4
-        if (params.tag5) tagData.tag5 = params.tag5
-        if (params.tag6) tagData.tag6 = params.tag6
-        if (params.tag7) tagData.tag7 = params.tag7
+      if (params.documentTags) {
+        let parsedTags = params.documentTags
+
+        // Handle both string (JSON) and array formats
+        if (typeof params.documentTags === 'string') {
+          try {
+            parsedTags = JSON.parse(params.documentTags)
+          } catch (error) {
+            console.warn('Failed to parse documentTags string:', error)
+            parsedTags = []
+          }
+        }
+
+        if (Array.isArray(parsedTags)) {
+          tagData.documentTagsData = JSON.stringify(parsedTags)
+        }
       }
 
       const documents = [

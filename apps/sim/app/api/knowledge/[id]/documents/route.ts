@@ -89,7 +89,7 @@ async function processDocumentTags(
           }
 
           await db.insert(knowledgeBaseTagDefinitions).values(newDefinition)
-          existingBySlot.set(targetSlot, newDefinition)
+          existingBySlot.set(targetSlot as any, newDefinition)
 
           logger.info(`[${requestId}] Created tag definition: ${tagName} -> ${targetSlot}`)
         }
@@ -438,6 +438,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             const documentId = crypto.randomUUID()
             const now = new Date()
 
+            // Process documentTagsData if provided (for knowledge base block)
+            let processedTags: Record<string, string | null> = {
+              tag1: null,
+              tag2: null,
+              tag3: null,
+              tag4: null,
+              tag5: null,
+              tag6: null,
+              tag7: null,
+            }
+
+            if (docData.documentTagsData) {
+              try {
+                const tagData = JSON.parse(docData.documentTagsData)
+                if (Array.isArray(tagData)) {
+                  processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
+                }
+              } catch (error) {
+                logger.warn(
+                  `[${requestId}] Failed to parse documentTagsData for bulk document:`,
+                  error
+                )
+              }
+            }
+
             const newDocument = {
               id: documentId,
               knowledgeBaseId,
@@ -451,14 +476,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               processingStatus: 'pending' as const,
               enabled: true,
               uploadedAt: now,
-              // Include tags from upload
-              tag1: docData.tag1 || null,
-              tag2: docData.tag2 || null,
-              tag3: docData.tag3 || null,
-              tag4: docData.tag4 || null,
-              tag5: docData.tag5 || null,
-              tag6: docData.tag6 || null,
-              tag7: docData.tag7 || null,
+              // Use processed tags if available, otherwise fall back to individual tag fields
+              tag1: processedTags.tag1 || docData.tag1 || null,
+              tag2: processedTags.tag2 || docData.tag2 || null,
+              tag3: processedTags.tag3 || docData.tag3 || null,
+              tag4: processedTags.tag4 || docData.tag4 || null,
+              tag5: processedTags.tag5 || docData.tag5 || null,
+              tag6: processedTags.tag6 || docData.tag6 || null,
+              tag7: processedTags.tag7 || docData.tag7 || null,
             }
 
             await tx.insert(document).values(newDocument)

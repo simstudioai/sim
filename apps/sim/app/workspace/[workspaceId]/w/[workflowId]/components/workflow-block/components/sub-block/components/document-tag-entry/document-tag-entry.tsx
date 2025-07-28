@@ -3,13 +3,13 @@
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
-import type { SubBlockConfig } from '@/types/block'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface DocumentTag {
   id: string
-  tagName: string
+  tagName: string // This will be mapped to displayName for API
   fieldType: string
   value: string
 }
@@ -59,16 +59,6 @@ export function DocumentTagEntry({
     setStoreValue(value)
   }
 
-  const addTag = () => {
-    const newTag: DocumentTag = {
-      id: Date.now().toString(),
-      tagName: '',
-      fieldType: 'text',
-      value: '',
-    }
-    updateTags([...tags, newTag])
-  }
-
   const removeTag = (tagId: string) => {
     updateTags(tags.filter((t) => t.id !== tagId))
   }
@@ -77,28 +67,11 @@ export function DocumentTagEntry({
     updateTags(tags.map((tag) => (tag.id === tagId ? { ...tag, ...updates } : tag)))
   }
 
-  const handleTagNameChange = (tagId: string, value: string) => {
-    if (value === '__create_new__') {
-      // Switch to input mode by setting a placeholder name
-      updateTag(tagId, { tagName: '' })
-      return
-    }
-    updateTag(tagId, { tagName: value })
-  }
-
   // Get available tag names that aren't already used
   const usedTagNames = new Set(tags.map((tag) => tag.tagName).filter(Boolean))
   const availableTagNames = tagDefinitions
     .map((def) => def.displayName)
     .filter((name) => !usedTagNames.has(name))
-
-  // Field type options
-  const fieldTypes = [
-    { value: 'text', label: 'Text' },
-    { value: 'number', label: 'Number' },
-    { value: 'date', label: 'Date' },
-    { value: 'boolean', label: 'Boolean' },
-  ]
 
   if (isLoading) {
     return <div className='p-4 text-sm text-muted-foreground'>Loading tag definitions...</div>

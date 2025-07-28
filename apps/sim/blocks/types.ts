@@ -34,7 +34,9 @@ export type SubBlockType =
   | 'folder-selector' // Folder selector for Gmail, etc.
   | 'knowledge-base-selector' // Knowledge base selector
   | 'knowledge-tag-filter' // Dynamic tag filter for knowledge bases
+  | 'knowledge-tag-filters' // Multiple tag filters for knowledge bases
   | 'document-selector' // Document selector for knowledge bases
+  | 'document-tag-entry' // Document tag entry for creating documents
   | 'input-format' // Input structure format
   | 'response-format' // Response structure format
   | 'file-upload' // File uploader
