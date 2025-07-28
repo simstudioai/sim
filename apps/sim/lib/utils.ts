@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { type ClassValue, clsx } from 'clsx'
 import { nanoid } from 'nanoid'
 import { twMerge } from 'tailwind-merge'
-import { env, getEnv } from '@/lib/env'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('Utils')
@@ -381,14 +381,15 @@ export function getInvalidCharacters(name: string): string[] {
 
 /**
  * Get the full URL for an asset stored in Vercel Blob or local fallback
+ * - If CDN is configured (NEXT_PUBLIC_BLOB_BASE_URL), uses CDN URL
+ * - Otherwise falls back to local static assets served from root path
  */
 export function getAssetUrl(filename: string) {
-  const baseUrl = env.NEXT_PUBLIC_BLOB_BASE_URL
-  if (!baseUrl) {
-    logger.warn('NEXT_PUBLIC_BLOB_BASE_URL not configured, falling back to local path')
-    return `/${filename}`
+  const cdnBaseUrl = env.NEXT_PUBLIC_BLOB_BASE_URL
+  if (cdnBaseUrl) {
+    return `${cdnBaseUrl}/${filename}`
   }
-  return `${baseUrl}/${filename}`
+  return `/${filename}`
 }
 
 /**

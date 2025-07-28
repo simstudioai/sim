@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/sim/public/static/sim.png" alt="Sim Studio Logo" width="500"/>
+  <img src="https://nwkhgj772h6t23m2.public.blob.vercel-storage.com/static/sim.png" alt="Sim Studio Logo" width="500"/>
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="apps/sim/public/static/demo.gif" alt="Sim Studio Demo" width="800"/>
+  <img src="https://nwkhgj772h6t23m2.public.blob.vercel-storage.com/static/demo.gif" alt="Sim Studio Demo" width="800"/>
 </p>
 
 ## Getting Started

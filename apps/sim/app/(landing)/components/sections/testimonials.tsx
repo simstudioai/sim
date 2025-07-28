@@ -1,9 +1,9 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { getAssetUrl } from '@/lib/utils'
 import useIsMobile from '@/app/(landing)/components/hooks/use-is-mobile'
 import { Marquee } from '@/app/(landing)/components/magicui/marquee'
-import { getAssetUrl } from '@/lib/utils'
 
 const X_TESTIMONIALS = [
   {
