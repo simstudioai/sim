@@ -1,17 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Users } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Skeleton,
+} from '@/components/ui'
 import { useSession, useSubscription } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
+import {
+  BillingSummary,
+  CancelSubscription,
+  TeamSeatsDialog,
+  UsageLimitEditor,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
-import { BillingSummary } from './components/billing-summary'
-import { CancelSubscription } from './components/cancel-subscription'
-import { TeamSeatsDialog } from './components/team-seats-dialog'
-import { UsageLimitEditor } from './components/usage-limit-editor'
 
 const logger = createLogger('Subscription')
 

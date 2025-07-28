@@ -153,7 +153,7 @@ describe('Knowledge Document Chunks API Route', () => {
       })
 
       const req = createMockRequest('POST', validChunkData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/[documentId]/chunks/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -213,7 +213,7 @@ describe('Knowledge Document Chunks API Route', () => {
       })
 
       const req = createMockRequest('POST', workflowData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/[documentId]/chunks/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -226,7 +226,7 @@ describe('Knowledge Document Chunks API Route', () => {
       mockGetUserId.mockResolvedValue(null)
 
       const req = createMockRequest('POST', validChunkData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/[documentId]/chunks/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -243,7 +243,7 @@ describe('Knowledge Document Chunks API Route', () => {
       mockGetUserId.mockResolvedValue(null)
 
       const req = createMockRequest('POST', workflowData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/[documentId]/chunks/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -262,7 +262,7 @@ describe('Knowledge Document Chunks API Route', () => {
       })
 
       const req = createMockRequest('POST', validChunkData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/[documentId]/chunks/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -281,7 +281,7 @@ describe('Knowledge Document Chunks API Route', () => {
       })
 
       const req = createMockRequest('POST', validChunkData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/[documentId]/chunks/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -303,7 +303,7 @@ describe('Knowledge Document Chunks API Route', () => {
       } as any)
 
       const req = createMockRequest('POST', validChunkData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/[documentId]/chunks/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -326,7 +326,7 @@ describe('Knowledge Document Chunks API Route', () => {
       }
 
       const req = createMockRequest('POST', invalidData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/[documentId]/chunks/route')
       const response = await POST(req, { params: mockParams })
       const data = await response.json()
 
@@ -367,7 +367,7 @@ describe('Knowledge Document Chunks API Route', () => {
       })
 
       const req = createMockRequest('POST', validChunkData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/[id]/documents/[documentId]/chunks/route')
       await POST(req, { params: mockParams })
 
       expect(mockTx.values).toHaveBeenCalled()

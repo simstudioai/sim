@@ -8,4 +8,4 @@ export {
   getS3Client,
   sanitizeFilenameForMetadata,
   uploadToS3,
-} from './s3-client'
+} from '@/lib/uploads/s3/s3-client'

@@ -15,9 +15,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
+import { FolderContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
-import { FolderContextMenu } from '../../folder-context-menu/folder-context-menu'
 
 const logger = createLogger('FolderItem')
 

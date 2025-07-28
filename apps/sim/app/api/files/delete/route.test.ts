@@ -21,7 +21,7 @@ describe('File Delete API Route', () => {
       filePath: '/api/files/serve/test-file.txt',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/delete/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -42,7 +42,7 @@ describe('File Delete API Route', () => {
       filePath: '/api/files/serve/nonexistent.txt',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/delete/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -74,7 +74,7 @@ describe('File Delete API Route', () => {
       filePath: '/api/files/serve/s3/1234567890-test-file.txt',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/delete/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -109,7 +109,7 @@ describe('File Delete API Route', () => {
       filePath: '/api/files/serve/blob/1234567890-test-document.pdf',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/delete/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -127,7 +127,7 @@ describe('File Delete API Route', () => {
 
     const req = createMockRequest('POST', {})
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/delete/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -138,7 +138,7 @@ describe('File Delete API Route', () => {
   })
 
   it('should handle CORS preflight requests', async () => {
-    const { OPTIONS } = await import('./route')
+    const { OPTIONS } = await import('@/app/api/files/delete/route')
 
     const response = await OPTIONS()
 

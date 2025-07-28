@@ -1,4 +1,4 @@
-export { useOrganizationStore } from './store'
+export { useOrganizationStore } from '@/stores/organization/store'
 export type {
   Invitation,
   Member,
@@ -12,10 +12,10 @@ export type {
   User,
   Workspace,
   WorkspaceInvitation,
-} from './types'
+} from '@/stores/organization/types'
 export {
   calculateSeatUsage,
   generateSlug,
   validateEmail,
   validateSlug,
-} from './utils'
+} from '@/stores/organization/utils'

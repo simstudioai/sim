@@ -101,7 +101,7 @@ describe('Folders API Route', () => {
         value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
       })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/folders/route')
       const response = await GET(mockRequest)
 
       expect(response.status).toBe(200)
@@ -124,7 +124,7 @@ describe('Folders API Route', () => {
         value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
       })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/folders/route')
       const response = await GET(mockRequest)
 
       expect(response.status).toBe(401)
@@ -141,7 +141,7 @@ describe('Folders API Route', () => {
         value: 'http://localhost:3000/api/folders',
       })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/folders/route')
       const response = await GET(mockRequest)
 
       expect(response.status).toBe(400)
@@ -159,7 +159,7 @@ describe('Folders API Route', () => {
         value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
       })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/folders/route')
       const response = await GET(mockRequest)
 
       expect(response.status).toBe(403)
@@ -177,7 +177,7 @@ describe('Folders API Route', () => {
         value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
       })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/folders/route')
       const response = await GET(mockRequest)
 
       expect(response.status).toBe(200) // Should work for read permissions
@@ -198,7 +198,7 @@ describe('Folders API Route', () => {
         value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
       })
 
-      const { GET } = await import('./route')
+      const { GET } = await import('@/app/api/folders/route')
       const response = await GET(mockRequest)
 
       expect(response.status).toBe(500)
@@ -241,7 +241,7 @@ describe('Folders API Route', () => {
         color: '#6B7280',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -283,7 +283,7 @@ describe('Folders API Route', () => {
         workspaceId: 'workspace-123',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -310,7 +310,7 @@ describe('Folders API Route', () => {
         parentId: 'folder-1',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -329,7 +329,7 @@ describe('Folders API Route', () => {
         workspaceId: 'workspace-123',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       const response = await POST(req)
 
       expect(response.status).toBe(401)
@@ -347,7 +347,7 @@ describe('Folders API Route', () => {
         workspaceId: 'workspace-123',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       const response = await POST(req)
 
       expect(response.status).toBe(403)
@@ -385,7 +385,7 @@ describe('Folders API Route', () => {
         workspaceId: 'workspace-123',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -423,7 +423,7 @@ describe('Folders API Route', () => {
         workspaceId: 'workspace-123',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -445,7 +445,7 @@ describe('Folders API Route', () => {
 
         const req = createMockRequest('POST', body)
 
-        const { POST } = await import('./route')
+        const { POST } = await import('@/app/api/folders/route')
         const response = await POST(req)
 
         expect(response.status).toBe(400)
@@ -468,7 +468,7 @@ describe('Folders API Route', () => {
         workspaceId: 'workspace-123',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -513,7 +513,7 @@ describe('Folders API Route', () => {
         workspaceId: 'workspace-123',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       await POST(req)
 
       expect(capturedValues).not.toBeNull()
@@ -553,7 +553,7 @@ describe('Folders API Route', () => {
         workspaceId: 'workspace-123',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/folders/route')
       await POST(req)
 
       expect(capturedValues).not.toBeNull()

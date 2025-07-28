@@ -26,7 +26,7 @@ import {
   supportsToolUsageControl,
   transformCustomTool,
   updateOllamaProviderModels,
-} from './utils'
+} from '@/providers/utils'
 
 const isHostedSpy = vi.spyOn(environmentModule, 'isHosted', 'get')
 const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')

@@ -2,11 +2,11 @@ import { and, desc, eq, gte, inArray, lte, or, type SQL, sql } from 'drizzle-orm
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { permissions, workflow, workflowExecutionLogs } from '@/db/schema'
 
-const logger = createLogger('EnhancedLogsAPI')
+const logger = createLogger('LogsAPI')
 
 // Helper function to extract block executions from trace spans
 function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): any[] {
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized enhanced logs access attempt`)
+      logger.warn(`[${requestId}] Unauthorized logs access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [], total: 0 }, { status: 200 })
       }
 
-      // Build conditions for enhanced logs
+      // Build conditions for logs
       let conditions: SQL | undefined = inArray(workflowExecutionLogs.workflowId, userWorkflowIds)
 
       // Filter by level
@@ -271,7 +271,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Transform to clean enhanced log format
+      // Transform to clean log format
       const enhancedLogs = logs.map((log) => {
         const blockExecutions = blockExecutionsByExecution[log.executionId] || []
 
@@ -396,7 +396,7 @@ export async function GET(request: NextRequest) {
       )
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid enhanced logs request parameters`, {
+        logger.warn(`[${requestId}] Invalid logs request parameters`, {
           errors: validationError.errors,
         })
         return NextResponse.json(
@@ -410,7 +410,7 @@ export async function GET(request: NextRequest) {
       throw validationError
     }
   } catch (error: any) {
-    logger.error(`[${requestId}] Enhanced logs fetch error`, error)
+    logger.error(`[${requestId}] logs fetch error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

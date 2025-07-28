@@ -1,10 +1,8 @@
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
-import { snapshotService } from '@/lib/logs/snapshot-service'
-import { db } from '@/db'
-import { userStats, workflow, workflowExecutionLogs } from '@/db/schema'
+import { createLogger } from '@/lib/logs/console/logger'
+import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import type {
   BlockOutputData,
   ExecutionEnvironment,
@@ -14,7 +12,9 @@ import type {
   WorkflowExecutionLog,
   WorkflowExecutionSnapshot,
   WorkflowState,
-} from './types'
+} from '@/lib/logs/types'
+import { db } from '@/db'
+import { userStats, workflow, workflowExecutionLogs } from '@/db/schema'
 
 export interface ToolCall {
   name: string
@@ -27,9 +27,9 @@ export interface ToolCall {
   error?: string
 }
 
-const logger = createLogger('EnhancedExecutionLogger')
+const logger = createLogger('ExecutionLogger')
 
-export class EnhancedExecutionLogger implements IExecutionLoggerService {
+export class ExecutionLogger implements IExecutionLoggerService {
   async startWorkflowExecution(params: {
     workflowId: string
     executionId: string
@@ -411,4 +411,4 @@ export class EnhancedExecutionLogger implements IExecutionLoggerService {
   }
 }
 
-export const enhancedExecutionLogger = new EnhancedExecutionLogger()
+export const executionLogger = new ExecutionLogger()

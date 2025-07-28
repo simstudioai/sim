@@ -3,15 +3,15 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { document } from '@/db/schema'
 import {
   checkKnowledgeBaseAccess,
   checkKnowledgeBaseWriteAccess,
   processDocumentAsync,
-} from '../../utils'
+} from '@/app/api/knowledge/utils'
+import { db } from '@/db'
+import { document } from '@/db/schema'
 
 const logger = createLogger('DocumentsAPI')
 

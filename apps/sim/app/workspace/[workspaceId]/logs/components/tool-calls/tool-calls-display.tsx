@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import { CopyButton } from '@/components/ui/copy-button'
 import { cn } from '@/lib/utils'
-import type { ToolCall, ToolCallMetadata } from '../../../../../../stores/logs/filters/types'
+import type { ToolCall, ToolCallMetadata } from '@/stores/logs/filters/types'
 
 interface ToolCallsDisplayProps {
   metadata: ToolCallMetadata

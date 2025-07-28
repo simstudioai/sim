@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises'
 import type { NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { downloadFile, getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
 import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'

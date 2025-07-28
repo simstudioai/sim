@@ -14,7 +14,7 @@ import {
   isValidName,
   redactApiKeys,
   validateName,
-} from './utils'
+} from '@/lib/utils'
 
 vi.mock('crypto', () => ({
   createCipheriv: vi.fn().mockReturnValue({

@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
+import { ConnectionStatus } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/components/connection-status/connection-status'
+import { UserAvatar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/user-avatar-stack/components/user-avatar/user-avatar'
+import { usePresence } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-presence'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { usePresence } from '../../../../hooks/use-presence'
-import { ConnectionStatus } from './components/connection-status/connection-status'
-import { UserAvatar } from './components/user-avatar/user-avatar'
 
 interface User {
   connectionId: string | number

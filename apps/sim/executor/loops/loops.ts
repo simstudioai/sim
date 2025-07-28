@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock, SerializedConnection, SerializedLoop } from '@/serializer/types'

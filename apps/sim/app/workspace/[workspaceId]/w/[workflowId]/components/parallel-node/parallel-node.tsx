@@ -6,8 +6,8 @@ import { StartIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { ParallelBadges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/components/parallel-badges'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { ParallelBadges } from './components/parallel-badges'
 
 const ParallelNodeStyles: React.FC = () => {
   return (

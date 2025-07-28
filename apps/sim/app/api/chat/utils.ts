@@ -2,9 +2,9 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { isDev } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
-import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { getEmailDomain } from '@/lib/urls/utils'
@@ -330,8 +330,8 @@ export async function executeWorkflowForChat(
   const workflowId = deployment.workflowId
   const executionId = uuidv4()
 
-  // Set up enhanced logging for chat execution
-  const loggingSession = new EnhancedLoggingSession(workflowId, executionId, 'chat', requestId)
+  // Set up logging for chat execution
+  const loggingSession = new LoggingSession(workflowId, executionId, 'chat', requestId)
 
   // Check for multi-output configuration in customizations
   const customizations = (deployment.customizations || {}) as Record<string, any>
@@ -494,7 +494,7 @@ export async function executeWorkflowForChat(
     {} as Record<string, Record<string, any>>
   )
 
-  // Start enhanced logging session
+  // Start logging session
   await loggingSession.safeStart({
     userId: deployment.userId,
     workspaceId: '', // TODO: Get from workflow
@@ -552,7 +552,7 @@ export async function executeWorkflowForChat(
         },
       })
 
-      // Set up enhanced logging on the executor
+      // Set up logging on the executor
       loggingSession.setupExecutor(executor)
 
       let result
@@ -624,7 +624,7 @@ export async function executeWorkflowForChat(
         )
       }
 
-      // Complete enhanced logging session (for both success and failure)
+      // Complete logging session (for both success and failure)
       if (result && 'success' in result) {
         const { traceSpans } = buildTraceSpans(result)
         await loggingSession.safeComplete({

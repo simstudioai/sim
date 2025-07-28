@@ -1,22 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Skeleton,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
+import {
+  TeamSeatsDialog,
+  TeamUsageOverview,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/components'
+import {
+  MemberInvitationCard,
+  NoOrganizationView,
+  OrganizationSettingsTab,
+  PendingInvitationsList,
+  RemoveMemberDialog,
+  TeamMembersList,
+  TeamSeatsOverview,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/team-management/components'
 import { generateSlug, useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
-import { TeamSeatsDialog } from '../subscription/components/team-seats-dialog'
-import { TeamUsageOverview } from '../subscription/components/team-usage-overview'
-import { MemberInvitationCard } from './components/member-invitation-card'
-import { NoOrganizationView } from './components/no-organization-view'
-import { OrganizationSettingsTab } from './components/organization-settings-tab'
-import { PendingInvitationsList } from './components/pending-invitations-list'
-import { RemoveMemberDialog } from './components/remove-member-dialog'
-import { TeamMembersList } from './components/team-members-list'
-import { TeamSeatsOverview } from './components/team-seats-overview'
 
 const logger = createLogger('TeamManagement')
 

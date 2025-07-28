@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isDev } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
 import { getTool, validateToolRequest } from '@/tools/utils'
 

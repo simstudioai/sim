@@ -3,21 +3,26 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus, Trash2 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { SearchHighlight } from '@/components/ui/search-highlight'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
+import {
+  Button,
+  Checkbox,
+  SearchHighlight,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
-import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
+import {
+  CreateChunkModal,
+  DeleteChunkModal,
+  DocumentLoading,
+  EditChunkModal,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
+import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { KnowledgeHeader, SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
-import { KnowledgeHeader } from '../../components/knowledge-header/knowledge-header'
-import { CreateChunkModal } from './components/create-chunk-modal/create-chunk-modal'
-import { DeleteChunkModal } from './components/delete-chunk-modal/delete-chunk-modal'
-import { DocumentLoading } from './components/document-loading'
-import { EditChunkModal } from './components/edit-chunk-modal/edit-chunk-modal'
 
 const logger = createLogger('Document')
 

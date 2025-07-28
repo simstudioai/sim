@@ -14,7 +14,7 @@ import {
 import { sendEmail } from '@/lib/email/mailer'
 import { validateAndNormalizeEmail } from '@/lib/email/utils'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { invitation, member, organization, user, workspace, workspaceInvitation } from '@/db/schema'

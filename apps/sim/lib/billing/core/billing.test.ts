@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getPlanPricing, getUsersAndOrganizationsForOverageBilling } from './billing'
-import { calculateBillingPeriod, calculateNextBillingPeriod } from './billing-periods'
+import {
+  getPlanPricing,
+  getUsersAndOrganizationsForOverageBilling,
+} from '@/lib/billing/core/billing'
+import {
+  calculateBillingPeriod,
+  calculateNextBillingPeriod,
+} from '@/lib/billing/core/billing-periods'
 
 vi.mock('@/db', () => ({
   db: {
@@ -11,7 +17,7 @@ vi.mock('@/db', () => ({
   },
 }))
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
@@ -28,7 +34,7 @@ vi.mock('@/lib/billing/core/usage', () => ({
   getUserUsageData: vi.fn(),
 }))
 
-vi.mock('../stripe-client', () => ({
+vi.mock('@/lib/billing/core/stripe-client', () => ({
   getStripeClient: vi.fn().mockReturnValue(null),
   requireStripeClient: vi.fn().mockImplementation(() => {
     throw new Error(

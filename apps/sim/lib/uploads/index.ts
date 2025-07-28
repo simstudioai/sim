@@ -1,5 +1,5 @@
-export * as BlobClient from './blob/blob-client'
-export * as S3Client from './s3/s3-client'
+export * as BlobClient from '@/lib/uploads/blob/blob-client'
+export * as S3Client from '@/lib/uploads/s3/s3-client'
 export {
   BLOB_CONFIG,
   BLOB_KB_CONFIG,
@@ -9,7 +9,7 @@ export {
   UPLOAD_DIR,
   USE_BLOB_STORAGE,
   USE_S3_STORAGE,
-} from './setup'
+} from '@/lib/uploads/setup'
 export {
   type CustomStorageConfig,
   deleteFile,
@@ -21,4 +21,4 @@ export {
   getStorageProvider,
   isUsingCloudStorage,
   uploadFile,
-} from './storage-client'
+} from '@/lib/uploads/storage-client'

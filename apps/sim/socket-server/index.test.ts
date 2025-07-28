@@ -5,12 +5,12 @@
  */
 import { createServer } from 'http'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createLogger } from '../lib/logs/console-logger'
-import { createSocketIOServer } from './config/socket'
-import { RoomManager } from './rooms/manager'
-import { createHttpHandler } from './routes/http'
+import { createLogger } from '@/lib/logs/console/logger'
+import { createSocketIOServer } from '@/socket-server/config/socket'
+import { RoomManager } from '@/socket-server/rooms/manager'
+import { createHttpHandler } from '@/socket-server/routes/http'
 
-vi.mock('../lib/auth', () => ({
+vi.mock('@/lib/auth', () => ({
   auth: {
     api: {
       verifyOneTimeToken: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('../lib/auth', () => ({
   },
 }))
 
-vi.mock('../db', () => ({
+vi.mock('@/db', () => ({
   db: {
     select: vi.fn(),
     insert: vi.fn(),
@@ -28,7 +28,7 @@ vi.mock('../db', () => ({
   },
 }))
 
-vi.mock('./middleware/auth', () => ({
+vi.mock('@/socket-server/middleware/auth', () => ({
   authenticateSocket: vi.fn((socket, next) => {
     socket.userId = 'test-user-id'
     socket.userName = 'Test User'
@@ -37,7 +37,7 @@ vi.mock('./middleware/auth', () => ({
   }),
 }))
 
-vi.mock('./middleware/permissions', () => ({
+vi.mock('@/socket-server/middleware/permissions', () => ({
   verifyWorkflowAccess: vi.fn().mockResolvedValue({
     hasAccess: true,
     role: 'owner',
@@ -47,7 +47,7 @@ vi.mock('./middleware/permissions', () => ({
   }),
 }))
 
-vi.mock('./database/operations', () => ({
+vi.mock('@/socket-server/database/operations', () => ({
   getWorkflowState: vi.fn().mockResolvedValue({
     id: 'test-workflow',
     name: 'Test Workflow',
@@ -228,13 +228,13 @@ describe('Socket Server Index Integration', () => {
   describe('Module Integration', () => {
     it.concurrent('should properly import all extracted modules', async () => {
       // Test that all modules can be imported without errors
-      const { createSocketIOServer } = await import('./config/socket')
-      const { createHttpHandler } = await import('./routes/http')
-      const { RoomManager } = await import('./rooms/manager')
-      const { authenticateSocket } = await import('./middleware/auth')
-      const { verifyWorkflowAccess } = await import('./middleware/permissions')
-      const { getWorkflowState } = await import('./database/operations')
-      const { WorkflowOperationSchema } = await import('./validation/schemas')
+      const { createSocketIOServer } = await import('@/socket-server/config/socket')
+      const { createHttpHandler } = await import('@/socket-server/routes/http')
+      const { RoomManager } = await import('@/socket-server/rooms/manager')
+      const { authenticateSocket } = await import('@/socket-server/middleware/auth')
+      const { verifyWorkflowAccess } = await import('@/socket-server/middleware/permissions')
+      const { getWorkflowState } = await import('@/socket-server/database/operations')
+      const { WorkflowOperationSchema } = await import('@/socket-server/validation/schemas')
 
       expect(createSocketIOServer).toBeTypeOf('function')
       expect(createHttpHandler).toBeTypeOf('function')
@@ -285,7 +285,7 @@ describe('Socket Server Index Integration', () => {
 
   describe('Validation and Utils', () => {
     it.concurrent('should validate workflow operations', async () => {
-      const { WorkflowOperationSchema } = await import('./validation/schemas')
+      const { WorkflowOperationSchema } = await import('@/socket-server/validation/schemas')
 
       const validOperation = {
         operation: 'add',
@@ -303,7 +303,7 @@ describe('Socket Server Index Integration', () => {
     })
 
     it.concurrent('should validate block operations with autoConnectEdge', async () => {
-      const { WorkflowOperationSchema } = await import('./validation/schemas')
+      const { WorkflowOperationSchema } = await import('@/socket-server/validation/schemas')
 
       const validOperationWithAutoEdge = {
         operation: 'add',
@@ -329,7 +329,7 @@ describe('Socket Server Index Integration', () => {
     })
 
     it.concurrent('should validate edge operations', async () => {
-      const { WorkflowOperationSchema } = await import('./validation/schemas')
+      const { WorkflowOperationSchema } = await import('@/socket-server/validation/schemas')
 
       const validEdgeOperation = {
         operation: 'add',
@@ -346,7 +346,7 @@ describe('Socket Server Index Integration', () => {
     })
 
     it('should validate subflow operations', async () => {
-      const { WorkflowOperationSchema } = await import('./validation/schemas')
+      const { WorkflowOperationSchema } = await import('@/socket-server/validation/schemas')
 
       const validSubflowOperation = {
         operation: 'update',

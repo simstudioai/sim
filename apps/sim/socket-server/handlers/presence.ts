@@ -1,7 +1,7 @@
-import { createLogger } from '../../lib/logs/console-logger'
-import type { AuthenticatedSocket } from '../middleware/auth'
-import type { RoomManager } from '../rooms/manager'
-import type { HandlerDependencies } from './workflow'
+import { createLogger } from '@/lib/logs/console/logger'
+import type { HandlerDependencies } from '@/socket-server/handlers/workflow'
+import type { AuthenticatedSocket } from '@/socket-server/middleware/auth'
+import type { RoomManager } from '@/socket-server/rooms/manager'
 
 const logger = createLogger('PresenceHandlers')
 

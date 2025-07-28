@@ -12,12 +12,14 @@ import {
 } from 'lucide-react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
+import {
+  CodeDisplay,
+  JSONView,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components'
 import { getBlock } from '@/blocks'
 import type { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { CodeDisplay } from '../code-display/code-display'
-import { JSONView } from '../json-view/json-view'
 
 const logger = createLogger('ConsoleEntry')
 

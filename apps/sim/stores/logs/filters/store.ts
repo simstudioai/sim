@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { FilterState, LogLevel, TimeRange, TriggerType } from './types'
+import type { FilterState, LogLevel, TimeRange, TriggerType } from '@/stores/logs/filters/types'
 
 // Helper functions for URL synchronization
 const getSearchParams = () => {

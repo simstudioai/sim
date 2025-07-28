@@ -11,7 +11,7 @@ import {
   ConnectIcon,
 } from '@/components/icons'
 import { cn, redactApiKeys } from '@/lib/utils'
-import type { TraceSpan } from '../../../../../../stores/logs/filters/types'
+import type { TraceSpan } from '@/stores/logs/filters/types'
 
 interface TraceSpansDisplayProps {
   traceSpans?: TraceSpan[]

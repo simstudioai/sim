@@ -1,5 +1,5 @@
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
 import {
@@ -70,6 +70,7 @@ export class Executor {
   private isDebugging = false
   private contextExtensions: any = {}
   private actualWorkflow: SerializedWorkflow
+  private isCancelled = false
 
   constructor(
     private workflowParam:
@@ -164,6 +165,15 @@ export class Executor {
   }
 
   /**
+   * Cancels the current workflow execution.
+   * Sets the cancellation flag to stop further execution.
+   */
+  public cancel(): void {
+    logger.info('Workflow execution cancelled')
+    this.isCancelled = true
+  }
+
+  /**
    * Executes the workflow and returns the result.
    *
    * @param workflowId - Unique identifier for the workflow execution
@@ -201,7 +211,7 @@ export class Executor {
       let iteration = 0
       const maxIterations = 100 // Safety limit for infinite loops
 
-      while (hasMoreLayers && iteration < maxIterations) {
+      while (hasMoreLayers && iteration < maxIterations && !this.isCancelled) {
         const nextLayer = this.getNextExecutionLayer(context)
 
         if (this.isDebugging) {
@@ -414,6 +424,24 @@ export class Executor {
         iteration++
       }
 
+      // Handle cancellation
+      if (this.isCancelled) {
+        trackWorkflowTelemetry('workflow_execution_cancelled', {
+          workflowId,
+          duration: Date.now() - startTime.getTime(),
+          blockCount: this.actualWorkflow.blocks.length,
+          executedBlockCount: context.executedBlocks.size,
+          startTime: startTime.toISOString(),
+        })
+
+        return {
+          success: false,
+          output: finalOutput,
+          error: 'Workflow execution was cancelled',
+          logs: context.blockLogs,
+        }
+      }
+
       const endTime = new Date()
       context.metadata.endTime = endTime.toISOString()
       const duration = endTime.getTime() - startTime.getTime()
@@ -477,6 +505,16 @@ export class Executor {
   async continueExecution(blockIds: string[], context: ExecutionContext): Promise<ExecutionResult> {
     const { setPendingBlocks } = useExecutionStore.getState()
     let finalOutput: NormalizedBlockOutput = {}
+
+    // Check for cancellation
+    if (this.isCancelled) {
+      return {
+        success: false,
+        output: finalOutput,
+        error: 'Workflow execution was cancelled',
+        logs: context.blockLogs,
+      }
+    }
 
     try {
       // Execute the current layer - using the original context, not a clone

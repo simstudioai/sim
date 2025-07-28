@@ -5,7 +5,7 @@
  * in a controlled environment without external dependencies.
  */
 import { type Mock, vi } from 'vitest'
-import type { ToolConfig, ToolResponse } from '../types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 // Define a type that combines Mock with fetch properties
 type MockFetch = Mock & {

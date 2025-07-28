@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
-import { ParallelTool } from '../../../../../../[workflowId]/components/parallel-node/parallel-config'
+import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-config'
 
 type ParallelToolbarItemProps = {
   disabled?: boolean

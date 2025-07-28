@@ -1,5 +1,5 @@
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { VariableManager } from '@/lib/variables/variable-manager'
 import { getBlock } from '@/blocks/index'
 import type { LoopManager } from '@/executor/loops/loops'

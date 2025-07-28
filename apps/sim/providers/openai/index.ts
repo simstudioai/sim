@@ -1,10 +1,19 @@
 import OpenAI from 'openai'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { StreamingExecution } from '@/executor/types'
+import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import type {
+  ProviderConfig,
+  ProviderRequest,
+  ProviderResponse,
+  TimeSegment,
+} from '@/providers/types'
+import {
+  prepareToolExecution,
+  prepareToolsWithUsageControl,
+  trackForcedToolUsage,
+} from '@/providers/utils'
 import { executeTool } from '@/tools'
-import { getProviderDefaultModel, getProviderModels } from '../models'
-import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolExecution, prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('OpenAIProvider')
 
@@ -224,7 +233,7 @@ export const openaiProvider: ProviderConfig = {
 
               streamingResult.execution.output.tokens = newTokens
             }
-            // We don't need to estimate tokens here as execution-logger.ts will handle that
+            // We don't need to estimate tokens here as logger.ts will handle that
           }),
           execution: {
             success: true,
@@ -296,7 +305,7 @@ export const openaiProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      // Collect token information but don't calculate costs - that will be done in execution-logger.ts
+      // Collect token information but don't calculate costs - that will be done in logger.ts
       const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
@@ -590,7 +599,7 @@ export const openaiProvider: ProviderConfig = {
           iterations: iterationCount + 1,
           timeSegments: timeSegments,
         },
-        // We're not calculating cost here as it will be handled in execution-logger.ts
+        // We're not calculating cost here as it will be handled in logger.ts
       }
     } catch (error) {
       // Include timing information even for errors

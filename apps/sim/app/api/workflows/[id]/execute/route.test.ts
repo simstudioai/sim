@@ -33,14 +33,12 @@ describe('Workflow Execution API Route', () => {
       }),
     }))
 
-    // Mock authentication
     vi.doMock('@/lib/auth', () => ({
       getSession: vi.fn().mockResolvedValue({
         user: { id: 'user-id' },
       }),
     }))
 
-    // Mock rate limiting
     vi.doMock('@/services/queue', () => ({
       RateLimiter: vi.fn().mockImplementation(() => ({
         checkRateLimit: vi.fn().mockResolvedValue({
@@ -60,7 +58,6 @@ describe('Workflow Execution API Route', () => {
       },
     }))
 
-    // Mock billing usage check
     vi.doMock('@/lib/billing', () => ({
       checkServerSideUsageLimits: vi.fn().mockResolvedValue({
         isExceeded: false,
@@ -69,7 +66,6 @@ describe('Workflow Execution API Route', () => {
       }),
     }))
 
-    // Mock database subscription check
     vi.doMock('@/db/schema', () => ({
       subscription: {
         plan: 'plan',
@@ -145,7 +141,6 @@ describe('Workflow Execution API Route', () => {
     vi.doMock('@/executor', () => ({
       Executor: vi.fn().mockImplementation(() => ({
         execute: executeMock,
-        setEnhancedLogger: vi.fn(),
       })),
     }))
 
@@ -157,8 +152,8 @@ describe('Workflow Execution API Route', () => {
       getRotatingApiKey: vi.fn().mockReturnValue('rotated-api-key'),
     }))
 
-    vi.doMock('@/lib/logs/enhanced-logging-session', () => ({
-      EnhancedLoggingSession: vi.fn().mockImplementation(() => ({
+    vi.doMock('@/lib/logs/execution/logging-session', () => ({
+      LoggingSession: vi.fn().mockImplementation(() => ({
         safeStart: vi.fn().mockResolvedValue(undefined),
         safeComplete: vi.fn().mockResolvedValue(undefined),
         safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
@@ -166,15 +161,15 @@ describe('Workflow Execution API Route', () => {
       })),
     }))
 
-    vi.doMock('@/lib/logs/enhanced-execution-logger', () => ({
-      enhancedExecutionLogger: {
+    vi.doMock('@/lib/logs/execution/logger', () => ({
+      executionLogger: {
         startWorkflowExecution: vi.fn().mockResolvedValue(undefined),
         logBlockExecution: vi.fn().mockResolvedValue(undefined),
         completeWorkflowExecution: vi.fn().mockResolvedValue(undefined),
       },
     }))
 
-    vi.doMock('@/lib/logs/trace-spans', () => ({
+    vi.doMock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
       buildTraceSpans: vi.fn().mockReturnValue({
         traceSpans: [],
         totalDuration: 100,
@@ -203,15 +198,12 @@ describe('Workflow Execution API Route', () => {
           from: vi.fn().mockImplementation((table) => ({
             where: vi.fn().mockImplementation(() => ({
               limit: vi.fn().mockImplementation(() => {
-                // Mock subscription queries
                 if (table === 'subscription' || columns?.plan) {
                   return [{ plan: 'free' }]
                 }
-                // Mock API key queries
                 if (table === 'apiKey' || columns?.userId) {
                   return [{ userId: 'user-id' }]
                 }
-                // Default environment query
                 return [
                   {
                     id: 'env-id',
@@ -260,7 +252,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await GET(req, { params })
 
@@ -305,7 +297,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await POST(req, { params })
 
@@ -359,7 +351,7 @@ describe('Workflow Execution API Route', () => {
 
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
     const response = await POST(req, { params })
 
@@ -383,27 +375,20 @@ describe('Workflow Execution API Route', () => {
    * Test POST execution with empty request body
    */
   it('should execute workflow with empty request body', async () => {
-    // Create a mock request with empty body
     const req = createMockRequest('POST')
 
-    // Create params similar to what Next.js would provide
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
-    // Call the handler
     const response = await POST(req, { params })
 
-    // Ensure response exists and is successful
     expect(response).toBeDefined()
     expect(response.status).toBe(200)
 
-    // Parse the response body
     const data = await response.json()
     expect(data).toHaveProperty('success', true)
 
-    // Verify the executor was constructed with an empty object - updated to match implementation
     const Executor = (await import('@/executor')).Executor
     expect(Executor).toHaveBeenCalledWith(
       expect.anything(), // serializedWorkflow
@@ -427,21 +412,16 @@ describe('Workflow Execution API Route', () => {
       body: 'this is not valid JSON',
     })
 
-    // Create params similar to what Next.js would provide
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
-    // Call the handler - should throw an error when trying to parse the body
     const response = await POST(req, { params })
 
-    // Updated to expect 400 as per the implementation
     expect(response.status).toBe(400)
 
     const data = await response.json()
     expect(data).toHaveProperty('error')
-    // Check for JSON parse error message
     expect(data.error).toContain('Invalid JSON')
   })
 
@@ -449,7 +429,6 @@ describe('Workflow Execution API Route', () => {
    * Test handling of incorrect workflow ID
    */
   it('should return 403 for unauthorized workflow access', async () => {
-    // Mock the middleware to return an error
     vi.doMock('@/app/api/workflows/middleware', () => ({
       validateWorkflowAccess: vi.fn().mockResolvedValue({
         error: {
@@ -459,22 +438,16 @@ describe('Workflow Execution API Route', () => {
       }),
     }))
 
-    // Create a mock request
     const req = createMockRequest('GET')
 
-    // Create params with an invalid workflow ID
     const params = Promise.resolve({ id: 'invalid-workflow-id' })
 
-    // Import the handler after mocks are set up
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/workflows/[id]/execute/route')
 
-    // Call the handler
     const response = await GET(req, { params })
 
-    // Verify status code is 403 Forbidden
     expect(response.status).toBe(403)
 
-    // Parse the response body and verify it contains an error message
     const data = await response.json()
     expect(data).toHaveProperty('error', 'Unauthorized')
   })
@@ -483,18 +456,16 @@ describe('Workflow Execution API Route', () => {
    * Test handling of execution errors
    */
   it('should handle execution errors gracefully', async () => {
-    // Mock enhanced execution logger with spy
     const mockCompleteWorkflowExecution = vi.fn().mockResolvedValue({})
-    vi.doMock('@/lib/logs/enhanced-execution-logger', () => ({
-      enhancedExecutionLogger: {
+    vi.doMock('@/lib/logs/execution/logger', () => ({
+      executionLogger: {
         completeWorkflowExecution: mockCompleteWorkflowExecution,
       },
     }))
 
-    // Mock EnhancedLoggingSession with spy
     const mockSafeCompleteWithError = vi.fn().mockResolvedValue({})
-    vi.doMock('@/lib/logs/enhanced-logging-session', () => ({
-      EnhancedLoggingSession: vi.fn().mockImplementation(() => ({
+    vi.doMock('@/lib/logs/execution/logging-session', () => ({
+      LoggingSession: vi.fn().mockImplementation(() => ({
         safeStart: vi.fn().mockResolvedValue({}),
         safeComplete: vi.fn().mockResolvedValue({}),
         safeCompleteWithError: mockSafeCompleteWithError,
@@ -502,35 +473,26 @@ describe('Workflow Execution API Route', () => {
       })),
     }))
 
-    // Mock the executor to throw an error
     vi.doMock('@/executor', () => ({
       Executor: vi.fn().mockImplementation(() => ({
         execute: vi.fn().mockRejectedValue(new Error('Execution failed')),
-        setEnhancedLogger: vi.fn(),
       })),
     }))
 
-    // Create a mock request
     const req = createMockRequest('GET')
 
-    // Create params
     const params = Promise.resolve({ id: 'workflow-id' })
 
-    // Import the handler after mocks are set up
-    const { GET } = await import('./route')
+    const { GET } = await import('@/app/api/workflows/[id]/execute/route')
 
-    // Call the handler
     const response = await GET(req, { params })
 
-    // Verify status code is 500 Internal Server Error
     expect(response.status).toBe(500)
 
-    // Parse the response body and verify it contains an error message
     const data = await response.json()
     expect(data).toHaveProperty('error')
     expect(data.error).toContain('Execution failed')
 
-    // Verify enhanced logger was called for error completion via EnhancedLoggingSession
     expect(mockSafeCompleteWithError).toHaveBeenCalled()
   })
 
@@ -538,13 +500,11 @@ describe('Workflow Execution API Route', () => {
    * Test that workflow variables are properly passed to the Executor
    */
   it('should pass workflow variables to the Executor', async () => {
-    // Create mock variables for the workflow
     const workflowVariables = {
       variable1: { id: 'var1', name: 'variable1', type: 'string', value: '"test value"' },
       variable2: { id: 'var2', name: 'variable2', type: 'boolean', value: 'true' },
     }
 
-    // Mock workflow with variables
     vi.doMock('@/app/api/workflows/middleware', () => ({
       validateWorkflowAccess: vi.fn().mockResolvedValue({
         workflow: {
@@ -555,7 +515,6 @@ describe('Workflow Execution API Route', () => {
       }),
     }))
 
-    // Mock normalized tables helper for this specific test
     vi.doMock('@/lib/workflows/db-helpers', () => ({
       loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
         blocks: {
@@ -595,7 +554,6 @@ describe('Workflow Execution API Route', () => {
       }),
     }))
 
-    // Create a constructor mock to capture the arguments
     const executorConstructorMock = vi.fn().mockImplementation(() => ({
       execute: vi.fn().mockResolvedValue({
         success: true,
@@ -609,35 +567,26 @@ describe('Workflow Execution API Route', () => {
       }),
     }))
 
-    // Override the executor mock
     vi.doMock('@/executor', () => ({
       Executor: executorConstructorMock,
     }))
 
-    // Create a mock request
     const req = createMockRequest('POST', { testInput: 'value' })
 
-    // Create params similar to what Next.js would provide
     const params = Promise.resolve({ id: 'workflow-with-vars-id' })
 
-    // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/workflows/[id]/execute/route')
 
-    // Call the handler
     await POST(req, { params })
 
-    // Verify the Executor was constructed with workflow variables
     expect(executorConstructorMock).toHaveBeenCalled()
 
-    // Check that the 5th parameter (workflow variables) was passed
     const executorCalls = executorConstructorMock.mock.calls
     expect(executorCalls.length).toBeGreaterThan(0)
 
-    // Each call to the constructor should have at least 5 parameters
     const lastCall = executorCalls[executorCalls.length - 1]
     expect(lastCall.length).toBeGreaterThanOrEqual(5)
 
-    // The 5th parameter should be the workflow variables
     expect(lastCall[4]).toEqual(workflowVariables)
   })
 })

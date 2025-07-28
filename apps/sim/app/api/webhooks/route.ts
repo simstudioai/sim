@@ -3,10 +3,10 @@ import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
+import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
-import { getOAuthToken } from '../auth/oauth/utils'
 
 const logger = createLogger('WebhooksAPI')
 

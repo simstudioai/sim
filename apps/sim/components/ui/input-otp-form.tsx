@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { Button } from './button'
-import { InputOTP, InputOTPGroup, InputOTPSlot } from './input-otp'
+import { Button } from '@/components/ui/button'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 
 interface OTPInputFormProps {
   onSubmit: (otp: string) => void

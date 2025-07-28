@@ -1,9 +1,9 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
+import type { Template } from '@/app/workspace/[workspaceId]/templates/templates'
+import Templates from '@/app/workspace/[workspaceId]/templates/templates'
 import { db } from '@/db'
 import { templateStars, templates } from '@/db/schema'
-import type { Template } from './templates'
-import Templates from './templates'
 
 export default async function TemplatesPage() {
   const session = await getSession()

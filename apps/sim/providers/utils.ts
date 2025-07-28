@@ -1,12 +1,11 @@
 import { getCostMultiplier, isHosted } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { anthropicProvider } from './anthropic'
-import { azureOpenAIProvider } from './azure-openai'
-import { cerebrasProvider } from './cerebras'
-import { deepseekProvider } from './deepseek'
-import { googleProvider } from './google'
-import { groqProvider } from './groq'
+import { createLogger } from '@/lib/logs/console/logger'
+import { anthropicProvider } from '@/providers/anthropic'
+import { azureOpenAIProvider } from '@/providers/azure-openai'
+import { cerebrasProvider } from '@/providers/cerebras'
+import { deepseekProvider } from '@/providers/deepseek'
+import { googleProvider } from '@/providers/google'
+import { groqProvider } from '@/providers/groq'
 import {
   getComputerUseModels,
   getEmbeddingModelPricing,
@@ -22,11 +21,12 @@ import {
   supportsTemperature as supportsTemperatureFromDefinitions,
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
-} from './models'
-import { ollamaProvider } from './ollama'
-import { openaiProvider } from './openai'
-import type { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
-import { xAIProvider } from './xai'
+} from '@/providers/models'
+import { ollamaProvider } from '@/providers/ollama'
+import { openaiProvider } from '@/providers/openai'
+import type { ProviderConfig, ProviderId, ProviderToolConfig } from '@/providers/types'
+import { xAIProvider } from '@/providers/xai'
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
 
 const logger = createLogger('ProviderUtils')
 
@@ -405,7 +405,7 @@ export async function transformBlockTool(
   }
 
   // Import the new tool parameter utilities
-  const { createLLMToolSchema } = await import('../tools/params')
+  const { createLLMToolSchema } = await import('@/tools/params')
 
   // Get user-provided parameters from the block
   const userProvidedParams = block.params || {}

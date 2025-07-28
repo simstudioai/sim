@@ -1,9 +1,10 @@
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
+import { Input, Skeleton } from '@/components/ui'
+import {
+  ConfigField,
+  ConfigSection,
+  InstructionsSection,
+  TestResultDisplay as WebhookTestResult,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 interface TelegramConfigProps {
   botToken: string

@@ -5,9 +5,9 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { createLogger } from '@/lib/logs/console-logger'
-import { type TagData, TagInput } from '../../../components/tag-input/tag-input'
-import { useKnowledgeUpload } from '../../../hooks/use-knowledge-upload'
+import { createLogger } from '@/lib/logs/console/logger'
+import { type TagData, TagInput } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('UploadModal')
 

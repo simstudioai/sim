@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
 import { updateMemberUsageLimit } from '@/lib/billing/core/organization-billing'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { isOrganizationOwnerOrAdmin } from '@/lib/permissions/utils'
 
 const logger = createLogger('UnifiedUsageLimitsAPI')

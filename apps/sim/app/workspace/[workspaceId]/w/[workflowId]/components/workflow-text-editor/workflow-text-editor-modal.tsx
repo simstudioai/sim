@@ -12,12 +12,15 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { applyWorkflowDiff } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-applier'
+import { exportWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-exporter'
+import {
+  type EditorFormat,
+  WorkflowTextEditor,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-text-editor'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { applyWorkflowDiff } from './workflow-applier'
-import { exportWorkflow } from './workflow-exporter'
-import { type EditorFormat, WorkflowTextEditor } from './workflow-text-editor'
 
 const logger = createLogger('WorkflowTextEditorModal')
 

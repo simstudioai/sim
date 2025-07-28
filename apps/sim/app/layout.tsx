@@ -2,11 +2,11 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata, Viewport } from 'next'
 import { PublicEnvScript } from 'next-runtime-env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
-import './globals.css'
+import '@/app/globals.css'
 
-import { ZoomPrevention } from './zoom-prevention'
+import { ZoomPrevention } from '@/app/zoom-prevention'
 
 const logger = createLogger('RootLayout')
 
@@ -194,7 +194,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
 
-        {/* Enhanced meta tags for better SEO */}
+        {/* Meta tags for better SEO */}
         <meta name='theme-color' content='#ffffff' />
         <meta name='color-scheme' content='light' />
         <meta name='format-detection' content='telephone=no' />
@@ -210,7 +210,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta property='og:site_name' content='Sim Studio' />
         <meta property='og:locale' content='en_US' />
 
-        {/* Enhanced Twitter Card tags */}
+        {/* Twitter Card tags */}
         <meta name='twitter:image:width' content='1200' />
         <meta name='twitter:image:height' content='675' />
         <meta name='twitter:image:alt' content='Sim Studio - AI Agent Builder' />

@@ -1,6 +1,6 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type { WealthboxReadParams, WealthboxReadResponse } from './types'
+import { createLogger } from '@/lib/logs/console/logger'
+import type { ToolConfig } from '@/tools/types'
+import type { WealthboxReadParams, WealthboxReadResponse } from '@/tools/wealthbox/types'
 
 const logger = createLogger('WealthboxReadNote')
 

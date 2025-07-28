@@ -1,10 +1,12 @@
 import { SlackIcon } from '@/components/icons'
-import { Notice } from '@/components/ui/notice'
-import { JSONView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components/json-view/json-view'
-import { ConfigSection } from '../ui/config-section'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay } from '../ui/test-result'
-import { WebhookConfigField } from '../ui/webhook-config-field'
+import { Notice } from '@/components/ui'
+import { JSONView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components'
+import {
+  ConfigSection,
+  InstructionsSection,
+  TestResultDisplay,
+  WebhookConfigField,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 interface SlackConfigProps {
   signingSecret: string

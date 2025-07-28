@@ -1,6 +1,6 @@
 import { QdrantIcon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import type { QdrantResponse } from '@/tools/qdrant/types'
-import type { BlockConfig } from '../types'
 
 export const QdrantBlock: BlockConfig<QdrantResponse> = {
   type: 'qdrant',

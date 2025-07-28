@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { cn } from '@/lib/utils'
-import { useVerification } from './use-verification'
+import { useVerification } from '@/app/(auth)/verify/use-verification'
 
 interface VerifyContentProps {
   hasResendKey: boolean

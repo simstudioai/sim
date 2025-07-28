@@ -1,5 +1,5 @@
 import { getEnv } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
@@ -149,7 +149,7 @@ export class AgentBlockHandler implements BlockHandler {
     const userProvidedParams = tool.params || {}
 
     // Import the utility function
-    const { filterSchemaForLLM, mergeToolParameters } = await import('../../../tools/params')
+    const { filterSchemaForLLM, mergeToolParameters } = await import('@/tools/params')
 
     // Create schema excluding user-provided parameters
     const filteredSchema = filterSchemaForLLM(tool.schema.function.parameters, userProvidedParams)

@@ -154,7 +154,7 @@ describe('Knowledge Search API Route', () => {
       })
 
       const req = createMockRequest('POST', validSearchData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -200,7 +200,7 @@ describe('Knowledge Search API Route', () => {
       })
 
       const req = createMockRequest('POST', multiKbData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -234,7 +234,7 @@ describe('Knowledge Search API Route', () => {
       })
 
       const req = createMockRequest('POST', workflowData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -247,7 +247,7 @@ describe('Knowledge Search API Route', () => {
       mockGetUserId.mockResolvedValue(null)
 
       const req = createMockRequest('POST', validSearchData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -264,7 +264,7 @@ describe('Knowledge Search API Route', () => {
       mockGetUserId.mockResolvedValue(null)
 
       const req = createMockRequest('POST', workflowData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -282,7 +282,7 @@ describe('Knowledge Search API Route', () => {
       })
 
       const req = createMockRequest('POST', validSearchData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -304,7 +304,7 @@ describe('Knowledge Search API Route', () => {
         .mockResolvedValueOnce({ hasAccess: false, notFound: true })
 
       const req = createMockRequest('POST', multiKbData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -320,7 +320,7 @@ describe('Knowledge Search API Route', () => {
       }
 
       const req = createMockRequest('POST', invalidData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -354,7 +354,7 @@ describe('Knowledge Search API Route', () => {
       })
 
       const req = createMockRequest('POST', dataWithoutTopK)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -374,7 +374,7 @@ describe('Knowledge Search API Route', () => {
       })
 
       const req = createMockRequest('POST', validSearchData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -393,7 +393,7 @@ describe('Knowledge Search API Route', () => {
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
 
       const req = createMockRequest('POST', validSearchData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -415,7 +415,7 @@ describe('Knowledge Search API Route', () => {
       })
 
       const req = createMockRequest('POST', validSearchData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -436,7 +436,7 @@ describe('Knowledge Search API Route', () => {
       })
 
       const req = createMockRequest('POST', validSearchData)
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -465,7 +465,7 @@ describe('Knowledge Search API Route', () => {
         })
 
         const req = createMockRequest('POST', validSearchData)
-        const { POST } = await import('./route')
+        const { POST } = await import('@/app/api/knowledge/search/route')
         const response = await POST(req)
         const data = await response.json()
 
@@ -513,7 +513,7 @@ describe('Knowledge Search API Route', () => {
         })
 
         const req = createMockRequest('POST', validSearchData)
-        const { POST } = await import('./route')
+        const { POST } = await import('@/app/api/knowledge/search/route')
         await POST(req)
 
         // Verify token estimation was called with correct parameters
@@ -570,7 +570,7 @@ describe('Knowledge Search API Route', () => {
         })
 
         const req = createMockRequest('POST', longQueryData)
-        const { POST } = await import('./route')
+        const { POST } = await import('@/app/api/knowledge/search/route')
         const response = await POST(req)
         const data = await response.json()
 

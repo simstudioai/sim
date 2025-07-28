@@ -5,8 +5,8 @@ import { Command, CornerDownLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/auth-client'
-import { GridPattern } from '../grid-pattern'
-import HeroWorkflowProvider from '../hero-workflow'
+import { GridPattern } from '@/app/(landing)/components/grid-pattern'
+import HeroWorkflowProvider from '@/app/(landing)/components/hero-workflow'
 
 function Hero() {
   const router = useRouter()

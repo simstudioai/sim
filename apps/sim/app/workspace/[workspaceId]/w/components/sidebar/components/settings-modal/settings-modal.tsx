@@ -2,22 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
 import { client } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import {
+  Account,
+  ApiKeys,
+  Credentials,
+  EnvironmentVariables,
+  General,
+  Privacy,
+  SettingsNavigation,
+  Subscription,
+  TeamManagement,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components'
 import { useOrganizationStore } from '@/stores/organization'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { Account } from './components/account/account'
-import { ApiKeys } from './components/api-keys/api-keys'
-import { Credentials } from './components/credentials/credentials'
-import { EnvironmentVariables } from './components/environment/environment'
-import { General } from './components/general/general'
-import { Privacy } from './components/privacy/privacy'
-import { SettingsNavigation } from './components/settings-navigation/settings-navigation'
-import { Subscription } from './components/subscription/subscription'
-import { TeamManagement } from './components/team-management/team-management'
 
 const logger = createLogger('SettingsModal')
 

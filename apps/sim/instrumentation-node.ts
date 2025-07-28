@@ -6,7 +6,7 @@
 
 import { env } from './lib/env'
 import { isProd } from './lib/environment'
-import { createLogger } from './lib/logs/console-logger'
+import { createLogger } from './lib/logs/console/logger.ts'
 
 const Sentry = isProd ? require('@sentry/nextjs') : { captureRequestError: () => {} }
 

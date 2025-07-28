@@ -1,5 +1,13 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
+import { getCopilotConfig, getCopilotModel } from '@/lib/copilot/config'
+import {
+  AGENT_MODE_SYSTEM_PROMPT,
+  ASK_MODE_SYSTEM_PROMPT,
+  TITLE_GENERATION_SYSTEM_PROMPT,
+  TITLE_GENERATION_USER_PROMPT,
+  validateSystemPrompts,
+} from '@/lib/copilot/prompts'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getRotatingApiKey } from '@/lib/utils'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
@@ -7,14 +15,6 @@ import { copilotChats, docsEmbeddings } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
 import type { ProviderToolConfig } from '@/providers/types'
 import { getApiKey } from '@/providers/utils'
-import { getCopilotConfig, getCopilotModel } from './config'
-import {
-  AGENT_MODE_SYSTEM_PROMPT,
-  ASK_MODE_SYSTEM_PROMPT,
-  TITLE_GENERATION_SYSTEM_PROMPT,
-  TITLE_GENERATION_USER_PROMPT,
-  validateSystemPrompts,
-} from './prompts'
 
 const logger = createLogger('CopilotService')
 

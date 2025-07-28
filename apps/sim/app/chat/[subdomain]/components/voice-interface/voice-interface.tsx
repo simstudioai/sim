@@ -3,9 +3,9 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { ParticlesVisualization } from './components/particles'
+import { ParticlesVisualization } from '@/app/chat/[subdomain]/components/voice-interface/components/particles'
 
 const logger = createLogger('VoiceInterface')
 

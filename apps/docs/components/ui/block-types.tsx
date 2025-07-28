@@ -1,4 +1,3 @@
-import { cn } from '@/lib/utils'
 import {
   AgentIcon,
   ApiIcon,
@@ -7,7 +6,8 @@ import {
   ConditionalIcon,
   ConnectIcon,
   ResponseIcon,
-} from '../icons'
+} from '@/components/icons'
+import { cn } from '@/lib/utils'
 
 // Custom Feature component specifically for BlockTypes to handle the 6-item layout
 const BlockFeature = ({

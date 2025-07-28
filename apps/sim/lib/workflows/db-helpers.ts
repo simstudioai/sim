@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 import type { LoopConfig, WorkflowState } from '@/stores/workflows/workflow/types'

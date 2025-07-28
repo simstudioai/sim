@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
-import { useWorkflowRegistry } from './registry/store'
-import { useSubBlockStore } from './subblock/store'
-import type { WorkflowState, WorkflowStore } from './workflow/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import type { WorkflowState, WorkflowStore } from '@/stores/workflows/workflow/types'
 
 interface HistoryEntry {
   state: WorkflowState

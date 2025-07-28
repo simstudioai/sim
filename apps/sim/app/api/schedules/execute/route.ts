@@ -4,9 +4,9 @@ import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { checkServerSideUsageLimits } from '@/lib/billing'
-import { createLogger } from '@/lib/logs/console-logger'
-import { EnhancedLoggingSession } from '@/lib/logs/enhanced-logging-session'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { createLogger } from '@/lib/logs/console/logger'
+import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   type BlockState,
   calculateNextRunTime as calculateNextTime,
@@ -173,7 +173,7 @@ export async function GET() {
             }
           )
 
-          // Error logging handled by enhanced logging session
+          // Error logging handled by logging session
 
           const retryDelay = 24 * 60 * 60 * 1000 // 24 hour delay for exceeded limits
           const nextRetryAt = new Date(now.getTime() + retryDelay)
@@ -202,7 +202,7 @@ export async function GET() {
         try {
           const executionSuccess = await (async () => {
             // Create logging session inside the execution callback
-            const loggingSession = new EnhancedLoggingSession(
+            const loggingSession = new LoggingSession(
               schedule.workflowId,
               executionId,
               'schedule',
@@ -386,7 +386,7 @@ export async function GET() {
               },
             }
 
-            // Start enhanced logging with environment variables
+            // Start logging with environment variables
             await loggingSession.safeStart({
               userId: workflowRecord.userId,
               workspaceId: workflowRecord.workspaceId || '',
@@ -401,7 +401,7 @@ export async function GET() {
               workflowVariables
             )
 
-            // Set up enhanced logging on the executor
+            // Set up logging on the executor
             loggingSession.setupExecutor(executor)
 
             const result = await executor.execute(
@@ -437,7 +437,7 @@ export async function GET() {
 
             const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
-            // Complete enhanced logging
+            // Complete logging
             await loggingSession.safeComplete({
               endedAt: new Date().toISOString(),
               totalDurationMs: totalDuration || 0,
@@ -534,7 +534,7 @@ export async function GET() {
               error
             )
 
-            // Error logging handled by enhanced logging session inside sync executor
+            // Error logging handled by logging session inside sync executor
 
             let nextRunAt: Date
             try {

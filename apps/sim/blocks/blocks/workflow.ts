@@ -1,5 +1,5 @@
 import { WorkflowIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { ToolResponse } from '@/tools/types'
