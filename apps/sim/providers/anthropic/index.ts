@@ -10,9 +10,7 @@ import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 const logger = createLogger('AnthropicProvider')
 
 /**
- * Helper to wrap Anthropic streaming (async iterable of SSE events) into a browser-friendly
- * ReadableStream of raw assistant text chunks. We enqueue only `content_block_delta` events
- * with `delta.type === 'text_delta'`, since that contains the incremental text tokens.
+ * Helper to wrap Anthropic streaming into a browser-friendly ReadableStream
  */
 function createReadableStreamFromAnthropicStream(
   anthropicStream: AsyncIterable<any>
@@ -25,30 +23,6 @@ function createReadableStreamFromAnthropicStream(
             controller.enqueue(new TextEncoder().encode(event.delta.text))
           }
         }
-        controller.close()
-      } catch (err) {
-        controller.error(err)
-      }
-    },
-  })
-}
-
-/**
- * Helper to create a native SSE stream for copilot that passes through all Anthropic events
- * This preserves the native SSE format for better performance and simpler parsing
- */
-function createNativeSSEStreamForCopilot(anthropicStream: AsyncIterable<any>): ReadableStream {
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        const encoder = new TextEncoder()
-
-        for await (const event of anthropicStream) {
-          // Pass through the raw Anthropic SSE event
-          const sseData = `data: ${JSON.stringify(event)}\n\n`
-          controller.enqueue(encoder.encode(sseData))
-        }
-
         controller.close()
       } catch (err) {
         controller.error(err)
@@ -356,304 +330,6 @@ ${fieldDescriptions}
       return streamingResult as StreamingExecution
     }
 
-    // STREAMING WITH INCREMENTAL PARSING: Handle both text and tool calls in real-time
-    if (request.stream && shouldStreamToolCalls) {
-      logger.info('Using native SSE streaming for Anthropic copilot request', {
-        hasTools: !!(anthropicTools && anthropicTools.length > 0),
-      })
-
-      // Start execution timer for the entire provider execution
-      const providerStartTime = Date.now()
-      const providerStartTimeISO = new Date(providerStartTime).toISOString()
-
-      // Create a streaming request
-      const streamResponse: any = await anthropic.messages.create({
-        ...payload,
-        stream: true,
-      })
-
-      // Create a native SSE stream that passes through Anthropic events directly
-      const nativeSSEStream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder()
-
-          // Track conversation state and tool calls
-          const conversationMessages: any[] = [...(messages || [])]
-          let pendingToolCalls: any[] = []
-          let currentToolCall: any = null
-
-          const executeToolsAndContinue = async (toolCalls: any[]) => {
-            try {
-              logger.info(`Executing ${toolCalls.length} tool calls`, {
-                toolNames: toolCalls.map((tc) => tc.name),
-              })
-
-              // Execute all tools in parallel
-              const toolResults = await Promise.all(
-                toolCalls.map(async (toolCall) => {
-                  const tool = request.tools?.find((t: any) => t.id === toolCall.name)
-                  if (!tool) {
-                    logger.warn(`Tool not found: ${toolCall.name}`)
-                    return { toolCall, result: null, success: false }
-                  }
-
-                  const toolCallStartTime = Date.now()
-                  const mergedArgs = {
-                    ...tool.params,
-                    ...toolCall.input,
-                    ...(request.workflowId
-                      ? {
-                          _context: {
-                            workflowId: request.workflowId,
-                            ...(request.chatId ? { chatId: request.chatId } : {}),
-                            ...(request.userId ? { userId: request.userId } : {}),
-                          },
-                        }
-                      : {}),
-                    ...(request.environmentVariables
-                      ? { envVars: request.environmentVariables }
-                      : {}),
-                  }
-
-                  // Choose tool execution method based on request type
-                  let result
-                  if (request.isCopilotRequest) {
-                    // Use copilot tool system for copilot requests
-                    const { executeCopilotToolForProvider } = await import('@/lib/copilot/provider-bridge')
-                    result = await executeCopilotToolForProvider(toolCall.name, mergedArgs)
-                  } else {
-                    // Use general tool system for regular requests
-                    result = await executeTool(toolCall.name, mergedArgs, true)
-                  }
-                  const toolCallEndTime = Date.now()
-
-                  logger.info(`Tool ${toolCall.name} ${result.success ? 'succeeded' : 'failed'}`)
-
-                      // Send tool result event to frontend for workflow tools
-    const toolDisplayName = COPILOT_TOOL_DISPLAY_NAMES[toolCall.name]
-    const isWorkflowTool = toolDisplayName && 
-      (toolDisplayName.includes('Building') ||
-       toolDisplayName.includes('Updating') ||
-       toolDisplayName.includes('Preview') ||
-       toolDisplayName.includes('Edit'))
-    
-    if (
-      isWorkflowTool &&
-                    result.success
-                  ) {
-                    const toolResultEvent = {
-                      type: 'tool_result',
-                      toolCallId: toolCall.id,
-                      toolName: toolCall.name,
-                      result: result.output,
-                      success: true,
-                    }
-                    controller.enqueue(
-                      encoder.encode(`data: ${JSON.stringify(toolResultEvent)}\n\n`)
-                    )
-                    logger.info(`Sent ${toolCall.name} result to frontend:`, toolCall.id)
-                  }
-
-                  return {
-                    toolCall,
-                    result: result.success ? result.output : null,
-                    success: result.success,
-                  }
-                })
-              )
-
-              // Add tool calls and results to conversation
-              conversationMessages.push({
-                role: 'assistant',
-                content: toolCalls.map((tc) => ({
-                  type: 'tool_use',
-                  id: tc.id,
-                  name: tc.name,
-                  input: tc.input,
-                })) as any,
-              })
-
-              conversationMessages.push({
-                role: 'user',
-                content: toolResults
-                  .filter((tr) => tr?.success)
-                  .map((tr) => ({
-                    type: 'tool_result',
-                    tool_use_id: tr!.toolCall.id,
-                    content: JSON.stringify(tr!.result),
-                  })) as any,
-              })
-
-              // Continue the conversation with tool results
-              const nextStreamResponse = await anthropic.messages.create({
-                ...payload,
-                messages: conversationMessages,
-                stream: true,
-              })
-
-              // Stream the continuation response and handle any additional tool calls
-              let continuationToolCalls: any[] = []
-              let currentContinuationToolCall: any = null
-
-              for await (const chunk of nextStreamResponse as any) {
-                const sseEvent = `data: ${JSON.stringify(chunk)}\n\n`
-                controller.enqueue(encoder.encode(sseEvent))
-
-                // Check if the continuation response has its own tool calls
-                if (
-                  chunk.type === 'content_block_start' &&
-                  chunk.content_block?.type === 'tool_use'
-                ) {
-                  currentContinuationToolCall = {
-                    id: chunk.content_block.id,
-                    name: chunk.content_block.name,
-                    input: {},
-                    partialInput: '',
-                  }
-                } else if (
-                  chunk.type === 'content_block_delta' &&
-                  currentContinuationToolCall &&
-                  chunk.delta?.partial_json
-                ) {
-                  currentContinuationToolCall.partialInput += chunk.delta.partial_json
-                } else if (chunk.type === 'content_block_stop' && currentContinuationToolCall) {
-                  try {
-                    currentContinuationToolCall.input = JSON.parse(
-                      currentContinuationToolCall.partialInput || '{}'
-                    )
-                    continuationToolCalls.push(currentContinuationToolCall)
-                    logger.info(`Continuation tool call ready: ${currentContinuationToolCall.name}`)
-                  } catch (error) {
-                    logger.error('Error parsing continuation tool call input:', error)
-                  }
-                  currentContinuationToolCall = null
-                } else if (chunk.type === 'message_stop' && continuationToolCalls.length > 0) {
-                  // Recursively handle tool calls in the continuation
-                  await executeToolsAndContinue(continuationToolCalls)
-                  continuationToolCalls = []
-                }
-
-                // Also check for any workflow tool results in continuation
-                continuationToolCalls.forEach((toolCall) => {
-                  const toolDisplayName = COPILOT_TOOL_DISPLAY_NAMES[toolCall.name]
-                  const isWorkflowTool = toolDisplayName && 
-                    (toolDisplayName.includes('Building') ||
-                     toolDisplayName.includes('Updating') ||
-                     toolDisplayName.includes('Preview') ||
-                     toolDisplayName.includes('Edit'))
-                  
-                  if (isWorkflowTool) {
-                    logger.info(
-                      `Found ${toolCall.name} in continuation, will send result after execution`
-                    )
-                  }
-                })
-              }
-            } catch (error) {
-              logger.error('Error executing tools and continuing conversation:', { error })
-              // Send error event
-              const errorEvent = {
-                type: 'error',
-                error: 'Tool execution failed',
-              }
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`))
-            }
-          }
-
-          try {
-            for await (const chunk of streamResponse) {
-              // Pass through the SSE event
-              const sseEvent = `data: ${JSON.stringify(chunk)}\n\n`
-              controller.enqueue(encoder.encode(sseEvent))
-
-              // Track tool calls for execution
-              if (
-                chunk.type === 'content_block_start' &&
-                chunk.content_block?.type === 'tool_use'
-              ) {
-                currentToolCall = {
-                  id: chunk.content_block.id,
-                  name: chunk.content_block.name,
-                  input: {},
-                  partialInput: '',
-                }
-              } else if (
-                chunk.type === 'content_block_delta' &&
-                currentToolCall &&
-                chunk.delta?.partial_json
-              ) {
-                currentToolCall.partialInput += chunk.delta.partial_json
-              } else if (chunk.type === 'content_block_stop' && currentToolCall) {
-                try {
-                  // Parse complete tool call input
-                  currentToolCall.input = JSON.parse(currentToolCall.partialInput || '{}')
-                  pendingToolCalls.push(currentToolCall)
-                  logger.info(`Tool call ready: ${currentToolCall.name}`, currentToolCall.input)
-                } catch (error) {
-                  logger.error('Error parsing tool call input:', error)
-                }
-                currentToolCall = null
-              } else if (chunk.type === 'message_stop') {
-                // If there are pending tool calls, execute them and continue
-                if (pendingToolCalls.length > 0) {
-                  await executeToolsAndContinue(pendingToolCalls)
-                  pendingToolCalls = []
-                }
-                break
-              }
-            }
-            controller.close()
-          } catch (error) {
-            logger.error('Error in native SSE streaming:', { error })
-            controller.error(error)
-          }
-        },
-      })
-
-      // Create the streaming result
-      const streamingResult = {
-        stream: nativeSSEStream,
-        execution: {
-          success: true,
-          output: {
-            content: '', // Will be filled by streaming content
-            model: request.model,
-            tokens: { prompt: 0, completion: 0, total: 0 },
-            toolCalls: undefined,
-            providerTiming: {
-              startTime: providerStartTimeISO,
-              endTime: new Date().toISOString(),
-              duration: Date.now() - providerStartTime,
-              timeSegments: [
-                {
-                  type: 'model',
-                  name: 'Native SSE streaming',
-                  startTime: providerStartTime,
-                  endTime: Date.now(),
-                  duration: Date.now() - providerStartTime,
-                },
-              ],
-            },
-            cost: {
-              total: 0.0,
-              input: 0.0,
-              output: 0.0,
-            },
-          },
-          logs: [],
-          metadata: {
-            startTime: providerStartTimeISO,
-            endTime: new Date().toISOString(),
-            duration: Date.now() - providerStartTime,
-          },
-          isStreaming: true,
-        },
-      }
-
-      // Return the streaming execution object
-      return streamingResult as StreamingExecution
-    }
-
     // NON-STREAMING WITH FINAL RESPONSE: Execute all tools silently and return only final response
     if (request.stream && !shouldStreamToolCalls) {
       logger.info('Using non-streaming mode for Anthropic request (tool calls executed silently)')
@@ -804,16 +480,8 @@ ${fieldDescriptions}
                     : {}),
                 }
 
-                // Choose tool execution method based on request type
-                let result
-                if (request.isCopilotRequest) {
-                  // Use copilot tool system for copilot requests
-                  const { executeCopilotToolForProvider } = await import('@/lib/copilot/provider-bridge')
-                  result = await executeCopilotToolForProvider(toolName, executionParams)
-                } else {
-                  // Use general tool system for regular requests
-                  result = await executeTool(toolName, executionParams, true)
-                }
+                // Use general tool system for requests
+                const result = await executeTool(toolName, executionParams, true)
                 const toolCallEndTime = Date.now()
                 const toolCallDuration = toolCallEndTime - toolCallStartTime
 
@@ -986,74 +654,7 @@ ${fieldDescriptions}
         const providerEndTimeISO = new Date(providerEndTime).toISOString()
         const totalDuration = providerEndTime - providerStartTime
 
-        // For non-streaming mode with tools, we stream only the final response
-        if (iterationCount > 0) {
-          logger.info(
-            'Using streaming for final Anthropic response after tool calls (non-streaming mode)'
-          )
 
-          // When streaming after tool calls with forced tools, make sure tool_choice is removed
-          // This prevents the API from trying to force tool usage again in the final streaming response
-          const streamingPayload = {
-            ...payload,
-            messages: currentMessages,
-            // For Anthropic, omit tool_choice entirely rather than setting it to 'none'
-            stream: true,
-          }
-
-          // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
-          streamingPayload.tool_choice = undefined
-
-          const streamResponse: any = await anthropic.messages.create(streamingPayload)
-
-          // Create a StreamingExecution response with all collected data
-          const streamingResult = {
-            stream: createReadableStreamFromAnthropicStream(streamResponse),
-            execution: {
-              success: true,
-              output: {
-                content: '', // Will be filled by the callback
-                model: request.model || 'claude-3-7-sonnet-20250219',
-                tokens: {
-                  prompt: tokens.prompt,
-                  completion: tokens.completion,
-                  total: tokens.total,
-                },
-                toolCalls:
-                  toolCalls.length > 0
-                    ? {
-                        list: toolCalls,
-                        count: toolCalls.length,
-                      }
-                    : undefined,
-                providerTiming: {
-                  startTime: providerStartTimeISO,
-                  endTime: new Date().toISOString(),
-                  duration: Date.now() - providerStartTime,
-                  modelTime: modelTime,
-                  toolsTime: toolsTime,
-                  firstResponseTime: firstResponseTime,
-                  iterations: iterationCount + 1,
-                  timeSegments: timeSegments,
-                },
-                cost: {
-                  total: (tokens.total || 0) * 0.0001, // Estimate cost based on tokens
-                  input: (tokens.prompt || 0) * 0.0001,
-                  output: (tokens.completion || 0) * 0.0001,
-                },
-              },
-              logs: [], // No block logs at provider level
-              metadata: {
-                startTime: providerStartTimeISO,
-                endTime: new Date().toISOString(),
-                duration: Date.now() - providerStartTime,
-              },
-              isStreaming: true,
-            },
-          }
-
-          return streamingResult as StreamingExecution
-        }
 
         // If no tool calls were made, return a direct response
         return {
@@ -1250,16 +851,8 @@ ${fieldDescriptions}
                 ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
               }
 
-              // Choose tool execution method based on request type
-              let result
-              if (request.isCopilotRequest) {
-                                 // Use copilot tool system for copilot requests
-                 const { executeCopilotToolForProvider } = await import('@/lib/copilot/provider-bridge')
-                 result = await executeCopilotToolForProvider(toolName, executionParams)
-              } else {
-                // Use general tool system for regular requests
-                result = await executeTool(toolName, executionParams, true)
-              }
+              // Use general tool system for requests
+              const result = await executeTool(toolName, executionParams, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 

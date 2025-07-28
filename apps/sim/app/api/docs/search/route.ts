@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { searchDocumentation } from '@/lib/copilot/service'
 import { createLogger } from '@/lib/logs/console-logger'
+import { sql } from 'drizzle-orm'
+import { db } from '@/db'
+import { docsEmbeddings } from '@/db/schema'
 
 const logger = createLogger('DocsSearchAPI')
 
@@ -49,9 +51,53 @@ export async function POST(
     logger.info('Executing documentation search', { query, topK })
 
     const startTime = Date.now()
-    const results = await searchDocumentation(query, { topK })
-    const searchTime = Date.now() - startTime
+    
+    // Search documentation using RAG - inlined from copilot service
+    let results: DocsSearchResult[] = []
+    try {
+      const threshold = 0.7
+      
+      // Generate embedding for the query
+      const { generateEmbeddings } = await import('@/app/api/knowledge/utils')
+      const embeddings = await generateEmbeddings([query])
+      const queryEmbedding = embeddings[0]
 
+      if (!queryEmbedding || queryEmbedding.length === 0) {
+        logger.warn('Failed to generate query embedding')
+        results = []
+      } else {
+        // Search docs embeddings using vector similarity
+        const dbResults = await db
+          .select({
+            chunkId: docsEmbeddings.chunkId,
+            chunkText: docsEmbeddings.chunkText,
+            sourceDocument: docsEmbeddings.sourceDocument,
+            sourceLink: docsEmbeddings.sourceLink,
+            headerText: docsEmbeddings.headerText,
+            headerLevel: docsEmbeddings.headerLevel,
+            similarity: sql<number>`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
+          })
+          .from(docsEmbeddings)
+          .orderBy(sql`${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
+          .limit(topK)
+
+        // Filter by similarity threshold
+        const filteredResults = dbResults.filter((result) => result.similarity >= threshold)
+
+        results = filteredResults.map((result, index) => ({
+          id: index + 1,
+          title: String(result.headerText || 'Untitled Section'),
+          url: String(result.sourceLink || '#'),
+          content: String(result.chunkText || ''),
+          similarity: result.similarity,
+        }))
+      }
+    } catch (error) {
+      logger.error('Failed to search documentation:', error)
+      results = []
+    }
+    
+    const searchTime = Date.now() - startTime
     logger.info(`Found ${results.length} documentation results`, { query })
 
     const successResponse: DocsSearchSuccessResponse = {
