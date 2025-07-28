@@ -1580,13 +1580,6 @@ const WorkflowContent = React.memo(() => {
 
         {/* Show DiffControls if diff is available (regardless of current view mode) */}
         <DiffControls />
-        {/* 
-        {isDiffMode ? (
-          <DiffControls />
-        ) : (
-          <ReviewButton />
-        )}
-        */}
       </div>
     </div>
   )

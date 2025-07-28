@@ -103,4 +103,4 @@ copilotToolRegistry.register(editWorkflowTool)
 export const COPILOT_TOOL_IDS = copilotToolRegistry.getAvailableIds()
 
 // Export the type from shared constants
-export type { CopilotToolId } 
+export type { CopilotToolId } from '@/stores/constants' 

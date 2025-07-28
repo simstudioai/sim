@@ -17,7 +17,7 @@ export function Panel() {
   const [chatMessage, setChatMessage] = useState<string>('')
   const [copilotMessage, setCopilotMessage] = useState<string>('')
   const [isChatModalOpen, setIsChatModalOpen] = useState(false)
-  const [isCopilotModalOpen, setIsCopilotModalOpen] = useState(false)
+
   const [isResizing, setIsResizing] = useState(false)
   const [resizeStartX, setResizeStartX] = useState(0)
   const [resizeStartWidth, setResizeStartWidth] = useState(0)
@@ -218,10 +218,6 @@ export function Panel() {
               <Copilot
                 ref={copilotRef}
                 panelWidth={panelWidth}
-                isFullscreen={isCopilotModalOpen}
-                onFullscreenToggle={setIsCopilotModalOpen}
-                fullscreenInput={copilotMessage}
-                onFullscreenInputChange={setCopilotMessage}
               />
             ) : (
               <Variables />

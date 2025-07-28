@@ -15,10 +15,9 @@ import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useCopilotSandbox } from '../../../../hooks/use-copilot-sandbox'
-import { CopilotSandboxModal } from '../../../copilot-sandbox-modal/copilot-sandbox-modal'
+
 import { CheckpointPanel } from './components/checkpoint-panel'
-import { CopilotModal } from './components/copilot-modal/copilot-modal'
+
 import { ProfessionalInput } from './components/professional-input/professional-input'
 import { ProfessionalMessage } from './components/professional-message/professional-message'
 import { CopilotWelcome } from './components/welcome/welcome'
@@ -27,10 +26,6 @@ const logger = createLogger('Copilot')
 
 interface CopilotProps {
   panelWidth: number
-  isFullscreen?: boolean
-  onFullscreenToggle?: (fullscreen: boolean) => void
-  fullscreenInput?: string
-  onFullscreenInputChange?: (input: string) => void
 }
 
 interface CopilotRef {
@@ -39,16 +34,7 @@ interface CopilotRef {
 }
 
 export const Copilot = forwardRef<CopilotRef, CopilotProps>(
-  (
-    {
-      panelWidth,
-      isFullscreen = false,
-      onFullscreenToggle,
-      fullscreenInput = '',
-      onFullscreenInputChange,
-    },
-    ref
-  ) => {
+  ({ panelWidth }, ref) => {
     const scrollAreaRef = useRef<HTMLDivElement>(null)
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
     const [showCheckpoints, setShowCheckpoints] = useState(false)
@@ -56,9 +42,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
 
     const { activeWorkflowId } = useWorkflowRegistry()
 
-    // Use copilot sandbox for workflow previews
-    const { sandboxState, showSandbox, closeSandbox, applyToCurrentWorkflow, saveAsNewWorkflow } =
-      useCopilotSandbox()
+
 
     // Use preview store to track seen previews
     const { scanAndMarkExistingPreviews, isToolCallSeen, markToolCallAsSeen } = usePreviewStore()
@@ -424,40 +408,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
           )}
         </div>
 
-        {/* Fullscreen Modal */}
-        <CopilotModal
-          open={isFullscreen}
-          onOpenChange={(open) => onFullscreenToggle?.(open)}
-          copilotMessage={fullscreenInput}
-          setCopilotMessage={(message) => onFullscreenInputChange?.(message)}
-          messages={messages}
-          onSendMessage={handleModalSendMessage}
-          onAbortMessage={abortMessage}
-          isLoading={isSendingMessage}
-          isAborting={isAborting}
-          isLoadingChats={isLoadingChats}
-          chats={chats}
-          currentChat={currentChat}
-          onSelectChat={selectChat}
-          onStartNewChat={handleStartNewChat}
-          onDeleteChat={handleDeleteChat}
-          mode={mode}
-          onModeChange={setMode}
-        />
 
-        {/* Copilot Sandbox Modal */}
-        <CopilotSandboxModal
-          isOpen={sandboxState.isOpen}
-          onClose={closeSandbox}
-          proposedWorkflowState={sandboxState.proposedWorkflowState}
-          yamlContent={sandboxState.yamlContent}
-          description={sandboxState.description}
-          onApplyToCurrentWorkflow={applyToCurrentWorkflow}
-          onSaveAsNewWorkflow={async (name: string) => {
-            await saveAsNewWorkflow(name)
-          }}
-          isProcessing={sandboxState.isProcessing}
-        />
+
+
       </>
     )
   }
