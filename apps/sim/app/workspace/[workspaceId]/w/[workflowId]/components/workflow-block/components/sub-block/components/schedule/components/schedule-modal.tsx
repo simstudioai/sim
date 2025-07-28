@@ -528,15 +528,106 @@ export function ScheduleModal({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='UTC'>UTC</SelectItem>
-                    <SelectItem value='America/New_York'>US Eastern (UTC-4)</SelectItem>
-                    <SelectItem value='America/Chicago'>US Central (UTC-5)</SelectItem>
-                    <SelectItem value='America/Denver'>US Mountain (UTC-6)</SelectItem>
+
+                    {/* UTC-10 to UTC-3 (Western Hemisphere) */}
+                    <SelectItem value='Pacific/Honolulu'>US Hawaii (UTC-10)</SelectItem>
+                    <SelectItem value='America/Anchorage'>US Alaska (UTC-8)</SelectItem>
                     <SelectItem value='America/Los_Angeles'>US Pacific (UTC-7)</SelectItem>
+                    <SelectItem value='America/Vancouver'>Canada Pacific (UTC-7)</SelectItem>
+                    <SelectItem value='America/Denver'>US Mountain (UTC-6)</SelectItem>
+                    <SelectItem value='America/Chicago'>US Central (UTC-5)</SelectItem>
+                    <SelectItem value='America/Mexico_City'>Mexico City (UTC-5)</SelectItem>
+                    <SelectItem value='America/Bogota'>Bogota (UTC-5)</SelectItem>
+                    <SelectItem value='America/Lima'>Lima (UTC-5)</SelectItem>
+                    <SelectItem value='America/New_York'>US Eastern (UTC-4)</SelectItem>
+                    <SelectItem value='America/Toronto'>Canada Eastern (UTC-4)</SelectItem>
+                    <SelectItem value='America/Sao_Paulo'>São Paulo (UTC-3)</SelectItem>
+                    <SelectItem value='America/Argentina/Buenos_Aires'>
+                      Buenos Aires (UTC-3)
+                    </SelectItem>
+                    <SelectItem value='America/Santiago'>Santiago (UTC-3)</SelectItem>
+
+                    {/* UTC+1 to UTC+3 (Europe & Africa) */}
                     <SelectItem value='Europe/London'>London (UTC+1)</SelectItem>
+                    <SelectItem value='Africa/Lagos'>Lagos (UTC+1)</SelectItem>
+                    <SelectItem value='Africa/Casablanca'>Casablanca (UTC+1)</SelectItem>
                     <SelectItem value='Europe/Paris'>Paris (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Berlin'>Berlin (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Rome'>Rome (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Madrid'>Madrid (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Amsterdam'>Amsterdam (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Brussels'>Brussels (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Vienna'>Vienna (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Zurich'>Zurich (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Stockholm'>Stockholm (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Oslo'>Oslo (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Copenhagen'>Copenhagen (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Prague'>Prague (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Warsaw'>Warsaw (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Budapest'>Budapest (UTC+2)</SelectItem>
+                    <SelectItem value='Africa/Johannesburg'>Johannesburg (UTC+2)</SelectItem>
+                    <SelectItem value='Europe/Helsinki'>Helsinki (UTC+3)</SelectItem>
+                    <SelectItem value='Europe/Athens'>Athens (UTC+3)</SelectItem>
+                    <SelectItem value='Europe/Bucharest'>Bucharest (UTC+3)</SelectItem>
+                    <SelectItem value='Europe/Sofia'>Sofia (UTC+3)</SelectItem>
+                    <SelectItem value='Europe/Kiev'>Kiev (UTC+3)</SelectItem>
+                    <SelectItem value='Europe/Moscow'>Moscow (UTC+3)</SelectItem>
+                    <SelectItem value='Europe/Istanbul'>Istanbul (UTC+3)</SelectItem>
+                    <SelectItem value='Africa/Cairo'>Cairo (UTC+3)</SelectItem>
+                    <SelectItem value='Africa/Nairobi'>Nairobi (UTC+3)</SelectItem>
+                    <SelectItem value='Africa/Addis_Ababa'>Addis Ababa (UTC+3)</SelectItem>
+                    <SelectItem value='Asia/Tehran'>Tehran (UTC+3:30)</SelectItem>
+
+                    {/* UTC+4 to UTC+6 (Central Asia) */}
+                    <SelectItem value='Asia/Dubai'>Dubai (UTC+4)</SelectItem>
+                    <SelectItem value='Asia/Kabul'>Kabul (UTC+4:30)</SelectItem>
+                    <SelectItem value='Asia/Tashkent'>Tashkent (UTC+5)</SelectItem>
+                    <SelectItem value='Asia/Kolkata'>Kolkata (UTC+5:30)</SelectItem>
+                    <SelectItem value='Asia/Kathmandu'>Kathmandu (UTC+5:45)</SelectItem>
+                    <SelectItem value='Asia/Almaty'>Almaty (UTC+6)</SelectItem>
+                    <SelectItem value='Asia/Dhaka'>Dhaka (UTC+6)</SelectItem>
+                    <SelectItem value='Asia/Yangon'>Yangon (UTC+6:30)</SelectItem>
+
+                    {/* UTC+7 to UTC+9 (Southeast & East Asia) */}
+                    <SelectItem value='Asia/Novosibirsk'>Novosibirsk (UTC+7)</SelectItem>
+                    <SelectItem value='Asia/Krasnoyarsk'>Krasnoyarsk (UTC+7)</SelectItem>
+                    <SelectItem value='Asia/Bangkok'>Bangkok (UTC+7)</SelectItem>
+                    <SelectItem value='Asia/Ho_Chi_Minh'>Ho Chi Minh (UTC+7)</SelectItem>
+                    <SelectItem value='Asia/Jakarta'>Jakarta (UTC+7)</SelectItem>
+                    <SelectItem value='Asia/Irkutsk'>Irkutsk (UTC+8)</SelectItem>
+                    <SelectItem value='Asia/Manila'>Manila (UTC+8)</SelectItem>
                     <SelectItem value='Asia/Singapore'>Singapore (UTC+8)</SelectItem>
+                    <SelectItem value='Asia/Kuala_Lumpur'>Kuala Lumpur (UTC+8)</SelectItem>
+                    <SelectItem value='Asia/Hong_Kong'>Hong Kong (UTC+8)</SelectItem>
+                    <SelectItem value='Asia/Shanghai'>Shanghai (UTC+8)</SelectItem>
+                    <SelectItem value='Asia/Ulaanbaatar'>Ulaanbaatar (UTC+8)</SelectItem>
+                    <SelectItem value='Australia/Perth'>Perth (UTC+8)</SelectItem>
+                    <SelectItem value='Asia/Yakutsk'>Yakutsk (UTC+9)</SelectItem>
+                    <SelectItem value='Asia/Seoul'>Seoul (UTC+9)</SelectItem>
                     <SelectItem value='Asia/Tokyo'>Tokyo (UTC+9)</SelectItem>
+                    <SelectItem value='Asia/Pyongyang'>Pyongyang (UTC+9)</SelectItem>
+
+                    {/* UTC+10 to UTC+14 (Oceania & Pacific) */}
+                    <SelectItem value='Australia/Adelaide'>Adelaide (UTC+9:30)</SelectItem>
+                    <SelectItem value='Australia/Darwin'>Darwin (UTC+9:30)</SelectItem>
+                    <SelectItem value='Australia/Brisbane'>Brisbane (UTC+10)</SelectItem>
                     <SelectItem value='Australia/Sydney'>Sydney (UTC+10)</SelectItem>
+                    <SelectItem value='Australia/Melbourne'>Melbourne (UTC+10)</SelectItem>
+                    <SelectItem value='Australia/Hobart'>Hobart (UTC+10)</SelectItem>
+                    <SelectItem value='Pacific/Guam'>Guam (UTC+10)</SelectItem>
+                    <SelectItem value='Pacific/Port_Moresby'>Port Moresby (UTC+10)</SelectItem>
+                    <SelectItem value='Australia/Lord_Howe'>Lord Howe (UTC+10:30)</SelectItem>
+                    <SelectItem value='Asia/Vladivostok'>Vladivostok (UTC+10)</SelectItem>
+                    <SelectItem value='Asia/Magadan'>Magadan (UTC+11)</SelectItem>
+                    <SelectItem value='Pacific/Noumea'>Noumea (UTC+11)</SelectItem>
+                    <SelectItem value='Pacific/Norfolk'>Norfolk (UTC+11)</SelectItem>
+                    <SelectItem value='Asia/Kamchatka'>Kamchatka (UTC+12)</SelectItem>
+                    <SelectItem value='Pacific/Auckland'>Auckland (UTC+12)</SelectItem>
+                    <SelectItem value='Pacific/Fiji'>Fiji (UTC+12)</SelectItem>
+                    <SelectItem value='Pacific/Tarawa'>Tarawa (UTC+12)</SelectItem>
+                    <SelectItem value='Pacific/Kwajalein'>Kwajalein (UTC+12)</SelectItem>
+                    <SelectItem value='Pacific/Apia'>Apia (UTC+13)</SelectItem>
+                    <SelectItem value='Pacific/Kiritimati'>Kiritimati (UTC+14)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
