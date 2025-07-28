@@ -211,7 +211,14 @@ const sseHandlers: Record<string, SSEHandler> = {
   // Handle chat title update event (custom event)
   title_updated: async (data, context, get, set) => {
     const { title } = data
-    logger.info('Received title update from stream:', title)
+    const { currentChat } = get()
+    const previousTitle = currentChat?.title
+    
+    logger.info('Received title update from stream:', { 
+      newTitle: title, 
+      previousTitle,
+      isOptimisticReplacement: previousTitle !== null && previousTitle !== title
+    })
 
     set((state: CopilotStore) => ({
       currentChat: state.currentChat ? {
@@ -636,9 +643,30 @@ export const useCopilotStore = create<CopilotStore>()(
         const userMessage = createUserMessage(message)
         const streamingMessage = createStreamingMessage()
 
+        // Check if this is the first message before updating state
+        const currentMessages = get().messages
+        const isFirstMessage = currentMessages.length === 0 && !currentChat?.title
+
         set((state) => ({
           messages: [...state.messages, userMessage, streamingMessage],
         }))
+
+        // Optimistic title update for first message
+        if (isFirstMessage) {
+          // Generate optimistic title from first few words of user message
+          const optimisticTitle = message.length > 50 
+            ? message.substring(0, 47) + '...'
+            : message
+          
+          set((state) => ({
+            currentChat: state.currentChat ? {
+              ...state.currentChat,
+              title: optimisticTitle,
+            } : state.currentChat,
+          }))
+          
+          logger.info('Set optimistic title for first message:', optimisticTitle)
+        }
 
         try {
           const result = await sendStreamingMessage({

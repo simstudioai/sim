@@ -295,11 +295,25 @@ export async function POST(req: NextRequest) {
 
           // Start title generation in parallel if needed
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
-            logger.info(`[${requestId}] Starting title generation with stream updates`)
+            logger.info(`[${requestId}] Starting title generation with stream updates`, {
+              chatId: actualChatId,
+              hasTitle: !!currentChat?.title,
+              conversationLength: conversationHistory.length,
+              message: message.substring(0, 100) + (message.length > 100 ? '...' : '')
+            })
             generateChatTitleAsync(actualChatId, message, requestId, controller)
               .catch(error => {
                 logger.error(`[${requestId}] Title generation failed:`, error)
               })
+          } else {
+            logger.debug(`[${requestId}] Skipping title generation`, {
+              chatId: actualChatId,
+              hasTitle: !!currentChat?.title,
+              conversationLength: conversationHistory.length,
+              reason: !actualChatId ? 'no chatId' : 
+                      currentChat?.title ? 'already has title' : 
+                      conversationHistory.length > 0 ? 'not first message' : 'unknown'
+            })
           }
 
           // Forward the sim agent stream and capture assistant response
