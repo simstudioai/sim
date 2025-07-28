@@ -1,6 +1,7 @@
 import { task } from '@trigger.dev/sdk/v3'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { checkServerSideUsageLimits } from '@/lib/billing'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -43,6 +44,22 @@ export const workflowExecution = task({
     const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
 
     try {
+      const usageCheck = await checkServerSideUsageLimits(payload.userId)
+      if (usageCheck.isExceeded) {
+        logger.warn(
+          `[${requestId}] User ${payload.userId} has exceeded usage limits. Skipping workflow execution.`,
+          {
+            currentUsage: usageCheck.currentUsage,
+            limit: usageCheck.limit,
+            workflowId: payload.workflowId,
+          }
+        )
+        throw new Error(
+          usageCheck.message ||
+            'Usage limit exceeded. Please upgrade your plan to continue using workflows.'
+        )
+      }
+
       // Load workflow data from normalized tables
       const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
       if (!normalizedData) {
