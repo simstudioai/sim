@@ -5,15 +5,7 @@ import { devtools } from 'zustand/middleware'
 import {
   type CopilotChat,
   type CopilotMessage,
-  createChat,
-  deleteChat as deleteApiChat,
-  getChat,
-  listChats,
-  listCheckpoints,
-  revertToCheckpoint,
-  sendStreamingDocsMessage,
   sendStreamingMessage,
-  updateChatMessages,
 } from '@/lib/copilot/api'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { CopilotStore } from './types'
@@ -638,326 +630,85 @@ export const useCopilotStore = create<CopilotStore>()(
         logger.info(`Copilot mode changed from ${previousMode} to ${mode}`)
       },
 
-      // Set current workflow ID
-      setWorkflowId: async (workflowId: string | null) => {
-        const currentWorkflowId = get().workflowId
-        if (currentWorkflowId !== workflowId) {
-          logger.info(`Workflow ID changed from ${currentWorkflowId} to ${workflowId}`)
-
-          // Auto-reject any pending diff changes before switching workflows
-          try {
-            // Import diff store dynamically to avoid circular dependencies
-            const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
-            const diffStore = useWorkflowDiffStore.getState()
-
-            // Check if there are any pending diff changes
-            if (diffStore.diffWorkflow && diffStore.isDiffReady) {
-              logger.info('Auto-rejecting pending diff changes before workflow change')
-
-              // Reject the changes in the diff store
-              diffStore.rejectChanges()
-
-              // Update copilot tool call state and clear preview YAML
-              get().updatePreviewToolCallState('rejected')
-              await get().clearPreviewYaml()
-
-              logger.info('Successfully auto-rejected pending diff changes')
-            }
-          } catch (error) {
-            logger.error('Failed to auto-reject pending changes during workflow change:', error)
-            // Don't prevent workflow change if cleanup fails
-          }
-
-          // Clear all state to prevent cross-workflow data leaks
-          set({
-            workflowId,
-            currentChat: null,
-            chats: [],
-            messages: [],
-            error: null,
-            saveError: null,
-            isSaving: false,
-            isLoading: false,
-            isLoadingChats: false,
-          })
-
-          // Load chats for the new workflow
-          if (workflowId) {
-            get()
-              .loadChats()
-              .catch((error) => {
-                logger.error('Failed to load chats after workflow change:', error)
-              })
-          }
-        }
+      // Clear messages for current chat
+      clearMessages: () => {
+        set({ messages: [] })
+        logger.info('Cleared messages')
       },
 
-      // Validate current chat belongs to current workflow
-      validateCurrentChat: () => {
-        const { currentChat, chats, workflowId } = get()
+      // Set workflow ID and reset state
+      setWorkflowId: async (workflowId: string | null) => {
+        const currentWorkflowId = get().workflowId
 
-        if (!currentChat || !workflowId) {
-          return true
+        if (currentWorkflowId === workflowId) {
+          return
         }
 
-        // Check if current chat exists in the current workflow's chat list
-        const chatBelongsToWorkflow = chats.some((chat) => chat.id === currentChat.id)
+        logger.info(`Setting workflow ID: ${workflowId}`)
 
-        if (!chatBelongsToWorkflow) {
-          logger.warn(`Current chat ${currentChat.id} does not belong to workflow ${workflowId}`)
-          set({
-            currentChat: null,
-            messages: [],
-          })
+        // Reset state when switching workflows
+        set({
+          ...initialState,
+          workflowId,
+          mode: get().mode, // Preserve mode
+        })
+      },
+
+      // Validate that current chat belongs to current workflow
+      validateCurrentChat: () => {
+        const { currentChat, workflowId } = get()
+
+        if (!currentChat || !workflowId) {
           return false
         }
 
+        // For now, we can't validate without the API
+        // The backend will handle this validation
         return true
       },
 
-      // Load chats for current workflow
-      loadChats: async () => {
-        const { workflowId } = get()
-        if (!workflowId) {
-          logger.warn('Cannot load chats: no workflow ID set')
-          return
-        }
-
-        set({ isLoadingChats: true, error: null })
-
-        try {
-          const result = await listChats(workflowId)
-
-          if (result.success) {
-            set({
-              chats: result.chats,
-              isLoadingChats: false,
-            })
-            logger.info(`Loaded ${result.chats.length} chats for workflow ${workflowId}`)
-
-            // Auto-select the most recent chat if no current chat is selected and chats exist
-            const { currentChat } = get()
-            if (!currentChat && result.chats.length > 0) {
-              // Sort by updatedAt descending to get the most recent chat
-              const sortedChats = [...result.chats].sort(
-                (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-              )
-              const mostRecentChat = sortedChats[0]
-
-              logger.info(`Auto-selecting most recent chat: ${mostRecentChat.title || 'Untitled'}`)
-              await get().selectChat(mostRecentChat)
-            }
-          } else {
-            throw new Error(result.error || 'Failed to load chats')
-          }
-        } catch (error) {
-          set({
-            error: handleStoreError(error, 'Failed to load chats'),
-            isLoadingChats: false,
-          })
-        }
-      },
-
-      // Select a specific chat
+      // Simple chat management without API calls
       selectChat: async (chat: CopilotChat) => {
-        const { workflowId, currentChat } = get()
-
-        if (!workflowId) {
-          logger.error('Cannot select chat: no workflow ID set')
-          return
-        }
-
-        // Auto-reject any pending diff changes before switching chats
-        if (currentChat && currentChat.id !== chat.id) {
-          logger.info(`Chat change detected: ${currentChat.id} -> ${chat.id}`)
-          try {
-            // Import diff store dynamically to avoid circular dependencies
-            const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
-            const diffStore = useWorkflowDiffStore.getState()
-
-            logger.info('Diff store state:', {
-              hasDiffWorkflow: !!diffStore.diffWorkflow,
-              isDiffReady: diffStore.isDiffReady,
-              isShowingDiff: diffStore.isShowingDiff,
-            })
-
-            // Check if there are any pending diff changes
-            if (diffStore.diffWorkflow && diffStore.isDiffReady) {
-              logger.info('Auto-rejecting pending diff changes before chat change')
-
-              // Reject the changes in the diff store
-              diffStore.rejectChanges()
-
-              // Update copilot tool call state and clear preview YAML
-              get().updatePreviewToolCallState('rejected')
-              await get().clearPreviewYaml()
-
-              logger.info('Successfully auto-rejected pending diff changes')
-            } else {
-              logger.info('No pending diff changes to reject')
-            }
-          } catch (error) {
-            logger.error('Failed to auto-reject pending changes during chat change:', error)
-            // Don't prevent chat change if cleanup fails
-          }
-        } else {
-          logger.info('No chat change detected or no current chat')
-        }
-
-        set({ isLoading: true, error: null })
-
-        try {
-          const result = await getChat(chat.id)
-
-          if (result.success && result.chat) {
-            // Verify workflow hasn't changed during selection
-            const currentWorkflow = get().workflowId
-            if (currentWorkflow !== workflowId) {
-              logger.warn('Workflow changed during chat selection')
-              set({ isLoading: false })
-              return
-            }
-
-            set({
-              currentChat: result.chat,
-              messages: result.chat.messages,
-              isLoading: false,
-            })
-
-            logger.info(`Selected chat: ${result.chat.title || 'Untitled'}`)
-          } else {
-            throw new Error(result.error || 'Failed to load chat')
-          }
-        } catch (error) {
-          set({
-            error: handleStoreError(error, 'Failed to load chat'),
-            isLoading: false,
-          })
-        }
+        set({
+          currentChat: chat,
+          messages: chat.messages || [],
+        })
+        logger.info(`Selected chat: ${chat.title || 'Untitled'}`)
       },
 
-      // Create a new chat
-      createNewChat: async (options = {}) => {
-        const { workflowId, currentChat } = get()
-        if (!workflowId) {
-          logger.warn('Cannot create chat: no workflow ID set')
-          return
+      // Create a new chat locally (will be persisted when sending first message)
+      createNewChat: async () => {
+        const newChat: CopilotChat = {
+          id: `temp-${Date.now()}`, // Temporary ID until backend creates real one
+          title: null,
+          model: 'gpt-4',
+          messages: [],
+          messageCount: 0,
+          previewYaml: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         }
 
-        // Auto-reject any pending diff changes before creating new chat
-        if (currentChat) {
-          logger.info(`Creating new chat while current chat exists: ${currentChat.id}`)
-          try {
-            // Import diff store dynamically to avoid circular dependencies
-            const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
-            const diffStore = useWorkflowDiffStore.getState()
-
-            logger.info('Diff store state:', {
-              hasDiffWorkflow: !!diffStore.diffWorkflow,
-              isDiffReady: diffStore.isDiffReady,
-              isShowingDiff: diffStore.isShowingDiff,
-            })
-
-            // Check if there are any pending diff changes
-            if (diffStore.diffWorkflow && diffStore.isDiffReady) {
-              logger.info('Auto-rejecting pending diff changes before creating new chat')
-
-              // Reject the changes in the diff store
-              diffStore.rejectChanges()
-
-              // Update copilot tool call state and clear preview YAML
-              get().updatePreviewToolCallState('rejected')
-              await get().clearPreviewYaml()
-
-              logger.info('Successfully auto-rejected pending diff changes')
-            } else {
-              logger.info('No pending diff changes to reject')
-            }
-          } catch (error) {
-            logger.error('Failed to auto-reject pending changes during new chat creation:', error)
-            // Don't prevent new chat creation if cleanup fails
-          }
-        } else {
-          logger.info('Creating new chat with no current chat')
-        }
-
-        set({ isLoading: true, error: null })
-
-        try {
-          const result = await createChat(workflowId, options)
-
-          if (result.success && result.chat) {
-            set({
-              currentChat: result.chat,
-              messages: result.chat.messages,
-              isLoading: false,
-            })
-
-            // Add the new chat to the chats list
-            set((state) => ({
-              chats: [result.chat!, ...state.chats],
-            }))
-
-            logger.info(`Created new chat: ${result.chat.id}`)
-          } else {
-            throw new Error(result.error || 'Failed to create chat')
-          }
-        } catch (error) {
-          set({
-            error: handleStoreError(error, 'Failed to create chat'),
-            isLoading: false,
-          })
-        }
+        set({
+          currentChat: newChat,
+          messages: [],
+        })
+        logger.info('Created new local chat')
       },
 
-      // Delete a chat
+      // Delete chat is now a no-op since we don't have the API
       deleteChat: async (chatId: string) => {
-        try {
-          const result = await deleteApiChat(chatId)
-
-          if (result.success) {
-            const { currentChat } = get()
-
-            // Remove from chats list
-            set((state) => ({
-              chats: state.chats.filter((chat) => chat.id !== chatId),
-            }))
-
-            // If this was the current chat, clear it and select another one
-            if (currentChat?.id === chatId) {
-              // Get the updated chats list (after removal) in a single atomic operation
-              const { chats: updatedChats } = get()
-              const remainingChats = updatedChats.filter((chat) => chat.id !== chatId)
-
-              if (remainingChats.length > 0) {
-                const sortedByCreation = [...remainingChats].sort(
-                  (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                )
-                set({
-                  currentChat: null,
-                  messages: [],
-                })
-                await get().selectChat(sortedByCreation[0])
-              } else {
-                set({
-                  currentChat: null,
-                  messages: [],
-                })
-              }
-            }
-
-            logger.info(`Deleted chat: ${chatId}`)
-          } else {
-            throw new Error(result.error || 'Failed to delete chat')
-          }
-        } catch (error) {
-          set({
-            error: handleStoreError(error, 'Failed to delete chat'),
-          })
-        }
+        logger.warn('Chat deletion not implemented without API endpoint')
+        // The interface expects Promise<void>, not Promise<boolean>
       },
 
-      // Send a regular message
+      // Load chats - now a no-op
+      loadChats: async () => {
+        logger.warn('Chat loading not implemented without API endpoint')
+        set({ chats: [] })
+      },
+
+      // Send a message
       sendMessage: async (message: string, options = {}) => {
         const { workflowId, currentChat, mode } = get()
         const { stream = true } = options
@@ -1074,7 +825,78 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       },
 
-      // Update preview tool call state without sending feedback
+      // Send implicit feedback
+      sendImplicitFeedback: async (
+        implicitFeedback: string,
+        toolCallState?: 'applied' | 'rejected'
+      ) => {
+        const { workflowId, currentChat, mode } = get()
+
+        if (!workflowId) {
+          logger.warn('Cannot send implicit feedback: no workflow ID set')
+          return
+        }
+
+        // Update the tool call state if provided
+        if (toolCallState) {
+          get().updatePreviewToolCallState(toolCallState)
+        }
+
+        // Create abort controller for this request
+        const abortController = new AbortController()
+        set({ isSendingMessage: true, error: null, abortController })
+
+        // Create a new assistant message for the response
+        const newAssistantMessage = createStreamingMessage()
+
+        set((state) => ({
+          messages: [...state.messages, newAssistantMessage],
+        }))
+
+        try {
+          const result = await sendStreamingMessage({
+            message: 'Please continue your response.', // Simple continuation prompt
+            chatId: currentChat?.id,
+            workflowId,
+            mode,
+            createNewChat: !currentChat,
+            stream: true,
+            implicitFeedback, // Pass the implicit feedback
+            abortSignal: abortController.signal,
+          })
+
+          if (result.success && result.stream) {
+            await get().handleStreamingResponse(result.stream, newAssistantMessage.id, false)
+          } else {
+            if (result.error === 'Request was aborted') {
+              logger.info('Implicit feedback sending was aborted by user')
+              return
+            }
+            throw new Error(result.error || 'Failed to send implicit feedback')
+          }
+        } catch (error) {
+          if (error instanceof Error && error.name === 'AbortError') {
+            logger.info('Implicit feedback sending was aborted')
+            return
+          }
+
+          const errorMessage = createErrorMessage(
+            newAssistantMessage.id,
+            'Sorry, I encountered an error while processing your feedback. Please try again.'
+          )
+
+          set((state) => ({
+            messages: state.messages.map((msg) =>
+              msg.id === newAssistantMessage.id ? errorMessage : msg
+            ),
+            error: handleStoreError(error, 'Failed to send implicit feedback'),
+            isSendingMessage: false,
+            abortController: null,
+          }))
+        }
+      },
+
+      // Update preview tool call state
       updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected') => {
         const { messages } = get()
 
@@ -1114,176 +936,64 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       },
 
-      // Send implicit feedback and update preview tool call state
-      sendImplicitFeedback: async (
-        implicitFeedback: string,
-        toolCallState?: 'applied' | 'rejected'
-      ) => {
-        const { workflowId, currentChat, mode, messages } = get()
-
-        if (!workflowId) {
-          logger.warn('Cannot send implicit feedback: no workflow ID set')
-          return
-        }
-
-        // Create abort controller for this request
-        const abortController = new AbortController()
-        set({ isSendingMessage: true, error: null, abortController })
-
-        // Update the preview_workflow or targeted_updates tool call state if provided
-        if (toolCallState) {
-          // Find the last message with a preview_workflow or targeted_updates tool call
-          const lastMessageWithPreview = [...messages]
-            .reverse()
-            .find(
-              (msg) =>
-                msg.role === 'assistant' &&
-                msg.toolCalls?.some(
-                  (tc) => tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-                )
-            )
-
-          if (lastMessageWithPreview) {
-            set((state) => ({
-              messages: state.messages.map((msg) =>
-                msg.id === lastMessageWithPreview.id
-                  ? {
-                      ...msg,
-                      toolCalls: msg.toolCalls?.map((tc) =>
-                        tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-                          ? { ...tc, state: toolCallState }
-                          : tc
-                      ),
-                      contentBlocks: msg.contentBlocks?.map((block) =>
-                        block.type === 'tool_call' &&
-                        (block.toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-                          block.toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW)
-                          ? { ...block, toolCall: { ...block.toolCall, state: toolCallState } }
-                          : block
-                      ),
-                    }
-                  : msg
-              ),
-            }))
-          }
-        }
-
-        // Create a new assistant message for the response
-        const newAssistantMessage = createStreamingMessage()
-
-        set((state) => ({
-          messages: [...state.messages, newAssistantMessage],
-        }))
-
-        try {
-          const result = await sendStreamingMessage({
-            message: 'Please continue your response.', // Simple continuation prompt
-            chatId: currentChat?.id,
-            workflowId,
-            mode,
-            createNewChat: !currentChat,
-            stream: true,
-            implicitFeedback, // Pass the implicit feedback
-            abortSignal: abortController.signal,
-          })
-
-          if (result.success && result.stream) {
-            // Stream to the new assistant message (not continuation)
-            await get().handleStreamingResponse(result.stream, newAssistantMessage.id, false)
-          } else {
-            // Handle abort gracefully
-            if (result.error === 'Request was aborted') {
-              logger.info('Implicit feedback sending was aborted by user')
-              return // Don't throw or update state, abort handler already did
-            }
-            throw new Error(result.error || 'Failed to send implicit feedback')
-          }
-        } catch (error) {
-          // Check if this was an abort
-          if (error instanceof Error && error.name === 'AbortError') {
-            logger.info('Implicit feedback sending was aborted')
-            return // Don't update state, abort handler already did
-          }
-
-          const errorMessage = createErrorMessage(
-            newAssistantMessage.id,
-            'Sorry, I encountered an error while processing your feedback. Please try again.'
-          )
-
-          set((state) => ({
-            messages: state.messages.map((msg) =>
-              msg.id === newAssistantMessage.id ? errorMessage : msg
-            ),
-            error: handleStoreError(error, 'Failed to send implicit feedback'),
-            isSendingMessage: false,
-            abortController: null,
-          }))
-        }
+      // Send docs message - simplified without separate API
+      sendDocsMessage: async (query: string) => {
+        // Just send as a regular message since docs search is now a tool
+        await get().sendMessage(query)
       },
 
-      // Send a docs RAG message
-      sendDocsMessage: async (query: string, options = {}) => {
-        const { workflowId, currentChat } = get()
-        const { stream = true, topK = 10 } = options
+      // Save chat messages - no-op for now
+      saveChatMessages: async (chatId: string) => {
+        logger.info('Chat saving handled automatically by backend')
+      },
 
-        if (!workflowId) {
-          logger.warn('Cannot send docs message: no workflow ID set')
+      // Load checkpoints - no-op
+      loadCheckpoints: async (chatId: string) => {
+        logger.warn('Checkpoint loading not implemented')
+        set({ checkpoints: [] })
+      },
+
+      // Revert checkpoint - no-op
+      revertToCheckpoint: async (checkpointId: string) => {
+        logger.warn('Checkpoint reverting not implemented')
+      },
+
+      // Set preview YAML
+      setPreviewYaml: async (yamlContent: string) => {
+        const { currentChat } = get()
+        if (!currentChat) {
+          logger.warn('Cannot set preview YAML: no current chat')
           return
         }
 
-        // Create abort controller for this request
-        const abortController = new AbortController()
-        set({ isSendingMessage: true, error: null, abortController })
+        set((state) => ({
+          currentChat: state.currentChat
+            ? {
+                ...state.currentChat,
+                previewYaml: yamlContent,
+              }
+            : null,
+        }))
+        logger.info('Preview YAML set locally')
+      },
 
-        const userMessage = createUserMessage(query)
-        const streamingMessage = createStreamingMessage()
+      // Clear preview YAML
+      clearPreviewYaml: async () => {
+        const { currentChat } = get()
+        if (!currentChat) {
+          logger.warn('Cannot clear preview YAML: no current chat')
+          return
+        }
 
         set((state) => ({
-          messages: [...state.messages, userMessage, streamingMessage],
+          currentChat: state.currentChat
+            ? {
+                ...state.currentChat,
+                previewYaml: null,
+              }
+            : null,
         }))
-
-        try {
-          const result = await sendStreamingDocsMessage({
-            query,
-            topK,
-            chatId: currentChat?.id,
-            workflowId,
-            createNewChat: !currentChat,
-            stream,
-            abortSignal: abortController.signal,
-          })
-
-          if (result.success && result.stream) {
-            await get().handleStreamingResponse(result.stream, streamingMessage.id)
-          } else {
-            // Handle abort gracefully
-            if (result.error === 'Request was aborted') {
-              logger.info('Docs message sending was aborted by user')
-              return // Don't throw or update state, abort handler already did
-            }
-            throw new Error(result.error || 'Failed to send docs message')
-          }
-        } catch (error) {
-          // Check if this was an abort
-          if (error instanceof Error && error.name === 'AbortError') {
-            logger.info('Docs message sending was aborted')
-            return // Don't update state, abort handler already did
-          }
-
-          const errorMessage = createErrorMessage(
-            streamingMessage.id,
-            'Sorry, I encountered an error while searching the documentation. Please try again.'
-          )
-
-          set((state) => ({
-            messages: state.messages.map((msg) =>
-              msg.id === streamingMessage.id ? errorMessage : msg
-            ),
-            error: handleStoreError(error, 'Failed to send docs message'),
-            isSendingMessage: false,
-            abortController: null,
-          }))
-        }
+        logger.info('Preview YAML cleared locally')
       },
 
       // Handle streaming response
@@ -1315,12 +1025,6 @@ export const useCopilotStore = create<CopilotStore>()(
             context.accumulatedContent = existingMessage.content || ''
             context.toolCalls = existingMessage.toolCalls ? [...existingMessage.toolCalls] : []
             context.contentBlocks = existingMessage.contentBlocks ? [...existingMessage.contentBlocks] : []
-            
-            logger.info('Continuing stream with existing state', {
-              messageId,
-              existingToolCalls: context.toolCalls.length,
-              existingContentBlocks: context.contentBlocks.length
-            })
           }
         }
 
@@ -1355,11 +1059,11 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.info(`Completed streaming response, content length: ${context.accumulatedContent.length}`)
 
           // Final update
-                        set((state) => ({
-                          messages: state.messages.map((msg) =>
-                            msg.id === messageId
-                              ? {
-                                  ...msg,
+          set((state) => ({
+            messages: state.messages.map((msg) =>
+              msg.id === messageId
+                ? {
+                    ...msg,
                     content: context.accumulatedContent,
                     toolCalls: context.toolCalls,
                     contentBlocks: context.contentBlocks,
@@ -1370,17 +1074,9 @@ export const useCopilotStore = create<CopilotStore>()(
             abortController: null,
           }))
 
-          // Auto-save messages after streaming completes
-          const { currentChat } = get()
-          const chatIdToSave = currentChat?.id || context.newChatId
-
-          if (chatIdToSave) {
-            try {
-              logger.info('Auto-saving chat messages after streaming completion')
-              await get().saveChatMessages(chatIdToSave)
-            } catch (error) {
-              logger.error('Failed to auto-save chat messages:', error)
-            }
+          // Handle new chat creation if needed
+          if (context.newChatId && !get().currentChat) {
+            await get().handleNewChatCreation(context.newChatId)
           }
         } catch (error) {
           // Handle AbortError gracefully
@@ -1398,230 +1094,26 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Handle new chat creation after streaming
       handleNewChatCreation: async (newChatId: string) => {
-        try {
-          const chatResult = await getChat(newChatId)
-          if (chatResult.success && chatResult.chat) {
-            // Set the new chat as current
-            set({
-              currentChat: chatResult.chat,
-            })
-
-            // Add to chats list if not already there (atomic check and update)
-            set((state) => {
-              const chatExists = state.chats.some((chat) => chat.id === newChatId)
-              if (!chatExists) {
-                return {
-                  chats: [chatResult.chat!, ...state.chats],
-                }
-              }
-              return state
-            })
-          }
-        } catch (error) {
-          logger.error('Failed to fetch new chat after creation:', error)
-          // Fallback: reload all chats
-          await get().loadChats()
+        // Create a proper chat object from the ID
+        const newChat: CopilotChat = {
+          id: newChatId,
+          title: null,
+          model: 'gpt-4',
+          messages: get().messages,
+          messageCount: get().messages.length,
+          previewYaml: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         }
-      },
 
-      // Save chat messages to database
-      saveChatMessages: async (chatId: string) => {
-        const { messages, chats } = get()
-        set({ isSaving: true, saveError: null })
-
-        try {
-          const result = await updateChatMessages(chatId, messages)
-
-          if (result.success && result.chat) {
-            const updatedChat = result.chat
-
-            // Update local state with the saved chat
-            // Don't overwrite messages - keep the current local state which has the latest content
-            set({
-              currentChat: updatedChat,
-              isSaving: false,
-              saveError: null,
-            })
-
-            // Update the chat in the chats list (atomic check, update, or add)
-            set((state) => {
-              const chatExists = state.chats.some((chat) => chat.id === updatedChat!.id)
-
-              if (!chatExists) {
-                // Chat doesn't exist, add it to the beginning
-                return {
-                  chats: [updatedChat!, ...state.chats],
-                }
-              }
-              // Chat exists, update it
-              const updatedChats = state.chats.map((chat) =>
-                chat.id === updatedChat!.id ? updatedChat! : chat
-              )
-              return { chats: updatedChats }
-            })
-
-            logger.info(`Successfully saved chat ${chatId}`)
-          } else {
-            const errorMessage = result.error || 'Failed to save chat'
-            set({
-              isSaving: false,
-              saveError: errorMessage,
-            })
-            throw new Error(errorMessage)
-          }
-        } catch (error) {
-          const errorMessage = handleStoreError(error, 'Error saving chat')
-          set({
-            isSaving: false,
-            saveError: errorMessage,
-          })
-          throw error
-        }
-      },
-
-      // Load checkpoints for current chat
-      loadCheckpoints: async (chatId: string) => {
-        set({ isLoadingCheckpoints: true, checkpointError: null })
-
-        try {
-          const result = await listCheckpoints(chatId)
-
-          if (result.success) {
-            set({
-              checkpoints: result.checkpoints,
-              isLoadingCheckpoints: false,
-            })
-            logger.info(`Loaded ${result.checkpoints.length} checkpoints for chat ${chatId}`)
-          } else {
-            throw new Error(result.error || 'Failed to load checkpoints')
-          }
-        } catch (error) {
-          set({
-            checkpointError: handleStoreError(error, 'Failed to load checkpoints'),
-            isLoadingCheckpoints: false,
-          })
-        }
-      },
-
-      // Revert to a specific checkpoint
-      revertToCheckpoint: async (checkpointId: string) => {
-        set({ isRevertingCheckpoint: true, checkpointError: null })
-
-        try {
-          const result = await revertToCheckpoint(checkpointId)
-
-          if (result.success) {
-            set({ isRevertingCheckpoint: false })
-            logger.info(`Successfully reverted to checkpoint ${checkpointId}`)
-          } else {
-            throw new Error(result.error || 'Failed to revert to checkpoint')
-          }
-        } catch (error) {
-          set({
-            checkpointError: handleStoreError(error, 'Failed to revert to checkpoint'),
-            isRevertingCheckpoint: false,
-          })
-        }
-      },
-
-      // Clear current messages
-      clearMessages: () => {
         set({
-          currentChat: null,
-          messages: [],
-          error: null,
+          currentChat: newChat,
+          chats: [newChat, ...get().chats],
         })
-        logger.info('Cleared current chat and messages')
+        logger.info(`Created new chat from streaming response: ${newChatId}`)
       },
 
-      // Set preview YAML for current chat
-      setPreviewYaml: async (yamlContent: string) => {
-        const { currentChat } = get()
-        if (!currentChat) {
-          logger.warn('Cannot set preview YAML: no current chat')
-          return
-        }
-
-        try {
-          // Update local state immediately
-          set((state) => ({
-            currentChat: state.currentChat
-              ? {
-                  ...state.currentChat,
-                  previewYaml: yamlContent,
-                }
-              : null,
-          }))
-
-          // Update database
-          const response = await fetch('/api/copilot', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chatId: currentChat.id,
-              previewYaml: yamlContent,
-            }),
-          })
-
-          if (!response.ok) {
-            throw new Error('Failed to save preview YAML')
-          }
-
-          logger.info('Preview YAML set successfully')
-        } catch (error) {
-          logger.error('Failed to set preview YAML:', error)
-          // Revert local state on error
-          set((state) => ({
-            currentChat: state.currentChat
-              ? {
-                  ...state.currentChat,
-                  previewYaml: null,
-                }
-              : null,
-          }))
-        }
-      },
-
-      // Clear preview YAML for current chat
-      clearPreviewYaml: async () => {
-        const { currentChat } = get()
-        if (!currentChat) {
-          logger.warn('Cannot clear preview YAML: no current chat')
-          return
-        }
-
-        try {
-          // Update local state immediately
-          set((state) => ({
-            currentChat: state.currentChat
-              ? {
-                  ...state.currentChat,
-                  previewYaml: null,
-                }
-              : null,
-          }))
-
-          // Update database
-          const response = await fetch('/api/copilot', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chatId: currentChat.id,
-              previewYaml: null,
-            }),
-          })
-
-          if (!response.ok) {
-            throw new Error('Failed to clear preview YAML')
-          }
-
-          logger.info('Preview YAML cleared successfully')
-        } catch (error) {
-          logger.error('Failed to clear preview YAML:', error)
-        }
-      },
-
-      // Clear error state
+      // Clear error
       clearError: () => {
         set({ error: null })
       },
