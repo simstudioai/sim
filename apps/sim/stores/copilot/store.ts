@@ -124,24 +124,12 @@ function processWorkflowToolResult(
  */
 function handleToolFailure(
   toolCall: any,
-  error: string,
-  get: () => CopilotStore
+  error: string
 ): void {
   toolCall.state = 'error'
   toolCall.error = error
   
   logger.error('Tool call failed:', toolCall.id, toolCall.name, error)
-
-  // Retry workflow generation on failure
-  if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
-      toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
-    logger.info(`${toolCall.name} failed, sending error back to agent for retry`)
-    setTimeout(() => {
-      get().sendImplicitFeedback(
-        `The previous workflow YAML generation failed with error: "${error}". Please analyze the error and try generating the workflow YAML again with the necessary fixes.`
-      )
-    }, 1000)
-  }
 }
 
 /**
@@ -272,7 +260,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         processWorkflowToolResult(toolCall, parsedResult, get)
       }
     } else {
-      handleToolFailure(toolCall, result || 'Tool execution failed', get)
+      handleToolFailure(toolCall, result || 'Tool execution failed')
     }
 
     updateContentBlockToolCall(context.contentBlocks, toolCallId, toolCall)
@@ -411,7 +399,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         updateStreamingMessage(set, context)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
-        handleToolFailure(context.toolCallBuffer, errorMsg, get)
+        handleToolFailure(context.toolCallBuffer, errorMsg)
       }
       
       context.toolCallBuffer = null
@@ -451,7 +439,7 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_error: (data, context, get, set) => {
     const toolCall = context.toolCalls.find(tc => tc.id === data.toolCallId)
     if (toolCall) {
-      handleToolFailure(toolCall, data.error, get)
+      handleToolFailure(toolCall, data.error)
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
       updateStreamingMessage(set, context)
     }

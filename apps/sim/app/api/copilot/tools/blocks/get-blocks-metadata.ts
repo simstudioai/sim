@@ -50,16 +50,22 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
     // Create result object
     const result: Record<string, any> = {}
 
+    logger.info('=== GET BLOCKS METADATA DEBUG ===')
+    logger.info('Requested block IDs:', blockIds)
+
     // Process each requested block ID
     for (const blockId of blockIds) {
+      logger.info(`\n--- Processing block: ${blockId} ---`)
       let metadata: any = {}
       
       // Check if it's a special block first
       if (SPECIAL_BLOCKS_METADATA[blockId]) {
+        logger.info(`✓ Found ${blockId} in SPECIAL_BLOCKS_METADATA`)
         // Start with the special block metadata
         metadata = { ...SPECIAL_BLOCKS_METADATA[blockId] }
         // Normalize tools structure to match regular blocks
         metadata.tools = metadata.tools?.access || []
+        logger.info(`Initial metadata keys for ${blockId}:`, Object.keys(metadata))
       } else {
         // Check if the block exists in the registry
         const blockConfig = blockRegistry[blockId]
@@ -80,45 +86,34 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
 
       // Read YAML schema from documentation if available (for both regular and special blocks)
       const docFileName = DOCS_FILE_MAPPING[blockId] || blockId
+      logger.info(`Checking if ${blockId} is in CORE_BLOCKS_WITH_DOCS:`, CORE_BLOCKS_WITH_DOCS.includes(blockId))
+      
       if (CORE_BLOCKS_WITH_DOCS.includes(blockId)) {
         try {
           // Updated path to point to the actual YAML documentation location
-          const docPath = join(process.cwd(), 'apps', 'docs', 'content', 'docs', 'yaml', 'blocks', `${docFileName}.mdx`)
+          // Handle both monorepo root and apps/sim as working directory
+          const workingDir = process.cwd()
+          const isInAppsSim = workingDir.endsWith('/apps/sim') || workingDir.endsWith('\\apps\\sim')
+          const basePath = isInAppsSim ? join(workingDir, '..', '..') : workingDir
+          const docPath = join(basePath, 'apps', 'docs', 'content', 'docs', 'yaml', 'blocks', `${docFileName}.mdx`)
+          logger.info(`Looking for docs at: ${docPath}`)
+          logger.info(`File exists: ${existsSync(docPath)}`)
+          
           if (existsSync(docPath)) {
             const docContent = readFileSync(docPath, 'utf-8')
+            logger.info(`Doc content length: ${docContent.length}`)
             
-            // Extract schema from the documentation
-            const schemaMatch = docContent.match(/```yaml\s*\n([\s\S]*?)```/i)
-            if (schemaMatch) {
-              const yamlSchema = schemaMatch[1].trim()
-              // Parse high-level structure only
-              const lines = yamlSchema.split('\n')
-              const schemaInfo: any = {
-                fields: [],
-                example: yamlSchema,
-              }
-
-              // Extract field names and structure
-              lines.forEach(line => {
-                const match = line.match(/^(\s*)(\w+):/)
-                if (match) {
-                  const indent = match[1].length
-                  const fieldName = match[2]
-                  if (indent === 0) {
-                    schemaInfo.fields.push({
-                      name: fieldName,
-                      level: 'root',
-                    })
-                  }
-                }
-              })
-
-              metadata.schema = schemaInfo
-            }
+            // Include the entire YAML documentation content
+            metadata.yamlDocumentation = docContent
+            logger.info(`✓ Added full YAML documentation for ${blockId}`)
+          } else {
+            logger.warn(`Documentation file not found for ${blockId}`)
           }
         } catch (error) {
           logger.warn(`Failed to read documentation for ${blockId}:`, error)
         }
+      } else {
+        logger.info(`${blockId} is NOT in CORE_BLOCKS_WITH_DOCS`)
       }
 
       // Add tool metadata if requested
@@ -135,10 +130,23 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
         }
       }
 
+      logger.info(`Final metadata keys for ${blockId}:`, Object.keys(metadata))
+      logger.info(`Has YAML documentation: ${!!metadata.yamlDocumentation}`)
+      
       result[blockId] = metadata
     }
 
+    logger.info('\n=== FINAL RESULT ===')
     logger.info(`Successfully retrieved metadata for ${Object.keys(result).length} blocks`)
+    logger.info('Result keys:', Object.keys(result))
+    
+    // Log the full result for parallel block if it's included
+    if (result.parallel) {
+      logger.info('\nParallel block metadata keys:', Object.keys(result.parallel))
+      if (result.parallel.yamlDocumentation) {
+        logger.info('YAML documentation length:', result.parallel.yamlDocumentation.length)
+      }
+    }
 
     return {
       success: true,
