@@ -7,7 +7,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
   name: 'Wikipedia',
   description: 'Search and retrieve content from Wikipedia',
   longDescription:
-    'Access Wikipedia articles, search for pages, get summaries, retrieve full content, and discover random articles from the world\'s largest encyclopedia.',
+    "Access Wikipedia articles, search for pages, get summaries, retrieve full content, and discover random articles from the world's largest encyclopedia.",
   docsLink: 'https://docs.simstudio.ai/tools/wikipedia',
   category: 'tools',
   bgColor: '#000000',
@@ -63,12 +63,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
     },
   ],
   tools: {
-    access: [
-      'wikipedia_summary',
-      'wikipedia_search',
-      'wikipedia_content',
-      'wikipedia_random',
-    ],
+    access: ['wikipedia_summary', 'wikipedia_search', 'wikipedia_content', 'wikipedia_random'],
     config: {
       tool: (params) => {
         // Convert searchLimit to a number for search operation

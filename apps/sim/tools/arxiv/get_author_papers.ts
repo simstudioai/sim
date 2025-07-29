@@ -1,12 +1,14 @@
 import type { ArxivGetAuthorPapersParams, ArxivGetAuthorPapersResponse } from '@/tools/arxiv/types'
+import { extractTotalResults, parseArxivXML } from '@/tools/arxiv/utils'
 import type { ToolConfig } from '@/tools/types'
-import { parseArxivXML, extractTotalResults } from '@/tools/arxiv/utils'
 
-export const getAuthorPapersTool: ToolConfig<ArxivGetAuthorPapersParams, ArxivGetAuthorPapersResponse> = {
+export const getAuthorPapersTool: ToolConfig<
+  ArxivGetAuthorPapersParams,
+  ArxivGetAuthorPapersResponse
+> = {
   id: 'arxiv_get_author_papers',
   name: 'ArXiv Get Author Papers',
-  description:
-    'Search for papers by a specific author on ArXiv.',
+  description: 'Search for papers by a specific author on ArXiv.',
   version: '1.0.0',
 
   params: {
@@ -28,12 +30,15 @@ export const getAuthorPapersTool: ToolConfig<ArxivGetAuthorPapersParams, ArxivGe
     url: (params: ArxivGetAuthorPapersParams) => {
       const baseUrl = 'http://export.arxiv.org/api/query'
       const searchParams = new URLSearchParams()
-      
+
       searchParams.append('search_query', `au:"${params.authorName}"`)
-      searchParams.append('max_results', (params.maxResults ? Math.min(params.maxResults, 2000) : 10).toString())
+      searchParams.append(
+        'max_results',
+        (params.maxResults ? Math.min(params.maxResults, 2000) : 10).toString()
+      )
       searchParams.append('sortBy', 'submittedDate')
       searchParams.append('sortOrder', 'descending')
-      
+
       return `${baseUrl}?${searchParams.toString()}`
     },
     method: 'GET',
@@ -48,7 +53,7 @@ export const getAuthorPapersTool: ToolConfig<ArxivGetAuthorPapersParams, ArxivGe
     }
 
     const xmlText = await response.text()
-    
+
     // Parse XML response
     const papers = parseArxivXML(xmlText)
     const totalResults = extractTotalResults(xmlText)
@@ -69,4 +74,3 @@ export const getAuthorPapersTool: ToolConfig<ArxivGetAuthorPapersParams, ArxivGe
       : 'An error occurred while searching for author papers on ArXiv'
   },
 }
-

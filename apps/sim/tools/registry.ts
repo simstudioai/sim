@@ -4,11 +4,7 @@ import {
   airtableListRecordsTool,
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
-import {
-  arxivSearchTool,
-  arxivGetPaperTool,
-  arxivGetAuthorPapersTool,
-} from '@/tools/arxiv'
+import { arxivGetAuthorPapersTool, arxivGetPaperTool, arxivSearchTool } from '@/tools/arxiv'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import { clayPopulateTool } from '@/tools/clay'
 import { confluenceRetrieveTool, confluenceUpdateTool } from '@/tools/confluence'
@@ -131,10 +127,10 @@ import {
 } from '@/tools/wealthbox'
 import { whatsappSendMessageTool } from '@/tools/whatsapp'
 import {
-  wikipediaPageSummaryTool,
-  wikipediaSearchTool,
   wikipediaPageContentTool,
+  wikipediaPageSummaryTool,
   wikipediaRandomPageTool,
+  wikipediaSearchTool,
 } from '@/tools/wikipedia'
 import { workflowExecutorTool } from '@/tools/workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from '@/tools/x'

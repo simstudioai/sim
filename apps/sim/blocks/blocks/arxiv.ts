@@ -113,11 +113,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
     },
   ],
   tools: {
-    access: [
-      'arxiv_search',
-      'arxiv_get_paper',
-      'arxiv_get_author_papers',
-    ],
+    access: ['arxiv_search', 'arxiv_get_paper', 'arxiv_get_author_papers'],
     config: {
       tool: (params) => {
         // Convert maxResults to a number for operations that use it

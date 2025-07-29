@@ -1,11 +1,13 @@
-import type { WikipediaRandomPageParams, WikipediaRandomPageResponse } from '@/tools/wikipedia/types'
 import type { ToolConfig } from '@/tools/types'
+import type {
+  WikipediaRandomPageParams,
+  WikipediaRandomPageResponse,
+} from '@/tools/wikipedia/types'
 
 export const randomPageTool: ToolConfig<WikipediaRandomPageParams, WikipediaRandomPageResponse> = {
   id: 'wikipedia_random',
   name: 'Wikipedia Random Page',
-  description:
-    'Get a random Wikipedia page.',
+  description: 'Get a random Wikipedia page.',
   version: '1.0.0',
 
   params: {},
@@ -17,7 +19,7 @@ export const randomPageTool: ToolConfig<WikipediaRandomPageParams, WikipediaRand
     method: 'GET',
     headers: () => ({
       'User-Agent': 'SimStudio/1.0 (https://simstudio.ai)',
-      'Accept': 'application/json',
+      Accept: 'application/json',
     }),
     isInternalRoute: false,
   },

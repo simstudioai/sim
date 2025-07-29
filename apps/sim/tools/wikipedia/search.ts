@@ -1,11 +1,10 @@
-import type { WikipediaSearchParams, WikipediaSearchResponse } from '@/tools/wikipedia/types'
 import type { ToolConfig } from '@/tools/types'
+import type { WikipediaSearchParams, WikipediaSearchResponse } from '@/tools/wikipedia/types'
 
 export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchResponse> = {
   id: 'wikipedia_search',
   name: 'Wikipedia Search',
-  description:
-    'Search for Wikipedia pages by title or content.',
+  description: 'Search for Wikipedia pages by title or content.',
   version: '1.0.0',
 
   params: {
@@ -27,7 +26,7 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
     url: (params: WikipediaSearchParams) => {
       const baseUrl = 'https://en.wikipedia.org/w/api.php'
       const searchParams = new URLSearchParams()
-      
+
       searchParams.append('action', 'opensearch')
       searchParams.append('search', params.query)
       searchParams.append('format', 'json')
@@ -37,13 +36,13 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
       } else {
         searchParams.append('limit', '10')
       }
-      
+
       return `${baseUrl}?${searchParams.toString()}`
     },
     method: 'GET',
     headers: () => ({
       'User-Agent': 'SimStudio/1.0 (https://simstudio.ai)',
-      'Accept': 'application/json',
+      Accept: 'application/json',
     }),
     isInternalRoute: false,
   },
@@ -83,8 +82,6 @@ export const searchTool: ToolConfig<WikipediaSearchParams, WikipediaSearchRespon
   },
 
   transformError: (error) => {
-    return error instanceof Error
-      ? error.message
-      : 'An error occurred while searching Wikipedia'
+    return error instanceof Error ? error.message : 'An error occurred while searching Wikipedia'
   },
 }

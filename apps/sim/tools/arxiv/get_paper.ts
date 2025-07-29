@@ -1,12 +1,11 @@
 import type { ArxivGetPaperParams, ArxivGetPaperResponse } from '@/tools/arxiv/types'
-import type { ToolConfig } from '@/tools/types'
 import { parseArxivXML } from '@/tools/arxiv/utils'
+import type { ToolConfig } from '@/tools/types'
 
 export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse> = {
   id: 'arxiv_get_paper',
   name: 'ArXiv Get Paper',
-  description:
-    'Get detailed information about a specific ArXiv paper by its ID.',
+  description: 'Get detailed information about a specific ArXiv paper by its ID.',
   version: '1.0.0',
 
   params: {
@@ -25,11 +24,11 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
       if (paperId.includes('arxiv.org/abs/')) {
         paperId = paperId.split('arxiv.org/abs/')[1]
       }
-      
+
       const baseUrl = 'http://export.arxiv.org/api/query'
       const searchParams = new URLSearchParams()
       searchParams.append('id_list', paperId)
-      
+
       return `${baseUrl}?${searchParams.toString()}`
     },
     method: 'GET',
@@ -44,10 +43,10 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
     }
 
     const xmlText = await response.text()
-    
+
     // Parse XML response
     const papers = parseArxivXML(xmlText)
-    
+
     if (papers.length === 0) {
       throw new Error('Paper not found')
     }
@@ -66,4 +65,3 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
       : 'An error occurred while retrieving the ArXiv paper'
   },
 }
-

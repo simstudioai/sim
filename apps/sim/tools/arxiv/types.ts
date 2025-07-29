@@ -1,11 +1,8 @@
 // Common types for ArXiv tools
 import type { ToolResponse } from '@/tools/types'
 
-// Common parameters for all ArXiv tools
-export interface ArxivBaseParams {}
-
 // Search tool types
-export interface ArxivSearchParams extends ArxivBaseParams {
+export interface ArxivSearchParams {
   query: string
   searchField?: 'all' | 'ti' | 'au' | 'abs' | 'co' | 'jr' | 'cat' | 'rn'
   maxResults?: number
@@ -38,7 +35,7 @@ export interface ArxivSearchResponse extends ToolResponse {
 }
 
 // Get Paper Details tool types
-export interface ArxivGetPaperParams extends ArxivBaseParams {
+export interface ArxivGetPaperParams {
   paperId: string
 }
 
@@ -49,7 +46,7 @@ export interface ArxivGetPaperResponse extends ToolResponse {
 }
 
 // Get Author Papers tool types
-export interface ArxivGetAuthorPapersParams extends ArxivBaseParams {
+export interface ArxivGetAuthorPapersParams {
   authorName: string
   maxResults?: number
 }

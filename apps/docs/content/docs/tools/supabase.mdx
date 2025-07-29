@@ -51,19 +51,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Supabase](https://www.supabase.com/) is an open-source Firebase alternative that provides a suite of tools for building modern applications. It offers a PostgreSQL database, authentication, instant APIs, real-time subscriptions, storage, and edge functions, all within a unified platform.
+[Supabase](https://www.supabase.com/) is an open-source Firebase alternative offering a PostgreSQL database, authentication, instant APIs, real-time subscriptions, storage, and edge functions.
 
-With Supabase, you can:
+**In Sim Studio, you can use the Supabase block to:**
+- Query, insert, update, or delete rows in your Supabase tables
+- Configure operations with your Project ID, Table name, Service Role Secret, and (optionally) data or filters
+- Use [PostgREST filter syntax](https://postgrest.org/en/stable/api.html#operators) for advanced queries
 
-- **Manage relational data**: Work with a powerful PostgreSQL database with full SQL capabilities
-- **Implement authentication**: Add secure user authentication with multiple providers
-- **Create instant APIs**: Generate RESTful APIs automatically based on your database schema
-- **Enable real-time updates**: Subscribe to database changes and build reactive applications
-- **Store files**: Upload, transform, and serve files with storage buckets
-- **Deploy serverless functions**: Run code in response to database changes or HTTP requests
-- **Secure your application**: Implement row-level security and manage permissions
-
-In Sim Studio, the Supabase integration enables your agents to interact with your Supabase projects programmatically. This allows for powerful automation scenarios such as data querying, record creation, user management, and file operations. Your agents can retrieve information from your database, insert new records, update existing data, and leverage Supabase's authentication and storage capabilities as part of their workflows. This integration bridges the gap between your AI workflows and your application's data layer, enabling more sophisticated and data-driven automations. By connecting Sim Studio with Supabase, you can create agents that maintain data consistency across systems, trigger actions based on database changes, perform complex data operations, and build workflows that leverage your application's existing data infrastructure - all without requiring manual intervention or custom code.
+See the [block source code](https://github.com/your-org/simstudio/blob/main/apps/sim/blocks/blocks/supabase.ts) for details on supported operations and configuration.
 {/* MANUAL-CONTENT-END */}
 
 

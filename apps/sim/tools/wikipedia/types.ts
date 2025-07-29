@@ -1,11 +1,8 @@
 // Common types for Wikipedia tools
 import type { ToolResponse } from '@/tools/types'
 
-// Common parameters for all Wikipedia tools
-export interface WikipediaBaseParams {}
-
 // Page Summary tool types
-export interface WikipediaPageSummaryParams extends WikipediaBaseParams {
+export interface WikipediaPageSummaryParams {
   pageTitle: string
 }
 
@@ -58,7 +55,7 @@ export interface WikipediaPageSummaryResponse extends ToolResponse {
 }
 
 // Search Pages tool types
-export interface WikipediaSearchParams extends WikipediaBaseParams {
+export interface WikipediaSearchParams {
   query: string
   searchLimit?: number
 }
@@ -90,7 +87,7 @@ export interface WikipediaSearchResponse extends ToolResponse {
 }
 
 // Get Page Content tool types
-export interface WikipediaPageContentParams extends WikipediaBaseParams {
+export interface WikipediaPageContentParams {
   pageTitle: string
 }
 
@@ -112,7 +109,7 @@ export interface WikipediaPageContentResponse extends ToolResponse {
 }
 
 // Random Page tool types
-export interface WikipediaRandomPageParams extends WikipediaBaseParams {}
+export interface WikipediaRandomPageParams {}
 
 export interface WikipediaRandomPage {
   type: string
