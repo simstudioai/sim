@@ -153,6 +153,22 @@ const nextConfig: NextConfig = {
       },
     ]
   },
+  async redirects() {
+    return [
+      {
+        source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',
+        destination: 'https://www.sim.ai/$1',
+        permanent: true,
+        has: [{ type: 'host', value: 'simstudio.ai' }],
+      },
+      {
+        source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',
+        destination: 'https://www.sim.ai/$1',
+        permanent: true,
+        has: [{ type: 'host', value: 'www.simstudio.ai' }],
+      },
+    ]
+  },
 }
 
 const sentryConfig = {
