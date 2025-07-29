@@ -79,7 +79,8 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
       const docFileName = DOCS_FILE_MAPPING[blockId] || blockId
       if (CORE_BLOCKS_WITH_DOCS.includes(blockId)) {
         try {
-          const docPath = join(process.cwd(), 'content', 'docs', 'blocks', `${docFileName}.mdx`)
+          // Updated path to point to the actual YAML documentation location
+          const docPath = join(process.cwd(), 'apps', 'docs', 'content', 'docs', 'yaml', 'blocks', `${docFileName}.mdx`)
           if (existsSync(docPath)) {
             const docContent = readFileSync(docPath, 'utf-8')
             
@@ -165,7 +166,8 @@ const CORE_BLOCKS_WITH_DOCS = [
 
 // Mapping for blocks that have different doc file names
 const DOCS_FILE_MAPPING: Record<string, string> = {
-  webhook: 'webhook_trigger',
+  // All core blocks use their registry ID as the doc filename
+  // e.g., 'api' block -> 'api.mdx', 'agent' block -> 'agent.mdx'
 }
 
 // Special blocks that aren't in the standard registry but need metadata
@@ -272,30 +274,4 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
   },
 }
 
-// Helper function to read YAML schema from dedicated YAML documentation files
-function getYamlSchemaFromDocs(blockType: string): string | null {
-  try {
-    const docFileName = DOCS_FILE_MAPPING[blockType] || blockType
-    // Read from the new YAML documentation structure
-    const yamlDocsPath = join(
-      process.cwd(),
-      '..',
-      'docs/content/docs/yaml/blocks',
-      `${docFileName}.mdx`
-    )
 
-    if (!existsSync(yamlDocsPath)) {
-      logger.warn(`YAML schema file not found for ${blockType} at ${yamlDocsPath}`)
-      return null
-    }
-
-    const content = readFileSync(yamlDocsPath, 'utf-8')
-
-    // Remove the frontmatter and return the content after the title
-    const contentWithoutFrontmatter = content.replace(/^---[\s\S]*?---\s*/, '')
-    return contentWithoutFrontmatter.trim()
-  } catch (error) {
-    logger.warn(`Failed to read YAML schema for ${blockType}:`, error)
-    return null
-  }
-}
