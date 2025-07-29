@@ -27,7 +27,7 @@ export const pageContentTool: ToolConfig<WikipediaPageContentParams, WikipediaPa
       },
       method: 'GET',
       headers: () => ({
-        'User-Agent': 'SimStudio/1.0 (https://simstudio.ai)',
+        'User-Agent': 'SimStudio/1.0 (https://sim.ai)',
         Accept:
           'text/html; charset=utf-8; profile="https://www.mediawiki.org/wiki/Specs/HTML/2.1.0"',
       }),

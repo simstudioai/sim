@@ -1,6 +1,6 @@
 # Block Documentation Generator
 
-This directory contains scripts to automatically generate documentation for all blocks in the Sim Studio platform.
+This directory contains scripts to automatically generate documentation for all blocks in the Sim platform.
 
 ## Available Scripts
 

@@ -1,6 +1,6 @@
 ---
 title: TypeScript/JavaScript SDK
-description: The official TypeScript/JavaScript SDK for Sim Studio
+description: The official TypeScript/JavaScript SDK for Sim
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -8,7 +8,7 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-The official TypeScript/JavaScript SDK for Sim Studio allows you to execute workflows programmatically from your Node.js applications, web applications, and other JavaScript environments.
+The official TypeScript/JavaScript SDK for Sim allows you to execute workflows programmatically from your Node.js applications, web applications, and other JavaScript environments.
 
 <Callout type="info">
   The TypeScript SDK provides full type safety and supports both Node.js and browser environments. All workflow executions are currently synchronous.
@@ -46,7 +46,7 @@ import { SimStudioClient } from 'simstudio-ts-sdk';
 // Initialize the client
 const client = new SimStudioClient({
   apiKey: 'your-api-key-here',
-  baseUrl: 'https://simstudio.ai' // optional, defaults to https://simstudio.ai
+  baseUrl: 'https://sim.ai' // optional, defaults to https://sim.ai
 });
 
 // Execute a workflow
@@ -69,8 +69,8 @@ new SimStudioClient(config: SimStudioConfig)
 ```
 
 **Configuration:**
-- `config.apiKey` (string): Your Sim Studio API key
-- `config.baseUrl` (string, optional): Base URL for the Sim Studio API (defaults to `https://simstudio.ai`)
+- `config.apiKey` (string): Your Sim API key
+- `config.baseUrl` (string, optional): Base URL for the Sim API (defaults to `https://sim.ai`)
 
 #### Methods
 
@@ -332,7 +332,7 @@ Configure the client using environment variables:
 
     const client = new SimStudioClient({
       apiKey,
-      baseUrl: process.env.SIMSTUDIO_BASE_URL || 'https://simstudio.ai'
+      baseUrl: process.env.SIMSTUDIO_BASE_URL || 'https://sim.ai'
     });
     ```
   </Tab>
@@ -429,7 +429,7 @@ import { SimStudioClient } from 'simstudio-ts-sdk';
 // Note: In production, use a proxy server to avoid exposing API keys
 const client = new SimStudioClient({
   apiKey: 'your-public-api-key', // Use with caution in browser
-  baseUrl: 'https://simstudio.ai'
+  baseUrl: 'https://sim.ai'
 });
 
 async function executeClientSideWorkflow() {
@@ -539,8 +539,8 @@ function WorkflowComponent() {
 ## Getting Your API Key
 
 <Steps>
-  <Step title="Log in to Sim Studio">
-    Navigate to [Sim Studio](https://simstudio.ai) and log in to your account.
+  <Step title="Log in to Sim">
+    Navigate to [Sim](https://sim.ai) and log in to your account.
   </Step>
   <Step title="Open your workflow">
     Navigate to the workflow you want to execute programmatically.

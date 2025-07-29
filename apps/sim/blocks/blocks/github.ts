@@ -8,7 +8,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   description: 'Interact with GitHub',
   longDescription:
     'Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow.',
-  docsLink: 'https://docs.simstudio.ai/tools/github',
+  docsLink: 'https://docs.sim.ai/tools/github',
   category: 'tools',
   bgColor: '#181C1E',
   icon: GithubIcon,

@@ -8,7 +8,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   description: 'Manage Notion pages',
   longDescription:
     'Integrate with Notion to read content from pages, write new content, and create new pages.',
-  docsLink: 'https://docs.simstudio.ai/tools/notion',
+  docsLink: 'https://docs.sim.ai/tools/notion',
   category: 'tools',
   bgColor: '#181C1E',
   icon: NotionIcon,

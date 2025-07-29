@@ -86,7 +86,7 @@ async function forwardToCollector(data: any): Promise<boolean> {
     return false
   }
 
-  const endpoint = env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces'
+  const endpoint = env.TELEMETRY_ENDPOINT || 'https://telemetry.sim.ai/v1/traces'
   const timeout = DEFAULT_TIMEOUT
 
   try {

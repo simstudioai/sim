@@ -57,8 +57,8 @@ export function StripeConfig({ testResult, copied, copyToClipboard }: StripeConf
         <AlertTitle>Webhook Signing</AlertTitle>
         <AlertDescription>
           For production use, it's highly recommended to verify Stripe webhook signatures to ensure
-          requests are genuinely from Stripe. Sim Studio handles this automatically if you provide
-          the signing secret during setup (coming soon).
+          requests are genuinely from Stripe. Sim handles this automatically if you provide the
+          signing secret during setup (coming soon).
         </AlertDescription>
       </Alert>
     </div>

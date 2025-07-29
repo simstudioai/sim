@@ -21,7 +21,7 @@ export const isTest = env.NODE_ENV === 'test'
 /**
  * Is this the hosted version of the application
  */
-export const isHosted = env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
+export const isHosted = env.NEXT_PUBLIC_APP_URL === 'https://www.sim.ai'
 
 /**
  * Get cost multiplier based on environment

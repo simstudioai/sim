@@ -1,4 +1,4 @@
-# Sim Studio Development Container
+# Sim Development Container
 
 This directory contains configuration files for Visual Studio Code Dev Containers / GitHub Codespaces. Dev containers provide a consistent, isolated development environment for this project.
 

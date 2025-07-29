@@ -229,7 +229,7 @@ async function sendInvitationEmail({
   token: string
 }) {
   try {
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
     // Always use the client-side invite route with token parameter
     const invitationLink = `${baseUrl}/invite/${token}?token=${token}`
 
@@ -260,7 +260,7 @@ async function sendInvitationEmail({
     const result = await resend.emails.send({
       from: fromAddress,
       to,
-      subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
+      subject: `You've been invited to join "${workspaceName}" on Sim`,
       html: emailHtml,
     })
 

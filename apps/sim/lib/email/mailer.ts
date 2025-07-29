@@ -89,7 +89,7 @@ export async function sendEmail({
 
     if (includeUnsubscribe && emailType !== 'transactional') {
       const unsubscribeToken = generateUnsubscribeToken(to, emailType)
-      const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+      const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
       const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(to)}`
 
       headers['List-Unsubscribe'] = `<${unsubscribeUrl}>`
@@ -99,7 +99,7 @@ export async function sendEmail({
     }
 
     const { data, error } = await resend.emails.send({
-      from: `Sim Studio <${senderEmail}>`,
+      from: `Sim <${senderEmail}>`,
       to,
       subject,
       html: finalHtml,
@@ -157,7 +157,7 @@ export async function sendBatchEmails({
     }
 
     const batchEmails = emails.map((email) => ({
-      from: `Sim Studio <${email.from || senderEmail}>`,
+      from: `Sim <${email.from || senderEmail}>`,
       to: email.to,
       subject: email.subject,
       html: email.html,

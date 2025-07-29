@@ -8,7 +8,7 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   description: 'Send structured API response',
   longDescription:
     "Transform your workflow's variables into a structured HTTP response for API calls. Define response data, status code, and headers. This is the final block in a workflow and cannot have further connections.",
-  docsLink: 'https://docs.simstudio.ai/blocks/response',
+  docsLink: 'https://docs.sim.ai/blocks/response',
   category: 'blocks',
   bgColor: '#2F55FF',
   icon: ResponseIcon,

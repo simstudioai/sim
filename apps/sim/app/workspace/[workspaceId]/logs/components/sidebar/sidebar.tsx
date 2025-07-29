@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { redactApiKeys } from '@/lib/utils'
 import { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas-modal'
 import LogMarkdownRenderer from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/markdown-renderer'
@@ -254,14 +255,10 @@ export function Sidebar({
   }, [log])
 
   // Helper to determine if we have cost information to display
+  // All workflow executions now have cost info (base charge + any model costs)
   const hasCostInfo = useMemo(() => {
-    return !!(
-      log?.metadata?.cost &&
-      ((log.metadata.cost.input && log.metadata.cost.input > 0) ||
-        (log.metadata.cost.output && log.metadata.cost.output > 0) ||
-        (log.metadata.cost.total && log.metadata.cost.total > 0))
-    )
-  }, [log])
+    return isWorkflowExecutionLog && log?.metadata?.cost
+  }, [log, isWorkflowExecutionLog])
 
   const isWorkflowWithCost = useMemo(() => {
     return isWorkflowExecutionLog && hasCostInfo
@@ -492,49 +489,6 @@ export function Sidebar({
                   </div>
                 )}
 
-                {/* Enhanced Cost - only show for enhanced logs with actual cost data */}
-                {log.metadata?.enhanced && hasCostInfo && (
-                  <div>
-                    <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
-                      Cost Breakdown
-                    </h3>
-                    <div className='space-y-1 text-sm'>
-                      {(log.metadata?.cost?.total ?? 0) > 0 && (
-                        <div className='flex justify-between'>
-                          <span>Total Cost:</span>
-                          <span className='font-medium'>
-                            ${log.metadata?.cost?.total?.toFixed(4)}
-                          </span>
-                        </div>
-                      )}
-                      {(log.metadata?.cost?.input ?? 0) > 0 && (
-                        <div className='flex justify-between'>
-                          <span>Input Cost:</span>
-                          <span className='text-muted-foreground'>
-                            ${log.metadata?.cost?.input?.toFixed(4)}
-                          </span>
-                        </div>
-                      )}
-                      {(log.metadata?.cost?.output ?? 0) > 0 && (
-                        <div className='flex justify-between'>
-                          <span>Output Cost:</span>
-                          <span className='text-muted-foreground'>
-                            ${log.metadata?.cost?.output?.toFixed(4)}
-                          </span>
-                        </div>
-                      )}
-                      {(log.metadata?.cost?.tokens?.total ?? 0) > 0 && (
-                        <div className='flex justify-between'>
-                          <span>Total Tokens:</span>
-                          <span className='text-muted-foreground'>
-                            {log.metadata?.cost?.tokens?.total?.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 {/* Frozen Canvas Button - only show for workflow execution logs with execution ID */}
                 {isWorkflowExecutionLog && log.executionId && (
                   <div>
@@ -588,17 +542,23 @@ export function Sidebar({
                 {/* Cost Information (moved to bottom) */}
                 {hasCostInfo && (
                   <div>
-                    <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Models</h3>
+                    <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
+                      Cost Breakdown
+                    </h3>
                     <div className='overflow-hidden rounded-md border'>
                       <div className='space-y-2 p-3'>
                         <div className='flex items-center justify-between'>
-                          <span className='text-muted-foreground text-sm'>Input:</span>
+                          <span className='text-muted-foreground text-sm'>Base Execution:</span>
+                          <span className='text-sm'>{formatCost(BASE_EXECUTION_CHARGE)}</span>
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted-foreground text-sm'>Model Input:</span>
                           <span className='text-sm'>
                             {formatCost(log.metadata?.cost?.input || 0)}
                           </span>
                         </div>
                         <div className='flex items-center justify-between'>
-                          <span className='text-muted-foreground text-sm'>Output:</span>
+                          <span className='text-muted-foreground text-sm'>Model Output:</span>
                           <span className='text-sm'>
                             {formatCost(log.metadata?.cost?.output || 0)}
                           </span>
@@ -677,8 +637,8 @@ export function Sidebar({
                       {isWorkflowWithCost && (
                         <div className='border-t bg-muted p-3 text-muted-foreground text-xs'>
                           <p>
-                            This is the total cost for all LLM-based blocks in this workflow
-                            execution.
+                            Total cost includes a base execution charge of{' '}
+                            {formatCost(BASE_EXECUTION_CHARGE)} plus any model usage costs.
                           </p>
                         </div>
                       )}

@@ -25,7 +25,7 @@ interface InvitationEmailProps {
   updatedDate?: Date
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
 
 export const InvitationEmail = ({
   inviterName = 'A team member',
@@ -54,7 +54,7 @@ export const InvitationEmail = ({
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>You've been invited to join {organizationName} on Sim Studio</Preview>
+        <Preview>You've been invited to join {organizationName} on Sim</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
@@ -62,7 +62,7 @@ export const InvitationEmail = ({
                 <Img
                   src={getAssetUrl('static/sim.png')}
                   width='114'
-                  alt='Sim Studio'
+                  alt='Sim'
                   style={{
                     margin: '0 auto',
                   }}
@@ -83,8 +83,8 @@ export const InvitationEmail = ({
             <Text style={baseStyles.paragraph}>Hello,</Text>
             <Text style={baseStyles.paragraph}>
               <strong>{inviterName}</strong> has invited you to join{' '}
-              <strong>{organizationName}</strong> on Sim Studio. Sim Studio is a powerful,
-              user-friendly platform for building, testing, and optimizing agentic workflows.
+              <strong>{organizationName}</strong> on Sim. Sim is a powerful, user-friendly platform
+              for building, testing, and optimizing agentic workflows.
             </Text>
             <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>
@@ -96,7 +96,7 @@ export const InvitationEmail = ({
             <Text style={baseStyles.paragraph}>
               Best regards,
               <br />
-              The Sim Studio Team
+              The Sim Team
             </Text>
             <Text
               style={{
@@ -107,7 +107,7 @@ export const InvitationEmail = ({
               }}
             >
               This email was sent on {format(updatedDate, 'MMMM do, yyyy')} to {invitedEmail} with
-              an invitation to join {organizationName} on Sim Studio.
+              an invitation to join {organizationName} on Sim.
             </Text>
           </Section>
         </Container>

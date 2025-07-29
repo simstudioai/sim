@@ -1,10 +1,10 @@
-# Sim Studio CLI
+# Sim CLI
 
-Sim Studio CLI allows you to run [Sim Studio](https://simstudio.ai) using Docker with a single command.
+Sim CLI allows you to run [Sim](https://sim.ai) using Docker with a single command.
 
 ## Installation
 
-To install the Sim Studio CLI globally, use:
+To install the Sim CLI globally, use:
 
 ```bash
 npm install -g simstudio
@@ -12,7 +12,7 @@ npm install -g simstudio
 
 ## Usage
 
-To start Sim Studio, simply run:
+To start Sim, simply run:
 
 ```bash
 simstudio
@@ -20,7 +20,7 @@ simstudio
 
 ### Options
 
-- `-p, --port <port>`: Specify the port to run Sim Studio on (default: 3000).
+- `-p, --port <port>`: Specify the port to run Sim on (default: 3000).
 - `--no-pull`: Skip pulling the latest Docker images.
 
 ## Requirements

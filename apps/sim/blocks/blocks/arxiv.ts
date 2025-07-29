@@ -8,7 +8,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
   description: 'Search and retrieve academic papers from ArXiv',
   longDescription:
     'Search for academic papers, retrieve metadata, download papers, and access the vast collection of scientific research on ArXiv.',
-  docsLink: 'https://docs.simstudio.ai/tools/arxiv',
+  docsLink: 'https://docs.sim.ai/tools/arxiv',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: ArxivIcon,

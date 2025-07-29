@@ -1,5 +1,5 @@
 /**
- * Sim Studio Telemetry - Client-side Instrumentation
+ * Sim Telemetry - Client-side Instrumentation
  *
  * This file initializes client-side telemetry when the app loads in the browser.
  * It respects the user's telemetry preferences stored in localStorage.

@@ -14,7 +14,7 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
   description: 'Extract data from websites',
   longDescription:
     'Use Stagehand to extract structured data from webpages using Browserbase and OpenAI.',
-  docsLink: 'https://docs.simstudio.ai/tools/stagehand',
+  docsLink: 'https://docs.sim.ai/tools/stagehand',
   category: 'tools',
   bgColor: '#FFC83C',
   icon: StagehandIcon,
