@@ -110,7 +110,6 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
           try {
             parsedTags = JSON.parse(params.documentTags)
           } catch (error) {
-            console.warn('Failed to parse documentTags string:', error)
             parsedTags = []
           }
         }
