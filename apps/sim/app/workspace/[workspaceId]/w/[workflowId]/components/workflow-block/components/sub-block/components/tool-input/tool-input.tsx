@@ -1342,8 +1342,7 @@ export function ToolInput({
             const requiresOAuth = !isCustomTool && toolRequiresOAuth(currentToolId)
             const oauthConfig = !isCustomTool ? getToolOAuthConfig(currentToolId) : null
 
-            // Check if the tool has any expandable content
-            const hasExpandableContent = isCustomTool || displayParams.length > 0 || requiresOAuth
+            // Tools are always expandable so users can access the interface
 
             return (
               <div
@@ -1378,12 +1377,12 @@ export function ToolInput({
                   <div
                     className={cn(
                       'flex items-center justify-between bg-accent/50 p-2',
-                      hasExpandableContent ? 'cursor-pointer' : 'cursor-default'
+                      'cursor-pointer'
                     )}
                     onClick={() => {
                       if (isCustomTool) {
                         handleEditCustomTool(toolIndex)
-                      } else if (hasExpandableContent) {
+                      } else {
                         toggleToolExpansion(toolIndex)
                       }
                     }}
@@ -1492,7 +1491,7 @@ export function ToolInput({
                     </div>
                   </div>
 
-                  {!isCustomTool && hasExpandableContent && tool.isExpanded && (
+                  {!isCustomTool && tool.isExpanded && (
                     <div className='space-y-3 overflow-visible p-3'>
                       {/* Operation dropdown for tools with multiple operations */}
                       {(() => {
