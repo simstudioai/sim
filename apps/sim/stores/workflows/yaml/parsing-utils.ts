@@ -298,8 +298,9 @@ export function cleanConditionInputs(
               }
             }
 
-            if (condition.value?.trim()) {
-              tempConditions.push({ key, value: condition.value.trim() })
+            const stringValue = String(condition.value || '')
+            if (stringValue.trim()) {
+              tempConditions.push({ key, value: stringValue.trim() })
             }
           }
         })
@@ -372,7 +373,7 @@ export function expandConditionInputs(
       conditionsArray.push({
         id: conditionId,
         title: title,
-        value: value || '',
+        value: String(value || ''),
         showTags: false,
         showEnvVars: false,
         searchTerm: '',
