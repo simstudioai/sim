@@ -62,14 +62,30 @@ Access Wikipedia articles, search for pages, get summaries, retrieve full conten
 
 ### `wikipedia_summary`
 
+Get a summary and metadata for a specific Wikipedia page.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `pageTitle` | string | Yes | Title of the Wikipedia page to get summary for |
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type |
+| --------- | ---- |
+| `summary` | string |
+| `title` | string |
+| `displaytitle` | string |
+| `description` | string |
+| `extract` | string |
+| `extract_html` | string |
+| `thumbnail` | string |
+| `originalimage` | string |
+| `content_urls` | string |
+| `revisions` | string |
+| `edit` | string |
+| `talk` | string |
 
 ### `wikipedia_search`
 
@@ -92,17 +108,31 @@ Search for Wikipedia pages by title or content.
 
 ### `wikipedia_content`
 
+Get the full HTML content of a Wikipedia page.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `pageTitle` | string | Yes | Title of the Wikipedia page to get content for |
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type |
+| --------- | ---- |
+| `content` | string |
+| `pageid` | string |
+| `html` | string |
+| `revision` | string |
+| `tid` | string |
+| `timestamp` | string |
+| `content_model` | string |
+| `content_format` | string |
 
 ### `wikipedia_random`
 
+Get a random Wikipedia page.
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -110,7 +140,15 @@ This tool does not produce any outputs.
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type |
+| --------- | ---- |
+| `randomPage` | string |
+| `title` | string |
+| `displaytitle` | string |
+| `description` | string |
+| `extract` | string |
+| `thumbnail` | string |
+| `content_urls` | string |
 
 
 
