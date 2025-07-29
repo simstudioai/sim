@@ -11,6 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import {
@@ -21,7 +22,12 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { KnowledgeHeader, SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components'
+import {
+  type DocumentTag,
+  DocumentTagEntry,
+} from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
+import { useTagDefinitions } from '@/hooks/use-tag-definitions'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('Document')
@@ -50,7 +56,11 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const { getCachedKnowledgeBase, getCachedDocuments } = useKnowledgeStore()
+  const {
+    getCachedKnowledgeBase,
+    getCachedDocuments,
+    updateDocument: updateDocumentInStore,
+  } = useKnowledgeStore()
   const { workspaceId } = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -60,7 +70,6 @@ export function Document({
   const {
     chunks: paginatedChunks,
     allChunks,
-    filteredChunks,
     searchQuery,
     setSearchQuery,
     currentPage,
@@ -81,14 +90,101 @@ export function Document({
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const [documentTags, setDocumentTags] = useState<DocumentTag[]>([])
+  const [documentData, setDocumentData] = useState<DocumentData | null>(null)
+  const [isLoadingDocument, setIsLoadingDocument] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Use tag definitions hook for custom labels
+  const { tagDefinitions, fetchTagDefinitions } = useTagDefinitions(knowledgeBaseId, documentId)
+
+  // Function to build document tags from data and definitions
+  const buildDocumentTags = useCallback(
+    (docData: DocumentData, definitions: any[], currentTags?: DocumentTag[]) => {
+      const tags: DocumentTag[] = []
+      const tagSlots = TAG_SLOTS
+
+      tagSlots.forEach((slot) => {
+        const value = (docData as any)[slot] as string | null | undefined
+        const definition = definitions.find((def) => def.tagSlot === slot)
+        const currentTag = currentTags?.find((tag) => tag.slot === slot)
+
+        // Only include tag if the document actually has a value for it
+        if (value?.trim()) {
+          tags.push({
+            slot,
+            // Preserve existing displayName if definition is not found yet
+            displayName: definition?.displayName || currentTag?.displayName || '',
+            fieldType: definition?.fieldType || currentTag?.fieldType || 'text',
+            value: value.trim(),
+          })
+        }
+      })
+
+      return tags
+    },
+    []
+  )
+
+  // Handle tag updates (local state only, no API calls)
+  const handleTagsChange = useCallback((newTags: DocumentTag[]) => {
+    // Only update local state, don't save to API
+    setDocumentTags(newTags)
+  }, [])
+
+  // Handle saving document tag values to the API
+  const handleSaveDocumentTags = useCallback(
+    async (tagsToSave: DocumentTag[]) => {
+      if (!documentData) return
+
+      try {
+        // Convert DocumentTag array to tag data for API
+        const tagData: Record<string, string> = {}
+        const tagSlots = TAG_SLOTS
+
+        // Clear all tags first
+        tagSlots.forEach((slot) => {
+          tagData[slot] = ''
+        })
+
+        // Set values from tagsToSave
+        tagsToSave.forEach((tag) => {
+          if (tag.value.trim()) {
+            tagData[tag.slot] = tag.value.trim()
+          }
+        })
+
+        // Update document via API
+        const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(tagData),
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to update document tags')
+        }
+
+        // Update the document in the store and local state
+        updateDocumentInStore(knowledgeBaseId, documentId, tagData)
+        setDocumentData((prev) => (prev ? { ...prev, ...tagData } : null))
+
+        // Refresh tag definitions to update the display
+        await fetchTagDefinitions()
+      } catch (error) {
+        logger.error('Error updating document tags:', error)
+        throw error // Re-throw so the component can handle it
+      }
+    },
+    [documentData, knowledgeBaseId, documentId, updateDocumentInStore, fetchTagDefinitions]
+  )
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isBulkOperating, setIsBulkOperating] = useState(false)
-
-  const [document, setDocument] = useState<DocumentData | null>(null)
-  const [isLoadingDocument, setIsLoadingDocument] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const combinedError = error || chunksError
 
@@ -121,7 +217,10 @@ export function Document({
         const cachedDoc = cachedDocuments?.documents?.find((d) => d.id === documentId)
 
         if (cachedDoc) {
-          setDocument(cachedDoc)
+          setDocumentData(cachedDoc)
+          // Initialize tags from cached document
+          const initialTags = buildDocumentTags(cachedDoc, tagDefinitions)
+          setDocumentTags(initialTags)
           setIsLoadingDocument(false)
           return
         }
@@ -138,7 +237,10 @@ export function Document({
         const result = await response.json()
 
         if (result.success) {
-          setDocument(result.data)
+          setDocumentData(result.data)
+          // Initialize tags from fetched document
+          const initialTags = buildDocumentTags(result.data, tagDefinitions, [])
+          setDocumentTags(initialTags)
         } else {
           throw new Error(result.error || 'Failed to fetch document')
         }
@@ -153,11 +255,19 @@ export function Document({
     if (knowledgeBaseId && documentId) {
       fetchDocument()
     }
-  }, [knowledgeBaseId, documentId, getCachedDocuments])
+  }, [knowledgeBaseId, documentId, getCachedDocuments, buildDocumentTags])
+
+  // Separate effect to rebuild tags when tag definitions change (without re-fetching document)
+  useEffect(() => {
+    if (documentData) {
+      const rebuiltTags = buildDocumentTags(documentData, tagDefinitions, documentTags)
+      setDocumentTags(rebuiltTags)
+    }
+  }, [documentData, tagDefinitions, buildDocumentTags])
 
   const knowledgeBase = getCachedKnowledgeBase(knowledgeBaseId)
   const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
-  const effectiveDocumentName = document?.filename || documentName || 'Document'
+  const effectiveDocumentName = documentData?.filename || documentName || 'Document'
 
   const breadcrumbs = [
     { label: 'Knowledge', href: `/workspace/${workspaceId}/knowledge` },
@@ -254,7 +364,7 @@ export function Document({
     }
   }
 
-  const handleChunkCreated = async (newChunk: ChunkData) => {
+  const handleChunkCreated = async () => {
     // Refresh the chunks list to include the new chunk
     await refreshChunks()
   }
@@ -396,16 +506,16 @@ export function Document({
                   value={searchQuery}
                   onChange={setSearchQuery}
                   placeholder={
-                    document?.processingStatus === 'completed'
+                    documentData?.processingStatus === 'completed'
                       ? 'Search chunks...'
                       : 'Document processing...'
                   }
-                  disabled={document?.processingStatus !== 'completed'}
+                  disabled={documentData?.processingStatus !== 'completed'}
                 />
 
                 <Button
                   onClick={() => setIsCreateChunkModalOpen(true)}
-                  disabled={document?.processingStatus === 'failed' || !userPermissions.canEdit}
+                  disabled={documentData?.processingStatus === 'failed' || !userPermissions.canEdit}
                   size='sm'
                   className='flex items-center gap-1 bg-[#701FFC] font-[480] text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
                 >
@@ -414,36 +524,19 @@ export function Document({
                 </Button>
               </div>
 
-              {/* Document Tags Display */}
-              {document &&
-                (() => {
-                  const tags = [
-                    { label: 'Tag 1', value: document.tag1 },
-                    { label: 'Tag 2', value: document.tag2 },
-                    { label: 'Tag 3', value: document.tag3 },
-                    { label: 'Tag 4', value: document.tag4 },
-                    { label: 'Tag 5', value: document.tag5 },
-                    { label: 'Tag 6', value: document.tag6 },
-                    { label: 'Tag 7', value: document.tag7 },
-                  ].filter((tag) => tag.value?.trim())
-
-                  return tags.length > 0 ? (
-                    <div className='mb-4 rounded-md bg-muted/50 p-3'>
-                      <p className='mb-2 text-muted-foreground text-xs'>Document Tags:</p>
-                      <div className='flex flex-wrap gap-2'>
-                        {tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className='inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-primary text-xs'
-                          >
-                            <span className='font-medium'>{tag.label}:</span>
-                            <span>{tag.value}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null
-                })()}
+              {/* Document Tag Entry */}
+              {userPermissions.canEdit && (
+                <div className='mb-4 rounded-md border p-4'>
+                  <DocumentTagEntry
+                    tags={documentTags}
+                    onTagsChange={handleTagsChange}
+                    disabled={false}
+                    knowledgeBaseId={knowledgeBaseId}
+                    documentId={documentId}
+                    onSave={handleSaveDocumentTags}
+                  />
+                </div>
+              )}
 
               {/* Error State for chunks */}
               {combinedError && !isLoadingAllChunks && (
@@ -472,7 +565,8 @@ export function Document({
                             checked={isAllSelected}
                             onCheckedChange={handleSelectAll}
                             disabled={
-                              document?.processingStatus !== 'completed' || !userPermissions.canEdit
+                              documentData?.processingStatus !== 'completed' ||
+                              !userPermissions.canEdit
                             }
                             aria-label='Select all chunks'
                             className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
@@ -514,7 +608,7 @@ export function Document({
                       <col className='w-[12%]' />
                     </colgroup>
                     <tbody>
-                      {document?.processingStatus !== 'completed' ? (
+                      {documentData?.processingStatus !== 'completed' ? (
                         <tr className='border-b transition-colors'>
                           <td className='px-4 py-3'>
                             <div className='h-3.5 w-3.5' />
@@ -526,13 +620,13 @@ export function Document({
                             <div className='flex items-center gap-2'>
                               <FileText className='h-5 w-5 text-muted-foreground' />
                               <span className='text-muted-foreground text-sm italic'>
-                                {document?.processingStatus === 'pending' &&
+                                {documentData?.processingStatus === 'pending' &&
                                   'Document processing pending...'}
-                                {document?.processingStatus === 'processing' &&
+                                {documentData?.processingStatus === 'processing' &&
                                   'Document processing in progress...'}
-                                {document?.processingStatus === 'failed' &&
+                                {documentData?.processingStatus === 'failed' &&
                                   'Document processing failed'}
-                                {!document?.processingStatus && 'Document not ready'}
+                                {!documentData?.processingStatus && 'Document not ready'}
                               </span>
                             </div>
                           </td>
@@ -558,7 +652,7 @@ export function Document({
                             <div className='flex items-center gap-2'>
                               <FileText className='h-5 w-5 text-muted-foreground' />
                               <span className='text-muted-foreground text-sm italic'>
-                                {document?.processingStatus === 'completed'
+                                {documentData?.processingStatus === 'completed'
                                   ? searchQuery.trim()
                                     ? 'No chunks match your search'
                                     : 'No chunks found'
@@ -708,7 +802,7 @@ export function Document({
                 </div>
 
                 {/* Pagination Controls */}
-                {document?.processingStatus === 'completed' && totalPages > 1 && (
+                {documentData?.processingStatus === 'completed' && totalPages > 1 && (
                   <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
                     <div className='flex items-center gap-1'>
                       <Button
@@ -773,7 +867,7 @@ export function Document({
       {/* Edit Chunk Modal */}
       <EditChunkModal
         chunk={selectedChunk}
-        document={document}
+        document={documentData}
         knowledgeBaseId={knowledgeBaseId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
@@ -811,7 +905,7 @@ export function Document({
       <CreateChunkModal
         open={isCreateChunkModalOpen}
         onOpenChange={setIsCreateChunkModalOpen}
-        document={document}
+        document={documentData}
         knowledgeBaseId={knowledgeBaseId}
         onChunkCreated={handleChunkCreated}
       />

@@ -13,11 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  getDocumentIcon,
-  type TagData,
-  TagInput,
-} from '@/app/workspace/[workspaceId]/knowledge/components'
+import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 
@@ -88,7 +84,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragCounter, setDragCounter] = useState(0) // Track drag events to handle nested elements
-  const [tags, setTags] = useState<TagData>({})
+
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
@@ -283,14 +279,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       const newKnowledgeBase = result.data
 
       if (files.length > 0) {
-        // Add tags to files before upload
-        const filesWithTags = files.map((file) => {
-          const fileWithTags = file as File & TagData
-          Object.assign(fileWithTags, tags)
-          return fileWithTags
-        })
-
-        const uploadedFiles = await uploadFiles(filesWithTags, newKnowledgeBase.id, {
+        const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
           chunkSize: data.maxChunkSize,
           minCharactersPerChunk: data.minChunkSize,
           chunkOverlap: data.overlapSize,
@@ -314,7 +303,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         maxChunkSize: 1024,
         overlapSize: 200,
       })
-      setTags({})
 
       // Clean up file previews
       files.forEach((file) => URL.revokeObjectURL(file.preview))
@@ -488,11 +476,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                       provide more precise retrieval but may lose context.
                     </p>
                   </div>
-                </div>
-
-                {/* Tag Input Section */}
-                <div className='mt-6'>
-                  <TagInput tags={tags} onTagsChange={setTags} disabled={isSubmitting} />
                 </div>
 
                 {/* File Upload Section - Expands to fill remaining space */}

@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +27,14 @@ const UpdateDocumentSchema = z.object({
   processingError: z.string().optional(),
   markFailedDueToTimeout: z.boolean().optional(),
   retryProcessing: z.boolean().optional(),
+  // Tag fields
+  tag1: z.string().optional(),
+  tag2: z.string().optional(),
+  tag3: z.string().optional(),
+  tag4: z.string().optional(),
+  tag5: z.string().optional(),
+  tag6: z.string().optional(),
+  tag7: z.string().optional(),
 })
 
 export async function GET(
@@ -213,9 +222,36 @@ export async function PUT(
           updateData.processingStatus = validatedData.processingStatus
         if (validatedData.processingError !== undefined)
           updateData.processingError = validatedData.processingError
+
+        // Tag field updates
+        TAG_SLOTS.forEach((slot) => {
+          if ((validatedData as any)[slot] !== undefined) {
+            ;(updateData as any)[slot] = (validatedData as any)[slot]
+          }
+        })
       }
 
-      await db.update(document).set(updateData).where(eq(document.id, documentId))
+      await db.transaction(async (tx) => {
+        // Update the document
+        await tx.update(document).set(updateData).where(eq(document.id, documentId))
+
+        // If any tag fields were updated, also update the embeddings
+        const hasTagUpdates = TAG_SLOTS.some((field) => (validatedData as any)[field] !== undefined)
+
+        if (hasTagUpdates) {
+          const embeddingUpdateData: Record<string, string | null> = {}
+          TAG_SLOTS.forEach((field) => {
+            if ((validatedData as any)[field] !== undefined) {
+              embeddingUpdateData[field] = (validatedData as any)[field] || null
+            }
+          })
+
+          await tx
+            .update(embedding)
+            .set(embeddingUpdateData)
+            .where(eq(embedding.documentId, documentId))
+        }
+      })
 
       // Fetch the updated document
       const updatedDocument = await db
