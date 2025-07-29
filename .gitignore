@@ -66,3 +66,6 @@ start-collector.sh
 
 # VSCode
 .vscode
+
+## Helm Chart Tests
+helm/sim/test

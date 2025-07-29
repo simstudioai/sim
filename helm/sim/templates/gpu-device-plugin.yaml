@@ -1,0 +1,102 @@
+{{- if and .Values.ollama.enabled .Values.ollama.gpu.enabled }}
+---
+# NVIDIA Device Plugin DaemonSet for GPU support
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "sim.fullname" . }}-nvidia-device-plugin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nvidia-device-plugin
+spec:
+  selector:
+    matchLabels:
+      {{- include "sim.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nvidia-device-plugin
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "sim.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nvidia-device-plugin
+    spec:
+      tolerations:
+        # Allow scheduling on GPU nodes
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+        - key: sku
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
+      nodeSelector:
+        # Only schedule on nodes with NVIDIA GPUs
+        accelerator: nvidia
+      priorityClassName: system-node-critical
+      runtimeClassName: nvidia
+      hostNetwork: true
+      hostPID: true
+      volumes:
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: dev
+          hostPath:
+            path: /dev
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: proc-driver-nvidia
+          hostPath:
+            path: /proc/driver/nvidia
+      containers:
+        - name: nvidia-device-plugin
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.14.5
+          imagePullPolicy: Always
+          args:
+            - --mig-strategy=single
+            - --pass-device-specs=true
+            - --fail-on-init-error=false
+            - --device-list-strategy=envvar
+            - --nvidia-driver-root=/host-sys/fs/cgroup
+          env:
+            - name: NVIDIA_MIG_MONITOR_DEVICES
+              value: all
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: dev
+              mountPath: /dev
+            - name: sys
+              mountPath: /host-sys
+              readOnly: true
+            - name: proc-driver-nvidia
+              mountPath: /proc/driver/nvidia
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 10Mi
+            limits:
+              cpu: 50m
+              memory: 20Mi
+  {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+  {{- end }}
+---
+# RuntimeClass for NVIDIA Container Runtime
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: {{ include "sim.fullname" . }}-nvidia
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+handler: nvidia
+{{- end }}

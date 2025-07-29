@@ -1,0 +1,117 @@
+{{- if .Values.app.enabled }}
+{{- include "sim.validateSecrets" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sim.fullname" . }}-app
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.app.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "sim.app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "sim.app.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      {{- include "sim.podSecurityContext" .Values.app | nindent 6 }}
+      {{- include "sim.nodeSelector" .Values.app | nindent 6 }}
+      {{- include "sim.tolerations" .Values | nindent 6 }}
+      {{- include "sim.affinity" .Values | nindent 6 }}
+      {{- if .Values.migrations.enabled }}
+      initContainers:
+        - name: migrations
+          image: {{ include "sim.image" (dict "context" . "image" .Values.migrations.image) }}
+          imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
+          command: ["bun", "run", "db:migrate"]
+          env:
+            - name: DATABASE_URL
+              value: {{ include "sim.databaseUrl" . | quote }}
+          {{- if .Values.postgresql.enabled }}
+          envFrom:
+            - secretRef:
+                name: {{ include "sim.fullname" . }}-postgresql-secret
+          {{- else if .Values.externalDatabase.enabled }}
+          envFrom:
+            - secretRef:
+                name: {{ include "sim.fullname" . }}-external-db-secret
+          {{- end }}
+          {{- include "sim.resources" .Values.migrations | nindent 10 }}
+          {{- include "sim.securityContext" .Values.migrations | nindent 10 }}
+      {{- end }}
+      containers:
+        - name: app
+          image: {{ include "sim.image" (dict "context" . "image" .Values.app.image) }}
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              value: {{ include "sim.databaseUrl" . | quote }}
+            - name: SOCKET_SERVER_URL
+              value: {{ include "sim.socketServerUrl" . | quote }}
+            - name: OLLAMA_URL
+              value: {{ include "sim.ollamaUrl" . | quote }}
+            {{- range $key, $value := .Values.app.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- if .Values.telemetry.enabled }}
+            # OpenTelemetry configuration
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://{{ include "sim.fullname" . }}-otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: sim-app
+            - name: OTEL_SERVICE_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=sim-app,service.version={{ .Chart.AppVersion }},deployment.environment={{ .Values.app.env.NODE_ENV }}"
+            {{- end }}
+            {{- with .Values.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.postgresql.enabled }}
+          envFrom:
+            - secretRef:
+                name: {{ include "sim.fullname" . }}-postgresql-secret
+          {{- else if .Values.externalDatabase.enabled }}
+          envFrom:
+            - secretRef:
+                name: {{ include "sim.fullname" . }}-external-db-secret
+          {{- end }}
+          {{- if .Values.app.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.app.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.app.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.app.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- include "sim.resources" .Values.app | nindent 10 }}
+          {{- include "sim.securityContext" .Values.app | nindent 10 }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

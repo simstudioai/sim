@@ -1,0 +1,594 @@
+# Global configuration
+global:
+  # Image registry and pull policy
+  imageRegistry: "ghcr.io"
+  # Use registry for all images, not just simstudioai/* images
+  useRegistryForAllImages: false
+  imagePullSecrets: []
+  
+  # Common labels applied to all resources
+  commonLabels: {}
+  
+  # Storage class for persistent volumes
+  storageClass: ""
+
+# Main Sim application configuration
+app:
+  # Enable/disable the main application
+  enabled: true
+  
+  # Image configuration
+  image:
+    repository: simstudioai/simstudio
+    tag: latest
+    pullPolicy: Always
+  
+  # Number of replicas
+  replicaCount: 1
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+  
+  # Node selector for pod scheduling (leave empty to allow scheduling on any node)
+  nodeSelector: {}
+  
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1001
+  
+  # Container security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+  
+  # Environment variables
+  env:
+    # Application URLs
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+    BETTER_AUTH_URL: "http://localhost:3000"
+    SOCKET_SERVER_URL: "http://localhost:3002"
+    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
+    
+    # Node environment
+    NODE_ENV: "production"
+    NEXT_TELEMETRY_DISABLED: "1"
+    
+    # Authentication and encryption secrets (REQUIRED for production)
+    # Generate secure 32-character secrets using: openssl rand -hex 32
+    BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
+    ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
+    
+    # Optional third-party service integrations (leave empty if not using)
+    FREESTYLE_API_KEY: ""
+    GOOGLE_CLIENT_ID: ""
+    GOOGLE_CLIENT_SECRET: ""
+    GITHUB_CLIENT_ID: ""
+    GITHUB_CLIENT_SECRET: ""
+    RESEND_API_KEY: ""
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 90
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 90
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Realtime socket server configuration
+realtime:
+  # Enable/disable the realtime service
+  enabled: true
+  
+  # Image configuration
+  image:
+    repository: simstudioai/realtime
+    tag: latest
+    pullPolicy: Always
+  
+  # Number of replicas
+  replicaCount: 1
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  # Node selector for pod scheduling (leave empty to allow scheduling on any node)
+  nodeSelector: {}
+  
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1001
+  
+  # Container security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+  
+  # Environment variables
+  env:
+    # Application URLs
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+    BETTER_AUTH_URL: "http://localhost:3000"
+    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
+    
+    # Authentication secret (REQUIRED for production)
+    # Must match the BETTER_AUTH_SECRET value from the main app configuration
+    BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
+    
+    # Cross-Origin Resource Sharing (CORS) allowed origins
+    ALLOWED_ORIGINS: "http://localhost:3000"
+    
+    # Node environment
+    NODE_ENV: "production"
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3002
+    targetPort: 3002
+  
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 3002
+    initialDelaySeconds: 10
+    periodSeconds: 90
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 3002
+    initialDelaySeconds: 10
+    periodSeconds: 90
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Database migrations job configuration
+migrations:
+  # Enable/disable migrations job
+  enabled: true
+  
+  # Image configuration
+  image:
+    repository: simstudioai/migrations
+    tag: latest
+    pullPolicy: Always
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      memory: "1Gi"
+    requests:
+      memory: "512Mi"
+      cpu: "100m"
+  
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1001
+  
+  # Container security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+
+# PostgreSQL database configuration
+postgresql:
+  # Enable/disable internal PostgreSQL deployment
+  enabled: true
+  
+  # Image configuration
+  image:
+    repository: pgvector/pgvector
+    tag: pg17
+    pullPolicy: IfNotPresent
+  
+  # Authentication configuration
+  auth:
+    username: postgres
+    password: ""  # REQUIRED - set via --set flag or external secret manager
+    database: sim
+  
+  # Node selector for database pod scheduling (leave empty to allow scheduling on any node)
+  nodeSelector: {}
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      memory: "2Gi"
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 999
+  
+  # Container security context
+  securityContext:
+    runAsUser: 999
+  
+  # Persistence configuration
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 10Gi
+    accessModes:
+      - ReadWriteOnce
+  
+  # SSL/TLS configuration (enable for production deployments with certificates)
+  tls:
+    enabled: false
+    certificatesSecret: postgres-tls-secret
+  
+  # PostgreSQL configuration
+  config:
+    maxConnections: 1000
+    sharedBuffers: "1280MB"
+    maxWalSize: "4GB"
+    minWalSize: "80MB"
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 5432
+    targetPort: 5432
+  
+  # Health checks
+  livenessProbe:
+    exec:
+      command: ["pg_isready", "-U", "postgres", "-d", "sim"]
+    initialDelaySeconds: 10
+    periodSeconds: 5
+  
+  readinessProbe:
+    exec:
+      command: ["pg_isready", "-U", "postgres", "-d", "sim"]
+    initialDelaySeconds: 5
+    periodSeconds: 3
+
+# External database configuration (use when connecting to managed database services)
+externalDatabase:
+  # Enable to use an external database instead of the internal PostgreSQL instance
+  enabled: false
+  
+  # Database connection details
+  host: "external-db.example.com"
+  port: 5432
+  username: postgres
+  password: ""
+  database: sim
+  
+  # SSL configuration
+  sslMode: require
+
+# Ollama local AI models configuration
+ollama:
+  # Enable/disable Ollama deployment
+  enabled: false
+  
+  # Image configuration
+  image:
+    repository: ollama/ollama
+    tag: latest
+    pullPolicy: Always
+  
+  # Number of replicas
+  replicaCount: 1
+  
+  # GPU configuration
+  gpu:
+    enabled: false
+    count: 1
+  
+  # Node selector for GPU workloads (adjust labels based on your cluster configuration)
+  nodeSelector:
+    accelerator: nvidia
+  
+  # Tolerations for GPU nodes (adjust based on your cluster's GPU node taints)
+  tolerations:
+    - key: "sku"
+      operator: "Equal"
+      value: "gpu"
+      effect: "NoSchedule"
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      memory: "8Gi"
+      nvidia.com/gpu: "1"
+    requests:
+      memory: "4Gi"
+      cpu: "1000m"
+  
+  # Environment variables
+  env:
+    NVIDIA_DRIVER_CAPABILITIES: "all"
+    OLLAMA_LOAD_TIMEOUT: "-1"
+    OLLAMA_KEEP_ALIVE: "-1"
+    OLLAMA_DEBUG: "1"
+  
+  # Persistence configuration
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 100Gi
+    accessModes:
+      - ReadWriteOnce
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 11434
+    targetPort: 11434
+  
+  # Health checks
+  startupProbe:
+    httpGet:
+      path: /
+      port: 11434
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 10
+  
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 11434
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 5
+  
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 11434
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Ingress configuration
+ingress:
+  # Enable/disable ingress
+  enabled: false
+  
+  # Ingress class name
+  className: nginx
+  
+  # Annotations
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  
+  # Main application host configuration
+  app:
+    host: sim.local
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  # Realtime service host configuration
+  realtime:
+    host: sim-ws.local
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  # TLS configuration
+  tls:
+    enabled: false
+    secretName: sim-tls-secret
+
+# Service Account configuration
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  
+  # Annotations to add to the service account
+  annotations: {}
+  
+  # The name of the service account to use
+  name: ""
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+  # Custom metrics for scaling (advanced users can add custom metrics here)
+  customMetrics: []
+  # Scaling behavior configuration (customize scale-up/down policies)
+  # Example configuration:
+  # behavior:
+  #   scaleDown:
+  #     stabilizationWindowSeconds: 300
+  #     policies:
+  #     - type: Percent
+  #       value: 50
+  #       periodSeconds: 60
+  #   scaleUp:
+  #     stabilizationWindowSeconds: 60
+  #     policies:
+  #     - type: Percent
+  #       value: 100
+  #       periodSeconds: 15
+  #     - type: Pods
+  #       value: 2
+  #       periodSeconds: 60
+  behavior: {}
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Monitoring configuration
+monitoring:
+  # ServiceMonitor for Prometheus
+  serviceMonitor:
+    enabled: false
+    # Additional labels for ServiceMonitor
+    labels: {}
+    # Additional annotations for ServiceMonitor
+    annotations: {}
+    # Metrics path
+    path: /metrics
+    # Scrape interval
+    interval: 30s
+    # Scrape timeout
+    scrapeTimeout: 10s
+    # Target labels to be added to scraped metrics
+    targetLabels: []
+    # Metric relabeling configurations
+    metricRelabelings: []
+    # Relabeling configurations
+    relabelings: []
+
+# Network policies
+networkPolicy:
+  enabled: false
+  
+  # Custom ingress rules
+  ingress: []
+  
+  # Custom egress rules  
+  egress: []
+
+# Shared storage for enterprise workflows requiring data sharing between pods
+sharedStorage:
+  enabled: false
+  # Storage class for shared volumes (must support ReadWriteMany access)
+  storageClass: ""
+  # Default access modes for shared volumes (ReadWriteMany required for multi-pod access)
+  defaultAccessModes:
+    - ReadWriteMany
+  # Define shared volumes for your workflows (uncomment and customize as needed)
+  # Example volume configurations:
+  # volumes:
+  #   - name: output-share
+  #     size: 100Gi
+  #     accessModes:
+  #       - ReadWriteMany
+  #     annotations: {}
+  #   - name: rawdata-share
+  #     size: 500Gi
+  #     accessModes:
+  #       - ReadWriteMany
+  #   - name: model-share
+  #     size: 200Gi
+  #     accessModes:
+  #       - ReadWriteMany
+  #   - name: logs-share
+  #     size: 50Gi
+  #     accessModes:
+  #       - ReadWriteMany
+  volumes: []
+
+# Additional volumes for custom configurations (advanced users)
+extraVolumes: []
+extraVolumeMounts: []
+
+# Additional environment variables for custom integrations
+extraEnvVars: []
+
+# Pod annotations for custom metadata
+podAnnotations: {}
+
+# Pod labels for custom labeling
+podLabels: {}
+
+# Affinity settings for advanced pod scheduling
+affinity: {}
+
+# Tolerations for scheduling on tainted nodes
+tolerations: []
+
+# Observability and telemetry configuration
+telemetry:
+  # Enable/disable telemetry collection
+  enabled: false
+  
+  # OpenTelemetry Collector image
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: 0.91.0
+    pullPolicy: IfNotPresent
+  
+  # Number of collector replicas
+  replicaCount: 1
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+  
+  # Node selector for telemetry pod scheduling (leave empty to allow scheduling on any node)
+  nodeSelector: {}
+  
+  # Tolerations for telemetry workloads
+  tolerations: []
+  
+  # Affinity for telemetry workloads
+  affinity: {}
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+  
+  # Jaeger tracing backend
+  jaeger:
+    enabled: false
+    endpoint: "http://jaeger-collector:14250"
+    tls:
+      enabled: false
+  
+  # Prometheus metrics backend
+  prometheus:
+    enabled: false
+    endpoint: "http://prometheus-server/api/v1/write"
+    auth: ""
+  
+  # Generic OTLP backend
+  otlp:
+    enabled: false
+    endpoint: "http://otlp-collector:4317"
+    tls:
+      enabled: false
