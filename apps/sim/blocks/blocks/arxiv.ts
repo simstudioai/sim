@@ -91,7 +91,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
       title: 'Paper ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter ArXiv paper ID (e.g., 1706.03762, cs.AI/0001001)...',
+      placeholder: 'Enter ArXiv paper ID (e.g., 1706.03762, cs.AI/0001001)',
       condition: { field: 'operation', value: 'arxiv_get_paper' },
     },
     // Get Author Papers operation inputs
