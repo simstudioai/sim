@@ -591,13 +591,52 @@ export const useCopilotStore = create<CopilotStore>()(
         return true
       },
 
-      // Simple chat management without API calls
+      // Select chat and load latest messages
       selectChat: async (chat: CopilotChat) => {
+        const { workflowId } = get()
+        
+        if (!workflowId) {
+          logger.warn('Cannot select chat: no workflow ID set')
+          return
+        }
+
+        // Optimistically set the chat first
         set({
           currentChat: chat,
           messages: chat.messages || [],
         })
-        logger.info(`Selected chat: ${chat.title || 'Untitled'}`)
+
+        try {
+          // Fetch the latest version of this specific chat to get updated messages
+          const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch latest chat data: ${response.status}`)
+          }
+          
+          const data = await response.json()
+          
+          if (data.success && Array.isArray(data.chats)) {
+            // Find the selected chat in the fresh data
+            const latestChat = data.chats.find((c: CopilotChat) => c.id === chat.id)
+            
+            if (latestChat) {
+              // Update with the latest messages
+              set({
+                currentChat: latestChat,
+                messages: latestChat.messages || [],
+                // Also update the chat in the chats array with latest data
+                chats: get().chats.map((c: CopilotChat) => c.id === chat.id ? latestChat : c)
+              })
+              logger.info(`Selected chat with latest messages: ${latestChat.title || 'Untitled'} (${latestChat.messages?.length || 0} messages)`)
+            } else {
+              logger.warn(`Selected chat ${chat.id} not found in latest data`)
+            }
+          }
+        } catch (error) {
+          logger.error('Failed to fetch latest chat data, using cached messages:', error)
+          // Already set optimistically above, so just log the error
+        }
       },
 
       // Create a new chat - clear current chat state like when switching workflows
