@@ -2,6 +2,7 @@
   "items": [
     "index",
     "airtable",
+    "arxiv",
     "browser_use",
     "clay",
     "confluence",
@@ -53,6 +54,7 @@
     "wealthbox",
     "webhook",
     "whatsapp",
+    "wikipedia",
     "x",
     "youtube"
   ]

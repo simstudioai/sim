@@ -1,6 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { getAssetUrl } from '@/lib/utils'
 import useIsMobile from '@/app/(landing)/components/hooks/use-is-mobile'
 import { Marquee } from '@/app/(landing)/components/magicui/marquee'
 
@@ -10,63 +11,63 @@ const X_TESTIMONIALS = [
     username: '@GithubProjects',
     viewCount: '90.4k',
     tweetUrl: 'https://x.com/GithubProjects/status/1906383555707490499',
-    profileImage: '/twitter/github-projects.jpg',
+    profileImage: getAssetUrl('twitter/github-projects.jpg'),
   },
   {
     text: 'A very good looking agent workflow builder 🔥 and open source!',
     username: '@xyflowdev',
     viewCount: '3,246',
     tweetUrl: 'https://x.com/xyflowdev/status/1909501499719438670',
-    profileImage: '/twitter/xyflow.jpg',
+    profileImage: getAssetUrl('twitter/xyflow.jpg'),
   },
   {
     text: "🚨 BREAKING: This startup just dropped the fastest way to build AI agents.\n\nThis Figma-like canvas to build agents will blow your mind.\n\nHere's why this is the best tool for building AI agents:",
     username: '@hasantoxr',
     viewCount: '515k',
     tweetUrl: 'https://x.com/hasantoxr/status/1912909502036525271',
-    profileImage: '/twitter/hasan.jpg',
+    profileImage: getAssetUrl('twitter/hasan.jpg'),
   },
   {
     text: 'omfggggg this is the zapier of agent building\n\ni always believed that building agents and using ai should not be limited to technical people. i think this solves just that\n\nthe fact that this is also open source makes me so optimistic about the future of building with ai :)))\n\ncongrats @karabegemir & @typingwala !!!',
     username: '@nizzyabi',
     viewCount: '6,269',
     tweetUrl: 'https://x.com/nizzyabi/status/1907864421227180368',
-    profileImage: '/twitter/nizzy.jpg',
+    profileImage: getAssetUrl('twitter/nizzy.jpg'),
   },
   {
     text: "One of the best products I've seen in the space, and the hustle and grind I've seen from @karabegemir and @typingwala is insane. Sim Studio is positioned to build something game-changing, and there's no better team for the job.\n\nCongrats on the launch 🚀 🎊 great things ahead!",
     username: '@firestorm776',
     viewCount: '956',
     tweetUrl: 'https://x.com/firestorm776/status/1907896097735061598',
-    profileImage: '/twitter/samarth.jpg',
+    profileImage: getAssetUrl('twitter/samarth.jpg'),
   },
   {
     text: 'lfgg got access to @simstudioai via @zerodotemail 😎',
     username: '@nizzyabi',
     viewCount: '1,585',
     tweetUrl: 'https://x.com/nizzyabi/status/1910482357821595944',
-    profileImage: '/twitter/nizzy.jpg',
+    profileImage: getAssetUrl('twitter/nizzy.jpg'),
   },
   {
     text: 'Feels like we\'re finally getting a "Photoshop moment" for AI devs—visual, intuitive, and fast enough to keep up with ideas mid-flow.',
     username: '@syamrajk',
     viewCount: '2,643',
     tweetUrl: 'https://x.com/syamrajk/status/1912911980110946491',
-    profileImage: '/twitter/syamrajk.jpg',
+    profileImage: getAssetUrl('twitter/syamrajk.jpg'),
   },
   {
     text: "🚨 BREAKING: This startup just dropped the fastest way to build AI agents.\n\nThis Figma-like canvas to build agents will blow your mind.\n\nHere's why this is the best tool for building AI agents:",
     username: '@lazukars',
     viewCount: '47.4k',
     tweetUrl: 'https://x.com/lazukars/status/1913136390503600575',
-    profileImage: '/twitter/lazukars.png',
+    profileImage: getAssetUrl('twitter/lazukars.png'),
   },
   {
     text: 'The use cases are endless. Great work @simstudioai',
     username: '@daniel_zkim',
     viewCount: '103',
     tweetUrl: 'https://x.com/daniel_zkim/status/1907891273664782708',
-    profileImage: '/twitter/daniel.jpg',
+    profileImage: getAssetUrl('twitter/daniel.jpg'),
   },
 ]
 

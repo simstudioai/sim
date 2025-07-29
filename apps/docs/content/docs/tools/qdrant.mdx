@@ -80,6 +80,27 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Qdrant](https://qdrant.tech) is an open-source vector database designed for efficient storage, management, and retrieval of high-dimensional vector embeddings. Qdrant enables fast and scalable semantic search, making it ideal for AI applications that require similarity search, recommendation systems, and contextual information retrieval.
+
+With Qdrant, you can:
+
+- **Store vector embeddings**: Efficiently manage and persist high-dimensional vectors at scale
+- **Perform semantic similarity search**: Find the most similar vectors to a query vector in real time
+- **Filter and organize data**: Use advanced filtering to narrow down search results based on metadata or payload
+- **Fetch specific points**: Retrieve vectors and their associated payloads by ID
+- **Scale seamlessly**: Handle large collections and high-throughput workloads
+
+In Sim Studio, the Qdrant integration enables your agents to interact with Qdrant programmatically as part of their workflows. Supported operations include:
+
+- **Upsert**: Insert or update points (vectors and payloads) in a Qdrant collection
+- **Search**: Perform similarity search to find vectors most similar to a given query vector, with optional filtering and result customization
+- **Fetch**: Retrieve specific points from a collection by their IDs, with options to include payloads and vectors
+
+This integration allows your agents to leverage powerful vector search and management capabilities, enabling advanced automation scenarios such as semantic search, recommendation, and contextual retrieval. By connecting Sim Studio with Qdrant, you can build agents that understand context, retrieve relevant information from large datasets, and deliver more intelligent and personalized responses—all without managing complex infrastructure.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Store, search, and retrieve vector embeddings using Qdrant. Perform semantic similarity searches and manage your vector collections.

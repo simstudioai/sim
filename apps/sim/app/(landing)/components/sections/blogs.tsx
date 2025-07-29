@@ -1,6 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { getAssetUrl } from '@/lib/utils'
 import { BlogCard } from '@/app/(landing)/components/blog-card'
 
 function Blogs() {
@@ -50,7 +51,7 @@ function Blogs() {
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
           />
@@ -61,7 +62,7 @@ function Blogs() {
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
           />
@@ -80,10 +81,10 @@ function Blogs() {
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
-            image='/static/hero.png'
+            image={getAssetUrl('static/hero.png')}
           />
           <BlogCard
             href='/blog/test'
@@ -91,7 +92,7 @@ function Blogs() {
             description="Learn how to create a fully functional AI agent using SimStudio.ai's unified API and workflows."
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
           />
@@ -110,7 +111,7 @@ function Blogs() {
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
           />
@@ -121,7 +122,7 @@ function Blogs() {
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Functions'
             readTime='6'
           />

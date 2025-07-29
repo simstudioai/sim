@@ -18,6 +18,8 @@
     "format:check": "bunx biome format .",
     "lint": "bunx biome check --write --unsafe .",
     "lint:check": "bunx biome check --unsafe .",
+    "lint:helm": "helm lint ./helm/sim --strict --values ./helm/sim/test/values-lint.yaml",
+    "lint:all": "bun run lint && bun run lint:helm",
     "check": "bunx biome check --files-ignore-unknown=true",
     "prepare": "bun husky",
     "prebuild": "bun run lint:check",

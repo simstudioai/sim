@@ -274,14 +274,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       const processPayload = {
         documents: uploadedFiles.map((file) => ({
           ...file,
-          // Extract tags from file if they exist (added by upload modal)
-          tag1: (file as any).tag1,
-          tag2: (file as any).tag2,
-          tag3: (file as any).tag3,
-          tag4: (file as any).tag4,
-          tag5: (file as any).tag5,
-          tag6: (file as any).tag6,
-          tag7: (file as any).tag7,
+          // Tags are already included in the file object from createUploadedFile
         })),
         processingOptions: {
           chunkSize: processingOptions.chunkSize || 1024,

@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { createLogger } from '@/lib/logs/console/logger'
-import { type TagData, TagInput } from '@/app/workspace/[workspaceId]/knowledge/components'
+import {
+  type DocumentTag,
+  DocumentTagEntry,
+} from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('UploadModal')
@@ -47,7 +50,7 @@ export function UploadModal({
 }: UploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
-  const [tags, setTags] = useState<TagData>({})
+  const [tags, setTags] = useState<DocumentTag[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -63,7 +66,7 @@ export function UploadModal({
     if (isUploading) return // Prevent closing during upload
 
     setFiles([])
-    setTags({})
+    setTags([])
     setFileError(null)
     setIsDragging(false)
     onOpenChange(false)
@@ -142,11 +145,19 @@ export function UploadModal({
     if (files.length === 0) return
 
     try {
+      // Convert DocumentTag array to TagData format
+      const tagData: Record<string, string> = {}
+      tags.forEach((tag) => {
+        if (tag.value.trim()) {
+          tagData[tag.slot] = tag.value.trim()
+        }
+      })
+
       // Create files with tags for upload
       const filesWithTags = files.map((file) => {
         // Add tags as custom properties to the file object
-        const fileWithTags = file as File & TagData
-        Object.assign(fileWithTags, tags)
+        const fileWithTags = file as unknown as File & Record<string, string>
+        Object.assign(fileWithTags, tagData)
         return fileWithTags
       })
 
@@ -169,8 +180,14 @@ export function UploadModal({
         </DialogHeader>
 
         <div className='flex-1 space-y-6 overflow-auto'>
-          {/* Tag Input Section */}
-          <TagInput tags={tags} onTagsChange={setTags} disabled={isUploading} />
+          {/* Document Tag Entry Section */}
+          <DocumentTagEntry
+            tags={tags}
+            onTagsChange={setTags}
+            disabled={isUploading}
+            knowledgeBaseId={knowledgeBaseId}
+            documentId={null} // No specific document for upload
+          />
 
           {/* File Upload Section */}
           <div className='space-y-3'>

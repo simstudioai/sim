@@ -11,6 +11,7 @@ import {
   Text,
 } from '@react-email/components'
 import { env } from '@/lib/env'
+import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
@@ -68,7 +69,7 @@ export const OTPVerificationEmail = ({
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={`${baseUrl}/static/sim.png`}
+                  src={getAssetUrl('static/sim.png')}
                   width='114'
                   alt='Sim Studio'
                   style={{

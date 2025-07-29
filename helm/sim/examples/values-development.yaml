@@ -1,0 +1,111 @@
+# Development values for Sim
+# This configuration is suitable for development and testing
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+
+# Main application
+app:
+  enabled: true
+  replicaCount: 1
+  
+  # Resource allocation for development environment
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+  
+  # Development URLs
+  env:
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+    BETTER_AUTH_URL: "http://localhost:3000"
+    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
+    
+    # Example secrets for development (replace with secure values for production)
+    BETTER_AUTH_SECRET: "dev-32-char-auth-secret-not-secure-dev"
+    ENCRYPTION_KEY: "dev-32-char-encryption-key-not-secure"
+
+# Realtime service
+realtime:
+  enabled: true
+  replicaCount: 1
+  
+  # Resource allocation for realtime WebSocket service in development
+  resources:
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  env:
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+    BETTER_AUTH_URL: "http://localhost:3000"
+    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
+    BETTER_AUTH_SECRET: "dev-32-char-auth-secret-not-secure-dev"
+    ALLOWED_ORIGINS: "http://localhost:3000"
+
+# Database migrations
+migrations:
+  enabled: true
+
+# PostgreSQL database
+postgresql:
+  enabled: true
+  
+  # Simple authentication for development
+  auth:
+    username: postgres
+    password: "postgres"
+    database: simstudio
+  
+  # PostgreSQL with pgvector extension for vector operations
+  image:
+    repository: pgvector/pgvector
+    tag: pg17
+    pullPolicy: IfNotPresent
+  
+  # Minimal resource allocation for development PostgreSQL
+  resources:
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+  
+  # Persistence disabled for easier development (data will be lost on restart)
+  persistence:
+    enabled: false
+  
+  # SSL/TLS disabled for local development
+  tls:
+    enabled: false
+  
+  # Minimal PostgreSQL configuration for development
+  config:
+    maxConnections: 100
+    sharedBuffers: "256MB"
+    maxWalSize: "1GB"
+    minWalSize: "80MB"
+
+# Ollama AI models (disabled by default for development)
+ollama:
+  enabled: false
+
+# Ingress (disabled for development - use port-forward for local access)
+ingress:
+  enabled: false
+
+# Pod disruption budget (disabled for development)
+podDisruptionBudget:
+  enabled: false
+
+# Network policies (disabled for development)
+networkPolicy:
+  enabled: false

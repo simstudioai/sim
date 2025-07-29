@@ -1,0 +1,112 @@
+{{- if .Values.ollama.enabled }}
+---
+# PersistentVolumeClaim for Ollama data
+{{- if .Values.ollama.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "sim.fullname" . }}-ollama-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.ollama.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.ollama.persistence.storageClass }}
+  {{- if (eq "-" .Values.ollama.persistence.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ .Values.ollama.persistence.storageClass | quote }}
+  {{- end }}
+  {{- else if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass | quote }}
+  {{- end }}
+  accessModes:
+    {{- range .Values.ollama.persistence.accessModes }}
+    - {{ . | quote }}
+    {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.ollama.persistence.size | quote }}
+{{- end }}
+
+---
+# Deployment for Ollama
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sim.fullname" . }}-ollama
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.ollama.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.ollama.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "sim.ollama.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "sim.ollama.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      {{- include "sim.nodeSelector" .Values.ollama | nindent 6 }}
+      {{- include "sim.tolerations" .Values.ollama | nindent 6 }}
+      {{- include "sim.affinity" .Values | nindent 6 }}
+      containers:
+        - name: ollama
+          image: {{ include "sim.image" (dict "context" . "image" .Values.ollama.image) }}
+          imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
+          command: ["ollama", "serve"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.ollama.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.ollama.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- with .Values.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.ollama.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.ollama.startupProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.ollama.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.ollama.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.ollama.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.ollama.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- include "sim.resources" .Values.ollama | nindent 10 }}
+          volumeMounts:
+            {{- if .Values.ollama.persistence.enabled }}
+            - name: ollama-data
+              mountPath: /root/.ollama
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      {{- if .Values.ollama.persistence.enabled }}
+      volumes:
+        - name: ollama-data
+          persistentVolumeClaim:
+            claimName: {{ include "sim.fullname" . }}-ollama-data
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+{{- end }}

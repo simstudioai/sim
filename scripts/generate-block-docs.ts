@@ -216,8 +216,13 @@ function findBlockType(content: string, blockName: string): string {
 
 // Helper to extract a string property from content
 function extractStringProperty(content: string, propName: string): string | null {
-  const simpleMatch = content.match(new RegExp(`${propName}\\s*:\\s*['"]([^'"]+)['"]`, 'm'))
-  if (simpleMatch) return simpleMatch[1]
+  // Try single quotes first - more permissive approach
+  const singleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*'([^']*)'`, 'm'))
+  if (singleQuoteMatch) return singleQuoteMatch[1]
+
+  // Try double quotes
+  const doubleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*"([^"]*)"`, 'm'))
+  if (doubleQuoteMatch) return doubleQuoteMatch[1]
 
   // Try to match multi-line string with template literals
   const templateMatch = content.match(new RegExp(`${propName}\\s*:\\s*\`([^\`]+)\``, 's'))
@@ -556,7 +561,10 @@ function extractToolInfo(
         const requiredMatch = paramBlock.match(/required\s*:\s*(true|false)/)
 
         // More careful extraction of description with handling for multiline descriptions
-        let descriptionMatch = paramBlock.match(/description\s*:\s*['"]([^'"]+)['"]/)
+        let descriptionMatch = paramBlock.match(/description\s*:\s*'([^']*)'/)
+        if (!descriptionMatch) {
+          descriptionMatch = paramBlock.match(/description\s*:\s*"([^"]*)"/)
+        }
         if (!descriptionMatch) {
           // Try for template literals if the description uses backticks
           descriptionMatch = paramBlock.match(/description\s*:\s*`([^`]+)`/)

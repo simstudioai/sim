@@ -6,6 +6,7 @@
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { ApiBlock } from '@/blocks/blocks/api'
+import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { ClayBlock } from '@/blocks/blocks/clay'
 import { ConditionBlock } from '@/blocks/blocks/condition'
@@ -63,6 +64,7 @@ import { VisionBlock } from '@/blocks/blocks/vision'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
 import { WebhookBlock } from '@/blocks/blocks/webhook'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
+import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { XBlock } from '@/blocks/blocks/x'
 import { YouTubeBlock } from '@/blocks/blocks/youtube'
@@ -73,6 +75,7 @@ export const registry: Record<string, BlockConfig> = {
   agent: AgentBlock,
   airtable: AirtableBlock,
   api: ApiBlock,
+  arxiv: ArxivBlock,
   browser_use: BrowserUseBlock,
   clay: ClayBlock,
   condition: ConditionBlock,
@@ -130,6 +133,7 @@ export const registry: Record<string, BlockConfig> = {
   wealthbox: WealthboxBlock,
   webhook: WebhookBlock,
   whatsapp: WhatsAppBlock,
+  wikipedia: WikipediaBlock,
   workflow: WorkflowBlock,
   x: XBlock,
   youtube: YouTubeBlock,

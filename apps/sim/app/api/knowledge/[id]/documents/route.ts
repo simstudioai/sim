@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import {
@@ -11,7 +12,7 @@ import {
   processDocumentAsync,
 } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
-import { document } from '@/db/schema'
+import { document, knowledgeBaseTagDefinitions } from '@/db/schema'
 
 const logger = createLogger('DocumentsAPI')
 
@@ -20,6 +21,88 @@ const PROCESSING_CONFIG = {
   batchSize: 5,
   delayBetweenBatches: 1000,
   delayBetweenDocuments: 500,
+}
+
+// Helper function to process structured document tags
+async function processDocumentTags(
+  knowledgeBaseId: string,
+  tagData: Array<{ tagName: string; fieldType: string; value: string }>,
+  requestId: string
+): Promise<Record<string, string | null>> {
+  const result: Record<string, string | null> = {}
+
+  // Initialize all tag slots to null
+  TAG_SLOTS.forEach((slot) => {
+    result[slot] = null
+  })
+
+  if (!Array.isArray(tagData) || tagData.length === 0) {
+    return result
+  }
+
+  try {
+    // Get existing tag definitions
+    const existingDefinitions = await db
+      .select()
+      .from(knowledgeBaseTagDefinitions)
+      .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+
+    const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
+    const existingBySlot = new Map(existingDefinitions.map((def) => [def.tagSlot, def]))
+
+    // Process each tag
+    for (const tag of tagData) {
+      if (!tag.tagName?.trim() || !tag.value?.trim()) continue
+
+      const tagName = tag.tagName.trim()
+      const fieldType = tag.fieldType || 'text'
+      const value = tag.value.trim()
+
+      let targetSlot: string | null = null
+
+      // Check if tag definition already exists
+      const existingDef = existingByName.get(tagName)
+      if (existingDef) {
+        targetSlot = existingDef.tagSlot
+      } else {
+        // Find next available slot
+        for (const slot of TAG_SLOTS) {
+          if (!existingBySlot.has(slot)) {
+            targetSlot = slot
+            break
+          }
+        }
+
+        // Create new tag definition if we have a slot
+        if (targetSlot) {
+          const newDefinition = {
+            id: crypto.randomUUID(),
+            knowledgeBaseId,
+            tagSlot: targetSlot as any,
+            displayName: tagName,
+            fieldType,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+
+          await db.insert(knowledgeBaseTagDefinitions).values(newDefinition)
+          existingBySlot.set(targetSlot as any, newDefinition)
+
+          logger.info(`[${requestId}] Created tag definition: ${tagName} -> ${targetSlot}`)
+        }
+      }
+
+      // Assign value to the slot
+      if (targetSlot) {
+        result[targetSlot] = value
+      }
+    }
+
+    return result
+  } catch (error) {
+    logger.error(`[${requestId}] Error processing document tags:`, error)
+    return result
+  }
 }
 
 async function processDocumentsWithConcurrencyControl(
@@ -158,7 +241,7 @@ const CreateDocumentSchema = z.object({
   fileUrl: z.string().url('File URL must be valid'),
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
-  // Document tags for filtering
+  // Document tags for filtering (legacy format)
   tag1: z.string().optional(),
   tag2: z.string().optional(),
   tag3: z.string().optional(),
@@ -166,6 +249,8 @@ const CreateDocumentSchema = z.object({
   tag5: z.string().optional(),
   tag6: z.string().optional(),
   tag7: z.string().optional(),
+  // Structured tag data (new format)
+  documentTagsData: z.string().optional(),
 })
 
 const BulkCreateDocumentsSchema = z.object({
@@ -350,6 +435,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             const documentId = crypto.randomUUID()
             const now = new Date()
 
+            // Process documentTagsData if provided (for knowledge base block)
+            let processedTags: Record<string, string | null> = {
+              tag1: null,
+              tag2: null,
+              tag3: null,
+              tag4: null,
+              tag5: null,
+              tag6: null,
+              tag7: null,
+            }
+
+            if (docData.documentTagsData) {
+              try {
+                const tagData = JSON.parse(docData.documentTagsData)
+                if (Array.isArray(tagData)) {
+                  processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
+                }
+              } catch (error) {
+                logger.warn(
+                  `[${requestId}] Failed to parse documentTagsData for bulk document:`,
+                  error
+                )
+              }
+            }
+
             const newDocument = {
               id: documentId,
               knowledgeBaseId,
@@ -363,14 +473,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               processingStatus: 'pending' as const,
               enabled: true,
               uploadedAt: now,
-              // Include tags from upload
-              tag1: docData.tag1 || null,
-              tag2: docData.tag2 || null,
-              tag3: docData.tag3 || null,
-              tag4: docData.tag4 || null,
-              tag5: docData.tag5 || null,
-              tag6: docData.tag6 || null,
-              tag7: docData.tag7 || null,
+              // Use processed tags if available, otherwise fall back to individual tag fields
+              tag1: processedTags.tag1 || docData.tag1 || null,
+              tag2: processedTags.tag2 || docData.tag2 || null,
+              tag3: processedTags.tag3 || docData.tag3 || null,
+              tag4: processedTags.tag4 || docData.tag4 || null,
+              tag5: processedTags.tag5 || docData.tag5 || null,
+              tag6: processedTags.tag6 || docData.tag6 || null,
+              tag7: processedTags.tag7 || docData.tag7 || null,
             }
 
             await tx.insert(document).values(newDocument)
@@ -433,6 +543,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const documentId = crypto.randomUUID()
         const now = new Date()
 
+        // Process structured tag data if provided
+        let processedTags: Record<string, string | null> = {
+          tag1: validatedData.tag1 || null,
+          tag2: validatedData.tag2 || null,
+          tag3: validatedData.tag3 || null,
+          tag4: validatedData.tag4 || null,
+          tag5: validatedData.tag5 || null,
+          tag6: validatedData.tag6 || null,
+          tag7: validatedData.tag7 || null,
+        }
+
+        if (validatedData.documentTagsData) {
+          try {
+            const tagData = JSON.parse(validatedData.documentTagsData)
+            if (Array.isArray(tagData)) {
+              // Process structured tag data and create tag definitions
+              processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
+            }
+          } catch (error) {
+            logger.warn(`[${requestId}] Failed to parse documentTagsData:`, error)
+          }
+        }
+
         const newDocument = {
           id: documentId,
           knowledgeBaseId,
@@ -445,14 +578,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           characterCount: 0,
           enabled: true,
           uploadedAt: now,
-          // Include tags from upload
-          tag1: validatedData.tag1 || null,
-          tag2: validatedData.tag2 || null,
-          tag3: validatedData.tag3 || null,
-          tag4: validatedData.tag4 || null,
-          tag5: validatedData.tag5 || null,
-          tag6: validatedData.tag6 || null,
-          tag7: validatedData.tag7 || null,
+          ...processedTags,
         }
 
         await db.insert(document).values(newDocument)

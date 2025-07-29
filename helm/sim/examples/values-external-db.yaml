@@ -1,0 +1,152 @@
+# External Database Example for Sim
+# Use this configuration when connecting to a managed database service
+# (AWS RDS, Azure Database, Google Cloud SQL, etc.)
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+
+# Main application
+app:
+  enabled: true
+  replicaCount: 2
+  
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+  
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    SOCKET_SERVER_URL: "https://simstudio-ws.acme.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    
+    # Security settings (REQUIRED - replace with your own secure secrets)
+    BETTER_AUTH_SECRET: ""  # Set via --set flag or external secret manager
+    ENCRYPTION_KEY: ""      # Set via --set flag or external secret manager
+    
+    NODE_ENV: "production"
+    NEXT_TELEMETRY_DISABLED: "1"
+
+# Realtime service
+realtime:
+  enabled: true
+  replicaCount: 2
+  
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "1000m"
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+  
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    BETTER_AUTH_SECRET: ""  # Must match main app secret - set via --set flag
+    ALLOWED_ORIGINS: "https://simstudio.acme.com"
+    NODE_ENV: "production"
+
+# Database migrations
+migrations:
+  enabled: true
+  
+  resources:
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Disable internal PostgreSQL
+postgresql:
+  enabled: false
+
+# Configure external database connection
+externalDatabase:
+  enabled: true
+  
+  # Database connection details (REQUIRED - configure for your external database)
+  host: ""                    # Database hostname (e.g., "postgres.acme.com" or RDS endpoint)
+  port: 5432
+  username: ""                # Database username (e.g., "simstudio_user")
+  password: ""                # Database password - set via --set flag or external secret
+  database: ""                # Database name (e.g., "simstudio_production")
+  
+  # SSL mode for database connections (recommended: 'require' for production)
+  sslMode: "require"          # Options: disable, allow, prefer, require, verify-ca, verify-full
+
+# Ollama (optional for AI models)
+ollama:
+  enabled: false
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  
+  app:
+    host: simstudio.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  realtime:
+    host: simstudio-ws.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  tls:
+    enabled: true
+    secretName: simstudio-tls-secret
+
+# Production-ready features (autoscaling, monitoring, etc.)
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    labels:
+      monitoring: "prometheus"
+    interval: 15s
+
+networkPolicy:
+  enabled: true
+  # Custom egress rules to allow database connectivity
+  egress:
+    - to: []  # Allow outbound connections to external database
+      ports:
+      - protocol: TCP
+        port: 5432
+
+# Example deployment command with secure secret generation:
+# helm install sim ./helm/sim \
+#   --values ./helm/sim/examples/values-external-db.yaml \
+#   --set externalDatabase.host="your-db-host.com" \
+#   --set externalDatabase.username="your-db-user" \
+#   --set externalDatabase.password="your-db-password" \
+#   --set externalDatabase.database="your-db-name" \
+#   --set app.env.BETTER_AUTH_SECRET="$(openssl rand -hex 32)" \
+#   --set app.env.ENCRYPTION_KEY="$(openssl rand -hex 32)" \
+#   --set realtime.env.BETTER_AUTH_SECRET="$(openssl rand -hex 32)"

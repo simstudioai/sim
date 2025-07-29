@@ -16,6 +16,7 @@ import {
   uuid,
   vector,
 } from 'drizzle-orm/pg-core'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 
 // Custom tsvector type for full-text search
 export const tsvector = customType<{
@@ -791,6 +792,32 @@ export const document = pgTable(
     tag5Idx: index('doc_tag5_idx').on(table.tag5),
     tag6Idx: index('doc_tag6_idx').on(table.tag6),
     tag7Idx: index('doc_tag7_idx').on(table.tag7),
+  })
+)
+
+export const knowledgeBaseTagDefinitions = pgTable(
+  'knowledge_base_tag_definitions',
+  {
+    id: text('id').primaryKey(),
+    knowledgeBaseId: text('knowledge_base_id')
+      .notNull()
+      .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
+    tagSlot: text('tag_slot', {
+      enum: TAG_SLOTS,
+    }).notNull(),
+    displayName: text('display_name').notNull(),
+    fieldType: text('field_type').notNull().default('text'), // 'text', future: 'date', 'number', 'range'
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure unique tag slot per knowledge base
+    kbTagSlotIdx: uniqueIndex('kb_tag_definitions_kb_slot_idx').on(
+      table.knowledgeBaseId,
+      table.tagSlot
+    ),
+    // Index for querying by knowledge base
+    kbIdIdx: index('kb_tag_definitions_kb_id_idx').on(table.knowledgeBaseId),
   })
 )
 

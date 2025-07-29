@@ -57,6 +57,11 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       required: false,
       description: 'Tag 7 value for the document',
     },
+    documentTagsData: {
+      type: 'array',
+      required: false,
+      description: 'Structured tag data with names, types, and values',
+    },
   },
   request: {
     url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents`,
@@ -95,20 +100,32 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
 
       const dataUri = `data:text/plain;base64,${base64Content}`
 
+      const tagData: Record<string, string> = {}
+
+      if (params.documentTags) {
+        let parsedTags = params.documentTags
+
+        // Handle both string (JSON) and array formats
+        if (typeof params.documentTags === 'string') {
+          try {
+            parsedTags = JSON.parse(params.documentTags)
+          } catch (error) {
+            parsedTags = []
+          }
+        }
+
+        if (Array.isArray(parsedTags)) {
+          tagData.documentTagsData = JSON.stringify(parsedTags)
+        }
+      }
+
       const documents = [
         {
           filename: documentName.endsWith('.txt') ? documentName : `${documentName}.txt`,
           fileUrl: dataUri,
           fileSize: contentBytes,
           mimeType: 'text/plain',
-          // Include tags if provided
-          tag1: params.tag1 || undefined,
-          tag2: params.tag2 || undefined,
-          tag3: params.tag3 || undefined,
-          tag4: params.tag4 || undefined,
-          tag5: params.tag5 || undefined,
-          tag6: params.tag6 || undefined,
-          tag7: params.tag7 || undefined,
+          ...tagData,
         },
       ]
 
