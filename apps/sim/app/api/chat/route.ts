@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
         if (isDev) {
           chatUrl = `http://${subdomain}.localhost:3000`
         } else {
-          chatUrl = `https://${subdomain}.simstudio.ai`
+          chatUrl = `https://${subdomain}.sim.ai`
         }
       }
 

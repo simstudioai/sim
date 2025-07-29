@@ -8,7 +8,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
   description: 'Interact with Wealthbox',
   longDescription:
     'Integrate Wealthbox functionality to manage notes, contacts, and tasks. Read content from existing notes, contacts, and tasks and write to them using OAuth authentication. Supports text content manipulation for note creation and editing.',
-  docsLink: 'https://docs.simstudio.ai/tools/wealthbox',
+  docsLink: 'https://docs.sim.ai/tools/wealthbox',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: WealthboxIcon,

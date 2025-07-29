@@ -71,7 +71,7 @@ export default function PrivacyPolicy() {
                 <p className='mb-4'>Last Updated: April 22, 2025</p>
                 <p>
                   This Privacy Policy describes how your personal information is collected, used,
-                  and shared when you visit or use Sim Studio ("the Service", "we", "us", or "our").
+                  and shared when you visit or use Sim ("the Service", "we", "us", or "our").
                 </p>
                 <p className='mt-4'>
                   By using the Service, you agree to the collection and use of information in
@@ -120,8 +120,8 @@ export default function PrivacyPolicy() {
                   </li>
                   <li>
                     <span className='text-[#B5A1D4]'>Company</span> (referred to as either "the
-                    Company", "We", "Us" or "Our" in this Agreement) refers to Sim Studio. For the
-                    purpose of the GDPR, the Company is the Data Controller.
+                    Company", "We", "Us" or "Our" in this Agreement) refers to Sim. For the purpose
+                    of the GDPR, the Company is the Data Controller.
                   </li>
                   <li>
                     <span className='text-[#B5A1D4]'>Cookies</span> are small files that are placed
@@ -191,8 +191,8 @@ export default function PrivacyPolicy() {
                     infrastructure itself (for example, the duration of a page visit).
                   </li>
                   <li>
-                    <span className='text-[#B5A1D4]'>Website</span> refers to Sim Studio, accessible
-                    from simstudio.ai
+                    <span className='text-[#B5A1D4]'>Website</span> refers to Sim, accessible from
+                    sim.ai
                   </li>
                   <li>
                     <span className='text-[#B5A1D4]'>You</span> means the individual accessing or
@@ -327,12 +327,12 @@ export default function PrivacyPolicy() {
 
                 <h3 className='mb-2 font-medium text-[#B5A1D4] text-xl'>Legal Requirements</h3>
                 <p className='mb-4'>
-                  Sim Studio may disclose your Personal Information in the good faith belief that
-                  such action is necessary to:
+                  Sim may disclose your Personal Information in the good faith belief that such
+                  action is necessary to:
                 </p>
                 <ul className='list-disc space-y-2 pl-6 marker:text-[#B5A1D4]'>
                   <li>To comply with a legal obligation</li>
-                  <li>To protect and defend the rights or property of Sim Studio</li>
+                  <li>To protect and defend the rights or property of Sim</li>
                   <li>
                     To prevent or investigate possible wrongdoing in connection with the Service
                   </li>
@@ -470,9 +470,9 @@ export default function PrivacyPolicy() {
                   11. Information Collected while Using Google APIs
                 </h2>
                 <p className='mb-4'>
-                  Sim Studio's use and transfer to any other app of information received from Google
-                  APIs will adhere to Google API Services User Data Policy, including the Limited
-                  Use requirements.
+                  Sim's use and transfer to any other app of information received from Google APIs
+                  will adhere to Google API Services User Data Policy, including the Limited Use
+                  requirements.
                 </p>
               </section>
 
@@ -530,8 +530,8 @@ export default function PrivacyPolicy() {
                 </h2>
                 <p className='mb-4'>
                   If you are a resident of the European Economic Area (EEA), you have certain data
-                  protection rights. Sim Studio aims to take reasonable steps to allow you to
-                  correct, amend, delete, or limit the use of your Personal Information.
+                  protection rights. Sim aims to take reasonable steps to allow you to correct,
+                  amend, delete, or limit the use of your Personal Information.
                 </p>
                 <p className='mb-4'>
                   If you wish to be informed what Personal Information we hold about you and if you
@@ -561,7 +561,7 @@ export default function PrivacyPolicy() {
                   </li>
                   <li>
                     The right to withdraw consent. You also have the right to withdraw your consent
-                    at any time where Sim Studio relied on your consent to process your personal
+                    at any time where Sim relied on your consent to process your personal
                     information.
                   </li>
                 </ul>
@@ -601,9 +601,9 @@ export default function PrivacyPolicy() {
                 </h2>
                 <h3 className='mb-2 font-medium text-[#B5A1D4] text-xl'>Introduction</h3>
                 <p className='mb-4'>
-                  Sim Studio is dedicated to preserving data security by preventing unauthorized
-                  disclosure of information. This policy was created to provide security researchers
-                  with instructions for conducting vulnerability discovery activities and to provide
+                  Sim is dedicated to preserving data security by preventing unauthorized disclosure
+                  of information. This policy was created to provide security researchers with
+                  instructions for conducting vulnerability discovery activities and to provide
                   information on how to report vulnerabilities that have been discovered. This
                   policy explains which systems and sorts of activity are covered, how to send
                   vulnerability reports, and how long we require you to wait before publicly
@@ -643,27 +643,27 @@ export default function PrivacyPolicy() {
                 <p className='mb-4'>
                   Security research carried out in conformity with this policy is deemed
                   permissible. We'll work with you to swiftly understand and fix the problem, and
-                  Sim Studio will not suggest or pursue legal action in connection with your study.
+                  Sim will not suggest or pursue legal action in connection with your study.
                 </p>
 
                 <h3 className='mb-2 font-medium text-[#B5A1D4] text-xl'>Scope</h3>
                 <p className='mb-4'>This policy applies to the following systems and services:</p>
                 <ul className='mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]'>
-                  <li>simstudio.ai website</li>
-                  <li>Sim Studio web application</li>
-                  <li>Sim Studio API services</li>
+                  <li>sim.ai website</li>
+                  <li>Sim web application</li>
+                  <li>Sim API services</li>
                 </ul>
                 <p className='mb-4'>
                   Any service that isn't explicitly specified above, such as related services, is
                   out of scope and isn't allowed to be tested. Vulnerabilities discovered in
-                  third-party solutions Sim Studio interacts with are not covered by this policy and
-                  should be reported directly to the solution vendor in accordance with their
-                  disclosure policy (if any). Before beginning your inquiry, email us at{' '}
+                  third-party solutions Sim interacts with are not covered by this policy and should
+                  be reported directly to the solution vendor in accordance with their disclosure
+                  policy (if any). Before beginning your inquiry, email us at{' '}
                   <Link
-                    href='mailto:security@simstudio.ai'
+                    href='mailto:security@sim.ai'
                     className='text-[#B5A1D4] hover:text-[#701ffc]'
                   >
-                    security@simstudio.ai
+                    security@sim.ai
                   </Link>{' '}
                   if you're unsure whether a system or endpoint is in scope.
                 </p>
@@ -685,10 +685,10 @@ export default function PrivacyPolicy() {
                 <p className='mb-4'>
                   To report any security flaws, send an email to{' '}
                   <Link
-                    href='mailto:security@simstudio.ai'
+                    href='mailto:security@sim.ai'
                     className='text-[#B5A1D4] hover:text-[#701ffc]'
                   >
-                    security@simstudio.ai
+                    security@sim.ai
                   </Link>
                   . The next business day, we'll acknowledge receipt of your vulnerability report
                   and keep you updated on our progress. Reports can be anonymously submitted.
@@ -725,10 +725,10 @@ export default function PrivacyPolicy() {
                 <p>
                   If you have any questions about this Privacy Policy, please contact us at:{' '}
                   <Link
-                    href='mailto:privacy@simstudio.ai'
+                    href='mailto:privacy@sim.ai'
                     className='text-[#B5A1D4] hover:text-[#701ffc]'
                   >
-                    privacy@simstudio.ai
+                    privacy@sim.ai
                   </Link>
                 </p>
               </section>

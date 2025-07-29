@@ -29,8 +29,7 @@ export class DocsChunker {
       overlap: options.overlap ?? 50,
     })
     // Use localhost docs in development, production docs otherwise
-    this.baseUrl =
-      options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.simstudio.ai')
+    this.baseUrl = options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.sim.ai')
   }
 
   /**

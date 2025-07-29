@@ -69,20 +69,14 @@ export const BatchInvitationEmail = ({
       <Body style={main}>
         <Container style={container}>
           <Section style={logoContainer}>
-            <Img
-              src='https://simstudio.ai/logo.png'
-              width='120'
-              height='36'
-              alt='Sim Studio'
-              style={logo}
-            />
+            <Img src='https://sim.ai/logo.png' width='120' height='36' alt='Sim' style={logo} />
           </Section>
 
           <Heading style={h1}>You're invited to join {organizationName}!</Heading>
 
           <Text style={text}>
             <strong>{inviterName}</strong> has invited you to join{' '}
-            <strong>{organizationName}</strong> on Sim Studio.
+            <strong>{organizationName}</strong> on Sim.
           </Text>
 
           {/* Organization Invitation Details */}

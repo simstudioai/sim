@@ -43,7 +43,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
           <span className='hidden font-medium text-xs sm:inline-block'>{starCount}</span>
         </a>
         <a
-          href='https://simstudio.ai'
+          href='https://sim.ai'
           target='_blank'
           rel='noopener noreferrer'
           className='flex items-center rounded-md p-1 text-foreground/80 transition-colors duration-200 hover:text-foreground/100'

@@ -22,20 +22,20 @@ interface OTPVerificationEmailProps {
   chatTitle?: string
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
 
 const getSubjectByType = (type: string, chatTitle?: string) => {
   switch (type) {
     case 'sign-in':
-      return 'Sign in to Sim Studio'
+      return 'Sign in to Sim'
     case 'email-verification':
-      return 'Verify your email for Sim Studio'
+      return 'Verify your email for Sim'
     case 'forget-password':
-      return 'Reset your Sim Studio password'
+      return 'Reset your Sim password'
     case 'chat-access':
       return `Verification code for ${chatTitle || 'Chat'}`
     default:
-      return 'Verification code for Sim Studio'
+      return 'Verification code for Sim'
   }
 }
 
@@ -49,13 +49,13 @@ export const OTPVerificationEmail = ({
   const getMessage = () => {
     switch (type) {
       case 'sign-in':
-        return 'Sign in to Sim Studio'
+        return 'Sign in to Sim'
       case 'forget-password':
-        return 'Reset your password for Sim Studio'
+        return 'Reset your password for Sim'
       case 'chat-access':
         return `Access ${chatTitle || 'the chat'}`
       default:
-        return 'Welcome to Sim Studio'
+        return 'Welcome to Sim'
     }
   }
 
@@ -71,7 +71,7 @@ export const OTPVerificationEmail = ({
                 <Img
                   src={getAssetUrl('static/sim.png')}
                   width='114'
-                  alt='Sim Studio'
+                  alt='Sim'
                   style={{
                     margin: '0 auto',
                   }}
@@ -99,7 +99,7 @@ export const OTPVerificationEmail = ({
             <Text style={baseStyles.paragraph}>
               Best regards,
               <br />
-              The Sim Studio Team
+              The Sim Team
             </Text>
           </Section>
         </Container>

@@ -25,7 +25,7 @@ interface DiscordConfigProps {
 
 const examplePayload = JSON.stringify(
   {
-    content: 'Hello from Sim Studio!',
+    content: 'Hello from Sim!',
     username: 'Optional Custom Name',
     avatar_url: 'https://example.com/avatar.png',
   },
@@ -56,7 +56,7 @@ export function DiscordConfig({
             id='discord-webhook-name'
             value={webhookName}
             onChange={(e) => setWebhookName(e.target.value)}
-            placeholder='Sim Studio Bot'
+            placeholder='Sim Bot'
             disabled={isLoadingToken}
           />
         </ConfigField>
@@ -102,8 +102,8 @@ export function DiscordConfig({
 
       <InstructionsSection title='Sending Messages to Discord (Outgoing via this URL)'>
         <p>
-          To send messages <i>to</i> Discord using the Sim Studio Webhook URL (above), make a POST
-          request with a JSON body like this:
+          To send messages <i>to</i> Discord using the Sim Webhook URL (above), make a POST request
+          with a JSON body like this:
         </p>
         <CodeBlock language='json' code={examplePayload} className='mt-2 text-sm' />
         <ul className='mt-3 list-outside list-disc space-y-1 pl-4'>
@@ -116,8 +116,8 @@ export function DiscordConfig({
         <Terminal className='h-4 w-4' />
         <AlertTitle>Security Note</AlertTitle>
         <AlertDescription>
-          The Sim Studio Webhook URL allows sending messages <i>to</i> Discord. Treat it like a
-          password. Don't share it publicly.
+          The Sim Webhook URL allows sending messages <i>to</i> Discord. Treat it like a password.
+          Don't share it publicly.
         </AlertDescription>
       </Alert>
     </div>

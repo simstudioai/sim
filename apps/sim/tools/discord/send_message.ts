@@ -68,7 +68,7 @@ export const discordSendMessageTool: ToolConfig<
       }
 
       if (!body.content) {
-        body.content = 'Message sent from Sim Studio'
+        body.content = 'Message sent from Sim'
       }
 
       return body

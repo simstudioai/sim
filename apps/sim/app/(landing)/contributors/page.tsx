@@ -188,7 +188,7 @@ export default function ContributorsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
               >
-                Meet the amazing people who have helped build and improve Sim Studio
+                Meet the amazing people who have helped build and improve Sim
               </motion.p>
             </div>
 
@@ -207,13 +207,13 @@ export default function ContributorsPage() {
                     <div className='relative h-6 w-6 sm:h-8 sm:w-8'>
                       <Image
                         src='/favicon.ico'
-                        alt='Sim Studio Logo'
+                        alt='Sim Logo'
                         className='object-contain'
                         width={32}
                         height={32}
                       />
                     </div>
-                    <h2 className='font-semibold text-lg text-white sm:text-xl'>Sim Studio</h2>
+                    <h2 className='font-semibold text-lg text-white sm:text-xl'>Sim</h2>
                   </div>
                   <p className='text-neutral-400 text-xs sm:text-sm'>
                     An open source platform for building, testing, and optimizing agentic workflows

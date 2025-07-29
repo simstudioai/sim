@@ -54,7 +54,7 @@ export function TelemetryConsentDialog() {
   const isChatSubdomainOrPath =
     typeof window !== 'undefined' &&
     (window.location.pathname.startsWith('/chat/') ||
-      (window.location.hostname !== 'simstudio.ai' &&
+      (window.location.hostname !== 'sim.ai' &&
         window.location.hostname !== 'localhost' &&
         window.location.hostname !== '127.0.0.1' &&
         !window.location.hostname.startsWith('www.')))
@@ -206,7 +206,7 @@ export function TelemetryConsentDialog() {
 
         <div className='space-y-4 text-base text-muted-foreground'>
           <div>
-            To help us improve Sim Studio, we collect anonymous usage data by default. This helps us
+            To help us improve Sim, we collect anonymous usage data by default. This helps us
             understand which features are most useful and identify areas for improvement.
           </div>
 

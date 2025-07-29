@@ -100,7 +100,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   description: 'Route workflow',
   longDescription:
     'Intelligently direct workflow execution to different paths based on input analysis. Use AI to determine the most appropriate next step in your workflow based on content, intent, or specific criteria.',
-  docsLink: 'https://docs.simstudio.ai/blocks/router',
+  docsLink: 'https://docs.sim.ai/blocks/router',
   category: 'blocks',
   bgColor: '#28C43F',
   icon: ConnectIcon,

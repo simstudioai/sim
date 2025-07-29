@@ -20,12 +20,12 @@ vi.mock('@/lib/email/unsubscribe', () => ({
 vi.mock('@/lib/env', () => ({
   env: {
     RESEND_API_KEY: 'test-api-key',
-    NEXT_PUBLIC_APP_URL: 'https://test.simstudio.ai',
+    NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
   },
 }))
 
 vi.mock('@/lib/urls/utils', () => ({
-  getEmailDomain: vi.fn().mockReturnValue('simstudio.ai'),
+  getEmailDomain: vi.fn().mockReturnValue('sim.ai'),
 }))
 
 import { type EmailType, sendEmail } from '@/lib/email/mailer'
@@ -64,7 +64,7 @@ describe('mailer', () => {
 
       // Should call Resend with correct parameters
       expect(mockSend).toHaveBeenCalledWith({
-        from: 'Sim Studio <noreply@simstudio.ai>',
+        from: 'Sim <noreply@sim.ai>',
         to: testEmailOptions.to,
         subject: testEmailOptions.subject,
         html: testEmailOptions.html,
@@ -91,13 +91,13 @@ describe('mailer', () => {
 
       // Should call Resend with unsubscribe headers
       expect(mockSend).toHaveBeenCalledWith({
-        from: 'Sim Studio <noreply@simstudio.ai>',
+        from: 'Sim <noreply@sim.ai>',
         to: testEmailOptions.to,
         subject: testEmailOptions.subject,
         html: '<p>Test content</p><a href="mock-token-123">Unsubscribe</a>',
         headers: {
           'List-Unsubscribe':
-            '<https://test.simstudio.ai/unsubscribe?token=mock-token-123&email=test%40example.com>',
+            '<https://test.sim.ai/unsubscribe?token=mock-token-123&email=test%40example.com>',
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         },
       })
@@ -148,7 +148,7 @@ describe('mailer', () => {
 
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
-          from: 'Sim Studio <custom@example.com>',
+          from: 'Sim <custom@example.com>',
         })
       )
     })

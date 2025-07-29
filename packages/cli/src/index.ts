@@ -17,10 +17,10 @@ const DEFAULT_PORT = '3000'
 
 const program = new Command()
 
-program.name('simstudio').description('Run Sim Studio using Docker').version('0.1.0')
+program.name('simstudio').description('Run Sim using Docker').version('0.1.0')
 
 program
-  .option('-p, --port <port>', 'Port to run Sim Studio on', DEFAULT_PORT)
+  .option('-p, --port <port>', 'Port to run Sim on', DEFAULT_PORT)
   .option('-y, --yes', 'Skip interactive prompts and use defaults')
   .option('--no-pull', 'Skip pulling the latest Docker images')
 
@@ -85,7 +85,7 @@ async function cleanupExistingContainers(): Promise<void> {
 async function main() {
   const options = program.parse().opts()
 
-  console.log(chalk.blue('🚀 Starting Sim Studio...'))
+  console.log(chalk.blue('🚀 Starting Sim...'))
 
   // Check if Docker is installed and running
   const dockerRunning = await isDockerRunning()
@@ -225,7 +225,7 @@ async function main() {
   }
 
   // Start the main application
-  console.log(chalk.blue('🔄 Starting Sim Studio...'))
+  console.log(chalk.blue('🔄 Starting Sim...'))
   const appSuccess = await runCommand([
     'docker',
     'run',
@@ -250,13 +250,11 @@ async function main() {
   ])
 
   if (!appSuccess) {
-    console.error(chalk.red('❌ Failed to start Sim Studio'))
+    console.error(chalk.red('❌ Failed to start Sim'))
     process.exit(1)
   }
 
-  console.log(
-    chalk.green(`✅ Sim Studio is now running at ${chalk.bold(`http://localhost:${port}`)}`)
-  )
+  console.log(chalk.green(`✅ Sim is now running at ${chalk.bold(`http://localhost:${port}`)}`))
   console.log(
     chalk.yellow(
       `🛑 To stop all containers, run: ${chalk.bold('docker stop simstudio-app simstudio-db simstudio-realtime')}`
@@ -270,14 +268,14 @@ async function main() {
   })
 
   rl.on('SIGINT', async () => {
-    console.log(chalk.yellow('\n🛑 Stopping Sim Studio...'))
+    console.log(chalk.yellow('\n🛑 Stopping Sim...'))
 
     // Stop containers
     await stopAndRemoveContainer(APP_CONTAINER)
     await stopAndRemoveContainer(DB_CONTAINER)
     await stopAndRemoveContainer(REALTIME_CONTAINER)
 
-    console.log(chalk.green('✅ Sim Studio has been stopped'))
+    console.log(chalk.green('✅ Sim has been stopped'))
     process.exit(0)
   })
 }

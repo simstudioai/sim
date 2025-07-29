@@ -4,14 +4,14 @@ description: A Helm chart for Sim - AI agent workflow platform
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
-home: https://simstudio.ai
+home: https://sim.ai
 icon: https://raw.githubusercontent.com/simstudioai/sim/main/apps/sim/public/sim.svg
 sources:
   - https://github.com/simstudioai/sim
 maintainers:
   - name: Sim Team
-    email: help@simstudio.ai
-    url: https://simstudio.ai
+    email: help@sim.ai
+    url: https://sim.ai
 keywords:
   - ai
   - workflow

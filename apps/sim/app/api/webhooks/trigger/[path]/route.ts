@@ -247,7 +247,7 @@ export async function POST(
       // Microsoft Teams requires specific response format
       return NextResponse.json({
         type: 'message',
-        text: 'Sim Studio',
+        text: 'Sim',
       })
     }
 

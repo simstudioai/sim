@@ -209,7 +209,7 @@ export function SearchModal({
         id: 'docs',
         name: 'Docs',
         icon: BookOpen,
-        href: 'https://docs.simstudio.ai/',
+        href: 'https://docs.sim.ai/',
       },
     ],
     [workspaceId]

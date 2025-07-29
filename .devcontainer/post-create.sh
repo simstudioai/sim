@@ -3,7 +3,7 @@
 # Exit on error, but with some error handling
 set -e
 
-echo "🔧 Setting up Sim Studio development environment..."
+echo "🔧 Setting up Sim development environment..."
 
 # Change to the workspace root directory
 cd /workspace
@@ -85,7 +85,7 @@ echo "Waiting for database to be ready..."
 # Add additional helpful aliases to .bashrc
 cat << EOF >> ~/.bashrc
 
-# Additional Sim Studio Development Aliases
+# Additional Sim Development Aliases
 alias migrate="cd /workspace/apps/sim && DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio bunx drizzle-kit push"
 alias generate="cd /workspace/apps/sim && bunx drizzle-kit generate"
 alias dev="cd /workspace && bun run dev"
@@ -104,7 +104,7 @@ unset SIM_WELCOME_SHOWN
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Sim Studio development environment setup complete!"
+echo "✅ Sim development environment setup complete!"
 echo ""
 echo "Your environment is now ready. A new terminal session will show"
 echo "available commands. You can start the development server with:"
