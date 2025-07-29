@@ -1,4 +1,5 @@
 import type { JSX, SVGProps } from 'react'
+import type { GenerationType } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-code-generation'
 import type { ToolResponse } from '@/tools/types'
 
 // Basic types
@@ -86,6 +87,13 @@ export interface ParamConfig {
   }
 }
 
+// Wand (AI generation) configuration
+export interface WandConfig {
+  enabled?: boolean
+  generationType?: GenerationType
+  placeholder?: string
+}
+
 // SubBlock configuration
 export interface SubBlockConfig {
   id: string
@@ -135,9 +143,8 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
-  enableWand?: boolean
-  wandGenerationType?: string
-  wandPlaceholder?: string
+  // Wand (AI generation) configuration
+  wandConfig?: WandConfig
 }
 
 // Main block definition

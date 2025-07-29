@@ -6,7 +6,7 @@ interface ChatMessage {
   content: string
 }
 
-type GenerationType =
+export type GenerationType =
   | 'json-schema'
   | 'javascript-function-body'
   | 'typescript-function-body'

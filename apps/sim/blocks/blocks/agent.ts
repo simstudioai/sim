@@ -69,9 +69,11 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       layout: 'full',
       placeholder: 'Enter system prompt...',
       rows: 5,
-      enableWand: true,
-      wandGenerationType: 'system-prompt',
-      wandPlaceholder: 'Describe the AI agent role and behavior to generate a system prompt...',
+      wandConfig: {
+        enabled: true,
+        generationType: 'system-prompt',
+        placeholder: 'Describe the AI agent role and behavior to generate a system prompt...',
+      },
     },
     {
       id: 'userPrompt',

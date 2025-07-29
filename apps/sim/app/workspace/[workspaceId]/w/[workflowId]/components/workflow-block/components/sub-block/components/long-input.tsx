@@ -7,10 +7,10 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { CodePromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/code-prompt-bar/code-prompt-bar'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useCodeGeneration } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-code-generation'
 import type { SubBlockConfig } from '@/blocks/types'
-import { CodePromptBar } from '../../../../../components/code-prompt-bar/code-prompt-bar'
-import { useCodeGeneration } from '../../../../../hooks/use-code-generation'
 
 const logger = createLogger('LongInput')
 
@@ -26,9 +26,6 @@ interface LongInputProps {
   value?: string
   onChange?: (value: string) => void
   disabled?: boolean
-  enableWand?: boolean
-  wandGenerationType?: string
-  wandPlaceholder?: string
 }
 
 // Constants
@@ -48,10 +45,9 @@ export function LongInput({
   value: propValue,
   onChange,
   disabled,
-  enableWand = false,
-  wandGenerationType = 'system-prompt',
-  wandPlaceholder = 'Describe the system prompt...',
 }: LongInputProps) {
+  // Extract wand configuration from config
+  const wandConfig = config?.wandConfig
   // Local state for text content (similar to code.tsx pattern)
   const [localText, setLocalText] = useState<string>('')
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -81,9 +77,9 @@ export function LongInput({
   // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
 
-  const aiGeneration = enableWand
+  const aiGeneration = wandConfig?.enabled
     ? useCodeGeneration({
-        generationType: wandGenerationType as any,
+        generationType: wandConfig.generationType ?? 'system-prompt',
         initialContext: localText,
         onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
         onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
@@ -342,7 +338,7 @@ export function LongInput({
   return (
     <>
       {/* AI Prompt Bar - rendered on top of the block */}
-      {enableWand && (
+      {wandConfig?.enabled && (
         <CodePromptBar
           isVisible={aiGeneration?.isPromptVisible ?? false}
           isLoading={aiGeneration?.isLoading ?? false}
@@ -357,7 +353,7 @@ export function LongInput({
             }
           }}
           onChange={(value) => aiGeneration?.updatePromptValue?.(value)}
-          placeholder={wandPlaceholder}
+          placeholder={wandConfig?.placeholder ?? 'Describe the system prompt...'}
         />
       )}
 
@@ -414,7 +410,7 @@ export function LongInput({
         </div>
 
         {/* Wand Button */}
-        {enableWand && !aiGeneration?.isStreaming && !isPreview && !disabled && (
+        {wandConfig?.enabled && !aiGeneration?.isStreaming && !isPreview && !disabled && (
           <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
             <button
               type='button'
