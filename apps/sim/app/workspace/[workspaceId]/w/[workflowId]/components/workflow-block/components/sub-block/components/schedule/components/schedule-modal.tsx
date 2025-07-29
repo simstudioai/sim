@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Trash2, X } from 'lucide-react'
+import { Search, Trash2, X } from 'lucide-react'
 import {
   Alert,
   AlertDescription,
@@ -17,6 +17,9 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +44,277 @@ interface ScheduleModalProps {
   onDelete?: () => Promise<boolean>
   scheduleId?: string | null
 }
+
+// Timezone data with searchable keywords
+const timezoneOptions = [
+  { value: 'UTC', label: 'UTC', keywords: 'UTC GMT' },
+
+  // UTC-10 to UTC-3 (Western Hemisphere)
+  {
+    value: 'Pacific/Honolulu',
+    label: 'US Hawaii (UTC-10)',
+    keywords: 'Hawaii Honolulu Pacific US America',
+  },
+  {
+    value: 'America/Anchorage',
+    label: 'US Alaska (UTC-8)',
+    keywords: 'Alaska Anchorage US America',
+  },
+  {
+    value: 'America/Los_Angeles',
+    label: 'US Pacific (UTC-7/-8)',
+    keywords: 'Los Angeles California Pacific US America PST PDT',
+  },
+  {
+    value: 'America/Vancouver',
+    label: 'Canada Pacific (UTC-7/-8)',
+    keywords: 'Vancouver Canada Pacific PST PDT',
+  },
+  {
+    value: 'America/Denver',
+    label: 'US Mountain (UTC-6/-7)',
+    keywords: 'Denver Colorado Mountain US America MST MDT',
+  },
+  {
+    value: 'America/Chicago',
+    label: 'US Central (UTC-5/-6)',
+    keywords: 'Chicago Illinois Central US America CST CDT',
+  },
+  {
+    value: 'America/Mexico_City',
+    label: 'Mexico City (UTC-5/-6)',
+    keywords: 'Mexico City Mexico CST CDT',
+  },
+  { value: 'America/Bogota', label: 'Bogota (UTC-5)', keywords: 'Bogota Colombia South America' },
+  { value: 'America/Lima', label: 'Lima (UTC-5)', keywords: 'Lima Peru South America' },
+  {
+    value: 'America/New_York',
+    label: 'US Eastern (UTC-4/-5)',
+    keywords: 'New York Eastern US America EST EDT',
+  },
+  {
+    value: 'America/Toronto',
+    label: 'Canada Eastern (UTC-4/-5)',
+    keywords: 'Toronto Canada Eastern EST EDT',
+  },
+  {
+    value: 'America/Sao_Paulo',
+    label: 'São Paulo (UTC-2/-3)',
+    keywords: 'Sao Paulo Brazil South America',
+  },
+  {
+    value: 'America/Argentina/Buenos_Aires',
+    label: 'Buenos Aires (UTC-3)',
+    keywords: 'Buenos Aires Argentina South America',
+  },
+  {
+    value: 'America/Santiago',
+    label: 'Santiago (UTC-3/-4)',
+    keywords: 'Santiago Chile South America',
+  },
+
+  // UTC+1 to UTC+3 (Europe & Africa)
+  {
+    value: 'Europe/London',
+    label: 'London (UTC+0/+1)',
+    keywords: 'London England UK Britain Europe GMT BST',
+  },
+  { value: 'Africa/Lagos', label: 'Lagos (UTC+1)', keywords: 'Lagos Nigeria Africa' },
+  {
+    value: 'Africa/Casablanca',
+    label: 'Casablanca (UTC+0/+1)',
+    keywords: 'Casablanca Morocco Africa',
+  },
+  { value: 'Europe/Paris', label: 'Paris (UTC+1/+2)', keywords: 'Paris France Europe CET CEST' },
+  {
+    value: 'Europe/Berlin',
+    label: 'Berlin (UTC+1/+2)',
+    keywords: 'Berlin Germany Europe CET CEST',
+  },
+  { value: 'Europe/Rome', label: 'Rome (UTC+1/+2)', keywords: 'Rome Italy Europe CET CEST' },
+  { value: 'Europe/Madrid', label: 'Madrid (UTC+1/+2)', keywords: 'Madrid Spain Europe CET CEST' },
+  {
+    value: 'Europe/Amsterdam',
+    label: 'Amsterdam (UTC+1/+2)',
+    keywords: 'Amsterdam Netherlands Europe CET CEST',
+  },
+  {
+    value: 'Europe/Brussels',
+    label: 'Brussels (UTC+1/+2)',
+    keywords: 'Brussels Belgium Europe CET CEST',
+  },
+  {
+    value: 'Europe/Vienna',
+    label: 'Vienna (UTC+1/+2)',
+    keywords: 'Vienna Austria Europe CET CEST',
+  },
+  {
+    value: 'Europe/Zurich',
+    label: 'Zurich (UTC+1/+2)',
+    keywords: 'Zurich Switzerland Europe CET CEST',
+  },
+  {
+    value: 'Europe/Stockholm',
+    label: 'Stockholm (UTC+1/+2)',
+    keywords: 'Stockholm Sweden Europe CET CEST',
+  },
+  { value: 'Europe/Oslo', label: 'Oslo (UTC+1/+2)', keywords: 'Oslo Norway Europe CET CEST' },
+  {
+    value: 'Europe/Copenhagen',
+    label: 'Copenhagen (UTC+1/+2)',
+    keywords: 'Copenhagen Denmark Europe CET CEST',
+  },
+  {
+    value: 'Europe/Prague',
+    label: 'Prague (UTC+1/+2)',
+    keywords: 'Prague Czech Republic Europe CET CEST',
+  },
+  { value: 'Europe/Warsaw', label: 'Warsaw (UTC+1/+2)', keywords: 'Warsaw Poland Europe CET CEST' },
+  {
+    value: 'Europe/Budapest',
+    label: 'Budapest (UTC+1/+2)',
+    keywords: 'Budapest Hungary Europe CET CEST',
+  },
+  {
+    value: 'Africa/Johannesburg',
+    label: 'Johannesburg (UTC+2)',
+    keywords: 'Johannesburg South Africa Africa',
+  },
+  {
+    value: 'Europe/Helsinki',
+    label: 'Helsinki (UTC+2/+3)',
+    keywords: 'Helsinki Finland Europe EET EEST',
+  },
+  { value: 'Europe/Athens', label: 'Athens (UTC+2/+3)', keywords: 'Athens Greece Europe EET EEST' },
+  {
+    value: 'Europe/Bucharest',
+    label: 'Bucharest (UTC+2/+3)',
+    keywords: 'Bucharest Romania Europe EET EEST',
+  },
+  { value: 'Europe/Sofia', label: 'Sofia (UTC+2/+3)', keywords: 'Sofia Bulgaria Europe EET EEST' },
+  { value: 'Europe/Kiev', label: 'Kiev (UTC+2/+3)', keywords: 'Kiev Ukraine Europe EET EEST' },
+  { value: 'Europe/Moscow', label: 'Moscow (UTC+3)', keywords: 'Moscow Russia Europe MSK' },
+  { value: 'Europe/Istanbul', label: 'Istanbul (UTC+3)', keywords: 'Istanbul Turkey Europe' },
+  { value: 'Africa/Cairo', label: 'Cairo (UTC+2/+3)', keywords: 'Cairo Egypt Africa EET EEST' },
+  { value: 'Africa/Nairobi', label: 'Nairobi (UTC+3)', keywords: 'Nairobi Kenya Africa' },
+  {
+    value: 'Africa/Addis_Ababa',
+    label: 'Addis Ababa (UTC+3)',
+    keywords: 'Addis Ababa Ethiopia Africa',
+  },
+  { value: 'Asia/Tehran', label: 'Tehran (UTC+3:30/+4:30)', keywords: 'Tehran Iran Asia' },
+
+  // UTC+4 to UTC+6 (Central Asia)
+  { value: 'Asia/Dubai', label: 'Dubai (UTC+4)', keywords: 'Dubai UAE United Arab Emirates Asia' },
+  { value: 'Asia/Kabul', label: 'Kabul (UTC+4:30)', keywords: 'Kabul Afghanistan Asia' },
+  { value: 'Asia/Tashkent', label: 'Tashkent (UTC+5)', keywords: 'Tashkent Uzbekistan Asia' },
+  { value: 'Asia/Kolkata', label: 'Kolkata (UTC+5:30)', keywords: 'Kolkata India Asia IST' },
+  { value: 'Asia/Kathmandu', label: 'Kathmandu (UTC+5:45)', keywords: 'Kathmandu Nepal Asia' },
+  { value: 'Asia/Almaty', label: 'Almaty (UTC+6)', keywords: 'Almaty Kazakhstan Asia' },
+  { value: 'Asia/Dhaka', label: 'Dhaka (UTC+6)', keywords: 'Dhaka Bangladesh Asia' },
+  { value: 'Asia/Yangon', label: 'Yangon (UTC+6:30)', keywords: 'Yangon Myanmar Burma Asia' },
+
+  // UTC+7 to UTC+9 (Southeast & East Asia)
+  {
+    value: 'Asia/Novosibirsk',
+    label: 'Novosibirsk (UTC+6/+7)',
+    keywords: 'Novosibirsk Russia Asia',
+  },
+  {
+    value: 'Asia/Krasnoyarsk',
+    label: 'Krasnoyarsk (UTC+7/+8)',
+    keywords: 'Krasnoyarsk Russia Asia',
+  },
+  { value: 'Asia/Bangkok', label: 'Bangkok (UTC+7)', keywords: 'Bangkok Thailand Asia' },
+  { value: 'Asia/Ho_Chi_Minh', label: 'Ho Chi Minh (UTC+7)', keywords: 'Ho Chi Minh Vietnam Asia' },
+  { value: 'Asia/Jakarta', label: 'Jakarta (UTC+7)', keywords: 'Jakarta Indonesia Asia' },
+  { value: 'Asia/Irkutsk', label: 'Irkutsk (UTC+8/+9)', keywords: 'Irkutsk Russia Asia' },
+  { value: 'Asia/Manila', label: 'Manila (UTC+8)', keywords: 'Manila Philippines Asia' },
+  { value: 'Asia/Singapore', label: 'Singapore (UTC+8)', keywords: 'Singapore Asia' },
+  {
+    value: 'Asia/Kuala_Lumpur',
+    label: 'Kuala Lumpur (UTC+8)',
+    keywords: 'Kuala Lumpur Malaysia Asia',
+  },
+  { value: 'Asia/Hong_Kong', label: 'Hong Kong (UTC+8)', keywords: 'Hong Kong China Asia' },
+  { value: 'Asia/Shanghai', label: 'Shanghai (UTC+8)', keywords: 'Shanghai China Asia' },
+  {
+    value: 'Asia/Ulaanbaatar',
+    label: 'Ulaanbaatar (UTC+8)',
+    keywords: 'Ulaanbaatar Mongolia Asia',
+  },
+  { value: 'Australia/Perth', label: 'Perth (UTC+8)', keywords: 'Perth Australia Oceania' },
+  { value: 'Asia/Yakutsk', label: 'Yakutsk (UTC+9/+10)', keywords: 'Yakutsk Russia Asia' },
+  { value: 'Asia/Seoul', label: 'Seoul (UTC+9)', keywords: 'Seoul South Korea Asia' },
+  { value: 'Asia/Tokyo', label: 'Tokyo (UTC+9)', keywords: 'Tokyo Japan Asia JST' },
+  { value: 'Asia/Pyongyang', label: 'Pyongyang (UTC+9)', keywords: 'Pyongyang North Korea Asia' },
+
+  // UTC+10 to UTC+14 (Oceania & Pacific)
+  {
+    value: 'Australia/Adelaide',
+    label: 'Adelaide (UTC+9:30/+10:30)',
+    keywords: 'Adelaide Australia Oceania',
+  },
+  { value: 'Australia/Darwin', label: 'Darwin (UTC+9:30)', keywords: 'Darwin Australia Oceania' },
+  {
+    value: 'Australia/Brisbane',
+    label: 'Brisbane (UTC+10)',
+    keywords: 'Brisbane Australia Oceania',
+  },
+  {
+    value: 'Australia/Sydney',
+    label: 'Sydney (UTC+10/+11)',
+    keywords: 'Sydney Australia Oceania AEST AEDT',
+  },
+  {
+    value: 'Australia/Melbourne',
+    label: 'Melbourne (UTC+10/+11)',
+    keywords: 'Melbourne Australia Oceania AEST AEDT',
+  },
+  {
+    value: 'Australia/Hobart',
+    label: 'Hobart (UTC+10/+11)',
+    keywords: 'Hobart Australia Oceania AEST AEDT',
+  },
+  { value: 'Pacific/Guam', label: 'Guam (UTC+10)', keywords: 'Guam Pacific' },
+  {
+    value: 'Pacific/Port_Moresby',
+    label: 'Port Moresby (UTC+10)',
+    keywords: 'Port Moresby Papua New Guinea Pacific',
+  },
+  {
+    value: 'Australia/Lord_Howe',
+    label: 'Lord Howe (UTC+10:30/+11)',
+    keywords: 'Lord Howe Australia Oceania',
+  },
+  {
+    value: 'Asia/Vladivostok',
+    label: 'Vladivostok (UTC+10/+11)',
+    keywords: 'Vladivostok Russia Asia',
+  },
+  { value: 'Asia/Magadan', label: 'Magadan (UTC+11/+12)', keywords: 'Magadan Russia Asia' },
+  { value: 'Pacific/Noumea', label: 'Noumea (UTC+11)', keywords: 'Noumea New Caledonia Pacific' },
+  { value: 'Pacific/Norfolk', label: 'Norfolk (UTC+11)', keywords: 'Norfolk Island Pacific' },
+  { value: 'Asia/Kamchatka', label: 'Kamchatka (UTC+12)', keywords: 'Kamchatka Russia Asia' },
+  {
+    value: 'Pacific/Auckland',
+    label: 'Auckland (UTC+12/+13)',
+    keywords: 'Auckland New Zealand Oceania NZST NZDT',
+  },
+  { value: 'Pacific/Fiji', label: 'Fiji (UTC+12)', keywords: 'Fiji Pacific' },
+  { value: 'Pacific/Tarawa', label: 'Tarawa (UTC+12)', keywords: 'Tarawa Kiribati Pacific' },
+  {
+    value: 'Pacific/Kwajalein',
+    label: 'Kwajalein (UTC+12)',
+    keywords: 'Kwajalein Marshall Islands Pacific',
+  },
+  { value: 'Pacific/Apia', label: 'Apia (UTC+13/+14)', keywords: 'Apia Samoa Pacific' },
+  {
+    value: 'Pacific/Kiritimati',
+    label: 'Kiritimati (UTC+14)',
+    keywords: 'Kiritimati Christmas Island Pacific',
+  },
+]
 
 export function ScheduleModal({
   isOpen,
@@ -73,6 +347,9 @@ export function ScheduleModal({
   const [showUnsavedChangesConfirm, setShowUnsavedChangesConfirm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [timezoneOpen, setTimezoneOpen] = useState(false)
+  const [timezoneSearchQuery, setTimezoneSearchQuery] = useState('')
+  const [selectedTimezoneIndex, setSelectedTimezoneIndex] = useState(-1)
 
   // Simpler approach - we'll use this to store the initial values when the modal opens
   const [initialValues, setInitialValues] = useState<Record<string, any>>({})
@@ -316,6 +593,13 @@ export function ScheduleModal({
     setShowDeleteConfirm(true)
   }
 
+  // Get current timezone label
+  const getCurrentTimezoneLabel = () => {
+    const currentTimezone = timezone || 'UTC'
+    const timezoneOption = timezoneOptions.find((option) => option.value === currentTimezone)
+    return timezoneOption ? timezoneOption.label : currentTimezone
+  }
+
   return (
     <>
       <DialogContent className='flex flex-col gap-0 p-0 sm:max-w-[600px]' hideCloseButton>
@@ -522,114 +806,140 @@ export function ScheduleModal({
                 <label htmlFor='timezone' className='font-medium text-sm'>
                   Timezone
                 </label>
-                <Select value={timezone || 'UTC'} onValueChange={(value) => setTimezone(value)}>
-                  <SelectTrigger className='h-10'>
-                    <SelectValue placeholder='Select timezone' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='UTC'>UTC</SelectItem>
+                <Popover open={timezoneOpen} onOpenChange={setTimezoneOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant='outline'
+                      role='combobox'
+                      aria-expanded={timezoneOpen}
+                      className='h-10 w-full justify-between'
+                    >
+                      {getCurrentTimezoneLabel()}
+                      <svg
+                        className='ml-2 h-4 w-4 shrink-0 opacity-50'
+                        xmlns='http://www.w3.org/2000/svg'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                      >
+                        <polyline points='6,9 12,15 18,9' />
+                      </svg>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className='w-[var(--radix-popover-trigger-width)] p-0'
+                    align='start'
+                    onWheel={(e) => e.stopPropagation()}
+                  >
+                    <div className='flex flex-col bg-popover text-popover-foreground rounded-md border shadow-md'>
+                      <div className='flex items-center border-b px-3'>
+                        <Search className='mr-2 h-4 w-4 shrink-0 opacity-50' />
+                        <input
+                          placeholder='Search timezones...'
+                          value={timezoneSearchQuery}
+                          className='flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50'
+                          onChange={(e) => {
+                            setTimezoneSearchQuery(e.target.value)
+                            setSelectedTimezoneIndex(-1) // Reset selection when searching
+                          }}
+                          onKeyDown={(e) => {
+                            const filteredOptions = timezoneOptions.filter((option) => {
+                              const searchTerm = timezoneSearchQuery.toLowerCase()
+                              return (
+                                option.label.toLowerCase().includes(searchTerm) ||
+                                option.keywords.toLowerCase().includes(searchTerm)
+                              )
+                            })
 
-                    {/* UTC-10 to UTC-3 (Western Hemisphere) */}
-                    <SelectItem value='Pacific/Honolulu'>US Hawaii (UTC-10)</SelectItem>
-                    <SelectItem value='America/Anchorage'>US Alaska (UTC-8)</SelectItem>
-                    <SelectItem value='America/Los_Angeles'>US Pacific (UTC-7/-8)</SelectItem>
-                    <SelectItem value='America/Vancouver'>Canada Pacific (UTC-7/-8)</SelectItem>
-                    <SelectItem value='America/Denver'>US Mountain (UTC-6/-7)</SelectItem>
-                    <SelectItem value='America/Chicago'>US Central (UTC-5/-6)</SelectItem>
-                    <SelectItem value='America/Mexico_City'>Mexico City (UTC-5/-6)</SelectItem>
-                    <SelectItem value='America/Bogota'>Bogota (UTC-5)</SelectItem>
-                    <SelectItem value='America/Lima'>Lima (UTC-5)</SelectItem>
-                    <SelectItem value='America/New_York'>US Eastern (UTC-4/-5)</SelectItem>
-                    <SelectItem value='America/Toronto'>Canada Eastern (UTC-4/-5)</SelectItem>
-                    <SelectItem value='America/Sao_Paulo'>São Paulo (UTC-2/-3)</SelectItem>
-                    <SelectItem value='America/Argentina/Buenos_Aires'>
-                      Buenos Aires (UTC-3)
-                    </SelectItem>
-                    <SelectItem value='America/Santiago'>Santiago (UTC-3/-4)</SelectItem>
+                            switch (e.key) {
+                              case 'ArrowDown':
+                                e.preventDefault()
+                                setSelectedTimezoneIndex((prev) =>
+                                  prev < filteredOptions.length - 1 ? prev + 1 : 0
+                                )
+                                break
+                              case 'ArrowUp':
+                                e.preventDefault()
+                                setSelectedTimezoneIndex((prev) =>
+                                  prev > 0 ? prev - 1 : filteredOptions.length - 1
+                                )
+                                break
+                              case 'Enter':
+                                e.preventDefault()
+                                if (
+                                  selectedTimezoneIndex >= 0 &&
+                                  filteredOptions[selectedTimezoneIndex]
+                                ) {
+                                  setTimezone(filteredOptions[selectedTimezoneIndex].value)
+                                  setTimezoneOpen(false)
+                                  setTimezoneSearchQuery('')
+                                  setSelectedTimezoneIndex(-1)
+                                }
+                                break
+                              case 'Escape':
+                                e.preventDefault()
+                                setTimezoneOpen(false)
+                                setTimezoneSearchQuery('')
+                                setSelectedTimezoneIndex(-1)
+                                break
+                            }
+                          }}
+                        />
+                      </div>
+                      <div
+                        className='max-h-[300px] overflow-y-auto'
+                        style={{
+                          WebkitOverflowScrolling: 'touch',
+                          scrollbarWidth: 'thin',
+                          msOverflowStyle: 'none',
+                          overscrollBehavior: 'contain',
+                        }}
+                        onWheel={(e) => {
+                          e.stopPropagation()
+                        }}
+                      >
+                        {(() => {
+                          const filteredOptions = timezoneOptions.filter((option) => {
+                            const searchTerm = timezoneSearchQuery.toLowerCase()
+                            return (
+                              option.label.toLowerCase().includes(searchTerm) ||
+                              option.keywords.toLowerCase().includes(searchTerm)
+                            )
+                          })
 
-                    {/* UTC+1 to UTC+3 (Europe & Africa) */}
-                    <SelectItem value='Europe/London'>London (UTC+0/+1)</SelectItem>
-                    <SelectItem value='Africa/Lagos'>Lagos (UTC+1)</SelectItem>
-                    <SelectItem value='Africa/Casablanca'>Casablanca (UTC+0/+1)</SelectItem>
-                    <SelectItem value='Europe/Paris'>Paris (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Berlin'>Berlin (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Rome'>Rome (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Madrid'>Madrid (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Amsterdam'>Amsterdam (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Brussels'>Brussels (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Vienna'>Vienna (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Zurich'>Zurich (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Stockholm'>Stockholm (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Oslo'>Oslo (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Copenhagen'>Copenhagen (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Prague'>Prague (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Warsaw'>Warsaw (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Europe/Budapest'>Budapest (UTC+1/+2)</SelectItem>
-                    <SelectItem value='Africa/Johannesburg'>Johannesburg (UTC+2)</SelectItem>
-                    <SelectItem value='Europe/Helsinki'>Helsinki (UTC+2/+3)</SelectItem>
-                    <SelectItem value='Europe/Athens'>Athens (UTC+2/+3)</SelectItem>
-                    <SelectItem value='Europe/Bucharest'>Bucharest (UTC+2/+3)</SelectItem>
-                    <SelectItem value='Europe/Sofia'>Sofia (UTC+2/+3)</SelectItem>
-                    <SelectItem value='Europe/Kiev'>Kiev (UTC+2/+3)</SelectItem>
-                    <SelectItem value='Europe/Moscow'>Moscow (UTC+3)</SelectItem>
-                    <SelectItem value='Europe/Istanbul'>Istanbul (UTC+3)</SelectItem>
-                    <SelectItem value='Africa/Cairo'>Cairo (UTC+2/+3)</SelectItem>
-                    <SelectItem value='Africa/Nairobi'>Nairobi (UTC+3)</SelectItem>
-                    <SelectItem value='Africa/Addis_Ababa'>Addis Ababa (UTC+3)</SelectItem>
-                    <SelectItem value='Asia/Tehran'>Tehran (UTC+3:30/+4:30)</SelectItem>
-
-                    {/* UTC+4 to UTC+6 (Central Asia) */}
-                    <SelectItem value='Asia/Dubai'>Dubai (UTC+4)</SelectItem>
-                    <SelectItem value='Asia/Kabul'>Kabul (UTC+4:30)</SelectItem>
-                    <SelectItem value='Asia/Tashkent'>Tashkent (UTC+5)</SelectItem>
-                    <SelectItem value='Asia/Kolkata'>Kolkata (UTC+5:30)</SelectItem>
-                    <SelectItem value='Asia/Kathmandu'>Kathmandu (UTC+5:45)</SelectItem>
-                    <SelectItem value='Asia/Almaty'>Almaty (UTC+6)</SelectItem>
-                    <SelectItem value='Asia/Dhaka'>Dhaka (UTC+6)</SelectItem>
-                    <SelectItem value='Asia/Yangon'>Yangon (UTC+6:30)</SelectItem>
-
-                    {/* UTC+7 to UTC+9 (Southeast & East Asia) */}
-                    <SelectItem value='Asia/Novosibirsk'>Novosibirsk (UTC+6/+7)</SelectItem>
-                    <SelectItem value='Asia/Krasnoyarsk'>Krasnoyarsk (UTC+7/+8)</SelectItem>
-                    <SelectItem value='Asia/Bangkok'>Bangkok (UTC+7)</SelectItem>
-                    <SelectItem value='Asia/Ho_Chi_Minh'>Ho Chi Minh (UTC+7)</SelectItem>
-                    <SelectItem value='Asia/Jakarta'>Jakarta (UTC+7)</SelectItem>
-                    <SelectItem value='Asia/Irkutsk'>Irkutsk (UTC+8/+9)</SelectItem>
-                    <SelectItem value='Asia/Manila'>Manila (UTC+8)</SelectItem>
-                    <SelectItem value='Asia/Singapore'>Singapore (UTC+8)</SelectItem>
-                    <SelectItem value='Asia/Kuala_Lumpur'>Kuala Lumpur (UTC+8)</SelectItem>
-                    <SelectItem value='Asia/Hong_Kong'>Hong Kong (UTC+8)</SelectItem>
-                    <SelectItem value='Asia/Shanghai'>Shanghai (UTC+8)</SelectItem>
-                    <SelectItem value='Asia/Ulaanbaatar'>Ulaanbaatar (UTC+8)</SelectItem>
-                    <SelectItem value='Australia/Perth'>Perth (UTC+8)</SelectItem>
-                    <SelectItem value='Asia/Yakutsk'>Yakutsk (UTC+9/+10)</SelectItem>
-                    <SelectItem value='Asia/Seoul'>Seoul (UTC+9)</SelectItem>
-                    <SelectItem value='Asia/Tokyo'>Tokyo (UTC+9)</SelectItem>
-                    <SelectItem value='Asia/Pyongyang'>Pyongyang (UTC+9)</SelectItem>
-
-                    {/* UTC+10 to UTC+14 (Oceania & Pacific) */}
-                    <SelectItem value='Australia/Adelaide'>Adelaide (UTC+9:30/+10:30)</SelectItem>
-                    <SelectItem value='Australia/Darwin'>Darwin (UTC+9:30)</SelectItem>
-                    <SelectItem value='Australia/Brisbane'>Brisbane (UTC+10)</SelectItem>
-                    <SelectItem value='Australia/Sydney'>Sydney (UTC+10/+11)</SelectItem>
-                    <SelectItem value='Australia/Melbourne'>Melbourne (UTC+10/+11)</SelectItem>
-                    <SelectItem value='Australia/Hobart'>Hobart (UTC+10/+11)</SelectItem>
-                    <SelectItem value='Pacific/Guam'>Guam (UTC+10)</SelectItem>
-                    <SelectItem value='Pacific/Port_Moresby'>Port Moresby (UTC+10)</SelectItem>
-                    <SelectItem value='Australia/Lord_Howe'>Lord Howe (UTC+10:30/+11)</SelectItem>
-                    <SelectItem value='Asia/Vladivostok'>Vladivostok (UTC+10/+11)</SelectItem>
-                    <SelectItem value='Asia/Magadan'>Magadan (UTC+11/+12)</SelectItem>
-                    <SelectItem value='Pacific/Noumea'>Noumea (UTC+11)</SelectItem>
-                    <SelectItem value='Pacific/Norfolk'>Norfolk (UTC+11)</SelectItem>
-                    <SelectItem value='Asia/Kamchatka'>Kamchatka (UTC+12)</SelectItem>
-                    <SelectItem value='Pacific/Auckland'>Auckland (UTC+12/+13)</SelectItem>
-                    <SelectItem value='Pacific/Fiji'>Fiji (UTC+12)</SelectItem>
-                    <SelectItem value='Pacific/Tarawa'>Tarawa (UTC+12)</SelectItem>
-                    <SelectItem value='Pacific/Kwajalein'>Kwajalein (UTC+12)</SelectItem>
-                    <SelectItem value='Pacific/Apia'>Apia (UTC+13/+14)</SelectItem>
-                    <SelectItem value='Pacific/Kiritimati'>Kiritimati (UTC+14)</SelectItem>
-                  </SelectContent>
-                </Select>
+                          return filteredOptions.length === 0 ? (
+                            <div className='py-6 text-center text-sm'>No timezone found.</div>
+                          ) : (
+                            <div className='p-1'>
+                              {filteredOptions.map((option, index) => (
+                                <button
+                                  key={option.value}
+                                  className={`relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${
+                                    index === selectedTimezoneIndex
+                                      ? 'bg-accent text-accent-foreground'
+                                      : ''
+                                  }`}
+                                  onClick={() => {
+                                    setTimezone(option.value)
+                                    setTimezoneOpen(false)
+                                    setTimezoneSearchQuery('')
+                                    setSelectedTimezoneIndex(-1)
+                                  }}
+                                  onMouseEnter={() => setSelectedTimezoneIndex(index)}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             )}
           </div>
