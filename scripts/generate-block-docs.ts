@@ -219,7 +219,7 @@ function extractStringProperty(content: string, propName: string): string | null
   // Try single quotes first - more permissive approach
   const singleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*'([^']*)'`, 'm'))
   if (singleQuoteMatch) return singleQuoteMatch[1]
-  
+
   // Try double quotes
   const doubleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*"([^"]*)"`, 'm'))
   if (doubleQuoteMatch) return doubleQuoteMatch[1]
