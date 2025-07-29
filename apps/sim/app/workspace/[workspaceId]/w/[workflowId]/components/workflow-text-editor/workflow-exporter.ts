@@ -1,6 +1,7 @@
-import { dump as yamlDump, load as yamlLoad } from 'js-yaml'
+import { dump as yamlDump } from 'js-yaml'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
+import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -91,7 +92,11 @@ export function exportWorkflow(format: EditorFormat): string {
  */
 export function parseWorkflowContent(content: string, format: EditorFormat): any {
   if (format === 'yaml') {
-    return yamlLoad(content)
+    const { data, errors } = parseWorkflowYaml(content)
+    if (errors.length > 0) {
+      throw new Error(`YAML parsing errors: ${errors.join(', ')}`)
+    }
+    return data
   }
   return JSON.parse(content)
 }

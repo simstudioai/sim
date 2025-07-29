@@ -16,13 +16,14 @@ async function applyOperationsToYaml(
   currentYaml: string,
   operations: EditWorkflowOperation[]
 ): Promise<string> {
+  // Parse current YAML using unified converter for validation
+  const { convertYamlToWorkflowState } = await import('@/lib/workflows/yaml-converter')
   const { parseWorkflowYaml } = await import('@/stores/workflows/yaml/importer')
-  const yaml = await import('yaml')
-
-  // Parse current YAML to get the complete structure
+  
   const { data: workflowData, errors } = parseWorkflowYaml(currentYaml)
+  
   if (!workflowData || errors.length > 0) {
-    throw new Error(`Failed to parse current YAML: ${errors.join(', ')}`)
+    throw new Error(`Invalid YAML format: ${errors.join(', ')}`)
   }
 
   // Apply operations to the parsed YAML data (preserving all existing fields)
@@ -223,7 +224,8 @@ async function applyOperationsToYaml(
   })
 
   // Convert the complete workflow data back to YAML (preserving version and all other fields)
-  return yaml.stringify(workflowData)
+  const { dump: yamlDump } = await import('js-yaml')
+  return yamlDump(workflowData)
 }
 
 import { BaseCopilotTool } from '../base'

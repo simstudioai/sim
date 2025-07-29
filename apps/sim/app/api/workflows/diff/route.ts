@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { dump as yamlDump, load as yamlParse } from 'js-yaml'
+import { dump as yamlDump } from 'js-yaml'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -16,49 +16,44 @@ const YamlDiffRequestSchema = z.object({
 type YamlDiffRequest = z.infer<typeof YamlDiffRequestSchema>
 
 /**
- * Clean up YAML by removing empty blocks programmatically
+ * Clean up YAML content by removing empty blocks and formatting
  */
 function cleanupYamlContent(yamlContent: string): string {
   try {
-    // Parse the YAML
-    const workflow = yamlParse(yamlContent) as any
-
-    if (!workflow || !workflow.blocks) {
+    // Parse the YAML using the validated parser
+    const { data: workflowData, errors } = parseWorkflowYaml(yamlContent)
+    
+    if (errors.length > 0 || !workflowData || !workflowData.blocks) {
       return yamlContent
     }
 
     // Filter out empty blocks
     const cleanedBlocks: Record<string, any> = {}
-    Object.entries(workflow.blocks).forEach(([blockId, block]) => {
+    Object.entries(workflowData.blocks).forEach(([blockId, block]) => {
       // Only include blocks that have at least type and name
       if (
         block &&
         typeof block === 'object' &&
         (block as any).type &&
-        (block as any).name &&
-        Object.keys(block).length > 0
+        (block as any).name
       ) {
         cleanedBlocks[blockId] = block
-      } else {
-        logger.info(`Filtering out empty block: ${blockId}`)
       }
     })
 
     // Rebuild the workflow with cleaned blocks
     const cleanedWorkflow = {
-      ...workflow,
+      ...workflowData,
       blocks: cleanedBlocks,
     }
 
-    // Convert back to YAML
     return yamlDump(cleanedWorkflow, {
       indent: 2,
       lineWidth: -1,
       noRefs: true,
-      sortKeys: false,
     })
   } catch (error) {
-    logger.warn('Failed to clean YAML content, returning original', error)
+    logger.error('Failed to cleanup YAML content:', error)
     return yamlContent
   }
 }

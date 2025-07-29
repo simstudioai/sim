@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { dump as yamlDump, load as yamlParse } from 'js-yaml'
+import { useState, useCallback, useMemo, useEffect } from 'react'
+import { dump as yamlDump } from 'js-yaml'
+import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 import { AlertCircle, Check, FileCode, Save } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -53,7 +54,7 @@ export function WorkflowTextEditor({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   // Validate content based on format
-  const validateContent = useCallback((text: string, fmt: EditorFormat): ValidationError[] => {
+  const validateSyntax = useCallback((text: string, fmt: EditorFormat): ValidationError[] => {
     const errors: ValidationError[] = []
 
     if (!text.trim()) {
@@ -62,7 +63,14 @@ export function WorkflowTextEditor({
 
     try {
       if (fmt === 'yaml') {
-        yamlParse(text)
+        const { errors: yamlErrors } = parseWorkflowYaml(text)
+        if (yamlErrors.length > 0) {
+          yamlErrors.forEach(error => {
+            errors.push({
+              message: error,
+            })
+          })
+        }
       } else if (fmt === 'json') {
         JSON.parse(text)
       }
@@ -94,7 +102,11 @@ export function WorkflowTextEditor({
         let parsed: any
 
         if (fromFormat === 'yaml') {
-          parsed = yamlParse(text)
+          const { data, errors } = parseWorkflowYaml(text)
+          if (errors.length > 0) {
+            throw new Error(`YAML parsing errors: ${errors.join(', ')}`)
+          }
+          parsed = data
         } else {
           parsed = JSON.parse(text)
         }
@@ -122,13 +134,13 @@ export function WorkflowTextEditor({
       setHasUnsavedChanges(newContent !== initialValue)
 
       // Validate on change
-      const errors = validateContent(newContent, currentFormat)
+      const errors = validateSyntax(newContent, currentFormat)
       setValidationErrors(errors)
 
       // Clear save result when editing
       setSaveResult(null)
     },
-    [initialValue, currentFormat, validateContent]
+    [initialValue, currentFormat, validateSyntax]
   )
 
   // Handle format changes
@@ -143,13 +155,13 @@ export function WorkflowTextEditor({
       setContent(convertedContent)
 
       // Validate converted content
-      const errors = validateContent(convertedContent, newFormat)
+      const errors = validateSyntax(convertedContent, newFormat)
       setValidationErrors(errors)
 
       // Notify parent
       onFormatChange?.(newFormat)
     },
-    [content, currentFormat, convertFormat, validateContent, onFormatChange]
+    [content, currentFormat, convertFormat, validateSyntax, onFormatChange]
   )
 
   // Handle save

@@ -41,38 +41,32 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
   })
 
   try {
-    // Import the necessary functions dynamically to avoid import issues
-    const { parseWorkflowYaml } = await import('@/stores/workflows/yaml/importer')
-    const { convertYamlToWorkflow } = await import('@/stores/workflows/yaml/importer')
+    // Import the unified converter
+    const { convertYamlToWorkflowState } = await import('@/lib/workflows/yaml-converter')
     
-    // Parse YAML content
-    const { data: yamlWorkflow, errors: parseErrors } = parseWorkflowYaml(yamlContent)
+    // Use unified conversion with new IDs generation
+    const conversionResult = await convertYamlToWorkflowState(yamlContent, {
+      generateNewIds: true,
+      preservePositions: false
+    })
 
-    if (!yamlWorkflow || parseErrors.length > 0) {
-      logger.error('YAML parsing failed', { parseErrors })
+    if (!conversionResult.success || !conversionResult.workflowState) {
+      logger.error('YAML conversion failed', { 
+        errors: conversionResult.errors,
+        warnings: conversionResult.warnings 
+      })
       return {
         success: false,
-        message: `Failed to parse YAML workflow: ${parseErrors.join(', ')}`,
+        message: `Failed to convert YAML workflow: ${conversionResult.errors.join(', ')}`,
         yamlContent,
         description,
       }
     }
 
-    // Convert YAML to workflow format
-    const { blocks, edges, errors: convertErrors } = convertYamlToWorkflow(yamlWorkflow)
+    const { workflowState, idMapping } = conversionResult
 
-    if (convertErrors.length > 0) {
-      logger.error('YAML conversion failed', { convertErrors })
-      return {
-        success: false,
-        message: `Failed to convert YAML to workflow: ${convertErrors.join(', ')}`,
-        yamlContent,
-        description,
-      }
-    }
-
-    // Create a basic workflow state structure
-    const workflowState = {
+    // Create a basic workflow state structure for preview
+    const previewWorkflowState = {
       blocks: {} as Record<string, any>,
       edges: [] as any[],
       loops: {} as Record<string, any>,
@@ -81,36 +75,36 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
       isDeployed: false,
     }
 
-    // Process blocks with unique IDs
+    // Process blocks with preview IDs
     const blockIdMapping = new Map<string, string>()
     
-    Object.keys(blocks).forEach((blockId) => {
+    Object.keys(workflowState.blocks).forEach((blockId) => {
       const previewId = `preview-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
       blockIdMapping.set(blockId, previewId)
     })
 
-    // Add blocks to workflow state
-    for (const [originalBlockId, blockData] of Object.entries(blocks)) {
-      const previewBlockId = blockIdMapping.get(originalBlockId)!
+    // Add blocks to preview workflow state
+    for (const [originalId, block] of Object.entries(workflowState.blocks)) {
+      const previewBlockId = blockIdMapping.get(originalId)!
       
-      workflowState.blocks[previewBlockId] = {
-        ...blockData,
+      previewWorkflowState.blocks[previewBlockId] = {
+        ...block,
         id: previewBlockId,
-        position: (blockData as any).position || { x: 0, y: 0 },
+        position: (block as any).position || { x: 0, y: 0 },
         enabled: true,
       }
     }
 
     // Process edges with updated block IDs
-    workflowState.edges = edges.map((edge: any) => ({
+    previewWorkflowState.edges = workflowState.edges.map((edge: any) => ({
       ...edge,
       id: `edge-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       source: blockIdMapping.get(edge.source) || edge.source,
       target: blockIdMapping.get(edge.target) || edge.target,
     }))
 
-    const blocksCount = Object.keys(workflowState.blocks).length
-    const edgesCount = workflowState.edges.length
+    const blocksCount = Object.keys(previewWorkflowState.blocks).length
+    const edgesCount = previewWorkflowState.edges.length
     
     logger.info('Workflow built successfully', { blocksCount, edgesCount })
 
@@ -119,7 +113,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
       message: `Successfully built workflow with ${blocksCount} blocks and ${edgesCount} connections`,
       yamlContent,
       description: description || 'Built workflow',
-      workflowState,
+      workflowState: previewWorkflowState,
       data: {
         blocksCount,
         edgesCount,
