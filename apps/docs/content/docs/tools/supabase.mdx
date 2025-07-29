@@ -51,19 +51,26 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Supabase](https://www.supabase.com/) is an open-source Firebase alternative that provides a suite of tools for building modern applications. It offers a PostgreSQL database, authentication, instant APIs, real-time subscriptions, storage, and edge functions, all within a unified platform.
+[Supabase](https://www.supabase.com/) is a powerful open-source backend-as-a-service platform that provides developers with a suite of tools to build, scale, and manage modern applications. Supabase offers a fully managed [PostgreSQL](https://www.postgresql.org/) database, robust authentication, instant RESTful and GraphQL APIs, real-time subscriptions, file storage, and edge functions—all accessible through a unified and developer-friendly interface. Its open-source nature and compatibility with popular frameworks make it a compelling alternative to Firebase, with the added benefit of SQL flexibility and transparency.
 
-With Supabase, you can:
+**Why Supabase?**
+- **Instant APIs:** Every table and view in your database is instantly available via REST and GraphQL endpoints, making it easy to build data-driven applications without writing custom backend code.
+- **Real-time Data:** Supabase enables real-time subscriptions, allowing your apps to react instantly to changes in your database.
+- **Authentication & Authorization:** Built-in user management with support for email, OAuth, SSO, and more, plus row-level security for granular access control.
+- **Storage:** Securely upload, serve, and manage files with built-in storage that integrates seamlessly with your database.
+- **Edge Functions:** Deploy serverless functions close to your users for low-latency custom logic.
 
-- **Manage relational data**: Work with a powerful PostgreSQL database with full SQL capabilities
-- **Implement authentication**: Add secure user authentication with multiple providers
-- **Create instant APIs**: Generate RESTful APIs automatically based on your database schema
-- **Enable real-time updates**: Subscribe to database changes and build reactive applications
-- **Store files**: Upload, transform, and serve files with storage buckets
-- **Deploy serverless functions**: Run code in response to database changes or HTTP requests
-- **Secure your application**: Implement row-level security and manage permissions
+**Using Supabase in Sim Studio**
 
-In Sim Studio, the Supabase integration enables your agents to interact with your Supabase projects programmatically. This allows for powerful automation scenarios such as data querying, record creation, user management, and file operations. Your agents can retrieve information from your database, insert new records, update existing data, and leverage Supabase's authentication and storage capabilities as part of their workflows. This integration bridges the gap between your AI workflows and your application's data layer, enabling more sophisticated and data-driven automations. By connecting Sim Studio with Supabase, you can create agents that maintain data consistency across systems, trigger actions based on database changes, perform complex data operations, and build workflows that leverage your application's existing data infrastructure - all without requiring manual intervention or custom code.
+Sim Studio’s Supabase integration makes it effortless to connect your agentic workflows to your Supabase projects. With just a few configuration fields—your Project ID, Table name, and Service Role Secret—you can securely interact with your database directly from your Sim Studio blocks. The integration abstracts away the complexity of API calls, letting you focus on building logic and automations.
+
+**Key benefits of using Supabase in Sim Studio:**
+- **No-code/low-code database operations:** Query, insert, update, and delete rows in your Supabase tables without writing SQL or backend code.
+- **Flexible querying:** Use [PostgREST filter syntax](https://postgrest.org/en/stable/api.html#operators) to perform advanced queries, including filtering, ordering, and limiting results.
+- **Seamless integration:** Easily connect Supabase to other tools and services in your workflow, enabling powerful automations such as syncing data, triggering notifications, or enriching records.
+- **Secure and scalable:** All operations use your Supabase Service Role Secret, ensuring secure access to your data with the scalability of a managed cloud platform.
+
+Whether you’re building internal tools, automating business processes, or powering production applications, Supabase in Sim Studio provides a fast, reliable, and developer-friendly way to manage your data and backend logic—no infrastructure management required. Simply configure your block, select the operation you need, and let Sim Studio handle the rest.
 {/* MANUAL-CONTENT-END */}
 
 
