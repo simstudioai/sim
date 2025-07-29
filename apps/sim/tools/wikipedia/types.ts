@@ -109,8 +109,6 @@ export interface WikipediaPageContentResponse extends ToolResponse {
 }
 
 // Random Page tool types
-export interface WikipediaRandomPageParams {}
-
 export interface WikipediaRandomPage {
   type: string
   title: string

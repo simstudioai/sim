@@ -1,10 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
-import type {
-  WikipediaRandomPageParams,
-  WikipediaRandomPageResponse,
-} from '@/tools/wikipedia/types'
+import type { WikipediaRandomPageResponse } from '@/tools/wikipedia/types'
 
-export const randomPageTool: ToolConfig<WikipediaRandomPageParams, WikipediaRandomPageResponse> = {
+export const randomPageTool: ToolConfig<Record<string, never>, WikipediaRandomPageResponse> = {
   id: 'wikipedia_random',
   name: 'Wikipedia Random Page',
   description: 'Get a random Wikipedia page.',
