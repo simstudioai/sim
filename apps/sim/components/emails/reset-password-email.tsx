@@ -62,8 +62,8 @@ export const ResetPasswordEmail = ({
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello {username},</Text>
             <Text style={baseStyles.paragraph}>
-              You recently requested to reset your password for your Sim account. Use the
-              button below to reset it. This password reset is only valid for the next 24 hours.
+              You recently requested to reset your password for your Sim account. Use the button
+              below to reset it. This password reset is only valid for the next 24 hours.
             </Text>
             <Link href={resetLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Reset Your Password</Text>

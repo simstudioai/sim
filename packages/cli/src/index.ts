@@ -254,9 +254,7 @@ async function main() {
     process.exit(1)
   }
 
-  console.log(
-    chalk.green(`✅ Sim is now running at ${chalk.bold(`http://localhost:${port}`)}`)
-  )
+  console.log(chalk.green(`✅ Sim is now running at ${chalk.bold(`http://localhost:${port}`)}`))
   console.log(
     chalk.yellow(
       `🛑 To stop all containers, run: ${chalk.bold('docker stop simstudio-app simstudio-db simstudio-realtime')}`

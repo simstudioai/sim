@@ -157,8 +157,8 @@ export default function TermsOfService() {
                     solicitation.
                   </li>
                   <li>
-                    To impersonate or attempt to impersonate Sim, Inc, a Sim employee,
-                    another user, or any other person or entity.
+                    To impersonate or attempt to impersonate Sim, Inc, a Sim employee, another user,
+                    or any other person or entity.
                   </li>
                   <li>
                     In any way that infringes upon the rights of others, or in any way is illegal,
@@ -166,8 +166,8 @@ export default function TermsOfService() {
                   </li>
                   <li>
                     To engage in any other conduct that restricts or inhibits anyone's use or
-                    enjoyment of the Service, or which, as determined by us, may harm Sim,
-                    Inc or users of the Service or expose them to liability.
+                    enjoyment of the Service, or which, as determined by us, may harm Sim, Inc or
+                    users of the Service or expose them to liability.
                   </li>
                 </ul>
               </section>
@@ -217,8 +217,7 @@ export default function TermsOfService() {
                   or course of performance.
                 </p>
                 <p>
-                  Sim, Inc, its subsidiaries, affiliates, and its licensors do not warrant
-                  that:
+                  Sim, Inc, its subsidiaries, affiliates, and its licensors do not warrant that:
                 </p>
                 <ul className='mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]'>
                   <li>
@@ -249,9 +248,9 @@ export default function TermsOfService() {
                 <h2 className='mb-4 font-semibold text-2xl text-white'>9. Arbitration Agreement</h2>
                 <p className='mb-4'>
                   Please read the following arbitration agreement carefully. It requires you to
-                  arbitrate disputes with Sim, Inc, its parent companies, subsidiaries,
-                  affiliates, successors and assigns and all of their respective officers,
-                  directors, employees, agents, and representatives (collectively, the{' '}
+                  arbitrate disputes with Sim, Inc, its parent companies, subsidiaries, affiliates,
+                  successors and assigns and all of their respective officers, directors, employees,
+                  agents, and representatives (collectively, the{' '}
                   <span className='text-[#B5A1D4]'>"Company Parties"</span>) and limits the manner
                   in which you can seek relief from the Company Parties.
                 </p>
@@ -278,10 +277,7 @@ export default function TermsOfService() {
                 <p className='mb-4'>
                   You have the right to opt out of the provisions of this Arbitration Agreement by
                   sending a timely written notice of your decision to opt out to:{' '}
-                  <Link
-                    href='mailto:legal@sim.ai'
-                    className='text-[#B5A1D4] hover:text-[#701ffc]'
-                  >
+                  <Link href='mailto:legal@sim.ai' className='text-[#B5A1D4] hover:text-[#701ffc]'>
                     legal@sim.ai{' '}
                   </Link>
                   within 30 days after first becoming subject to this Arbitration Agreement.
@@ -345,10 +341,7 @@ export default function TermsOfService() {
                 <h2 className='mb-4 font-semibold text-2xl text-white'>12. Contact Us</h2>
                 <p>
                   If you have any questions about these Terms, please contact us at:{' '}
-                  <Link
-                    href='mailto:legal@sim.ai'
-                    className='text-[#B5A1D4] hover:text-[#701ffc]'
-                  >
+                  <Link href='mailto:legal@sim.ai' className='text-[#B5A1D4] hover:text-[#701ffc]'>
                     legal@sim.ai
                   </Link>
                 </p>

@@ -83,8 +83,8 @@ export const InvitationEmail = ({
             <Text style={baseStyles.paragraph}>Hello,</Text>
             <Text style={baseStyles.paragraph}>
               <strong>{inviterName}</strong> has invited you to join{' '}
-              <strong>{organizationName}</strong> on Sim. Sim is a powerful,
-              user-friendly platform for building, testing, and optimizing agentic workflows.
+              <strong>{organizationName}</strong> on Sim. Sim is a powerful, user-friendly platform
+              for building, testing, and optimizing agentic workflows.
             </Text>
             <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>

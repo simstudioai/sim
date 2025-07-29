@@ -58,10 +58,7 @@ export async function GET(req: NextRequest) {
     // Check if invitation has expired
     if (orgInvitation.expiresAt && new Date() > orgInvitation.expiresAt) {
       return NextResponse.redirect(
-        new URL(
-          '/invite/invite-error?reason=expired',
-          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
-        )
+        new URL('/invite/invite-error?reason=expired', env.NEXT_PUBLIC_APP_URL || 'https://sim.ai')
       )
     }
 

@@ -52,10 +52,7 @@ export async function GET(req: NextRequest) {
     // Check if invitation has expired
     if (new Date() > new Date(invitation.expiresAt)) {
       return NextResponse.redirect(
-        new URL(
-          '/invite/invite-error?reason=expired',
-          env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
-        )
+        new URL('/invite/invite-error?reason=expired', env.NEXT_PUBLIC_APP_URL || 'https://sim.ai')
       )
     }
 
@@ -184,10 +181,7 @@ export async function GET(req: NextRequest) {
 
     // Redirect to the workspace
     return NextResponse.redirect(
-      new URL(
-        `/workspace/${invitation.workspaceId}/w`,
-        env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
-      )
+      new URL(`/workspace/${invitation.workspaceId}/w`, env.NEXT_PUBLIC_APP_URL || 'https://sim.ai')
     )
   } catch (error) {
     console.error('Error accepting invitation:', error)

@@ -49,9 +49,7 @@ export const WorkspaceInvitationEmail = ({
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>
-          You've been invited to join the "{workspaceName}" workspace on Sim!
-        </Preview>
+        <Preview>You've been invited to join the "{workspaceName}" workspace on Sim!</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
@@ -82,8 +80,8 @@ export const WorkspaceInvitationEmail = ({
               {inviterName} has invited you to join the "{workspaceName}" workspace on Sim!
             </Text>
             <Text style={baseStyles.paragraph}>
-              Sim is a powerful platform for building, testing, and optimizing AI workflows.
-              Join this workspace to collaborate with your team.
+              Sim is a powerful platform for building, testing, and optimizing AI workflows. Join
+              this workspace to collaborate with your team.
             </Text>
             <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>
