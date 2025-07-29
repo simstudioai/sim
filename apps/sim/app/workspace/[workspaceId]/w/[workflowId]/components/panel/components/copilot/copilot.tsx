@@ -151,9 +151,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(
     // Handle new chat creation
     const handleStartNewChat = useCallback(() => {
       // Preview clearing is now handled automatically by the copilot store
-      clearMessages()
+      createNewChat()
       logger.info('Started new chat')
-    }, [clearMessages])
+    }, [createNewChat])
 
     // Expose functions to parent
     useImperativeHandle(

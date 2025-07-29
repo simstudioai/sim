@@ -226,6 +226,12 @@ const sseHandlers: Record<string, SSEHandler> = {
         title,
         updatedAt: new Date(),
       } : state.currentChat,
+      // Also update the chat in the chats array
+      chats: state.chats.map(chat => 
+        chat.id === state.currentChat?.id 
+          ? { ...chat, title, updatedAt: new Date() }
+          : chat
+      ),
     }))
   },
 
@@ -594,24 +600,14 @@ export const useCopilotStore = create<CopilotStore>()(
         logger.info(`Selected chat: ${chat.title || 'Untitled'}`)
       },
 
-      // Create a new chat locally (will be persisted when sending first message)
+      // Create a new chat - clear current chat state like when switching workflows
       createNewChat: async () => {
-        const newChat: CopilotChat = {
-          id: `temp-${Date.now()}`, // Temporary ID until backend creates real one
-          title: null,
-          model: 'gpt-4',
-          messages: [],
-          messageCount: 0,
-          previewYaml: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }
-
+        // Set state to null so backend creates a new chat on first message
         set({
-          currentChat: newChat,
+          currentChat: null,
           messages: [],
         })
-        logger.info('Created new local chat')
+        logger.info('Cleared chat state for new conversation')
       },
 
       // Delete chat is now a no-op since we don't have the API
