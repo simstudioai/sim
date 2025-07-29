@@ -17,7 +17,7 @@ function getTagFilters(filters: Record<string, string>, embedding: any) {
   return Object.entries(filters).map(([key, value]) => {
     // Handle OR logic within same tag
     const values = value.includes('|OR|') ? value.split('|OR|') : [value]
-    console.log(`[getTagFilters] Processing ${key}="${value}" -> values:`, values)
+    logger.debug(`[getTagFilters] Processing ${key}="${value}" -> values:`, values)
 
     const getColumnForKey = (key: string) => {
       switch (key) {
@@ -45,11 +45,11 @@ function getTagFilters(filters: Record<string, string>, embedding: any) {
 
     if (values.length === 1) {
       // Single value - simple equality
-      console.log(`[getTagFilters] Single value filter: ${key} = ${values[0]}`)
+      logger.debug(`[getTagFilters] Single value filter: ${key} = ${values[0]}`)
       return sql`LOWER(${column}) = LOWER(${values[0]})`
     }
     // Multiple values - OR logic
-    console.log(`[getTagFilters] OR filter: ${key} IN (${values.join(', ')})`)
+    logger.debug(`[getTagFilters] OR filter: ${key} IN (${values.join(', ')})`)
     const orConditions = values.map((v) => sql`LOWER(${column}) = LOWER(${v})`)
     return sql`(${sql.join(orConditions, sql` OR `)})`
   })
@@ -196,7 +196,7 @@ async function executeSingleQuery(
   distanceThreshold: number,
   filters?: Record<string, string>
 ) {
-  console.log(`[executeSingleQuery] Called with filters:`, filters)
+  logger.debug(`[executeSingleQuery] Called with filters:`, filters)
   return await db
     .select({
       id: embedding.id,
@@ -275,8 +275,8 @@ export async function POST(request: NextRequest) {
             .from(knowledgeBaseTagDefinitions)
             .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, kbId))
 
-          console.log(`[${requestId}] Found tag definitions:`, tagDefs)
-          console.log(`[${requestId}] Original filters:`, validatedData.filters)
+          logger.debug(`[${requestId}] Found tag definitions:`, tagDefs)
+          logger.debug(`[${requestId}] Original filters:`, validatedData.filters)
 
           // Create mapping from display name to tag slot
           const displayNameToSlot: Record<string, string> = {}
@@ -291,19 +291,19 @@ export async function POST(request: NextRequest) {
 
               // Check if this is an OR filter (contains |OR| separator)
               if (value.includes('|OR|')) {
-                console.log(
+                logger.debug(
                   `[${requestId}] OR filter detected: "${key}" -> "${tagSlot}" = "${value}"`
                 )
               }
 
               mappedFilters[tagSlot] = value
-              console.log(`[${requestId}] Mapped filter: "${key}" -> "${tagSlot}" = "${value}"`)
+              logger.debug(`[${requestId}] Mapped filter: "${key}" -> "${tagSlot}" = "${value}"`)
             }
           })
 
-          console.log(`[${requestId}] Final mapped filters:`, mappedFilters)
+          logger.debug(`[${requestId}] Final mapped filters:`, mappedFilters)
         } catch (error) {
-          console.error(`[${requestId}] Filter mapping error:`, error)
+          logger.error(`[${requestId}] Filter mapping error:`, error)
           // If mapping fails, use original filters
           mappedFilters = validatedData.filters
         }
@@ -337,7 +337,7 @@ export async function POST(request: NextRequest) {
 
       if (strategy.useParallel) {
         // Execute parallel queries for better performance with many KBs
-        console.log(`[${requestId}] Executing parallel queries with filters:`, mappedFilters)
+        logger.debug(`[${requestId}] Executing parallel queries with filters:`, mappedFilters)
         const parallelResults = await executeParallelQueries(
           accessibleKbIds,
           queryVector,
@@ -348,7 +348,7 @@ export async function POST(request: NextRequest) {
         results = mergeAndRankResults(parallelResults, validatedData.topK)
       } else {
         // Execute single optimized query for fewer KBs
-        console.log(`[${requestId}] Executing single query with filters:`, mappedFilters)
+        logger.debug(`[${requestId}] Executing single query with filters:`, mappedFilters)
         results = await executeSingleQuery(
           accessibleKbIds,
           queryVector,
@@ -387,7 +387,7 @@ export async function POST(request: NextRequest) {
           tagDefs.forEach((def) => {
             tagDefinitionsMap[kbId][def.tagSlot] = def.displayName
           })
-          console.log(
+          logger.debug(
             `[${requestId}] Display mapping - KB ${kbId} tag definitions:`,
             tagDefinitionsMap[kbId]
           )
