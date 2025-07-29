@@ -16,6 +16,7 @@ import {
   uuid,
   vector,
 } from 'drizzle-orm/pg-core'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 
 // Custom tsvector type for full-text search
 export const tsvector = customType<{
@@ -802,7 +803,7 @@ export const knowledgeBaseTagDefinitions = pgTable(
       .notNull()
       .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
     tagSlot: text('tag_slot', {
-      enum: ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'],
+      enum: TAG_SLOTS,
     }).notNull(),
     displayName: text('display_name').notNull(),
     fieldType: text('field_type').notNull().default('text'), // 'text', future: 'date', 'number', 'range'

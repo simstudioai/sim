@@ -18,11 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { MAX_TAG_SLOTS, TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledge'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-definitions'
 
 export interface DocumentTag {
-  slot: 'tag1' | 'tag2' | 'tag3' | 'tag4' | 'tag5' | 'tag6' | 'tag7'
+  slot: TagSlot
   displayName: string
   fieldType: string
   value: string
@@ -37,7 +38,7 @@ interface DocumentTagEntryProps {
   onSave?: (tags: DocumentTag[]) => Promise<void>
 }
 
-const TAG_SLOTS = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+// TAG_SLOTS is now imported from constants
 
 export function DocumentTagEntry({
   tags,
@@ -77,7 +78,7 @@ export function DocumentTagEntry({
     const definitions: TagDefinitionInput[] = currentTags
       .filter((tag) => tag?.displayName?.trim())
       .map((tag) => ({
-        tagSlot: tag.slot,
+        tagSlot: tag.slot as TagSlot,
         displayName: tag.displayName.trim(),
         fieldType: tag.fieldType || 'text',
       }))
@@ -114,6 +115,9 @@ export function DocumentTagEntry({
   const availableTagNames = kbTagDefinitions
     .map((tag) => tag.displayName)
     .filter((tagName) => !tags.some((tag) => tag.displayName === tagName))
+
+  // Check if we can add more tags (KB has less than MAX_TAG_SLOTS tag definitions)
+  const canAddMoreTags = kbTagDefinitions.length < MAX_TAG_SLOTS
 
   const handleSuggestionClick = (tagName: string) => {
     setEditingTag({ index: -1, value: '', tagName, isNew: false })
@@ -248,7 +252,7 @@ export function DocumentTagEntry({
             type='button'
             variant='outline'
             size='sm'
-            disabled={disabled || tags.length >= 7}
+            disabled={disabled || (!canAddMoreTags && availableTagNames.length === 0)}
             className='gap-1 text-muted-foreground hover:text-foreground'
           >
             <Plus className='h-4 w-4' />
@@ -279,16 +283,22 @@ export function DocumentTagEntry({
             </>
           )}
 
-          {/* Create new tag option */}
-          <DropdownMenuItem
-            onClick={() => {
-              setEditingTag({ index: -1, value: '', tagName: '', isNew: true })
-            }}
-            className='flex items-center gap-2 text-blue-600'
-          >
-            <Plus className='h-4 w-4' />
-            <span>Create new tag</span>
-          </DropdownMenuItem>
+          {/* Create new tag option or disabled message */}
+          {canAddMoreTags ? (
+            <DropdownMenuItem
+              onClick={() => {
+                setEditingTag({ index: -1, value: '', tagName: '', isNew: true })
+              }}
+              className='flex items-center gap-2 text-blue-600'
+            >
+              <Plus className='h-4 w-4' />
+              <span>Create new tag</span>
+            </DropdownMenuItem>
+          ) : (
+            <div className='px-2 py-1.5 text-muted-foreground text-sm'>
+              All {MAX_TAG_SLOTS} tag slots used in this knowledge base
+            </div>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -320,8 +330,11 @@ export function DocumentTagEntry({
         />
       )}
 
-      {tags.length > 0 && (
-        <div className='text-muted-foreground text-xs'>{tags.length} of 7 tags used</div>
+      {/* Tag count display */}
+      {kbTagDefinitions.length > 0 && (
+        <div className='text-muted-foreground text-xs'>
+          {kbTagDefinitions.length} of {MAX_TAG_SLOTS} tag slots used in this knowledge base
+        </div>
       )}
     </div>
   )

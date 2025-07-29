@@ -11,6 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
 import {
@@ -102,10 +103,10 @@ export function Document({
   const buildDocumentTags = useCallback(
     (docData: DocumentData, definitions: any[], currentTags?: DocumentTag[]) => {
       const tags: DocumentTag[] = []
-      const tagSlots = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+      const tagSlots = TAG_SLOTS
 
       tagSlots.forEach((slot) => {
-        const value = docData[slot]
+        const value = (docData as any)[slot] as string | null | undefined
         const definition = definitions.find((def) => def.tagSlot === slot)
         const currentTag = currentTags?.find((tag) => tag.slot === slot)
 
@@ -140,7 +141,7 @@ export function Document({
       try {
         // Convert DocumentTag array to tag data for API
         const tagData: Record<string, string> = {}
-        const tagSlots = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
+        const tagSlots = TAG_SLOTS
 
         // Clear all tags first
         tagSlots.forEach((slot) => {

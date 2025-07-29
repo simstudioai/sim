@@ -3,6 +3,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { MAX_TAG_SLOTS, TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 import { db } from '@/db'
@@ -13,13 +14,15 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('DocumentTagDefinitionsAPI')
 
 const TagDefinitionSchema = z.object({
-  tagSlot: z.enum(['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7']),
+  tagSlot: z.enum(TAG_SLOTS as [string, ...string[]]),
   displayName: z.string().min(1, 'Display name is required').max(100, 'Display name too long'),
   fieldType: z.string().default('text'), // Currently only 'text', future: 'date', 'number', 'range'
 })
 
 const BulkTagDefinitionsSchema = z.object({
-  definitions: z.array(TagDefinitionSchema).max(7, 'Cannot define more than 7 tags'),
+  definitions: z
+    .array(TagDefinitionSchema)
+    .max(MAX_TAG_SLOTS, `Cannot define more than ${MAX_TAG_SLOTS} tags`),
 })
 
 // Helper function to clean up unused tag definitions
@@ -203,6 +206,21 @@ export async function POST(
       .select()
       .from(knowledgeBaseTagDefinitions)
       .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+
+    // Check if we're trying to create more tag definitions than available slots
+    const existingTagNames = new Set(existingDefinitions.map((def) => def.displayName))
+    const trulyNewTags = validatedData.definitions.filter(
+      (def) => !existingTagNames.has(def.displayName)
+    )
+
+    if (existingDefinitions.length + trulyNewTags.length > MAX_TAG_SLOTS) {
+      return NextResponse.json(
+        {
+          error: `Cannot create ${trulyNewTags.length} new tags. Knowledge base already has ${existingDefinitions.length} tag definitions. Maximum is ${MAX_TAG_SLOTS} total.`,
+        },
+        { status: 400 }
+      )
+    }
 
     // Use transaction to ensure consistency
     await db.transaction(async (tx) => {

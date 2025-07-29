@@ -3,6 +3,7 @@
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MAX_TAG_SLOTS } from '@/lib/constants/knowledge'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
@@ -74,7 +75,7 @@ export function DocumentTagEntry({
     .filter((name) => !usedTagNames.has(name))
 
   if (isLoading) {
-    return <div className='p-4 text-sm text-muted-foreground'>Loading tag definitions...</div>
+    return <div className='p-4 text-muted-foreground text-sm'>Loading tag definitions...</div>
   }
 
   return (
@@ -82,7 +83,7 @@ export function DocumentTagEntry({
       {/* Available Tags Section */}
       {availableTagNames.length > 0 && (
         <div>
-          <div className='mb-2 text-sm font-medium text-muted-foreground'>
+          <div className='mb-2 font-medium text-muted-foreground text-sm'>
             Available Tags (click to add)
           </div>
           <div className='flex flex-wrap gap-2'>
@@ -104,11 +105,11 @@ export function DocumentTagEntry({
                     }
                   }}
                   disabled={disabled || isConnecting}
-                  className='inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50'
+                  className='inline-flex items-center gap-1 rounded-full border border-gray-300 border-dashed bg-gray-50 px-3 py-1 text-gray-600 text-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50'
                 >
                   <Plus className='h-3 w-3' />
                   {tagName}
-                  <span className='text-xs text-muted-foreground'>
+                  <span className='text-muted-foreground text-xs'>
                     ({tagDef?.fieldType || 'text'})
                   </span>
                 </button>
@@ -121,16 +122,16 @@ export function DocumentTagEntry({
       {/* Selected Tags Section */}
       {tags.length > 0 && (
         <div>
-          <div className='mb-2 text-sm font-medium text-muted-foreground'>Document Tags</div>
+          <div className='mb-2 font-medium text-muted-foreground text-sm'>Document Tags</div>
           <div className='space-y-2'>
             {tags.map((tag) => (
               <div key={tag.id} className='flex items-center gap-2 rounded-lg border bg-white p-3'>
                 {/* Tag Name */}
                 <div className='flex-1'>
-                  <div className='text-sm font-medium text-gray-900'>
+                  <div className='font-medium text-gray-900 text-sm'>
                     {tag.tagName || 'Unnamed Tag'}
                   </div>
-                  <div className='text-xs text-muted-foreground'>{tag.fieldType}</div>
+                  <div className='text-muted-foreground text-xs'>{tag.fieldType}</div>
                 </div>
 
                 {/* Value Input */}
@@ -163,12 +164,12 @@ export function DocumentTagEntry({
 
       {/* Create New Tag Section */}
       <div>
-        <div className='mb-2 text-sm font-medium text-muted-foreground'>Create New Tag</div>
-        <div className='flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3'>
+        <div className='mb-2 font-medium text-muted-foreground text-sm'>Create New Tag</div>
+        <div className='flex items-center gap-2 rounded-lg border border-gray-300 border-dashed bg-gray-50 p-3'>
           <div className='flex-1'>
             <Input
-              placeholder='Tag name'
-              disabled={disabled || isConnecting || tags.length >= 7}
+              placeholder={tagDefinitions.length >= MAX_TAG_SLOTS ? '' : 'Tag name'}
+              disabled={disabled || isConnecting || tagDefinitions.length >= MAX_TAG_SLOTS}
               className='h-9 border-0 bg-transparent p-0 placeholder:text-xs focus-visible:ring-0'
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && e.currentTarget.value.trim()) {
@@ -196,8 +197,12 @@ export function DocumentTagEntry({
               }}
             />
           </div>
-          <div className='text-xs text-muted-foreground'>
-            {usedTagNames.size > 0 ? 'Press Enter (no duplicates)' : 'Press Enter to add'}
+          <div className='text-muted-foreground text-xs'>
+            {tagDefinitions.length >= MAX_TAG_SLOTS
+              ? `All ${MAX_TAG_SLOTS} tag slots used in this knowledge base`
+              : usedTagNames.size > 0
+                ? 'Press Enter (no duplicates)'
+                : 'Press Enter to add'}
           </div>
         </div>
       </div>

@@ -6,16 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledge'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 
-export interface TagData {
-  tag1?: string
-  tag2?: string
-  tag3?: string
-  tag4?: string
-  tag5?: string
-  tag6?: string
-  tag7?: string
+export type TagData = {
+  [K in TagSlot]?: string
 }
 
 interface TagInputProps {
@@ -27,15 +22,11 @@ interface TagInputProps {
   documentId?: string | null
 }
 
-const TAG_LABELS = [
-  { key: 'tag1' as keyof TagData, label: 'Tag 1', placeholder: 'Enter tag value' },
-  { key: 'tag2' as keyof TagData, label: 'Tag 2', placeholder: 'Enter tag value' },
-  { key: 'tag3' as keyof TagData, label: 'Tag 3', placeholder: 'Enter tag value' },
-  { key: 'tag4' as keyof TagData, label: 'Tag 4', placeholder: 'Enter tag value' },
-  { key: 'tag5' as keyof TagData, label: 'Tag 5', placeholder: 'Enter tag value' },
-  { key: 'tag6' as keyof TagData, label: 'Tag 6', placeholder: 'Enter tag value' },
-  { key: 'tag7' as keyof TagData, label: 'Tag 7', placeholder: 'Enter tag value' },
-]
+const TAG_LABELS = TAG_SLOTS.map((slot, index) => ({
+  key: slot as keyof TagData,
+  label: `Tag ${index + 1}`,
+  placeholder: 'Enter tag value',
+}))
 
 export function TagInput({
   tags,

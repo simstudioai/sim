@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import {
@@ -28,15 +29,12 @@ async function processDocumentTags(
   tagData: Array<{ tagName: string; fieldType: string; value: string }>,
   requestId: string
 ): Promise<Record<string, string | null>> {
-  const result: Record<string, string | null> = {
-    tag1: null,
-    tag2: null,
-    tag3: null,
-    tag4: null,
-    tag5: null,
-    tag6: null,
-    tag7: null,
-  }
+  const result: Record<string, string | null> = {}
+
+  // Initialize all tag slots to null
+  TAG_SLOTS.forEach((slot) => {
+    result[slot] = null
+  })
 
   if (!Array.isArray(tagData) || tagData.length === 0) {
     return result
@@ -68,8 +66,7 @@ async function processDocumentTags(
         targetSlot = existingDef.tagSlot
       } else {
         // Find next available slot
-        const tagSlots = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-        for (const slot of tagSlots) {
+        for (const slot of TAG_SLOTS) {
           if (!existingBySlot.has(slot)) {
             targetSlot = slot
             break

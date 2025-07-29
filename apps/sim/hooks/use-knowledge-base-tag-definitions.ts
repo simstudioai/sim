@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import type { TagSlot } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('useKnowledgeBaseTagDefinitions')
 
 export interface TagDefinition {
   id: string
-  tagSlot: 'tag1' | 'tag2' | 'tag3' | 'tag4' | 'tag5' | 'tag6' | 'tag7'
+  tagSlot: TagSlot
   displayName: string
   fieldType: string
   createdAt: string
