@@ -4,6 +4,11 @@ import {
   airtableListRecordsTool,
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
+import {
+  arxivSearchTool,
+  arxivGetPaperTool,
+  arxivGetAuthorPapersTool,
+} from '@/tools/arxiv'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import { clayPopulateTool } from '@/tools/clay'
 import { confluenceRetrieveTool, confluenceUpdateTool } from '@/tools/confluence'
@@ -131,6 +136,9 @@ import { youtubeSearchTool } from '@/tools/youtube'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  arxiv_search: arxivSearchTool,
+  arxiv_get_paper: arxivGetPaperTool,
+  arxiv_get_author_papers: arxivGetAuthorPapersTool,
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
