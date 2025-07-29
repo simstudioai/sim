@@ -130,6 +130,12 @@ import {
   wealthboxWriteTaskTool,
 } from '@/tools/wealthbox'
 import { whatsappSendMessageTool } from '@/tools/whatsapp'
+import {
+  wikipediaPageSummaryTool,
+  wikipediaSearchTool,
+  wikipediaPageContentTool,
+  wikipediaRandomPageTool,
+} from '@/tools/wikipedia'
 import { workflowExecutorTool } from '@/tools/workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from '@/tools/x'
 import { youtubeSearchTool } from '@/tools/youtube'
@@ -270,6 +276,10 @@ export const tools: Record<string, ToolConfig> = {
   wealthbox_write_task: wealthboxWriteTaskTool,
   wealthbox_read_note: wealthboxReadNoteTool,
   wealthbox_write_note: wealthboxWriteNoteTool,
+  wikipedia_summary: wikipediaPageSummaryTool,
+  wikipedia_search: wikipediaSearchTool,
+  wikipedia_content: wikipediaPageContentTool,
+  wikipedia_random: wikipediaRandomPageTool,
   qdrant_fetch_points: qdrantFetchTool,
   qdrant_search_vector: qdrantSearchTool,
   qdrant_upsert_points: qdrantUpsertTool,

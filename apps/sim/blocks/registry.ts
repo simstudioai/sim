@@ -64,6 +64,7 @@ import { VisionBlock } from '@/blocks/blocks/vision'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
 import { WebhookBlock } from '@/blocks/blocks/webhook'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
+import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { XBlock } from '@/blocks/blocks/x'
 import { YouTubeBlock } from '@/blocks/blocks/youtube'
@@ -132,6 +133,7 @@ export const registry: Record<string, BlockConfig> = {
   wealthbox: WealthboxBlock,
   webhook: WebhookBlock,
   whatsapp: WhatsAppBlock,
+  wikipedia: WikipediaBlock,
   workflow: WorkflowBlock,
   x: XBlock,
   youtube: YouTubeBlock,
