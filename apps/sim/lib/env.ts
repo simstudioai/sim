@@ -157,6 +157,9 @@ export const env = createEnv({
 
     // Google Services - For client-side Google integrations
     NEXT_PUBLIC_GOOGLE_CLIENT_ID:         z.string().optional(),                // Google OAuth client ID for browser auth
+    
+    // Analytics & Tracking
+    NEXT_PUBLIC_RB2B_KEY:                 z.string().optional(),                // RB2B tracking key for B2B analytics
     NEXT_PUBLIC_GOOGLE_API_KEY:           z.string().optional(),                // Google API key for client-side API calls
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER:    z.string().optional(),                // Google project number for Drive picker
   },
@@ -173,6 +176,7 @@ export const env = createEnv({
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_BLOB_BASE_URL: process.env.NEXT_PUBLIC_BLOB_BASE_URL,
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    NEXT_PUBLIC_RB2B_KEY: process.env.NEXT_PUBLIC_RB2B_KEY,
     NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER,
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
