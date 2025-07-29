@@ -122,7 +122,6 @@ export function DocumentTagEntry({
       {/* Selected Tags Section */}
       {tags.length > 0 && (
         <div>
-          <div className='mb-2 font-medium text-muted-foreground text-sm'>Document Tags</div>
           <div className='space-y-2'>
             {tags.map((tag) => (
               <div key={tag.id} className='flex items-center gap-2 rounded-lg border bg-white p-3'>
