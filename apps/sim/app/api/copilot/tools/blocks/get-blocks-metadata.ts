@@ -52,30 +52,33 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
 
     // Process each requested block ID
     for (const blockId of blockIds) {
+      let metadata: any = {}
+      
       // Check if it's a special block first
       if (SPECIAL_BLOCKS_METADATA[blockId]) {
-        result[blockId] = SPECIAL_BLOCKS_METADATA[blockId]
-        continue
+        // Start with the special block metadata
+        metadata = { ...SPECIAL_BLOCKS_METADATA[blockId] }
+        // Normalize tools structure to match regular blocks
+        metadata.tools = metadata.tools?.access || []
+      } else {
+        // Check if the block exists in the registry
+        const blockConfig = blockRegistry[blockId]
+        if (!blockConfig) {
+          logger.warn(`Block not found in registry: ${blockId}`)
+          continue
+        }
+
+        metadata = {
+          id: blockId,
+          name: blockConfig.name || blockId,
+          description: blockConfig.description || '',
+          inputs: blockConfig.inputs || {},
+          outputs: blockConfig.outputs || {},
+          tools: blockConfig.tools?.access || [],
+        }
       }
 
-      // Check if the block exists in the registry
-      const blockConfig = blockRegistry[blockId]
-      if (!blockConfig) {
-        logger.warn(`Block not found in registry: ${blockId}`)
-        continue
-      }
-
-      const metadata: any = {
-        id: blockId,
-        name: blockConfig.name || blockId,
-        description: blockConfig.description || '',
-        category: blockConfig.category || 'general',
-        inputs: blockConfig.inputs || {},
-        outputs: blockConfig.outputs || {},
-        tools: blockConfig.tools?.access || [],
-      }
-
-      // Read YAML schema from documentation if available
+      // Read YAML schema from documentation if available (for both regular and special blocks)
       const docFileName = DOCS_FILE_MAPPING[blockId] || blockId
       if (CORE_BLOCKS_WITH_DOCS.includes(blockId)) {
         try {
@@ -119,7 +122,7 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
       }
 
       // Add tool metadata if requested
-      if (metadata.tools.length > 0) {
+      if (metadata.tools && metadata.tools.length > 0) {
         metadata.toolDetails = {}
         for (const toolId of metadata.tools) {
           const tool = toolsRegistry[toolId]
@@ -176,49 +179,17 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     type: 'loop',
     name: 'Loop',
     description: 'Control flow block for iterating over collections or repeating actions',
-    longDescription:
-      'Execute a set of blocks repeatedly, either for a fixed number of iterations or for each item in a collection. Loop blocks create sub-workflows that run multiple times with different iteration data.',
-    category: 'blocks',
-    bgColor: '#9333EA',
-    subBlocks: [
-      {
-        id: 'iterationType',
-        title: 'Iteration Type',
-        type: 'dropdown',
-        layout: 'full',
-        options: [
-          { label: 'Fixed Count', id: 'fixed' },
-          { label: 'For Each Item', id: 'forEach' },
-        ],
-        description: 'Choose how the loop should iterate',
-      },
-      {
-        id: 'iterationCount',
-        title: 'Iteration Count',
-        type: 'short-input',
-        layout: 'half',
-        placeholder: '5',
-        condition: { field: 'iterationType', value: 'fixed' },
-        description: 'Number of times to repeat the loop',
-      },
-      {
-        id: 'collection',
-        title: 'Collection',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Reference to array or object',
-        condition: { field: 'iterationType', value: 'forEach' },
-        description: 'Array or object to iterate over',
-      },
-    ],
     inputs: {
-      iterationType: { type: 'string', required: true },
-      iterationCount: { type: 'number', required: false },
-      collection: { type: 'array|object', required: false },
+      loopType: { type: 'string', required: true, enum: ['for', 'forEach'] },
+      iterations: { type: 'number', required: false, minimum: 1, maximum: 1000 },
+      collection: { type: 'string', required: false },
+      maxConcurrency: { type: 'number', required: false, default: 1, minimum: 1, maximum: 10 },
     },
     outputs: {
       results: 'array',
-      iterations: 'number',
+      currentIndex: 'number',
+      currentItem: 'any',
+      totalIterations: 'number',
     },
     tools: { access: [] },
   },
@@ -226,49 +197,17 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     type: 'parallel',
     name: 'Parallel',
     description: 'Control flow block for executing multiple branches simultaneously',
-    longDescription:
-      'Execute multiple sets of blocks simultaneously, either with a fixed number of parallel branches or by distributing items from a collection across parallel executions.',
-    category: 'blocks',
-    bgColor: '#059669',
-    subBlocks: [
-      {
-        id: 'parallelType',
-        title: 'Parallel Type',
-        type: 'dropdown',
-        layout: 'full',
-        options: [
-          { label: 'Fixed Count', id: 'count' },
-          { label: 'Collection Distribution', id: 'collection' },
-        ],
-        description: 'Choose how parallel execution should work',
-      },
-      {
-        id: 'parallelCount',
-        title: 'Parallel Count',
-        type: 'short-input',
-        layout: 'half',
-        placeholder: '3',
-        condition: { field: 'parallelType', value: 'count' },
-        description: 'Number of parallel branches to execute',
-      },
-      {
-        id: 'collection',
-        title: 'Collection',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Reference to array to distribute',
-        condition: { field: 'parallelType', value: 'collection' },
-        description: 'Array to distribute across parallel executions',
-      },
-    ],
     inputs: {
-      parallelType: { type: 'string', required: true },
-      parallelCount: { type: 'number', required: false },
-      collection: { type: 'array', required: false },
+      parallelType: { type: 'string', required: true, enum: ['count', 'collection'] },
+      count: { type: 'number', required: false, minimum: 1, maximum: 100 },
+      collection: { type: 'string', required: false },
+      maxConcurrency: { type: 'number', required: false, default: 10, minimum: 1, maximum: 50 },
     },
     outputs: {
       results: 'array',
-      branches: 'number',
+      branchId: 'number',
+      branchItem: 'any',
+      totalBranches: 'number',
     },
     tools: { access: [] },
   },
