@@ -8,7 +8,7 @@ export const YouTubeBlock: BlockConfig<YouTubeSearchResponse> = {
   description: 'Search for videos on YouTube',
   longDescription:
     'Find relevant videos on YouTube using the YouTube Data API. Search for content with customizable result limits and retrieve structured video metadata for integration into your workflow.',
-  docsLink: 'https://docs.simstudio.ai/tools/youtube',
+  docsLink: 'https://docs.sim.ai/tools/youtube',
   category: 'tools',
   bgColor: '#FF0000',
   icon: YouTubeIcon,

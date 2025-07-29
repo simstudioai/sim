@@ -7,7 +7,7 @@ export const S3Block: BlockConfig<S3Response> = {
   name: 'S3',
   description: 'View S3 files',
   longDescription: 'Retrieve and view files from Amazon S3 buckets using presigned URLs.',
-  docsLink: 'https://docs.simstudio.ai/tools/s3',
+  docsLink: 'https://docs.sim.ai/tools/s3',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: S3Icon,

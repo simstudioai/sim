@@ -28,7 +28,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         links={[
           {
             text: 'Visit Sim Studio',
-            url: 'https://simstudio.ai',
+            url: 'https://sim.ai',
             icon: <ExternalLink className='h-4 w-4' />,
           },
         ]}

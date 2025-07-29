@@ -54,7 +54,7 @@
     "url": "https://github.com/simstudioai/sim.git",
     "directory": "packages/ts-sdk"
   },
-  "homepage": "https://simstudio.ai",
+  "homepage": "https://sim.ai",
   "bugs": {
     "url": "https://github.com/simstudioai/sim/issues"
   }

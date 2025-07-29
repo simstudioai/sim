@@ -11,7 +11,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   description: 'Use Supabase database',
   longDescription:
     'Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services directly.',
-  docsLink: 'https://docs.simstudio.ai/tools/supabase',
+  docsLink: 'https://docs.sim.ai/tools/supabase',
   category: 'tools',
   bgColor: '#1C1C1C',
   icon: SupabaseIcon,

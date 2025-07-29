@@ -7,7 +7,7 @@
   <a href="https://discord.gg/Hr4UWYEcTT"><img src="https://img.shields.io/badge/Discord-Join%20Server-7289DA?logo=discord&logoColor=white" alt="Discord"></a>
   <a href="https://x.com/simstudioai"><img src="https://img.shields.io/twitter/follow/simstudioai?style=social" alt="Twitter"></a>
   <a href="https://github.com/simstudioai/sim/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
-  <a href="https://docs.simstudio.ai"><img src="https://img.shields.io/badge/Docs-visit%20documentation-blue.svg" alt="Documentation"></a>
+  <a href="https://docs.sim.ai"><img src="https://img.shields.io/badge/Docs-visit%20documentation-blue.svg" alt="Documentation"></a>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
 
 ## Getting Started
 
-1. Use our [cloud-hosted version](https://simstudio.ai)
+1. Use our [cloud-hosted version](https://sim.ai)
 2. Self-host using one of the methods below
 
 ## Self-Hosting Options

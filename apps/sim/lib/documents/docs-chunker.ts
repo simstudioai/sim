@@ -30,7 +30,7 @@ export class DocsChunker {
     })
     // Use localhost docs in development, production docs otherwise
     this.baseUrl =
-      options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.simstudio.ai')
+      options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.sim.ai')
   }
 
   /**

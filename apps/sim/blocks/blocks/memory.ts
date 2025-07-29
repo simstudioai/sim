@@ -10,7 +10,7 @@ export const MemoryBlock: BlockConfig = {
   bgColor: '#F64F9E',
   icon: BrainIcon,
   category: 'blocks',
-  docsLink: 'https://docs.simstudio.ai/tools/memory',
+  docsLink: 'https://docs.sim.ai/tools/memory',
   tools: {
     access: ['memory_add', 'memory_get', 'memory_get_all', 'memory_delete'],
     config: {

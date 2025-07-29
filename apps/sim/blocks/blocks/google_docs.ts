@@ -8,7 +8,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   description: 'Read, write, and create documents',
   longDescription:
     'Integrate Google Docs functionality to manage documents. Read content from existing documents, write to documents, and create new documents using OAuth authentication. Supports text content manipulation for document creation and editing.',
-  docsLink: 'https://docs.simstudio.ai/tools/google_docs',
+  docsLink: 'https://docs.sim.ai/tools/google_docs',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GoogleDocsIcon,

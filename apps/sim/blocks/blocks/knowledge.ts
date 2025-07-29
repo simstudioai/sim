@@ -10,7 +10,7 @@ export const KnowledgeBlock: BlockConfig = {
   bgColor: '#00B0B0',
   icon: PackageSearchIcon,
   category: 'blocks',
-  docsLink: 'https://docs.simstudio.ai/blocks/knowledge',
+  docsLink: 'https://docs.sim.ai/blocks/knowledge',
   tools: {
     access: ['knowledge_search', 'knowledge_upload_chunk', 'knowledge_create_document'],
     config: {

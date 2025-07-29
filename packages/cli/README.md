@@ -1,6 +1,6 @@
 # Sim Studio CLI
 
-Sim Studio CLI allows you to run [Sim Studio](https://simstudio.ai) using Docker with a single command.
+Sim Studio CLI allows you to run [Sim Studio](https://sim.ai) using Docker with a single command.
 
 ## Installation
 

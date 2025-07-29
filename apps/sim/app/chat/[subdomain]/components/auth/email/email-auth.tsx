@@ -141,7 +141,7 @@ export default function EmailAuth({
         <DialogHeader className='border-b px-6 py-4'>
           <div className='flex items-center justify-center'>
             <a
-              href='https://simstudio.ai'
+              href='https://sim.ai'
               target='_blank'
               rel='noopener noreferrer'
               className='mb-2'

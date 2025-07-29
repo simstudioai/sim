@@ -160,7 +160,7 @@ function UnsubscribeContent() {
               <Button
                 onClick={() =>
                   window.open(
-                    'mailto:help@simstudio.ai?subject=Unsubscribe%20Help&body=Hi%2C%20I%20need%20help%20unsubscribing%20from%20emails.%20My%20unsubscribe%20link%20is%20not%20working.',
+                    'mailto:help@sim.ai?subject=Unsubscribe%20Help&body=Hi%2C%20I%20need%20help%20unsubscribing%20from%20emails.%20My%20unsubscribe%20link%20is%20not%20working.',
                     '_blank'
                   )
                 }
@@ -176,8 +176,8 @@ function UnsubscribeContent() {
             <div className='mt-4 text-center'>
               <p className='text-muted-foreground text-xs'>
                 Need immediate help? Email us at{' '}
-                <a href='mailto:help@simstudio.ai' className='text-primary hover:underline'>
-                  help@simstudio.ai
+                <a href='mailto:help@sim.ai' className='text-primary hover:underline'>
+                  help@sim.ai
                 </a>
               </p>
             </div>
@@ -222,7 +222,7 @@ function UnsubscribeContent() {
               <Button
                 onClick={() =>
                   window.open(
-                    'mailto:help@simstudio.ai?subject=Account%20Help&body=Hi%2C%20I%20need%20help%20with%20my%20account%20emails.',
+                    'mailto:help@sim.ai?subject=Account%20Help&body=Hi%2C%20I%20need%20help%20with%20my%20account%20emails.',
                     '_blank'
                   )
                 }
@@ -256,8 +256,8 @@ function UnsubscribeContent() {
             <p className='text-muted-foreground text-sm'>
               If you change your mind, you can always update your email preferences in your account
               settings or contact us at{' '}
-              <a href='mailto:help@simstudio.ai' className='text-primary hover:underline'>
-                help@simstudio.ai
+              <a href='mailto:help@sim.ai' className='text-primary hover:underline'>
+                help@sim.ai
               </a>
             </p>
           </CardContent>
@@ -369,8 +369,8 @@ function UnsubscribeContent() {
 
             <p className='text-center text-muted-foreground text-xs'>
               Questions? Contact us at{' '}
-              <a href='mailto:help@simstudio.ai' className='text-primary hover:underline'>
-                help@simstudio.ai
+              <a href='mailto:help@sim.ai' className='text-primary hover:underline'>
+                help@sim.ai
               </a>
             </p>
           </div>

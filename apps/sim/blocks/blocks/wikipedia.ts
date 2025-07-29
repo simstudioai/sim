@@ -8,7 +8,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
   description: 'Search and retrieve content from Wikipedia',
   longDescription:
     "Access Wikipedia articles, search for pages, get summaries, retrieve full content, and discover random articles from the world's largest encyclopedia.",
-  docsLink: 'https://docs.simstudio.ai/tools/wikipedia',
+  docsLink: 'https://docs.sim.ai/tools/wikipedia',
   category: 'tools',
   bgColor: '#000000',
   icon: WikipediaIcon,

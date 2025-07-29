@@ -192,7 +192,7 @@ export default function PrivacyPolicy() {
                   </li>
                   <li>
                     <span className='text-[#B5A1D4]'>Website</span> refers to Sim Studio, accessible
-                    from simstudio.ai
+                    from sim.ai
                   </li>
                   <li>
                     <span className='text-[#B5A1D4]'>You</span> means the individual accessing or
@@ -649,7 +649,7 @@ export default function PrivacyPolicy() {
                 <h3 className='mb-2 font-medium text-[#B5A1D4] text-xl'>Scope</h3>
                 <p className='mb-4'>This policy applies to the following systems and services:</p>
                 <ul className='mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]'>
-                  <li>simstudio.ai website</li>
+                  <li>sim.ai website</li>
                   <li>Sim Studio web application</li>
                   <li>Sim Studio API services</li>
                 </ul>
@@ -660,10 +660,10 @@ export default function PrivacyPolicy() {
                   should be reported directly to the solution vendor in accordance with their
                   disclosure policy (if any). Before beginning your inquiry, email us at{' '}
                   <Link
-                    href='mailto:security@simstudio.ai'
+                    href='mailto:security@sim.ai'
                     className='text-[#B5A1D4] hover:text-[#701ffc]'
                   >
-                    security@simstudio.ai
+                    security@sim.ai
                   </Link>{' '}
                   if you're unsure whether a system or endpoint is in scope.
                 </p>
@@ -685,10 +685,10 @@ export default function PrivacyPolicy() {
                 <p className='mb-4'>
                   To report any security flaws, send an email to{' '}
                   <Link
-                    href='mailto:security@simstudio.ai'
+                    href='mailto:security@sim.ai'
                     className='text-[#B5A1D4] hover:text-[#701ffc]'
                   >
-                    security@simstudio.ai
+                    security@sim.ai
                   </Link>
                   . The next business day, we'll acknowledge receipt of your vulnerability report
                   and keep you updated on our progress. Reports can be anonymously submitted.
@@ -725,10 +725,10 @@ export default function PrivacyPolicy() {
                 <p>
                   If you have any questions about this Privacy Policy, please contact us at:{' '}
                   <Link
-                    href='mailto:privacy@simstudio.ai'
+                    href='mailto:privacy@sim.ai'
                     className='text-[#B5A1D4] hover:text-[#701ffc]'
                   >
-                    privacy@simstudio.ai
+                    privacy@sim.ai
                   </Link>
                 </p>
               </section>

@@ -64,7 +64,7 @@ export function NoOrganizationView({
                 </label>
                 <div className='flex items-center space-x-2'>
                   <div className='rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm'>
-                    simstudio.ai/team/
+                    sim.ai/team/
                   </div>
                   <Input
                     id='orgSlug'

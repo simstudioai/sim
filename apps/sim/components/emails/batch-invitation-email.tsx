@@ -70,7 +70,7 @@ export const BatchInvitationEmail = ({
         <Container style={container}>
           <Section style={logoContainer}>
             <Img
-              src='https://simstudio.ai/logo.png'
+              src='https://sim.ai/logo.png'
               width='120'
               height='36'
               alt='Sim Studio'

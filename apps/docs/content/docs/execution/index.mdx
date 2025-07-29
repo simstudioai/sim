@@ -57,14 +57,14 @@ Workflows can be executed through multiple channels:
 ### Deploy as API
 
 When you deploy a workflow as an API, Sim Studio:
-- Creates a unique HTTP endpoint: `https://simstudio.ai/api/workflows/{workflowId}/execute`
+- Creates a unique HTTP endpoint: `https://sim.ai/api/workflows/{workflowId}/execute`
 - Generates an API key for authentication
 - Accepts POST requests with JSON payloads
 - Returns workflow execution results as JSON
 
 Example API call:
 ```bash
-curl -X POST https://simstudio.ai/api/workflows/your-workflow-id/execute \
+curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{"input": "your data here"}'
@@ -73,7 +73,7 @@ curl -X POST https://simstudio.ai/api/workflows/your-workflow-id/execute \
 ### Deploy as Chat
 
 Chat deployment creates a conversational interface for your workflow:
-- Hosted on a custom subdomain: `https://your-name.simstudio.ai`
+- Hosted on a custom subdomain: `https://your-name.sim.ai`
 - Optional authentication (public, password, or email-based)
 - Customizable UI with your branding
 - Streaming responses for real-time interaction

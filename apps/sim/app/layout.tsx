@@ -79,7 +79,7 @@ export const metadata: Metadata = {
   referrer: 'origin-when-cross-origin',
   creator: 'Sim Studio',
   publisher: 'Sim Studio',
-  metadataBase: new URL('https://simstudio.ai'),
+  metadataBase: new URL('https://sim.ai'),
   alternates: {
     canonical: '/',
     languages: {
@@ -100,7 +100,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://simstudio.ai',
+    url: 'https://sim.ai',
     title: 'Sim Studio',
     description:
       'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
@@ -174,7 +174,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               name: 'Sim Studio',
               description:
                 'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-              url: 'https://simstudio.ai',
+              url: 'https://sim.ai',
               applicationCategory: 'BusinessApplication',
               operatingSystem: 'Web Browser',
               offers: {
@@ -184,7 +184,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               creator: {
                 '@type': 'Organization',
                 name: 'Sim Studio',
-                url: 'https://simstudio.ai',
+                url: 'https://sim.ai',
               },
               featureList: [
                 'Visual AI Agent Builder',
@@ -216,8 +216,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='twitter:image:width' content='1200' />
         <meta name='twitter:image:height' content='675' />
         <meta name='twitter:image:alt' content='Sim Studio - AI Agent Builder' />
-        <meta name='twitter:url' content='https://simstudio.ai' />
-        <meta name='twitter:domain' content='simstudio.ai' />
+        <meta name='twitter:url' content='https://sim.ai' />
+        <meta name='twitter:domain' content='sim.ai' />
 
         {/* Additional image sources */}
         <link rel='image_src' href={getAssetUrl('social/facebook.png')} />

@@ -8,7 +8,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   description: 'Interact with Confluence',
   longDescription:
     'Connect to Confluence workspaces to retrieve and search documentation. Access page content, metadata, and integrate Confluence documentation into your workflows.',
-  docsLink: 'https://docs.simstudio.ai/tools/confluence',
+  docsLink: 'https://docs.sim.ai/tools/confluence',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: ConfluenceIcon,
