@@ -67,7 +67,7 @@ const docsSearchTool: CopilotTool = {
   id: 'docs_search_internal',
   name: 'Search Documentation',
   description:
-    'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
+    'Search Sim documentation for information about features, tools, workflows, and functionality',
   parameters: {
     type: 'object',
     properties: {

@@ -1,5 +1,5 @@
 """
-Tests for the Sim Studio Python SDK
+Tests for the Sim Python SDK
 """
 
 import pytest

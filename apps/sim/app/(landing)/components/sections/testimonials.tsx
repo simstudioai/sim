@@ -35,7 +35,7 @@ const X_TESTIMONIALS = [
     profileImage: getAssetUrl('twitter/nizzy.jpg'),
   },
   {
-    text: "One of the best products I've seen in the space, and the hustle and grind I've seen from @karabegemir and @typingwala is insane. Sim Studio is positioned to build something game-changing, and there's no better team for the job.\n\nCongrats on the launch 🚀 🎊 great things ahead!",
+    text: "One of the best products I've seen in the space, and the hustle and grind I've seen from @karabegemir and @typingwala is insane. Sim is positioned to build something game-changing, and there's no better team for the job.\n\nCongrats on the launch 🚀 🎊 great things ahead!",
     username: '@firestorm776',
     viewCount: '956',
     tweetUrl: 'https://x.com/firestorm776/status/1907896097735061598',

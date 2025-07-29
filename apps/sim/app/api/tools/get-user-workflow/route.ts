@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     // Prepare response with clear context markers
     const response: any = {
       workflowContext: 'USER_SPECIFIC_WORKFLOW', // Clear marker for the LLM
-      note: 'This data represents only the blocks and configurations that the user has actually built in their current workflow, not all available Sim Studio capabilities.',
+      note: 'This data represents only the blocks and configurations that the user has actually built in their current workflow, not all available Sim capabilities.',
       yaml,
       format: 'yaml',
       summary: {

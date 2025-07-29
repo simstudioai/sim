@@ -99,7 +99,7 @@ export async function sendEmail({
     }
 
     const { data, error } = await resend.emails.send({
-      from: `Sim Studio <${senderEmail}>`,
+      from: `Sim <${senderEmail}>`,
       to,
       subject,
       html: finalHtml,
@@ -157,7 +157,7 @@ export async function sendBatchEmails({
     }
 
     const batchEmails = emails.map((email) => ({
-      from: `Sim Studio <${email.from || senderEmail}>`,
+      from: `Sim <${email.from || senderEmail}>`,
       to: email.to,
       subject: email.subject,
       html: email.html,

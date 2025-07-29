@@ -1,6 +1,6 @@
 ---
 title: Logging and Cost Calculation
-description: Understanding workflow logs and how execution costs are calculated in Sim Studio
+description: Understanding workflow logs and how execution costs are calculated in Sim
 ---
 
 import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
@@ -8,11 +8,11 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 
-Sim Studio provides comprehensive logging for workflow executions and automatic cost calculation for AI model usage.
+Sim provides comprehensive logging for workflow executions and automatic cost calculation for AI model usage.
 
 ## Logging System
 
-Sim Studio offers two complementary logging interfaces:
+Sim offers two complementary logging interfaces:
 
 ### Real-Time Console (Manual Executions)
 
@@ -132,7 +132,7 @@ The snapshot provides:
 
 ## Cost Calculation
 
-Sim Studio automatically calculates costs for all AI model usage:
+Sim automatically calculates costs for all AI model usage:
 
 ### How Costs Are Calculated
 
@@ -148,7 +148,7 @@ cost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
 
 <Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
   <Tab>
-    **Hosted Models** - Sim Studio provides API keys with a 2.5x pricing multiplier:
+    **Hosted Models** - Sim provides API keys with a 2.5x pricing multiplier:
     
     | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
     |-------|---------------------------|----------------------------|

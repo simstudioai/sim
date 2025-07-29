@@ -186,7 +186,7 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
       id: 'docs_search_internal',
       name: 'Search Documentation',
       description:
-        'Search Sim Studio documentation for information about features, tools, workflows, and functionality',
+        'Search Sim documentation for information about features, tools, workflows, and functionality',
       params: {},
       parameters: {
         type: 'object',
@@ -208,7 +208,7 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
       id: 'get_user_workflow',
       name: "Get User's Specific Workflow",
       description:
-        "Get the user's current workflow - this shows ONLY the blocks they have actually built and configured in their specific workflow, not general Sim Studio capabilities.",
+        "Get the user's current workflow - this shows ONLY the blocks they have actually built and configured in their specific workflow, not general Sim capabilities.",
       params: {},
       parameters: {
         type: 'object',
@@ -227,7 +227,7 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
       id: 'get_blocks_and_tools',
       name: 'Get All Blocks and Tools',
       description:
-        'Get a comprehensive list of all available blocks and tools in Sim Studio with their descriptions, categories, and capabilities.',
+        'Get a comprehensive list of all available blocks and tools in Sim with their descriptions, categories, and capabilities.',
       params: {},
       parameters: {
         type: 'object',
@@ -270,7 +270,7 @@ function getAvailableTools(mode: 'ask' | 'agent'): ProviderToolConfig[] {
       id: 'get_yaml_structure',
       name: 'Get YAML Workflow Structure Guide',
       description:
-        'Get comprehensive YAML workflow syntax guide and examples to understand how to structure Sim Studio workflows.',
+        'Get comprehensive YAML workflow syntax guide and examples to understand how to structure Sim workflows.',
       params: {},
       parameters: {
         type: 'object',

@@ -1,5 +1,5 @@
 /**
- * Sim Studio Telemetry
+ * Sim Telemetry
  *
  * This file can be customized in forked repositories:
  * - Set TELEMETRY_ENDPOINT in telemetry.config.ts to your collector

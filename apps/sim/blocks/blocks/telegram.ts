@@ -34,7 +34,7 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
       placeholder: 'Enter Telegram Chat ID',
       description: `Getting Chat ID:
 1. Add your bot as a member to desired Telegram channel
-2. Send any message to the channel (e.g. "I love Sim Studio")
+2. Send any message to the channel (e.g. "I love Sim")
 3. Visit https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
 4. Look for the chat field in the JSON response at the very bottomwhere you'll find the chat ID`,
     },

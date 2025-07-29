@@ -22,7 +22,7 @@ export const getUserWorkflowTool: ToolConfig<GetWorkflowParams, GetWorkflowRespo
   id: 'get_user_workflow',
   name: 'Get User Workflow',
   description:
-    "Get the current user's specific workflow (not general Sim Studio documentation). Returns YAML format showing only the blocks that the user has actually built in their workflow, with their specific configurations, inputs, and connections.",
+    "Get the current user's specific workflow (not general Sim documentation). Returns YAML format showing only the blocks that the user has actually built in their workflow, with their specific configurations, inputs, and connections.",
   version: '1.0.0',
 
   params: {

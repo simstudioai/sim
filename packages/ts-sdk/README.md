@@ -1,6 +1,6 @@
-# Sim Studio TypeScript SDK
+# Sim TypeScript SDK
 
-The official TypeScript/JavaScript SDK for [Sim Studio](https://sim.ai), allowing you to execute workflows programmatically from your applications.
+The official TypeScript/JavaScript SDK for [Sim](https://sim.ai), allowing you to execute workflows programmatically from your applications.
 
 ## Installation
 
@@ -42,8 +42,8 @@ try {
 new SimStudioClient(config: SimStudioConfig)
 ```
 
-- `config.apiKey` (string): Your Sim Studio API key
-- `config.baseUrl` (string, optional): Base URL for the Sim Studio API (defaults to `https://sim.ai`)
+- `config.apiKey` (string): Your Sim API key
+- `config.baseUrl` (string, optional): Base URL for the Sim API (defaults to `https://sim.ai`)
 
 #### Methods
 
@@ -263,7 +263,7 @@ const client = new SimStudioClient({
 
 ## Getting Your API Key
 
-1. Log in to your [Sim Studio](https://sim.ai) account
+1. Log in to your [Sim](https://sim.ai) account
 2. Navigate to your workflow
 3. Click on "Deploy" to deploy your workflow
 4. Select or create an API key during the deployment process

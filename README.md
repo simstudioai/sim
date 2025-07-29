@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/sim/public/static/sim.png" alt="Sim Studio Logo" width="500"/>
+  <img src="apps/sim/public/static/sim.png" alt="Sim Logo" width="500"/>
 </p>
 
 <p align="center">
@@ -11,11 +11,11 @@
 </p>
 
 <p align="center">
-  <strong>Sim Studio</strong> is a lightweight, user-friendly platform for building AI agent workflows.
+  <strong>Sim</strong> is a lightweight, user-friendly platform for building AI agent workflows.
 </p>
 
 <p align="center">
-  <img src="apps/sim/public/static/demo.gif" alt="Sim Studio Demo" width="800"/>
+  <img src="apps/sim/public/static/demo.gif" alt="Sim Demo" width="800"/>
 </p>
 
 ## Getting Started
@@ -27,7 +27,7 @@
 
 ### Option 1: NPM Package (Simplest)
 
-The easiest way to run Sim Studio locally is using our [NPM package](https://www.npmjs.com/package/simstudio?activeTab=readme):
+The easiest way to run Sim locally is using our [NPM package](https://www.npmjs.com/package/simstudio?activeTab=readme):
 
 ```bash
 npx simstudio
@@ -37,7 +37,7 @@ After running these commands, open [http://localhost:3000/](http://localhost:300
 
 #### Options
 
-- `-p, --port <port>`: Specify the port to run Sim Studio on (default: 3000)
+- `-p, --port <port>`: Specify the port to run Sim on (default: 3000)
 - `--no-pull`: Skip pulling the latest Docker images
 
 #### Requirements
@@ -53,7 +53,7 @@ git clone https://github.com/simstudioai/sim.git
 # Navigate to the project directory
 cd sim
 
-# Start Sim Studio
+# Start Sim
 docker compose -f docker-compose.prod.yml up -d
 ```
 
@@ -61,7 +61,7 @@ Access the application at [http://localhost:3000/](http://localhost:3000/)
 
 #### Using Local Models
 
-To use local models with Sim Studio:
+To use local models with Sim:
 
 1. Pull models using our helper script:
 
@@ -69,7 +69,7 @@ To use local models with Sim Studio:
 ./apps/sim/scripts/ollama_docker.sh pull <model_name>
 ```
 
-2. Start Sim Studio with local model support:
+2. Start Sim with local model support:
 
 ```bash
 # With NVIDIA GPU support
@@ -95,7 +95,7 @@ docker compose -f docker-compose.prod.yml up -d
 - [Bun](https://bun.sh/) runtime
 - PostgreSQL 12+ with [pgvector extension](https://github.com/pgvector/pgvector) (required for AI embeddings)
 
-**Note:** Sim Studio uses vector embeddings for AI features like knowledge bases and semantic search, which requires the `pgvector` PostgreSQL extension.
+**Note:** Sim uses vector embeddings for AI features like knowledge bases and semantic search, which requires the `pgvector` PostgreSQL extension.
 
 1. Clone and install dependencies:
 
@@ -186,4 +186,4 @@ We welcome contributions! Please see our [Contributing Guide](.github/CONTRIBUTI
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-<p align="center">Made with ❤️ by the Sim Studio Team</p>
+<p align="center">Made with ❤️ by the Sim Team</p>

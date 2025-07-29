@@ -110,7 +110,7 @@ async function statusExample() {
 // Run examples
 if (require.main === module) {
   async function runExamples() {
-    console.log('🚀 Running Sim Studio SDK Examples\n')
+    console.log('🚀 Running Sim SDK Examples\n')
 
     try {
       await basicExample()

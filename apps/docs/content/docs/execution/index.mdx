@@ -1,12 +1,12 @@
 ---
 title: Execution
-description: Understand how workflows are executed in Sim Studio
+description: Understand how workflows are executed in Sim
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-Sim Studio's execution engine brings your workflows to life by processing blocks in the correct order, managing data flow, and handling errors gracefully.
+Sim's execution engine brings your workflows to life by processing blocks in the correct order, managing data flow, and handling errors gracefully.
 
 <Callout type="info">
   Every workflow execution follows a deterministic path based on your block connections and logic, ensuring predictable and reliable results.
@@ -21,7 +21,7 @@ Sim Studio's execution engine brings your workflows to life by processing blocks
   </Card>
 
   <Card title="Logging and Cost Calculation" href="/execution/advanced">
-    Understand workflow logs and how execution costs are calculated in Sim Studio
+    Understand workflow logs and how execution costs are calculated in Sim
   </Card>
 </Cards>
 
@@ -56,7 +56,7 @@ Workflows can be executed through multiple channels:
 
 ### Deploy as API
 
-When you deploy a workflow as an API, Sim Studio:
+When you deploy a workflow as an API, Sim:
 - Creates a unique HTTP endpoint: `https://sim.ai/api/workflows/{workflowId}/execute`
 - Generates an API key for authentication
 - Accepts POST requests with JSON payloads

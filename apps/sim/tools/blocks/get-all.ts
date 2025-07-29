@@ -17,7 +17,7 @@ export const getAllBlocksTool: ToolConfig<GetAllBlocksParams, GetAllBlocksRespon
   id: 'get_blocks_and_tools',
   name: 'Get All Blocks and Tools',
   description:
-    'Get a comprehensive list of all available blocks and tools in Sim Studio with their descriptions, categories, and capabilities',
+    'Get a comprehensive list of all available blocks and tools in Sim with their descriptions, categories, and capabilities',
   version: '1.0.0',
 
   params: {

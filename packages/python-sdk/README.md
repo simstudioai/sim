@@ -1,6 +1,6 @@
-# Sim Studio Python SDK
+# Sim Python SDK
 
-The official Python SDK for [Sim Studio](https://sim.ai), allowing you to execute workflows programmatically from your Python applications.
+The official Python SDK for [Sim](https://sim.ai), allowing you to execute workflows programmatically from your Python applications.
 
 ## Installation
 
@@ -38,8 +38,8 @@ except Exception as error:
 SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
 ```
 
-- `api_key` (str): Your Sim Studio API key
-- `base_url` (str, optional): Base URL for the Sim Studio API (defaults to `https://sim.ai`)
+- `api_key` (str): Your Sim API key
+- `base_url` (str, optional): Base URL for the Sim API (defaults to `https://sim.ai`)
 
 #### Methods
 
@@ -314,7 +314,7 @@ for result in results:
 
 ## Getting Your API Key
 
-1. Log in to your [Sim Studio](https://sim.ai) account
+1. Log in to your [Sim](https://sim.ai) account
 2. Navigate to your workflow
 3. Click on "Deploy" to deploy your workflow
 4. Select or create an API key during the deployment process

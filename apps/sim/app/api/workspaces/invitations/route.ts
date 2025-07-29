@@ -260,7 +260,7 @@ async function sendInvitationEmail({
     const result = await resend.emails.send({
       from: fromAddress,
       to,
-      subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
+      subject: `You've been invited to join "${workspaceName}" on Sim`,
       html: emailHtml,
     })
 

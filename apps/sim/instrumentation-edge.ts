@@ -1,5 +1,5 @@
 /**
- * Sim Studio Telemetry - Edge Runtime Instrumentation
+ * Sim Telemetry - Edge Runtime Instrumentation
  *
  * This file contains Edge Runtime-compatible instrumentation logic.
  * No Node.js APIs (like process.on, crypto, fs, etc.) are allowed here.

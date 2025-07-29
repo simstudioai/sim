@@ -15,7 +15,7 @@ export const getYamlStructureTool: ToolConfig<GetYamlStructureParams, GetYamlStr
   id: 'get_yaml_structure',
   name: 'Get YAML Workflow Structure Guide',
   description:
-    'Get comprehensive YAML workflow syntax guide and examples to understand how to structure Sim Studio workflows',
+    'Get comprehensive YAML workflow syntax guide and examples to understand how to structure Sim workflows',
   version: '1.0.0',
 
   params: {},

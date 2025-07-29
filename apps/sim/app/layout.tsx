@@ -53,12 +53,12 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: {
     template: '',
-    default: 'Sim Studio',
+    default: 'Sim',
   },
   description:
     'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-  applicationName: 'Sim Studio',
-  authors: [{ name: 'Sim Studio' }],
+  applicationName: 'Sim',
+  authors: [{ name: 'Sim' }],
   generator: 'Next.js',
   keywords: [
     'AI agent',
@@ -77,8 +77,8 @@ export const metadata: Metadata = {
     'visual programming',
   ],
   referrer: 'origin-when-cross-origin',
-  creator: 'Sim Studio',
-  publisher: 'Sim Studio',
+  creator: 'Sim',
+  publisher: 'Sim',
   metadataBase: new URL('https://sim.ai'),
   alternates: {
     canonical: '/',
@@ -101,22 +101,22 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     url: 'https://sim.ai',
-    title: 'Sim Studio',
+    title: 'Sim',
     description:
       'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-    siteName: 'Sim Studio',
+    siteName: 'Sim',
     images: [
       {
         url: getAssetUrl('social/facebook.png'),
         width: 1200,
         height: 630,
-        alt: 'Sim Studio',
+        alt: 'Sim',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sim Studio',
+    title: 'Sim',
     description:
       'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
     images: [getAssetUrl('social/twitter.png')],
@@ -146,7 +146,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Sim Studio',
+    title: 'Sim',
   },
   formatDetection: {
     telephone: false,
@@ -171,7 +171,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: JSON.stringify({
               '@context': 'https://schema.org',
               '@type': 'SoftwareApplication',
-              name: 'Sim Studio',
+              name: 'Sim',
               description:
                 'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
               url: 'https://sim.ai',
@@ -183,7 +183,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               },
               creator: {
                 '@type': 'Organization',
-                name: 'Sim Studio',
+                name: 'Sim',
                 url: 'https://sim.ai',
               },
               featureList: [
@@ -207,15 +207,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta property='og:image:height' content='630' />
         <meta
           property='og:image:alt'
-          content='Sim Studio - AI Agent Builder with Visual Canvas Interface'
+          content='Sim - AI Agent Builder with Visual Canvas Interface'
         />
-        <meta property='og:site_name' content='Sim Studio' />
+        <meta property='og:site_name' content='Sim' />
         <meta property='og:locale' content='en_US' />
 
         {/* Twitter Card tags */}
         <meta name='twitter:image:width' content='1200' />
         <meta name='twitter:image:height' content='675' />
-        <meta name='twitter:image:alt' content='Sim Studio - AI Agent Builder' />
+        <meta name='twitter:image:alt' content='Sim - AI Agent Builder' />
         <meta name='twitter:url' content='https://sim.ai' />
         <meta name='twitter:domain' content='sim.ai' />
 

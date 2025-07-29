@@ -1,4 +1,4 @@
-# Code of Conduct - Sim Studio
+# Code of Conduct - Sim
 
 ## Our Pledge
 

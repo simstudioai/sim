@@ -1,6 +1,6 @@
 ---
 title: Python SDK
-description: The official Python SDK for Sim Studio
+description: The official Python SDK for Sim
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -8,7 +8,7 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-The official Python SDK for Sim Studio allows you to execute workflows programmatically from your Python applications.
+The official Python SDK for Sim allows you to execute workflows programmatically from your Python applications.
 
 <Callout type="info">
   The Python SDK supports Python 3.8+ and provides synchronous workflow execution. All workflow executions are currently synchronous.
@@ -54,8 +54,8 @@ SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
 ```
 
 **Parameters:**
-- `api_key` (str): Your Sim Studio API key
-- `base_url` (str, optional): Base URL for the Sim Studio API
+- `api_key` (str): Your Sim API key
+- `base_url` (str, optional): Base URL for the Sim API
 
 #### Methods
 
@@ -378,8 +378,8 @@ Configure the client using environment variables:
 ## Getting Your API Key
 
 <Steps>
-  <Step title="Log in to Sim Studio">
-    Navigate to [Sim Studio](https://sim.ai) and log in to your account.
+  <Step title="Log in to Sim">
+    Navigate to [Sim](https://sim.ai) and log in to your account.
   </Step>
   <Step title="Open your workflow">
     Navigate to the workflow you want to execute programmatically.

@@ -36,7 +36,7 @@ const teamsWebhookExample = JSON.stringify(
     conversation: {
       id: '19:meeting_abcdef@thread.v2',
     },
-    text: 'Hello Sim Studio Bot!',
+    text: 'Hello Sim Bot!',
   },
   null,
   2
@@ -79,14 +79,14 @@ export function MicrosoftTeamsConfig({
 
       <InstructionsSection
         title='Setting up Outgoing Webhook in Microsoft Teams'
-        tip='Create an outgoing webhook in Teams to receive messages from Teams in Sim Studio.'
+        tip='Create an outgoing webhook in Teams to receive messages from Teams in Sim.'
       >
         <ol className='list-inside list-decimal space-y-1'>
           <li>Open Microsoft Teams and go to the team where you want to add the webhook.</li>
           <li>Click the three dots (•••) next to the team name and select "Manage team".</li>
           <li>Go to the "Apps" tab and click "Create an outgoing webhook".</li>
           <li>Provide a name, description, and optionally a profile picture.</li>
-          <li>Set the callback URL to your Sim Studio webhook URL (shown above).</li>
+          <li>Set the callback URL to your Sim webhook URL (shown above).</li>
           <li>Copy the HMAC security token and paste it into the "HMAC Secret" field above.</li>
           <li>Click "Create" to finish setup.</li>
         </ol>
@@ -95,7 +95,7 @@ export function MicrosoftTeamsConfig({
       <InstructionsSection title='Receiving Messages from Teams'>
         <p>
           When users mention your webhook in Teams (using @mention), Teams will send a POST request
-          to your Sim Studio webhook URL with a payload like this:
+          to your Sim webhook URL with a payload like this:
         </p>
         <CodeBlock language='json' code={teamsWebhookExample} className='mt-2 text-sm' />
         <ul className='mt-3 list-outside list-disc space-y-1 pl-4'>
@@ -119,7 +119,7 @@ export function MicrosoftTeamsConfig({
         <AlertTitle>Requirements</AlertTitle>
         <AlertDescription>
           <ul className='mt-1 list-outside list-disc space-y-1 pl-4'>
-            <li>Your Sim Studio webhook URL must use HTTPS and be publicly accessible.</li>
+            <li>Your Sim webhook URL must use HTTPS and be publicly accessible.</li>
             <li>Self-signed SSL certificates are not supported by Microsoft Teams.</li>
             <li>For local testing, use a tunneling service like ngrok or Cloudflare Tunnel.</li>
           </ul>

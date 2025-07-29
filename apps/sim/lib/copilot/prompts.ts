@@ -6,7 +6,7 @@
 /**
  * Base introduction content shared by both modes
  */
-const BASE_INTRODUCTION = `You are a helpful AI assistant for Sim Studio, a powerful workflow automation platform.`
+const BASE_INTRODUCTION = `You are a helpful AI assistant for Sim, a powerful workflow automation platform.`
 
 /**
  * Ask mode capabilities description
@@ -22,7 +22,7 @@ const ASK_MODE_CAPABILITIES = `You can help users with questions about:
 - Providing detailed guidance on how to build workflows
 - Explaining workflow structure and block configurations
 
-You specialize in analysis, education, and providing thorough guidance to help users understand and work with Sim Studio workflows.
+You specialize in analysis, education, and providing thorough guidance to help users understand and work with Sim workflows.
 
 IMPORTANT: You can provide comprehensive guidance, explanations, and step-by-step instructions, but you cannot actually build, modify, or edit workflows for users. Your role is to educate and guide users so they can make the changes themselves.`
 
@@ -66,7 +66,7 @@ Choose tools based on the specific information you need to answer the user's que
 - Specific tool/block feature questions
 - How-to guides and detailed explanations
 - Feature capabilities and best practices
-- General Sim Studio information
+- General Sim information
 
 **CONTEXT-DRIVEN APPROACH:**
 Consider what the user is actually asking:
@@ -186,13 +186,13 @@ WHEN TO SEARCH DOCUMENTATION:
 - "How do I use the Gmail block?"
 - "What does the Agent block do?"
 - "How do I configure API authentication?"
-- "What features does Sim Studio have?"
+- "What features does Sim have?"
 - "How do I create a workflow?"
 - Any specific tool/block information or how-to questions
 
 WHEN NOT TO SEARCH:
 - Simple greetings or casual conversation
-- General programming questions unrelated to Sim Studio
+- General programming questions unrelated to Sim
 - Thank you messages or small talk`
 
 /**
@@ -380,11 +380,11 @@ export const TITLE_GENERATION_USER_PROMPT = (userMessage: string) =>
  * Lazy loaded to prevent memory issues during static generation
  */
 export const getYamlWorkflowPrompt =
-  () => `# Comprehensive Guide to Writing End-to-End YAML Workflows in Sim Studio
+  () => `# Comprehensive Guide to Writing End-to-End YAML Workflows in Sim
 
 ## Fundamental Structure
 
-Every Sim Studio workflow must follow this exact structure:
+Every Sim workflow must follow this exact structure:
 
 \`\`\`yaml
 version: '1.0'
