@@ -392,10 +392,7 @@ export async function POST(request: NextRequest) {
             tagDefinitionsMap[kbId]
           )
         } catch (error) {
-          console.error(
-            `[${requestId}] Failed to fetch tag definitions for display mapping:`,
-            error
-          )
+          logger.warn(`[${requestId}] Failed to fetch tag definitions for display mapping:`, error)
           tagDefinitionsMap[kbId] = {}
         }
       }
@@ -405,7 +402,7 @@ export async function POST(request: NextRequest) {
         data: {
           results: results.map((result) => {
             const kbTagMap = tagDefinitionsMap[result.knowledgeBaseId] || {}
-            console.log(
+            logger.debug(
               `[${requestId}] Result KB: ${result.knowledgeBaseId}, available mappings:`,
               kbTagMap
             )
@@ -417,7 +414,7 @@ export async function POST(request: NextRequest) {
             tagSlots.forEach((slot) => {
               if (result[slot]) {
                 const displayName = kbTagMap[slot] || slot
-                console.log(
+                logger.debug(
                   `[${requestId}] Mapping ${slot}="${result[slot]}" -> "${displayName}"="${result[slot]}"`
                 )
                 tags[displayName] = result[slot]
