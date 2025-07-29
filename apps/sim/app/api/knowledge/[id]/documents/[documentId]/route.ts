@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
@@ -223,13 +224,11 @@ export async function PUT(
           updateData.processingError = validatedData.processingError
 
         // Tag field updates
-        if (validatedData.tag1 !== undefined) updateData.tag1 = validatedData.tag1
-        if (validatedData.tag2 !== undefined) updateData.tag2 = validatedData.tag2
-        if (validatedData.tag3 !== undefined) updateData.tag3 = validatedData.tag3
-        if (validatedData.tag4 !== undefined) updateData.tag4 = validatedData.tag4
-        if (validatedData.tag5 !== undefined) updateData.tag5 = validatedData.tag5
-        if (validatedData.tag6 !== undefined) updateData.tag6 = validatedData.tag6
-        if (validatedData.tag7 !== undefined) updateData.tag7 = validatedData.tag7
+        TAG_SLOTS.forEach((slot) => {
+          if ((validatedData as any)[slot] !== undefined) {
+            ;(updateData as any)[slot] = (validatedData as any)[slot]
+          }
+        })
       }
 
       await db.transaction(async (tx) => {
@@ -237,14 +236,13 @@ export async function PUT(
         await tx.update(document).set(updateData).where(eq(document.id, documentId))
 
         // If any tag fields were updated, also update the embeddings
-        const tagFields = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-        const hasTagUpdates = tagFields.some((field) => validatedData[field] !== undefined)
+        const hasTagUpdates = TAG_SLOTS.some((field) => (validatedData as any)[field] !== undefined)
 
         if (hasTagUpdates) {
           const embeddingUpdateData: Record<string, string | null> = {}
-          tagFields.forEach((field) => {
-            if (validatedData[field] !== undefined) {
-              embeddingUpdateData[field] = validatedData[field] || null
+          TAG_SLOTS.forEach((field) => {
+            if ((validatedData as any)[field] !== undefined) {
+              embeddingUpdateData[field] = (validatedData as any)[field] || null
             }
           })
 

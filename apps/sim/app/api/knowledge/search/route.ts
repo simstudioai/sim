@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { TAG_SLOTS } from '@/lib/constants/knowledge'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -409,9 +410,8 @@ export async function POST(request: NextRequest) {
 
             // Create tags object with display names
             const tags: Record<string, any> = {}
-            const tagSlots = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
 
-            tagSlots.forEach((slot) => {
+            TAG_SLOTS.forEach((slot) => {
               if (result[slot]) {
                 const displayName = kbTagMap[slot] || slot
                 logger.debug(
