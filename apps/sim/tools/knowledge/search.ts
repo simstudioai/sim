@@ -4,7 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
   id: 'knowledge_search',
   name: 'Knowledge Search',
-  description: 'Search for similar content in one or more knowledge bases using vector similarity',
+  description: 'Search for similar content in a knowledge base using vector similarity',
   version: '1.0.0',
   params: {
     knowledgeBaseId: {
