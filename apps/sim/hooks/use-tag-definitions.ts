@@ -24,7 +24,7 @@ export interface TagDefinitionInput {
 /**
  * Hook for managing KB-scoped tag definitions
  * @param knowledgeBaseId - The knowledge base ID
- * @param documentId - The document ID (kept for API compatibility but not used for fetching)
+ * @param documentId - The document ID (required for API calls)
  */
 export function useTagDefinitions(
   knowledgeBaseId: string | null,
