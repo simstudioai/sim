@@ -1,3 +1,4 @@
+import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
@@ -117,12 +118,14 @@ export class LoggingSession {
   async completeWithError(error?: any): Promise<void> {
     try {
       const costSummary = {
-        totalCost: 0,
+        totalCost: BASE_EXECUTION_CHARGE,
         totalInputCost: 0,
         totalOutputCost: 0,
         totalTokens: 0,
         totalPromptTokens: 0,
         totalCompletionTokens: 0,
+        baseExecutionCharge: BASE_EXECUTION_CHARGE,
+        modelCost: 0,
         models: {},
       }
 

@@ -119,6 +119,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
       totalTokens: number
       totalPromptTokens: number
       totalCompletionTokens: number
+      baseExecutionCharge: number
+      modelCost: number
       models: Record<
         string,
         {
@@ -263,6 +265,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
       totalTokens: number
       totalPromptTokens: number
       totalCompletionTokens: number
+      baseExecutionCharge: number
+      modelCost: number
     },
     trigger: ExecutionTrigger['type']
   ): Promise<void> {
@@ -286,7 +290,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
       const userId = workflowRecord.userId
       const costMultiplier = getCostMultiplier()
-      const costToStore = costSummary.totalCost * costMultiplier
+      // Apply cost multiplier only to model costs, not base execution charge
+      const costToStore = costSummary.baseExecutionCharge + costSummary.modelCost * costMultiplier
 
       // Check if user stats record exists
       const userStatsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))

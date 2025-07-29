@@ -1,3 +1,4 @@
+import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import type { ExecutionEnvironment, ExecutionTrigger, WorkflowState } from '@/lib/logs/types'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 
@@ -53,6 +54,8 @@ export function calculateCostSummary(traceSpans: any[]): {
   totalTokens: number
   totalPromptTokens: number
   totalCompletionTokens: number
+  baseExecutionCharge: number
+  modelCost: number
   models: Record<
     string,
     {
@@ -65,12 +68,14 @@ export function calculateCostSummary(traceSpans: any[]): {
 } {
   if (!traceSpans || traceSpans.length === 0) {
     return {
-      totalCost: 0,
+      totalCost: BASE_EXECUTION_CHARGE,
       totalInputCost: 0,
       totalOutputCost: 0,
       totalTokens: 0,
       totalPromptTokens: 0,
       totalCompletionTokens: 0,
+      baseExecutionCharge: BASE_EXECUTION_CHARGE,
+      modelCost: 0,
       models: {},
     }
   }
@@ -139,6 +144,9 @@ export function calculateCostSummary(traceSpans: any[]): {
     }
   }
 
+  const modelCost = totalCost
+  totalCost += BASE_EXECUTION_CHARGE
+
   return {
     totalCost,
     totalInputCost,
@@ -146,6 +154,8 @@ export function calculateCostSummary(traceSpans: any[]): {
     totalTokens,
     totalPromptTokens,
     totalCompletionTokens,
+    baseExecutionCharge: BASE_EXECUTION_CHARGE,
+    modelCost,
     models,
   }
 }
