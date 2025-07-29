@@ -4,22 +4,22 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "simstudio.fullname" . }}-nvidia-device-plugin
+  name: {{ include "sim.fullname" . }}-nvidia-device-plugin
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simstudio.labels" . | nindent 4 }}
+    {{- include "sim.labels" . | nindent 4 }}
     app.kubernetes.io/component: nvidia-device-plugin
 spec:
   selector:
     matchLabels:
-      {{- include "simstudio.selectorLabels" . | nindent 6 }}
+      {{- include "sim.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: nvidia-device-plugin
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        {{- include "simstudio.selectorLabels" . | nindent 8 }}
+        {{- include "sim.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: nvidia-device-plugin
     spec:
       tolerations:
@@ -95,6 +95,8 @@ spec:
 apiVersion: node.k8s.io/v1
 kind: RuntimeClass
 metadata:
-  name: nvidia
+  name: {{ include "sim.fullname" . }}-nvidia
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
 handler: nvidia
 {{- end }}

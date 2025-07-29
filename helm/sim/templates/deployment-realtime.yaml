@@ -1,17 +1,17 @@
 {{- if .Values.realtime.enabled }}
-{{- include "simstudio.validateSecrets" . }}
+{{- include "sim.validateSecrets" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "simstudio.fullname" . }}-realtime
+  name: {{ include "sim.fullname" . }}-realtime
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simstudio.realtime.labels" . | nindent 4 }}
+    {{- include "sim.realtime.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.realtime.replicaCount }}
   selector:
     matchLabels:
-      {{- include "simstudio.realtime.selectorLabels" . | nindent 6 }}
+      {{- include "sim.realtime.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -19,7 +19,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "simstudio.realtime.selectorLabels" . | nindent 8 }}
+        {{- include "sim.realtime.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -28,14 +28,14 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "simstudio.serviceAccountName" . }}
-      {{- include "simstudio.podSecurityContext" .Values.realtime | nindent 6 }}
-      {{- include "simstudio.nodeSelector" .Values.realtime | nindent 6 }}
-      {{- include "simstudio.tolerations" .Values | nindent 6 }}
-      {{- include "simstudio.affinity" .Values | nindent 6 }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      {{- include "sim.podSecurityContext" .Values.realtime | nindent 6 }}
+      {{- include "sim.nodeSelector" .Values.realtime | nindent 6 }}
+      {{- include "sim.tolerations" .Values | nindent 6 }}
+      {{- include "sim.affinity" .Values | nindent 6 }}
       containers:
         - name: realtime
-          image: {{ include "simstudio.image" (dict "context" . "image" .Values.realtime.image) }}
+          image: {{ include "sim.image" (dict "context" . "image" .Values.realtime.image) }}
           imagePullPolicy: {{ .Values.realtime.image.pullPolicy }}
           ports:
             - name: http
@@ -43,7 +43,7 @@ spec:
               protocol: TCP
           env:
             - name: DATABASE_URL
-              value: {{ include "simstudio.databaseUrl" . | quote }}
+              value: {{ include "sim.databaseUrl" . | quote }}
             {{- range $key, $value := .Values.realtime.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
@@ -51,13 +51,13 @@ spec:
             {{- if .Values.telemetry.enabled }}
             # OpenTelemetry configuration
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://{{ include "simstudio.fullname" . }}-otel-collector:4318"
+              value: "http://{{ include "sim.fullname" . }}-otel-collector:4318"
             - name: OTEL_SERVICE_NAME
-              value: simstudio-realtime
+              value: sim-realtime
             - name: OTEL_SERVICE_VERSION
               value: {{ .Chart.AppVersion | quote }}
             - name: OTEL_RESOURCE_ATTRIBUTES
-              value: "service.name=simstudio-realtime,service.version={{ .Chart.AppVersion }},deployment.environment={{ .Values.realtime.env.NODE_ENV }}"
+              value: "service.name=sim-realtime,service.version={{ .Chart.AppVersion }},deployment.environment={{ .Values.realtime.env.NODE_ENV }}"
             {{- end }}
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}
@@ -65,11 +65,11 @@ spec:
           {{- if .Values.postgresql.enabled }}
           envFrom:
             - secretRef:
-                name: {{ include "simstudio.fullname" . }}-postgresql-secret
+                name: {{ include "sim.fullname" . }}-postgresql-secret
           {{- else if .Values.externalDatabase.enabled }}
           envFrom:
             - secretRef:
-                name: {{ include "simstudio.fullname" . }}-external-db-secret
+                name: {{ include "sim.fullname" . }}-external-db-secret
           {{- end }}
           {{- if .Values.realtime.livenessProbe }}
           livenessProbe:
@@ -79,8 +79,8 @@ spec:
           readinessProbe:
             {{- toYaml .Values.realtime.readinessProbe | nindent 12 }}
           {{- end }}
-          {{- include "simstudio.resources" .Values.realtime | nindent 10 }}
-          {{- include "simstudio.securityContext" .Values.realtime | nindent 10 }}
+          {{- include "sim.resources" .Values.realtime | nindent 10 }}
+          {{- include "sim.securityContext" .Values.realtime | nindent 10 }}
           {{- with .Values.extraVolumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}

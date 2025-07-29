@@ -2,10 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "simstudio.fullname" . }}-ingress
+  name: {{ include "sim.fullname" . }}-ingress
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simstudio.labels" . | nindent 4 }}
+    {{- include "sim.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -33,7 +33,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "simstudio.fullname" $ }}-app
+                name: {{ include "sim.fullname" $ }}-app
                 port:
                   number: {{ $.Values.app.service.port }}
           {{- end }}
@@ -47,7 +47,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "simstudio.fullname" $ }}-realtime
+                name: {{ include "sim.fullname" $ }}-realtime
                 port:
                   number: {{ $.Values.realtime.service.port }}
           {{- end }}

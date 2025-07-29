@@ -74,7 +74,7 @@
                 },
                 "cpu": {
                   "type": "string",
-                  "pattern": "^\\d+(m|\\.\\d+)?$",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
                   "description": "CPU request (e.g., 1000m, 1.0)"
                 }
               }
@@ -144,7 +144,7 @@
                 },
                 "cpu": {
                   "type": "string",
-                  "pattern": "^\\d+(m|\\.\\d+)?$",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
                   "description": "CPU limit (e.g., 1000m, 1.0)"
                 }
               }
@@ -159,7 +159,7 @@
                 },
                 "cpu": {
                   "type": "string",
-                  "pattern": "^\\d+(m|\\.\\d+)?$",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
                   "description": "CPU request (e.g., 500m, 0.5)"
                 }
               }
@@ -217,7 +217,7 @@
                 },
                 "cpu": {
                   "type": "string",
-                  "pattern": "^\\d+(m|\\.\\d+)?$",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
                   "description": "CPU limit"
                 }
               }
@@ -232,7 +232,7 @@
                 },
                 "cpu": {
                   "type": "string",
-                  "pattern": "^\\d+(m|\\.\\d+)?$",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
                   "description": "CPU request (e.g., 500m, 0.5)"
                 }
               }
@@ -295,6 +295,23 @@
           "minimum": 1,
           "maximum": 65535,
           "description": "External database port"
+        },
+        "username": {
+          "type": "string",
+          "description": "External database username"
+        },
+        "password": {
+          "type": "string",
+          "description": "External database password"
+        },
+        "database": {
+          "type": "string",
+          "description": "External database name"
+        },
+        "sslMode": {
+          "type": "string",
+          "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"],
+          "description": "SSL mode for database connection"
         }
       },
       "if": {
@@ -362,7 +379,7 @@
                 },
                 "cpu": {
                   "type": "string",
-                  "pattern": "^\\d+(m|\\.\\d+)?$",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
                   "description": "CPU limit"
                 },
                 "nvidia.com/gpu": {
@@ -382,7 +399,7 @@
                 },
                 "cpu": {
                   "type": "string",
-                  "pattern": "^\\d+(m|\\.\\d+)?$",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?m?$",
                   "description": "CPU request (e.g., 1000m, 1.0)"
                 }
               }

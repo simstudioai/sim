@@ -4,10 +4,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "simstudio.fullname" . }}-postgresql-config
+  name: {{ include "sim.fullname" . }}-postgresql-config
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simstudio.postgresql.labels" . | nindent 4 }}
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
 data:
   postgresql.conf: |
     hba_file = '/etc/postgresql/pg_hba.conf'
@@ -56,23 +56,24 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "simstudio.fullname" . }}-postgresql-env
+  name: {{ include "sim.fullname" . }}-postgresql-env
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simstudio.postgresql.labels" . | nindent 4 }}
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
 data:
   POSTGRES_DB: {{ .Values.postgresql.auth.database | quote }}
   POSTGRES_USER: {{ .Values.postgresql.auth.username | quote }}
+  PGDATA: "/var/lib/postgresql/data/pgdata"
 
 ---
 # Secret for PostgreSQL password
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ include "simstudio.fullname" . }}-postgresql-secret
+  name: {{ include "sim.fullname" . }}-postgresql-secret
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simstudio.postgresql.labels" . | nindent 4 }}
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
 type: Opaque
 data:
   POSTGRES_PASSWORD: {{ .Values.postgresql.auth.password | b64enc }}
@@ -82,17 +83,17 @@ data:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "simstudio.fullname" . }}-postgresql
+  name: {{ include "sim.fullname" . }}-postgresql
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "simstudio.postgresql.labels" . | nindent 4 }}
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "simstudio.fullname" . }}-postgresql
+  serviceName: {{ include "sim.fullname" . }}-postgresql
   replicas: 1
   minReadySeconds: 10
   selector:
     matchLabels:
-      {{- include "simstudio.postgresql.selectorLabels" . | nindent 6 }}
+      {{- include "sim.postgresql.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -100,7 +101,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "simstudio.postgresql.selectorLabels" . | nindent 8 }}
+        {{- include "sim.postgresql.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -109,14 +110,14 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "simstudio.serviceAccountName" . }}
-      {{- include "simstudio.podSecurityContext" .Values.postgresql | nindent 6 }}
-      {{- include "simstudio.nodeSelector" .Values.postgresql | nindent 6 }}
-      {{- include "simstudio.tolerations" .Values | nindent 6 }}
-      {{- include "simstudio.affinity" .Values | nindent 6 }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      {{- include "sim.podSecurityContext" .Values.postgresql | nindent 6 }}
+      {{- include "sim.nodeSelector" .Values.postgresql | nindent 6 }}
+      {{- include "sim.tolerations" .Values | nindent 6 }}
+      {{- include "sim.affinity" .Values | nindent 6 }}
       containers:
         - name: postgresql
-          image: {{ include "simstudio.image" (dict "context" . "image" .Values.postgresql.image) }}
+          image: {{ include "sim.image" (dict "context" . "image" .Values.postgresql.image) }}
           imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
           args: ["-c", "config_file=/etc/postgresql/postgresql.conf"]
           ports:
@@ -125,9 +126,9 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "simstudio.fullname" . }}-postgresql-env
+                name: {{ include "sim.fullname" . }}-postgresql-env
             - secretRef:
-                name: {{ include "simstudio.fullname" . }}-postgresql-secret
+                name: {{ include "sim.fullname" . }}-postgresql-secret
           {{- if .Values.postgresql.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.postgresql.livenessProbe | nindent 12 }}
@@ -136,8 +137,8 @@ spec:
           readinessProbe:
             {{- toYaml .Values.postgresql.readinessProbe | nindent 12 }}
           {{- end }}
-          {{- include "simstudio.resources" .Values.postgresql | nindent 10 }}
-          {{- include "simstudio.securityContext" .Values.postgresql | nindent 10 }}
+          {{- include "sim.resources" .Values.postgresql | nindent 10 }}
+          {{- include "sim.securityContext" .Values.postgresql | nindent 10 }}
           volumeMounts:
             {{- if .Values.postgresql.persistence.enabled }}
             - name: postgresql-data
@@ -157,7 +158,7 @@ spec:
       volumes:
         - name: postgresql-config
           configMap:
-            name: {{ include "simstudio.fullname" . }}-postgresql-config
+            name: {{ include "sim.fullname" . }}-postgresql-config
         {{- if .Values.postgresql.tls.enabled }}
         - name: postgresql-tls
           secret:
@@ -172,7 +173,7 @@ spec:
     - metadata:
         name: postgresql-data
         labels:
-          {{- include "simstudio.postgresql.labels" . | nindent 10 }}
+          {{- include "sim.postgresql.labels" . | nindent 10 }}
       spec:
         {{- if .Values.postgresql.persistence.storageClass }}
         {{- if (eq "-" .Values.postgresql.persistence.storageClass) }}

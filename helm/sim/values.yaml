@@ -12,7 +12,7 @@ global:
   # Storage class for persistent volumes
   storageClass: ""
 
-# Main Sim Studio application configuration
+# Main Sim application configuration
 app:
   # Enable/disable the main application
   enabled: true
@@ -61,9 +61,8 @@ app:
     
     # Authentication and encryption secrets (REQUIRED for production)
     # Generate secure 32-character secrets using: openssl rand -hex 32
-    # These placeholder values MUST be replaced with your own secure secrets
-    BETTER_AUTH_SECRET: "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE"
-    ENCRYPTION_KEY: "CHANGE-ME-32-CHAR-ENCRYPTION-KEY-FOR-PROD"
+    BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
+    ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
     
     # Optional third-party service integrations (leave empty if not using)
     FREESTYLE_API_KEY: ""
@@ -142,8 +141,7 @@ realtime:
     
     # Authentication secret (REQUIRED for production)
     # Must match the BETTER_AUTH_SECRET value from the main app configuration
-    # This placeholder value MUST be replaced with your own secure secret
-    BETTER_AUTH_SECRET: "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE"
+    BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
     
     # Cross-Origin Resource Sharing (CORS) allowed origins
     ALLOWED_ORIGINS: "http://localhost:3000"
@@ -218,8 +216,8 @@ postgresql:
   # Authentication configuration
   auth:
     username: postgres
-    password: "CHANGE-ME-SECURE-PASSWORD"  # REQUIRED - replace with a strong password for production
-    database: simstudio
+    password: ""  # REQUIRED - set via --set flag or external secret manager
+    database: sim
   
   # Node selector for database pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
@@ -269,13 +267,13 @@ postgresql:
   # Health checks
   livenessProbe:
     exec:
-      command: ["pg_isready", "-U", "postgres", "-d", "simstudio"]
+      command: ["pg_isready", "-U", "postgres", "-d", "sim"]
     initialDelaySeconds: 10
     periodSeconds: 5
   
   readinessProbe:
     exec:
-      command: ["pg_isready", "-U", "postgres", "-d", "simstudio"]
+      command: ["pg_isready", "-U", "postgres", "-d", "sim"]
     initialDelaySeconds: 5
     periodSeconds: 3
 
@@ -289,7 +287,7 @@ externalDatabase:
   port: 5432
   username: postgres
   password: ""
-  database: simstudio
+  database: sim
   
   # SSL configuration
   sslMode: require
@@ -396,14 +394,14 @@ ingress:
   
   # Main application host configuration
   app:
-    host: simstudio.local
+    host: sim.local
     paths:
       - path: /
         pathType: Prefix
   
   # Realtime service host configuration
   realtime:
-    host: simstudio-ws.local
+    host: sim-ws.local
     paths:
       - path: /
         pathType: Prefix
@@ -411,7 +409,7 @@ ingress:
   # TLS configuration
   tls:
     enabled: false
-    secretName: simstudio-tls-secret
+    secretName: sim-tls-secret
 
 # Service Account configuration
 serviceAccount:

@@ -1,4 +1,4 @@
-# External Database Example for SimStudio
+# External Database Example for Sim
 # Use this configuration when connecting to a managed database service
 # (AWS RDS, Azure Database, Google Cloud SQL, etc.)
 
@@ -141,8 +141,8 @@ networkPolicy:
         port: 5432
 
 # Example deployment command with secure secret generation:
-# helm install simstudio ./charts/simstudio \
-#   --values ./charts/simstudio/examples/values-external-db.yaml \
+# helm install sim ./helm/sim \
+#   --values ./helm/sim/examples/values-external-db.yaml \
 #   --set externalDatabase.host="your-db-host.com" \
 #   --set externalDatabase.username="your-db-user" \
 #   --set externalDatabase.password="your-db-password" \

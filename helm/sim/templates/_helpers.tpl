@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "simstudio.name" -}}
+{{- define "sim.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "simstudio.fullname" -}}
+{{- define "sim.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "simstudio.chart" -}}
+{{- define "sim.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "simstudio.labels" -}}
-helm.sh/chart: {{ include "simstudio.chart" . }}
-{{ include "simstudio.selectorLabels" . }}
+{{- define "sim.labels" -}}
+helm.sh/chart: {{ include "sim.chart" . }}
+{{ include "sim.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -48,89 +48,89 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "simstudio.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "simstudio.name" . }}
+{{- define "sim.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "sim.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 App specific labels
 */}}
-{{- define "simstudio.app.labels" -}}
-{{ include "simstudio.labels" . }}
+{{- define "sim.app.labels" -}}
+{{ include "sim.labels" . }}
 app.kubernetes.io/component: app
 {{- end }}
 
 {{/*
 App selector labels
 */}}
-{{- define "simstudio.app.selectorLabels" -}}
-{{ include "simstudio.selectorLabels" . }}
+{{- define "sim.app.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
 app.kubernetes.io/component: app
 {{- end }}
 
 {{/*
 Realtime specific labels
 */}}
-{{- define "simstudio.realtime.labels" -}}
-{{ include "simstudio.labels" . }}
+{{- define "sim.realtime.labels" -}}
+{{ include "sim.labels" . }}
 app.kubernetes.io/component: realtime
 {{- end }}
 
 {{/*
 Realtime selector labels
 */}}
-{{- define "simstudio.realtime.selectorLabels" -}}
-{{ include "simstudio.selectorLabels" . }}
+{{- define "sim.realtime.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
 app.kubernetes.io/component: realtime
 {{- end }}
 
 {{/*
 PostgreSQL specific labels
 */}}
-{{- define "simstudio.postgresql.labels" -}}
-{{ include "simstudio.labels" . }}
+{{- define "sim.postgresql.labels" -}}
+{{ include "sim.labels" . }}
 app.kubernetes.io/component: postgresql
 {{- end }}
 
 {{/*
 PostgreSQL selector labels
 */}}
-{{- define "simstudio.postgresql.selectorLabels" -}}
-{{ include "simstudio.selectorLabels" . }}
+{{- define "sim.postgresql.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
 app.kubernetes.io/component: postgresql
 {{- end }}
 
 {{/*
 Ollama specific labels
 */}}
-{{- define "simstudio.ollama.labels" -}}
-{{ include "simstudio.labels" . }}
+{{- define "sim.ollama.labels" -}}
+{{ include "sim.labels" . }}
 app.kubernetes.io/component: ollama
 {{- end }}
 
 {{/*
 Ollama selector labels
 */}}
-{{- define "simstudio.ollama.selectorLabels" -}}
-{{ include "simstudio.selectorLabels" . }}
+{{- define "sim.ollama.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
 app.kubernetes.io/component: ollama
 {{- end }}
 
 {{/*
 Migrations specific labels
 */}}
-{{- define "simstudio.migrations.labels" -}}
-{{ include "simstudio.labels" . }}
+{{- define "sim.migrations.labels" -}}
+{{ include "sim.labels" . }}
 app.kubernetes.io/component: migrations
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "simstudio.serviceAccountName" -}}
+{{- define "sim.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "simstudio.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "sim.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -139,9 +139,9 @@ Create the name of the service account to use
 {{/*
 Create image name with registry
 Expects context with image object passed as second parameter
-Usage: {{ include "simstudio.image" (dict "context" . "image" .Values.app.image) }}
+Usage: {{ include "sim.image" (dict "context" . "image" .Values.app.image) }}
 */}}
-{{- define "simstudio.image" -}}
+{{- define "sim.image" -}}
 {{- $registry := "" -}}
 {{- $repository := .image.repository -}}
 {{- $tag := .image.tag | toString -}}
@@ -161,9 +161,9 @@ Usage: {{ include "simstudio.image" (dict "context" . "image" .Values.app.image)
 {{/*
 Database URL for internal PostgreSQL
 */}}
-{{- define "simstudio.databaseUrl" -}}
+{{- define "sim.databaseUrl" -}}
 {{- if .Values.postgresql.enabled }}
-{{- $host := printf "%s-postgresql" (include "simstudio.fullname" .) }}
+{{- $host := printf "%s-postgresql" (include "sim.fullname" .) }}
 {{- $port := .Values.postgresql.service.port }}
 {{- $username := .Values.postgresql.auth.username }}
 {{- $database := .Values.postgresql.auth.database }}
@@ -182,7 +182,7 @@ Database URL for internal PostgreSQL
 {{/*
 Validate required secrets and reject default placeholder values
 */}}
-{{- define "simstudio.validateSecrets" -}}
+{{- define "sim.validateSecrets" -}}
 {{- if and .Values.app.enabled (not .Values.app.env.BETTER_AUTH_SECRET) }}
 {{- fail "app.env.BETTER_AUTH_SECRET is required for production deployment" }}
 {{- end }}
@@ -212,9 +212,9 @@ Validate required secrets and reject default placeholder values
 {{/*
 Ollama URL
 */}}
-{{- define "simstudio.ollamaUrl" -}}
+{{- define "sim.ollamaUrl" -}}
 {{- if .Values.ollama.enabled }}
-{{- $serviceName := printf "%s-ollama" (include "simstudio.fullname" .) }}
+{{- $serviceName := printf "%s-ollama" (include "sim.fullname" .) }}
 {{- $port := .Values.ollama.service.port }}
 {{- printf "http://%s:%v" $serviceName $port }}
 {{- else }}
@@ -225,9 +225,9 @@ Ollama URL
 {{/*
 Socket Server URL (internal)
 */}}
-{{- define "simstudio.socketServerUrl" -}}
+{{- define "sim.socketServerUrl" -}}
 {{- if .Values.realtime.enabled }}
-{{- $serviceName := printf "%s-realtime" (include "simstudio.fullname" .) }}
+{{- $serviceName := printf "%s-realtime" (include "sim.fullname" .) }}
 {{- $port := .Values.realtime.service.port }}
 {{- printf "http://%s:%v" $serviceName $port }}
 {{- else }}
@@ -238,7 +238,7 @@ Socket Server URL (internal)
 {{/*
 Resource limits and requests
 */}}
-{{- define "simstudio.resources" -}}
+{{- define "sim.resources" -}}
 {{- if .resources }}
 resources:
   {{- if .resources.limits }}
@@ -255,7 +255,7 @@ resources:
 {{/*
 Security context
 */}}
-{{- define "simstudio.securityContext" -}}
+{{- define "sim.securityContext" -}}
 {{- if .securityContext }}
 securityContext:
   {{- toYaml .securityContext | nindent 2 }}
@@ -265,7 +265,7 @@ securityContext:
 {{/*
 Pod security context
 */}}
-{{- define "simstudio.podSecurityContext" -}}
+{{- define "sim.podSecurityContext" -}}
 {{- if .podSecurityContext }}
 securityContext:
   {{- toYaml .podSecurityContext | nindent 2 }}
@@ -275,7 +275,7 @@ securityContext:
 {{/*
 Node selector
 */}}
-{{- define "simstudio.nodeSelector" -}}
+{{- define "sim.nodeSelector" -}}
 {{- if .nodeSelector }}
 nodeSelector:
   {{- toYaml .nodeSelector | nindent 2 }}
@@ -285,7 +285,7 @@ nodeSelector:
 {{/*
 Tolerations
 */}}
-{{- define "simstudio.tolerations" -}}
+{{- define "sim.tolerations" -}}
 {{- if .tolerations }}
 tolerations:
   {{- toYaml .tolerations | nindent 2 }}
@@ -295,7 +295,7 @@ tolerations:
 {{/*
 Affinity
 */}}
-{{- define "simstudio.affinity" -}}
+{{- define "sim.affinity" -}}
 {{- if .affinity }}
 affinity:
   {{- toYaml .affinity | nindent 2 }}

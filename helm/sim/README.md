@@ -1,6 +1,6 @@
-# Sim Studio Helm Chart
+# Sim Helm Chart
 
-This Helm chart deploys Sim Studio, a lightweight AI agent workflow platform, on Kubernetes.
+This Helm chart deploys Sim, a lightweight AI agent workflow platform, on Kubernetes.
 
 ## Prerequisites
 
@@ -149,7 +149,7 @@ The following table lists the configurable parameters and their default values.
 |-----------|-------------|---------|
 | `app.enabled` | Enable the main application | `true` |
 | `app.replicaCount` | Number of app replicas | `1` |
-| `app.image.repository` | App image repository | `simstudioai/simstudio` |
+| `app.image.repository` | App image repository | `simstudioai/sim` |
 | `app.image.tag` | App image tag | `latest` |
 | `app.image.pullPolicy` | App image pull policy | `Always` |
 | `app.resources` | App resource limits and requests | See values.yaml |
@@ -192,8 +192,8 @@ The following table lists the configurable parameters and their default values.
 | `postgresql.image.tag` | PostgreSQL image tag | `pg17` |
 | `postgresql.image.pullPolicy` | PostgreSQL image pull policy | `IfNotPresent` |
 | `postgresql.auth.username` | PostgreSQL username | `postgres` |
-| `postgresql.auth.password` | PostgreSQL password | `CHANGE-ME-SECURE-PASSWORD` |
-| `postgresql.auth.database` | PostgreSQL database name | `simstudio` |
+| `postgresql.auth.password` | PostgreSQL password | `""` (REQUIRED) |
+| `postgresql.auth.database` | PostgreSQL database name | `sim` |
 | `postgresql.nodeSelector` | PostgreSQL node selector | `{}` |
 | `postgresql.resources` | PostgreSQL resource limits and requests | See values.yaml |
 | `postgresql.podSecurityContext` | PostgreSQL pod security context | `fsGroup: 999` |
@@ -223,7 +223,7 @@ The following table lists the configurable parameters and their default values.
 | `externalDatabase.port` | External database port | `5432` |
 | `externalDatabase.username` | External database username | `postgres` |
 | `externalDatabase.password` | External database password | `""` |
-| `externalDatabase.database` | External database name | `simstudio` |
+| `externalDatabase.database` | External database name | `sim` |
 | `externalDatabase.sslMode` | External database SSL mode | `require` |
 
 ### Ollama Parameters
@@ -259,12 +259,12 @@ The following table lists the configurable parameters and their default values.
 | `ingress.enabled` | Enable ingress | `false` |
 | `ingress.className` | Ingress class name | `nginx` |
 | `ingress.annotations` | Ingress annotations | See values.yaml |
-| `ingress.app.host` | App ingress hostname | `simstudio.local` |
+| `ingress.app.host` | App ingress hostname | `sim.local` |
 | `ingress.app.paths` | App ingress paths | `[{path: "/", pathType: "Prefix"}]` |
-| `ingress.realtime.host` | Realtime ingress hostname | `simstudio-ws.local` |
+| `ingress.realtime.host` | Realtime ingress hostname | `sim-ws.local` |
 | `ingress.realtime.paths` | Realtime ingress paths | `[{path: "/", pathType: "Prefix"}]` |
 | `ingress.tls.enabled` | Enable TLS for ingress | `false` |
-| `ingress.tls.secretName` | TLS secret name | `simstudio-tls-secret` |
+| `ingress.tls.secretName` | TLS secret name | `sim-tls-secret` |
 
 ### Autoscaling Parameters
 
@@ -453,7 +453,7 @@ telemetry:
 
 This automatically configures:
 - OpenTelemetry Collector for metrics, traces, and logs
-- Automatic service discovery for SimStudio components
+- Automatic service discovery for Sim components
 - Environment variable injection for applications
 - Support for multiple observability backends
 
@@ -504,7 +504,7 @@ networkPolicy:
 ```
 
 This creates network policies that:
-- Allow communication between SimStudio components
+- Allow communication between Sim components
 - Restrict unnecessary network access
 - Permit DNS resolution and HTTPS egress
 - Support custom ingress/egress rules

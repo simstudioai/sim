@@ -5,12 +5,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "simstudio.fullname" $ }}-{{ .name }}
+  name: {{ include "sim.fullname" $ }}-{{ .name }}
   namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "simstudio.labels" $ | nindent 4 }}
-    simstudio.ai/volume-type: shared-storage
-    simstudio.ai/volume-name: {{ .name }}
+    {{- include "sim.labels" $ | nindent 4 }}
+    sim.ai/volume-type: shared-storage
+    sim.ai/volume-name: {{ .name }}
   {{- with .annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}

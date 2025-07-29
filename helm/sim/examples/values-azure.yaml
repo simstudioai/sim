@@ -1,4 +1,4 @@
-# Azure-specific values for Sim Studio
+# Azure-specific values for Sim
 # Example configuration for Azure AKS deployment
 
 # Global configuration
@@ -144,7 +144,7 @@ ollama:
     OLLAMA_KEEP_ALIVE: "-1"
     OLLAMA_DEBUG: "1"
 
-# Ingress configuration for Azure Application Gateway
+# Ingress configuration (NGINX ingress controller on Azure AKS)
 ingress:
   enabled: true
   className: nginx
