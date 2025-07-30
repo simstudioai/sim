@@ -1,6 +1,6 @@
 import { Check, Eye, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { getBlock } from '@/blocks'
 import { getAllBlocks } from '@/blocks/registry'

@@ -33,7 +33,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseDomain, getEmailDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
-import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components'
+import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/output-select/output-select'
 import type { OutputConfig } from '@/stores/panel/chat/types'
 
 const logger = createLogger('ChatDeploy')

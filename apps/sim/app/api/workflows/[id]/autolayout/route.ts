@@ -1,69 +1,163 @@
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { simAgentClient } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
-import {
-  convertLoopBlockToLoop,
-  convertParallelBlockToParallel,
-  findAllDescendantNodes,
-  findChildNodes,
-  generateLoopBlocks,
-  generateParallelBlocks,
-} from '@/stores/workflows/workflow/utils'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { db } from '@/db'
+import { workflow as workflowTable } from '@/db/schema'
 
-const logger = createLogger('YamlAutoLayoutAPI')
+export const dynamic = 'force-dynamic'
 
-// Sim Agent API configuration
-const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
+const logger = createLogger('AutoLayoutAPI')
+
+// Check API key configuration at module level
 const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
+if (!SIM_AGENT_API_KEY) {
+  logger.warn('SIM_AGENT_API_KEY not configured - autolayout requests will fail')
+}
 
 const AutoLayoutRequestSchema = z.object({
-  workflowState: z.object({
-    blocks: z.record(z.any()),
-    edges: z.array(z.any()),
-    loops: z.record(z.any()).optional().default({}),
-    parallels: z.record(z.any()).optional().default({}),
-  }),
-  options: z
+  strategy: z
+    .enum(['smart', 'hierarchical', 'layered', 'force-directed'])
+    .optional()
+    .default('smart'),
+  direction: z.enum(['horizontal', 'vertical', 'auto']).optional().default('auto'),
+  spacing: z
     .object({
-      strategy: z.enum(['smart', 'hierarchical', 'layered', 'force-directed']).optional(),
-      direction: z.enum(['horizontal', 'vertical', 'auto']).optional(),
-      spacing: z
-        .object({
-          horizontal: z.number().optional(),
-          vertical: z.number().optional(),
-          layer: z.number().optional(),
-        })
-        .optional(),
-      alignment: z.enum(['start', 'center', 'end']).optional(),
-      padding: z
-        .object({
-          x: z.number().optional(),
-          y: z.number().optional(),
-        })
-        .optional(),
+      horizontal: z.number().min(100).max(1000).optional().default(400),
+      vertical: z.number().min(50).max(500).optional().default(200),
+      layer: z.number().min(200).max(1200).optional().default(600),
     })
-    .optional(),
+    .optional()
+    .default({}),
+  alignment: z.enum(['start', 'center', 'end']).optional().default('center'),
+  padding: z
+    .object({
+      x: z.number().min(50).max(500).optional().default(200),
+      y: z.number().min(50).max(500).optional().default(200),
+    })
+    .optional()
+    .default({}),
 })
 
-export async function POST(request: NextRequest) {
+type AutoLayoutRequest = z.infer<typeof AutoLayoutRequestSchema>
+
+/**
+ * POST /api/workflows/[id]/autolayout
+ * Apply autolayout to an existing workflow
+ */
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
+  const startTime = Date.now()
+  const { id: workflowId } = await params
 
   try {
-    const body = await request.json()
-    const { workflowState, options } = AutoLayoutRequestSchema.parse(body)
+    // Get the session
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized autolayout attempt for workflow ${workflowId}`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    logger.info(`[${requestId}] Applying auto layout`, {
-      blockCount: Object.keys(workflowState.blocks).length,
-      edgeCount: workflowState.edges.length,
-      hasApiKey: !!SIM_AGENT_API_KEY,
-      strategy: options?.strategy || 'smart',
-      simAgentUrl: SIM_AGENT_API_URL,
+    const userId = session.user.id
+
+    // Parse request body
+    const body = await request.json()
+    const layoutOptions = AutoLayoutRequestSchema.parse(body)
+
+    logger.info(`[${requestId}] Processing autolayout request for workflow ${workflowId}`, {
+      strategy: layoutOptions.strategy,
+      direction: layoutOptions.direction,
+      userId,
     })
 
-    // Gather block registry and utilities
+    // Fetch the workflow to check ownership/access
+    const workflowData = await db
+      .select()
+      .from(workflowTable)
+      .where(eq(workflowTable.id, workflowId))
+      .then((rows) => rows[0])
+
+    if (!workflowData) {
+      logger.warn(`[${requestId}] Workflow ${workflowId} not found for autolayout`)
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    // Check if user has permission to update this workflow
+    let canUpdate = false
+
+    // Case 1: User owns the workflow
+    if (workflowData.userId === userId) {
+      canUpdate = true
+    }
+
+    // Case 2: Workflow belongs to a workspace and user has write or admin permission
+    if (!canUpdate && workflowData.workspaceId) {
+      const userPermission = await getUserEntityPermissions(
+        userId,
+        'workspace',
+        workflowData.workspaceId
+      )
+      if (userPermission === 'write' || userPermission === 'admin') {
+        canUpdate = true
+      }
+    }
+
+    if (!canUpdate) {
+      logger.warn(
+        `[${requestId}] User ${userId} denied permission to autolayout workflow ${workflowId}`
+      )
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Load current workflow state
+    const currentWorkflowData = await loadWorkflowFromNormalizedTables(workflowId)
+
+    if (!currentWorkflowData) {
+      logger.error(`[${requestId}] Could not load workflow ${workflowId} for autolayout`)
+      return NextResponse.json({ error: 'Could not load workflow data' }, { status: 500 })
+    }
+
+    // Apply autolayout
+    logger.info(
+      `[${requestId}] Applying autolayout to ${Object.keys(currentWorkflowData.blocks).length} blocks`,
+      {
+        hasApiKey: !!SIM_AGENT_API_KEY,
+        simAgentUrl: process.env.SIM_AGENT_API_URL || 'http://localhost:8000',
+      }
+    )
+
+    // Create workflow state for autolayout
+    const workflowState = {
+      blocks: currentWorkflowData.blocks,
+      edges: currentWorkflowData.edges,
+      loops: currentWorkflowData.loops || {},
+      parallels: currentWorkflowData.parallels || {},
+    }
+
+    const autoLayoutOptions = {
+      strategy: layoutOptions.strategy,
+      direction: layoutOptions.direction,
+      spacing: {
+        horizontal: layoutOptions.spacing?.horizontal || 500,
+        vertical: layoutOptions.spacing?.vertical || 400,
+        layer: layoutOptions.spacing?.layer || 700,
+      },
+      alignment: layoutOptions.alignment,
+      padding: {
+        x: layoutOptions.padding?.x || 250,
+        y: layoutOptions.padding?.y || 250,
+      },
+    }
+
+    // Gather block registry and utilities for sim-agent
     const blocks = getAllBlocks()
     const blockRegistry = blocks.reduce(
       (acc, block) => {
@@ -79,138 +173,99 @@ export async function POST(request: NextRequest) {
       {} as Record<string, BlockConfig>
     )
 
-    // Log sample block data for debugging
-    const sampleBlockId = Object.keys(workflowState.blocks)[0]
-    if (sampleBlockId) {
-      logger.info(`[${requestId}] Sample block data:`, {
-        blockId: sampleBlockId,
-        blockType: workflowState.blocks[sampleBlockId].type,
-        hasPosition: !!workflowState.blocks[sampleBlockId].position,
-        position: workflowState.blocks[sampleBlockId].position,
-      })
-    }
-
-    logger.info(`[${requestId}] Calling sim-agent autolayout with strategy:`, {
-      strategy: options?.strategy || 'smart (default)',
-      direction: options?.direction || 'auto (default)',
-      spacing: options?.spacing,
-      alignment: options?.alignment || 'center (default)',
-    })
-
-    // Call sim-agent API
-    const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/autolayout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
-      },
-      body: JSON.stringify({
-        workflowState: {
-          blocks: workflowState.blocks,
-          edges: workflowState.edges,
-          loops: workflowState.loops || {},
-          parallels: workflowState.parallels || {},
-        },
-        options: {
-          strategy: 'smart',
-          direction: 'auto',
-          spacing: {
-            horizontal: 500,
-            vertical: 400,
-            layer: 700,
-          },
-          alignment: 'center',
-          padding: {
-            x: 250,
-            y: 250,
-          },
-          ...options, // Allow override of defaults
-        },
+    const autoLayoutResult = await simAgentClient.makeRequest('/api/yaml/autolayout', {
+      body: {
+        workflowState,
+        options: autoLayoutOptions,
         blockRegistry,
-
         utilities: {
           generateLoopBlocks: generateLoopBlocks.toString(),
           generateParallelBlocks: generateParallelBlocks.toString(),
           resolveOutputType: resolveOutputType.toString(),
-          convertLoopBlockToLoop: convertLoopBlockToLoop.toString(),
-          convertParallelBlockToParallel: convertParallelBlockToParallel.toString(),
-          findChildNodes: findChildNodes.toString(),
-          findAllDescendantNodes: findAllDescendantNodes.toString(),
         },
-      }),
+      },
+      apiKey: SIM_AGENT_API_KEY,
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
+    // Log the full response for debugging
+    logger.info(`[${requestId}] Sim-agent autolayout response:`, {
+      success: autoLayoutResult.success,
+      status: autoLayoutResult.status,
+      error: autoLayoutResult.error,
+      hasData: !!autoLayoutResult.data,
+      hasWorkflowState: !!autoLayoutResult.data?.workflowState,
+      hasBlocks: !!autoLayoutResult.data?.blocks,
+      dataKeys: autoLayoutResult.data ? Object.keys(autoLayoutResult.data) : [],
+    })
 
-      // Try to parse the error as JSON for better error messages
-      let errorMessage = `Sim agent API error: ${response.statusText}`
-
-      // Check if it's a 404 error
-      if (response.status === 404) {
-        errorMessage =
-          'Auto-layout endpoint not found on sim agent. Please ensure the /api/yaml/autolayout endpoint is implemented in the sim agent service.'
-      } else {
-        try {
-          const errorJson = JSON.parse(errorText)
-          if (errorJson.errors && Array.isArray(errorJson.errors)) {
-            errorMessage = errorJson.errors.join(', ')
-          } else if (errorJson.error) {
-            errorMessage = errorJson.error
-          }
-        } catch (e) {
-          // If not JSON, use the raw text
-          errorMessage = errorText || errorMessage
-        }
-      }
-
-      logger.error(`[${requestId}] Sim agent API error:`, {
-        status: response.status,
-        error: errorText,
-        parsedError: errorMessage,
+    if (!autoLayoutResult.success || (!autoLayoutResult.data?.workflowState && !autoLayoutResult.data?.blocks)) {
+      logger.error(`[${requestId}] Auto layout failed:`, {
+        success: autoLayoutResult.success,
+        error: autoLayoutResult.error,
+        status: autoLayoutResult.status,
+        fullResponse: autoLayoutResult,
       })
+      const errorMessage = autoLayoutResult.error || 
+        (autoLayoutResult.status === 401 ? 'Unauthorized - check API key' : 
+         autoLayoutResult.status === 404 ? 'Sim-agent service not found' :
+         `HTTP ${autoLayoutResult.status}`)
+      
+      return NextResponse.json({ 
+        error: 'Auto layout failed',
+        details: errorMessage
+      }, { status: 500 })
+    }
 
+    // Handle both response formats from sim-agent
+    const layoutedBlocks = autoLayoutResult.data?.workflowState?.blocks || autoLayoutResult.data?.blocks
+    
+    if (!layoutedBlocks) {
+      logger.error(`[${requestId}] No blocks returned from sim-agent:`, {
+        responseData: autoLayoutResult.data,
+      })
+      return NextResponse.json({ 
+        error: 'Auto layout failed',
+        details: 'No blocks returned from sim-agent'
+      }, { status: 500 })
+    }
+
+    const elapsed = Date.now() - startTime
+    const blockCount = Object.keys(layoutedBlocks).length
+
+    logger.info(`[${requestId}] Autolayout completed successfully in ${elapsed}ms`, {
+      blockCount,
+      strategy: layoutOptions.strategy,
+      workflowId,
+    })
+
+    // Return the layouted blocks to the frontend - let the store handle saving
+    return NextResponse.json({
+      success: true,
+      message: `Autolayout applied successfully to ${blockCount} blocks`,
+      data: {
+        strategy: layoutOptions.strategy,
+        direction: layoutOptions.direction,
+        blockCount,
+        elapsed: `${elapsed}ms`,
+        layoutedBlocks: layoutedBlocks,
+      },
+    })
+  } catch (error) {
+    const elapsed = Date.now() - startTime
+
+    if (error instanceof z.ZodError) {
+      logger.warn(`[${requestId}] Invalid autolayout request data`, { errors: error.errors })
       return NextResponse.json(
-        { success: false, errors: [errorMessage] },
-        { status: response.status }
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
       )
     }
 
-    const result = await response.json()
-
-    logger.info(`[${requestId}] Sim agent response summary:`, {
-      success: result.success,
-      hasBlocks: !!result.blocks,
-      blockCount: result.blocks ? Object.keys(result.blocks).length : 0,
-      responseKeys: Object.keys(result),
-    })
-
-    // Transform the response to match the expected format
-    const transformedResponse = {
-      success: result.success,
-      workflowState: {
-        blocks: result.blocks || {},
-        edges: workflowState.edges || [],
-        loops: workflowState.loops || {},
-        parallels: workflowState.parallels || {},
-      },
-      errors: result.errors,
-    }
-
-    logger.info(`[${requestId}] Transformed response:`, {
-      success: transformedResponse.success,
-      blockCount: Object.keys(transformedResponse.workflowState.blocks).length,
-      hasWorkflowState: true,
-    })
-
-    return NextResponse.json(transformedResponse)
-  } catch (error) {
-    logger.error(`[${requestId}] Auto layout failed:`, error)
-
+    logger.error(`[${requestId}] Autolayout failed after ${elapsed}ms:`, error)
     return NextResponse.json(
       {
-        success: false,
-        errors: [error instanceof Error ? error.message : 'Unknown auto layout error'],
+        error: 'Autolayout failed',
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     )

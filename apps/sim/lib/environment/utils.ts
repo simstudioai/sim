@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { environment } from '@/db/schema'
 

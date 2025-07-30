@@ -25,10 +25,15 @@ export function OutputSelect({
   const [isOutputDropdownOpen, setIsOutputDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
-  const { isShowingDiff, diffWorkflow } = useWorkflowDiffStore()
+  const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore()
+  
+  // Track subblock store state to ensure proper reactivity
+  const subBlockValues = useSubBlockStore((state) => 
+    workflowId ? state.workflowValues[workflowId] : null
+  )
 
-  // Use diff blocks when in diff mode, otherwise use main blocks
-  const workflowBlocks = isShowingDiff && diffWorkflow ? diffWorkflow.blocks : blocks
+  // Use diff blocks when in diff mode AND diff is ready, otherwise use main blocks
+  const workflowBlocks = isShowingDiff && isDiffReady && diffWorkflow ? diffWorkflow.blocks : blocks
 
   // Get workflow outputs for the dropdown
   const workflowOutputs = useMemo(() => {
@@ -42,11 +47,27 @@ export function OutputSelect({
     }[] = []
 
     if (!workflowId) return outputs
+    
+    // Check if workflowBlocks is defined
+    if (!workflowBlocks || typeof workflowBlocks !== 'object') {
+      return outputs
+    }
+
+    // Check if we actually have blocks to process
+    const blockArray = Object.values(workflowBlocks)
+    if (blockArray.length === 0) {
+      return outputs
+    }
 
     // Process blocks to extract outputs
-    Object.values(workflowBlocks).forEach((block) => {
+    blockArray.forEach((block) => {
       // Skip starter/start blocks
       if (block.type === 'starter') return
+
+      // Add defensive check to ensure block exists and has required properties
+      if (!block || !block.id || !block.type) {
+        return
+      }
 
       // Add defensive check to ensure block.name exists and is a string
       const blockName =
@@ -54,12 +75,15 @@ export function OutputSelect({
           ? block.name.replace(/\s+/g, '').toLowerCase()
           : `block-${block.id}`
 
+      // Get block configuration from registry to get outputs
+      const blockConfig = getBlock(block.type)
+
       // Check for custom response format first
       // In diff mode, get value from diff blocks; otherwise use store
       const responseFormatValue =
-        isShowingDiff && diffWorkflow
+        isShowingDiff && isDiffReady && diffWorkflow
           ? diffWorkflow.blocks[block.id]?.subBlocks?.responseFormat?.value
-          : useSubBlockStore.getState().getValue(block.id, 'responseFormat')
+          : subBlockValues?.[block.id]?.responseFormat
       const responseFormat = parseResponseFormatSafely(responseFormatValue, block.id)
 
       let outputsToProcess: Record<string, any> = {}
@@ -73,16 +97,17 @@ export function OutputSelect({
             outputsToProcess[field.name] = { type: field.type }
           })
         } else {
-          // Fallback to default outputs if schema extraction failed
-          outputsToProcess = block.outputs || {}
+          // Fallback to block config outputs if schema extraction failed
+          outputsToProcess = blockConfig?.outputs || {}
         }
       } else {
-        // Use default block outputs
-        outputsToProcess = block.outputs || {}
+        // Use block config outputs instead of block.outputs
+        outputsToProcess = blockConfig?.outputs || {}
       }
 
       // Add response outputs
       if (Object.keys(outputsToProcess).length > 0) {
+        
         const addOutput = (path: string, outputObj: any, prefix = '') => {
           const fullPath = prefix ? `${prefix}.${path}` : path
 
@@ -140,7 +165,7 @@ export function OutputSelect({
     })
 
     return outputs
-  }, [workflowBlocks, workflowId, isShowingDiff])
+  }, [workflowBlocks, workflowId, isShowingDiff, isDiffReady, diffWorkflow, blocks, subBlockValues])
 
   // Get selected outputs display text
   const selectedOutputsDisplayText = useMemo(() => {

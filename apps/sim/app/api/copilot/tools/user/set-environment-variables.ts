@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { BaseCopilotTool } from '../base'
 
 interface SetEnvironmentVariablesParams {

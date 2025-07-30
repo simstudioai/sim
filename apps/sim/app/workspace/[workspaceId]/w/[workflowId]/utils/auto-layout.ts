@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('AutoLayoutUtils')
 
@@ -196,6 +196,17 @@ export async function applyAutoLayoutAndUpdateStore(
     try {
       // Update the lastSaved timestamp in the store
       useWorkflowStore.getState().updateLastSaved()
+      
+      // Clean up the workflow state for API validation
+      const cleanedWorkflowState = {
+        ...newWorkflowState,
+        // Convert null dates to undefined (since they're optional)
+        deployedAt: newWorkflowState.deployedAt ? new Date(newWorkflowState.deployedAt) : undefined,
+        // Ensure other optional fields are properly handled
+        loops: newWorkflowState.loops || {},
+        parallels: newWorkflowState.parallels || {},
+        deploymentStatuses: newWorkflowState.deploymentStatuses || {},
+      }
 
       // Save the updated workflow state to the database
       const response = await fetch(`/api/workflows/${workflowId}/state`, {
@@ -203,7 +214,7 @@ export async function applyAutoLayoutAndUpdateStore(
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newWorkflowState),
+        body: JSON.stringify(cleanedWorkflowState),
       })
 
       if (!response.ok) {

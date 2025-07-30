@@ -1,5 +1,5 @@
 import { getEnvironmentVariableKeys } from '@/lib/environment/utils'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { BaseCopilotTool } from '../base'
 

@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { getCopilotConfig } from '@/lib/copilot/config'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { docsEmbeddings } from '@/db/schema'
 import { BaseCopilotTool } from '../base'

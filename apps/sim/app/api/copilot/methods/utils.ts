@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { CopilotToolResponse } from '../tools/base'
 
 const logger = createLogger('CopilotMethodsUtils')

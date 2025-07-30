@@ -1,5 +1,5 @@
 import { desc, eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { workflowExecutionLogs } from '@/db/schema'
 import { BaseCopilotTool } from '../base'
