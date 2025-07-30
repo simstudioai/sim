@@ -1,11 +1,18 @@
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
-import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
 import { getBlock } from '@/blocks'
+import { getAllBlocks } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
+import { resolveOutputType } from '@/blocks/utils'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { BaseCopilotTool } from '../base'
+
+// Sim Agent API configuration
+const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
+const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 interface GetUserWorkflowParams {
   workflowId: string
@@ -82,8 +89,53 @@ async function getUserWorkflow(params: GetUserWorkflowParams): Promise<string> {
     throw new Error('Workflow state is empty or invalid')
   }
 
-  // Generate YAML using server-side function
-  const yaml = generateWorkflowYaml(workflowState, subBlockValues)
+  // Generate YAML by calling sim-agent directly
+  // Gather block registry and utilities
+  const blocks = getAllBlocks()
+  const blockRegistry = blocks.reduce(
+    (acc, block) => {
+      const blockType = block.type
+      acc[blockType] = {
+        ...block,
+        id: blockType,
+        subBlocks: block.subBlocks || [],
+        outputs: block.outputs || {},
+      } as any
+      return acc
+    },
+    {} as Record<string, BlockConfig>
+  )
+
+  const response = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+    },
+    body: JSON.stringify({
+      workflowState,
+      subBlockValues,
+      blockRegistry,
+      utilities: {
+        generateLoopBlocks: generateLoopBlocks.toString(),
+        generateParallelBlocks: generateParallelBlocks.toString(),
+        resolveOutputType: resolveOutputType.toString(),
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Sim agent API error: ${response.statusText}`)
+  }
+
+  const generateResult = await response.json()
+
+  if (!generateResult.success || !generateResult.yaml) {
+    throw new Error(generateResult.error || 'Failed to generate YAML')
+  }
+
+  const yaml = generateResult.yaml
 
   if (!yaml || yaml.trim() === '') {
     throw new Error('Generated YAML is empty')

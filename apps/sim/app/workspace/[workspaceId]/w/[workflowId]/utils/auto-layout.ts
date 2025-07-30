@@ -45,6 +45,8 @@ export async function applyAutoLayoutToWorkflow(
   workflowId: string,
   blocks: Record<string, any>,
   edges: any[],
+  loops: Record<string, any> = {},
+  parallels: Record<string, any> = {},
   options: AutoLayoutOptions = {}
 ): Promise<{
   success: boolean
@@ -58,8 +60,7 @@ export async function applyAutoLayoutToWorkflow(
       edgeCount: edges.length,
     })
 
-    // Import auto layout service
-    const { autoLayoutWorkflow } = await import('@/lib/autolayout/service')
+    // Call the autolayout API route instead of sim-agent directly
 
     // Merge with default options and ensure all required properties are present
     const layoutOptions = {
@@ -77,18 +78,53 @@ export async function applyAutoLayoutToWorkflow(
       },
     }
 
-    // Apply auto layout
-    const layoutedBlocks = await autoLayoutWorkflow(blocks, edges, layoutOptions)
+    // Call the autolayout API route which has access to the server-side API key
+    const response = await fetch(`/api/workflows/${workflowId}/autolayout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(layoutOptions),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      const errorMessage = errorData?.error || `Auto layout failed: ${response.statusText}`
+      logger.error('Auto layout API call failed:', {
+        status: response.status,
+        error: errorMessage,
+      })
+      return {
+        success: false,
+        error: errorMessage,
+      }
+    }
+
+    const result = await response.json()
+
+    if (!result.success) {
+      const errorMessage = result.error || 'Auto layout failed'
+      logger.error('Auto layout failed:', {
+        error: errorMessage,
+      })
+      return {
+        success: false,
+        error: errorMessage,
+      }
+    }
 
     logger.info('Successfully applied auto layout', {
       workflowId,
       originalBlockCount: Object.keys(blocks).length,
-      layoutedBlockCount: Object.keys(layoutedBlocks).length,
+      layoutedBlockCount: result.data?.layoutedBlocks
+        ? Object.keys(result.data.layoutedBlocks).length
+        : 0,
     })
 
+    // Return the layouted blocks from the API response
     return {
       success: true,
-      layoutedBlocks,
+      layoutedBlocks: result.data?.layoutedBlocks || blocks,
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown auto layout error'
@@ -116,7 +152,15 @@ export async function applyAutoLayoutAndUpdateStore(
     const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
 
     const workflowStore = useWorkflowStore.getState()
-    const { blocks, edges } = workflowStore
+    const { blocks, edges, loops = {}, parallels = {} } = workflowStore
+
+    logger.info('Auto layout store data:', {
+      workflowId,
+      blockCount: Object.keys(blocks).length,
+      edgeCount: edges.length,
+      loopCount: Object.keys(loops).length,
+      parallelCount: Object.keys(parallels).length,
+    })
 
     if (Object.keys(blocks).length === 0) {
       logger.warn('No blocks to layout', { workflowId })
@@ -124,7 +168,14 @@ export async function applyAutoLayoutAndUpdateStore(
     }
 
     // Apply auto layout
-    const result = await applyAutoLayoutToWorkflow(workflowId, blocks, edges, options)
+    const result = await applyAutoLayoutToWorkflow(
+      workflowId,
+      blocks,
+      edges,
+      loops,
+      parallels,
+      options
+    )
 
     if (!result.success || !result.layoutedBlocks) {
       return { success: false, error: result.error }
@@ -141,10 +192,45 @@ export async function applyAutoLayoutAndUpdateStore(
 
     logger.info('Successfully updated workflow store with auto layout', { workflowId })
 
-    // Save to database in background (don't await to keep UI responsive)
-    saveAutoLayoutToDatabase(workflowId, options)
+    // Persist the changes to the database optimistically
+    try {
+      // Update the lastSaved timestamp in the store
+      useWorkflowStore.getState().updateLastSaved()
 
-    return { success: true }
+      // Save the updated workflow state to the database
+      const response = await fetch(`/api/workflows/${workflowId}/state`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newWorkflowState),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      logger.info('Auto layout successfully persisted to database', { workflowId })
+      return { success: true }
+    } catch (saveError) {
+      logger.error('Failed to save auto layout to database, reverting store changes:', {
+        workflowId,
+        error: saveError,
+      })
+
+      // Revert the store changes since database save failed
+      useWorkflowStore.setState({
+        ...workflowStore.getWorkflowState(),
+        blocks: blocks, // Revert to original blocks
+        lastSaved: workflowStore.lastSaved, // Revert lastSaved
+      })
+
+      return {
+        success: false,
+        error: `Failed to save positions to database: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`,
+      }
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown store update error'
     logger.error('Failed to update store with auto layout:', { workflowId, error: errorMessage })
@@ -153,53 +239,6 @@ export async function applyAutoLayoutAndUpdateStore(
       success: false,
       error: errorMessage,
     }
-  }
-}
-
-/**
- * Save auto layout changes to database in background
- */
-async function saveAutoLayoutToDatabase(
-  workflowId: string,
-  options: AutoLayoutOptions = {}
-): Promise<void> {
-  try {
-    logger.info('Saving auto layout to database', { workflowId })
-
-    const response = await fetch(`/api/workflows/${workflowId}/autolayout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        strategy: options.strategy || DEFAULT_AUTO_LAYOUT_OPTIONS.strategy,
-        direction: options.direction || DEFAULT_AUTO_LAYOUT_OPTIONS.direction,
-        spacing: {
-          ...DEFAULT_AUTO_LAYOUT_OPTIONS.spacing,
-          ...options.spacing,
-        },
-        alignment: options.alignment || DEFAULT_AUTO_LAYOUT_OPTIONS.alignment,
-        padding: {
-          ...DEFAULT_AUTO_LAYOUT_OPTIONS.padding,
-          ...options.padding,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
-    }
-
-    const result = await response.json()
-    logger.info('Successfully saved auto layout to database', { workflowId, result })
-  } catch (error) {
-    logger.error('Failed to save auto layout to database (store already updated):', {
-      workflowId,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
-    // Don't throw - the store is already updated, so the UI is correct
-    // The socket will eventually sync when the database is available
   }
 }
 
@@ -215,5 +254,5 @@ export async function applyAutoLayoutToBlocks(
   layoutedBlocks?: Record<string, any>
   error?: string
 }> {
-  return applyAutoLayoutToWorkflow('preview', blocks, edges, options)
+  return applyAutoLayoutToWorkflow('preview', blocks, edges, {}, {}, options)
 }

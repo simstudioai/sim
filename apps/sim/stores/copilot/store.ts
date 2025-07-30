@@ -5,8 +5,8 @@ import { devtools } from 'zustand/middleware'
 import { type CopilotChat, type CopilotMessage, sendStreamingMessage } from '@/lib/copilot/api'
 import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
-import type { CopilotStore } from '@/stores/copilot/types'
 import { COPILOT_TOOL_IDS } from './constants'
+import type { CopilotStore } from './types'
 
 const logger = createLogger('CopilotStore')
 
@@ -117,24 +117,11 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
 /**
  * Helper function to handle tool execution failure
  */
-function handleToolFailure(toolCall: any, error: string, get: () => CopilotStore): void {
+function handleToolFailure(toolCall: any, error: string): void {
   toolCall.state = 'error'
   toolCall.error = error
 
   logger.error('Tool call failed:', toolCall.id, toolCall.name, error)
-
-  // Retry workflow generation on failure
-  if (
-    toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-    toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-  ) {
-    logger.info(`${toolCall.name} failed, sending error back to agent for retry`)
-    setTimeout(() => {
-      get().sendImplicitFeedback(
-        `The previous workflow YAML generation failed with error: "${error}". Please analyze the error and try generating the workflow YAML again with the necessary fixes.`
-      )
-    }, 1000)
-  }
 }
 
 /**
@@ -279,7 +266,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         processWorkflowToolResult(toolCall, parsedResult, get)
       }
     } else {
-      handleToolFailure(toolCall, result || 'Tool execution failed', get)
+      handleToolFailure(toolCall, result || 'Tool execution failed')
     }
 
     updateContentBlockToolCall(context.contentBlocks, toolCallId, toolCall)
@@ -425,7 +412,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         updateStreamingMessage(set, context)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
-        handleToolFailure(context.toolCallBuffer, errorMsg, get)
+        handleToolFailure(context.toolCallBuffer, errorMsg)
       }
 
       context.toolCallBuffer = null
@@ -466,7 +453,7 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_error: (data, context, get, set) => {
     const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
     if (toolCall) {
-      handleToolFailure(toolCall, data.error, get)
+      handleToolFailure(toolCall, data.error)
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
       updateStreamingMessage(set, context)
     }
@@ -1328,57 +1315,43 @@ export const useCopilotStore = create<CopilotStore>()(
           })
 
           // Generate diff analysis by comparing current vs proposed YAML
-          let diffAnalysis = null
-          try {
-            // Get current workflow as YAML for comparison
-            const { useWorkflowYamlStore } = await import('@/stores/workflows/yaml/store')
-            const currentYaml = useWorkflowYamlStore.getState().getYaml()
-
-            logger.info('Got current workflow YAML for diff:', {
-              currentYamlLength: currentYaml?.length || 0,
-              hasCurrentYaml: !!currentYaml,
-            })
-
-            // Call the diff API to compare current vs proposed YAML
-            const diffResponse = await fetch('/api/workflows/diff', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                original_yaml: currentYaml,
-                agent_yaml: yamlContent,
-              }),
-            })
-
-            if (diffResponse.ok) {
-              const diffResult = await diffResponse.json()
-              if (diffResult.success && diffResult.data) {
-                diffAnalysis = diffResult.data
-                logger.info('Successfully generated diff analysis', {
-                  newBlocks: diffAnalysis.new_blocks?.length || 0,
-                  editedBlocks: diffAnalysis.edited_blocks?.length || 0,
-                  deletedBlocks: diffAnalysis.deleted_blocks?.length || 0,
-                })
-              }
-            } else {
-              logger.warn('Failed to generate diff analysis, proceeding without it')
-            }
-          } catch (diffError) {
-            logger.warn('Error generating diff analysis:', diffError)
-            // Continue without diff analysis - blocks will be marked as unchanged
-          }
+          // Skip diff analysis - let sim-agent handle it through /api/yaml/diff/create
+          // The diff/create endpoint will compare against the current workflow state
+          // and generate the diff analysis automatically
+          logger.info('Proceeding to create diff without pre-analysis')
 
           // Set or merge the proposed changes in the diff store based on the strategy
           const diffStore = useWorkflowDiffStore.getState()
+
+          logger.info('CopilotStore.updateDiffStore calling setProposedChanges with:', {
+            yamlContentLength: yamlContent.length,
+            diffAnalysis: undefined,
+            diffAnalysisType: 'undefined',
+            diffAnalysisUndefined: true,
+            diffAnalysisNull: false,
+            shouldClearDiff: shouldClearDiff,
+            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
+          })
+
           if (shouldClearDiff || !diffStoreBefore.diffWorkflow) {
             // Use setProposedChanges which will create a new diff
-            await diffStore.setProposedChanges(yamlContent, diffAnalysis)
+            // Pass undefined to let sim-agent generate the diff analysis
+            await diffStore.setProposedChanges(yamlContent, undefined)
           } else {
             // Use mergeProposedChanges which will merge into existing diff
-            await diffStore.mergeProposedChanges(yamlContent, diffAnalysis)
+            // Pass undefined to let sim-agent generate the diff analysis
+            await diffStore.mergeProposedChanges(yamlContent, undefined)
           }
 
           // Check diff store state after update
           const diffStoreAfter = useWorkflowDiffStore.getState()
+
+          // Log the diff state after update
+          logger.info('CopilotStore diff updated:', {
+            hasDiffWorkflow: !!diffStoreAfter.diffWorkflow,
+            hasDiffAnalysis: !!diffStoreAfter.diffAnalysis,
+            diffAnalysis: diffStoreAfter.diffAnalysis,
+          })
           logger.info('Diff store state after update:', {
             isShowingDiff: diffStoreAfter.isShowingDiff,
             isDiffReady: diffStoreAfter.isDiffReady,

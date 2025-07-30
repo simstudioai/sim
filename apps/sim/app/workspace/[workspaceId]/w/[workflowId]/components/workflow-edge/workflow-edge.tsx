@@ -49,7 +49,7 @@ export const WorkflowEdge = ({
   const currentWorkflow = useCurrentWorkflow()
 
   // Generate edge identifier using block names (not IDs) to match diff analysis
-  // This must exactly match the logic in /api/workflows/diff route
+  // This must exactly match the logic used by the yaml service diff analysis
   const generateEdgeIdentity = (
     sourceName: string,
     targetName: string,

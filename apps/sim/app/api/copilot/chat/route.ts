@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getCopilotModel } from '@/lib/copilot/config'
 import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { apiKey as apiKeyTable, copilotChats } from '@/db/schema'
 import { executeProviderRequest } from '@/providers'
@@ -344,14 +344,6 @@ export async function POST(req: NextRequest) {
               const decodedChunk = decoder.decode(value, { stream: true })
               buffer += decodedChunk
 
-              // Log first few chunks for debugging
-              if (chunkSize > 0) {
-                logger.debug(`[${requestId}] Forwarded chunk to client:`, {
-                  size: chunkSize,
-                  preview:
-                    decodedChunk.substring(0, 100) + (decodedChunk.length > 100 ? '...' : ''),
-                })
-              }
               const lines = buffer.split('\n')
               buffer = lines.pop() || '' // Keep incomplete line in buffer
 
@@ -366,7 +358,6 @@ export async function POST(req: NextRequest) {
                     switch (event.type) {
                       case 'content':
                         if (event.data) {
-                          logger.debug(`[${requestId}] Content delta: "${event.data}"`)
                           assistantContent += event.data
                         }
                         break

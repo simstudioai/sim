@@ -1,13 +1,12 @@
-import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SimAgentClient')
 
 // Base URL for the sim-agent service
 const SIM_AGENT_BASE_URL =
-  env.NODE_ENV === 'development'
+  process.env.NODE_ENV === 'development'
     ? 'http://localhost:8000'
-    : env.NEXT_PUBLIC_SIM_AGENT_URL || 'https://sim-agent.vercel.app'
+    : process.env.NEXT_PUBLIC_SIM_AGENT_URL || 'https://sim-agent.vercel.app'
 
 export interface SimAgentRequest {
   workflowId: string
@@ -24,44 +23,66 @@ export interface SimAgentResponse<T = any> {
 
 class SimAgentClient {
   private baseUrl: string
-  private apiKey: string
 
   constructor() {
     this.baseUrl = SIM_AGENT_BASE_URL
-    this.apiKey = env.SIM_AGENT_API_KEY || ''
+  }
 
-    if (!this.apiKey) {
+  /**
+   * Get the API key lazily to ensure environment variables are loaded
+   */
+  private getApiKey(): string {
+    // Only try server-side env var (never expose to client)
+    let apiKey = process.env.SIM_AGENT_API_KEY || ''
+
+    // If not found, try importing env library as fallback
+    if (!apiKey) {
+      try {
+        const { env } = require('@/lib/env')
+        apiKey = env.SIM_AGENT_API_KEY || ''
+      } catch (e) {
+        // env library not available or failed to load
+      }
+    }
+
+    if (!apiKey && typeof window === 'undefined') {
+      // Only warn on server-side where API key should be available
       logger.warn('SIM_AGENT_API_KEY not configured')
     }
+
+    return apiKey
   }
 
   /**
    * Make a request to the sim-agent service
    */
-  private async makeRequest<T = any>(
+  async makeRequest<T = any>(
     endpoint: string,
     options: {
       method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
       body?: Record<string, any>
       headers?: Record<string, string>
+      apiKey?: string // Allow passing API key directly
     } = {}
   ): Promise<SimAgentResponse<T>> {
     const requestId = crypto.randomUUID().slice(0, 8)
-    const { method = 'POST', body, headers = {} } = options
+    const { method = 'POST', body, headers = {}, apiKey: providedApiKey } = options
 
     try {
       const url = `${this.baseUrl}${endpoint}`
 
+      // Use provided API key or try to get it from environment
+      const apiKey = providedApiKey || this.getApiKey()
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
+        ...(apiKey && { 'x-api-key': apiKey }),
         ...headers,
       }
 
       logger.info(`[${requestId}] Making request to sim-agent`, {
         url,
         method,
-        hasApiKey: !!this.apiKey,
+        hasApiKey: !!apiKey,
         hasBody: !!body,
       })
 
@@ -136,8 +157,21 @@ class SimAgentClient {
   getConfig() {
     return {
       baseUrl: this.baseUrl,
-      hasApiKey: !!this.apiKey,
-      environment: env.NODE_ENV,
+      hasApiKey: !!this.getApiKey(),
+      environment: process.env.NODE_ENV,
+    }
+  }
+
+  /**
+   * Check if the sim-agent service is healthy
+   */
+  async healthCheck() {
+    try {
+      const response = await this.makeRequest('/health', { method: 'GET' })
+      return response.success && response.data?.healthy === true
+    } catch (error) {
+      logger.error('Sim-agent health check failed:', error)
+      return false
     }
   }
 }

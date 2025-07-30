@@ -44,15 +44,17 @@ export function WorkflowTextEditorModal({
   useEffect(() => {
     if (isOpen && activeWorkflowId) {
       setIsLoading(true)
-      try {
-        const content = exportWorkflow(format)
-        setInitialContent(content)
-      } catch (error) {
-        logger.error('Failed to export workflow:', error)
-        setInitialContent('# Error loading workflow content')
-      } finally {
-        setIsLoading(false)
-      }
+      exportWorkflow(format)
+        .then((content) => {
+          setInitialContent(content)
+        })
+        .catch((error) => {
+          logger.error('Failed to export workflow:', error)
+          setInitialContent('# Error loading workflow content')
+        })
+        .finally(() => {
+          setIsLoading(false)
+        })
     }
   }, [isOpen, format, activeWorkflowId])
 
@@ -91,7 +93,7 @@ export function WorkflowTextEditorModal({
 
           // Update initial content to reflect current state
           try {
-            const updatedContent = exportWorkflow(contentFormat)
+            const updatedContent = await exportWorkflow(contentFormat)
             setInitialContent(updatedContent)
           } catch (error) {
             logger.error('Failed to refresh content after save:', error)

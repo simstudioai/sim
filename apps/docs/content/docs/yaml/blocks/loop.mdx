@@ -59,9 +59,6 @@ properties:
           end:
             type: string
             description: Target block ID for loop completion (optional)
-      success:
-        type: string
-        description: Target block ID after loop completion (alternative format)
       error:
         type: string
         description: Target block ID for error handling
@@ -76,13 +73,6 @@ connections:
   loop:
     start: <string>                     # Target block ID to execute inside the loop
     end: <string>                       # Target block ID after loop completion (optional)
-  error: <string>                       # Target block ID for error handling (optional)
-```
-
-Alternative format (legacy):
-```yaml
-connections:
-  success: <string>                     # Target block ID after loop completion
   error: <string>                       # Target block ID for error handling (optional)
 ```
 

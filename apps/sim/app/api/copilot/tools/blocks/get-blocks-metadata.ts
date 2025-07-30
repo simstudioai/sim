@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { tools as toolsRegistry } from '@/tools/registry'
 import { BaseCopilotTool } from '../base'
@@ -52,75 +52,86 @@ export async function getBlocksMetadata(
     // Create result object
     const result: Record<string, any> = {}
 
+    logger.info('=== GET BLOCKS METADATA DEBUG ===')
+    logger.info('Requested block IDs:', blockIds)
+
     // Process each requested block ID
     for (const blockId of blockIds) {
+      logger.info(`\n--- Processing block: ${blockId} ---`)
+      let metadata: any = {}
+
       // Check if it's a special block first
       if (SPECIAL_BLOCKS_METADATA[blockId]) {
-        result[blockId] = SPECIAL_BLOCKS_METADATA[blockId]
-        continue
+        logger.info(`✓ Found ${blockId} in SPECIAL_BLOCKS_METADATA`)
+        // Start with the special block metadata
+        metadata = { ...SPECIAL_BLOCKS_METADATA[blockId] }
+        // Normalize tools structure to match regular blocks
+        metadata.tools = metadata.tools?.access || []
+        logger.info(`Initial metadata keys for ${blockId}:`, Object.keys(metadata))
+      } else {
+        // Check if the block exists in the registry
+        const blockConfig = blockRegistry[blockId]
+        if (!blockConfig) {
+          logger.warn(`Block not found in registry: ${blockId}`)
+          continue
+        }
+
+        metadata = {
+          id: blockId,
+          name: blockConfig.name || blockId,
+          description: blockConfig.description || '',
+          inputs: blockConfig.inputs || {},
+          outputs: blockConfig.outputs || {},
+          tools: blockConfig.tools?.access || [],
+        }
       }
 
-      // Check if the block exists in the registry
-      const blockConfig = blockRegistry[blockId]
-      if (!blockConfig) {
-        logger.warn(`Block not found in registry: ${blockId}`)
-        continue
-      }
-
-      const metadata: any = {
-        id: blockId,
-        name: blockConfig.name || blockId,
-        description: blockConfig.description || '',
-        category: blockConfig.category || 'general',
-        inputs: blockConfig.inputs || {},
-        outputs: blockConfig.outputs || {},
-        tools: blockConfig.tools?.access || [],
-      }
-
-      // Read YAML schema from documentation if available
+      // Read YAML schema from documentation if available (for both regular and special blocks)
       const docFileName = DOCS_FILE_MAPPING[blockId] || blockId
+      logger.info(
+        `Checking if ${blockId} is in CORE_BLOCKS_WITH_DOCS:`,
+        CORE_BLOCKS_WITH_DOCS.includes(blockId)
+      )
+
       if (CORE_BLOCKS_WITH_DOCS.includes(blockId)) {
         try {
-          const docPath = join(process.cwd(), 'content', 'docs', 'blocks', `${docFileName}.mdx`)
+          // Updated path to point to the actual YAML documentation location
+          // Handle both monorepo root and apps/sim as working directory
+          const workingDir = process.cwd()
+          const isInAppsSim = workingDir.endsWith('/apps/sim') || workingDir.endsWith('\\apps\\sim')
+          const basePath = isInAppsSim ? join(workingDir, '..', '..') : workingDir
+          const docPath = join(
+            basePath,
+            'apps',
+            'docs',
+            'content',
+            'docs',
+            'yaml',
+            'blocks',
+            `${docFileName}.mdx`
+          )
+          logger.info(`Looking for docs at: ${docPath}`)
+          logger.info(`File exists: ${existsSync(docPath)}`)
+
           if (existsSync(docPath)) {
             const docContent = readFileSync(docPath, 'utf-8')
+            logger.info(`Doc content length: ${docContent.length}`)
 
-            // Extract schema from the documentation
-            const schemaMatch = docContent.match(/```yaml\s*\n([\s\S]*?)```/i)
-            if (schemaMatch) {
-              const yamlSchema = schemaMatch[1].trim()
-              // Parse high-level structure only
-              const lines = yamlSchema.split('\n')
-              const schemaInfo: any = {
-                fields: [],
-                example: yamlSchema,
-              }
-
-              // Extract field names and structure
-              lines.forEach((line) => {
-                const match = line.match(/^(\s*)(\w+):/)
-                if (match) {
-                  const indent = match[1].length
-                  const fieldName = match[2]
-                  if (indent === 0) {
-                    schemaInfo.fields.push({
-                      name: fieldName,
-                      level: 'root',
-                    })
-                  }
-                }
-              })
-
-              metadata.schema = schemaInfo
-            }
+            // Include the entire YAML documentation content
+            metadata.yamlDocumentation = docContent
+            logger.info(`✓ Added full YAML documentation for ${blockId}`)
+          } else {
+            logger.warn(`Documentation file not found for ${blockId}`)
           }
         } catch (error) {
           logger.warn(`Failed to read documentation for ${blockId}:`, error)
         }
+      } else {
+        logger.info(`${blockId} is NOT in CORE_BLOCKS_WITH_DOCS`)
       }
 
       // Add tool metadata if requested
-      if (metadata.tools.length > 0) {
+      if (metadata.tools && metadata.tools.length > 0) {
         metadata.toolDetails = {}
         for (const toolId of metadata.tools) {
           const tool = toolsRegistry[toolId]
@@ -133,10 +144,23 @@ export async function getBlocksMetadata(
         }
       }
 
+      logger.info(`Final metadata keys for ${blockId}:`, Object.keys(metadata))
+      logger.info(`Has YAML documentation: ${!!metadata.yamlDocumentation}`)
+
       result[blockId] = metadata
     }
 
+    logger.info('\n=== FINAL RESULT ===')
     logger.info(`Successfully retrieved metadata for ${Object.keys(result).length} blocks`)
+    logger.info('Result keys:', Object.keys(result))
+
+    // Log the full result for parallel block if it's included
+    if (result.parallel) {
+      logger.info('\nParallel block metadata keys:', Object.keys(result.parallel))
+      if (result.parallel.yamlDocumentation) {
+        logger.info('YAML documentation length:', result.parallel.yamlDocumentation.length)
+      }
+    }
 
     return {
       success: true,
@@ -167,7 +191,8 @@ const CORE_BLOCKS_WITH_DOCS = [
 
 // Mapping for blocks that have different doc file names
 const DOCS_FILE_MAPPING: Record<string, string> = {
-  webhook: 'webhook_trigger',
+  // All core blocks use their registry ID as the doc filename
+  // e.g., 'api' block -> 'api.mdx', 'agent' block -> 'agent.mdx'
 }
 
 // Special blocks that aren't in the standard registry but need metadata
@@ -176,49 +201,17 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     type: 'loop',
     name: 'Loop',
     description: 'Control flow block for iterating over collections or repeating actions',
-    longDescription:
-      'Execute a set of blocks repeatedly, either for a fixed number of iterations or for each item in a collection. Loop blocks create sub-workflows that run multiple times with different iteration data.',
-    category: 'blocks',
-    bgColor: '#9333EA',
-    subBlocks: [
-      {
-        id: 'iterationType',
-        title: 'Iteration Type',
-        type: 'dropdown',
-        layout: 'full',
-        options: [
-          { label: 'Fixed Count', id: 'fixed' },
-          { label: 'For Each Item', id: 'forEach' },
-        ],
-        description: 'Choose how the loop should iterate',
-      },
-      {
-        id: 'iterationCount',
-        title: 'Iteration Count',
-        type: 'short-input',
-        layout: 'half',
-        placeholder: '5',
-        condition: { field: 'iterationType', value: 'fixed' },
-        description: 'Number of times to repeat the loop',
-      },
-      {
-        id: 'collection',
-        title: 'Collection',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Reference to array or object',
-        condition: { field: 'iterationType', value: 'forEach' },
-        description: 'Array or object to iterate over',
-      },
-    ],
     inputs: {
-      iterationType: { type: 'string', required: true },
-      iterationCount: { type: 'number', required: false },
-      collection: { type: 'array|object', required: false },
+      loopType: { type: 'string', required: true, enum: ['for', 'forEach'] },
+      iterations: { type: 'number', required: false, minimum: 1, maximum: 1000 },
+      collection: { type: 'string', required: false },
+      maxConcurrency: { type: 'number', required: false, default: 1, minimum: 1, maximum: 10 },
     },
     outputs: {
       results: 'array',
-      iterations: 'number',
+      currentIndex: 'number',
+      currentItem: 'any',
+      totalIterations: 'number',
     },
     tools: { access: [] },
   },
@@ -226,78 +219,18 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     type: 'parallel',
     name: 'Parallel',
     description: 'Control flow block for executing multiple branches simultaneously',
-    longDescription:
-      'Execute multiple sets of blocks simultaneously, either with a fixed number of parallel branches or by distributing items from a collection across parallel executions.',
-    category: 'blocks',
-    bgColor: '#059669',
-    subBlocks: [
-      {
-        id: 'parallelType',
-        title: 'Parallel Type',
-        type: 'dropdown',
-        layout: 'full',
-        options: [
-          { label: 'Fixed Count', id: 'count' },
-          { label: 'Collection Distribution', id: 'collection' },
-        ],
-        description: 'Choose how parallel execution should work',
-      },
-      {
-        id: 'parallelCount',
-        title: 'Parallel Count',
-        type: 'short-input',
-        layout: 'half',
-        placeholder: '3',
-        condition: { field: 'parallelType', value: 'count' },
-        description: 'Number of parallel branches to execute',
-      },
-      {
-        id: 'collection',
-        title: 'Collection',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Reference to array to distribute',
-        condition: { field: 'parallelType', value: 'collection' },
-        description: 'Array to distribute across parallel executions',
-      },
-    ],
     inputs: {
-      parallelType: { type: 'string', required: true },
-      parallelCount: { type: 'number', required: false },
-      collection: { type: 'array', required: false },
+      parallelType: { type: 'string', required: true, enum: ['count', 'collection'] },
+      count: { type: 'number', required: false, minimum: 1, maximum: 100 },
+      collection: { type: 'string', required: false },
+      maxConcurrency: { type: 'number', required: false, default: 10, minimum: 1, maximum: 50 },
     },
     outputs: {
       results: 'array',
-      branches: 'number',
+      branchId: 'number',
+      branchItem: 'any',
+      totalBranches: 'number',
     },
     tools: { access: [] },
   },
-}
-
-// Helper function to read YAML schema from dedicated YAML documentation files
-function getYamlSchemaFromDocs(blockType: string): string | null {
-  try {
-    const docFileName = DOCS_FILE_MAPPING[blockType] || blockType
-    // Read from the new YAML documentation structure
-    const yamlDocsPath = join(
-      process.cwd(),
-      '..',
-      'docs/content/docs/yaml/blocks',
-      `${docFileName}.mdx`
-    )
-
-    if (!existsSync(yamlDocsPath)) {
-      logger.warn(`YAML schema file not found for ${blockType} at ${yamlDocsPath}`)
-      return null
-    }
-
-    const content = readFileSync(yamlDocsPath, 'utf-8')
-
-    // Remove the frontmatter and return the content after the title
-    const contentWithoutFrontmatter = content.replace(/^---[\s\S]*?---\s*/, '')
-    return contentWithoutFrontmatter.trim()
-  } catch (error) {
-    logger.warn(`Failed to read YAML schema for ${blockType}:`, error)
-    return null
-  }
 }
