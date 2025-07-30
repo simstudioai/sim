@@ -30,7 +30,6 @@ export const JinaBlock: BlockConfig<ReadUrlResponse> = {
         { label: 'Gather Links', id: 'gatherLinks' },
         { label: 'JSON Response', id: 'jsonResponse' },
       ],
-      value: () => 'useReaderLMv2',
     },
     {
       id: 'apiKey',

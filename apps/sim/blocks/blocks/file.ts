@@ -17,7 +17,6 @@ const inputMethodBlock: SubBlockConfig = {
     { id: 'url', label: 'File URL' },
     { id: 'upload', label: 'Upload Files' },
   ],
-  value: () => 'url',
 }
 
 const fileUploadBlock: SubBlockConfig = {
