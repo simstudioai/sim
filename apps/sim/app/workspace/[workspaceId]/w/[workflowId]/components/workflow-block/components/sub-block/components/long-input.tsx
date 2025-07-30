@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronsUpDown, Wand2 } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
@@ -59,38 +59,18 @@ export function LongInput({
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Create refs to hold the handlers
-  const handleStreamStartRef = useRef<() => void>(() => {})
-  const handleGeneratedContentRef = useRef<(content: string) => void>(() => {})
-  const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
-
   // Calculate initial height based on rows prop with reasonable defaults
-  const getInitialHeight = () => {
-    // Use provided rows or default, then convert to pixels with a minimum
-    const rowCount = rows || DEFAULT_ROWS
-    return Math.max(rowCount * ROW_HEIGHT_PX, MIN_HEIGHT_PX)
-  }
-
-  const [height, setHeight] = useState(getInitialHeight())
+  const initialHeight = Math.max((rows || DEFAULT_ROWS) * ROW_HEIGHT_PX, MIN_HEIGHT_PX)
+  const [height, setHeight] = useState(initialHeight)
   const isResizing = useRef(false)
 
   // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
 
-  const aiGeneration = wandConfig?.enabled
-    ? useCodeGeneration({
-        generationType: wandConfig.generationType ?? 'system-prompt',
-        initialContext: localText,
-        onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
-        onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
-        onStreamStart: () => handleStreamStartRef.current?.(),
-      })
-    : null
-
-  // State management - useSubBlockValue with explicit streaming control
+  // State management - useSubBlockValue without depending on aiGeneration initially
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
     debounceMs: 150,
-    isStreaming: aiGeneration?.isStreaming ?? false,
+    isStreaming: false,
     onStreamingEnd: () => {
       logger.debug('AI streaming ended, value persisted', { blockId, subBlockId })
     },
@@ -99,54 +79,80 @@ export function LongInput({
   // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
-  // Define the handlers now that we have access to setStoreValue
-  handleStreamStartRef.current = () => {
-    setLocalText('')
-  }
-
-  handleGeneratedContentRef.current = (generatedContent: string) => {
-    setLocalText(generatedContent)
+  // Helper function for updating store value
+  const updateStoreValue = useCallback((newValue: string) => {
     if (onChange) {
-      onChange(generatedContent)
+      onChange(newValue)
     } else if (!isPreview && !disabled) {
-      setStoreValue(generatedContent)
+      // Defer store update to prevent setState during render
+      Promise.resolve().then(() => {
+        setStoreValue(newValue)
+      })
     }
-  }
+  }, [onChange, isPreview, disabled, setStoreValue])
 
-  handleStreamChunkRef.current = (chunk: string) => {
+  // Define stable handlers using useCallback
+  const handleStreamStart = useCallback(() => {
+    setLocalText('')
+  }, [])
+
+  const handleGeneratedContent = useCallback((generatedContent: string) => {
+    setLocalText(generatedContent)
+    updateStoreValue(generatedContent)
+  }, [updateStoreValue])
+
+  const handleStreamChunk = useCallback((chunk: string) => {
     setLocalText((currentText) => {
       const newText = currentText + chunk
-      if (onChange) {
-        onChange(newText)
-      } else if (!isPreview && !disabled) {
-        setStoreValue(newText)
-      }
+      updateStoreValue(newText)
       return newText
     })
-  }
+  }, [updateStoreValue])
+
+  const aiGeneration = wandConfig?.enabled
+    ? useCodeGeneration({
+        generationType: wandConfig.generationType ?? 'system-prompt',
+        initialContext: localText,
+        onGeneratedContent: handleGeneratedContent,
+        onStreamChunk: handleStreamChunk,
+        onStreamStart: handleStreamStart,
+      })
+    : null
+
+  // Common conditions
+  const isAIBusy = aiGeneration?.isStreaming || aiGeneration?.isLoading
+  const canEdit = !isPreview && !disabled && !isAIBusy
+  const showWandButton = wandConfig?.enabled && canEdit
+  const dropdownsVisible = !isAIBusy
 
   // Sync localText with store value when not streaming
   useEffect(() => {
     const valueString = value?.toString() ?? ''
-    if (valueString !== localText && !aiGeneration?.isStreaming && !aiGeneration?.isLoading) {
+    if (valueString !== localText && !isAIBusy) {
       setLocalText(valueString)
     }
-  }, [value])
+  }, [value, isAIBusy])
 
   // Set initial height on first render
   useLayoutEffect(() => {
-    const initialHeight = getInitialHeight()
     setHeight(initialHeight)
 
     if (textareaRef.current && overlayRef.current) {
       textareaRef.current.style.height = `${initialHeight}px`
       overlayRef.current.style.height = `${initialHeight}px`
     }
-  }, [rows])
+  }, [initialHeight])
+
+  // Simplified scroll sync - only when content size might change
+  useEffect(() => {
+    if (textareaRef.current && overlayRef.current) {
+      overlayRef.current.scrollTop = textareaRef.current.scrollTop
+      overlayRef.current.scrollLeft = textareaRef.current.scrollLeft
+    }
+  }, [localText])
 
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // Don't allow changes if disabled
     if (disabled) return
 
     const newValue = e.target.value
@@ -154,14 +160,7 @@ export function LongInput({
 
     // Update local text immediately for responsive UI
     setLocalText(newValue)
-
-    if (onChange) {
-      onChange(newValue)
-    } else if (!isPreview) {
-      // Only update store when not in preview mode
-      setStoreValue(newValue)
-    }
-
+    updateStoreValue(newValue)
     setCursorPosition(newCursorPosition)
 
     // Check for environment variables trigger
@@ -181,15 +180,6 @@ export function LongInput({
       overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
     }
   }
-
-  // Ensure overlay updates when content changes
-  useEffect(() => {
-    if (textareaRef.current && overlayRef.current) {
-      // Ensure scrolling is synchronized
-      overlayRef.current.scrollTop = textareaRef.current.scrollTop
-      overlayRef.current.scrollLeft = textareaRef.current.scrollLeft
-    }
-  }, [value])
 
   // Handle resize functionality
   const startResize = (e: React.MouseEvent) => {
@@ -346,11 +336,9 @@ export function LongInput({
           promptValue={aiGeneration?.promptInputValue ?? ''}
           onSubmit={(prompt) => aiGeneration?.generateStream({ prompt, context: localText })}
           onCancel={() => {
-            if (aiGeneration?.isStreaming) {
-              aiGeneration?.cancelGeneration?.()
-            } else {
-              aiGeneration?.hidePromptInline?.()
-            }
+            aiGeneration?.isStreaming 
+              ? aiGeneration.cancelGeneration?.()
+              : aiGeneration?.hidePromptInline?.()
           }}
           onChange={(value) => aiGeneration?.updatePromptValue?.(value)}
           placeholder={wandConfig?.placeholder ?? 'Describe the system prompt...'}
@@ -366,8 +354,7 @@ export function LongInput({
               isConnecting &&
                 config?.connectionDroppable !== false &&
                 'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500',
-              (aiGeneration?.isStreaming || aiGeneration?.isLoading) &&
-                'cursor-not-allowed opacity-50'
+              isAIBusy && 'cursor-not-allowed opacity-50'
             )}
             rows={rows ?? DEFAULT_ROWS}
             placeholder={placeholder ?? ''}
@@ -383,7 +370,7 @@ export function LongInput({
               setShowTags(false)
               setSearchTerm('')
             }}
-            disabled={isPreview || disabled || aiGeneration?.isStreaming || aiGeneration?.isLoading}
+            disabled={!canEdit}
             style={{
               fontFamily: 'inherit',
               lineHeight: 'inherit',
@@ -394,8 +381,7 @@ export function LongInput({
             ref={overlayRef}
             className={cn(
               'pointer-events-none absolute inset-0 whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-sm',
-              (aiGeneration?.isStreaming || aiGeneration?.isLoading) &&
-                'cursor-not-allowed opacity-50'
+              isAIBusy && 'cursor-not-allowed opacity-50'
             )}
             style={{
               fontFamily: 'inherit',
@@ -410,7 +396,7 @@ export function LongInput({
         </div>
 
         {/* Wand Button */}
-        {wandConfig?.enabled && !aiGeneration?.isStreaming && !isPreview && !disabled && (
+        {showWandButton && (
           <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
             <button
               type='button'
@@ -419,7 +405,7 @@ export function LongInput({
                   ? aiGeneration.hidePromptInline
                   : aiGeneration?.showPromptInline
               }
-              disabled={aiGeneration?.isLoading || aiGeneration?.isStreaming}
+              disabled={isAIBusy}
               aria-label='Generate system prompt with AI'
               className='flex h-8 w-8 items-center justify-center rounded-full border border-transparent bg-muted/80 p-0 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
             >
@@ -440,14 +426,8 @@ export function LongInput({
         </div>
 
         <EnvVarDropdown
-          visible={showEnvVars && !aiGeneration?.isStreaming && !aiGeneration?.isLoading}
-          onSelect={(newValue) => {
-            if (onChange) {
-              onChange(newValue)
-            } else if (!isPreview) {
-              setStoreValue(newValue)
-            }
-          }}
+          visible={showEnvVars && dropdownsVisible}
+          onSelect={updateStoreValue}
           searchTerm={searchTerm}
           inputValue={localText}
           cursorPosition={cursorPosition}
@@ -457,14 +437,8 @@ export function LongInput({
           }}
         />
         <TagDropdown
-          visible={showTags && !aiGeneration?.isStreaming && !aiGeneration?.isLoading}
-          onSelect={(newValue) => {
-            if (onChange) {
-              onChange(newValue)
-            } else if (!isPreview) {
-              setStoreValue(newValue)
-            }
-          }}
+          visible={showTags && dropdownsVisible}
+          onSelect={updateStoreValue}
           blockId={blockId}
           activeSourceBlockId={activeSourceBlockId}
           inputValue={localText}
