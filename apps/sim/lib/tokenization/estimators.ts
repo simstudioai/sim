@@ -2,7 +2,7 @@
  * Token estimation functions for different providers
  */
 
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { MIN_TEXT_LENGTH_FOR_ESTIMATION, TOKENIZATION_CONFIG } from '@/lib/tokenization/constants'
 import type { TokenEstimate } from '@/lib/tokenization/types'
 import { createTextPreview, getProviderConfig } from '@/lib/tokenization/utils'

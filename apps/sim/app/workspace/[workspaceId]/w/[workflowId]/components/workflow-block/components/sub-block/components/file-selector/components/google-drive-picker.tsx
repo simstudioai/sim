@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, FileIcon, RefreshCw, X } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, FileIcon, FolderIcon, RefreshCw, X } from 'lucide-react'
 import useDrivePicker from 'react-google-drive-picker'
 import { GoogleDocsIcon, GoogleSheetsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { getEnv } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import {
   type Credential,
   getProviderIdFromServiceId,
@@ -24,7 +24,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('GoogleDrivePicker')
 
@@ -414,6 +414,9 @@ export function GoogleDrivePicker({
   const getFileIcon = (file: FileInfo, size: 'sm' | 'md' = 'sm') => {
     const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
 
+    if (file.mimeType === 'application/vnd.google-apps.folder') {
+      return <FolderIcon className={`${iconSize} text-muted-foreground`} />
+    }
     if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
       return <GoogleSheetsIcon className={iconSize} />
     }

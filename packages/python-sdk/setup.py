@@ -6,9 +6,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="simstudio-sdk",
     version="0.1.0",
-    author="Sim Studio",
-    author_email="support@simstudio.ai",
-    description="Sim Studio SDK - Execute workflows programmatically",
+    author="Sim",
+    author_email="support@sim.ai",
+    description="Sim SDK - Execute workflows programmatically",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/simstudioai/sim",
@@ -46,6 +46,6 @@ setup(
     project_urls={
         "Bug Reports": "https://github.com/simstudioai/sim/issues",
         "Source": "https://github.com/simstudioai/sim",
-        "Documentation": "https://docs.simstudio.ai",
+        "Documentation": "https://docs.sim.ai",
     },
 ) 

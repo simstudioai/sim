@@ -164,9 +164,9 @@ describe('Function Execute Tool', () => {
     })
   })
 
-  describe('Enhanced Error Handling', () => {
-    test('should handle enhanced syntax error with line content', async () => {
-      // Setup enhanced error response with debug information
+  describe('Error Handling', () => {
+    test('should handle syntax error with line content', async () => {
+      // Setup error response with debug information
       tester.setup(
         {
           success: false,
@@ -193,7 +193,7 @@ describe('Function Execute Tool', () => {
         code: 'const obj = {\n  name: "test",\n  description: "This has a missing closing quote\n};\nreturn obj;',
       })
 
-      // Check enhanced error handling
+      // Check error handling
       expect(result.success).toBe(false)
       expect(result.error).toContain('Syntax Error')
       expect(result.error).toContain('Line 3')
@@ -202,8 +202,8 @@ describe('Function Execute Tool', () => {
       expect(result.error).toContain('(Check for missing quotes, brackets, or semicolons)')
     })
 
-    test('should handle enhanced runtime error with line and column', async () => {
-      // Setup enhanced runtime error response
+    test('should handle runtime error with line and column', async () => {
+      // Setup runtime error response
       tester.setup(
         {
           success: false,
@@ -230,7 +230,7 @@ describe('Function Execute Tool', () => {
         code: 'const obj = null;\nreturn obj.someMethod();',
       })
 
-      // Check enhanced error handling
+      // Check error handling
       expect(result.success).toBe(false)
       expect(result.error).toContain('Type Error')
       expect(result.error).toContain('Line 2:16')
@@ -238,8 +238,8 @@ describe('Function Execute Tool', () => {
       expect(result.error).toContain('Cannot read properties of null')
     })
 
-    test('should handle enhanced error information in tool response', async () => {
-      // Setup enhanced error response with full debug info
+    test('should handle error information in tool response', async () => {
+      // Setup error response with full debug info
       tester.setup(
         {
           success: false,
@@ -265,7 +265,7 @@ describe('Function Execute Tool', () => {
         code: 'return undefinedVar',
       })
 
-      // Check that the tool properly captures enhanced error
+      // Check that the tool properly captures error
       expect(result.success).toBe(false)
       expect(result.error).toBe(
         'Reference Error: Line 1: `return undefinedVar` - undefinedVar is not defined'
@@ -273,7 +273,7 @@ describe('Function Execute Tool', () => {
     })
 
     test('should preserve debug information in error object', async () => {
-      // Setup enhanced error response
+      // Setup error response
       tester.setup(
         {
           success: false,
@@ -294,12 +294,11 @@ describe('Function Execute Tool', () => {
         code: 'valid line\ninvalid syntax here',
       })
 
-      // Check that enhanced error information is available
+      // Check that error information is available
       expect(result.success).toBe(false)
       expect(result.error).toBe('Syntax Error: Line 2 - Invalid syntax')
 
-      // Note: In this test framework, debug information would be available
-      // in the response object, but the tool transforms it into the error message
+      // Note: In this test framework, debug information would be available in the response object, but the tool transforms it into the error message
     })
 
     test('should handle enhanced error without line information', async () => {
@@ -321,13 +320,13 @@ describe('Function Execute Tool', () => {
         code: 'return "test";',
       })
 
-      // Check error handling without enhanced line info
+      // Check error handling without line info
       expect(result.success).toBe(false)
       expect(result.error).toBe('Generic error message')
     })
 
     test('should provide line-specific error message when available', async () => {
-      // Setup enhanced error response with line info
+      // Setup error response with line info
       tester.setup(
         {
           success: false,
@@ -348,7 +347,7 @@ describe('Function Execute Tool', () => {
         code: 'const obj = {};\nobj.nonExistentMethod();',
       })
 
-      // Check that enhanced error message is provided
+      // Check that error message is provided
       expect(result.success).toBe(false)
       expect(result.error).toContain('Line 5:20')
       expect(result.error).toContain('obj.nonExistentMethod()')

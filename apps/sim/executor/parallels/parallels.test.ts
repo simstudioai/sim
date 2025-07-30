@@ -5,7 +5,7 @@ import { ParallelManager } from '@/executor/parallels/parallels'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
     error: vi.fn(),

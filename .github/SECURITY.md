@@ -8,11 +8,11 @@
 
 ## Reporting a Vulnerability
 
-We take the security of Sim Studio seriously. If you believe you've found a security vulnerability, please follow these steps:
+We take the security of Sim seriously. If you believe you've found a security vulnerability, please follow these steps:
 
 1. **Do not disclose the vulnerability publicly** or to any third parties.
 
-2. **Email us directly** at security@simstudio.ai with details of the vulnerability.
+2. **Email us directly** at security@sim.ai with details of the vulnerability.
 
 3. **Include the following information** in your report:
 

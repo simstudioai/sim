@@ -8,7 +8,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import type { UserSubscriptionState } from '@/lib/billing/types'
 import { isProd } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, subscription, userStats } from '@/db/schema'
 

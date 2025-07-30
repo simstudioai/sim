@@ -1,10 +1,10 @@
-import type { AuthenticatedSocket } from '../middleware/auth'
-import type { RoomManager, UserPresence, WorkflowRoom } from '../rooms/manager'
-import { setupConnectionHandlers } from './connection'
-import { setupOperationsHandlers } from './operations'
-import { setupPresenceHandlers } from './presence'
-import { setupSubblocksHandlers } from './subblocks'
-import { setupWorkflowHandlers } from './workflow'
+import { setupConnectionHandlers } from '@/socket-server/handlers/connection'
+import { setupOperationsHandlers } from '@/socket-server/handlers/operations'
+import { setupPresenceHandlers } from '@/socket-server/handlers/presence'
+import { setupSubblocksHandlers } from '@/socket-server/handlers/subblocks'
+import { setupWorkflowHandlers } from '@/socket-server/handlers/workflow'
+import type { AuthenticatedSocket } from '@/socket-server/middleware/auth'
+import type { RoomManager, UserPresence, WorkflowRoom } from '@/socket-server/rooms/manager'
 
 export type { UserPresence, WorkflowRoom }
 

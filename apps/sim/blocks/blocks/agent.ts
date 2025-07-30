@@ -1,6 +1,6 @@
 import { AgentIcon } from '@/components/icons'
 import { isHosted } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import {
   getAllModelProviders,
@@ -57,7 +57,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   description: 'Build an agent',
   longDescription:
     'Create powerful AI agents using any LLM provider with customizable system prompts and tool integrations.',
-  docsLink: 'https://docs.simstudio.ai/blocks/agent',
+  docsLink: 'https://docs.sim.ai/blocks/agent',
   category: 'blocks',
   bgColor: '#802FFF',
   icon: AgentIcon,

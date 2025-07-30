@@ -1,5 +1,5 @@
 import { Cron } from 'croner'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { formatDateTime } from '@/lib/utils'
 
 const logger = createLogger('ScheduleUtils')

@@ -2,7 +2,7 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
 

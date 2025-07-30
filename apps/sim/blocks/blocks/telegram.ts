@@ -8,7 +8,7 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
   description: 'Send a message through Telegram',
   longDescription:
     'Send messages to any Telegram channel using your Bot API key. Integrate automated notifications and alerts into your workflow to keep your team informed.',
-  docsLink: 'https://docs.simstudio.ai/tools/telegram',
+  docsLink: 'https://docs.sim.ai/tools/telegram',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: TelegramIcon,
@@ -34,7 +34,7 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
       placeholder: 'Enter Telegram Chat ID',
       description: `Getting Chat ID:
 1. Add your bot as a member to desired Telegram channel
-2. Send any message to the channel (e.g. "I love Sim Studio")
+2. Send any message to the channel (e.g. "I love Sim")
 3. Visit https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
 4. Look for the chat field in the JSON response at the very bottomwhere you'll find the chat ID`,
     },

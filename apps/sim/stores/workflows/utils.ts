@@ -1,5 +1,5 @@
-import { useSubBlockStore } from './subblock/store'
-import type { BlockState, SubBlockState } from './workflow/types'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
 /**
  * Merges workflow block states with subblock values while maintaining block structure

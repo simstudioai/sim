@@ -1,0 +1,83 @@
+{{- if .Values.app.enabled }}
+---
+# Service for main application
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-app
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.app.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.app.service.type }}
+  ports:
+    - port: {{ .Values.app.service.port }}
+      targetPort: {{ .Values.app.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "sim.app.selectorLabels" . | nindent 4 }}
+{{- end }}
+
+{{- if .Values.realtime.enabled }}
+---
+# Service for realtime server
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-realtime
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.realtime.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.realtime.service.type }}
+  ports:
+    - port: {{ .Values.realtime.service.port }}
+      targetPort: {{ .Values.realtime.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "sim.realtime.selectorLabels" . | nindent 4 }}
+{{- end }}
+
+{{- if .Values.postgresql.enabled }}
+---
+# Service for PostgreSQL
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.postgresql.service.type }}
+  ports:
+    - port: {{ .Values.postgresql.service.port }}
+      targetPort: {{ .Values.postgresql.service.targetPort }}
+      protocol: TCP
+      name: postgresql
+  selector:
+    {{- include "sim.postgresql.selectorLabels" . | nindent 4 }}
+{{- end }}
+
+{{- if .Values.ollama.enabled }}
+---
+# Service for Ollama
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-ollama
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.ollama.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.ollama.service.type }}
+  ports:
+    - port: {{ .Values.ollama.service.port }}
+      targetPort: {{ .Values.ollama.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "sim.ollama.selectorLabels" . | nindent 4 }}
+{{- end }}

@@ -2,11 +2,14 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata, Viewport } from 'next'
 import { PublicEnvScript } from 'next-runtime-env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { env } from '@/lib/env'
+import { isHosted } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console/logger'
+import { getAssetUrl } from '@/lib/utils'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
-import './globals.css'
+import '@/app/globals.css'
 
-import { ZoomPrevention } from './zoom-prevention'
+import { ZoomPrevention } from '@/app/zoom-prevention'
 
 const logger = createLogger('RootLayout')
 
@@ -51,12 +54,12 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: {
     template: '',
-    default: 'Sim Studio',
+    default: 'Sim',
   },
   description:
     'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-  applicationName: 'Sim Studio',
-  authors: [{ name: 'Sim Studio' }],
+  applicationName: 'Sim',
+  authors: [{ name: 'Sim' }],
   generator: 'Next.js',
   keywords: [
     'AI agent',
@@ -75,9 +78,9 @@ export const metadata: Metadata = {
     'visual programming',
   ],
   referrer: 'origin-when-cross-origin',
-  creator: 'Sim Studio',
-  publisher: 'Sim Studio',
-  metadataBase: new URL('https://simstudio.ai'),
+  creator: 'Sim',
+  publisher: 'Sim',
+  metadataBase: new URL('https://sim.ai'),
   alternates: {
     canonical: '/',
     languages: {
@@ -98,26 +101,26 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://simstudio.ai',
-    title: 'Sim Studio',
+    url: 'https://sim.ai',
+    title: 'Sim',
     description:
       'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-    siteName: 'Sim Studio',
+    siteName: 'Sim',
     images: [
       {
-        url: 'https://simstudio.ai/social/facebook.png',
+        url: getAssetUrl('social/facebook.png'),
         width: 1200,
         height: 630,
-        alt: 'Sim Studio',
+        alt: 'Sim',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sim Studio',
+    title: 'Sim',
     description:
       'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-    images: ['https://simstudio.ai/social/twitter.png'],
+    images: [getAssetUrl('social/twitter.png')],
     creator: '@simstudioai',
     site: '@simstudioai',
   },
@@ -144,7 +147,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Sim Studio',
+    title: 'Sim',
   },
   formatDetection: {
     telephone: false,
@@ -169,10 +172,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: JSON.stringify({
               '@context': 'https://schema.org',
               '@type': 'SoftwareApplication',
-              name: 'Sim Studio',
+              name: 'Sim',
               description:
                 'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
-              url: 'https://simstudio.ai',
+              url: 'https://sim.ai',
               applicationCategory: 'BusinessApplication',
               operatingSystem: 'Web Browser',
               offers: {
@@ -181,8 +184,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               },
               creator: {
                 '@type': 'Organization',
-                name: 'Sim Studio',
-                url: 'https://simstudio.ai',
+                name: 'Sim',
+                url: 'https://sim.ai',
               },
               featureList: [
                 'Visual AI Agent Builder',
@@ -194,7 +197,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
 
-        {/* Enhanced meta tags for better SEO */}
+        {/* Meta tags for better SEO */}
         <meta name='theme-color' content='#ffffff' />
         <meta name='color-scheme' content='light' />
         <meta name='format-detection' content='telephone=no' />
@@ -205,29 +208,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta property='og:image:height' content='630' />
         <meta
           property='og:image:alt'
-          content='Sim Studio - AI Agent Builder with Visual Canvas Interface'
+          content='Sim - AI Agent Builder with Visual Canvas Interface'
         />
-        <meta property='og:site_name' content='Sim Studio' />
+        <meta property='og:site_name' content='Sim' />
         <meta property='og:locale' content='en_US' />
 
-        {/* Enhanced Twitter Card tags */}
+        {/* Twitter Card tags */}
         <meta name='twitter:image:width' content='1200' />
         <meta name='twitter:image:height' content='675' />
-        <meta name='twitter:image:alt' content='Sim Studio - AI Agent Builder' />
-        <meta name='twitter:url' content='https://simstudio.ai' />
-        <meta name='twitter:domain' content='simstudio.ai' />
+        <meta name='twitter:image:alt' content='Sim - AI Agent Builder' />
+        <meta name='twitter:url' content='https://sim.ai' />
+        <meta name='twitter:domain' content='sim.ai' />
 
         {/* Additional image sources */}
-        <link rel='image_src' href='https://simstudio.ai/social/facebook.png' />
+        <link rel='image_src' href={getAssetUrl('social/facebook.png')} />
 
         <PublicEnvScript />
+
+        {/* RB2B Script - Only load on hosted version */}
+        {isHosted && env.NEXT_PUBLIC_RB2B_KEY && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `!function () {var reb2b = window.reb2b = window.reb2b || [];if (reb2b.invoked) return;reb2b.invoked = true;reb2b.methods = ["identify", "collect"];reb2b.factory = function (method) {return function () {var args = Array.prototype.slice.call(arguments);args.unshift(method);reb2b.push(args);return reb2b;};};for (var i = 0; i < reb2b.methods.length; i++) {var key = reb2b.methods[i];reb2b[key] = reb2b.factory(key);}reb2b.load = function (key) {var script = document.createElement("script");script.type = "text/javascript";script.async = true;script.src = "https://b2bjsstore.s3.us-west-2.amazonaws.com/b/" + key + "/${env.NEXT_PUBLIC_RB2B_KEY}.js.gz";var first = document.getElementsByTagName("script")[0];first.parentNode.insertBefore(script, first);};reb2b.SNIPPET_VERSION = "1.0.1";reb2b.load("${env.NEXT_PUBLIC_RB2B_KEY}");}();`,
+            }}
+          />
+        )}
       </head>
       <body suppressHydrationWarning>
         <ZoomPrevention />
         <TelemetryConsentDialog />
         {children}
-        <SpeedInsights />
-        <Analytics />
+        {isHosted && (
+          <>
+            <SpeedInsights />
+            <Analytics />
+          </>
+        )}
       </body>
     </html>
   )

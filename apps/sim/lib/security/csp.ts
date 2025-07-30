@@ -36,6 +36,7 @@ export const cspDirectives: CSPDirectives = {
     'https://vercel.com',
     'https://*.vercel.app',
     'https://vitals.vercel-insights.com',
+    'https://b2bjsstore.s3.us-west-2.amazonaws.com',
   ],
 
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
@@ -49,6 +50,7 @@ export const cspDirectives: CSPDirectives = {
     'https://*.atlassian.com',
     'https://cdn.discordapp.com',
     'https://*.githubusercontent.com',
+    'https://*.public.blob.vercel-storage.com',
   ],
 
   'media-src': ["'self'", 'blob:'],

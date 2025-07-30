@@ -1,5 +1,5 @@
-import type { LayoutEdge, LayoutNode, LayoutOptions, LayoutResult } from '../types'
-import { calculateHierarchicalLayout } from './hierarchical'
+import { calculateHierarchicalLayout } from '@/lib/autolayout/algorithms/hierarchical'
+import type { LayoutEdge, LayoutNode, LayoutOptions, LayoutResult } from '@/lib/autolayout/types'
 
 interface WorkflowAnalysis {
   nodeCount: number

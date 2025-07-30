@@ -4,7 +4,7 @@ import type Stripe from 'stripe'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { handleInvoiceWebhook } from '@/lib/billing/webhooks/stripe-invoice-webhooks'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StripeInvoiceWebhook')
 

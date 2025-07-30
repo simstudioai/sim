@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Basic usage examples for the Sim Studio Python SDK
+Basic usage examples for the Sim Python SDK
 """
 
 import os
@@ -191,7 +191,7 @@ def error_handling_example():
 
 
 if __name__ == "__main__":
-    print("🚀 Running Sim Studio Python SDK Examples\n")
+    print("🚀 Running Sim Python SDK Examples\n")
     
     # Check if API key is set
     if not os.getenv("SIMSTUDIO_API_KEY"):

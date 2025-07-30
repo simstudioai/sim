@@ -6,7 +6,7 @@ import { Resend } from 'resend'
 import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitation'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
 import {
@@ -229,7 +229,7 @@ async function sendInvitationEmail({
   token: string
 }) {
   try {
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
     // Always use the client-side invite route with token parameter
     const invitationLink = `${baseUrl}/invite/${token}?token=${token}`
 
@@ -260,7 +260,7 @@ async function sendInvitationEmail({
     const result = await resend.emails.send({
       from: fromAddress,
       to,
-      subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
+      subject: `You've been invited to join "${workspaceName}" on Sim`,
       html: emailHtml,
     })
 

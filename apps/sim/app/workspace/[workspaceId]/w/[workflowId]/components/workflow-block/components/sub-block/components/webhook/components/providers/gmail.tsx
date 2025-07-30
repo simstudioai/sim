@@ -1,23 +1,25 @@
 import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
 import { GmailIcon } from '@/components/icons'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
-import { Notice } from '@/components/ui/notice'
 import {
+  Badge,
+  Button,
+  Checkbox,
+  Label,
+  Notice,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Logger } from '@/lib/logs/console-logger'
-import { JSONView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components/json-view/json-view'
-import { ConfigSection } from '../ui/config-section'
+  Skeleton,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui'
+import { Logger } from '@/lib/logs/console/logger'
+import { JSONView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components'
+import { ConfigSection } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 const logger = new Logger('GmailConfig')
 

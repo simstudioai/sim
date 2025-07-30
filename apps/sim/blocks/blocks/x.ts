@@ -8,7 +8,7 @@ export const XBlock: BlockConfig<XResponse> = {
   description: 'Interact with X',
   longDescription:
     'Connect with X to post tweets, read content, search for information, and access user profiles. Integrate social media capabilities into your workflow with comprehensive X platform access.',
-  docsLink: 'https://docs.simstudio.ai/tools/x',
+  docsLink: 'https://docs.sim.ai/tools/x',
   category: 'tools',
   bgColor: '#000000', // X's black color
   icon: xIcon,

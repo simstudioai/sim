@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { Logger } from '@/lib/logs/console-logger'
+import { Logger } from '@/lib/logs/console/logger'
 import { acquireLock, releaseLock } from '@/lib/redis'
 import { pollGmailWebhooks } from '@/lib/webhooks/gmail-polling-service'
 

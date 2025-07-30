@@ -13,6 +13,7 @@ import {
 } from '@react-email/components'
 import { format } from 'date-fns'
 import { env } from '@/lib/env'
+import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
@@ -22,7 +23,7 @@ interface ResetPasswordEmailProps {
   updatedDate?: Date
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
 
 export const ResetPasswordEmail = ({
   username = '',
@@ -33,15 +34,15 @@ export const ResetPasswordEmail = ({
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>Reset your Sim Studio password</Preview>
+        <Preview>Reset your Sim password</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={`${baseUrl}/static/sim.png`}
+                  src={getAssetUrl('static/sim.png')}
                   width='114'
-                  alt='Sim Studio'
+                  alt='Sim'
                   style={{
                     margin: '0 auto',
                   }}
@@ -61,8 +62,8 @@ export const ResetPasswordEmail = ({
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello {username},</Text>
             <Text style={baseStyles.paragraph}>
-              You recently requested to reset your password for your Sim Studio account. Use the
-              button below to reset it. This password reset is only valid for the next 24 hours.
+              You recently requested to reset your password for your Sim account. Use the button
+              below to reset it. This password reset is only valid for the next 24 hours.
             </Text>
             <Link href={resetLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Reset Your Password</Text>
@@ -74,7 +75,7 @@ export const ResetPasswordEmail = ({
             <Text style={baseStyles.paragraph}>
               Best regards,
               <br />
-              The Sim Studio Team
+              The Sim Team
             </Text>
             <Text
               style={{

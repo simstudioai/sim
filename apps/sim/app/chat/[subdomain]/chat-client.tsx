@@ -2,20 +2,21 @@
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { noop } from '@/lib/utils'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
-import EmailAuth from './components/auth/email/email-auth'
-import PasswordAuth from './components/auth/password/password-auth'
-import { ChatErrorState } from './components/error-state/error-state'
-import { ChatHeader } from './components/header/header'
-import { ChatInput } from './components/input/input'
-import { ChatLoadingState } from './components/loading-state/loading-state'
-import type { ChatMessage } from './components/message/message'
-import { ChatMessageContainer } from './components/message-container/message-container'
-import { VoiceInterface } from './components/voice-interface/voice-interface'
-import { useAudioStreaming } from './hooks/use-audio-streaming'
-import { useChatStreaming } from './hooks/use-chat-streaming'
+import {
+  ChatErrorState,
+  ChatHeader,
+  ChatInput,
+  ChatLoadingState,
+  type ChatMessage,
+  ChatMessageContainer,
+  EmailAuth,
+  PasswordAuth,
+  VoiceInterface,
+} from '@/app/chat/[subdomain]/components'
+import { useAudioStreaming, useChatStreaming } from '@/app/chat/[subdomain]/hooks'
 
 const logger = createLogger('ChatClient')
 

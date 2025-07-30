@@ -1,6 +1,6 @@
 // Utility for prefetching and caching contributors page data
-import { getCommitsData, getContributors, getRepositoryStats } from '../actions/github'
-import { generateActivityData, generateCommitTimelineData } from './github'
+import { getCommitsData, getContributors, getRepositoryStats } from '@/app/(landing)/actions/github'
+import { generateActivityData, generateCommitTimelineData } from '@/app/(landing)/utils/github'
 
 interface Contributor {
   login: string

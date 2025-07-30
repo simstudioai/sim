@@ -1,7 +1,7 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isDev } from './lib/environment'
-import { createLogger } from './lib/logs/console-logger'
+import { createLogger } from './lib/logs/console/logger'
 import { getBaseDomain } from './lib/urls/utils'
 
 const logger = createLogger('Middleware')
@@ -31,14 +31,14 @@ export async function middleware(request: NextRequest) {
       return false
     }
 
-    // Extract root domain from BASE_DOMAIN (e.g., "simstudio.ai" from "staging.simstudio.ai")
+    // Extract root domain from BASE_DOMAIN (e.g., "sim.ai" from "staging.sim.ai")
     const baseParts = BASE_DOMAIN.split('.')
     const rootDomain = isDev
       ? 'localhost'
       : baseParts.length >= 2
         ? baseParts
             .slice(-2)
-            .join('.') // Last 2 parts: ["simstudio", "ai"] -> "simstudio.ai"
+            .join('.') // Last 2 parts: ["simstudio", "ai"] -> "sim.ai"
         : BASE_DOMAIN
 
     // Check if hostname is under the same root domain

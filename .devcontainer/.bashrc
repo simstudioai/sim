@@ -1,4 +1,4 @@
-# Sim Studio Development Environment Bashrc
+# Sim Development Environment Bashrc
 # This gets sourced by post-create.sh
 
 # Enhanced prompt with git branch info
@@ -17,7 +17,7 @@ alias ...="cd ../.."
 alias pgc="PGPASSWORD=postgres psql -h db -U postgres -d simstudio"
 alias check-db="PGPASSWORD=postgres psql -h db -U postgres -c '\l'"
 
-# Sim Studio specific aliases
+# Sim specific aliases
 alias logs="cd /workspace/apps/sim && tail -f logs/*.log 2>/dev/null || echo 'No log files found'"
 alias sim-start="cd /workspace && bun run dev"
 alias sim-migrate="cd /workspace/apps/sim && bunx drizzle-kit push"
@@ -45,7 +45,7 @@ if [ -z "$SIM_WELCOME_SHOWN" ]; then
   
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "🚀 Welcome to Sim Studio development environment!"
+  echo "🚀 Welcome to Sim development environment!"
   echo ""
   echo "Available commands:"
   echo "  sim-start    - Start all apps in development mode"

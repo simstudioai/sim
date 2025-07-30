@@ -1,0 +1,224 @@
+{{- if .Values.telemetry.enabled }}
+---
+# OpenTelemetry Collector Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sim.fullname" . }}-otel-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: telemetry
+data:
+  otel-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: 'sim-app'
+              static_configs:
+                - targets: ['{{ include "sim.fullname" . }}-app:{{ .Values.app.service.port }}']
+            - job_name: 'sim-realtime'
+              static_configs:
+                - targets: ['{{ include "sim.fullname" . }}-realtime:{{ .Values.realtime.service.port }}']
+      
+    processors:
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+      memory_limiter:
+        limit_mib: 512
+      
+    exporters:
+      {{- if .Values.telemetry.jaeger.enabled }}
+      jaeger:
+        endpoint: {{ .Values.telemetry.jaeger.endpoint }}
+        tls:
+          insecure: {{ not .Values.telemetry.jaeger.tls.enabled }}
+      {{- end }}
+      {{- if .Values.telemetry.prometheus.enabled }}
+      prometheusremotewrite:
+        endpoint: {{ .Values.telemetry.prometheus.endpoint }}
+        headers:
+          Authorization: {{ .Values.telemetry.prometheus.auth | quote }}
+      {{- end }}
+      {{- if .Values.telemetry.otlp.enabled }}
+      otlp:
+        endpoint: {{ .Values.telemetry.otlp.endpoint }}
+        tls:
+          insecure: {{ not .Values.telemetry.otlp.tls.enabled }}
+      {{- end }}
+      logging:
+        loglevel: info
+    
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      pprof:
+        endpoint: 0.0.0.0:1777
+      zpages:
+        endpoint: 0.0.0.0:55679
+    
+    service:
+      extensions: [health_check, pprof, zpages]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters:
+            - logging
+            {{- if .Values.telemetry.jaeger.enabled }}
+            - jaeger
+            {{- end }}
+            {{- if .Values.telemetry.otlp.enabled }}
+            - otlp
+            {{- end }}
+        metrics:
+          receivers: [otlp, prometheus]
+          processors: [memory_limiter, batch]
+          exporters:
+            - logging
+            {{- if .Values.telemetry.prometheus.enabled }}
+            - prometheusremotewrite
+            {{- end }}
+            {{- if .Values.telemetry.otlp.enabled }}
+            - otlp
+            {{- end }}
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters:
+            - logging
+            {{- if .Values.telemetry.otlp.enabled }}
+            - otlp
+            {{- end }}
+---
+# OpenTelemetry Collector Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sim.fullname" . }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: telemetry
+spec:
+  replicas: {{ .Values.telemetry.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "sim.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: telemetry
+  template:
+    metadata:
+      labels:
+        {{- include "sim.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: telemetry
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: otel-collector
+          image: {{ include "sim.image" (dict "context" . "image" .Values.telemetry.image) }}
+          imagePullPolicy: {{ .Values.telemetry.image.pullPolicy }}
+          command:
+            - /otelcol-contrib
+            - --config=/etc/otel-collector-config/otel-config.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: health
+              containerPort: 13133
+              protocol: TCP
+            - name: pprof
+              containerPort: 1777
+              protocol: TCP
+            - name: zpages
+              containerPort: 55679
+              protocol: TCP
+          env:
+            - name: GOGC
+              value: "80"
+          volumeMounts:
+            - name: otel-config
+              mountPath: /etc/otel-collector-config
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.telemetry.resources | nindent 12 }}
+      volumes:
+        - name: otel-config
+          configMap:
+            name: {{ include "sim.fullname" . }}-otel-config
+      {{- with .Values.telemetry.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.telemetry.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.telemetry.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+# OpenTelemetry Collector Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: telemetry
+spec:
+  type: {{ .Values.telemetry.service.type }}
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+    - name: health
+      port: 13133
+      targetPort: health
+      protocol: TCP
+  selector:
+    {{- include "sim.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: telemetry
+{{- end }}

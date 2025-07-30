@@ -25,7 +25,7 @@ describe('Subscription Transfer API Routes', () => {
       }),
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 
@@ -97,7 +97,7 @@ describe('Subscription Transfer API Routes', () => {
         organizationId: 'org-456',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/users/me/subscription/[id]/transfer/route')
 
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
 
@@ -120,7 +120,7 @@ describe('Subscription Transfer API Routes', () => {
         organizationId: 'org-456',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/users/me/subscription/[id]/transfer/route')
 
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
@@ -149,7 +149,7 @@ describe('Subscription Transfer API Routes', () => {
         organizationId: 'org-456',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/users/me/subscription/[id]/transfer/route')
 
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
@@ -174,7 +174,7 @@ describe('Subscription Transfer API Routes', () => {
         organizationId: 'org-456',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/users/me/subscription/[id]/transfer/route')
 
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
@@ -214,7 +214,7 @@ describe('Subscription Transfer API Routes', () => {
         organizationId: 'org-456',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/users/me/subscription/[id]/transfer/route')
 
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
@@ -227,7 +227,7 @@ describe('Subscription Transfer API Routes', () => {
     it('should reject invalid request parameters', async () => {
       const req = createMockRequest('POST', {})
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/users/me/subscription/[id]/transfer/route')
 
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
@@ -246,7 +246,7 @@ describe('Subscription Transfer API Routes', () => {
         organizationId: 'org-456',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/users/me/subscription/[id]/transfer/route')
 
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
@@ -265,7 +265,7 @@ describe('Subscription Transfer API Routes', () => {
         organizationId: 'org-456',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/users/me/subscription/[id]/transfer/route')
 
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
-import type { General, GeneralStore, UserSettings } from './types'
+import { createLogger } from '@/lib/logs/console/logger'
+import type { General, GeneralStore, UserSettings } from '@/stores/settings/general/types'
 
 const logger = createLogger('GeneralStore')
 
@@ -124,7 +124,7 @@ export const useGeneralStore = create<GeneralStore>()(
             if (
               typeof window !== 'undefined' &&
               (window.location.pathname.startsWith('/chat/') ||
-                (window.location.hostname !== 'simstudio.ai' &&
+                (window.location.hostname !== 'sim.ai' &&
                   window.location.hostname !== 'localhost' &&
                   window.location.hostname !== '127.0.0.1' &&
                   !window.location.hostname.startsWith('www.')))
@@ -176,7 +176,7 @@ export const useGeneralStore = create<GeneralStore>()(
             if (
               typeof window !== 'undefined' &&
               (window.location.pathname.startsWith('/chat/') ||
-                (window.location.hostname !== 'simstudio.ai' &&
+                (window.location.hostname !== 'sim.ai' &&
                   window.location.hostname !== 'localhost' &&
                   window.location.hostname !== '127.0.0.1' &&
                   !window.location.hostname.startsWith('www.')))

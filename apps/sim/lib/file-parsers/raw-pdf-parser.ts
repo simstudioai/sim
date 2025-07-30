@@ -2,7 +2,7 @@ import { readFile } from 'fs/promises'
 import { promisify } from 'util'
 import zlib from 'zlib'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('RawPdfParser')
 

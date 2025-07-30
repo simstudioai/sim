@@ -1,6 +1,6 @@
-# Sim Studio SDKs
+# Sim SDKs
 
-This directory contains the official SDKs for [Sim Studio](https://simstudio.ai), allowing developers to execute workflows programmatically from their applications.
+This directory contains the official SDKs for [Sim](https://sim.ai), allowing developers to execute workflows programmatically from their applications.
 
 ## Available SDKs
 
@@ -80,7 +80,7 @@ Both SDKs are built on top of the same REST API endpoints:
 
 Both SDKs use API key authentication via the `X-API-Key` header. You can obtain an API key by:
 
-1. Logging in to your [Sim Studio](https://simstudio.ai) account
+1. Logging in to your [Sim](https://sim.ai) account
 2. Navigating to your workflow
 3. Clicking "Deploy" to deploy your workflow
 4. Creating or selecting an API key during deployment
@@ -94,7 +94,7 @@ Both SDKs support environment variable configuration:
 SIMSTUDIO_API_KEY=your-api-key-here
 
 # Optional
-SIMSTUDIO_BASE_URL=https://simstudio.ai  # or your custom domain
+SIMSTUDIO_BASE_URL=https://sim.ai  # or your custom domain
 ```
 
 ## Error Handling
@@ -243,7 +243,7 @@ Both SDKs are licensed under the Apache-2.0 License. See the [LICENSE](../LICENS
 
 ## Support
 
-- 📖 [Documentation](https://docs.simstudio.ai)
+- 📖 [Documentation](https://docs.sim.ai)
 - 💬 [Discord Community](https://discord.gg/simstudio)
 - 🐛 [Issue Tracker](https://github.com/simstudioai/sim/issues)
-- 📧 [Email Support](mailto:support@simstudio.ai) 
+- 📧 [Email Support](mailto:support@sim.ai) 

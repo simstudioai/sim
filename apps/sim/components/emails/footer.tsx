@@ -1,5 +1,6 @@
 import { Container, Img, Link, Section, Text } from '@react-email/components'
 import { env } from '@/lib/env'
+import { getAssetUrl } from '@/lib/utils'
 
 interface UnsubscribeOptions {
   unsubscribeToken?: string
@@ -12,7 +13,7 @@ interface EmailFooterProps {
 }
 
 export const EmailFooter = ({
-  baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai',
+  baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai',
   unsubscribe,
 }: EmailFooterProps) => {
   return (
@@ -25,13 +26,13 @@ export const EmailFooter = ({
                 <tr>
                   <td align='center' style={{ padding: '0 8px' }}>
                     <Link href='https://x.com/simstudioai' rel='noopener noreferrer'>
-                      <Img src={`${baseUrl}/static/x-icon.png`} width='24' height='24' alt='X' />
+                      <Img src={getAssetUrl('static/x-icon.png')} width='24' height='24' alt='X' />
                     </Link>
                   </td>
                   <td align='center' style={{ padding: '0 8px' }}>
                     <Link href='https://discord.gg/Hr4UWYEcTT' rel='noopener noreferrer'>
                       <Img
-                        src={`${baseUrl}/static/discord-icon.png`}
+                        src={getAssetUrl('static/discord-icon.png')}
                         width='24'
                         height='24'
                         alt='Discord'
@@ -41,7 +42,7 @@ export const EmailFooter = ({
                   <td align='center' style={{ padding: '0 8px' }}>
                     <Link href='https://github.com/simstudioai/sim' rel='noopener noreferrer'>
                       <Img
-                        src={`${baseUrl}/static/github-icon.png`}
+                        src={getAssetUrl('static/github-icon.png')}
                         width='24'
                         height='24'
                         alt='GitHub'
@@ -61,11 +62,11 @@ export const EmailFooter = ({
                   margin: '8px 0 0 0',
                 }}
               >
-                © {new Date().getFullYear()} Sim Studio, All Rights Reserved
+                © {new Date().getFullYear()} Sim, All Rights Reserved
                 <br />
                 If you have any questions, please contact us at{' '}
                 <a
-                  href='mailto:help@simstudio.ai'
+                  href='mailto:help@sim.ai'
                   style={{
                     color: '#706a7b !important',
                     textDecoration: 'underline',
@@ -73,7 +74,7 @@ export const EmailFooter = ({
                     fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
                   }}
                 >
-                  help@simstudio.ai
+                  help@sim.ai
                 </a>
               </Text>
               <table cellPadding={0} cellSpacing={0} style={{ width: '100%', marginTop: '4px' }}>
@@ -117,7 +118,7 @@ export const EmailFooter = ({
                         href={
                           unsubscribe?.unsubscribeToken && unsubscribe?.email
                             ? `${baseUrl}/unsubscribe?token=${unsubscribe.unsubscribeToken}&email=${encodeURIComponent(unsubscribe.email)}`
-                            : `mailto:help@simstudio.ai?subject=Unsubscribe%20Request&body=Please%20unsubscribe%20me%20from%20all%20emails.`
+                            : `mailto:help@sim.ai?subject=Unsubscribe%20Request&body=Please%20unsubscribe%20me%20from%20all%20emails.`
                         }
                         style={{
                           color: '#706a7b !important',

@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 export const dynamic = 'force-dynamic'
 

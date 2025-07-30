@@ -1,7 +1,7 @@
 {
   "name": "simstudio",
   "version": "0.1.19",
-  "description": "Sim Studio CLI - Run Sim Studio with a single command",
+  "description": "Sim CLI - Run Sim with a single command",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
@@ -28,7 +28,7 @@
     "automation",
     "docker"
   ],
-  "author": "Sim Studio",
+  "author": "Sim",
   "license": "Apache-2.0",
   "dependencies": {
     "chalk": "^4.1.2",

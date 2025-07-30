@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Send, Square } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { VoiceInput } from './voice-input'
+import { VoiceInput } from '@/app/chat/[subdomain]/components/input/voice-input'
 
 const PLACEHOLDER_MOBILE = 'Enter a message'
 const PLACEHOLDER_DESKTOP = 'Enter a message or click the mic to speak'

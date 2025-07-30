@@ -41,7 +41,7 @@ describe('Function Execute API Route', () => {
       },
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 
@@ -65,7 +65,7 @@ describe('Function Execute API Route', () => {
         timeout: 5000,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -80,7 +80,7 @@ describe('Function Execute API Route', () => {
         timeout: 5000,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -94,7 +94,7 @@ describe('Function Execute API Route', () => {
         code: 'return "test"',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -116,7 +116,7 @@ describe('Function Execute API Route', () => {
         },
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -131,7 +131,7 @@ describe('Function Execute API Route', () => {
         },
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -143,17 +143,17 @@ describe('Function Execute API Route', () => {
         code: 'return "Email sent to user"',
         params: {
           email: {
-            from: 'Waleed Latif <waleed@simstudio.ai>',
+            from: 'Waleed Latif <waleed@sim.ai>',
             to: 'User <user@example.com>',
           },
         },
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
-      // Should not try to replace <waleed@simstudio.ai> as a template variable
+      // Should not try to replace <waleed@sim.ai> as a template variable
     })
 
     it('should only match valid variable names in angle brackets', async () => {
@@ -165,7 +165,7 @@ describe('Function Execute API Route', () => {
         },
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -178,7 +178,7 @@ describe('Function Execute API Route', () => {
       const gmailData = {
         email: {
           id: '123',
-          from: 'Waleed Latif <waleed@simstudio.ai>',
+          from: 'Waleed Latif <waleed@sim.ai>',
           to: 'User <user@example.com>',
           subject: 'Test Email',
           bodyText: 'Hello world',
@@ -187,7 +187,7 @@ describe('Function Execute API Route', () => {
           id: '123',
           payload: {
             headers: [
-              { name: 'From', value: 'Waleed Latif <waleed@simstudio.ai>' },
+              { name: 'From', value: 'Waleed Latif <waleed@sim.ai>' },
               { name: 'To', value: 'User <user@example.com>' },
             ],
           },
@@ -199,7 +199,7 @@ describe('Function Execute API Route', () => {
         params: gmailData,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -221,7 +221,7 @@ describe('Function Execute API Route', () => {
         params: complexEmailData,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -234,7 +234,7 @@ describe('Function Execute API Route', () => {
         code: 'return "freestyle test"',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       await POST(req)
 
       expect(mockFreestyleExecuteScript).toHaveBeenCalled()
@@ -250,7 +250,7 @@ describe('Function Execute API Route', () => {
         code: 'return "fallback test"',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(mockFreestyleExecuteScript).toHaveBeenCalled()
@@ -271,7 +271,7 @@ describe('Function Execute API Route', () => {
         code: 'return undefinedVariable',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -293,7 +293,7 @@ describe('Function Execute API Route', () => {
         code: 'return "vm test"',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       await POST(req)
 
       expect(mockFreestyleExecuteScript).not.toHaveBeenCalled()
@@ -319,7 +319,7 @@ describe('Function Execute API Route', () => {
         code: 'return invalidCode(',
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -339,7 +339,7 @@ describe('Function Execute API Route', () => {
         isCustomTool: true,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -355,7 +355,7 @@ describe('Function Execute API Route', () => {
         headers: { 'Content-Type': 'application/json' },
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(500)
@@ -367,7 +367,7 @@ describe('Function Execute API Route', () => {
         timeout: 10000,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       await POST(req)
 
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -384,7 +384,7 @@ describe('Function Execute API Route', () => {
         params: {},
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -417,7 +417,7 @@ SyntaxError: Invalid or unexpected token
         timeout: 5000,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -460,7 +460,7 @@ SyntaxError: Invalid or unexpected token
         timeout: 5000,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -501,7 +501,7 @@ SyntaxError: Invalid or unexpected token
         timeout: 5000,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -531,7 +531,7 @@ SyntaxError: Invalid or unexpected token
         timeout: 5000,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -567,7 +567,7 @@ SyntaxError: Invalid or unexpected token
         timeout: 5000,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -598,7 +598,7 @@ SyntaxError: Invalid or unexpected token
         timeout: 5000,
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
       const data = await response.json()
 
@@ -620,7 +620,7 @@ SyntaxError: Invalid or unexpected token
         },
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -644,7 +644,7 @@ SyntaxError: Invalid or unexpected token
         },
       })
 
-      const { POST } = await import('./route')
+      const { POST } = await import('@/app/api/function/execute/route')
       const response = await POST(req)
 
       expect(response.status).toBe(200)
@@ -657,7 +657,7 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
     vi.resetModules()
     vi.resetAllMocks()
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 
@@ -705,7 +705,7 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
       },
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/function/execute/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -730,7 +730,7 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
       },
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/function/execute/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -752,7 +752,7 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
       params: {},
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/function/execute/route')
     const response = await POST(req)
     const data = await response.json()
 

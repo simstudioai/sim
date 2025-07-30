@@ -1,7 +1,8 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { BlogCard } from '../blog-card'
+import { getAssetUrl } from '@/lib/utils'
+import { BlogCard } from '@/app/(landing)/components/blog-card'
 
 function Blogs() {
   return (
@@ -45,23 +46,23 @@ function Blogs() {
         >
           <BlogCard
             href='/blog/test'
-            title='How to Build an Agent in 5 Steps with SimStudio.ai'
-            description="Learn how to create a fully functional AI agent using SimStudio.ai's unified API and workflows."
+            title='How to Build an Agent in 5 Steps with sim.ai'
+            description="Learn how to create a fully functional AI agent using sim.ai's unified API and workflows."
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
           />
           <BlogCard
             href='/blog/test'
-            title='How to Build an Agent in 5 Steps with SimStudio.ai'
-            description="Learn how to create a fully functional AI agent using SimStudio.ai's unified API and workflows."
+            title='How to Build an Agent in 5 Steps with sim.ai'
+            description="Learn how to create a fully functional AI agent using sim.ai's unified API and workflows."
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
           />
@@ -75,23 +76,23 @@ function Blogs() {
         >
           <BlogCard
             href='/blog/test'
-            title='How to Build an Agent in 5 Steps with SimStudio.ai'
-            description="Learn how to create a fully functional AI agent using SimStudio.ai's unified API and workflows."
+            title='How to Build an Agent in 5 Steps with sim.ai'
+            description="Learn how to create a fully functional AI agent using sim.ai's unified API and workflows."
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
-            image='/static/hero.png'
+            image={getAssetUrl('static/hero.png')}
           />
           <BlogCard
             href='/blog/test'
-            title='How to Build an Agent in 5 Steps with SimStudio.ai'
-            description="Learn how to create a fully functional AI agent using SimStudio.ai's unified API and workflows."
+            title='How to Build an Agent in 5 Steps with sim.ai'
+            description="Learn how to create a fully functional AI agent using sim.ai's unified API and workflows."
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
           />
@@ -105,23 +106,23 @@ function Blogs() {
         >
           <BlogCard
             href='/blog/test'
-            title='How to Build an Agent in 5 Steps with SimStudio.ai'
-            description="Learn how to create a fully functional AI agent using SimStudio.ai's unified API and workflows."
+            title='How to Build an Agent in 5 Steps with sim.ai'
+            description="Learn how to create a fully functional AI agent using sim.ai's unified API and workflows."
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Agents'
             readTime='6'
           />
           <BlogCard
             href='/blog/test'
-            title='How to Build an Agent in 5 Steps with SimStudio.ai'
-            description="Learn how to create a fully functional AI agent using SimStudio.ai's unified API and workflows."
+            title='How to Build an Agent in 5 Steps with sim.ai'
+            description="Learn how to create a fully functional AI agent using sim.ai's unified API and workflows."
             date={new Date('25 April 2025')}
             author='Emir Ayaz'
             authorRole='Designer'
-            avatar='/static/sim.png'
+            avatar={getAssetUrl('static/sim.png')}
             type='Functions'
             readTime='6'
           />

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { SubscriptionFeatures } from '@/lib/billing/types'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('useSubscriptionState')
 

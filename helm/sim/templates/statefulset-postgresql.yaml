@@ -1,0 +1,195 @@
+{{- if .Values.postgresql.enabled }}
+---
+# ConfigMap for PostgreSQL configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sim.fullname" . }}-postgresql-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
+data:
+  postgresql.conf: |
+    hba_file = '/etc/postgresql/pg_hba.conf'
+    listen_addresses = '0.0.0.0'
+    max_connections = {{ .Values.postgresql.config.maxConnections }}
+    tcp_keepalives_idle = 60
+    tcp_keepalives_interval = 5
+    tcp_keepalives_count = 3
+    authentication_timeout = 1min
+    password_encryption = scram-sha-256
+    {{- if .Values.postgresql.tls.enabled }}
+    ssl = on
+    ssl_cert_file = '/etc/postgresql/tls/tls.crt'
+    ssl_key_file = '/etc/postgresql/tls/tls.key'
+    {{- else }}
+    ssl = off
+    {{- end }}
+    shared_buffers = {{ .Values.postgresql.config.sharedBuffers }}
+    dynamic_shared_memory_type = posix
+    max_wal_size = {{ .Values.postgresql.config.maxWalSize }}
+    min_wal_size = {{ .Values.postgresql.config.minWalSize }}
+    log_timezone = 'Etc/UTC'
+    idle_in_transaction_session_timeout = 50000000
+    datestyle = 'iso, mdy'
+    timezone = 'Etc/UTC'
+    lc_messages = 'en_US.utf8'
+    lc_monetary = 'en_US.utf8'
+    lc_numeric = 'en_US.utf8'
+    lc_time = 'en_US.utf8'
+    default_text_search_config = 'pg_catalog.english'
+  
+  pg_hba.conf: |
+    # Secure authentication for all connections
+    local all         all               scram-sha-256
+    host  all         all 127.0.0.1/32  scram-sha-256
+    host  all         all ::1/128       scram-sha-256
+    host  all         all all           scram-sha-256
+
+    # Replication connections also require authentication
+    local replication all               scram-sha-256
+    host  replication all 127.0.0.1/32  scram-sha-256
+    host  replication all ::1/128       scram-sha-256
+
+---
+# ConfigMap for PostgreSQL environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sim.fullname" . }}-postgresql-env
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
+data:
+  POSTGRES_DB: {{ .Values.postgresql.auth.database | quote }}
+  POSTGRES_USER: {{ .Values.postgresql.auth.username | quote }}
+  PGDATA: "/var/lib/postgresql/data/pgdata"
+
+---
+# Secret for PostgreSQL password
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "sim.fullname" . }}-postgresql-secret
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
+type: Opaque
+data:
+  POSTGRES_PASSWORD: {{ .Values.postgresql.auth.password | b64enc }}
+
+---
+# StatefulSet for PostgreSQL
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "sim.fullname" . }}-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "sim.fullname" . }}-postgresql
+  replicas: 1
+  minReadySeconds: 10
+  selector:
+    matchLabels:
+      {{- include "sim.postgresql.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "sim.postgresql.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      {{- include "sim.podSecurityContext" .Values.postgresql | nindent 6 }}
+      {{- include "sim.nodeSelector" .Values.postgresql | nindent 6 }}
+      {{- include "sim.tolerations" .Values | nindent 6 }}
+      {{- include "sim.affinity" .Values | nindent 6 }}
+      containers:
+        - name: postgresql
+          image: {{ include "sim.image" (dict "context" . "image" .Values.postgresql.image) }}
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          args: ["-c", "config_file=/etc/postgresql/postgresql.conf"]
+          ports:
+            - name: postgresql
+              containerPort: {{ .Values.postgresql.service.targetPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "sim.fullname" . }}-postgresql-env
+            - secretRef:
+                name: {{ include "sim.fullname" . }}-postgresql-secret
+          {{- if .Values.postgresql.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.postgresql.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.postgresql.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.postgresql.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- include "sim.resources" .Values.postgresql | nindent 10 }}
+          {{- include "sim.securityContext" .Values.postgresql | nindent 10 }}
+          volumeMounts:
+            {{- if .Values.postgresql.persistence.enabled }}
+            - name: postgresql-data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+            {{- end }}
+            - name: postgresql-config
+              mountPath: "/etc/postgresql"
+            {{- if .Values.postgresql.tls.enabled }}
+            - name: postgresql-tls
+              mountPath: "/etc/postgresql/tls"
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: postgresql-config
+          configMap:
+            name: {{ include "sim.fullname" . }}-postgresql-config
+        {{- if .Values.postgresql.tls.enabled }}
+        - name: postgresql-tls
+          secret:
+            secretName: {{ .Values.postgresql.tls.certificatesSecret }}
+            defaultMode: 0600
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- if .Values.postgresql.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: postgresql-data
+        labels:
+          {{- include "sim.postgresql.labels" . | nindent 10 }}
+      spec:
+        {{- if .Values.postgresql.persistence.storageClass }}
+        {{- if (eq "-" .Values.postgresql.persistence.storageClass) }}
+        storageClassName: ""
+        {{- else }}
+        storageClassName: {{ .Values.postgresql.persistence.storageClass | quote }}
+        {{- end }}
+        {{- else if .Values.global.storageClass }}
+        storageClassName: {{ .Values.global.storageClass | quote }}
+        {{- end }}
+        accessModes:
+          {{- range .Values.postgresql.persistence.accessModes }}
+          - {{ . | quote }}
+          {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgresql.persistence.size | quote }}
+  {{- end }}
+{{- end }}

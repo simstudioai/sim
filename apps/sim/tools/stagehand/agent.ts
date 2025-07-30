@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { StagehandAgentParams, StagehandAgentResponse } from '@/tools/stagehand/types'
 import type { ToolConfig } from '@/tools/types'
 

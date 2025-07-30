@@ -1,15 +1,21 @@
 import { Info } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
-import { WebhookConfigField } from '../ui/webhook-config-field'
+import {
+  Button,
+  Input,
+  Label,
+  Skeleton,
+  Switch,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui'
+import {
+  ConfigField,
+  ConfigSection,
+  InstructionsSection,
+  WebhookConfigField,
+  TestResultDisplay as WebhookTestResult,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 interface AirtableConfigProps {
   baseId: string
@@ -146,8 +152,7 @@ export function AirtableConfig({
         <ol className='list-inside list-decimal space-y-1'>
           <li>Ensure you have provided the correct Base ID and Table ID above.</li>
           <li>
-            Sim Studio will automatically configure the webhook in your Airtable account when you
-            save.
+            Sim will automatically configure the webhook in your Airtable account when you save.
           </li>
           <li>Any changes made to records in the specified table will trigger this workflow.</li>
           <li>

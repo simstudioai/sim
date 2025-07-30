@@ -3,7 +3,10 @@
 import { memo, type RefObject } from 'react'
 import { ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { type ChatMessage, ClientChatMessage } from '../message/message'
+import {
+  type ChatMessage,
+  ClientChatMessage,
+} from '@/app/chat/[subdomain]/components/message/message'
 
 interface ChatMessageContainerProps {
   messages: ChatMessage[]

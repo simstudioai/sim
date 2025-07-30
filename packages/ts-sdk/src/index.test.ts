@@ -11,7 +11,7 @@ describe('SimStudioClient', () => {
   beforeEach(() => {
     client = new SimStudioClient({
       apiKey: 'test-api-key',
-      baseUrl: 'https://test.simstudio.ai',
+      baseUrl: 'https://test.sim.ai',
     })
     vi.clearAllMocks()
   })
@@ -43,16 +43,16 @@ describe('SimStudioClient', () => {
 
   describe('setBaseUrl', () => {
     it('should update the base URL', () => {
-      const newBaseUrl = 'https://new.simstudio.ai'
+      const newBaseUrl = 'https://new.sim.ai'
       client.setBaseUrl(newBaseUrl)
       expect((client as any).baseUrl).toBe(newBaseUrl)
     })
 
     it('should strip trailing slash from base URL', () => {
-      const urlWithSlash = 'https://test.simstudio.ai/'
+      const urlWithSlash = 'https://test.sim.ai/'
       client.setBaseUrl(urlWithSlash)
       // Verify the trailing slash was actually stripped
-      expect((client as any).baseUrl).toBe('https://test.simstudio.ai')
+      expect((client as any).baseUrl).toBe('https://test.sim.ai')
     })
   })
 

@@ -1,6 +1,6 @@
 import Stripe from 'stripe'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StripeClient')
 

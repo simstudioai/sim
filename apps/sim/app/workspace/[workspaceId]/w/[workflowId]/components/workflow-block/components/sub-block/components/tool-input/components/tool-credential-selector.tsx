@@ -9,7 +9,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import {
   type Credential,
   OAUTH_PROVIDERS,
@@ -17,7 +17,7 @@ import {
   type OAuthService,
   parseProvider,
 } from '@/lib/oauth'
-import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('ToolCredentialSelector')
 

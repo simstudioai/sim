@@ -1,6 +1,6 @@
 import { ChartBarIcon } from '@/components/icons'
 import { isHosted } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
 import { getAllModelProviders, getBaseModelProviders, getHostedModels } from '@/providers/utils'
@@ -150,7 +150,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   description: 'Evaluate content',
   longDescription:
     'Assess content quality using customizable evaluation metrics and scoring criteria. Create objective evaluation frameworks with numeric scoring to measure performance across multiple dimensions.',
-  docsLink: 'https://docs.simstudio.ai/blocks/evaluator',
+  docsLink: 'https://docs.sim.ai/blocks/evaluator',
   category: 'tools',
   bgColor: '#4D5FFF',
   icon: ChartBarIcon,

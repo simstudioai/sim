@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server'
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest, setupFileApiMocks } from '@/app/api/__test-utils__/utils'
-import { POST } from './route'
+import { POST } from '@/app/api/files/parse/route'
 
 const mockJoin = vi.fn((...args: string[]): string => {
   if (args[0] === '/test/uploads') {
@@ -53,7 +53,7 @@ describe('File Parse API Route', () => {
     setupFileApiMocks()
 
     const req = createMockRequest('POST', {})
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/parse/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -72,7 +72,7 @@ describe('File Parse API Route', () => {
       filePath: '/api/files/serve/test-file.txt',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -97,7 +97,7 @@ describe('File Parse API Route', () => {
       filePath: '/api/files/serve/s3/test-file.pdf',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -120,7 +120,7 @@ describe('File Parse API Route', () => {
       filePath: ['/api/files/serve/file1.txt', '/api/files/serve/file2.txt'],
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -157,7 +157,7 @@ describe('File Parse API Route', () => {
       }),
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 
@@ -184,7 +184,7 @@ describe('File Parse API Route', () => {
       filePath: '/api/files/serve/nonexistent.txt',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/files/parse/route')
     const response = await POST(req)
     const data = await response.json()
 

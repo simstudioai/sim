@@ -13,11 +13,11 @@ import {
   WhatsAppIcon,
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
+import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-credential-selector'
+import { WebhookModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
-import { ToolCredentialSelector } from '../tool-input/components/tool-credential-selector'
-import { WebhookModal } from './components/webhook-modal'
 
 const logger = createLogger('WebhookConfig')
 

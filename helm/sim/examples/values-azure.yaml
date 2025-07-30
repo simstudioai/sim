@@ -1,0 +1,172 @@
+# Azure-specific values for Sim
+# Example configuration for Azure AKS deployment
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+  storageClass: "managed-csi-premium"
+
+# Main application
+app:
+  enabled: true
+  replicaCount: 1
+  
+  # Node selector for application pods (customize based on your AKS node labels)
+  nodeSelector:
+    node-role: application
+  
+  resources:
+    limits:
+      memory: "4Gi"
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+  
+  # Production URLs (REQUIRED - update with your actual domain names)
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    SOCKET_SERVER_URL: "https://simstudio-ws.acme.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    
+    # Security settings (REQUIRED - replace with your own secure secrets)
+    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
+    ENCRYPTION_KEY: "your-secure-production-encryption-key-here"
+    
+    NODE_ENV: "production"
+    NEXT_TELEMETRY_DISABLED: "1"
+
+# Realtime service
+realtime:
+  enabled: true
+  replicaCount: 1
+  
+  # Node selector for application pods (customize based on your AKS node labels)
+  nodeSelector:
+    node-role: application
+  
+  resources:
+    limits:
+      memory: "4Gi"
+    requests:
+      memory: "1Gi"
+      cpu: "250m"
+  
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
+    ALLOWED_ORIGINS: "https://simstudio.acme.com"
+    NODE_ENV: "production"
+
+# Database migrations
+migrations:
+  enabled: true
+
+# PostgreSQL database
+postgresql:
+  enabled: true
+  
+  # Node selector for database pods (recommended: memory-optimized VM sizes)
+  nodeSelector:
+    node-role: datalake
+  
+  # Database authentication (REQUIRED - set secure credentials)
+  auth:
+    username: postgres
+    password: "your-secure-postgres-password"
+    database: simstudio
+  
+  # Resource allocation for production workloads
+  resources:
+    limits:
+      memory: "2Gi"
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  # Persistent storage using Azure Premium SSD
+  persistence:
+    enabled: true
+    storageClass: "managed-csi-premium"
+    size: 10Gi
+  
+  # SSL/TLS configuration (recommended for production)
+  tls:
+    enabled: true
+    certificatesSecret: postgres-tls-secret
+  
+  # PostgreSQL performance tuning for Azure infrastructure
+  config:
+    maxConnections: 1000
+    sharedBuffers: "1280MB"
+    maxWalSize: "4GB"
+    minWalSize: "80MB"
+
+# Ollama AI models with GPU acceleration (Azure NC-series VMs)
+ollama:
+  enabled: true
+  replicaCount: 1
+  
+  # GPU node targeting (recommended: NC6s_v3 or NC12s_v3 VMs)
+  nodeSelector:
+    accelerator: nvidia
+  
+  tolerations:
+    - key: "sku"
+      operator: "Equal"
+      value: "gpu"
+      effect: "NoSchedule"
+  
+  # GPU resource allocation for AI model serving
+  gpu:
+    enabled: true
+    count: 1
+  
+  resources:
+    limits:
+      memory: "8Gi"
+      nvidia.com/gpu: "1"
+    requests:
+      memory: "4Gi"
+      cpu: "1000m"
+  
+  # High-performance storage for AI models
+  persistence:
+    enabled: true
+    storageClass: "managed-csi-premium"
+    size: 100Gi
+  
+  env:
+    NVIDIA_DRIVER_CAPABILITIES: "all"
+    OLLAMA_LOAD_TIMEOUT: "-1"
+    OLLAMA_KEEP_ALIVE: "-1"
+    OLLAMA_DEBUG: "1"
+
+# Ingress configuration (NGINX ingress controller on Azure AKS)
+ingress:
+  enabled: true
+  className: nginx
+  
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  
+  # Main application
+  app:
+    host: simstudio.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  # Realtime service
+  realtime:
+    host: simstudio-ws.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  # TLS configuration
+  tls:
+    enabled: true
+    secretName: simstudio-tls-secret

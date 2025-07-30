@@ -6,15 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { TAG_SLOTS, type TagSlot } from '@/lib/constants/knowledge'
+import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 
-export interface TagData {
-  tag1?: string
-  tag2?: string
-  tag3?: string
-  tag4?: string
-  tag5?: string
-  tag6?: string
-  tag7?: string
+export type TagData = {
+  [K in TagSlot]?: string
 }
 
 interface TagInputProps {
@@ -22,21 +18,29 @@ interface TagInputProps {
   onTagsChange: (tags: TagData) => void
   disabled?: boolean
   className?: string
+  knowledgeBaseId?: string | null
+  documentId?: string | null
 }
 
-const TAG_LABELS = [
-  { key: 'tag1' as keyof TagData, label: 'Tag 1', placeholder: 'Enter tag value' },
-  { key: 'tag2' as keyof TagData, label: 'Tag 2', placeholder: 'Enter tag value' },
-  { key: 'tag3' as keyof TagData, label: 'Tag 3', placeholder: 'Enter tag value' },
-  { key: 'tag4' as keyof TagData, label: 'Tag 4', placeholder: 'Enter tag value' },
-  { key: 'tag5' as keyof TagData, label: 'Tag 5', placeholder: 'Enter tag value' },
-  { key: 'tag6' as keyof TagData, label: 'Tag 6', placeholder: 'Enter tag value' },
-  { key: 'tag7' as keyof TagData, label: 'Tag 7', placeholder: 'Enter tag value' },
-]
+const TAG_LABELS = TAG_SLOTS.map((slot, index) => ({
+  key: slot as keyof TagData,
+  label: `Tag ${index + 1}`,
+  placeholder: 'Enter tag value',
+}))
 
-export function TagInput({ tags, onTagsChange, disabled = false, className = '' }: TagInputProps) {
+export function TagInput({
+  tags,
+  onTagsChange,
+  disabled = false,
+  className = '',
+  knowledgeBaseId = null,
+  documentId = null,
+}: TagInputProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showAllTags, setShowAllTags] = useState(false)
+
+  // Use custom tag definitions if available
+  const { getTagLabel } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
   const handleTagChange = (tagKey: keyof TagData, value: string) => {
     onTagsChange({
@@ -53,7 +57,15 @@ export function TagInput({ tags, onTagsChange, disabled = false, className = '' 
   }
 
   const hasAnyTags = Object.values(tags).some((tag) => tag?.trim())
-  const visibleTags = showAllTags ? TAG_LABELS : TAG_LABELS.slice(0, 2)
+
+  // Create tag labels using custom definitions or fallback to defaults
+  const tagLabels = TAG_LABELS.map(({ key, placeholder }) => ({
+    key,
+    label: getTagLabel(key),
+    placeholder,
+  }))
+
+  const visibleTags = showAllTags ? tagLabels : tagLabels.slice(0, 2)
 
   return (
     <div className={className}>
@@ -153,7 +165,7 @@ export function TagInput({ tags, onTagsChange, disabled = false, className = '' 
                 <div className='flex flex-wrap gap-1'>
                   {Object.entries(tags).map(([key, value]) => {
                     if (!value?.trim()) return null
-                    const tagLabel = TAG_LABELS.find((t) => t.key === key)?.label || key
+                    const tagLabel = getTagLabel(key)
                     return (
                       <span
                         key={key}

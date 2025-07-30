@@ -1,8 +1,10 @@
 import { render } from '@react-email/components'
-import { BatchInvitationEmail } from './batch-invitation-email'
-import { InvitationEmail } from './invitation-email'
-import { OTPVerificationEmail } from './otp-verification-email'
-import { ResetPasswordEmail } from './reset-password-email'
+import {
+  BatchInvitationEmail,
+  InvitationEmail,
+  OTPVerificationEmail,
+  ResetPasswordEmail,
+} from '@/components/emails'
 
 export async function renderOTPEmail(
   otp: string,
@@ -74,18 +76,18 @@ export function getEmailSubject(
 ): string {
   switch (type) {
     case 'sign-in':
-      return 'Sign in to Sim Studio'
+      return 'Sign in to Sim'
     case 'email-verification':
-      return 'Verify your email for Sim Studio'
+      return 'Verify your email for Sim'
     case 'forget-password':
-      return 'Reset your Sim Studio password'
+      return 'Reset your Sim password'
     case 'reset-password':
-      return 'Reset your Sim Studio password'
+      return 'Reset your Sim password'
     case 'invitation':
-      return "You've been invited to join a team on Sim Studio"
+      return "You've been invited to join a team on Sim"
     case 'batch-invitation':
-      return "You've been invited to join a team and workspaces on Sim Studio"
+      return "You've been invited to join a team and workspaces on Sim"
     default:
-      return 'Sim Studio'
+      return 'Sim'
   }
 }

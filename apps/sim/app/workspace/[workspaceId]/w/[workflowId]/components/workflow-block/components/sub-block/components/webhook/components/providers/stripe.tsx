@@ -1,7 +1,9 @@
 import { ShieldCheck } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay } from '../ui/test-result'
+import {
+  InstructionsSection,
+  TestResultDisplay,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'
 
 interface StripeConfigProps {
   isLoadingToken: boolean
@@ -55,8 +57,8 @@ export function StripeConfig({ testResult, copied, copyToClipboard }: StripeConf
         <AlertTitle>Webhook Signing</AlertTitle>
         <AlertDescription>
           For production use, it's highly recommended to verify Stripe webhook signatures to ensure
-          requests are genuinely from Stripe. Sim Studio handles this automatically if you provide
-          the signing secret during setup (coming soon).
+          requests are genuinely from Stripe. Sim handles this automatically if you provide the
+          signing secret during setup (coming soon).
         </AlertDescription>
       </Alert>
     </div>

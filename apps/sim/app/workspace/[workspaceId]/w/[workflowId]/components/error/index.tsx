@@ -3,7 +3,7 @@
 import { Component, type ReactNode, useEffect } from 'react'
 import { BotIcon } from 'lucide-react'
 import { Card } from '@/components/ui/card'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ErrorBoundary')
 

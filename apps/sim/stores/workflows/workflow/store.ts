@@ -1,16 +1,24 @@
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
-import { pushHistory, type WorkflowStoreWithHistory, withHistory } from '../middleware'
-import { useWorkflowRegistry } from '../registry/store'
-import { useSubBlockStore } from '../subblock/store'
-// import { markWorkflowsDirty, workflowSync } from '../sync' // Disabled for socket-based sync
-import { mergeSubblockState } from '../utils'
-import type { Position, SubBlockState, SyncControl, WorkflowState } from './types'
-import { generateLoopBlocks, generateParallelBlocks } from './utils'
+import {
+  pushHistory,
+  type WorkflowStoreWithHistory,
+  withHistory,
+} from '@/stores/workflows/middleware'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import type {
+  Position,
+  SubBlockState,
+  SyncControl,
+  WorkflowState,
+} from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('WorkflowStore')
 

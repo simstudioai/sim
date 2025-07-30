@@ -70,7 +70,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { buildWorkflowStateForTemplate } from '@/lib/workflows/state-builder'
 import { categories } from '@/app/workspace/[workspaceId]/templates/templates'

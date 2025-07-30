@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-vi.mock('../env', () => ({
+vi.mock('@/lib/env', () => ({
   env: {
     GOOGLE_CLIENT_ID: 'google_client_id',
     GOOGLE_CLIENT_SECRET: 'google_client_secret',
@@ -31,7 +31,7 @@ vi.mock('../env', () => ({
   },
 }))
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: vi.fn().mockReturnValue({
     info: vi.fn(),
     error: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock('@/lib/logs/console-logger', () => ({
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
-import { refreshOAuthToken } from './oauth'
+import { refreshOAuthToken } from '@/lib/oauth/oauth'
 
 describe('OAuth Token Refresh', () => {
   beforeEach(() => {

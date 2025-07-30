@@ -47,7 +47,7 @@ describe('OAuth Disconnect API Route', () => {
       or: vi.fn((...conditions) => ({ conditions, type: 'or' })),
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
   })
@@ -68,7 +68,7 @@ describe('OAuth Disconnect API Route', () => {
       provider: 'google',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/oauth/disconnect/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -91,7 +91,7 @@ describe('OAuth Disconnect API Route', () => {
       providerId: 'google-email',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/oauth/disconnect/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -108,7 +108,7 @@ describe('OAuth Disconnect API Route', () => {
       provider: 'google',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/oauth/disconnect/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -125,7 +125,7 @@ describe('OAuth Disconnect API Route', () => {
 
     const req = createMockRequest('POST', {})
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/oauth/disconnect/route')
 
     const response = await POST(req)
     const data = await response.json()
@@ -147,7 +147,7 @@ describe('OAuth Disconnect API Route', () => {
       provider: 'google',
     })
 
-    const { POST } = await import('./route')
+    const { POST } = await import('@/app/api/auth/oauth/disconnect/route')
 
     const response = await POST(req)
     const data = await response.json()

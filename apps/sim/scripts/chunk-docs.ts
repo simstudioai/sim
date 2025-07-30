@@ -3,7 +3,7 @@
 import path from 'path'
 import { DocsChunker } from '@/lib/documents/docs-chunker'
 import type { DocChunk } from '@/lib/documents/types'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ChunkDocsScript')
 
@@ -17,7 +17,7 @@ async function main() {
       chunkSize: 1024,
       minChunkSize: 100,
       overlap: 200,
-      baseUrl: 'https://docs.simstudio.ai',
+      baseUrl: 'https://docs.sim.ai',
     })
 
     // Path to the docs content directory

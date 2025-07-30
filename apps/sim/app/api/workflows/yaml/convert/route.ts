@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
 
 const logger = createLogger('WorkflowYamlAPI')

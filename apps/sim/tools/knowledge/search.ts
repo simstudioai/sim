@@ -4,14 +4,13 @@ import type { ToolConfig } from '@/tools/types'
 export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
   id: 'knowledge_search',
   name: 'Knowledge Search',
-  description: 'Search for similar content in one or more knowledge bases using vector similarity',
+  description: 'Search for similar content in a knowledge base using vector similarity',
   version: '1.0.0',
   params: {
-    knowledgeBaseIds: {
+    knowledgeBaseId: {
       type: 'string',
       required: true,
-      description:
-        'ID of the knowledge base to search in, or comma-separated IDs for multiple knowledge bases',
+      description: 'ID of the knowledge base to search in',
     },
     query: {
       type: 'string',
@@ -23,40 +22,10 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       required: false,
       description: 'Number of most similar results to return (1-100)',
     },
-    tag1: {
-      type: 'string',
+    tagFilters: {
+      type: 'any',
       required: false,
-      description: 'Filter by tag 1 value',
-    },
-    tag2: {
-      type: 'string',
-      required: false,
-      description: 'Filter by tag 2 value',
-    },
-    tag3: {
-      type: 'string',
-      required: false,
-      description: 'Filter by tag 3 value',
-    },
-    tag4: {
-      type: 'string',
-      required: false,
-      description: 'Filter by tag 4 value',
-    },
-    tag5: {
-      type: 'string',
-      required: false,
-      description: 'Filter by tag 5 value',
-    },
-    tag6: {
-      type: 'string',
-      required: false,
-      description: 'Filter by tag 6 value',
-    },
-    tag7: {
-      type: 'string',
-      required: false,
-      description: 'Filter by tag 7 value',
+      description: 'Array of tag filters with tagName and tagValue properties',
     },
   },
   request: {
@@ -68,25 +37,41 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     body: (params) => {
       const workflowId = params._context?.workflowId
 
-      // Handle multiple knowledge base IDs
-      let knowledgeBaseIds = params.knowledgeBaseIds
-      if (typeof knowledgeBaseIds === 'string' && knowledgeBaseIds.includes(',')) {
-        // Split comma-separated string into array
-        knowledgeBaseIds = knowledgeBaseIds
-          .split(',')
-          .map((id) => id.trim())
-          .filter((id) => id.length > 0)
-      }
+      // Use single knowledge base ID
+      const knowledgeBaseIds = [params.knowledgeBaseId]
 
-      // Build filters object from tag parameters
+      // Parse dynamic tag filters and send display names to API
       const filters: Record<string, string> = {}
-      if (params.tag1) filters.tag1 = params.tag1.toString()
-      if (params.tag2) filters.tag2 = params.tag2.toString()
-      if (params.tag3) filters.tag3 = params.tag3.toString()
-      if (params.tag4) filters.tag4 = params.tag4.toString()
-      if (params.tag5) filters.tag5 = params.tag5.toString()
-      if (params.tag6) filters.tag6 = params.tag6.toString()
-      if (params.tag7) filters.tag7 = params.tag7.toString()
+      if (params.tagFilters) {
+        let tagFilters = params.tagFilters
+
+        // Handle both string (JSON) and array formats
+        if (typeof tagFilters === 'string') {
+          try {
+            tagFilters = JSON.parse(tagFilters)
+          } catch (error) {
+            tagFilters = []
+          }
+        }
+
+        if (Array.isArray(tagFilters)) {
+          // Group filters by tag name for OR logic within same tag
+          const groupedFilters: Record<string, string[]> = {}
+          tagFilters.forEach((filter: any) => {
+            if (filter.tagName && filter.tagValue) {
+              if (!groupedFilters[filter.tagName]) {
+                groupedFilters[filter.tagName] = []
+              }
+              groupedFilters[filter.tagName].push(filter.tagValue)
+            }
+          })
+
+          // Convert to filters format - for now, join multiple values with OR separator
+          Object.entries(groupedFilters).forEach(([tagName, values]) => {
+            filters[tagName] = values.join('|OR|') // Use special separator for OR logic
+          })
+        }
+      }
 
       const requestBody = {
         knowledgeBaseIds,

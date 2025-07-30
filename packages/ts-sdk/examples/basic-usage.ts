@@ -4,7 +4,7 @@ import { SimStudioClient, SimStudioError } from '../src/index'
 async function basicExample() {
   const client = new SimStudioClient({
     apiKey: process.env.SIMSTUDIO_API_KEY!,
-    baseUrl: 'https://simstudio.ai',
+    baseUrl: 'https://sim.ai',
   })
 
   try {
@@ -110,7 +110,7 @@ async function statusExample() {
 // Run examples
 if (require.main === module) {
   async function runExamples() {
-    console.log('🚀 Running Sim Studio SDK Examples\n')
+    console.log('🚀 Running Sim SDK Examples\n')
 
     try {
       await basicExample()

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OperationQueue')
 

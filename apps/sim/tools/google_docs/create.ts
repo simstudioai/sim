@@ -1,4 +1,4 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { GoogleDocsCreateResponse, GoogleDocsToolParams } from '@/tools/google_docs/types'
 import type { ToolConfig } from '@/tools/types'
 

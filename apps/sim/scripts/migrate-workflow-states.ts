@@ -3,8 +3,8 @@
 import { readFileSync } from 'fs'
 import { and, eq, inArray, isNotNull } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { db } from '../db'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '../db/schema'
+import { db } from '@/db'
+import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 
 interface WorkflowState {
   blocks: Record<string, any>

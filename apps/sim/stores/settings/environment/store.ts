@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { createLogger } from '@/lib/logs/console-logger'
-import { API_ENDPOINTS } from '../../constants'
-import type { EnvironmentStore, EnvironmentVariable } from './types'
+import { createLogger } from '@/lib/logs/console/logger'
+import { API_ENDPOINTS } from '@/stores/constants'
+import type { EnvironmentStore, EnvironmentVariable } from '@/stores/settings/environment/types'
 
 const logger = createLogger('EnvironmentStore')
 

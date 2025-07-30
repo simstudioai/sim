@@ -3,30 +3,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HelpCircle, LibraryBig, ScrollText, Search, Settings, Shapes } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { generateWorkspaceName } from '@/lib/naming'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/search-modal/search-modal'
+import {
+  CreateMenu,
+  FolderTree,
+  HelpModal,
+  LogsFilters,
+  SettingsModal,
+  Toolbar,
+  WorkspaceHeader,
+  WorkspaceSelector,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
+import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-selector/components/invite-modal/invite-modal'
 import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { SearchModal } from '../search-modal/search-modal'
-import { CreateMenu } from './components/create-menu/create-menu'
-import { FolderTree } from './components/folder-tree/folder-tree'
-import { HelpModal } from './components/help-modal/help-modal'
-import { LogsFilters } from './components/logs-filters/logs-filters'
-import { SettingsModal } from './components/settings-modal/settings-modal'
-import { Toolbar } from './components/toolbar/toolbar'
-import { WorkspaceHeader } from './components/workspace-header/workspace-header'
-import { InviteModal } from './components/workspace-selector/components/invite-modal/invite-modal'
-import { WorkspaceSelector } from './components/workspace-selector/workspace-selector'
 
 const logger = createLogger('Sidebar')
 

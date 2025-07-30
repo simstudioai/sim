@@ -1,4 +1,4 @@
-import '../../__test-utils__/mock-dependencies'
+import '@/executor/__test-utils__/mock-dependencies'
 
 import {
   beforeEach,

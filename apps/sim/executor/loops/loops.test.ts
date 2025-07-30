@@ -5,7 +5,7 @@ import { LoopManager } from '@/executor/loops/loops'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedLoop, SerializedWorkflow } from '@/serializer/types'
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
     error: vi.fn(),

@@ -1,0 +1,251 @@
+# GCP-specific values for Sim 
+# Example configuration for Google Kubernetes Engine (GKE) deployment
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+  storageClass: "standard-rwo"
+
+# Main application
+app:
+  enabled: true
+  replicaCount: 2
+  
+  # Node selector for application pods (customize based on your GKE node labels)
+  nodeSelector:
+    kubernetes.io/arch: amd64
+    cloud.google.com/gke-nodepool: "default-pool"
+  
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+  
+  # Production URLs (REQUIRED - update with your actual domain names)
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    SOCKET_SERVER_URL: "https://simstudio-ws.acme.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    
+    # Security settings (REQUIRED - replace with your own secure secrets)
+    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
+    ENCRYPTION_KEY: "your-secure-production-encryption-key-here"
+    
+    NODE_ENV: "production"
+    NEXT_TELEMETRY_DISABLED: "1"
+    
+    # GCP-specific environment variables
+    GOOGLE_CLOUD_PROJECT: "your-project-id"
+    GOOGLE_CLOUD_REGION: "us-central1"
+
+# Realtime service
+realtime:
+  enabled: true
+  replicaCount: 2
+  
+  # Node selector for realtime pods (customize based on your GKE node labels)
+  nodeSelector:
+    kubernetes.io/arch: amd64
+    cloud.google.com/gke-nodepool: "default-pool"
+  
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "1000m"
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+  
+  env:
+    NEXT_PUBLIC_APP_URL: "https://simstudio.acme.com"
+    BETTER_AUTH_URL: "https://simstudio.acme.com"
+    NEXT_PUBLIC_SOCKET_URL: "https://simstudio-ws.acme.com"
+    BETTER_AUTH_SECRET: "your-secure-production-auth-secret-here"
+    ALLOWED_ORIGINS: "https://simstudio.acme.com"
+    NODE_ENV: "production"
+
+# Database migrations
+migrations:
+  enabled: true
+  
+  resources:
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+
+# PostgreSQL database
+postgresql:
+  enabled: true
+  
+  # Node selector for database pods (recommended: memory-optimized machine types)
+  nodeSelector:
+    cloud.google.com/gke-nodepool: "database-pool"
+    cloud.google.com/machine-family: "n2"
+  
+  # Database authentication (REQUIRED - set secure credentials)
+  auth:
+    username: postgres
+    password: "your-secure-postgres-password"
+    database: simstudio
+  
+  # Resource allocation optimized for GKE
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+  
+  # Persistent storage using Google Cloud Persistent Disk
+  persistence:
+    enabled: true
+    storageClass: "standard-rwo"
+    size: 50Gi
+    accessModes:
+      - ReadWriteOnce
+  
+  # SSL/TLS configuration
+  tls:
+    enabled: true
+    certificatesSecret: postgres-tls-secret
+  
+  # PostgreSQL performance tuning for GCP infrastructure
+  config:
+    maxConnections: 1000
+    sharedBuffers: "2GB"
+    maxWalSize: "8GB"
+    minWalSize: "160MB"
+
+# Ollama AI models with GPU acceleration (GCP GPU instances)
+ollama:
+  enabled: true
+  replicaCount: 1
+  
+  # GPU node targeting (recommended: T4 or V100 GPU instances)
+  nodeSelector:
+    cloud.google.com/gke-nodepool: "gpu-pool"
+    cloud.google.com/gke-accelerator: "nvidia-tesla-t4"
+  
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Equal"
+      value: "present"
+      effect: "NoSchedule"
+  
+  # GPU resource allocation for AI model serving
+  gpu:
+    enabled: true
+    count: 1
+  
+  resources:
+    limits:
+      memory: "16Gi"
+      cpu: "4000m"
+      nvidia.com/gpu: "1"
+    requests:
+      memory: "8Gi"
+      cpu: "2000m"
+  
+  # High-performance SSD storage for AI models
+  persistence:
+    enabled: true
+    storageClass: "premium-rwo"
+    size: 100Gi
+    accessModes:
+      - ReadWriteOnce
+  
+  env:
+    NVIDIA_DRIVER_CAPABILITIES: "all"
+    OLLAMA_LOAD_TIMEOUT: "-1"
+    OLLAMA_KEEP_ALIVE: "-1"
+    OLLAMA_DEBUG: "1"
+
+# Ingress using Google Cloud Load Balancer
+ingress:
+  enabled: true
+  className: gce
+  
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: "simstudio-ip"
+    networking.gke.io/managed-certificates: "simstudio-ssl-cert"
+    kubernetes.io/ingress.allow-http: "false"
+  
+  # Main application
+  app:
+    host: simstudio.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  # Realtime service
+  realtime:
+    host: simstudio-ws.acme.com
+    paths:
+      - path: /
+        pathType: Prefix
+  
+  # TLS configuration
+  tls:
+    enabled: true
+    secretName: simstudio-tls-secret
+
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Network policies
+networkPolicy:
+  enabled: true
+
+# Pod anti-affinity for high availability across GCP zones
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: ["simstudio"]
+          topologyKey: kubernetes.io/hostname
+      - weight: 50
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: ["simstudio"]
+          topologyKey: topology.gke.io/zone
+
+# Service Account with Workload Identity integration
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: "simstudio@your-project-id.iam.gserviceaccount.com"
+
+# Additional environment variables for GCP service integration
+extraEnvVars:
+  - name: GOOGLE_APPLICATION_CREDENTIALS
+    value: "/var/secrets/google/key.json"
+
+# Additional volumes for service account credentials
+extraVolumes:
+  - name: google-cloud-key
+    secret:
+      secretName: google-service-account-key
+
+extraVolumeMounts:
+  - name: google-cloud-key
+    mountPath: /var/secrets/google
+    readOnly: true

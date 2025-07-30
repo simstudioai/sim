@@ -1,0 +1,55 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "sim.fullname" . }}-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.app.host }}
+        {{- if .Values.realtime.enabled }}
+        - {{ .Values.ingress.realtime.host }}
+        {{- end }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    # Main application ingress rule
+    - host: {{ .Values.ingress.app.host }}
+      http:
+        paths:
+          {{- range .Values.ingress.app.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-app
+                port:
+                  number: {{ $.Values.app.service.port }}
+          {{- end }}
+    {{- if .Values.realtime.enabled }}
+    # Realtime service ingress rule
+    - host: {{ .Values.ingress.realtime.host }}
+      http:
+        paths:
+          {{- range .Values.ingress.realtime.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "sim.fullname" $ }}-realtime
+                port:
+                  number: {{ $.Values.realtime.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}

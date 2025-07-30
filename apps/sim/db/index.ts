@@ -2,7 +2,7 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/lib/env'
 import { isDev } from '@/lib/environment'
-import * as schema from './schema'
+import * as schema from '@/db/schema'
 
 // In production, use the Vercel-generated POSTGRES_URL
 // In development, use the direct DATABASE_URL

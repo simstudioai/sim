@@ -1,6 +1,6 @@
 import type { Edge } from 'reactflow'
 import type { BlockOutput, SubBlockType } from '@/blocks/types'
-import type { DeploymentStatus } from '../registry/types'
+import type { DeploymentStatus } from '@/stores/workflows/registry/types'
 
 export const SUBFLOW_TYPES = {
   LOOP: 'loop',

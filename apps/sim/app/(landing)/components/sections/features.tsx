@@ -18,8 +18,8 @@ import 'reactflow/dist/style.css'
 
 import { AgentIcon, ConnectIcon, StartIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
-import { DotPattern } from '../dot-pattern'
-import { HeroBlock } from '../hero-block'
+import { DotPattern } from '@/app/(landing)/components/dot-pattern'
+import { HeroBlock } from '@/app/(landing)/components/hero-block'
 
 // --- Types ---
 type Feature = {

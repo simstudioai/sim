@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { client, useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
 

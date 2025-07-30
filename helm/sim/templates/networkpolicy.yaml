@@ -1,0 +1,242 @@
+{{- if .Values.networkPolicy.enabled }}
+---
+# Network Policy for main application
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sim.fullname" . }}-app
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.app.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sim.app.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from realtime service
+  {{- if .Values.realtime.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.realtime.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.app.service.targetPort }}
+  {{- end }}
+  # Allow ingress from ingress controller
+  {{- if .Values.ingress.enabled }}
+  - from: []
+    ports:
+    - protocol: TCP
+      port: {{ .Values.app.service.targetPort }}
+  {{- end }}
+  # Allow custom ingress rules
+  {{- with .Values.networkPolicy.ingress }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+  egress:
+  # Allow egress to PostgreSQL
+  {{- if .Values.postgresql.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.postgresql.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.postgresql.service.targetPort }}
+  {{- end }}
+  # Allow egress to realtime service
+  {{- if .Values.realtime.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.realtime.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.realtime.service.targetPort }}
+  {{- end }}
+  # Allow egress to Ollama
+  {{- if .Values.ollama.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.ollama.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.ollama.service.targetPort }}
+  {{- end }}
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow HTTPS egress for external APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow custom egress rules
+  {{- with .Values.networkPolicy.egress }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+
+{{- if .Values.realtime.enabled }}
+---
+# Network Policy for realtime service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sim.fullname" . }}-realtime
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.realtime.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sim.realtime.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from main application
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.app.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.realtime.service.targetPort }}
+  # Allow ingress from ingress controller
+  {{- if .Values.ingress.enabled }}
+  - from: []
+    ports:
+    - protocol: TCP
+      port: {{ .Values.realtime.service.targetPort }}
+  {{- end }}
+  egress:
+  # Allow egress to PostgreSQL
+  {{- if .Values.postgresql.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.postgresql.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.postgresql.service.targetPort }}
+  {{- end }}
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow HTTPS egress for external APIs
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+{{- end }}
+
+{{- if .Values.postgresql.enabled }}
+---
+# Network Policy for PostgreSQL
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sim.fullname" . }}-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sim.postgresql.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from main application
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.app.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.postgresql.service.targetPort }}
+  # Allow ingress from realtime service
+  {{- if .Values.realtime.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.realtime.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.postgresql.service.targetPort }}
+  {{- end }}
+  # Allow ingress from migrations job
+  {{- if .Values.migrations.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.migrations.labels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.postgresql.service.targetPort }}
+  {{- end }}
+  egress:
+  # Allow minimal egress (for health checks, etc.)
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+{{- end }}
+
+{{- if .Values.ollama.enabled }}
+---
+# Network Policy for Ollama
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sim.fullname" . }}-ollama
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.ollama.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sim.ollama.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from main application
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.app.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.ollama.service.targetPort }}
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow HTTPS egress for model downloads
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+{{- end }}
+{{- end }}

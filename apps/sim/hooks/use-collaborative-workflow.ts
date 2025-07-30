@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'

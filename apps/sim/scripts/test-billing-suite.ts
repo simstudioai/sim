@@ -3,7 +3,7 @@ import { eq, like } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { processDailyBillingCheck } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, organization, subscription, user, userStats } from '@/db/schema'
 

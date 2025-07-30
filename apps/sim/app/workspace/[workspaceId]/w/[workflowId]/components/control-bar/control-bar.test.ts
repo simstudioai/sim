@@ -51,7 +51,7 @@ vi.mock('@/stores/workflows/utils', () => ({
   mergeSubblockState: vi.fn((blocks) => blocks),
 }))
 
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock('@/lib/logs/console/logger', () => ({
   createLogger: () => ({
     error: vi.fn(),
     info: vi.fn(),

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { QdrantResponse, QdrantUpsertParams } from './types'
+import type { QdrantResponse, QdrantUpsertParams } from '@/tools/qdrant/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = {
   id: 'qdrant_upsert_points',

@@ -1,5 +1,5 @@
 """
-Tests for the Sim Studio Python SDK
+Tests for the Sim Python SDK
 """
 
 import pytest
@@ -9,16 +9,16 @@ from simstudio import SimStudioClient, SimStudioError, WorkflowExecutionResult, 
 
 def test_simstudio_client_initialization():
     """Test SimStudioClient initialization."""
-    client = SimStudioClient(api_key="test-api-key", base_url="https://test.simstudio.ai")
+    client = SimStudioClient(api_key="test-api-key", base_url="https://test.sim.ai")
     assert client.api_key == "test-api-key"
-    assert client.base_url == "https://test.simstudio.ai"
+    assert client.base_url == "https://test.sim.ai"
 
 
 def test_simstudio_client_default_base_url():
     """Test SimStudioClient with default base URL."""
     client = SimStudioClient(api_key="test-api-key")
     assert client.api_key == "test-api-key"
-    assert client.base_url == "https://simstudio.ai"
+    assert client.base_url == "https://sim.ai"
 
 
 def test_set_api_key():
@@ -31,15 +31,15 @@ def test_set_api_key():
 def test_set_base_url():
     """Test setting a new base URL."""
     client = SimStudioClient(api_key="test-api-key")
-    client.set_base_url("https://new.simstudio.ai/")
-    assert client.base_url == "https://new.simstudio.ai"
+    client.set_base_url("https://new.sim.ai/")
+    assert client.base_url == "https://new.sim.ai"
 
 
 def test_set_base_url_strips_trailing_slash():
     """Test that base URL strips trailing slash."""
     client = SimStudioClient(api_key="test-api-key")
-    client.set_base_url("https://test.simstudio.ai/")
-    assert client.base_url == "https://test.simstudio.ai"
+    client.set_base_url("https://test.sim.ai/")
+    assert client.base_url == "https://test.sim.ai"
 
 
 @patch('simstudio.requests.Session.get')
@@ -51,7 +51,7 @@ def test_validate_workflow_returns_false_on_error(mock_get):
     result = client.validate_workflow("test-workflow-id")
     
     assert result is False
-    mock_get.assert_called_once_with("https://simstudio.ai/api/workflows/test-workflow-id/status")
+    mock_get.assert_called_once_with("https://sim.ai/api/workflows/test-workflow-id/status")
 
 
 def test_simstudio_error():

@@ -5,15 +5,17 @@ import { LibraryBig, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
+import {
+  BaseOverview,
+  CreateModal,
+  EmptyStateCard,
+  KnowledgeBaseCardSkeletonGrid,
+  KnowledgeHeader,
+  PrimaryButton,
+  SearchInput,
+} from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
-import { BaseOverview } from './components/base-overview/base-overview'
-import { CreateModal } from './components/create-modal/create-modal'
-import { EmptyStateCard } from './components/empty-state-card/empty-state-card'
-import { KnowledgeHeader } from './components/knowledge-header/knowledge-header'
-import { PrimaryButton } from './components/primary-button/primary-button'
-import { SearchInput } from './components/search-input/search-input'
-import { KnowledgeBaseCardSkeletonGrid } from './components/skeletons/knowledge-base-card-skeleton'
 
 interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
   docCount?: number

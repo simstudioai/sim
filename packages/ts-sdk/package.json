@@ -1,7 +1,7 @@
 {
   "name": "simstudio-ts-sdk",
   "version": "0.1.0",
-  "description": "Sim Studio SDK - Execute workflows programmatically",
+  "description": "Sim SDK - Execute workflows programmatically",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -32,7 +32,7 @@
     "automation",
     "typescript"
   ],
-  "author": "Sim Studio",
+  "author": "Sim",
   "license": "Apache-2.0",
   "dependencies": {
     "node-fetch": "^3.3.2"
@@ -54,7 +54,7 @@
     "url": "https://github.com/simstudioai/sim.git",
     "directory": "packages/ts-sdk"
   },
-  "homepage": "https://simstudio.ai",
+  "homepage": "https://sim.ai",
   "bugs": {
     "url": "https://github.com/simstudioai/sim/issues"
   }

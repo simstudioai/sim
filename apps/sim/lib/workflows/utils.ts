@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getEnv } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { userStats, workflow as workflowTable } from '@/db/schema'
 import type { ExecutionResult } from '@/executor/types'

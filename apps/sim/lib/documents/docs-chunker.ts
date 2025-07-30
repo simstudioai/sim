@@ -3,7 +3,7 @@ import path from 'path'
 import { TextChunker } from '@/lib/documents/chunker'
 import type { DocChunk, DocsChunkerOptions, HeaderInfo } from '@/lib/documents/types'
 import { isDev } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { generateEmbeddings } from '@/app/api/knowledge/utils'
 
 interface Frontmatter {
@@ -29,8 +29,7 @@ export class DocsChunker {
       overlap: options.overlap ?? 50,
     })
     // Use localhost docs in development, production docs otherwise
-    this.baseUrl =
-      options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.simstudio.ai')
+    this.baseUrl = options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.sim.ai')
   }
 
   /**

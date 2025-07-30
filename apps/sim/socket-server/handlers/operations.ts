@@ -1,11 +1,11 @@
 import { ZodError } from 'zod'
-import { createLogger } from '../../lib/logs/console-logger'
-import { persistWorkflowOperation } from '../database/operations'
-import type { AuthenticatedSocket } from '../middleware/auth'
-import { verifyOperationPermission } from '../middleware/permissions'
-import type { RoomManager } from '../rooms/manager'
-import { WorkflowOperationSchema } from '../validation/schemas'
-import type { HandlerDependencies } from './workflow'
+import { createLogger } from '@/lib/logs/console/logger'
+import { persistWorkflowOperation } from '@/socket-server/database/operations'
+import type { HandlerDependencies } from '@/socket-server/handlers/workflow'
+import type { AuthenticatedSocket } from '@/socket-server/middleware/auth'
+import { verifyOperationPermission } from '@/socket-server/middleware/permissions'
+import type { RoomManager } from '@/socket-server/rooms/manager'
+import { WorkflowOperationSchema } from '@/socket-server/validation/schemas'
 
 const logger = createLogger('OperationsHandlers')
 

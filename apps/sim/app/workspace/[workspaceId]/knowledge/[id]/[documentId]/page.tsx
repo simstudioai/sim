@@ -1,4 +1,4 @@
-import { Document } from './document'
+import { Document } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/document'
 
 interface DocumentPageProps {
   params: Promise<{

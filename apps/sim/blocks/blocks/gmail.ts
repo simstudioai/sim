@@ -8,7 +8,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   description: 'Send Gmail',
   longDescription:
     'Integrate Gmail functionality to send email messages within your workflow. Automate email communications and process email content using OAuth authentication.',
-  docsLink: 'https://docs.simstudio.ai/tools/gmail',
+  docsLink: 'https://docs.sim.ai/tools/gmail',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GmailIcon,

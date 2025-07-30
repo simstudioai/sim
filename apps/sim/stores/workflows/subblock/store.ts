@@ -1,11 +1,8 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useWorkflowRegistry } from '../registry/store'
-// Removed workflowSync import - Socket.IO handles real-time sync
-import type { SubBlockStore } from './types'
-
-// Removed debounce sync - Socket.IO handles real-time sync immediately
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { SubBlockStore } from '@/stores/workflows/subblock/types'
 
 /**
  * SubBlockState stores values for all subblocks in workflows

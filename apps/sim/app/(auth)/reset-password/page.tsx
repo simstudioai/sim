@@ -11,8 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { createLogger } from '@/lib/logs/console-logger'
-import { SetNewPasswordForm } from './reset-password-form'
+import { createLogger } from '@/lib/logs/console/logger'
+import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
 
 const logger = createLogger('ResetPasswordPage')
 
@@ -84,7 +84,7 @@ function ResetPasswordContent() {
   return (
     <main className='flex min-h-screen flex-col items-center justify-center bg-gray-50'>
       <div className='sm:mx-auto sm:w-full sm:max-w-md'>
-        <h1 className='mb-8 text-center font-bold text-2xl'>Sim Studio</h1>
+        <h1 className='mb-8 text-center font-bold text-2xl'>Sim</h1>
         <Card className='w-full'>
           <CardHeader>
             <CardTitle>Reset your password</CardTitle>

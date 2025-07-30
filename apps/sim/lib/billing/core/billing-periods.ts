@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { member, subscription, userStats } from '@/db/schema'
 

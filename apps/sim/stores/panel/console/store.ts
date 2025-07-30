@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/utils'
 import type { NormalizedBlockOutput } from '@/executor/types'
-import type { ConsoleEntry, ConsoleStore } from './types'
+import type { ConsoleEntry, ConsoleStore } from '@/stores/panel/console/types'
 
 const MAX_ENTRIES = 50 // MAX across all workflows
 const MAX_IMAGE_DATA_SIZE = 1000 // Maximum size of image data to store (in characters)
@@ -269,7 +269,7 @@ export const useConsoleStore = create<ConsoleStore>()(
 
         updateConsole: (
           blockId: string,
-          update: string | import('./types').ConsoleUpdate,
+          update: string | import('@/stores/panel/console/types').ConsoleUpdate,
           executionId?: string
         ) => {
           set((state) => {

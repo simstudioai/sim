@@ -12,7 +12,7 @@ import {
 import { useParams } from 'next/navigation'
 import { io, type Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SocketContext')
 

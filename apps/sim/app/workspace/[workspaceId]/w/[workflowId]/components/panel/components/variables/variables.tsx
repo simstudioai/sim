@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { validateName } from '@/lib/utils'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable, VariableType } from '@/stores/panel/variables/types'

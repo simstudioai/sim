@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import type { BlockState } from './types'
-import { convertLoopBlockToLoop } from './utils'
+import type { BlockState } from '@/stores/workflows/workflow/types'
+import { convertLoopBlockToLoop } from '@/stores/workflows/workflow/utils'
 
 describe('convertLoopBlockToLoop', () => {
   test('should parse JSON array string for forEach loops', () => {

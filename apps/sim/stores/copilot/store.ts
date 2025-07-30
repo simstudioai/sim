@@ -3,10 +3,10 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, type CopilotMessage, sendStreamingMessage } from '@/lib/copilot/api'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
+import type { CopilotStore } from '@/stores/copilot/types'
 import { COPILOT_TOOL_IDS } from './constants'
-import type { CopilotStore } from './types'
 
 const logger = createLogger('CopilotStore')
 

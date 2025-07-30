@@ -3,8 +3,8 @@ import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DropdownProps {
   options:

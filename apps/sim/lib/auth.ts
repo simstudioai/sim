@@ -22,7 +22,7 @@ import {
 import { getBaseURL } from '@/lib/auth-client'
 import { env, isTruthy } from '@/lib/env'
 import { isProd } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
@@ -164,7 +164,7 @@ export const auth = betterAuth({
       const html = await renderPasswordResetEmail(username, url)
 
       const result = await resend.emails.send({
-        from: `Sim Studio <team@${getEmailDomain()}>`,
+        from: `Sim <team@${getEmailDomain()}>`,
         to: user.email,
         subject: getEmailSubject('reset-password'),
         html,
@@ -217,7 +217,7 @@ export const auth = betterAuth({
 
           // In production, send an actual email
           const result = await resend.emails.send({
-            from: `Sim Studio <onboarding@${getEmailDomain()}>`,
+            from: `Sim <onboarding@${getEmailDomain()}>`,
             to: data.email,
             subject: getEmailSubject(data.type),
             html,
@@ -1064,7 +1064,7 @@ export const auth = betterAuth({
 
               // Initialize usage limits for new user
               try {
-                const { initializeUserUsageLimit } = await import('./billing')
+                const { initializeUserUsageLimit } = await import('@/lib/billing')
                 await initializeUserUsageLimit(user.id)
                 logger.info('Usage limits initialized for new user', { userId: user.id })
               } catch (error) {
@@ -1267,8 +1267,10 @@ export const auth = betterAuth({
 
                 // Sync usage limits and initialize billing period for the user/organization
                 try {
-                  const { syncUsageLimitsFromSubscription } = await import('./billing')
-                  const { initializeBillingPeriod } = await import('./billing/core/billing-periods')
+                  const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
+                  const { initializeBillingPeriod } = await import(
+                    '@/lib/billing/core/billing-periods'
+                  )
 
                   await syncUsageLimitsFromSubscription(subscription.referenceId)
                   logger.info('Usage limits synced after subscription creation', {
@@ -1314,7 +1316,7 @@ export const auth = betterAuth({
 
                 // Sync usage limits for the user/organization
                 try {
-                  const { syncUsageLimitsFromSubscription } = await import('./billing')
+                  const { syncUsageLimitsFromSubscription } = await import('@/lib/billing')
                   await syncUsageLimitsFromSubscription(subscription.referenceId)
                   logger.info('Usage limits synced after subscription update', {
                     referenceId: subscription.referenceId,
@@ -1415,9 +1417,9 @@ export const auth = betterAuth({
                 )
 
                 await resend.emails.send({
-                  from: `Sim Studio <team@${getEmailDomain()}>`,
+                  from: `Sim <team@${getEmailDomain()}>`,
                   to: invitation.email,
-                  subject: `${inviterName} has invited you to join ${organization.name} on Sim Studio`,
+                  subject: `${inviterName} has invited you to join ${organization.name} on Sim`,
                   html,
                 })
               } catch (error) {

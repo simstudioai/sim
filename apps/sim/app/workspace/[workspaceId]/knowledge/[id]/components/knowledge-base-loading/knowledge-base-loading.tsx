@@ -3,8 +3,10 @@
 import { Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { KnowledgeHeader } from '../../../components/knowledge-header/knowledge-header'
-import { DocumentTableSkeleton } from '../../../components/skeletons/table-skeleton'
+import {
+  DocumentTableSkeleton,
+  KnowledgeHeader,
+} from '@/app/workspace/[workspaceId]/knowledge/components'
 
 interface KnowledgeBaseLoadingProps {
   knowledgeBaseName: string

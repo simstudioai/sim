@@ -42,7 +42,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks/registry'
 

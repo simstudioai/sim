@@ -49,7 +49,7 @@ export class SimStudioClient {
 
   constructor(config: SimStudioConfig) {
     this.apiKey = config.apiKey
-    this.baseUrl = (config.baseUrl || 'https://simstudio.ai').replace(/\/+$/, '')
+    this.baseUrl = (config.baseUrl || 'https://sim.ai').replace(/\/+$/, '')
   }
 
   /**
