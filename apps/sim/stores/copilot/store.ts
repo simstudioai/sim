@@ -1220,6 +1220,9 @@ export const useCopilotStore = create<CopilotStore>()(
           try {
             // Get current workflow as YAML for comparison
             const { useWorkflowYamlStore } = await import('@/stores/workflows/yaml/store')
+            
+            // Ensure YAML is generated before proceeding
+            await useWorkflowYamlStore.getState().generateYaml()
             const currentYaml = useWorkflowYamlStore.getState().getYaml()
 
             logger.info('Got current workflow YAML for diff:', {
@@ -1227,28 +1230,34 @@ export const useCopilotStore = create<CopilotStore>()(
               hasCurrentYaml: !!currentYaml
             })
 
-            // Call the diff API to compare current vs proposed YAML
-            const diffResponse = await fetch('/api/workflows/diff', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                original_yaml: currentYaml,
-                agent_yaml: yamlContent,
-              }),
-            })
-
-            if (diffResponse.ok) {
-              const diffResult = await diffResponse.json()
-              if (diffResult.success && diffResult.data) {
-                diffAnalysis = diffResult.data
-                logger.info('Successfully generated diff analysis', {
-                  newBlocks: diffAnalysis.new_blocks?.length || 0,
-                  editedBlocks: diffAnalysis.edited_blocks?.length || 0,
-                  deletedBlocks: diffAnalysis.deleted_blocks?.length || 0,
-                })
-              }
+            // If current YAML is empty, skip diff analysis - everything will be new
+            if (!currentYaml || currentYaml.trim() === '') {
+              logger.info('Current workflow is empty, treating all blocks as new')
+              // Don't call diff API - let the diff engine handle it as all new blocks
             } else {
-              logger.warn('Failed to generate diff analysis, proceeding without it')
+              // Call the diff API to compare current vs proposed YAML
+              const diffResponse = await fetch('/api/workflows/diff', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  original_yaml: currentYaml,
+                  agent_yaml: yamlContent,
+                }),
+              })
+
+              if (diffResponse.ok) {
+                const diffResult = await diffResponse.json()
+                if (diffResult.success && diffResult.data) {
+                  diffAnalysis = diffResult.data
+                  logger.info('Successfully generated diff analysis', {
+                    newBlocks: diffAnalysis.new_blocks?.length || 0,
+                    editedBlocks: diffAnalysis.edited_blocks?.length || 0,
+                    deletedBlocks: diffAnalysis.deleted_blocks?.length || 0,
+                  })
+                }
+              } else {
+                logger.warn('Failed to generate diff analysis, proceeding without it')
+              }
             }
           } catch (diffError) {
             logger.warn('Error generating diff analysis:', diffError)

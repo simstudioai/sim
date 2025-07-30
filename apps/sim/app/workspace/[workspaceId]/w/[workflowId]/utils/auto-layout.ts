@@ -45,6 +45,8 @@ export async function applyAutoLayoutToWorkflow(
   workflowId: string,
   blocks: Record<string, any>,
   edges: any[],
+  loops: Record<string, any> = {},
+  parallels: Record<string, any> = {},
   options: AutoLayoutOptions = {}
 ): Promise<{
   success: boolean
@@ -58,8 +60,8 @@ export async function applyAutoLayoutToWorkflow(
       edgeCount: edges.length,
     })
 
-    // Import auto layout service
-    const { autoLayoutWorkflow } = await import('@/lib/autolayout/service')
+    // Import yaml service
+    const { yamlService } = await import('@/lib/yaml-service-client')
 
     // Merge with default options and ensure all required properties are present
     const layoutOptions = {
@@ -77,18 +79,40 @@ export async function applyAutoLayoutToWorkflow(
       },
     }
 
-    // Apply auto layout
-    const layoutedBlocks = await autoLayoutWorkflow(blocks, edges, layoutOptions)
+    // Create workflow state object
+    const workflowState = {
+      blocks,
+      edges,
+      loops,
+      parallels
+    }
+
+    // Apply auto layout using sim agent
+    const response = await yamlService.autoLayout(workflowState, layoutOptions)
+
+    if (!response.success || !response.workflowState) {
+      const errorMessage = response.errors?.join(', ') || 'Auto layout failed'
+      logger.error('Auto layout response failed:', {
+        success: response.success,
+        hasWorkflowState: !!response.workflowState,
+        errors: response.errors,
+        errorMessage
+      })
+      return {
+        success: false,
+        error: errorMessage
+      }
+    }
 
     logger.info('Successfully applied auto layout', {
       workflowId,
       originalBlockCount: Object.keys(blocks).length,
-      layoutedBlockCount: Object.keys(layoutedBlocks).length,
+      layoutedBlockCount: Object.keys(response.workflowState.blocks).length,
     })
 
     return {
       success: true,
-      layoutedBlocks,
+      layoutedBlocks: response.workflowState.blocks,
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown auto layout error'
@@ -116,7 +140,15 @@ export async function applyAutoLayoutAndUpdateStore(
     const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
 
     const workflowStore = useWorkflowStore.getState()
-    const { blocks, edges } = workflowStore
+    const { blocks, edges, loops = {}, parallels = {} } = workflowStore
+
+    logger.info('Auto layout store data:', {
+      workflowId,
+      blockCount: Object.keys(blocks).length,
+      edgeCount: edges.length,
+      loopCount: Object.keys(loops).length,
+      parallelCount: Object.keys(parallels).length
+    })
 
     if (Object.keys(blocks).length === 0) {
       logger.warn('No blocks to layout', { workflowId })
@@ -124,7 +156,7 @@ export async function applyAutoLayoutAndUpdateStore(
     }
 
     // Apply auto layout
-    const result = await applyAutoLayoutToWorkflow(workflowId, blocks, edges, options)
+    const result = await applyAutoLayoutToWorkflow(workflowId, blocks, edges, loops, parallels, options)
 
     if (!result.success || !result.layoutedBlocks) {
       return { success: false, error: result.error }
@@ -215,5 +247,5 @@ export async function applyAutoLayoutToBlocks(
   layoutedBlocks?: Record<string, any>
   error?: string
 }> {
-  return applyAutoLayoutToWorkflow('preview', blocks, edges, options)
+  return applyAutoLayoutToWorkflow('preview', blocks, edges, {}, {}, options)
 }

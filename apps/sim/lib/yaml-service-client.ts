@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { WorkflowState, BlockState } from '@/stores/workflows/workflow/types'
+import type { DiffAnalysis, WorkflowDiff } from '@/lib/workflows/diff/diff-engine'
 
 const logger = createLogger('YamlServiceClient')
 
@@ -26,6 +27,32 @@ interface GenerateYamlResponse {
 interface DiffYamlResponse {
   changes: any[]
   errors: string[]
+}
+
+interface CreateDiffResponse {
+  success: boolean
+  diff?: WorkflowDiff
+  errors: string[]
+}
+
+interface MergeDiffResponse {
+  success: boolean
+  diff?: WorkflowDiff
+  errors: string[]
+}
+
+
+
+interface AnalyzeDiffResponse {
+  success: boolean
+  data?: DiffAnalysis
+  errors: string[]
+}
+
+interface AutoLayoutResponse {
+  success: boolean
+  workflowState?: WorkflowState
+  errors?: string[]
 }
 
 export class YamlServiceClient {
@@ -97,6 +124,61 @@ export class YamlServiceClient {
     })
   }
 
+  async createDiff(
+    yamlContent: string,
+    diffAnalysis?: DiffAnalysis,
+    options?: {
+      applyAutoLayout?: boolean
+      layoutOptions?: any
+    }
+  ): Promise<CreateDiffResponse> {
+    return this.fetchFromAPI('/diff/create', {
+      yamlContent,
+      diffAnalysis,
+      options
+    })
+  }
+
+  async mergeDiff(
+    existingDiff: WorkflowDiff,
+    yamlContent: string,
+    diffAnalysis?: DiffAnalysis,
+    options?: {
+      applyAutoLayout?: boolean
+      layoutOptions?: any
+    }
+  ): Promise<MergeDiffResponse> {
+    return this.fetchFromAPI('/diff/merge', {
+      existingDiff,
+      yamlContent,
+      diffAnalysis,
+      options
+    })
+  }
+
+  async autoLayout(
+    workflowState: WorkflowState,
+    options?: {
+      strategy?: 'smart' | 'hierarchical' | 'layered' | 'force-directed'
+      direction?: 'horizontal' | 'vertical' | 'auto'
+      spacing?: {
+        horizontal?: number
+        vertical?: number
+        layer?: number
+      }
+      alignment?: 'start' | 'center' | 'end'
+      padding?: {
+        x?: number
+        y?: number
+      }
+    }
+  ): Promise<AutoLayoutResponse> {
+    return this.fetchFromAPI('/autolayout', {
+      workflowState,
+      options
+    })
+  }
+
   // Helper method to check if external service is available
   async healthCheck(): Promise<boolean> {
     try {
@@ -127,4 +209,4 @@ export class YamlServiceClient {
 export const yamlService = new YamlServiceClient()
 
 // Export types for consumers
-export type { ParseYamlResponse, ConvertYamlToWorkflowResponse, GenerateYamlResponse, DiffYamlResponse } 
+export type { ParseYamlResponse, ConvertYamlToWorkflowResponse, GenerateYamlResponse, DiffYamlResponse, AutoLayoutResponse } 

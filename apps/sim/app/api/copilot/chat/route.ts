@@ -344,13 +344,6 @@ export async function POST(req: NextRequest) {
               const decodedChunk = decoder.decode(value, { stream: true })
               buffer += decodedChunk
               
-              // Log first few chunks for debugging
-              if (chunkSize > 0) {
-                logger.debug(`[${requestId}] Forwarded chunk to client:`, {
-                  size: chunkSize,
-                  preview: decodedChunk.substring(0, 100) + (decodedChunk.length > 100 ? '...' : '')
-                })
-              }
               const lines = buffer.split('\n')
               buffer = lines.pop() || '' // Keep incomplete line in buffer
               
