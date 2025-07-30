@@ -23,6 +23,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         { label: 'Draft Email', id: 'draft_outlook' },
         { label: 'Read Email', id: 'read_outlook' },
       ],
+      value: () => 'send_outlook',
     },
     {
       id: 'credential',

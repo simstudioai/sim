@@ -24,6 +24,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         { label: 'Get Memories', id: 'get' },
       ],
       placeholder: 'Select an operation',
+      value: () => 'add',
     },
     {
       id: 'userId',

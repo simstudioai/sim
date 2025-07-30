@@ -25,6 +25,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         { label: 'Draft Email', id: 'draft_gmail' },
         { label: 'Search Email', id: 'search_gmail' },
       ],
+      value: () => 'send_gmail',
     },
     // Gmail Credentials
     {

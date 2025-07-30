@@ -23,6 +23,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         { label: 'Read Page', id: 'read' },
         { label: 'Update Page', id: 'update' },
       ],
+      value: () => 'read',
     },
     {
       id: 'domain',

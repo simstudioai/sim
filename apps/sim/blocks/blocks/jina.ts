@@ -26,10 +26,11 @@ export const JinaBlock: BlockConfig<ReadUrlResponse> = {
       type: 'checkbox-list',
       layout: 'full',
       options: [
-        { id: 'useReaderLMv2', label: 'Use Reader LM v2' },
-        { id: 'gatherLinks', label: 'Gather Links' },
-        { id: 'jsonResponse', label: 'JSON Response' },
+        { label: 'Use Reader LM v2', id: 'useReaderLMv2' },
+        { label: 'Gather Links', id: 'gatherLinks' },
+        { label: 'JSON Response', id: 'jsonResponse' },
       ],
+      value: () => 'useReaderLMv2',
     },
     {
       id: 'apiKey',

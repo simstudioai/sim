@@ -24,6 +24,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
         { label: 'Search', id: 'search' },
         { label: 'Fetch', id: 'fetch' },
       ],
+      value: () => 'upsert',
     },
     // Upsert fields
     {

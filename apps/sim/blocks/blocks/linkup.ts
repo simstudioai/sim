@@ -30,6 +30,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
         { label: 'Answer', id: 'sourcedAnswer' },
         { label: 'Search', id: 'searchResults' },
       ],
+      value: () => 'sourcedAnswer',
     },
     {
       id: 'depth',

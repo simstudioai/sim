@@ -26,6 +26,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         { label: 'Search With Vector', id: 'search_vector' },
         { label: 'Fetch Vectors', id: 'fetch' },
       ],
+      value: () => 'generate',
     },
     // Generate embeddings fields
     {

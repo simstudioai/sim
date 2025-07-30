@@ -31,6 +31,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
         { label: 'places', id: 'places' },
         { label: 'images', id: 'images' },
       ],
+      value: () => 'search',
     },
     {
       id: 'num',

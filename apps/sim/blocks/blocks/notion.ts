@@ -19,18 +19,15 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        // Read Operations
         { label: 'Read Page', id: 'notion_read' },
         { label: 'Read Database', id: 'notion_read_database' },
-        // Create Operations
         { label: 'Create Page', id: 'notion_create_page' },
         { label: 'Create Database', id: 'notion_create_database' },
-        // Write Operations
         { label: 'Append Content', id: 'notion_write' },
-        // Query & Search Operations
         { label: 'Query Database', id: 'notion_query_database' },
         { label: 'Search Workspace', id: 'notion_search' },
       ],
+      value: () => 'notion_read',
     },
     {
       id: 'credential',

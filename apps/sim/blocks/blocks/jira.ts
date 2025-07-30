@@ -24,6 +24,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         { label: 'Update Issue', id: 'update' },
         { label: 'Write Issue', id: 'write' },
       ],
+      value: () => 'read',
     },
     {
       id: 'domain',

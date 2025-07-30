@@ -25,6 +25,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         { label: 'Update Data', id: 'update' },
         { label: 'Append Data', id: 'append' },
       ],
+      value: () => 'read',
     },
     // Google Sheets Credentials
     {

@@ -25,6 +25,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         { label: 'Quick Add (Natural Language)', id: 'quick_add' },
         { label: 'Invite Attendees', id: 'invite' },
       ],
+      value: () => 'create',
     },
     {
       id: 'credential',

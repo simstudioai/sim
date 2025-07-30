@@ -24,6 +24,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         { label: 'Read Channel Messages', id: 'read_channel' },
         { label: 'Write Channel Message', id: 'write_channel' },
       ],
+      value: () => 'read_chat',
     },
     {
       id: 'credential',

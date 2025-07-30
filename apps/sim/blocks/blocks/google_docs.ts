@@ -24,6 +24,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
         { label: 'Write to Document', id: 'write' },
         { label: 'Create Document', id: 'create' },
       ],
+      value: () => 'read',
     },
     // Google Docs Credentials
     {

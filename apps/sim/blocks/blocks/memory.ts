@@ -121,6 +121,7 @@ export const MemoryBlock: BlockConfig = {
         { label: 'Delete Memory', id: 'delete' },
       ],
       placeholder: 'Select operation',
+      value: () => 'add',
     },
     {
       id: 'id',

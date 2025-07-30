@@ -26,6 +26,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         { label: 'Read Task', id: 'read_task' },
         { label: 'Write Task', id: 'write_task' },
       ],
+      value: () => 'read_note',
     },
     {
       id: 'credential',

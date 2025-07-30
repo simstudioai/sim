@@ -23,6 +23,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         { label: 'Write/Update Data', id: 'write' },
         { label: 'Add to Table', id: 'table_add' },
       ],
+      value: () => 'read',
     },
     {
       id: 'credential',

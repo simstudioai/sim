@@ -14,6 +14,7 @@ const inputMethodBlock: SubBlockConfig = {
     { id: 'url', label: 'PDF Document URL' },
     { id: 'upload', label: 'Upload PDF Document' },
   ],
+  value: () => 'url',
 }
 
 const fileUploadBlock: SubBlockConfig = {

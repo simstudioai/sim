@@ -22,9 +22,9 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       options: [
         { label: 'Create Folder', id: 'create_folder' },
         { label: 'Upload File', id: 'upload' },
-        // { label: 'Get File Content', id: 'get_content' },
         { label: 'List Files', id: 'list' },
       ],
+      value: () => 'create_folder',
     },
     // Google Drive Credentials
     {
@@ -211,8 +211,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         switch (params.operation) {
           case 'upload':
             return 'google_drive_upload'
-          // case 'get_content':
-          //   return 'google_drive_get_content'
           case 'create_folder':
             return 'google_drive_create_folder'
           case 'list':
@@ -244,8 +242,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     fileName: { type: 'string', required: false },
     content: { type: 'string', required: false },
     mimeType: { type: 'string', required: false },
-    // Get Content operation inputs
-    // fileId: { type: 'string', required: false },
     // List operation inputs
     folderSelector: { type: 'string', required: false },
     manualFolderId: { type: 'string', required: false },

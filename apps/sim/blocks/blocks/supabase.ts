@@ -28,6 +28,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Update a Row', id: 'update' },
         { label: 'Delete a Row', id: 'delete' },
       ],
+      value: () => 'query',
     },
     {
       id: 'projectId',

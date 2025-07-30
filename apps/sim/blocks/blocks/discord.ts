@@ -23,6 +23,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         { label: 'Get Server Information', id: 'discord_get_server' },
         { label: 'Get User Information', id: 'discord_get_user' },
       ],
+      value: () => 'discord_send_message',
     },
     {
       id: 'botToken',

@@ -30,6 +30,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
         { label: 'claude-3-opus', id: 'claude-3-opus-20240229' },
         { label: 'claude-3-sonnet', id: 'claude-3-sonnet-20240229' },
       ],
+      value: () => 'gpt-4o',
     },
     {
       id: 'prompt',

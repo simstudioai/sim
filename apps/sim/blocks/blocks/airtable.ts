@@ -26,6 +26,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
         { label: 'Create Records', id: 'create' },
         { label: 'Update Record', id: 'update' },
       ],
+      value: () => 'list',
     },
     {
       id: 'credential',

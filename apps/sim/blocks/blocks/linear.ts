@@ -21,6 +21,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         { label: 'Read Issues', id: 'read' },
         { label: 'Create Issue', id: 'write' },
       ],
+      value: () => 'read',
     },
     {
       id: 'credential',
