@@ -165,9 +165,11 @@ export async function executeRequest(
 }
 
 /**
- * Validates the tool and its parameters
+ * Validates required parameters after LLM and user params have been merged
+ * This is the final validation before tool execution - ensures all required
+ * user-or-llm parameters are present after the merge process
  */
-export function validateToolRequest(
+export function validateRequiredParametersAfterMerge(
   toolId: string,
   tool: ToolConfig | undefined,
   params: Record<string, any>
@@ -176,8 +178,8 @@ export function validateToolRequest(
     throw new Error(`Tool not found: ${toolId}`)
   }
 
-  // Ensure all required parameters for tool call are provided
-  // Note: user-only parameters are not checked here as they're optional
+  // Validate all required user-or-llm parameters after merge
+  // user-only parameters should have been validated earlier during serialization
   for (const [paramName, paramConfig] of Object.entries(tool.params)) {
     if (
       (paramConfig as any).visibility === 'user-or-llm' &&
@@ -187,9 +189,10 @@ export function validateToolRequest(
         params[paramName] === undefined ||
         params[paramName] === '')
     ) {
-      throw new Error(
-        `"${paramName.charAt(0).toUpperCase() + paramName.slice(1)}" is required for tool "${tool.name}" but was not provided`
-      )
+      // Create a more user-friendly error message
+      const toolName = tool.name || toolId
+      const paramDescription = paramConfig.description || paramName
+      throw new Error(`"${paramDescription}" is required for ${toolName}`)
     }
   }
 }

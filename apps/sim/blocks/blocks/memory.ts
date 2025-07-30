@@ -78,6 +78,7 @@ export const MemoryBlock: BlockConfig = {
         field: 'operation',
         value: 'add',
       },
+      required: true,
     },
     {
       id: 'content',
@@ -89,6 +90,7 @@ export const MemoryBlock: BlockConfig = {
         field: 'operation',
         value: 'add',
       },
+      required: true,
     },
   ],
   tools: {

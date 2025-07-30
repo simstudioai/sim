@@ -53,6 +53,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       layout: 'full',
       placeholder: 'Recipient email address',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      required: true,
     },
     {
       id: 'subject',
@@ -61,6 +62,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       layout: 'full',
       placeholder: 'Email subject',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      required: true,
     },
     {
       id: 'body',
@@ -69,6 +71,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       layout: 'full',
       placeholder: 'Email content',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail'] },
+      required: true,
     },
     // Label/folder selector (basic mode)
     {
@@ -126,6 +129,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       layout: 'full',
       placeholder: 'Enter search terms',
       condition: { field: 'operation', value: 'search_gmail' },
+      required: true,
     },
     {
       id: 'maxResults',

@@ -281,7 +281,8 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any): P
       mergedStates,
       edges,
       loops,
-      parallels
+      parallels,
+      true // Enable validation during execution
     )
 
     const executor = new Executor(

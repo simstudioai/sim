@@ -7,7 +7,7 @@
  * running workflow blocks in topological order, handling the execution flow,
  * resolving inputs and dependencies, and managing errors.
  */
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, vi } from 'vitest'
 import { Executor } from '@/executor'
 import {
   createMinimalWorkflow,
@@ -56,7 +56,7 @@ describe('Executor', () => {
    * Initialization tests
    */
   describe('initialization', () => {
-    test('should create an executor instance with legacy constructor format', () => {
+    it.concurrent('should create an executor instance with legacy constructor format', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -64,7 +64,7 @@ describe('Executor', () => {
       expect(executor).toBeInstanceOf(Executor)
     })
 
-    test('should create an executor instance with new options object format', () => {
+    it.concurrent('should create an executor instance with new options object format', () => {
       const workflow = createMinimalWorkflow()
       const initialStates = {
         block1: { result: { value: 'Initial state' } },
@@ -92,7 +92,7 @@ describe('Executor', () => {
       expect((executor as any).workflowVariables).toEqual(workflowVariables)
     })
 
-    test('should accept streaming context extensions', () => {
+    it.concurrent('should accept streaming context extensions', () => {
       const workflow = createMinimalWorkflow()
       const mockOnStream = vi.fn()
 
@@ -109,7 +109,7 @@ describe('Executor', () => {
       expect(executor).toBeDefined()
     })
 
-    test('should handle legacy constructor with individual parameters', () => {
+    it.concurrent('should handle legacy constructor with individual parameters', () => {
       const workflow = createMinimalWorkflow()
       const initialStates = {
         block1: { result: { value: 'Initial state' } },
@@ -133,7 +133,7 @@ describe('Executor', () => {
    * Validation tests
    */
   describe('workflow validation', () => {
-    test('should validate workflow on initialization', () => {
+    it.concurrent('should validate workflow on initialization', () => {
       const validateSpy = vi.spyOn(Executor.prototype as any, 'validateWorkflow')
 
       const workflow = createMinimalWorkflow()
@@ -142,7 +142,7 @@ describe('Executor', () => {
       expect(validateSpy).toHaveBeenCalled()
     })
 
-    test('should validate workflow on execution', async () => {
+    it('should validate workflow on execution', async () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -154,21 +154,21 @@ describe('Executor', () => {
       expect(validateSpy).toHaveBeenCalledTimes(1)
     })
 
-    test('should throw error for workflow without starter block', () => {
+    it.concurrent('should throw error for workflow without starter block', () => {
       const workflow = createMinimalWorkflow()
       workflow.blocks = workflow.blocks.filter((block) => block.metadata?.id !== BlockType.STARTER)
 
       expect(() => new Executor(workflow)).toThrow('Workflow must have an enabled starter block')
     })
 
-    test('should throw error for workflow with disabled starter block', () => {
+    it.concurrent('should throw error for workflow with disabled starter block', () => {
       const workflow = createMinimalWorkflow()
       workflow.blocks.find((block) => block.metadata?.id === BlockType.STARTER)!.enabled = false
 
       expect(() => new Executor(workflow)).toThrow('Workflow must have an enabled starter block')
     })
 
-    test('should throw error if starter block has incoming connections', () => {
+    it.concurrent('should throw error if starter block has incoming connections', () => {
       const workflow = createMinimalWorkflow()
       workflow.connections.push({
         source: 'block1',
@@ -178,7 +178,7 @@ describe('Executor', () => {
       expect(() => new Executor(workflow)).toThrow('Starter block cannot have incoming connections')
     })
 
-    test('should throw error if starter block has no outgoing connections', () => {
+    it.concurrent('should throw error if starter block has no outgoing connections', () => {
       const workflow = createMinimalWorkflow()
       workflow.connections = []
 
@@ -187,7 +187,7 @@ describe('Executor', () => {
       )
     })
 
-    test('should throw error if connection references non-existent source block', () => {
+    it.concurrent('should throw error if connection references non-existent source block', () => {
       const workflow = createMinimalWorkflow()
       workflow.connections.push({
         source: 'non-existent-block',
@@ -199,7 +199,7 @@ describe('Executor', () => {
       )
     })
 
-    test('should throw error if connection references non-existent target block', () => {
+    it.concurrent('should throw error if connection references non-existent target block', () => {
       const workflow = createMinimalWorkflow()
       workflow.connections.push({
         source: 'starter',
@@ -216,7 +216,7 @@ describe('Executor', () => {
    * Execution tests
    */
   describe('workflow execution', () => {
-    test('should execute workflow and return ExecutionResult', async () => {
+    it.concurrent('should execute workflow and return ExecutionResult', async () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -238,7 +238,7 @@ describe('Executor', () => {
       }
     })
 
-    test('should handle streaming execution with onStream callback', async () => {
+    it.concurrent('should handle streaming execution with onStream callback', async () => {
       const workflow = createMinimalWorkflow()
       const mockOnStream = vi.fn()
 
@@ -263,7 +263,7 @@ describe('Executor', () => {
       }
     })
 
-    test('should pass context extensions to execution context', async () => {
+    it.concurrent('should pass context extensions to execution context', async () => {
       const workflow = createMinimalWorkflow()
       const mockOnStream = vi.fn()
       const selectedOutputIds = ['block1', 'block2']
@@ -293,7 +293,7 @@ describe('Executor', () => {
    * Condition and loop tests
    */
   describe('special blocks', () => {
-    test('should handle condition blocks without errors', async () => {
+    it.concurrent('should handle condition blocks without errors', async () => {
       const workflow = createWorkflowWithCondition()
       const executor = new Executor(workflow)
 
@@ -309,7 +309,7 @@ describe('Executor', () => {
       }
     })
 
-    test('should handle loop structures without errors', async () => {
+    it.concurrent('should handle loop structures without errors', async () => {
       const workflow = createWorkflowWithLoop()
       const executor = new Executor(workflow)
 
@@ -330,7 +330,7 @@ describe('Executor', () => {
    * Debug mode tests
    */
   describe('debug mode', () => {
-    test('should detect debug mode from settings', async () => {
+    it('should detect debug mode from settings', async () => {
       // Reset and reconfigure mocks for debug mode
       vi.resetModules()
       vi.clearAllMocks()
@@ -348,7 +348,7 @@ describe('Executor', () => {
       expect(isDebugging).toBe(true)
     })
 
-    test('should work with debug mode disabled', async () => {
+    it.concurrent('should work with debug mode disabled', async () => {
       // Reset and reconfigure mocks for normal mode
       vi.resetModules()
       vi.clearAllMocks()
@@ -366,7 +366,7 @@ describe('Executor', () => {
       expect(isDebugging).toBe(false)
     })
 
-    test('should handle continue execution in debug mode', async () => {
+    it.concurrent('should handle continue execution in debug mode', async () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -390,7 +390,7 @@ describe('Executor', () => {
    * Additional tests to improve coverage
    */
   describe('block output handling', () => {
-    test('should handle different block outputs correctly', () => {
+    it.concurrent('should handle different block outputs correctly', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -399,7 +399,7 @@ describe('Executor', () => {
       expect(typeof executor.execute).toBe('function')
     })
 
-    test('should handle error outputs correctly', () => {
+    it.concurrent('should handle error outputs correctly', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -417,7 +417,7 @@ describe('Executor', () => {
    * Error handling tests
    */
   describe('error handling', () => {
-    test('should activate error paths when a block has an error', () => {
+    it.concurrent('should activate error paths when a block has an error', () => {
       const workflow = createWorkflowWithErrorPath()
       const executor = new Executor(workflow)
 
@@ -448,7 +448,7 @@ describe('Executor', () => {
       expect(context.activeExecutionPath.has('error-handler')).toBe(true)
     })
 
-    test('should not activate error paths for starter and condition blocks', () => {
+    it.concurrent('should not activate error paths for starter and condition blocks', () => {
       const workflow = createWorkflowWithErrorPath()
       const executor = new Executor(workflow)
 
@@ -490,7 +490,7 @@ describe('Executor', () => {
       expect(activateErrorPath('condition-block', context)).toBe(false)
     })
 
-    test('should return false if no error connections exist', () => {
+    it.concurrent('should return false if no error connections exist', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -516,7 +516,7 @@ describe('Executor', () => {
       expect(result).toBe(false)
     })
 
-    test('should create proper error output for a block error', () => {
+    it.concurrent('should create proper error output for a block error', () => {
       const workflow = createWorkflowWithErrorPath()
       const executor = new Executor(workflow)
 
@@ -553,7 +553,7 @@ describe('Executor', () => {
       expect(errorOutput).toHaveProperty('status')
     })
 
-    test('should handle "undefined (undefined)" error case', () => {
+    it.concurrent('should handle "undefined (undefined)" error case', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -571,7 +571,7 @@ describe('Executor', () => {
    * Streaming execution tests
    */
   describe('streaming execution', () => {
-    test('should handle streaming execution results', async () => {
+    it.concurrent('should handle streaming execution results', async () => {
       const workflow = createMinimalWorkflow()
       const mockOnStream = vi.fn()
 
@@ -608,7 +608,7 @@ describe('Executor', () => {
       }
     })
 
-    test('should process streaming content in context', async () => {
+    it.concurrent('should process streaming content in context', async () => {
       const workflow = createMinimalWorkflow()
       const mockOnStream = vi.fn()
 
@@ -634,7 +634,7 @@ describe('Executor', () => {
    * Dependency checking logic tests
    */
   describe('dependency checking', () => {
-    test('should handle multi-input blocks with inactive sources correctly', () => {
+    it.concurrent('should handle multi-input blocks with inactive sources correctly', () => {
       // Create workflow with router -> multiple APIs -> single agent
       const routerWorkflow = {
         version: '1.0',
@@ -726,7 +726,7 @@ describe('Executor', () => {
       expect(dependenciesMet).toBe(true)
     })
 
-    test('should prioritize special connection types over active path check', () => {
+    it.concurrent('should prioritize special connection types over active path check', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
       const checkDependencies = (executor as any).checkDependencies.bind(executor)
@@ -763,7 +763,7 @@ describe('Executor', () => {
       expect(loopDepsResult).toBe(true) // loop completed = dependency met
     })
 
-    test('should handle router decisions correctly in dependency checking', () => {
+    it.concurrent('should handle router decisions correctly in dependency checking', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
       const checkDependencies = (executor as any).checkDependencies.bind(executor)
@@ -808,7 +808,7 @@ describe('Executor', () => {
       expect(nonSelectedResult).toBe(false) // router executed + target NOT selected = dependency NOT met
     })
 
-    test('should handle condition decisions correctly in dependency checking', () => {
+    it.concurrent('should handle condition decisions correctly in dependency checking', () => {
       const conditionWorkflow = createWorkflowWithCondition()
       const executor = new Executor(conditionWorkflow)
       const checkDependencies = (executor as any).checkDependencies.bind(executor)
@@ -840,7 +840,7 @@ describe('Executor', () => {
       expect(falseResult).toBe(true) // unselected condition paths are treated as "not applicable" to support multi-path scenarios
     })
 
-    test('should handle regular sequential dependencies correctly', () => {
+    it.concurrent('should handle regular sequential dependencies correctly', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
       const checkDependencies = (executor as any).checkDependencies.bind(executor)
@@ -869,7 +869,7 @@ describe('Executor', () => {
       expect(errorResult).toBe(false) // source executed + has error = regular dependency not met
     })
 
-    test('should handle empty dependency list', () => {
+    it.concurrent('should handle empty dependency list', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
       const checkDependencies = (executor as any).checkDependencies.bind(executor)
@@ -887,7 +887,7 @@ describe('Executor', () => {
    * Cancellation tests
    */
   describe('workflow cancellation', () => {
-    test('should set cancellation flag when cancel() is called', () => {
+    it.concurrent('should set cancellation flag when cancel() is called', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -899,7 +899,7 @@ describe('Executor', () => {
       expect((executor as any).isCancelled).toBe(true)
     })
 
-    test('should handle cancellation in debug mode continueExecution', async () => {
+    it.concurrent('should handle cancellation in debug mode continueExecution', async () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -920,7 +920,7 @@ describe('Executor', () => {
       expect(result.error).toBe('Workflow execution was cancelled')
     })
 
-    test('should handle multiple cancel() calls gracefully', () => {
+    it.concurrent('should handle multiple cancel() calls gracefully', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -932,7 +932,7 @@ describe('Executor', () => {
       expect((executor as any).isCancelled).toBe(true)
     })
 
-    test('should prevent new execution on cancelled executor', async () => {
+    it.concurrent('should prevent new execution on cancelled executor', async () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
@@ -949,7 +949,7 @@ describe('Executor', () => {
       }
     })
 
-    test('should return cancelled result when cancellation flag is checked', async () => {
+    it.concurrent('should return cancelled result when cancellation flag is checked', async () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 

@@ -470,7 +470,8 @@ export async function executeWorkflowForChat(
     mergedStates,
     edges,
     loops,
-    parallels
+    parallels,
+    true // Enable validation during execution
   )
 
   // Decrypt environment variables

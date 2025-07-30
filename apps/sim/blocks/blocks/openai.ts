@@ -31,6 +31,7 @@ export const OpenAIBlock: BlockConfig = {
         { label: 'text-embedding-ada-002', id: 'text-embedding-ada-002' },
       ],
       value: () => 'text-embedding-3-small',
+      required: true,
     },
     {
       id: 'apiKey',

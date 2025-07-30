@@ -36,6 +36,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       layout: 'full',
       placeholder: 'Enter your search query...',
       condition: { field: 'operation', value: 'exa_search' },
+      required: true,
     },
     {
       id: 'numResults',
@@ -74,6 +75,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       layout: 'full',
       placeholder: 'Enter URLs to retrieve content from (comma-separated)...',
       condition: { field: 'operation', value: 'exa_get_contents' },
+      required: true,
     },
     {
       id: 'text',
@@ -98,6 +100,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       layout: 'full',
       placeholder: 'Enter URL to find similar links for...',
       condition: { field: 'operation', value: 'exa_find_similar_links' },
+      required: true,
     },
     {
       id: 'numResults',
@@ -122,6 +125,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       layout: 'full',
       placeholder: 'Enter your question...',
       condition: { field: 'operation', value: 'exa_answer' },
+      required: true,
     },
     {
       id: 'text',
@@ -138,6 +142,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       layout: 'full',
       placeholder: 'Enter your research topic or question...',
       condition: { field: 'operation', value: 'exa_research' },
+      required: true,
     },
     {
       id: 'includeText',

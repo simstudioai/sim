@@ -136,6 +136,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       layout: 'full',
       placeholder: 'Enter search query (e.g., "software companies in San Francisco")',
       condition: { field: 'operation', value: 'hunter_discover' },
+      required: true,
     },
     {
       id: 'domain',
@@ -164,6 +165,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       layout: 'full',
       placeholder: 'Enter domain name',
       condition: { field: 'operation', value: 'hunter_email_count' },
+      required: true,
     },
     {
       id: 'company',
@@ -212,7 +214,6 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
         if (params.limit) {
           params.limit = Number(params.limit)
         }
-        
 
         switch (params.operation) {
           case 'hunter_discover':

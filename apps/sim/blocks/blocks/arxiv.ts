@@ -34,6 +34,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
       layout: 'full',
       placeholder: 'Enter search terms (e.g., "machine learning", "quantum physics")...',
       condition: { field: 'operation', value: 'arxiv_search' },
+      required: true,
     },
     {
       id: 'searchField',
@@ -94,6 +95,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
       layout: 'full',
       placeholder: 'Enter ArXiv paper ID (e.g., 1706.03762, cs.AI/0001001)',
       condition: { field: 'operation', value: 'arxiv_get_paper' },
+      required: true,
     },
     // Get Author Papers operation inputs
     {
@@ -103,6 +105,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
       layout: 'full',
       placeholder: 'Enter author name (e.g., "John Smith")...',
       condition: { field: 'operation', value: 'arxiv_get_author_papers' },
+      required: true,
     },
     {
       id: 'maxResults',

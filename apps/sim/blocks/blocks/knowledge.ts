@@ -32,6 +32,7 @@ export const KnowledgeBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Select knowledge base',
       multiSelect: false,
+      required: true,
       condition: { field: 'operation', value: ['search', 'upload_chunk', 'create_document'] },
     },
     {
@@ -40,6 +41,7 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your search query',
+      required: true,
       condition: { field: 'operation', value: 'search' },
     },
     {
@@ -65,6 +67,7 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'document-selector',
       layout: 'full',
       placeholder: 'Select document',
+      required: true,
       condition: { field: 'operation', value: 'upload_chunk' },
     },
     {
@@ -74,6 +77,7 @@ export const KnowledgeBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Enter the chunk content to upload',
       rows: 6,
+      required: true,
       condition: { field: 'operation', value: 'upload_chunk' },
     },
     {
@@ -82,6 +86,7 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter document name',
+      required: true,
       condition: { field: 'operation', value: ['create_document'] },
     },
     {
@@ -91,6 +96,7 @@ export const KnowledgeBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Enter the document content',
       rows: 6,
+      required: true,
       condition: { field: 'operation', value: ['create_document'] },
     },
     // Dynamic tag entry for Create Document

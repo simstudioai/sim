@@ -500,7 +500,8 @@ export function useWorkflowExecution() {
       filteredStates,
       filteredEdges,
       loops,
-      parallels
+      parallels,
+      true // Enable validation during execution
     )
 
     // Determine if this is a chat execution

@@ -36,6 +36,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
         field: 'operation',
         value: ['scrape', 'crawl'],
       },
+      required: true,
     },
     {
       id: 'onlyMainContent',
@@ -68,6 +69,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
         field: 'operation',
         value: 'search',
       },
+      required: true,
     },
     {
       id: 'apiKey',

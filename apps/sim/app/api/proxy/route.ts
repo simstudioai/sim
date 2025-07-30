@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { executeTool } from '@/tools'
-import { getTool, validateToolRequest } from '@/tools/utils'
+import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 const logger = createLogger('ProxyAPI')
 
@@ -196,7 +196,7 @@ export async function POST(request: Request) {
 
     // Validate the tool and its parameters
     try {
-      validateToolRequest(toolId, tool, params)
+      validateRequiredParametersAfterMerge(toolId, tool, params)
     } catch (validationError) {
       logger.warn(`[${requestId}] Tool validation failed for ${toolId}`, {
         error: validationError instanceof Error ? validationError.message : String(validationError),

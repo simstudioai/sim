@@ -131,7 +131,8 @@ export const webhookExecution = task({
         mergedStates,
         edges,
         loops || {},
-        parallels || {}
+        parallels || {},
+        true // Enable validation during execution
       )
 
       // Handle special Airtable case

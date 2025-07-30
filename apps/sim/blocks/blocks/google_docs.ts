@@ -71,6 +71,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       layout: 'full',
       placeholder: 'Enter title for the new document',
       condition: { field: 'operation', value: 'create' },
+      required: true,
     },
     // Folder selector (basic mode)
     {
@@ -104,6 +105,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       layout: 'full',
       placeholder: 'Enter document content',
       condition: { field: 'operation', value: 'write' },
+      required: true,
     },
     // Content Field for create operation
     {

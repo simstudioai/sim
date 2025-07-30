@@ -47,6 +47,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       layout: 'full',
       placeholder: 'Name of the file',
       condition: { field: 'operation', value: 'upload' },
+      required: true,
     },
     {
       id: 'content',
@@ -55,6 +56,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       layout: 'full',
       placeholder: 'Content to upload to the file',
       condition: { field: 'operation', value: 'upload' },
+      required: true,
     },
     {
       id: 'mimeType',
@@ -141,6 +143,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       layout: 'full',
       placeholder: 'Name for the new folder',
       condition: { field: 'operation', value: 'create_folder' },
+      required: true,
     },
     {
       id: 'folderSelector',

@@ -69,6 +69,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'full',
       placeholder: 'Meeting with team',
       condition: { field: 'operation', value: 'create' },
+      required: true,
     },
     {
       id: 'description',
@@ -93,6 +94,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'half',
       placeholder: '2025-06-03T10:00:00-08:00',
       condition: { field: 'operation', value: 'create' },
+      required: true,
     },
     {
       id: 'endDateTime',
@@ -101,6 +103,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'half',
       placeholder: '2025-06-03T11:00:00-08:00',
       condition: { field: 'operation', value: 'create' },
+      required: true,
     },
     {
       id: 'attendees',
@@ -137,6 +140,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'full',
       placeholder: 'Event ID',
       condition: { field: 'operation', value: ['get', 'invite'] },
+      required: true,
     },
 
     // Invite Attendees Fields
@@ -168,6 +172,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'full',
       placeholder: 'Meeting with John tomorrow at 3pm for 1 hour',
       condition: { field: 'operation', value: 'quick_add' },
+      required: true,
     },
     {
       id: 'attendees',
@@ -176,6 +181,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'full',
       placeholder: 'john@example.com, jane@example.com',
       condition: { field: 'operation', value: 'quick_add' },
+      required: true,
     },
 
     // Notification setting (for create, quick_add, invite)
