@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks/registry'
 import { generateLoopBlocks, generateParallelBlocks, convertLoopBlockToLoop, convertParallelBlockToParallel, findChildNodes, findAllDescendantNodes } from '@/stores/workflows/workflow/utils'
 import { resolveOutputType } from '@/blocks/utils'
-import { BLOCK_CATEGORIES, BLOCK_DIMENSIONS } from '@/lib/autolayout/types'
+
 import type { BlockConfig } from '@/blocks/types'
 
 const logger = createLogger('YamlDiffCreateAPI')
@@ -32,6 +32,12 @@ const CreateDiffRequestSchema = z.object({
   options: z.object({
     applyAutoLayout: z.boolean().optional(),
     layoutOptions: z.any().optional()
+  }).optional(),
+  currentWorkflowState: z.object({
+    blocks: z.record(z.any()),
+    edges: z.array(z.any()),
+    loops: z.record(z.any()).optional(),
+    parallels: z.record(z.any()).optional()
   }).optional()
 })
 
@@ -42,12 +48,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { yamlContent, diffAnalysis, options } = CreateDiffRequestSchema.parse(body)
 
+    // Get current workflow state for comparison
+    // Note: This endpoint is stateless, so we need to get this from the request
+    const currentWorkflowState = (body as any).currentWorkflowState
+
     logger.info(`[${requestId}] Creating diff from YAML`, {
       contentLength: yamlContent.length,
       hasDiffAnalysis: !!diffAnalysis,
       hasOptions: !!options,
       options: options,
       hasApiKey: !!SIM_AGENT_API_KEY,
+      hasCurrentWorkflowState: !!currentWorkflowState,
+      currentBlockCount: currentWorkflowState ? Object.keys(currentWorkflowState.blocks || {}).length : 0
     })
 
     // Gather block registry
@@ -74,10 +86,8 @@ export async function POST(request: NextRequest) {
         yamlContent,
         diffAnalysis,
         blockRegistry,
-        blockMappings: {
-          categories: BLOCK_CATEGORIES,
-          dimensions: BLOCK_DIMENSIONS
-        },
+        currentWorkflowState, // Pass current state for comparison
+
         utilities: {
           generateLoopBlocks: generateLoopBlocks.toString(),
           generateParallelBlocks: generateParallelBlocks.toString(),
@@ -107,6 +117,19 @@ export async function POST(request: NextRequest) {
     
     // Log the full response to see if auto-layout is happening
     logger.info(`[${requestId}] Full sim agent response:`, JSON.stringify(result, null, 2))
+    
+    // Log diff analysis specifically
+    if (result.diff?.diffAnalysis) {
+      logger.info(`[${requestId}] Diff analysis received:`, {
+        new_blocks: result.diff.diffAnalysis.new_blocks || [],
+        edited_blocks: result.diff.diffAnalysis.edited_blocks || [],
+        deleted_blocks: result.diff.diffAnalysis.deleted_blocks || [],
+        has_field_diffs: !!result.diff.diffAnalysis.field_diffs,
+        has_edge_diff: !!result.diff.diffAnalysis.edge_diff
+      })
+    } else {
+      logger.warn(`[${requestId}] No diff analysis in response!`)
+    }
     
     // If the sim agent returned blocks directly (when auto-layout is applied),
     // transform it to the expected diff format

@@ -4,8 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks/registry'
 import { generateLoopBlocks, generateParallelBlocks, convertLoopBlockToLoop, convertParallelBlockToParallel, findChildNodes, findAllDescendantNodes } from '@/stores/workflows/workflow/utils'
 import { resolveOutputType } from '@/blocks/utils'
-import { BLOCK_CATEGORIES, BLOCK_DIMENSIONS } from '@/lib/autolayout/types'
-import { autoLayoutWorkflow } from '@/lib/autolayout/service'
+
 import type { BlockConfig } from '@/blocks/types'
 
 const logger = createLogger('YamlAutoLayoutAPI')
@@ -90,10 +89,7 @@ export async function POST(request: NextRequest) {
         parallels: workflowState.parallels || {},
         options,
         blockRegistry,
-        blockMappings: {
-          categories: BLOCK_CATEGORIES,
-          dimensions: BLOCK_DIMENSIONS
-        },
+
         utilities: {
           generateLoopBlocks: generateLoopBlocks.toString(),
           generateParallelBlocks: generateParallelBlocks.toString(),
@@ -102,7 +98,7 @@ export async function POST(request: NextRequest) {
           convertParallelBlockToParallel: convertParallelBlockToParallel.toString(),
           findChildNodes: findChildNodes.toString(),
           findAllDescendantNodes: findAllDescendantNodes.toString(),
-          autoLayoutWorkflow: autoLayoutWorkflow.toString()
+
         }
       }),
     })

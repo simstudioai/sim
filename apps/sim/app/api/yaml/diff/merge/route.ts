@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks/registry'
 import { generateLoopBlocks, generateParallelBlocks, convertLoopBlockToLoop, convertParallelBlockToParallel, findChildNodes, findAllDescendantNodes } from '@/stores/workflows/workflow/utils'
 import { resolveOutputType } from '@/blocks/utils'
-import { BLOCK_CATEGORIES, BLOCK_DIMENSIONS } from '@/lib/autolayout/types'
+
 import type { BlockConfig } from '@/blocks/types'
 
 const logger = createLogger('YamlDiffMergeAPI')
@@ -76,10 +76,7 @@ export async function POST(request: NextRequest) {
         yamlContent,
         diffAnalysis,
         blockRegistry,
-        blockMappings: {
-          categories: BLOCK_CATEGORIES,
-          dimensions: BLOCK_DIMENSIONS
-        },
+
         utilities: {
           generateLoopBlocks: generateLoopBlocks.toString(),
           generateParallelBlocks: generateParallelBlocks.toString(),

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { autoLayoutWorkflow } from '@/lib/autolayout/service'
+import { yamlService } from '@/lib/yaml-service-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import {
@@ -539,26 +539,36 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       try {
         logger.info(`[${requestId}] Applying autolayout`)
 
-        const layoutedBlocks = await autoLayoutWorkflow(
-          newWorkflowState.blocks,
-          newWorkflowState.edges,
-          {
-            strategy: 'smart',
-            direction: 'auto',
-            spacing: {
-              horizontal: 500, // Increased from 400 to match UI button
-              vertical: 400, // Increased from 200 to match UI button
-              layer: 700, // Increased from 600 to match UI button
-            },
-            alignment: 'center',
-            padding: {
-              x: 250, // Increased from 200 to match UI button
-              y: 250, // Increased from 200 to match UI button
-            },
-          }
-        )
+        // Create workflow state for autolayout
+        const workflowStateForLayout = {
+          blocks: newWorkflowState.blocks,
+          edges: newWorkflowState.edges,
+          loops: newWorkflowState.loops || {},
+          parallels: newWorkflowState.parallels || {}
+        }
 
-        newWorkflowState.blocks = layoutedBlocks
+        const autoLayoutOptions = {
+          strategy: 'smart' as const,
+          direction: 'auto' as const,
+          spacing: {
+            horizontal: 500,
+            vertical: 400,
+            layer: 700,
+          },
+          alignment: 'center' as const,
+          padding: {
+            x: 250,
+            y: 250,
+          },
+        }
+
+        const autoLayoutResult = await yamlService.autoLayout(workflowStateForLayout, autoLayoutOptions)
+        
+        if (autoLayoutResult.success && autoLayoutResult.workflowState) {
+          newWorkflowState.blocks = autoLayoutResult.workflowState.blocks
+        } else {
+          logger.warn(`[${requestId}] Auto layout failed, using original positions:`, autoLayoutResult.errors)
+        }
         logger.info(`[${requestId}] Autolayout completed successfully`)
       } catch (layoutError) {
         logger.warn(`[${requestId}] Autolayout failed, using original positions:`, layoutError)

@@ -358,7 +358,6 @@ export async function POST(req: NextRequest) {
                     switch (event.type) {
                       case 'content':
                         if (event.data) {
-                          logger.debug(`[${requestId}] Content delta: "${event.data}"`)
                           assistantContent += event.data
                         }
                         break

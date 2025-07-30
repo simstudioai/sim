@@ -8,6 +8,7 @@ import {
   sendStreamingMessage,
 } from '@/lib/copilot/api'
 import { createLogger } from '@/lib/logs/console-logger'
+import { yamlService } from '@/lib/yaml-service-client'
 import type { CopilotStore } from './types'
 import { COPILOT_TOOL_IDS } from './constants'
 import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
@@ -1216,66 +1217,43 @@ export const useCopilotStore = create<CopilotStore>()(
           })
 
           // Generate diff analysis by comparing current vs proposed YAML
-          let diffAnalysis = null
-          try {
-            // Get current workflow as YAML for comparison
-            const { useWorkflowYamlStore } = await import('@/stores/workflows/yaml/store')
-            
-            // Ensure YAML is generated before proceeding
-            await useWorkflowYamlStore.getState().generateYaml()
-            const currentYaml = useWorkflowYamlStore.getState().getYaml()
+          // Skip diff analysis - let sim-agent handle it through /api/yaml/diff/create
+          // The diff/create endpoint will compare against the current workflow state
+          // and generate the diff analysis automatically
+          logger.info('Proceeding to create diff without pre-analysis')
 
-            logger.info('Got current workflow YAML for diff:', {
-              currentYamlLength: currentYaml?.length || 0,
-              hasCurrentYaml: !!currentYaml
-            })
-
-            // If current YAML is empty, skip diff analysis - everything will be new
-            if (!currentYaml || currentYaml.trim() === '') {
-              logger.info('Current workflow is empty, treating all blocks as new')
-              // Don't call diff API - let the diff engine handle it as all new blocks
-            } else {
-              // Call the diff API to compare current vs proposed YAML
-              const diffResponse = await fetch('/api/workflows/diff', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  original_yaml: currentYaml,
-                  agent_yaml: yamlContent,
-                }),
-              })
-
-              if (diffResponse.ok) {
-                const diffResult = await diffResponse.json()
-                if (diffResult.success && diffResult.data) {
-                  diffAnalysis = diffResult.data
-                  logger.info('Successfully generated diff analysis', {
-                    newBlocks: diffAnalysis.new_blocks?.length || 0,
-                    editedBlocks: diffAnalysis.edited_blocks?.length || 0,
-                    deletedBlocks: diffAnalysis.deleted_blocks?.length || 0,
-                  })
-                }
-              } else {
-                logger.warn('Failed to generate diff analysis, proceeding without it')
-              }
-            }
-          } catch (diffError) {
-            logger.warn('Error generating diff analysis:', diffError)
-            // Continue without diff analysis - blocks will be marked as unchanged
-          }
-
-          // Set or merge the proposed changes in the diff store based on the strategy
+                    // Set or merge the proposed changes in the diff store based on the strategy
           const diffStore = useWorkflowDiffStore.getState()
+          
+          logger.info('CopilotStore.updateDiffStore calling setProposedChanges with:', {
+            yamlContentLength: yamlContent.length,
+            diffAnalysis: undefined,
+            diffAnalysisType: 'undefined',
+            diffAnalysisUndefined: true,
+            diffAnalysisNull: false,
+            shouldClearDiff: shouldClearDiff,
+            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow
+          })
+          
           if (shouldClearDiff || !diffStoreBefore.diffWorkflow) {
             // Use setProposedChanges which will create a new diff
-          await diffStore.setProposedChanges(yamlContent, diffAnalysis)
+            // Pass undefined to let sim-agent generate the diff analysis
+            await diffStore.setProposedChanges(yamlContent, undefined)
           } else {
             // Use mergeProposedChanges which will merge into existing diff
-            await diffStore.mergeProposedChanges(yamlContent, diffAnalysis)
+            // Pass undefined to let sim-agent generate the diff analysis
+            await diffStore.mergeProposedChanges(yamlContent, undefined)
           }
 
           // Check diff store state after update
           const diffStoreAfter = useWorkflowDiffStore.getState()
+          
+          // Log the diff state after update
+          logger.info('CopilotStore diff updated:', {
+            hasDiffWorkflow: !!diffStoreAfter.diffWorkflow,
+            hasDiffAnalysis: !!diffStoreAfter.diffAnalysis,
+            diffAnalysis: diffStoreAfter.diffAnalysis
+          })
           logger.info('Diff store state after update:', {
             isShowingDiff: diffStoreAfter.isShowingDiff,
             isDiffReady: diffStoreAfter.isDiffReady,

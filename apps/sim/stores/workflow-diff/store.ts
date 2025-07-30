@@ -47,7 +47,13 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
       diffMetadata: null,
 
       setProposedChanges: async (yamlContent: string, diffAnalysis?: DiffAnalysis) => {
-        logger.info('Setting proposed changes via YAML')
+        logger.info('WorkflowDiffStore.setProposedChanges called with:', {
+          yamlContentLength: yamlContent.length,
+          diffAnalysis: diffAnalysis,
+          diffAnalysisType: typeof diffAnalysis,
+          diffAnalysisUndefined: diffAnalysis === undefined,
+          diffAnalysisNull: diffAnalysis === null
+        })
 
         // First, set isDiffReady to false to prevent premature rendering
         set({ isDiffReady: false })
@@ -59,6 +65,18 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const sampleBlockId = Object.keys(result.diff.proposedState.blocks)[0]
           const sampleBlock = sampleBlockId ? result.diff.proposedState.blocks[sampleBlockId] : null
           const sampleDiffStatus = sampleBlock ? (sampleBlock as any).is_diff : undefined
+
+          // Log diff analysis details
+          if (result.diff.diffAnalysis) {
+            logger.info('[DiffStore] Diff analysis being stored:', {
+              new_blocks: result.diff.diffAnalysis.new_blocks,
+              edited_blocks: result.diff.diffAnalysis.edited_blocks,
+              deleted_blocks: result.diff.diffAnalysis.deleted_blocks,
+              total_blocks: Object.keys(result.diff.proposedState.blocks).length
+            })
+          } else {
+            logger.warn('[DiffStore] No diff analysis in result!')
+          }
 
           console.log('[DiffStore] Setting new diff:', {
             blockCount: Object.keys(result.diff.proposedState.blocks).length,

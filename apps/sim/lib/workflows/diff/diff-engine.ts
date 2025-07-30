@@ -47,11 +47,36 @@ export class WorkflowDiffEngine {
    */
   async createDiffFromYaml(yamlContent: string, diffAnalysis?: DiffAnalysis): Promise<DiffResult> {
     try {
-      logger.info('Creating diff from YAML content')
+      logger.info('WorkflowDiffEngine.createDiffFromYaml called with:', {
+        yamlContentLength: yamlContent.length,
+        diffAnalysis: diffAnalysis,
+        diffAnalysisType: typeof diffAnalysis,
+        diffAnalysisUndefined: diffAnalysis === undefined,
+        diffAnalysisNull: diffAnalysis === null
+      })
+
+      // Get current workflow state for comparison
+      const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
+      const currentWorkflowState = useWorkflowStore.getState().getWorkflowState()
+      
+      logger.info('WorkflowDiffEngine current workflow state:', {
+        blockCount: Object.keys(currentWorkflowState.blocks || {}).length,
+        edgeCount: currentWorkflowState.edges?.length || 0,
+        hasLoops: Object.keys(currentWorkflowState.loops || {}).length > 0,
+        hasParallels: Object.keys(currentWorkflowState.parallels || {}).length > 0
+      })
 
       // Call the sim agent service to create the diff
       const response = await yamlService.createDiff(yamlContent, diffAnalysis, {
-        applyAutoLayout: true
+        applyAutoLayout: true,
+        currentWorkflowState: currentWorkflowState
+      })
+      
+      logger.info('WorkflowDiffEngine.createDiffFromYaml response:', {
+        success: response.success,
+        hasDiff: !!response.diff,
+        errors: response.errors,
+        hasDiffAnalysis: !!response.diff?.diffAnalysis
       })
 
       if (!response.success || !response.diff) {
@@ -61,12 +86,30 @@ export class WorkflowDiffEngine {
         }
       }
 
+      // Log diff analysis details
+      if (response.diff.diffAnalysis) {
+        logger.info('WorkflowDiffEngine diff analysis:', {
+          new_blocks: response.diff.diffAnalysis.new_blocks,
+          edited_blocks: response.diff.diffAnalysis.edited_blocks,
+          deleted_blocks: response.diff.diffAnalysis.deleted_blocks,
+          field_diffs: response.diff.diffAnalysis.field_diffs ? Object.keys(response.diff.diffAnalysis.field_diffs) : [],
+          edge_diff: response.diff.diffAnalysis.edge_diff ? {
+            new_edges_count: response.diff.diffAnalysis.edge_diff.new_edges.length,
+            deleted_edges_count: response.diff.diffAnalysis.edge_diff.deleted_edges.length,
+            unchanged_edges_count: response.diff.diffAnalysis.edge_diff.unchanged_edges.length
+          } : null
+        })
+      } else {
+        logger.warn('WorkflowDiffEngine: No diff analysis in response!')
+      }
+
       // Store the current diff
       this.currentDiff = response.diff
 
       logger.info('Diff created successfully', {
         blocksCount: Object.keys(response.diff.proposedState.blocks).length,
         edgesCount: response.diff.proposedState.edges.length,
+        hasDiffAnalysis: !!response.diff.diffAnalysis
       })
 
       return {
@@ -234,19 +277,14 @@ export class WorkflowDiffEngine {
     proposedYaml: string
   ): Promise<DiffAnalysis | null> {
     try {
-      const response = await fetch('/api/workflows/diff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          original_yaml: originalYaml,
-          agent_yaml: proposedYaml,
-        }),
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        if (result.success && result.data) {
-          return result.data
+      const result = await yamlService.diffYaml(originalYaml, proposedYaml)
+      
+      if (result && result.changes && result.changes.length > 0) {
+        // Convert the diff result to DiffAnalysis format
+        // The yaml service returns changes array, we need to extract the analysis
+        const firstChange = result.changes[0]
+        if (firstChange && firstChange.data) {
+          return firstChange.data
         }
       }
     } catch (error) {

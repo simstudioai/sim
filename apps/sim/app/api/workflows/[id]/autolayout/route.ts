@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { autoLayoutWorkflow } from '@/lib/autolayout/service'
+import { yamlService } from '@/lib/yaml-service-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import {
@@ -123,24 +123,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       `[${requestId}] Applying autolayout to ${Object.keys(currentWorkflowData.blocks).length} blocks`
     )
 
-    const layoutedBlocks = await autoLayoutWorkflow(
-      currentWorkflowData.blocks,
-      currentWorkflowData.edges,
-      {
-        strategy: layoutOptions.strategy,
-        direction: layoutOptions.direction,
-        spacing: {
-          horizontal: layoutOptions.spacing?.horizontal || 500, // Updated from 400 to match improved spacing
-          vertical: layoutOptions.spacing?.vertical || 400, // Updated from 200 to match improved spacing
-          layer: layoutOptions.spacing?.layer || 700, // Updated from 600 to match improved spacing
-        },
-        alignment: layoutOptions.alignment,
-        padding: {
-          x: layoutOptions.padding?.x || 250, // Updated from 200 to match improved spacing
-          y: layoutOptions.padding?.y || 250, // Updated from 200 to match improved spacing
-        },
-      }
-    )
+    // Create workflow state for autolayout
+    const workflowState = {
+      blocks: currentWorkflowData.blocks,
+      edges: currentWorkflowData.edges,
+      loops: currentWorkflowData.loops || {},
+      parallels: currentWorkflowData.parallels || {}
+    }
+
+    const autoLayoutOptions = {
+      strategy: layoutOptions.strategy,
+      direction: layoutOptions.direction,
+      spacing: {
+        horizontal: layoutOptions.spacing?.horizontal || 500,
+        vertical: layoutOptions.spacing?.vertical || 400,
+        layer: layoutOptions.spacing?.layer || 700,
+      },
+      alignment: layoutOptions.alignment,
+      padding: {
+        x: layoutOptions.padding?.x || 250,
+        y: layoutOptions.padding?.y || 250,
+      },
+    }
+
+    const autoLayoutResult = await yamlService.autoLayout(workflowState, autoLayoutOptions)
+    
+    if (!autoLayoutResult.success || !autoLayoutResult.workflowState) {
+      logger.error(`[${requestId}] Auto layout failed:`, autoLayoutResult.errors)
+      return NextResponse.json({ error: 'Auto layout failed' }, { status: 500 })
+    }
+    
+    const layoutedBlocks = autoLayoutResult.workflowState.blocks
 
     // Create updated workflow state
     const updatedWorkflowState = {

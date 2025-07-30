@@ -118,7 +118,7 @@ export class YamlServiceClient {
   }
 
   async diffYaml(originalYaml: string, modifiedYaml: string): Promise<DiffYamlResponse> {
-    return this.fetchFromAPI('/diff', {
+    return this.fetchFromAPI('/diff/create', {
       originalYaml,
       modifiedYaml
     })
@@ -130,13 +130,41 @@ export class YamlServiceClient {
     options?: {
       applyAutoLayout?: boolean
       layoutOptions?: any
+      currentWorkflowState?: WorkflowState
     }
   ): Promise<CreateDiffResponse> {
-    return this.fetchFromAPI('/diff/create', {
-      yamlContent,
-      diffAnalysis,
-      options
+    logger.info('YamlServiceClient.createDiff called with:', {
+      yamlContentLength: yamlContent.length,
+      diffAnalysis: diffAnalysis,
+      diffAnalysisType: typeof diffAnalysis,
+      options: options
     })
+    
+    const body: any = { yamlContent }
+    if (diffAnalysis !== undefined && diffAnalysis !== null) {
+      body.diffAnalysis = diffAnalysis
+    }
+    if (options !== undefined && options !== null) {
+      body.options = options
+      // Extract currentWorkflowState from options to send at top level
+      if (options.currentWorkflowState) {
+        body.currentWorkflowState = options.currentWorkflowState
+        // Remove from options to avoid sending it twice
+        const { currentWorkflowState, ...restOptions } = options
+        body.options = restOptions
+      }
+    }
+    
+    logger.info('YamlServiceClient.createDiff sending body:', {
+      yamlContentLength: body.yamlContent?.length || 0,
+      hasDiffAnalysis: !!body.diffAnalysis,
+      diffAnalysis: body.diffAnalysis,
+      hasCurrentWorkflowState: !!body.currentWorkflowState,
+      currentBlockCount: body.currentWorkflowState ? Object.keys(body.currentWorkflowState.blocks || {}).length : 0,
+      currentEdgeCount: body.currentWorkflowState?.edges?.length || 0,
+      options: body.options
+    })
+    return this.fetchFromAPI('/diff/create', body)
   }
 
   async mergeDiff(
@@ -148,12 +176,17 @@ export class YamlServiceClient {
       layoutOptions?: any
     }
   ): Promise<MergeDiffResponse> {
-    return this.fetchFromAPI('/diff/merge', {
+    const body: any = {
       existingDiff,
-      yamlContent,
-      diffAnalysis,
-      options
-    })
+      yamlContent
+    }
+    if (diffAnalysis !== undefined) {
+      body.diffAnalysis = diffAnalysis
+    }
+    if (options !== undefined) {
+      body.options = options
+    }
+    return this.fetchFromAPI('/diff/merge', body)
   }
 
   async autoLayout(
