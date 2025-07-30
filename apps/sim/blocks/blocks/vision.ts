@@ -19,6 +19,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter publicly accessible image URL',
+      required: true,
     },
     {
       id: 'model',
@@ -46,20 +47,21 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
       layout: 'full',
       placeholder: 'Enter your API key',
       password: true,
+      required: true,
     },
   ],
   tools: {
     access: ['vision_tool'],
   },
   inputs: {
-    apiKey: { type: 'string', required: true },
-    imageUrl: { type: 'string', required: true },
-    model: { type: 'string', required: false },
-    prompt: { type: 'string', required: false },
+    apiKey: { type: 'string', description: 'Provider API key' },
+    imageUrl: { type: 'string', description: 'Image URL' },
+    model: { type: 'string', description: 'Vision model' },
+    prompt: { type: 'string', description: 'Analysis prompt' },
   },
   outputs: {
-    content: 'string',
-    model: 'any',
-    tokens: 'any',
+    content: { type: 'string', description: 'Analysis result' },
+    model: { type: 'any', description: 'Model used' },
+    tokens: { type: 'any', description: 'Token usage' },
   },
 }

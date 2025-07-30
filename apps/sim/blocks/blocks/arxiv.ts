@@ -18,6 +18,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
+      required: true,
       options: [
         { label: 'Search Papers', id: 'arxiv_search' },
         { label: 'Get Paper Details', id: 'arxiv_get_paper' },
@@ -135,25 +136,25 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
     // Search operation
-    query: { type: 'string', required: false },
-    searchField: { type: 'string', required: false },
-    maxResults: { type: 'number', required: false },
-    sortBy: { type: 'string', required: false },
-    sortOrder: { type: 'string', required: false },
+    query: { type: 'string', description: 'Search terms' },
+    searchField: { type: 'string', description: 'Field to search in' },
+    maxResults: { type: 'number', description: 'Maximum results to return' },
+    sortBy: { type: 'string', description: 'Sort results by' },
+    sortOrder: { type: 'string', description: 'Sort order direction' },
     // Get Paper Details operation
-    paperId: { type: 'string', required: false },
+    paperId: { type: 'string', description: 'ArXiv paper identifier' },
     // Get Author Papers operation
-    authorName: { type: 'string', required: false },
+    authorName: { type: 'string', description: 'Author name' },
   },
   outputs: {
     // Search output
-    papers: 'json',
-    totalResults: 'number',
+    papers: { type: 'json', description: 'Found papers data' },
+    totalResults: { type: 'number', description: 'Total results count' },
     // Get Paper Details output
-    paper: 'json',
+    paper: { type: 'json', description: 'Paper details' },
     // Get Author Papers output
-    authorPapers: 'json',
+    authorPapers: { type: 'json', description: 'Author papers list' },
   },
 }

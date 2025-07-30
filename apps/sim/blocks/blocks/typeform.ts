@@ -24,6 +24,7 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
         { label: 'Form Insights', id: 'typeform_insights' },
       ],
       value: () => 'typeform_responses',
+      required: true,
     },
     {
       id: 'formId',
@@ -31,6 +32,7 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your Typeform form ID',
+      required: true,
     },
     {
       id: 'apiKey',
@@ -39,6 +41,7 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
       layout: 'full',
       placeholder: 'Enter your Typeform personal access token',
       password: true,
+      required: true,
     },
     // Response operation fields
     {
@@ -128,23 +131,23 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    formId: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    formId: { type: 'string', description: 'Typeform form identifier' },
+    apiKey: { type: 'string', description: 'Personal access token' },
     // Response operation params
-    pageSize: { type: 'number', required: false },
-    since: { type: 'string', required: false },
-    until: { type: 'string', required: false },
-    completed: { type: 'string', required: false },
+    pageSize: { type: 'number', description: 'Responses per page' },
+    since: { type: 'string', description: 'Start date filter' },
+    until: { type: 'string', description: 'End date filter' },
+    completed: { type: 'string', description: 'Completion status filter' },
     // File operation params
-    responseId: { type: 'string', required: false },
-    fieldId: { type: 'string', required: false },
-    filename: { type: 'string', required: false },
-    inline: { type: 'boolean', required: false },
+    responseId: { type: 'string', description: 'Response identifier' },
+    fieldId: { type: 'string', description: 'Field identifier' },
+    filename: { type: 'string', description: 'File name' },
+    inline: { type: 'boolean', description: 'Inline display option' },
   },
   outputs: {
-    total_items: 'number',
-    page_count: 'number',
-    items: 'json',
+    total_items: { type: 'number', description: 'Total response count' },
+    page_count: { type: 'number', description: 'Total page count' },
+    items: { type: 'json', description: 'Response items' },
   },
 }

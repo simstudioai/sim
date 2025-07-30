@@ -18,6 +18,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
+      required: true,
       options: [
         { label: 'Scrape', id: 'scrape' },
         { label: 'Search', id: 'search' },
@@ -75,6 +76,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       layout: 'full',
       placeholder: 'Enter your Firecrawl API key',
       password: true,
+      required: true,
     },
   ],
   tools: {
@@ -108,24 +110,24 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
     },
   },
   inputs: {
-    apiKey: { type: 'string', required: true },
-    operation: { type: 'string', required: true },
-    url: { type: 'string', required: false },
-    limit: { type: 'string', required: false },
-    query: { type: 'string', required: false },
-    scrapeOptions: { type: 'json', required: false },
+    apiKey: { type: 'string', description: 'Firecrawl API key' },
+    operation: { type: 'string', description: 'Operation to perform' },
+    url: { type: 'string', description: 'Target website URL' },
+    limit: { type: 'string', description: 'Page crawl limit' },
+    query: { type: 'string', description: 'Search query terms' },
+    scrapeOptions: { type: 'json', description: 'Scraping options' },
   },
   outputs: {
     // Scrape output
-    markdown: 'string',
-    html: 'any',
-    metadata: 'json',
+    markdown: { type: 'string', description: 'Page content markdown' },
+    html: { type: 'any', description: 'Raw HTML content' },
+    metadata: { type: 'json', description: 'Page metadata' },
     // Search output
-    data: 'json',
-    warning: 'any',
+    data: { type: 'json', description: 'Search results data' },
+    warning: { type: 'any', description: 'Warning messages' },
     // Crawl output
-    pages: 'json',
-    total: 'number',
-    creditsUsed: 'number',
+    pages: { type: 'json', description: 'Crawled pages data' },
+    total: { type: 'number', description: 'Total pages found' },
+    creditsUsed: { type: 'number', description: 'Credits consumed' },
   },
 }

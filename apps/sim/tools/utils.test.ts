@@ -234,7 +234,7 @@ describe('validateToolRequest', () => {
         required1: 'value',
         // required2 is missing
       })
-    }).toThrow('Parameter "required2" is required for test-tool but was not provided')
+    }).toThrow('"Required2" is required for tool "Test Tool" but was not provided')
   })
 
   it.concurrent('should not throw error when all required parameters are provided', () => {

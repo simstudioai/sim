@@ -28,6 +28,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         { label: 'Search Workspace', id: 'notion_search' },
       ],
       value: () => 'notion_read',
+      required: true,
     },
     {
       id: 'credential',
@@ -38,6 +39,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       serviceId: 'notion',
       requiredScopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
       placeholder: 'Select Notion account',
+      required: true,
     },
     // Read/Write operation - Page ID
     {
@@ -280,24 +282,24 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    pageId: { type: 'string', required: false },
-    content: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Notion access token' },
+    pageId: { type: 'string', description: 'Page identifier' },
+    content: { type: 'string', description: 'Page content' },
     // Create page inputs
-    parentId: { type: 'string', required: false },
-    title: { type: 'string', required: false },
+    parentId: { type: 'string', description: 'Parent page identifier' },
+    title: { type: 'string', description: 'Page title' },
     // Query database inputs
-    databaseId: { type: 'string', required: false },
-    filter: { type: 'string', required: false },
-    sorts: { type: 'string', required: false },
-    pageSize: { type: 'number', required: false },
+    databaseId: { type: 'string', description: 'Database identifier' },
+    filter: { type: 'string', description: 'Filter criteria' },
+    sorts: { type: 'string', description: 'Sort criteria' },
+    pageSize: { type: 'number', description: 'Page size limit' },
     // Search inputs
-    query: { type: 'string', required: false },
-    filterType: { type: 'string', required: false },
+    query: { type: 'string', description: 'Search query' },
+    filterType: { type: 'string', description: 'Filter type' },
   },
   outputs: {
-    content: 'string',
-    metadata: 'any',
+    content: { type: 'string', description: 'Page content' },
+    metadata: { type: 'any', description: 'Page metadata' },
   },
 }

@@ -42,8 +42,6 @@ Returns companies matching a set of criteria using Hunter.io AI-powered search.
 | --------- | ---- | -------- | ----------- |
 | `query` | string | No | Natural language search query for companies |
 | `domain` | string | No | Company domain names to filter by |
-| `headquarters_location` | string | No | Filter by company location |
-| `industry` | string | No | Filter by business sector |
 | `headcount` | string | No | Company size filter \(e.g.,  |
 | `company_type` | string | No | Type of organization |
 | `technology` | string | No | Technology used by companies |
@@ -51,12 +49,17 @@ Returns companies matching a set of criteria using Hunter.io AI-powered search.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `results` | string |
-| `name` | string |
-| `industry` | string |
-| `headquarters_location` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `emails` | json | Email addresses found |
+| `email` | string | Found email address |
+| `score` | number | Confidence score |
+| `result` | string | Verification result |
+| `status` | string | Status message |
+| `total` | number | Total results count |
+| `personal_emails` | number | Personal emails count |
+| `generic_emails` | number | Generic emails count |
 
 ### `hunter_domain_search`
 
@@ -76,38 +79,17 @@ Returns all the email addresses found using one given domain name, with sources.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `domain` | string |
-| `disposable` | string |
-| `webmail` | string |
-| `accept_all` | string |
-| `pattern` | string |
-| `organization` | string |
-| `description` | string |
-| `industry` | string |
-| `twitter` | string |
-| `facebook` | string |
-| `linkedin` | string |
-| `instagram` | string |
-| `youtube` | string |
-| `technologies` | string |
-| `country` | string |
-| `state` | string |
-| `city` | string |
-| `postal_code` | string |
-| `street` | string |
-| `emails` | string |
-| `type` | string |
-| `confidence` | string |
-| `sources` | string |
-| `first_name` | string |
-| `last_name` | string |
-| `position` | string |
-| `seniority` | string |
-| `department` | string |
-| `phone_number` | string |
-| `verification` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `emails` | json | Email addresses found |
+| `email` | string | Found email address |
+| `score` | number | Confidence score |
+| `result` | string | Verification result |
+| `status` | string | Status message |
+| `total` | number | Total results count |
+| `personal_emails` | number | Personal emails count |
+| `generic_emails` | number | Generic emails count |
 
 ### `hunter_email_finder`
 
@@ -121,17 +103,21 @@ Finds the most likely email address for a person given their name and company do
 | `first_name` | string | Yes | Person |
 | `last_name` | string | Yes | Person |
 | `company` | string | No | Company name |
-| `max_duration` | number | No | Request duration in seconds \(3-20, default: 10\) |
 | `apiKey` | string | Yes | Hunter.io API Key |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `email` | string |
-| `score` | string |
-| `sources` | string |
-| `verification` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `emails` | json | Email addresses found |
+| `email` | string | Found email address |
+| `score` | number | Confidence score |
+| `result` | string | Verification result |
+| `status` | string | Status message |
+| `total` | number | Total results count |
+| `personal_emails` | number | Personal emails count |
+| `generic_emails` | number | Generic emails count |
 
 ### `hunter_email_verifier`
 
@@ -146,22 +132,17 @@ Verifies the deliverability of an email address and provides detailed verificati
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `result` | string |
-| `score` | string |
-| `email` | string |
-| `regexp` | string |
-| `gibberish` | string |
-| `disposable` | string |
-| `webmail` | string |
-| `mx_records` | string |
-| `smtp_server` | string |
-| `smtp_check` | string |
-| `accept_all` | string |
-| `block` | string |
-| `status` | string |
-| `sources` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `emails` | json | Email addresses found |
+| `email` | string | Found email address |
+| `score` | number | Confidence score |
+| `result` | string | Verification result |
+| `status` | string | Status message |
+| `total` | number | Total results count |
+| `personal_emails` | number | Personal emails count |
+| `generic_emails` | number | Generic emails count |
 
 ### `hunter_companies_find`
 
@@ -177,16 +158,17 @@ Enriches company data using domain name.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `person` | string |
-| `company` | string |
-| `domain` | string |
-| `industry` | string |
-| `size` | string |
-| `country` | string |
-| `linkedin` | string |
-| `twitter` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `emails` | json | Email addresses found |
+| `email` | string | Found email address |
+| `score` | number | Confidence score |
+| `result` | string | Verification result |
+| `status` | string | Status message |
+| `total` | number | Total results count |
+| `personal_emails` | number | Personal emails count |
+| `generic_emails` | number | Generic emails count |
 
 ### `hunter_email_count`
 
@@ -203,47 +185,18 @@ Returns the total number of email addresses found for a domain or company.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `total` | string |
-| `personal_emails` | string |
-| `generic_emails` | string |
-| `department` | string |
-| `it` | string |
-| `finance` | string |
-| `management` | string |
-| `sales` | string |
-| `legal` | string |
-| `support` | string |
-| `hr` | string |
-| `marketing` | string |
-| `communication` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `emails` | json | Email addresses found |
+| `email` | string | Found email address |
+| `score` | number | Confidence score |
+| `result` | string | Verification result |
+| `status` | string | Status message |
+| `total` | number | Total results count |
+| `personal_emails` | number | Personal emails count |
+| `generic_emails` | number | Generic emails count |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `results` | json | results output from the block |
-| `emails` | json | emails output from the block |
-| `email` | string | email output from the block |
-| `score` | number | score output from the block |
-| `result` | string | result output from the block |
-| `status` | string | status output from the block |
-| `total` | number | total output from the block |
-| `personal_emails` | number | personal_emails output from the block |
-| `generic_emails` | number | generic_emails output from the block |
 
 
 ## Notes

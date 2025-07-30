@@ -19,6 +19,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
+      required: true,
       options: [
         { label: 'Send Email', id: 'send_gmail' },
         { label: 'Read Email', id: 'read_gmail' },
@@ -42,6 +43,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail account',
+      required: true,
     },
     // Send Email Fields
     {
@@ -171,23 +173,23 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Gmail access token' },
     // Send operation inputs
-    to: { type: 'string', required: false },
-    subject: { type: 'string', required: false },
-    body: { type: 'string', required: false },
+    to: { type: 'string', description: 'Recipient email address' },
+    subject: { type: 'string', description: 'Email subject' },
+    body: { type: 'string', description: 'Email content' },
     // Read operation inputs
-    folder: { type: 'string', required: false },
-    manualFolder: { type: 'string', required: false },
-    messageId: { type: 'string', required: false },
-    unreadOnly: { type: 'boolean', required: false },
+    folder: { type: 'string', description: 'Gmail folder' },
+    manualFolder: { type: 'string', description: 'Manual folder name' },
+    messageId: { type: 'string', description: 'Message identifier' },
+    unreadOnly: { type: 'boolean', description: 'Unread messages only' },
     // Search operation inputs
-    query: { type: 'string', required: false },
-    maxResults: { type: 'number', required: false },
+    query: { type: 'string', description: 'Search query' },
+    maxResults: { type: 'number', description: 'Maximum results' },
   },
   outputs: {
-    content: 'string',
-    metadata: 'json',
+    content: { type: 'string', description: 'Response content' },
+    metadata: { type: 'json', description: 'Email metadata' },
   },
 }

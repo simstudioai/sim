@@ -79,11 +79,16 @@ Extract structured content from web pages with comprehensive metadata support. C
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `markdown` | string |
-| `html` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markdown` | string | Page content markdown |
+| `html` | any | Raw HTML content |
+| `metadata` | json | Page metadata |
+| `data` | json | Search results data |
+| `warning` | any | Warning messages |
+| `pages` | json | Crawled pages data |
+| `total` | number | Total pages found |
+| `creditsUsed` | number | Credits consumed |
 
 ### `firecrawl_search`
 
@@ -98,10 +103,16 @@ Search for information on the web using Firecrawl
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `warning` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markdown` | string | Page content markdown |
+| `html` | any | Raw HTML content |
+| `metadata` | json | Page metadata |
+| `data` | json | Search results data |
+| `warning` | any | Warning messages |
+| `pages` | json | Crawled pages data |
+| `total` | number | Total pages found |
+| `creditsUsed` | number | Credits consumed |
 
 ### `firecrawl_crawl`
 
@@ -118,37 +129,17 @@ Crawl entire websites and extract structured content from all accessible pages
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `jobId` | string |
-| `pages` | string |
-| `total` | string |
-| `creditsUsed` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markdown` | string | Page content markdown |
+| `html` | any | Raw HTML content |
+| `metadata` | json | Page metadata |
+| `data` | json | Search results data |
+| `warning` | any | Warning messages |
+| `pages` | json | Crawled pages data |
+| `total` | number | Total pages found |
+| `creditsUsed` | number | Credits consumed |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `apiKey` | string | Yes |  |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `markdown` | string | markdown output from the block |
-| `html` | any | html output from the block |
-| `metadata` | json | metadata output from the block |
-| `data` | json | data output from the block |
-| `warning` | any | warning output from the block |
-| `pages` | json | pages output from the block |
-| `total` | number | total output from the block |
-| `creditsUsed` | number | creditsUsed output from the block |
 
 
 ## Notes

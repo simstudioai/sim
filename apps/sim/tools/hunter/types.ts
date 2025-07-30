@@ -10,8 +10,6 @@ export interface HunterBaseParams {
 export interface HunterDiscoverParams extends HunterBaseParams {
   query?: string
   domain?: string
-  headquarters_location?: string
-  industry?: string
   headcount?: string
   company_type?: string
   technology?: string
@@ -20,8 +18,6 @@ export interface HunterDiscoverParams extends HunterBaseParams {
 export interface HunterDiscoverResult {
   domain: string
   name: string
-  industry?: string
-  headquarters_location?: string
   headcount?: number
   technologies?: string[]
   email_count?: number
@@ -99,7 +95,6 @@ export interface HunterEmailFinderParams extends HunterBaseParams {
   first_name: string
   last_name: string
   company?: string
-  max_duration?: number
 }
 
 export interface HunterEmailFinderResponse extends ToolResponse {

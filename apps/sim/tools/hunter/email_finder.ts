@@ -33,12 +33,6 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
       visibility: 'user-or-llm',
       description: 'Company name',
     },
-    max_duration: {
-      type: 'number',
-      required: false,
-      visibility: 'hidden',
-      description: 'Request duration in seconds (3-20, default: 10)',
-    },
     apiKey: {
       type: 'string',
       required: true,
@@ -56,8 +50,6 @@ export const emailFinderTool: ToolConfig<HunterEmailFinderParams, HunterEmailFin
       url.searchParams.append('api_key', params.apiKey)
 
       if (params.company) url.searchParams.append('company', params.company)
-      if (params.max_duration)
-        url.searchParams.append('max_duration', params.max_duration.toString())
 
       return url.toString()
     },

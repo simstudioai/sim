@@ -92,6 +92,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'combobox',
       layout: 'half',
       placeholder: 'Type or select a model...',
+      required: true,
       options: () => {
         const ollamaModels = useOllamaStore.getState().models
         const baseModels = Object.keys(getBaseModelProviders())
@@ -155,6 +156,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
+      required: true,
       // Hide API key for all hosted models when running on hosted version
       condition: isHosted
         ? {
@@ -275,18 +277,16 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     },
   },
   inputs: {
-    systemPrompt: { type: 'string', required: false },
-    userPrompt: { type: 'string', required: false },
-    memories: { type: 'json', required: false },
-    model: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
-    azureEndpoint: { type: 'string', required: false },
-    azureApiVersion: { type: 'string', required: false },
+    systemPrompt: { type: 'string', description: 'Initial system instructions' },
+    userPrompt: { type: 'string', description: 'User message or context' },
+    memories: { type: 'json', description: 'Agent memory data' },
+    model: { type: 'string', description: 'AI model to use' },
+    apiKey: { type: 'string', description: 'Provider API key' },
+    azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
+    azureApiVersion: { type: 'string', description: 'Azure API version' },
     responseFormat: {
       type: 'json',
-      required: false,
-      description:
-        'Define the expected response format using JSON Schema. If not provided, returns plain text content.',
+      description: 'JSON response format schema',
       schema: {
         type: 'object',
         properties: {
@@ -328,13 +328,13 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         required: ['schema'],
       },
     },
-    temperature: { type: 'number', required: false },
-    tools: { type: 'json', required: false },
+    temperature: { type: 'number', description: 'Response randomness level' },
+    tools: { type: 'json', description: 'Available tools configuration' },
   },
   outputs: {
-    content: 'string',
-    model: 'string',
-    tokens: 'any',
-    toolCalls: 'any',
+    content: { type: 'string', description: 'Generated response content' },
+    model: { type: 'string', description: 'Model used for generation' },
+    tokens: { type: 'any', description: 'Token usage statistics' },
+    toolCalls: { type: 'any', description: 'Tool calls made' },
   },
 }

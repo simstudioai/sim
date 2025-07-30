@@ -18,6 +18,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
+      required: true,
       options: [
         { label: 'Domain Search', id: 'hunter_domain_search' },
         { label: 'Email Finder', id: 'hunter_email_finder' },
@@ -139,22 +140,6 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       placeholder: 'Filter by domain',
       condition: { field: 'operation', value: 'hunter_discover' },
     },
-    {
-      id: 'industry',
-      title: 'Industry',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Filter by industry',
-      condition: { field: 'operation', value: 'hunter_discover' },
-    },
-    {
-      id: 'headquarters_location',
-      title: 'Location',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Filter by location',
-      condition: { field: 'operation', value: 'hunter_discover' },
-    },
 
     // Find Company operation inputs
     {
@@ -201,6 +186,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       title: 'API Key',
       type: 'short-input',
       layout: 'full',
+      required: true,
       placeholder: 'Enter your Hunter.io API key',
       password: true,
     },
@@ -219,9 +205,6 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
         // Convert numeric parameters
         if (params.limit) {
           params.limit = Number(params.limit)
-        }
-        if (params.max_duration) {
-          params.max_duration = Number(params.max_duration)
         }
 
         switch (params.operation) {
@@ -244,39 +227,36 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    apiKey: { type: 'string', description: 'Hunter.io API key' },
     // Domain Search & Email Count
-    domain: { type: 'string', required: false },
-    limit: { type: 'number', required: false },
-    offset: { type: 'number', required: false },
-    type: { type: 'string', required: false },
-    seniority: { type: 'string', required: false },
-    department: { type: 'string', required: false },
+    domain: { type: 'string', description: 'Company domain name' },
+    limit: { type: 'number', description: 'Result limit' },
+    offset: { type: 'number', description: 'Result offset' },
+    type: { type: 'string', description: 'Email type filter' },
+    seniority: { type: 'string', description: 'Seniority level filter' },
+    department: { type: 'string', description: 'Department filter' },
     // Email Finder
-    first_name: { type: 'string', required: false },
-    last_name: { type: 'string', required: false },
-    company: { type: 'string', required: false },
-    max_duration: { type: 'number', required: false },
+    first_name: { type: 'string', description: 'First name' },
+    last_name: { type: 'string', description: 'Last name' },
+    company: { type: 'string', description: 'Company name' },
     // Email Verifier & Enrichment
-    email: { type: 'string', required: false },
+    email: { type: 'string', description: 'Email address' },
     // Discover
-    query: { type: 'string', required: false },
-    headquarters_location: { type: 'string', required: false },
-    industry: { type: 'string', required: false },
-    headcount: { type: 'string', required: false },
-    company_type: { type: 'string', required: false },
-    technology: { type: 'string', required: false },
+    query: { type: 'string', description: 'Search query' },
+    headcount: { type: 'string', description: 'Company headcount filter' },
+    company_type: { type: 'string', description: 'Company type filter' },
+    technology: { type: 'string', description: 'Technology filter' },
   },
   outputs: {
-    results: 'json',
-    emails: 'json',
-    email: 'string',
-    score: 'number',
-    result: 'string',
-    status: 'string',
-    total: 'number',
-    personal_emails: 'number',
-    generic_emails: 'number',
+    results: { type: 'json', description: 'Search results' },
+    emails: { type: 'json', description: 'Email addresses found' },
+    email: { type: 'string', description: 'Found email address' },
+    score: { type: 'number', description: 'Confidence score' },
+    result: { type: 'string', description: 'Verification result' },
+    status: { type: 'string', description: 'Status message' },
+    total: { type: 'number', description: 'Total results count' },
+    personal_emails: { type: 'number', description: 'Personal emails count' },
+    generic_emails: { type: 'number', description: 'Generic emails count' },
   },
 }

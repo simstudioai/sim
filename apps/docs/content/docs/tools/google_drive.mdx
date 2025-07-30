@@ -96,17 +96,10 @@ Upload a file to Google Drive
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `file` | string |
-| `name` | string |
-| `mimeType` | string |
-| `webViewLink` | string |
-| `webContentLink` | string |
-| `size` | string |
-| `createdTime` | string |
-| `modifiedTime` | string |
-| `parents` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | json | File data |
+| `files` | json | Files list |
 
 ### `google_drive_create_folder`
 
@@ -123,17 +116,10 @@ Create a new folder in Google Drive
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `file` | string |
-| `name` | string |
-| `mimeType` | string |
-| `webViewLink` | string |
-| `webContentLink` | string |
-| `size` | string |
-| `createdTime` | string |
-| `modifiedTime` | string |
-| `parents` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | json | File data |
+| `files` | json | Files list |
 
 ### `google_drive_list`
 
@@ -152,36 +138,11 @@ List files and folders in Google Drive
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `files` | string |
-| `name` | string |
-| `mimeType` | string |
-| `webViewLink` | string |
-| `webContentLink` | string |
-| `size` | string |
-| `createdTime` | string |
-| `modifiedTime` | string |
-| `parents` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | json | File data |
+| `files` | json | Files list |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `file` | json | file output from the block |
-| `files` | json | files output from the block |
 
 
 ## Notes

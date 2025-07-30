@@ -20,6 +20,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter your search query',
+      required: true,
     },
     {
       id: 'searchEngineId',
@@ -28,6 +29,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       layout: 'full',
       placeholder: 'Enter your Custom Search Engine ID',
       description: 'Required Custom Search Engine ID',
+      required: true,
     },
     {
       id: 'apiKey',
@@ -37,6 +39,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       placeholder: 'Enter your Google API key',
       description: 'Required API Key for Google Search',
       password: true,
+      required: true,
     },
     {
       id: 'num',
@@ -62,14 +65,14 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   },
 
   inputs: {
-    query: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
-    searchEngineId: { type: 'string', required: true },
-    num: { type: 'string', required: false },
+    query: { type: 'string', description: 'Search query terms' },
+    apiKey: { type: 'string', description: 'Google API key' },
+    searchEngineId: { type: 'string', description: 'Custom search engine ID' },
+    num: { type: 'string', description: 'Number of results' },
   },
 
   outputs: {
-    items: 'json',
-    searchInformation: 'json',
+    items: { type: 'json', description: 'Search result items' },
+    searchInformation: { type: 'json', description: 'Search metadata' },
   },
 }

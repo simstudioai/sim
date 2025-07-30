@@ -18,6 +18,7 @@ export const OpenAIBlock: BlockConfig = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter text to generate embeddings for',
+      required: true,
     },
     {
       id: 'model',
@@ -38,19 +39,20 @@ export const OpenAIBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Enter your OpenAI API key',
       password: true,
+      required: true,
     },
   ],
   tools: {
     access: ['openai_embeddings'],
   },
   inputs: {
-    input: { type: 'string', required: true },
-    model: { type: 'string', required: false },
-    apiKey: { type: 'string', required: true },
+    input: { type: 'string', description: 'Text to embed' },
+    model: { type: 'string', description: 'Embedding model' },
+    apiKey: { type: 'string', description: 'OpenAI API key' },
   },
   outputs: {
-    embeddings: 'json',
-    model: 'string',
-    usage: 'json',
+    embeddings: { type: 'json', description: 'Generated embeddings' },
+    model: { type: 'string', description: 'Model used' },
+    usage: { type: 'json', description: 'Token usage' },
   },
 }

@@ -18,6 +18,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
+      required: true,
       options: [
         { label: 'Create Event', id: 'create' },
         { label: 'List Events', id: 'list' },
@@ -32,6 +33,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       title: 'Google Calendar Account',
       type: 'oauth-input',
       layout: 'full',
+      required: true,
       provider: 'google-calendar',
       serviceId: 'google-calendar',
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
@@ -268,37 +270,37 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    calendarId: { type: 'string', required: false },
-    manualCalendarId: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Google Calendar access token' },
+    calendarId: { type: 'string', description: 'Calendar identifier' },
+    manualCalendarId: { type: 'string', description: 'Manual calendar identifier' },
 
     // Create operation inputs
-    summary: { type: 'string', required: false },
-    description: { type: 'string', required: false },
-    location: { type: 'string', required: false },
-    startDateTime: { type: 'string', required: false },
-    endDateTime: { type: 'string', required: false },
-    attendees: { type: 'string', required: false },
+    summary: { type: 'string', description: 'Event title' },
+    description: { type: 'string', description: 'Event description' },
+    location: { type: 'string', description: 'Event location' },
+    startDateTime: { type: 'string', description: 'Event start time' },
+    endDateTime: { type: 'string', description: 'Event end time' },
+    attendees: { type: 'string', description: 'Attendee email list' },
 
     // List operation inputs
-    timeMin: { type: 'string', required: false },
-    timeMax: { type: 'string', required: false },
+    timeMin: { type: 'string', description: 'Start time filter' },
+    timeMax: { type: 'string', description: 'End time filter' },
 
     // Get/Invite operation inputs
-    eventId: { type: 'string', required: false },
+    eventId: { type: 'string', description: 'Event identifier' },
 
     // Quick add inputs
-    text: { type: 'string', required: false },
+    text: { type: 'string', description: 'Natural language event' },
 
     // Invite specific inputs
-    replaceExisting: { type: 'string', required: false },
+    replaceExisting: { type: 'string', description: 'Replace existing attendees' },
 
     // Common inputs
-    sendUpdates: { type: 'string', required: false },
+    sendUpdates: { type: 'string', description: 'Send email notifications' },
   },
   outputs: {
-    content: 'string',
-    metadata: 'json',
+    content: { type: 'string', description: 'Operation response content' },
+    metadata: { type: 'json', description: 'Event metadata' },
   },
 }

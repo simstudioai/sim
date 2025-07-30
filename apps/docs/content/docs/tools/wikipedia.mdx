@@ -72,20 +72,13 @@ Get a summary and metadata for a specific Wikipedia page.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `summary` | string |
-| `title` | string |
-| `displaytitle` | string |
-| `description` | string |
-| `extract` | string |
-| `extract_html` | string |
-| `thumbnail` | string |
-| `originalimage` | string |
-| `content_urls` | string |
-| `revisions` | string |
-| `edit` | string |
-| `talk` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `summary` | json | Page summary data |
+| `searchResults` | json | Search results data |
+| `totalHits` | number | Total search hits |
+| `content` | json | Page content data |
+| `randomPage` | json | Random page data |
 
 ### `wikipedia_search`
 
@@ -100,11 +93,13 @@ Search for Wikipedia pages by title or content.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `totalHits` | string |
-| `query` | string |
-| `searchResults` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `summary` | json | Page summary data |
+| `searchResults` | json | Search results data |
+| `totalHits` | number | Total search hits |
+| `content` | json | Page content data |
+| `randomPage` | json | Random page data |
 
 ### `wikipedia_content`
 
@@ -118,16 +113,13 @@ Get the full HTML content of a Wikipedia page.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `pageid` | string |
-| `html` | string |
-| `revision` | string |
-| `tid` | string |
-| `timestamp` | string |
-| `content_model` | string |
-| `content_format` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `summary` | json | Page summary data |
+| `searchResults` | json | Search results data |
+| `totalHits` | number | Total search hits |
+| `content` | json | Page content data |
+| `randomPage` | json | Random page data |
 
 ### `wikipedia_random`
 
@@ -140,37 +132,14 @@ Get a random Wikipedia page.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `randomPage` | string |
-| `title` | string |
-| `displaytitle` | string |
-| `description` | string |
-| `extract` | string |
-| `thumbnail` | string |
-| `content_urls` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `summary` | json | Page summary data |
+| `searchResults` | json | Search results data |
+| `totalHits` | number | Total search hits |
+| `content` | json | Page content data |
+| `randomPage` | json | Random page data |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `summary` | json | summary output from the block |
-| `searchResults` | json | searchResults output from the block |
-| `totalHits` | number | totalHits output from the block |
-| `content` | json | content output from the block |
-| `randomPage` | json | randomPage output from the block |
 
 
 ## Notes

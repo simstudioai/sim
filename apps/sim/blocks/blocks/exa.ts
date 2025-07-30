@@ -18,6 +18,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
+      required: true,
       options: [
         { label: 'Search', id: 'exa_search' },
         { label: 'Get Contents', id: 'exa_get_contents' },
@@ -153,6 +154,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       layout: 'full',
       placeholder: 'Enter your Exa API key',
       password: true,
+      required: true,
     },
   ],
   tools: {
@@ -188,29 +190,29 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    apiKey: { type: 'string', description: 'Exa API key' },
     // Search operation
-    query: { type: 'string', required: false },
-    numResults: { type: 'number', required: false },
-    useAutoprompt: { type: 'boolean', required: false },
-    type: { type: 'string', required: false },
+    query: { type: 'string', description: 'Search query terms' },
+    numResults: { type: 'number', description: 'Number of results' },
+    useAutoprompt: { type: 'boolean', description: 'Use autoprompt feature' },
+    type: { type: 'string', description: 'Search type' },
     // Get Contents operation
-    urls: { type: 'string', required: false },
-    text: { type: 'boolean', required: false },
-    summaryQuery: { type: 'string', required: false },
+    urls: { type: 'string', description: 'URLs to retrieve' },
+    text: { type: 'boolean', description: 'Include text content' },
+    summaryQuery: { type: 'string', description: 'Summary query guidance' },
     // Find Similar Links operation
-    url: { type: 'string', required: false },
+    url: { type: 'string', description: 'Source URL' },
   },
   outputs: {
     // Search output
-    results: 'json',
+    results: { type: 'json', description: 'Search results' },
     // Find Similar Links output
-    similarLinks: 'json',
+    similarLinks: { type: 'json', description: 'Similar links found' },
     // Answer output
-    answer: 'string',
-    citations: 'json',
+    answer: { type: 'string', description: 'Generated answer' },
+    citations: { type: 'json', description: 'Answer citations' },
     // Research output
-    research: 'json',
+    research: { type: 'json', description: 'Research findings' },
   },
 }

@@ -27,6 +27,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         { label: 'Fetch Vectors', id: 'fetch' },
       ],
       value: () => 'generate',
+      required: true,
     },
     // Generate embeddings fields
     {
@@ -212,6 +213,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'Your Pinecone API key',
       password: true,
+      required: true,
     },
   ],
 
@@ -244,35 +246,35 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   },
 
   inputs: {
-    operation: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
-    indexHost: { type: 'string', required: false },
-    namespace: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    apiKey: { type: 'string', description: 'Pinecone API key' },
+    indexHost: { type: 'string', description: 'Index host URL' },
+    namespace: { type: 'string', description: 'Vector namespace' },
     // Generate embeddings inputs
-    model: { type: 'string', required: false },
-    inputs: { type: 'json', required: false },
-    parameters: { type: 'json', required: false },
+    model: { type: 'string', description: 'Embedding model' },
+    inputs: { type: 'json', description: 'Text inputs' },
+    parameters: { type: 'json', description: 'Model parameters' },
     // Upsert text inputs
-    records: { type: 'json', required: false },
+    records: { type: 'json', description: 'Records to upsert' },
     // Search text inputs
-    searchQuery: { type: 'string', required: false },
-    topK: { type: 'string', required: false },
-    fields: { type: 'json', required: false },
-    filter: { type: 'json', required: false },
-    rerank: { type: 'json', required: false },
+    searchQuery: { type: 'string', description: 'Search query text' },
+    topK: { type: 'string', description: 'Top K results' },
+    fields: { type: 'json', description: 'Fields to return' },
+    filter: { type: 'json', description: 'Search filter' },
+    rerank: { type: 'json', description: 'Rerank options' },
     // Fetch inputs
-    ids: { type: 'json', required: false },
-    vector: { type: 'json', required: false },
-    includeValues: { type: 'boolean', required: false },
-    includeMetadata: { type: 'boolean', required: false },
+    ids: { type: 'json', description: 'Vector identifiers' },
+    vector: { type: 'json', description: 'Query vector' },
+    includeValues: { type: 'boolean', description: 'Include vector values' },
+    includeMetadata: { type: 'boolean', description: 'Include metadata' },
   },
 
   outputs: {
-    matches: 'any',
-    upsertedCount: 'any',
-    data: 'any',
-    model: 'any',
-    vector_type: 'any',
-    usage: 'any',
+    matches: { type: 'any', description: 'Search matches' },
+    upsertedCount: { type: 'any', description: 'Upserted count' },
+    data: { type: 'any', description: 'Response data' },
+    model: { type: 'any', description: 'Model information' },
+    vector_type: { type: 'any', description: 'Vector type' },
+    usage: { type: 'any', description: 'Usage statistics' },
   },
 }

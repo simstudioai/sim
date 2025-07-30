@@ -111,6 +111,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Route to the correct block based on the input...',
+      required: true,
     },
     {
       id: 'model',
@@ -125,6 +126,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
           id: model,
         }))
       },
+      required: true,
     },
     {
       id: 'apiKey',
@@ -134,6 +136,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
+      required: true,
       // Hide API key for all hosted models when running on hosted version
       condition: isHosted
         ? {
@@ -178,15 +181,15 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
     },
   },
   inputs: {
-    prompt: { type: 'string', required: true },
-    model: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
+    prompt: { type: 'string', description: 'Routing prompt content' },
+    model: { type: 'string', description: 'AI model to use' },
+    apiKey: { type: 'string', description: 'Provider API key' },
   },
   outputs: {
-    content: 'string',
-    model: 'string',
-    tokens: 'any',
-    cost: 'any',
-    selectedPath: 'json',
+    content: { type: 'string', description: 'Routing response content' },
+    model: { type: 'string', description: 'Model used' },
+    tokens: { type: 'any', description: 'Token usage' },
+    cost: { type: 'any', description: 'Cost information' },
+    selectedPath: { type: 'json', description: 'Selected routing path' },
   },
 }

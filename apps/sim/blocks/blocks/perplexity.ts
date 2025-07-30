@@ -26,6 +26,7 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter your prompt here...',
+      required: true,
     },
     {
       id: 'model',
@@ -41,6 +42,7 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
         { label: 'GPT-4o', id: 'gpt-4o' },
       ],
       value: () => 'sonar',
+      required: true,
     },
     {
       id: 'temperature',
@@ -65,6 +67,7 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
       layout: 'full',
       placeholder: 'Enter your Perplexity API key',
       password: true,
+      required: true,
     },
   ],
   tools: {
@@ -86,16 +89,16 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
     },
   },
   inputs: {
-    content: { type: 'string', required: true },
-    systemPrompt: { type: 'string', required: false },
-    model: { type: 'string', required: true },
-    max_tokens: { type: 'string', required: false },
-    temperature: { type: 'string', required: false },
-    apiKey: { type: 'string', required: true },
+    content: { type: 'string', description: 'User prompt content' },
+    systemPrompt: { type: 'string', description: 'System instructions' },
+    model: { type: 'string', description: 'AI model to use' },
+    max_tokens: { type: 'string', description: 'Maximum output tokens' },
+    temperature: { type: 'string', description: 'Response randomness' },
+    apiKey: { type: 'string', description: 'Perplexity API key' },
   },
   outputs: {
-    content: 'string',
-    model: 'string',
-    usage: 'json',
+    content: { type: 'string', description: 'Generated response' },
+    model: { type: 'string', description: 'Model used' },
+    usage: { type: 'json', description: 'Token usage' },
   },
 }

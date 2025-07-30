@@ -182,9 +182,14 @@ export function validateToolRequest(
     if (
       (paramConfig as any).visibility === 'user-or-llm' &&
       paramConfig.required &&
-      !(paramName in params)
+      (!(paramName in params) ||
+        params[paramName] === null ||
+        params[paramName] === undefined ||
+        params[paramName] === '')
     ) {
-      throw new Error(`Parameter "${paramName}" is required for ${toolId} but was not provided`)
+      throw new Error(
+        `"${paramName.charAt(0).toUpperCase() + paramName.slice(1)}" is required for tool "${tool.name}" but was not provided`
+      )
     }
   }
 }

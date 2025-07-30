@@ -20,18 +20,6 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
       visibility: 'user-or-llm',
       description: 'Company domain names to filter by',
     },
-    headquarters_location: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by company location',
-    },
-    industry: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by business sector',
-    },
     headcount: {
       type: 'string',
       required: false,
@@ -75,16 +63,6 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
       // Add optional parameters if provided
       if (params.query) body.query = params.query
       if (params.domain) body.organization = { domain: [params.domain] }
-      if (params.headquarters_location) {
-        body.headquarters_location = {
-          include: [{ location: params.headquarters_location }],
-        }
-      }
-      if (params.industry) {
-        body.industry = {
-          include: [params.industry],
-        }
-      }
       if (params.headcount) body.headcount = params.headcount
       if (params.company_type) body.company_type = params.company_type
       if (params.technology) {
@@ -113,12 +91,6 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
           data.data?.map((company: any) => ({
             domain: company.domain || '',
             name: company.organization || '',
-            industry: company.industry,
-            headquarters_location:
-              `${company.city || ''}, ${company.state || ''}, ${company.country || ''}`.replace(
-                /^,\s*|,\s*$/g,
-                ''
-              ),
             headcount: company.headcount,
             technologies: company.technologies || [],
             email_count: company.emails_count?.total || 0,

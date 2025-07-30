@@ -24,6 +24,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         { label: 'Read Email', id: 'read_outlook' },
       ],
       value: () => 'send_outlook',
+      required: true,
     },
     {
       id: 'credential',
@@ -43,6 +44,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         'email',
       ],
       placeholder: 'Select Microsoft account',
+      required: true,
     },
     {
       id: 'to',
@@ -135,19 +137,19 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Outlook access token' },
     // Send operation inputs
-    to: { type: 'string', required: false },
-    subject: { type: 'string', required: false },
-    body: { type: 'string', required: false },
+    to: { type: 'string', description: 'Recipient email address' },
+    subject: { type: 'string', description: 'Email subject' },
+    body: { type: 'string', description: 'Email content' },
     // Read operation inputs
-    folder: { type: 'string', required: false },
-    manualFolder: { type: 'string', required: false },
-    maxResults: { type: 'number', required: false },
+    folder: { type: 'string', description: 'Email folder' },
+    manualFolder: { type: 'string', description: 'Manual folder name' },
+    maxResults: { type: 'number', description: 'Maximum emails' },
   },
   outputs: {
-    message: 'string',
-    results: 'json',
+    message: { type: 'string', description: 'Response message' },
+    results: { type: 'json', description: 'Email results' },
   },
 }

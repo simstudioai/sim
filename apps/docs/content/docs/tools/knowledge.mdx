@@ -70,12 +70,11 @@ Search for similar content in a knowledge base using vector similarity
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `results` | string |
-| `query` | string |
-| `totalResults` | string |
-| `cost` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `query` | string | Query used |
+| `totalResults` | number | Total results count |
 
 ### `knowledge_upload_chunk`
 
@@ -91,16 +90,11 @@ Upload a new chunk to a document in a knowledge base
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `chunkIndex` | string |
-| `content` | string |
-| `contentLength` | string |
-| `tokenCount` | string |
-| `enabled` | string |
-| `createdAt` | string |
-| `updatedAt` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `query` | string | Query used |
+| `totalResults` | number | Total results count |
 
 ### `knowledge_create_document`
 
@@ -124,30 +118,12 @@ Create a new document in a knowledge base
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `name` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `query` | string | Query used |
+| `totalResults` | number | Total results count |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `results` | json | results output from the block |
-| `query` | string | query output from the block |
-| `totalResults` | number | totalResults output from the block |
 
 
 ## Notes
