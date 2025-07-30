@@ -80,34 +80,43 @@ export function LongInput({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Helper function for updating store value
-  const updateStoreValue = useCallback((newValue: string) => {
-    if (onChange) {
-      onChange(newValue)
-    } else if (!isPreview && !disabled) {
-      // Defer store update to prevent setState during render
-      Promise.resolve().then(() => {
-        setStoreValue(newValue)
-      })
-    }
-  }, [onChange, isPreview, disabled, setStoreValue])
+  const updateStoreValue = useCallback(
+    (newValue: string) => {
+      if (onChange) {
+        onChange(newValue)
+      } else if (!isPreview && !disabled) {
+        // Defer store update to prevent setState during render
+        Promise.resolve().then(() => {
+          setStoreValue(newValue)
+        })
+      }
+    },
+    [onChange, isPreview, disabled, setStoreValue]
+  )
 
   // Define stable handlers using useCallback
   const handleStreamStart = useCallback(() => {
     setLocalText('')
   }, [])
 
-  const handleGeneratedContent = useCallback((generatedContent: string) => {
-    setLocalText(generatedContent)
-    updateStoreValue(generatedContent)
-  }, [updateStoreValue])
+  const handleGeneratedContent = useCallback(
+    (generatedContent: string) => {
+      setLocalText(generatedContent)
+      updateStoreValue(generatedContent)
+    },
+    [updateStoreValue]
+  )
 
-  const handleStreamChunk = useCallback((chunk: string) => {
-    setLocalText((currentText) => {
-      const newText = currentText + chunk
-      updateStoreValue(newText)
-      return newText
-    })
-  }, [updateStoreValue])
+  const handleStreamChunk = useCallback(
+    (chunk: string) => {
+      setLocalText((currentText) => {
+        const newText = currentText + chunk
+        updateStoreValue(newText)
+        return newText
+      })
+    },
+    [updateStoreValue]
+  )
 
   const aiGeneration = wandConfig?.enabled
     ? useCodeGeneration({
@@ -336,7 +345,7 @@ export function LongInput({
           promptValue={aiGeneration?.promptInputValue ?? ''}
           onSubmit={(prompt) => aiGeneration?.generateStream({ prompt, context: localText })}
           onCancel={() => {
-            aiGeneration?.isStreaming 
+            aiGeneration?.isStreaming
               ? aiGeneration.cancelGeneration?.()
               : aiGeneration?.hidePromptInline?.()
           }}
