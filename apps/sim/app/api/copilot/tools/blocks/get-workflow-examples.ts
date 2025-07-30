@@ -1,5 +1,5 @@
-import { createLogger } from '@/lib/logs/console-logger'
 import { WORKFLOW_EXAMPLES } from '@/lib/copilot/examples'
+import { createLogger } from '@/lib/logs/console-logger'
 import { BaseCopilotTool } from '../base'
 
 interface GetWorkflowExamplesParams {
@@ -12,7 +12,10 @@ interface WorkflowExamplesResult {
   availableIds: string[]
 }
 
-class GetWorkflowExamplesTool extends BaseCopilotTool<GetWorkflowExamplesParams, WorkflowExamplesResult> {
+class GetWorkflowExamplesTool extends BaseCopilotTool<
+  GetWorkflowExamplesParams,
+  WorkflowExamplesResult
+> {
   readonly id = 'get_workflow_examples'
   readonly displayName = 'Getting workflow examples'
 
@@ -25,14 +28,21 @@ class GetWorkflowExamplesTool extends BaseCopilotTool<GetWorkflowExamplesParams,
 export const getWorkflowExamplesTool = new GetWorkflowExamplesTool()
 
 // Implementation function
-async function getWorkflowExamples(params: GetWorkflowExamplesParams): Promise<WorkflowExamplesResult> {
+async function getWorkflowExamples(
+  params: GetWorkflowExamplesParams
+): Promise<WorkflowExamplesResult> {
   const logger = createLogger('GetWorkflowExamples')
-  
+
   // Strict validation - exampleIds is required
-  if (!params || !params.exampleIds || !Array.isArray(params.exampleIds) || params.exampleIds.length === 0) {
+  if (
+    !params ||
+    !params.exampleIds ||
+    !Array.isArray(params.exampleIds) ||
+    params.exampleIds.length === 0
+  ) {
     throw new Error('exampleIds parameter is required and must be a non-empty array of example IDs')
   }
-  
+
   const { exampleIds } = params
 
   logger.info('Getting workflow examples for copilot', { exampleCount: exampleIds.length })

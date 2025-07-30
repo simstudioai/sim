@@ -1,157 +1,167 @@
 'use client'
 
-import { type FC, memo, useMemo } from 'react'
-import { Bot, CheckCircle, Copy, Loader2, User, XCircle } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { type FC, memo, useEffect, useMemo, useState } from 'react'
+import {
+  Check,
+  CheckCircle,
+  Clipboard,
+  Code,
+  Copy,
+  Database,
+  Eye,
+  FileText,
+  Globe,
+  Lightbulb,
+  Loader2,
+  Search,
+  Settings,
+  ThumbsDown,
+  ThumbsUp,
+  Wrench,
+  XCircle,
+  Zap,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import remarkGfm from 'remark-gfm'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import type { ToolCallState } from '@/types/tool-call'
-import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 
 interface ProfessionalMessageProps {
   message: CopilotMessage
   isStreaming?: boolean
 }
 
+// Maximum character length for a word before it's broken up
+const MAX_WORD_LENGTH = 25
+
+const WordWrap = ({ text }: { text: string }) => {
+  if (!text) return null
+
+  // Split text into words, keeping spaces and punctuation
+  const parts = text.split(/(\s+)/g)
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        // If the part is whitespace or shorter than the max length, render it as is
+        if (part.match(/\s+/) || part.length <= MAX_WORD_LENGTH) {
+          return <span key={index}>{part}</span>
+        }
+
+        // For long words, break them up into chunks
+        const chunks = []
+        for (let i = 0; i < part.length; i += MAX_WORD_LENGTH) {
+          chunks.push(part.substring(i, i + MAX_WORD_LENGTH))
+        }
+
+        return (
+          <span key={index} className='break-all'>
+            {chunks.map((chunk, chunkIndex) => (
+              <span key={chunkIndex}>{chunk}</span>
+            ))}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
 // Inline Tool Call Component
 function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepNumber?: number }) {
+  const getToolIcon = () => {
+    const displayName = tool.displayName || tool.name || ''
+    const lowerName = displayName.toLowerCase()
+
+    if (lowerName.includes('analyz') && lowerName.includes('workflow')) {
+      return <Search className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('block') && lowerName.includes('information')) {
+      return <Eye className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('structure')) {
+      return <Search className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('build') || lowerName.includes('creat')) {
+      return <Wrench className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('search') || lowerName.includes('find')) {
+      return <Search className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('edit') || lowerName.includes('modif')) {
+      return <Code className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('doc') || lowerName.includes('help')) {
+      return <FileText className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('environment') || lowerName.includes('variable')) {
+      return <Settings className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('tool') || lowerName.includes('method')) {
+      return <Zap className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('workflow') && lowerName.includes('console')) {
+      return <Database className='h-3 w-3 text-muted-foreground' />
+    }
+    if (lowerName.includes('online') || lowerName.includes('web')) {
+      return <Globe className='h-3 w-3 text-muted-foreground' />
+    }
+
+    // Default icon
+    return <Lightbulb className='h-3 w-3 text-muted-foreground' />
+  }
+
   const getStateIcon = () => {
     switch (tool.state) {
       case 'executing':
-        return <Loader2 className='h-3 w-3 animate-spin text-blue-600 dark:text-blue-400' />
+        return <Loader2 className='h-3 w-3 animate-spin text-muted-foreground' />
       case 'completed':
-        return <CheckCircle className='h-3 w-3 text-green-600 dark:text-green-400' />
+        return <Search className='h-3 w-3 text-muted-foreground' />
       case 'ready_for_review':
-        return <CheckCircle className='h-3 w-3 text-purple-600 dark:text-purple-400' />
+        return <Search className='h-3 w-3 text-muted-foreground' />
       case 'applied':
-        return <CheckCircle className='h-3 w-3 text-green-600 dark:text-green-400' />
+        return <Search className='h-3 w-3 text-muted-foreground' />
       case 'rejected':
-        return <XCircle className='h-3 w-3 text-orange-600 dark:text-orange-400' />
+        return <XCircle className='h-3 w-3 text-muted-foreground' />
       case 'aborted':
-        return <XCircle className='h-3 w-3 text-orange-600 dark:text-orange-400' />
+        return <XCircle className='h-3 w-3 text-muted-foreground' />
       case 'error':
-        return <XCircle className='h-3 w-3 text-red-600 dark:text-red-400' />
+        return <XCircle className='h-3 w-3 text-muted-foreground' />
       default:
-        return (
-          <div className='h-3 w-3 rounded-full border-2 border-gray-300 dark:border-gray-600' />
-        )
+        return getToolIcon()
     }
-  }
-
-  const getStateColors = () => {
-    switch (tool.state) {
-      case 'executing':
-        return 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100'
-      case 'completed':
-        return 'border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950 dark:text-green-100'
-      case 'ready_for_review':
-        return 'border-purple-200 bg-purple-50 text-purple-900 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-100'
-      case 'applied':
-        return 'border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950 dark:text-green-100'
-      case 'rejected':
-        return 'border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100'
-      case 'aborted':
-        return 'border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-100'
-      case 'error':
-        return 'border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100'
-      default:
-        return 'border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
-    }
-  }
-
-  const formatDuration = (duration?: number) => {
-    if (!duration) return ''
-    return duration < 1000 ? `${duration}ms` : `${(duration / 1000).toFixed(1)}s`
   }
 
   // Special handling for preview workflow and targeted updates
-      const isPreviewTool = tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+  const isPreviewTool =
+    tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
 
   if (isPreviewTool) {
     return (
-      <div
-        className={cn(
-          'rounded-xl border-2 p-4 transition-all duration-300',
-          tool.state === 'executing' &&
-            'border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 dark:border-blue-800 dark:from-blue-950/50 dark:to-indigo-950/50',
-          tool.state === 'ready_for_review' &&
-            'border-purple-200 bg-gradient-to-r from-purple-50 to-violet-50 dark:border-purple-800 dark:from-purple-950/50 dark:to-violet-950/50',
-          tool.state === 'applied' &&
-            'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 dark:border-green-800 dark:from-green-950/50 dark:to-emerald-950/50',
-          tool.state === 'rejected' &&
-            'border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 dark:border-orange-800 dark:from-orange-950/50 dark:to-amber-950/50',
-          tool.state === 'aborted' &&
-            'border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 dark:border-orange-800 dark:from-orange-950/50 dark:to-amber-950/50',
-          tool.state === 'error' &&
-            'border-red-200 bg-gradient-to-r from-red-50 to-pink-50 dark:border-red-800 dark:from-red-950/50 dark:to-pink-950/50'
-        )}
-      >
+      <div className='rounded-xl border-2 border-muted bg-muted/30 p-4 transition-all duration-300'>
         <div className='flex items-center gap-3'>
-          <div
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-full',
-              tool.state === 'executing' && 'bg-blue-100 dark:bg-blue-900',
-              tool.state === 'ready_for_review' && 'bg-purple-100 dark:bg-purple-900',
-              tool.state === 'applied' && 'bg-green-100 dark:bg-green-900',
-              tool.state === 'rejected' && 'bg-orange-100 dark:bg-orange-900',
-              tool.state === 'aborted' && 'bg-orange-100 dark:bg-orange-900',
-              tool.state === 'error' && 'bg-red-100 dark:bg-red-900'
-            )}
-          >
+          <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted'>
             {tool.state === 'executing' && (
-              <Loader2 className='h-4 w-4 animate-spin text-blue-600 dark:text-blue-400' />
+              <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />
             )}
             {tool.state === 'ready_for_review' && (
-              <CheckCircle className='h-4 w-4 text-purple-600 dark:text-purple-400' />
+              <CheckCircle className='h-4 w-4 text-muted-foreground' />
             )}
-            {tool.state === 'applied' && (
-              <CheckCircle className='h-4 w-4 text-green-600 dark:text-green-400' />
-            )}
-            {tool.state === 'rejected' && (
-              <XCircle className='h-4 w-4 text-orange-600 dark:text-orange-400' />
-            )}
-            {tool.state === 'aborted' && (
-              <XCircle className='h-4 w-4 text-orange-600 dark:text-orange-400' />
-            )}
-            {tool.state === 'error' && (
-              <XCircle className='h-4 w-4 text-red-600 dark:text-red-400' />
-            )}
+            {tool.state === 'applied' && <CheckCircle className='h-4 w-4 text-muted-foreground' />}
+            {tool.state === 'rejected' && <XCircle className='h-4 w-4 text-muted-foreground' />}
+            {tool.state === 'aborted' && <XCircle className='h-4 w-4 text-muted-foreground' />}
+            {tool.state === 'error' && <XCircle className='h-4 w-4 text-muted-foreground' />}
           </div>
-          <div>
-            <div
-              className={cn(
-                'font-semibold text-sm',
-                tool.state === 'executing' && 'text-blue-900 dark:text-blue-100',
-                tool.state === 'ready_for_review' && 'text-purple-900 dark:text-purple-100',
-                tool.state === 'applied' && 'text-green-900 dark:text-green-100',
-                tool.state === 'rejected' && 'text-orange-900 dark:text-orange-100',
-                tool.state === 'aborted' && 'text-orange-900 dark:text-orange-100',
-                tool.state === 'error' && 'text-red-900 dark:text-red-100'
-              )}
-            >
+          <div className='flex-1'>
+            <div className='font-semibold text-muted-foreground text-sm'>
               {tool.state === 'executing'
                 ? tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                   ? 'Editing workflow'
                   : 'Building workflow'
                 : tool.displayName || tool.name}
             </div>
-            <div
-              className={cn(
-                'text-xs',
-                tool.state === 'executing' && 'text-blue-700 dark:text-blue-300',
-                tool.state === 'ready_for_review' && 'text-purple-700 dark:text-purple-300',
-                tool.state === 'applied' && 'text-green-700 dark:text-green-300',
-                tool.state === 'rejected' && 'text-orange-700 dark:text-orange-300',
-                tool.state === 'aborted' && 'text-orange-700 dark:text-orange-300',
-                tool.state === 'error' && 'text-red-700 dark:text-red-300'
-              )}
-            >
+            <div className='text-muted-foreground text-xs'>
               {tool.state === 'executing'
                 ? tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                   ? 'Editing workflow...'
@@ -169,66 +179,81 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
                           : 'Workflow generation failed'}
             </div>
           </div>
-          {tool.duration &&
-            (tool.state === 'ready_for_review' ||
-              tool.state === 'applied' ||
-              tool.state === 'rejected') && (
-              <Badge variant='secondary' className='ml-auto text-xs'>
-                {formatDuration(tool.duration)}
-              </Badge>
-            )}
         </div>
       </div>
     )
   }
 
   return (
-    <div
-      className={cn(
-        'flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-all duration-200',
-        getStateColors()
-      )}
-    >
-      <div className='flex items-center gap-2'>
-        {stepNumber && (
-          <div className='flex h-5 w-5 items-center justify-center rounded-full bg-white/70 font-medium text-xs dark:bg-black/20'>
-            {stepNumber}
-          </div>
-        )}
-        {getStateIcon()}
-      </div>
-      <span className='flex-1 font-medium'>{tool.displayName || tool.name}</span>
-      {tool.duration && tool.state === 'completed' && (
-        <Badge variant='secondary' className='text-xs'>
-          {formatDuration(tool.duration)}
-        </Badge>
-      )}
-      {tool.state === 'executing' && tool.progress && (
-        <Badge variant='outline' className='text-xs'>
-          {tool.progress}
-        </Badge>
-      )}
+    <div className='flex items-center gap-2 py-1 text-muted-foreground'>
+      <div className='flex-shrink-0'>{getStateIcon()}</div>
+      <span className='text-sm'>{tool.displayName || tool.name}</span>
     </div>
   )
 }
 
 const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStreaming }) => {
-  const { theme } = useTheme()
   const isUser = message.role === 'user'
   const isAssistant = message.role === 'assistant'
+  const [showCopySuccess, setShowCopySuccess] = useState(false)
+  const [showUpvoteSuccess, setShowUpvoteSuccess] = useState(false)
+  const [showDownvoteSuccess, setShowDownvoteSuccess] = useState(false)
 
   const handleCopyContent = () => {
     // Copy clean text content
     navigator.clipboard.writeText(message.content)
+    setShowCopySuccess(true)
   }
+
+  const handleUpvote = () => {
+    // Reset downvote if it was active
+    setShowDownvoteSuccess(false)
+    setShowUpvoteSuccess(true)
+  }
+
+  const handleDownvote = () => {
+    // Reset upvote if it was active
+    setShowUpvoteSuccess(false)
+    setShowDownvoteSuccess(true)
+  }
+
+  useEffect(() => {
+    if (showCopySuccess) {
+      const timer = setTimeout(() => {
+        setShowCopySuccess(false)
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [showCopySuccess])
+
+  useEffect(() => {
+    if (showUpvoteSuccess) {
+      const timer = setTimeout(() => {
+        setShowUpvoteSuccess(false)
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [showUpvoteSuccess])
+
+  useEffect(() => {
+    if (showDownvoteSuccess) {
+      const timer = setTimeout(() => {
+        setShowDownvoteSuccess(false)
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [showDownvoteSuccess])
 
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
-  // Get clean text content (no processing needed with native SSE)
+  // Get clean text content with double newline parsing
   const cleanTextContent = useMemo(() => {
-    return message.content
+    if (!message.content) return ''
+
+    // Parse out excessive newlines (more than 2 consecutive newlines)
+    return message.content.replace(/\n{3,}/g, '\n\n')
   }, [message.content])
 
   // Custom components for react-markdown with improved styling
@@ -239,64 +264,54 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
 
       if (!inline && language) {
         return (
-          <div className='group relative my-4 overflow-hidden rounded-xl border border-border bg-muted/30'>
-            <div className='flex items-center justify-between border-border/50 border-b bg-muted/50 px-4 py-2'>
+          <div className='group relative overflow-hidden rounded-lg border border-border bg-muted/30'>
+            <div className='flex items-center justify-between border-border/50 border-b bg-muted/50 px-3 py-1'>
               <span className='font-medium text-muted-foreground text-xs uppercase tracking-wide'>
                 {language}
               </span>
               <Button
                 variant='ghost'
                 size='sm'
-                className='h-6 w-6 p-0 opacity-70 hover:opacity-100'
+                className='h-4 w-4 p-0 opacity-70 hover:opacity-100'
                 onClick={() => navigator.clipboard.writeText(String(children))}
               >
                 <Copy className='h-3 w-3' />
               </Button>
             </div>
-            <div className='overflow-x-auto'>
-              <SyntaxHighlighter
-                style={theme === 'dark' ? oneDark : oneLight}
-                language={language}
-                PreTag='div'
-                className='!m-0 !bg-transparent'
-                showLineNumbers={language !== 'bash' && language !== 'shell'}
-                wrapLines={true}
-                wrapLongLines={true}
-                customStyle={{
-                  margin: '0 !important',
-                  padding: '1rem',
-                  fontSize: '0.875rem',
-                  background: 'transparent',
-                }}
-                {...props}
-              >
-                {String(children).replace(/\n$/, '')}
-              </SyntaxHighlighter>
+            <div className='overflow-hidden'>
+              <pre className='m-0 overflow-hidden whitespace-pre-wrap break-all p-2 font-mono text-sm leading-relaxed'>
+                <code className='break-all font-mono text-sm'>
+                  {String(children).replace(/\n$/, '')}
+                </code>
+              </pre>
             </div>
           </div>
         )
       }
 
       return (
-        <code className='rounded-md border bg-muted/80 px-1.5 py-0.5 font-mono text-sm' {...props}>
+        <code
+          className='break-words rounded-md border bg-muted/80 px-1.5 py-0.5 font-mono text-sm'
+          {...props}
+        >
           {children}
         </code>
       )
     },
     pre: ({ children }: any) => children,
     h1: ({ children }: any) => (
-      <h1 className='mt-8 mb-4 border-border border-b pb-2 font-bold text-2xl text-foreground'>
+      <h1 className='mt-3 mb-2 font-bold text-base text-foreground leading-tight first:mt-0'>
         {children}
       </h1>
     ),
     h2: ({ children }: any) => (
-      <h2 className='mt-6 mb-3 font-semibold text-foreground text-xl'>{children}</h2>
+      <h2 className='mt-2 mb-1 font-semibold text-foreground text-sm leading-tight'>{children}</h2>
     ),
     h3: ({ children }: any) => (
-      <h3 className='mt-4 mb-2 font-semibold text-foreground text-lg'>{children}</h3>
+      <h3 className='mt-2 mb-1 font-semibold text-foreground text-sm leading-tight'>{children}</h3>
     ),
     p: ({ children }: any) => (
-      <p className='mb-4 text-foreground leading-relaxed last:mb-0'>{children}</p>
+      <p className='mb-[0.025rem] text-foreground leading-tight last:mb-0'>{children}</p>
     ),
     a: ({ href, children }: any) => (
       <a
@@ -308,49 +323,43 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
         {children}
       </a>
     ),
-    ul: ({ children }: any) => <ul className='mb-4 ml-6 list-disc space-y-1'>{children}</ul>,
-    ol: ({ children }: any) => <ol className='mb-4 ml-6 list-decimal space-y-1'>{children}</ol>,
-    li: ({ children }: any) => <li className='text-foreground leading-relaxed'>{children}</li>,
+    ul: ({ children }: any) => (
+      <ul className='ml-4 list-disc space-y-0 leading-tight'>{children}</ul>
+    ),
+    ol: ({ children }: any) => (
+      <ol className='ml-4 list-decimal space-y-0 leading-tight'>{children}</ol>
+    ),
+    li: ({ children }: any) => <li className='text-foreground leading-tight'>{children}</li>,
     blockquote: ({ children }: any) => (
-      <blockquote className='my-4 border-muted-foreground/20 border-l-4 bg-muted/30 py-3 pl-6 text-muted-foreground italic'>
+      <blockquote className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 text-muted-foreground italic leading-tight'>
         {children}
       </blockquote>
     ),
     table: ({ children }: any) => (
-      <div className='my-4 overflow-x-auto rounded-lg border'>
+      <div className='overflow-x-auto rounded-lg border'>
         <table className='w-full text-sm'>{children}</table>
       </div>
     ),
     th: ({ children }: any) => (
-      <th className='border-b bg-muted/50 px-4 py-2 text-left font-semibold'>{children}</th>
+      <th className='border-b bg-muted/50 px-2 text-left font-semibold text-sm leading-tight'>
+        {children}
+      </th>
     ),
-    td: ({ children }: any) => <td className='border-muted/30 border-b px-4 py-2'>{children}</td>,
+    td: ({ children }: any) => (
+      <td className='border-muted/30 border-b px-2 text-sm leading-tight'>{children}</td>
+    ),
   }
 
   if (isUser) {
     return (
-      <div className='group mb-6 flex w-full justify-end px-4'>
-        <div className='flex max-w-[85%] items-start gap-3'>
-          <div className='flex flex-col items-end space-y-2'>
-            <div className='overflow-hidden rounded-2xl rounded-tr-lg bg-primary px-4 py-3 text-primary-foreground shadow-sm'>
-              <div className='whitespace-pre-wrap text-sm leading-relaxed'>{message.content}</div>
+      <div className='w-full py-2'>
+        <div className='flex justify-end'>
+          <div className='max-w-[80%]'>
+            <div className='rounded-[10px] bg-secondary px-3 py-2'>
+              <div className='whitespace-pre-wrap break-words font-normal text-secondary-foreground text-sm leading-tight'>
+                <WordWrap text={message.content} />
+              </div>
             </div>
-            <div className='flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100'>
-              <span className='text-muted-foreground text-xs'>
-                {formatTimestamp(message.timestamp)}
-              </span>
-              <Button
-                variant='ghost'
-                size='sm'
-                onClick={handleCopyContent}
-                className='h-6 w-6 p-0 text-muted-foreground hover:text-foreground'
-              >
-                <Copy className='h-3 w-3' />
-              </Button>
-            </div>
-          </div>
-          <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm'>
-            <User className='h-4 w-4' />
           </div>
         </div>
       </div>
@@ -359,153 +368,153 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
 
   if (isAssistant) {
     return (
-      <div className='group mb-6 flex w-full justify-start px-4'>
-        <div className='flex w-full max-w-[85%] flex-col'>
-          {/* Main message content with icon */}
-          <div className='flex items-start gap-3'>
-            {/* Bot icon */}
-            <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-sm'>
-              <Bot className={`h-4 w-4 ${isStreaming ? 'animate-pulse' : ''}`} />
-            </div>
-
-            {/* Message content */}
-            <div className='min-w-0 flex-1'>
-              {/* Content blocks in chronological order or fallback to old layout */}
-              <div className='space-y-3'>
-                {message.contentBlocks && message.contentBlocks.length > 0 ? (
-                  // Render content blocks in chronological order
-                  <>
-                    {message.contentBlocks.map((block, index) => {
-                      if (block.type === 'text') {
-                        const isLastTextBlock =
-                          index === message.contentBlocks!.length - 1 && block.type === 'text'
-                        return (
-                          <div
-                            key={`text-${index}`}
-                            className='overflow-hidden rounded-2xl rounded-tl-lg border bg-muted/30 px-4 py-3 shadow-sm'
-                          >
-                            <div className='prose prose-sm dark:prose-invert max-w-none'>
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={markdownComponents}
-                              >
-                                {block.content}
-                              </ReactMarkdown>
-                              {/* Show streaming indicator for the last text block if message is streaming */}
-                              {isStreaming && isLastTextBlock && (
-                                <span className='ml-1 inline-block h-4 w-2 animate-pulse bg-current opacity-60' />
-                              )}
-                            </div>
-                          </div>
-                        )
-                      }
-                      if (block.type === 'tool_call') {
-                        return (
-                          <InlineToolCall key={`tool-${block.toolCall.id}`} tool={block.toolCall} />
-                        )
-                      }
-                      return null
-                    })}
-
-                    {/* Show streaming indicator if streaming but no text content yet after tool calls */}
-                    {isStreaming &&
-                      !message.content &&
-                      message.contentBlocks.every((block) => block.type === 'tool_call') && (
-                        <div className='overflow-hidden rounded-2xl rounded-tl-lg border bg-muted/30 px-4 py-3 shadow-sm'>
-                          <div className='flex items-center gap-2 py-2 text-muted-foreground'>
-                            <div className='flex space-x-1'>
-                              <div
-                                className='h-2 w-2 animate-bounce rounded-full bg-current'
-                                style={{ animationDelay: '0ms' }}
-                              />
-                              <div
-                                className='h-2 w-2 animate-bounce rounded-full bg-current'
-                                style={{ animationDelay: '150ms' }}
-                              />
-                              <div
-                                className='h-2 w-2 animate-bounce rounded-full bg-current'
-                                style={{ animationDelay: '300ms' }}
-                              />
-                            </div>
-                            <span className='text-sm'>Thinking...</span>
-                          </div>
-                        </div>
-                      )}
-                  </>
-                ) : (
-                  // Fallback to old layout for messages without content blocks
-                  <>
-                    {/* Tool calls if available */}
-                    {message.toolCalls && message.toolCalls.length > 0 && (
-                      <div className='space-y-2'>
-                        {message.toolCalls.map((toolCall) => (
-                          <InlineToolCall key={toolCall.id} tool={toolCall} />
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Regular text content */}
-                    {cleanTextContent && (
-                      <div className='overflow-hidden rounded-2xl rounded-tl-lg border bg-muted/30 px-4 py-3 shadow-sm'>
-                        <div className='prose prose-sm dark:prose-invert max-w-none'>
+      <div className='w-full py-2 pl-[2px]'>
+        <div className='space-y-2'>
+          {/* Content blocks in chronological order or fallback to old layout */}
+          {message.contentBlocks && message.contentBlocks.length > 0 ? (
+            // Render content blocks in chronological order
+            <>
+              {message.contentBlocks.map((block, index) => {
+                if (block.type === 'text') {
+                  const isLastTextBlock =
+                    index === message.contentBlocks!.length - 1 && block.type === 'text'
+                  // Clean content for this text block
+                  const cleanBlockContent = block.content.replace(/\n{3,}/g, '\n\n')
+                  return (
+                    <div key={`text-${index}`} className='w-full'>
+                      <div className='overflow-wrap-anywhere relative whitespace-normal break-normal font-normal text-sm leading-tight'>
+                        <div className='whitespace-pre-wrap break-words text-foreground'>
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={markdownComponents}
                           >
-                            {cleanTextContent}
+                            {cleanBlockContent}
                           </ReactMarkdown>
                         </div>
                       </div>
-                    )}
-                  </>
-                )}
+                    </div>
+                  )
+                }
+                if (block.type === 'tool_call') {
+                  return <InlineToolCall key={`tool-${block.toolCall.id}`} tool={block.toolCall} />
+                }
+                return null
+              })}
 
-                {/* Streaming indicator when no content yet */}
-                {!cleanTextContent && !message.contentBlocks?.length && isStreaming && (
-                  <div className='overflow-hidden rounded-2xl rounded-tl-lg border bg-muted/30 px-4 py-3 shadow-sm'>
-                    <div className='flex items-center gap-2 py-2 text-muted-foreground'>
-                      <div className='flex space-x-1'>
-                        <div
-                          className='h-2 w-2 animate-bounce rounded-full bg-current'
-                          style={{ animationDelay: '0ms' }}
-                        />
-                        <div
-                          className='h-2 w-2 animate-bounce rounded-full bg-current'
-                          style={{ animationDelay: '150ms' }}
-                        />
-                        <div
-                          className='h-2 w-2 animate-bounce rounded-full bg-current'
-                          style={{ animationDelay: '300ms' }}
-                        />
-                      </div>
-                      <span className='text-sm'>Thinking...</span>
+              {/* Show streaming indicator if streaming but no text content yet after tool calls */}
+              {isStreaming &&
+                !message.content &&
+                message.contentBlocks.every((block) => block.type === 'tool_call') && (
+                  <div className='flex items-center py-1 text-muted-foreground'>
+                    <div className='flex space-x-0.5'>
+                      <div
+                        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
+                        style={{ animationDelay: '0ms' }}
+                      />
+                      <div
+                        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
+                        style={{ animationDelay: '100ms' }}
+                      />
+                      <div
+                        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
+                        style={{ animationDelay: '200ms' }}
+                      />
                     </div>
                   </div>
                 )}
+            </>
+          ) : (
+            // Fallback to old layout for messages without content blocks
+            <>
+              {/* Tool calls if available */}
+              {message.toolCalls && message.toolCalls.length > 0 && (
+                <div className='mb-2'>
+                  {message.toolCalls.map((toolCall) => (
+                    <InlineToolCall key={toolCall.id} tool={toolCall} />
+                  ))}
+                </div>
+              )}
+
+              {/* Regular text content */}
+              {cleanTextContent && (
+                <div className='w-full'>
+                  <div className='overflow-wrap-anywhere relative whitespace-normal break-normal font-normal text-sm leading-tight'>
+                    <div className='whitespace-pre-wrap break-words text-foreground'>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                        {cleanTextContent}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Streaming indicator when no content yet */}
+          {!cleanTextContent && !message.contentBlocks?.length && isStreaming && (
+            <div className='flex items-center py-2 text-muted-foreground'>
+              <div className='flex space-x-0.5'>
+                <div
+                  className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
+                  style={{ animationDelay: '0ms' }}
+                />
+                <div
+                  className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
+                  style={{ animationDelay: '100ms' }}
+                />
+                <div
+                  className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
+                  style={{ animationDelay: '200ms' }}
+                />
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Timestamp and actions */}
-          <div className='mt-2 ml-11 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100'>
-            <span className='text-muted-foreground text-xs'>
-              {formatTimestamp(message.timestamp)}
-            </span>
-            {cleanTextContent && (
-              <Button
-                variant='ghost'
-                size='sm'
+          {/* Action buttons for completed messages */}
+          {!isStreaming && cleanTextContent && (
+            <div className='flex items-center gap-2'>
+              <button
                 onClick={handleCopyContent}
-                className='h-6 w-6 p-0 text-muted-foreground hover:text-foreground'
+                className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
+                style={{ color: 'var(--base-muted-foreground)' }}
+                title='Copy'
               >
-                <Copy className='h-3 w-3' />
-              </Button>
-            )}
-          </div>
+                {showCopySuccess ? (
+                  <Check className='h-3 w-3 text-gray-500' strokeWidth={2} />
+                ) : (
+                  <Clipboard className='h-3 w-3' strokeWidth={2} />
+                )}
+              </button>
+              <button
+                onClick={handleUpvote}
+                className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
+                style={{ color: 'var(--base-muted-foreground)' }}
+                title='Upvote'
+              >
+                {showUpvoteSuccess ? (
+                  <Check className='h-3 w-3 text-gray-500' strokeWidth={2} />
+                ) : (
+                  <ThumbsUp className='h-3 w-3' strokeWidth={2} />
+                )}
+              </button>
+              <button
+                onClick={handleDownvote}
+                className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
+                style={{ color: 'var(--base-muted-foreground)' }}
+                title='Downvote'
+              >
+                {showDownvoteSuccess ? (
+                  <Check className='h-3 w-3 text-gray-500' strokeWidth={2} />
+                ) : (
+                  <ThumbsDown className='h-3 w-3' strokeWidth={2} />
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Citations if available */}
           {message.citations && message.citations.length > 0 && (
-            <div className='mt-2 ml-11 space-y-2'>
+            <div className='pt-1'>
               <div className='font-medium text-muted-foreground text-xs'>Sources:</div>
               <div className='flex flex-wrap gap-2'>
                 {message.citations.map((citation) => (

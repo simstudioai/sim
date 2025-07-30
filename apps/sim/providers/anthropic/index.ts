@@ -5,7 +5,6 @@ import { executeTool } from '@/tools'
 import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
-import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 
 const logger = createLogger('AnthropicProvider')
 
@@ -653,8 +652,6 @@ ${fieldDescriptions}
         const providerEndTime = Date.now()
         const providerEndTimeISO = new Date(providerEndTime).toISOString()
         const totalDuration = providerEndTime - providerStartTime
-
-
 
         // If no tool calls were made, return a direct response
         return {

@@ -16,7 +16,14 @@ export interface CopilotToolCall {
   name: string
   displayName: string
   input: Record<string, any>
-  state: 'executing' | 'completed' | 'error' | 'ready_for_review' | 'applied' | 'rejected' | 'aborted'
+  state:
+    | 'executing'
+    | 'completed'
+    | 'error'
+    | 'ready_for_review'
+    | 'applied'
+    | 'rejected'
+    | 'aborted'
   startTime?: number
   endTime?: number
   duration?: number
@@ -141,6 +148,10 @@ export interface CopilotState {
 
   // Abort controller for cancelling requests
   abortController: AbortController | null
+
+  // Cache management
+  chatsLastLoadedAt: Date | null // When chats were last loaded
+  chatsLoadedForWorkflow: string | null // Which workflow the chats were loaded for
 }
 
 /**
@@ -153,7 +164,8 @@ export interface CopilotActions {
   // Chat management
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean
-  loadChats: () => Promise<void>
+  loadChats: (forceRefresh?: boolean) => Promise<void>
+  areChatsFresh: (workflowId: string) => boolean // Check if chats are fresh for a workflow
   selectChat: (chat: CopilotChat) => Promise<void>
   createNewChat: (options?: CreateChatOptions) => Promise<void>
   deleteChat: (chatId: string) => Promise<void>

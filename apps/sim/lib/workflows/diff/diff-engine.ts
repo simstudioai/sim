@@ -256,7 +256,7 @@ export class WorkflowDiffEngine {
       Object.entries(newState.blocks).forEach(([newBlockId, newBlock]) => {
         const key = `${newBlock.type}:${newBlock.name}`
         const existing = existingBlockMap.get(key)
-        
+
         if (existing) {
           // Update existing block, preserving its ID but updating properties
           const previousDiffStatus = (existing.block as any).is_diff
@@ -269,7 +269,7 @@ export class WorkflowDiffEngine {
           }
           // Preserve the diff status if it was already marked
           if (previousDiffStatus) {
-            (mergedBlocks[existing.id] as any).is_diff = previousDiffStatus
+            ;(mergedBlocks[existing.id] as any).is_diff = previousDiffStatus
           }
           blockIdMapping.set(newBlockId, existing.id)
           logger.info(`Updating existing block: ${key} with ID ${existing.id}`, {
@@ -284,7 +284,7 @@ export class WorkflowDiffEngine {
       })
 
       // Update edges to use the correct block IDs
-      const remappedNewEdges = newState.edges.map(edge => ({
+      const remappedNewEdges = newState.edges.map((edge) => ({
         ...edge,
         source: blockIdMapping.get(edge.source) || edge.source,
         target: blockIdMapping.get(edge.target) || edge.target,
@@ -292,10 +292,10 @@ export class WorkflowDiffEngine {
 
       // Merge edges - combine unique edges
       const existingEdgeSet = new Set(
-        this.currentDiff.proposedState.edges.map(e => `${e.source}-${e.target}`)
+        this.currentDiff.proposedState.edges.map((e) => `${e.source}-${e.target}`)
       )
       const mergedEdges = [...this.currentDiff.proposedState.edges]
-      remappedNewEdges.forEach(edge => {
+      remappedNewEdges.forEach((edge) => {
         const edgeKey = `${edge.source}-${edge.target}`
         if (!existingEdgeSet.has(edgeKey)) {
           mergedEdges.push(edge)
@@ -311,7 +311,7 @@ export class WorkflowDiffEngine {
           remapped[mappedId] = {
             ...loop,
             id: mappedId,
-            blocks: loop.blocks?.map((id: string) => blockIdMapping.get(id) || id) || []
+            blocks: loop.blocks?.map((id: string) => blockIdMapping.get(id) || id) || [],
           }
         })
         return remapped
@@ -324,23 +324,24 @@ export class WorkflowDiffEngine {
           remapped[mappedId] = {
             ...parallel,
             id: mappedId,
-            branches: parallel.branches?.map((branch: any) => ({
-              ...branch,
-              blocks: branch.blocks?.map((id: string) => blockIdMapping.get(id) || id) || []
-            })) || []
+            branches:
+              parallel.branches?.map((branch: any) => ({
+                ...branch,
+                blocks: branch.blocks?.map((id: string) => blockIdMapping.get(id) || id) || [],
+              })) || [],
           }
         })
         return remapped
       }
 
       // Merge loops and parallels
-      const mergedLoops = { 
-        ...this.currentDiff.proposedState.loops, 
-        ...remapLoops(newState.loops) 
+      const mergedLoops = {
+        ...this.currentDiff.proposedState.loops,
+        ...remapLoops(newState.loops),
       }
-      const mergedParallels = { 
-        ...this.currentDiff.proposedState.parallels, 
-        ...remapParallels(newState.parallels) 
+      const mergedParallels = {
+        ...this.currentDiff.proposedState.parallels,
+        ...remapParallels(newState.parallels),
       }
 
       // Create merged state
@@ -355,7 +356,7 @@ export class WorkflowDiffEngine {
       let mappedDiffAnalysis = diffAnalysis
       if (diffAnalysis) {
         logger.info('Applying diff markers to merged state')
-        
+
         // Create a combined ID mapping that includes our block remapping
         const combinedIdMapping = new Map<string, string>()
         if (conversionResult.idMapping) {
@@ -365,12 +366,9 @@ export class WorkflowDiffEngine {
             combinedIdMapping.set(oldId, finalId)
           })
         }
-        
+
         this.applyDiffMarkers(mergedState, diffAnalysis, combinedIdMapping)
-        mappedDiffAnalysis = this.createMappedDiffAnalysis(
-          diffAnalysis,
-          combinedIdMapping
-        )
+        mappedDiffAnalysis = this.createMappedDiffAnalysis(diffAnalysis, combinedIdMapping)
       }
 
       // Merge diff analysis if both exist
@@ -378,36 +376,36 @@ export class WorkflowDiffEngine {
         // Get all blocks that were previously marked as new or edited
         const previouslyNewBlocks = new Set(this.currentDiff.diffAnalysis.new_blocks)
         const previouslyEditedBlocks = new Set(this.currentDiff.diffAnalysis.edited_blocks)
-        
+
         // Blocks that are edited in the new analysis
         const newlyEditedBlocks = new Set(mappedDiffAnalysis.edited_blocks)
-        
+
         // If a block was previously 'new' and is now being edited, it stays 'new'
         // If a block was previously 'edited' and is edited again, it stays 'edited'
         const finalNewBlocks = new Set<string>()
         const finalEditedBlocks = new Set<string>()
-        
+
         // Add all previously new blocks
-        previouslyNewBlocks.forEach(id => finalNewBlocks.add(id))
-        
+        previouslyNewBlocks.forEach((id) => finalNewBlocks.add(id))
+
         // Add newly added blocks from this update
-        mappedDiffAnalysis.new_blocks.forEach(id => finalNewBlocks.add(id))
-        
+        mappedDiffAnalysis.new_blocks.forEach((id) => finalNewBlocks.add(id))
+
         // Process edited blocks
-        newlyEditedBlocks.forEach(id => {
+        newlyEditedBlocks.forEach((id) => {
           if (!finalNewBlocks.has(id)) {
             // Only mark as edited if it's not already marked as new
             finalEditedBlocks.add(id)
           }
         })
-        
+
         // Add previously edited blocks that aren't being marked as new
-        previouslyEditedBlocks.forEach(id => {
+        previouslyEditedBlocks.forEach((id) => {
           if (!finalNewBlocks.has(id)) {
             finalEditedBlocks.add(id)
           }
         })
-        
+
         // Combine the diff analyses
         const combinedAnalysis: DiffAnalysis = {
           new_blocks: Array.from(finalNewBlocks),
@@ -415,25 +413,25 @@ export class WorkflowDiffEngine {
           deleted_blocks: [
             ...new Set([
               ...this.currentDiff.diffAnalysis.deleted_blocks,
-              ...mappedDiffAnalysis.deleted_blocks
-            ])
+              ...mappedDiffAnalysis.deleted_blocks,
+            ]),
           ],
           edge_diff: {
             new_edges: [
               ...(this.currentDiff.diffAnalysis.edge_diff?.new_edges || []),
-              ...(mappedDiffAnalysis.edge_diff?.new_edges || [])
+              ...(mappedDiffAnalysis.edge_diff?.new_edges || []),
             ],
             deleted_edges: [
               ...new Set([
                 ...(this.currentDiff.diffAnalysis.edge_diff?.deleted_edges || []),
-                ...(mappedDiffAnalysis.edge_diff?.deleted_edges || [])
-              ])
+                ...(mappedDiffAnalysis.edge_diff?.deleted_edges || []),
+              ]),
             ],
             unchanged_edges: [
               ...new Set([
                 ...(this.currentDiff.diffAnalysis.edge_diff?.unchanged_edges || []),
-                ...(mappedDiffAnalysis.edge_diff?.unchanged_edges || [])
-              ])
+                ...(mappedDiffAnalysis.edge_diff?.unchanged_edges || []),
+              ]),
             ],
           },
           field_diffs: {
@@ -442,7 +440,7 @@ export class WorkflowDiffEngine {
           },
         }
         mappedDiffAnalysis = combinedAnalysis
-        
+
         logger.info('Combined diff analysis:', {
           previousNew: previouslyNewBlocks.size,
           previousEdited: previouslyEditedBlocks.size,
@@ -458,11 +456,7 @@ export class WorkflowDiffEngine {
       try {
         logger.info('Applying auto layout to merged diff workflow')
         const { autoLayoutWorkflow } = await import('@/lib/autolayout/service')
-        const layoutedBlocks = await autoLayoutWorkflow(
-          mergedState.blocks,
-          mergedState.edges,
-          {}
-        )
+        const layoutedBlocks = await autoLayoutWorkflow(mergedState.blocks, mergedState.edges, {})
 
         if (layoutedBlocks) {
           mergedState.blocks = layoutedBlocks
@@ -479,7 +473,7 @@ export class WorkflowDiffEngine {
             Object.entries(mergedState.blocks).forEach(([blockId, block]) => {
               // Check if this block was part of the current update
               const wasInCurrentUpdate = Array.from(blockIdMapping.values()).includes(blockId)
-              
+
               if (mappedDiffAnalysis.new_blocks.includes(blockId)) {
                 ;(block as any).is_diff = 'new'
               } else if (mappedDiffAnalysis.edited_blocks.includes(blockId)) {

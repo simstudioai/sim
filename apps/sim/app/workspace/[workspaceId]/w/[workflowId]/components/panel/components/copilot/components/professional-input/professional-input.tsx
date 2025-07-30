@@ -1,7 +1,7 @@
 'use client'
 
-import { type FC, type KeyboardEvent, useRef, useState } from 'react'
-import { ArrowUp, Loader2, X } from 'lucide-react'
+import { type FC, type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { ArrowUp, Loader2, MessageCircle, Package, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,8 @@ interface ProfessionalInputProps {
   isAborting?: boolean
   placeholder?: string
   className?: string
+  mode?: 'ask' | 'agent'
+  onModeChange?: (mode: 'ask' | 'agent') => void
 }
 
 const ProfessionalInput: FC<ProfessionalInputProps> = ({
@@ -24,9 +26,20 @@ const ProfessionalInput: FC<ProfessionalInputProps> = ({
   isAborting = false,
   placeholder = 'How can I help you today?',
   className,
+  mode = 'agent',
+  onModeChange,
 }) => {
   const [message, setMessage] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.style.height = 'auto'
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px` // Max height of 120px
+    }
+  }, [message])
 
   const handleSubmit = () => {
     const trimmedMessage = message.trim()
@@ -34,11 +47,6 @@ const ProfessionalInput: FC<ProfessionalInputProps> = ({
 
     onSubmit(trimmedMessage)
     setMessage('')
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-    }
   }
 
   const handleAbort = () => {
@@ -56,69 +64,84 @@ const ProfessionalInput: FC<ProfessionalInputProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value)
-
-    // Auto-resize textarea
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`
-    }
   }
 
   const canSubmit = message.trim().length > 0 && !disabled && !isLoading
   const showAbortButton = isLoading && onAbort
 
+  const handleModeToggle = () => {
+    if (onModeChange) {
+      onModeChange(mode === 'ask' ? 'agent' : 'ask')
+    }
+  }
+
+  const getModeIcon = () => {
+    return mode === 'ask' ? (
+      <MessageCircle className='h-3 w-3 text-muted-foreground' />
+    ) : (
+      <Package className='h-3 w-3 text-muted-foreground' />
+    )
+  }
+
   return (
-    <div className={cn('w-full max-w-full overflow-hidden bg-background p-4', className)}>
-      <div className='mx-auto w-full max-w-3xl'>
-        <div className='relative w-full max-w-full'>
-          <div className='relative flex w-full max-w-full items-end rounded-2xl border border-border bg-background shadow-sm transition-all focus-within:border-primary focus-within:ring-1 focus-within:ring-primary'>
-            <Textarea
-              ref={textareaRef}
-              value={message}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              disabled={disabled || isLoading}
-              className='max-h-[120px] min-h-[50px] w-full max-w-full resize-none border-0 bg-transparent px-4 py-3 pr-12 text-sm placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-              rows={1}
-            />
-            {showAbortButton ? (
-              <Button
-                onClick={handleAbort}
-                disabled={isAborting}
-                size='icon'
-                className={cn(
-                  'absolute right-2 bottom-2 h-8 w-8 rounded-xl transition-all',
-                  'bg-red-500 text-white shadow-sm hover:bg-red-600'
-                )}
-                title='Stop generation'
-              >
-                {isAborting ? (
-                  <Loader2 className='h-4 w-4 animate-spin' />
-                ) : (
-                  <X className='h-4 w-4' />
-                )}
-              </Button>
-            ) : (
-              <Button
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                size='icon'
-                className={cn(
-                  'absolute right-2 bottom-2 h-8 w-8 rounded-xl transition-all',
-                  canSubmit
-                    ? 'bg-[#802FFF] text-white shadow-sm hover:bg-[#7028E6]'
-                    : 'cursor-not-allowed bg-muted text-muted-foreground'
-                )}
-              >
-                {isLoading ? (
-                  <Loader2 className='h-4 w-4 animate-spin' />
-                ) : (
-                  <ArrowUp className='h-4 w-4' />
-                )}
-              </Button>
-            )}
-          </div>
+    <div className={cn('relative flex-none pb-4', className)}>
+      <div className='rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs dark:border-[#414141] dark:bg-[#202020]'>
+        {/* Textarea Field */}
+        <Textarea
+          ref={textareaRef}
+          value={message}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled || isLoading}
+          rows={1}
+          className='mb-2 min-h-[32px] w-full resize-none overflow-hidden border-0 bg-transparent px-[2px] py-1 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+          style={{ height: 'auto' }}
+        />
+
+        {/* Bottom Row: Mode Selector + Send Button */}
+        <div className='flex items-center justify-between'>
+          {/* Mode Selector Tag */}
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={handleModeToggle}
+            disabled={!onModeChange}
+            className='flex h-6 items-center gap-1.5 rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground text-xs hover:bg-secondary/80'
+          >
+            {getModeIcon()}
+            <span className='capitalize'>{mode}</span>
+          </Button>
+
+          {/* Send Button */}
+          {showAbortButton ? (
+            <Button
+              onClick={handleAbort}
+              disabled={isAborting}
+              size='icon'
+              className='h-6 w-6 rounded-full bg-red-500 text-white transition-all duration-200 hover:bg-red-600'
+              title='Stop generation'
+            >
+              {isAborting ? (
+                <Loader2 className='h-3 w-3 animate-spin' />
+              ) : (
+                <X className='h-3 w-3' />
+              )}
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              size='icon'
+              className='h-6 w-6 rounded-full bg-[#802FFF] text-white shadow-[0_0_0_0_#802FFF] transition-all duration-200 hover:bg-[#7028E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+            >
+              {isLoading ? (
+                <Loader2 className='h-3 w-3 animate-spin' />
+              ) : (
+                <ArrowUp className='h-3 w-3' />
+              )}
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -127,7 +127,9 @@ export function ToolCallCompletion({ toolCall, isCompact = false }: ToolCallProp
                 <CheckCircle className='h-4 w-4 shrink-0 text-green-600 dark:text-green-400' />
               )}
               {isError && <XCircle className='h-4 w-4 shrink-0 text-red-600 dark:text-red-400' />}
-              {isAborted && <XCircle className='h-4 w-4 shrink-0 text-orange-600 dark:text-orange-400' />}
+              {isAborted && (
+                <XCircle className='h-4 w-4 shrink-0 text-orange-600 dark:text-orange-400' />
+              )}
               <span
                 className={cn(
                   'min-w-0 truncate font-mono text-xs',

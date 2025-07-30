@@ -1,10 +1,8 @@
-import { createLogger } from '@/lib/logs/console-logger'
 import { getYamlWorkflowPrompt } from '@/lib/copilot/prompts'
+import { createLogger } from '@/lib/logs/console-logger'
 import { BaseCopilotTool } from '../base'
 
-interface GetYamlStructureParams {
-  // No parameters needed - just return the YAML structure guide
-}
+type GetYamlStructureParams = {}
 
 interface YamlStructureResult {
   guide: string

@@ -18,7 +18,10 @@ interface WorkflowConsoleResult {
   hasBlockDetails: boolean
 }
 
-class GetWorkflowConsoleTool extends BaseCopilotTool<GetWorkflowConsoleParams, WorkflowConsoleResult> {
+class GetWorkflowConsoleTool extends BaseCopilotTool<
+  GetWorkflowConsoleParams,
+  WorkflowConsoleResult
+> {
   readonly id = 'get_workflow_console'
   readonly displayName = 'Getting workflow console'
 
@@ -31,7 +34,9 @@ class GetWorkflowConsoleTool extends BaseCopilotTool<GetWorkflowConsoleParams, W
 export const getWorkflowConsoleTool = new GetWorkflowConsoleTool()
 
 // Implementation function
-async function getWorkflowConsole(params: GetWorkflowConsoleParams): Promise<WorkflowConsoleResult> {
+async function getWorkflowConsole(
+  params: GetWorkflowConsoleParams
+): Promise<WorkflowConsoleResult> {
   const logger = createLogger('GetWorkflowConsole')
   const { workflowId, limit = 50, includeDetails = false } = params
 

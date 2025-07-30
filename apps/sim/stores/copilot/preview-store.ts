@@ -2,8 +2,8 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CopilotMessage, CopilotToolCall } from './types'
 import { COPILOT_TOOL_IDS } from './constants'
+import type { CopilotMessage, CopilotToolCall } from './types'
 
 export interface PreviewData {
   id: string

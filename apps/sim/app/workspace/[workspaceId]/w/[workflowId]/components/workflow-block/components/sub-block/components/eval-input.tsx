@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Plus, Trash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,12 +25,12 @@ interface EvalInputProps {
 }
 
 // Default values
-const DEFAULT_METRIC: EvalMetric = {
+const createDefaultMetric = (): EvalMetric => ({
   id: crypto.randomUUID(),
   name: '',
   description: '',
   range: { min: 0, max: 1 },
-}
+})
 
 export function EvalInput({
   blockId,
@@ -43,17 +44,15 @@ export function EvalInput({
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
-  // State hooks
-  const metrics: EvalMetric[] = value || [DEFAULT_METRIC]
+  // State hooks - memoize default metric to prevent key changes
+  const defaultMetric = useMemo(() => createDefaultMetric(), [])
+  const metrics: EvalMetric[] = value || [defaultMetric]
 
   // Metric operations
   const addMetric = () => {
     if (isPreview || disabled) return
 
-    const newMetric: EvalMetric = {
-      ...DEFAULT_METRIC,
-      id: crypto.randomUUID(),
-    }
+    const newMetric: EvalMetric = createDefaultMetric()
     setStoreValue([...metrics, newMetric])
   }
 
@@ -112,7 +111,7 @@ export function EvalInput({
     <div className='flex h-10 items-center justify-between rounded-t-lg border-b bg-card px-3'>
       <span className='font-medium text-sm'>Metric {index + 1}</span>
       <div className='flex items-center gap-1'>
-        <Tooltip>
+        <Tooltip key={`add-${metric.id}`}>
           <TooltipTrigger asChild>
             <Button
               variant='ghost'
@@ -128,7 +127,7 @@ export function EvalInput({
           <TooltipContent>Add Metric</TooltipContent>
         </Tooltip>
 
-        <Tooltip>
+        <Tooltip key={`remove-${metric.id}`}>
           <TooltipTrigger asChild>
             <Button
               variant='ghost'
@@ -159,7 +158,7 @@ export function EvalInput({
           {renderMetricHeader(metric, index)}
 
           <div className='space-y-2 px-3 pt-2 pb-3'>
-            <div className='space-y-1'>
+            <div key={`name-${metric.id}`} className='space-y-1'>
               <Label>Name</Label>
               <Input
                 name='name'
@@ -171,7 +170,7 @@ export function EvalInput({
               />
             </div>
 
-            <div className='space-y-1'>
+            <div key={`description-${metric.id}`} className='space-y-1'>
               <Label>Description</Label>
               <Input
                 value={metric.description}
@@ -182,7 +181,7 @@ export function EvalInput({
               />
             </div>
 
-            <div className='grid grid-cols-2 gap-4'>
+            <div key={`range-${metric.id}`} className='grid grid-cols-2 gap-4'>
               <div className='space-y-1'>
                 <Label>Min Value</Label>
                 <Input

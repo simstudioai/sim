@@ -14,4 +14,4 @@ export const COPILOT_TOOL_IDS = {
   GET_WORKFLOW_CONSOLE: 'get_workflow_console',
   EDIT_WORKFLOW: 'edit_workflow',
   SEARCH_ONLINE: 'search_online',
-} as const 
+} as const

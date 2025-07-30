@@ -254,14 +254,14 @@ export const editWorkflowTool = new EditWorkflowTool()
 async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowResult> {
   const { operations, workflowId } = params
 
-  logger.info('Processing targeted update request', { 
+  logger.info('Processing targeted update request', {
     workflowId,
-    operationCount: operations.length 
+    operationCount: operations.length,
   })
 
   // Get current workflow YAML directly by calling the function
   const { getUserWorkflowTool } = await import('./get-user-workflow')
-  
+
   const getUserWorkflowResult = await getUserWorkflowTool.execute({
     workflowId: workflowId,
     includeMetadata: false,

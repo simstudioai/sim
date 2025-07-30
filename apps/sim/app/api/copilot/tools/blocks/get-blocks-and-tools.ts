@@ -1,12 +1,13 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { BaseCopilotTool } from '../base'
-import { createLogger } from '@/lib/logs/console-logger'
 
-interface GetBlocksAndToolsParams {
-  // No parameters needed - just return all blocks and tools
-}
+type GetBlocksAndToolsParams = {}
 
-class GetBlocksAndToolsTool extends BaseCopilotTool<GetBlocksAndToolsParams, Record<string, string[]>> {
+class GetBlocksAndToolsTool extends BaseCopilotTool<
+  GetBlocksAndToolsParams,
+  Record<string, string[]>
+> {
   readonly id = 'get_blocks_and_tools'
   readonly displayName = 'Getting block information'
 

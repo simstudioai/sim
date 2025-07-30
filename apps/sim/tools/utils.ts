@@ -5,6 +5,7 @@ import { useEnvironmentStore } from '@/stores/settings/environment/store'
 // Copilot-specific tools are now handled in @/lib/copilot/tools.ts
 import { tools } from '@/tools/registry'
 import type { TableRow, ToolConfig, ToolResponse } from '@/tools/types'
+
 // Workflow tools moved to copilot system
 
 const logger = createLogger('ToolsUtils')

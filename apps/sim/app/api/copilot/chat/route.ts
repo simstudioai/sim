@@ -1,16 +1,13 @@
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { getCopilotModel } from '@/lib/copilot/config'
+import { TITLE_GENERATION_SYSTEM_PROMPT, TITLE_GENERATION_USER_PROMPT } from '@/lib/copilot/prompts'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { apiKey as apiKeyTable, copilotChats } from '@/db/schema'
-import { and, eq, desc } from 'drizzle-orm'
 import { executeProviderRequest } from '@/providers'
-import { getCopilotModel } from '@/lib/copilot/config'
-import { 
-  TITLE_GENERATION_SYSTEM_PROMPT, 
-  TITLE_GENERATION_USER_PROMPT 
-} from '@/lib/copilot/prompts'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -35,7 +32,7 @@ const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 async function generateChatTitle(userMessage: string): Promise<string> {
   try {
     const { provider, model } = getCopilotModel('title')
-    
+
     // Get the appropriate API key for the provider
     let apiKey: string | undefined
     if (provider === 'anthropic') {
@@ -75,16 +72,16 @@ async function generateChatTitle(userMessage: string): Promise<string> {
  * Generate chat title asynchronously and update the database
  */
 async function generateChatTitleAsync(
-  chatId: string, 
-  userMessage: string, 
+  chatId: string,
+  userMessage: string,
   requestId: string,
   streamController?: ReadableStreamDefaultController<Uint8Array>
 ): Promise<void> {
   try {
     logger.info(`[${requestId}] Starting async title generation for chat ${chatId}`)
-    
+
     const title = await generateChatTitle(userMessage)
-    
+
     // Update the chat with the generated title
     await db
       .update(copilotChats)
@@ -93,18 +90,18 @@ async function generateChatTitleAsync(
         updatedAt: new Date(),
       })
       .where(eq(copilotChats.id, chatId))
-    
+
     // Send title_updated event to client if streaming
     if (streamController) {
       const encoder = new TextEncoder()
-      const titleEvent = `data: ${JSON.stringify({ 
-        type: 'title_updated', 
-        title: title 
+      const titleEvent = `data: ${JSON.stringify({
+        type: 'title_updated',
+        title: title,
       })}\n\n`
       streamController.enqueue(encoder.encode(titleEvent))
       logger.debug(`[${requestId}] Sent title_updated event to client: "${title}"`)
     }
-    
+
     logger.info(`[${requestId}] Generated title for chat ${chatId}: "${title}"`)
   } catch (error) {
     logger.error(`[${requestId}] Failed to generate title for chat ${chatId}:`, error)
@@ -147,7 +144,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { message, chatId, workflowId, mode, createNewChat, stream, implicitFeedback } = 
+    const { message, chatId, workflowId, mode, createNewChat, stream, implicitFeedback } =
       ChatMessageSchema.parse(body)
 
     logger.info(`[${requestId}] Processing copilot chat request`, {
@@ -200,7 +197,7 @@ export async function POST(req: NextRequest) {
 
     // Build messages array for sim agent with conversation history
     const messages = []
-    
+
     // Add conversation history
     for (const msg of conversationHistory) {
       messages.push({
@@ -231,9 +228,9 @@ export async function POST(req: NextRequest) {
     // Forward to sim agent API
     logger.info(`[${requestId}] Sending request to sim agent API`, {
       messageCount: messages.length,
-      endpoint: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`
+      endpoint: `${SIM_AGENT_API_URL}/api/chat-completion-streaming`,
     })
-    
+
     const simAgentResponse = await fetch(`${SIM_AGENT_API_URL}/api/chat-completion-streaming`, {
       method: 'POST',
       headers: {
@@ -279,15 +276,15 @@ export async function POST(req: NextRequest) {
         async start(controller) {
           const encoder = new TextEncoder()
           let assistantContent = ''
-          let toolCalls: any[] = []
+          const toolCalls: any[] = []
           let buffer = ''
           let isFirstDone = true
 
           // Send chatId as first event
           if (actualChatId) {
-            const chatIdEvent = `data: ${JSON.stringify({ 
-              type: 'chat_id', 
-              chatId: actualChatId 
+            const chatIdEvent = `data: ${JSON.stringify({
+              type: 'chat_id',
+              chatId: actualChatId,
             })}\n\n`
             controller.enqueue(encoder.encode(chatIdEvent))
             logger.debug(`[${requestId}] Sent initial chatId event to client`)
@@ -299,27 +296,30 @@ export async function POST(req: NextRequest) {
               chatId: actualChatId,
               hasTitle: !!currentChat?.title,
               conversationLength: conversationHistory.length,
-              message: message.substring(0, 100) + (message.length > 100 ? '...' : '')
+              message: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
             })
-            generateChatTitleAsync(actualChatId, message, requestId, controller)
-              .catch(error => {
-                logger.error(`[${requestId}] Title generation failed:`, error)
-              })
+            generateChatTitleAsync(actualChatId, message, requestId, controller).catch((error) => {
+              logger.error(`[${requestId}] Title generation failed:`, error)
+            })
           } else {
             logger.debug(`[${requestId}] Skipping title generation`, {
               chatId: actualChatId,
               hasTitle: !!currentChat?.title,
               conversationLength: conversationHistory.length,
-              reason: !actualChatId ? 'no chatId' : 
-                      currentChat?.title ? 'already has title' : 
-                      conversationHistory.length > 0 ? 'not first message' : 'unknown'
+              reason: !actualChatId
+                ? 'no chatId'
+                : currentChat?.title
+                  ? 'already has title'
+                  : conversationHistory.length > 0
+                    ? 'not first message'
+                    : 'unknown',
             })
           }
 
           // Forward the sim agent stream and capture assistant response
           const reader = simAgentResponse.body!.getReader()
           const decoder = new TextDecoder()
-          
+
           try {
             while (true) {
               const { done, value } = await reader.read()
@@ -327,7 +327,7 @@ export async function POST(req: NextRequest) {
                 logger.info(`[${requestId}] Stream reading completed`)
                 break
               }
-              
+
               // Check if client disconnected before processing chunk
               try {
                 // Forward the chunk to client immediately
@@ -339,28 +339,29 @@ export async function POST(req: NextRequest) {
                 break
               }
               const chunkSize = value.byteLength
-              
+
               // Decode and parse SSE events for logging and capturing content
               const decodedChunk = decoder.decode(value, { stream: true })
               buffer += decodedChunk
-              
+
               // Log first few chunks for debugging
               if (chunkSize > 0) {
                 logger.debug(`[${requestId}] Forwarded chunk to client:`, {
                   size: chunkSize,
-                  preview: decodedChunk.substring(0, 100) + (decodedChunk.length > 100 ? '...' : '')
+                  preview:
+                    decodedChunk.substring(0, 100) + (decodedChunk.length > 100 ? '...' : ''),
                 })
               }
               const lines = buffer.split('\n')
               buffer = lines.pop() || '' // Keep incomplete line in buffer
-              
+
               for (const line of lines) {
                 if (line.trim() === '') continue // Skip empty lines
-                
+
                 if (line.startsWith('data: ') && line.length > 6) {
                   try {
                     const event = JSON.parse(line.slice(6))
-                    
+
                     // Log different event types comprehensively
                     switch (event.type) {
                       case 'content':
@@ -369,58 +370,63 @@ export async function POST(req: NextRequest) {
                           assistantContent += event.data
                         }
                         break
-                        
+
                       case 'tool_call':
-                        logger.info(`[${requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`, {
-                          id: event.data?.id,
-                          name: event.data?.name,
-                          arguments: event.data?.arguments,
-                          blockIndex: event.data?._blockIndex
-                        })
+                        logger.info(
+                          `[${requestId}] Tool call ${event.data?.partial ? '(partial)' : '(complete)'}:`,
+                          {
+                            id: event.data?.id,
+                            name: event.data?.name,
+                            arguments: event.data?.arguments,
+                            blockIndex: event.data?._blockIndex,
+                          }
+                        )
                         if (!event.data?.partial) {
                           toolCalls.push(event.data)
                         }
                         break
-                        
+
                       case 'tool_execution':
                         logger.info(`[${requestId}] Tool execution started:`, {
                           toolCallId: event.toolCallId,
                           toolName: event.toolName,
-                          status: event.status
+                          status: event.status,
                         })
                         break
-                        
+
                       case 'tool_result':
                         logger.info(`[${requestId}] Tool result received:`, {
                           toolCallId: event.toolCallId,
                           toolName: event.toolName,
                           success: event.success,
-                          result: JSON.stringify(event.result).substring(0, 200) + '...'
+                          result: `${JSON.stringify(event.result).substring(0, 200)}...`,
                         })
                         break
-                        
+
                       case 'tool_error':
                         logger.error(`[${requestId}] Tool error:`, {
                           toolCallId: event.toolCallId,
                           toolName: event.toolName,
                           error: event.error,
-                          success: event.success
+                          success: event.success,
                         })
                         break
-                        
+
                       case 'done':
                         if (isFirstDone) {
-                          logger.info(`[${requestId}] Initial AI response complete, tool count: ${toolCalls.length}`)
+                          logger.info(
+                            `[${requestId}] Initial AI response complete, tool count: ${toolCalls.length}`
+                          )
                           isFirstDone = false
                         } else {
                           logger.info(`[${requestId}] Conversation round complete`)
                         }
                         break
-                        
+
                       case 'error':
                         logger.error(`[${requestId}] Stream error event:`, event.error)
                         break
-                        
+
                       default:
                         logger.debug(`[${requestId}] Unknown event type: ${event.type}`, event)
                     }
@@ -432,7 +438,7 @@ export async function POST(req: NextRequest) {
                 }
               }
             }
-            
+
             // Process any remaining buffer
             if (buffer.trim()) {
               logger.debug(`[${requestId}] Processing remaining buffer: "${buffer}"`)
@@ -453,12 +459,12 @@ export async function POST(req: NextRequest) {
               totalContentLength: assistantContent.length,
               toolCallsCount: toolCalls.length,
               hasContent: assistantContent.length > 0,
-              toolNames: toolCalls.map(tc => tc?.name).filter(Boolean)
+              toolNames: toolCalls.map((tc) => tc?.name).filter(Boolean),
             })
 
             // Save messages to database after streaming completes (including aborted messages)
             if (currentChat) {
-              let updatedMessages = [...conversationHistory, userMessage]
+              const updatedMessages = [...conversationHistory, userMessage]
 
               // Save assistant message if there's any content (even partial from abort)
               if (assistantContent.trim()) {
@@ -469,7 +475,9 @@ export async function POST(req: NextRequest) {
                   timestamp: new Date().toISOString(),
                 }
                 updatedMessages.push(assistantMessage)
-                logger.info(`[${requestId}] Saving assistant message with content (${assistantContent.length} chars)`)
+                logger.info(
+                  `[${requestId}] Saving assistant message with content (${assistantContent.length} chars)`
+                )
               } else {
                 logger.info(`[${requestId}] No assistant content to save (aborted before response)`)
               }
@@ -506,7 +514,7 @@ export async function POST(req: NextRequest) {
           'X-Accel-Buffering': 'no',
         },
       })
-      
+
       logger.info(`[${requestId}] Returning streaming response to client`, {
         duration: Date.now() - startTime,
         chatId: actualChatId,
@@ -514,9 +522,9 @@ export async function POST(req: NextRequest) {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           Connection: 'keep-alive',
-        }
+        },
       })
-      
+
       return response
     }
 
@@ -528,7 +536,7 @@ export async function POST(req: NextRequest) {
       model: responseData.model,
       provider: responseData.provider,
       toolCallsCount: responseData.toolCalls?.length || 0,
-      hasTokens: !!responseData.tokens
+      hasTokens: !!responseData.tokens,
     })
 
     // Log tool calls if present
@@ -538,7 +546,7 @@ export async function POST(req: NextRequest) {
           id: toolCall.id,
           name: toolCall.name,
           success: toolCall.success,
-          result: JSON.stringify(toolCall.result).substring(0, 200) + '...'
+          result: `${JSON.stringify(toolCall.result).substring(0, 200)}...`,
         })
       })
     }
@@ -564,10 +572,9 @@ export async function POST(req: NextRequest) {
       // Start title generation in parallel if this is first message (non-streaming)
       if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
         logger.info(`[${requestId}] Starting title generation for non-streaming response`)
-        generateChatTitleAsync(actualChatId, message, requestId)
-          .catch(error => {
-            logger.error(`[${requestId}] Title generation failed:`, error)
-          })
+        generateChatTitleAsync(actualChatId, message, requestId).catch((error) => {
+          logger.error(`[${requestId}] Title generation failed:`, error)
+        })
       }
 
       // Update chat in database immediately (without blocking for title)
@@ -583,7 +590,7 @@ export async function POST(req: NextRequest) {
     logger.info(`[${requestId}] Returning non-streaming response`, {
       duration: Date.now() - startTime,
       chatId: actualChatId,
-      responseLength: responseData.content?.length || 0
+      responseLength: responseData.content?.length || 0,
     })
 
     return NextResponse.json({
@@ -598,11 +605,11 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     const duration = Date.now() - startTime
-    
+
     if (error instanceof z.ZodError) {
       logger.error(`[${requestId}] Validation error:`, {
         duration,
-        errors: error.errors
+        errors: error.errors,
       })
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
@@ -613,15 +620,15 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error handling copilot chat:`, {
       duration,
       error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     })
-    
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }
-} 
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -652,10 +659,7 @@ export async function GET(req: NextRequest) {
       })
       .from(copilotChats)
       .where(
-        and(
-          eq(copilotChats.userId, authenticatedUserId),
-          eq(copilotChats.workflowId, workflowId)
-        )
+        and(eq(copilotChats.userId, authenticatedUserId), eq(copilotChats.workflowId, workflowId))
       )
       .orderBy(desc(copilotChats.updatedAt))
 
@@ -679,9 +683,6 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     logger.error('Error fetching copilot chats:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch chats' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch chats' }, { status: 500 })
   }
-} 
+}

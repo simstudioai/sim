@@ -2,15 +2,11 @@
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import {
-  type CopilotChat,
-  type CopilotMessage,
-  sendStreamingMessage,
-} from '@/lib/copilot/api'
+import { type CopilotChat, type CopilotMessage, sendStreamingMessage } from '@/lib/copilot/api'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { CopilotStore } from './types'
-import { COPILOT_TOOL_IDS } from './constants'
 import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
+import { COPILOT_TOOL_IDS } from './constants'
+import type { CopilotStore } from './types'
 
 const logger = createLogger('CopilotStore')
 
@@ -35,6 +31,8 @@ const initialState = {
   checkpointError: null,
   workflowId: null,
   abortController: null,
+  chatsLastLoadedAt: null, // Track when chats were last loaded
+  chatsLoadedForWorkflow: null, // Track which workflow the chats were loaded for
 }
 
 /**
@@ -93,28 +91,25 @@ function getToolDisplayName(toolName: string): string {
 /**
  * Helper function to process workflow tool results (build_workflow or edit_workflow)
  */
-function processWorkflowToolResult(
-  toolCall: any, 
-  result: any, 
-  get: () => CopilotStore
-): void {
+function processWorkflowToolResult(toolCall: any, result: any, get: () => CopilotStore): void {
   // Extract YAML content from various possible locations in the result
-  const yamlContent = result?.yamlContent || 
-                     result?.data?.yamlContent ||
-                     toolCall.input?.yamlContent ||
-                     toolCall.input?.data?.yamlContent
+  const yamlContent =
+    result?.yamlContent ||
+    result?.data?.yamlContent ||
+    toolCall.input?.yamlContent ||
+    toolCall.input?.data?.yamlContent
 
   if (yamlContent) {
     logger.info(`Setting preview YAML from ${toolCall.name} tool`, {
       yamlLength: yamlContent.length,
-      yamlPreview: yamlContent.substring(0, 100)
+      yamlPreview: yamlContent.substring(0, 100),
     })
     get().setPreviewYaml(yamlContent)
     get().updateDiffStore(yamlContent, toolCall.name)
   } else {
     logger.warn(`No yamlContent found in ${toolCall.name} result`, {
       resultKeys: Object.keys(result || {}),
-      inputKeys: Object.keys(toolCall.input || {})
+      inputKeys: Object.keys(toolCall.input || {}),
     })
   }
 }
@@ -122,19 +117,17 @@ function processWorkflowToolResult(
 /**
  * Helper function to handle tool execution failure
  */
-function handleToolFailure(
-  toolCall: any,
-  error: string,
-  get: () => CopilotStore
-): void {
+function handleToolFailure(toolCall: any, error: string, get: () => CopilotStore): void {
   toolCall.state = 'error'
   toolCall.error = error
-  
+
   logger.error('Tool call failed:', toolCall.id, toolCall.name, error)
 
   // Retry workflow generation on failure
-  if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
-      toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
+  if (
+    toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+    toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+  ) {
     logger.info(`${toolCall.name} failed, sending error back to agent for retry`)
     setTimeout(() => {
       get().sendImplicitFeedback(
@@ -155,7 +148,7 @@ function createToolCall(id: string, name: string, input: any = {}): any {
     displayName: getToolDisplayName(name),
     state: 'executing',
     startTime: Date.now(),
-    timestamp: Date.now()
+    timestamp: Date.now(),
   }
 }
 
@@ -165,14 +158,15 @@ function createToolCall(id: string, name: string, input: any = {}): any {
 function finalizeToolCall(toolCall: any, success: boolean, result?: any): void {
   toolCall.endTime = Date.now()
   toolCall.duration = toolCall.endTime - toolCall.startTime
-  
+
   if (success) {
     toolCall.result = result
     // Workflow tools need review, others are completed
-    toolCall.state = (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
-                     toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW)
-                     ? 'ready_for_review' 
-                     : 'completed'
+    toolCall.state =
+      toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+      toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+        ? 'ready_for_review'
+        : 'completed'
   }
 }
 
@@ -192,9 +186,12 @@ interface StreamingContext {
   streamComplete?: boolean
 }
 
-interface SSEHandler {
-  (data: any, context: StreamingContext, get: () => CopilotStore, set: any): Promise<void> | void
-}
+type SSEHandler = (
+  data: any,
+  context: StreamingContext,
+  get: () => CopilotStore,
+  set: any
+) => Promise<void> | void
 
 const sseHandlers: Record<string, SSEHandler> = {
   // Handle chat ID event (custom event)
@@ -213,24 +210,24 @@ const sseHandlers: Record<string, SSEHandler> = {
     const { title } = data
     const { currentChat } = get()
     const previousTitle = currentChat?.title
-    
-    logger.info('Received title update from stream:', { 
-      newTitle: title, 
+
+    logger.info('Received title update from stream:', {
+      newTitle: title,
       previousTitle,
-      isOptimisticReplacement: previousTitle !== null && previousTitle !== title
+      isOptimisticReplacement: previousTitle !== null && previousTitle !== title,
     })
 
     set((state: CopilotStore) => ({
-      currentChat: state.currentChat ? {
-        ...state.currentChat,
-        title,
-        updatedAt: new Date(),
-      } : state.currentChat,
+      currentChat: state.currentChat
+        ? {
+            ...state.currentChat,
+            title,
+            updatedAt: new Date(),
+          }
+        : state.currentChat,
       // Also update the chat in the chats array
-      chats: state.chats.map(chat => 
-        chat.id === state.currentChat?.id 
-          ? { ...chat, title, updatedAt: new Date() }
-          : chat
+      chats: state.chats.map((chat) =>
+        chat.id === state.currentChat?.id ? { ...chat, title, updatedAt: new Date() } : chat
       ),
     }))
   },
@@ -238,37 +235,47 @@ const sseHandlers: Record<string, SSEHandler> = {
   // Handle tool result events - simplified
   tool_result: (data, context, get, set) => {
     const { toolCallId, result, success } = data
-    
+
     if (!toolCallId) return
-    
+
     // Find tool call in context
-    const toolCall = context.toolCalls.find(tc => tc.id === toolCallId) ||
-                    context.contentBlocks
-                      .filter(b => b.type === 'tool_call')
-                      .map(b => b.toolCall)
-                      .find(tc => tc.id === toolCallId)
-    
+    const toolCall =
+      context.toolCalls.find((tc) => tc.id === toolCallId) ||
+      context.contentBlocks
+        .filter((b) => b.type === 'tool_call')
+        .map((b) => b.toolCall)
+        .find((tc) => tc.id === toolCallId)
+
     if (!toolCall) {
       logger.error('Tool call not found for result', { toolCallId })
       return
     }
-    
+
     // Ensure tool call is in context for updates
-    if (!context.toolCalls.find(tc => tc.id === toolCallId)) {
+    if (!context.toolCalls.find((tc) => tc.id === toolCallId)) {
       context.toolCalls.push(toolCall)
     }
-    
+
     if (success) {
       // Parse result if needed
-      const parsedResult = typeof result === 'string' && result.startsWith('{')
-        ? (() => { try { return JSON.parse(result) } catch { return result } })()
-        : result
-      
+      const parsedResult =
+        typeof result === 'string' && result.startsWith('{')
+          ? (() => {
+              try {
+                return JSON.parse(result)
+              } catch {
+                return result
+              }
+            })()
+          : result
+
       finalizeToolCall(toolCall, true, parsedResult)
-      
+
       // Handle workflow tools
-      if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
-          toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
+      if (
+        toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+        toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+      ) {
         processWorkflowToolResult(toolCall, parsedResult, get)
       }
     } else {
@@ -282,9 +289,9 @@ const sseHandlers: Record<string, SSEHandler> = {
   // Handle content events
   content: (data, context, get, set) => {
     if (!data.data) return
-    
+
     context.accumulatedContent += data.data
-    
+
     // Update existing text block or create new one
     if (context.currentTextBlock && context.contentBlocks.length > 0) {
       // Find the last text block and update it
@@ -309,7 +316,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       }
       context.contentBlocks.push(context.currentTextBlock)
     }
-    
+
     updateStreamingMessage(set, context)
   },
 
@@ -317,27 +324,27 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_call: (data, context, get, set) => {
     const toolData = data.data
     if (!toolData) return
-    
+
     // Skip if already exists
-    if (context.toolCalls.find(tc => tc.id === toolData.id)) {
+    if (context.toolCalls.find((tc) => tc.id === toolData.id)) {
       return
     }
-    
+
     const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
     context.toolCalls.push(toolCall)
-    
+
     context.contentBlocks.push({
       type: 'tool_call',
       toolCall,
       timestamp: Date.now(),
     })
-    
+
     updateStreamingMessage(set, context)
   },
 
   // Handle tool execution event
   tool_execution: (data, context, get, set) => {
-    const toolCall = context.toolCalls.find(tc => tc.id === data.toolCallId)
+    const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
     if (toolCall) {
       toolCall.state = 'executing'
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
@@ -360,16 +367,13 @@ const sseHandlers: Record<string, SSEHandler> = {
     } else if (context.currentBlockType === 'tool_use') {
       // Mark that we're no longer in a text block
       context.currentTextBlock = null
-      
-      const toolCall = createToolCall(
-        data.content_block.id,
-        data.content_block.name
-      )
+
+      const toolCall = createToolCall(data.content_block.id, data.content_block.name)
       toolCall.partialInput = ''
-      
+
       context.toolCallBuffer = toolCall
       context.toolCalls.push(toolCall)
-      
+
       context.contentBlocks.push({
         type: 'tool_call',
         toolCall,
@@ -386,7 +390,11 @@ const sseHandlers: Record<string, SSEHandler> = {
         context.currentTextBlock.content += data.delta.text
         updateStreamingMessage(set, context)
       }
-    } else if (context.currentBlockType === 'tool_use' && data.delta?.partial_json && context.toolCallBuffer) {
+    } else if (
+      context.currentBlockType === 'tool_use' &&
+      data.delta?.partial_json &&
+      context.toolCallBuffer
+    ) {
       context.toolCallBuffer.partialInput += data.delta.partial_json
     }
   },
@@ -400,20 +408,26 @@ const sseHandlers: Record<string, SSEHandler> = {
         // Parse complete tool input
         context.toolCallBuffer.input = JSON.parse(context.toolCallBuffer.partialInput || '{}')
         finalizeToolCall(context.toolCallBuffer, true)
-        
+
         // Handle workflow tools immediately
-        if (context.toolCallBuffer.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
-            context.toolCallBuffer.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
+        if (
+          context.toolCallBuffer.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+          context.toolCallBuffer.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+        ) {
           processWorkflowToolResult(context.toolCallBuffer, context.toolCallBuffer.input, get)
         }
-        
-        updateContentBlockToolCall(context.contentBlocks, context.toolCallBuffer.id, context.toolCallBuffer)
+
+        updateContentBlockToolCall(
+          context.contentBlocks,
+          context.toolCallBuffer.id,
+          context.toolCallBuffer
+        )
         updateStreamingMessage(set, context)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
         handleToolFailure(context.toolCallBuffer, errorMsg, get)
       }
-      
+
       context.toolCallBuffer = null
     }
     context.currentBlockType = null
@@ -422,9 +436,9 @@ const sseHandlers: Record<string, SSEHandler> = {
   // Handle done event
   done: (data, context) => {
     context.doneEventCount++
-    
+
     // Only complete after all tools are done and we've received multiple done events
-    const executingTools = context.toolCalls.filter(tc => tc.state === 'executing')
+    const executingTools = context.toolCalls.filter((tc) => tc.state === 'executing')
     if (executingTools.length === 0 && context.doneEventCount >= 2) {
       context.streamComplete = true
     }
@@ -438,7 +452,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         msg.id === context.messageId
           ? {
               ...msg,
-              content: context.accumulatedContent || 'An error occurred while processing your request.',
+              content:
+                context.accumulatedContent || 'An error occurred while processing your request.',
               error: data.error,
             }
           : msg
@@ -449,7 +464,7 @@ const sseHandlers: Record<string, SSEHandler> = {
 
   // Handle tool errors
   tool_error: (data, context, get, set) => {
-    const toolCall = context.toolCalls.find(tc => tc.id === data.toolCallId)
+    const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
     if (toolCall) {
       handleToolFailure(toolCall, data.error, get)
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
@@ -460,7 +475,7 @@ const sseHandlers: Record<string, SSEHandler> = {
   // Default handler
   default: () => {
     // Silently ignore unhandled events
-  }
+  },
 }
 
 /**
@@ -485,8 +500,10 @@ function updateContentBlockToolCall(contentBlocks: any[], toolCallId: string, to
  */
 function updateContentBlockText(contentBlocks: any[], textBlock: any) {
   for (let i = contentBlocks.length - 1; i >= 0; i--) {
-    if (contentBlocks[i] === textBlock || 
-        (contentBlocks[i].type === 'text' && contentBlocks[i].timestamp === textBlock.timestamp)) {
+    if (
+      contentBlocks[i] === textBlock ||
+      (contentBlocks[i].type === 'text' && contentBlocks[i].timestamp === textBlock.timestamp)
+    ) {
       contentBlocks[i] = { ...textBlock }
       break
     }
@@ -515,17 +532,20 @@ function updateStreamingMessage(set: any, context: StreamingContext) {
 /**
  * Parse SSE stream and handle events
  */
-async function* parseSSEStream(reader: ReadableStreamDefaultReader<Uint8Array>, decoder: TextDecoder) {
+async function* parseSSEStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  decoder: TextDecoder
+) {
   let buffer = ''
-  
+
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    
+
     buffer += decoder.decode(value, { stream: true })
     const lines = buffer.split('\n')
     buffer = lines.pop() || ''
-    
+
     for (const line of lines) {
       if (line.trim() === '') continue
       if (line.startsWith('data: ')) {
@@ -570,7 +590,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
         logger.info(`Setting workflow ID: ${workflowId}`)
 
-        // Reset state when switching workflows
+        // Reset state when switching workflows, including chat cache
         set({
           ...initialState,
           workflowId,
@@ -580,21 +600,33 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Validate that current chat belongs to current workflow
       validateCurrentChat: () => {
-        const { currentChat, workflowId } = get()
+        const { currentChat, workflowId, chats } = get()
 
         if (!currentChat || !workflowId) {
           return false
         }
 
-        // For now, we can't validate without the API
-        // The backend will handle this validation
+        // Check if the current chat belongs to the current workflow
+        // Since chats are filtered by workflow ID from API, if current chat
+        // is not in the chats array, it means it's stale
+        const chatExists = chats.some((chat) => chat.id === currentChat.id)
+
+        if (!chatExists) {
+          logger.info('Current chat does not belong to current workflow, clearing stale state')
+          set({
+            currentChat: null,
+            messages: [],
+          })
+          return false
+        }
+
         return true
       },
 
       // Select chat and load latest messages
       selectChat: async (chat: CopilotChat) => {
         const { workflowId } = get()
-        
+
         if (!workflowId) {
           logger.warn('Cannot select chat: no workflow ID set')
           return
@@ -609,26 +641,28 @@ export const useCopilotStore = create<CopilotStore>()(
         try {
           // Fetch the latest version of this specific chat to get updated messages
           const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
-          
+
           if (!response.ok) {
             throw new Error(`Failed to fetch latest chat data: ${response.status}`)
           }
-          
+
           const data = await response.json()
-          
+
           if (data.success && Array.isArray(data.chats)) {
             // Find the selected chat in the fresh data
             const latestChat = data.chats.find((c: CopilotChat) => c.id === chat.id)
-            
+
             if (latestChat) {
               // Update with the latest messages
               set({
                 currentChat: latestChat,
                 messages: latestChat.messages || [],
                 // Also update the chat in the chats array with latest data
-                chats: get().chats.map((c: CopilotChat) => c.id === chat.id ? latestChat : c)
+                chats: get().chats.map((c: CopilotChat) => (c.id === chat.id ? latestChat : c)),
               })
-              logger.info(`Selected chat with latest messages: ${latestChat.title || 'Untitled'} (${latestChat.messages?.length || 0} messages)`)
+              logger.info(
+                `Selected chat with latest messages: ${latestChat.title || 'Untitled'} (${latestChat.messages?.length || 0} messages)`
+              )
             } else {
               logger.warn(`Selected chat ${chat.id} not found in latest data`)
             }
@@ -655,34 +689,66 @@ export const useCopilotStore = create<CopilotStore>()(
         // The interface expects Promise<void>, not Promise<boolean>
       },
 
-      // Load chats for current workflow
-      loadChats: async () => {
+      // Check if chats are fresh for a given workflow (within 5 minutes)
+      areChatsFresh: (workflowId: string) => {
+        const { chatsLastLoadedAt, chatsLoadedForWorkflow } = get()
+
+        if (!chatsLastLoadedAt || chatsLoadedForWorkflow !== workflowId) {
+          return false
+        }
+
+        // Consider chats fresh if loaded within the last 5 minutes
+        const CHAT_FRESHNESS_DURATION = 5 * 60 * 1000 // 5 minutes in milliseconds
+        const timeSinceLastLoad = Date.now() - chatsLastLoadedAt.getTime()
+        return timeSinceLastLoad < CHAT_FRESHNESS_DURATION
+      },
+
+      // Load chats for current workflow with smart caching
+      loadChats: async (forceRefresh = false) => {
         const { workflowId } = get()
-        
+
         if (!workflowId) {
           logger.warn('No workflow ID set, cannot load chats')
           set({ chats: [], isLoadingChats: false })
           return
         }
 
+        // Check if we already have fresh chats for this workflow
+        if (!forceRefresh && get().areChatsFresh(workflowId)) {
+          logger.info(`Using cached chats for workflow ${workflowId}`)
+          return
+        }
+
+        // Prevent multiple concurrent requests
+        if (get().isLoadingChats && !forceRefresh) {
+          logger.info('Chat loading already in progress, skipping duplicate request')
+          return
+        }
+
         set({ isLoadingChats: true })
-        
+
         try {
+          logger.info(
+            `Loading chats for workflow ${workflowId}${forceRefresh ? ' (forced refresh)' : ''}`
+          )
           const response = await fetch(`/api/copilot/chat?workflowId=${workflowId}`)
-          
+
           if (!response.ok) {
             throw new Error(`Failed to fetch chats: ${response.status}`)
           }
-          
+
           const data = await response.json()
-          
+
           if (data.success && Array.isArray(data.chats)) {
-            
-            set({ 
+            const now = new Date()
+
+            set({
               chats: data.chats,
-              isLoadingChats: false 
+              isLoadingChats: false,
+              chatsLastLoadedAt: now,
+              chatsLoadedForWorkflow: workflowId,
             })
-            
+
             // Auto-select the most recent chat if there are any chats for this workflow
             // Since chats are filtered by workflow ID, any existing currentChat would be stale
             if (data.chats.length > 0) {
@@ -691,7 +757,9 @@ export const useCopilotStore = create<CopilotStore>()(
                 currentChat: mostRecentChat,
                 messages: mostRecentChat.messages || [],
               })
-              logger.info(`Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`)
+              logger.info(
+                `Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`
+              )
             } else {
               // Ensure we clear everything if there are no chats for this workflow
               set({
@@ -700,17 +768,17 @@ export const useCopilotStore = create<CopilotStore>()(
               })
               logger.info(`No chats found for workflow ${workflowId}, cleared chat state`)
             }
-            
+
             logger.info(`Loaded ${data.chats.length} chats for workflow ${workflowId}`)
           } else {
             throw new Error('Invalid response format')
           }
         } catch (error) {
           logger.error('Failed to load chats:', error)
-          set({ 
-            chats: [], 
+          set({
+            chats: [],
             isLoadingChats: false,
-            error: error instanceof Error ? error.message : 'Failed to load chats'
+            error: error instanceof Error ? error.message : 'Failed to load chats',
           })
         }
       },
@@ -743,17 +811,17 @@ export const useCopilotStore = create<CopilotStore>()(
         // Optimistic title update for first message
         if (isFirstMessage) {
           // Generate optimistic title from first few words of user message
-          const optimisticTitle = message.length > 50 
-            ? message.substring(0, 47) + '...'
-            : message
-          
+          const optimisticTitle = message.length > 50 ? `${message.substring(0, 47)}...` : message
+
           set((state) => ({
-            currentChat: state.currentChat ? {
-              ...state.currentChat,
-              title: optimisticTitle,
-            } : state.currentChat,
+            currentChat: state.currentChat
+              ? {
+                  ...state.currentChat,
+                  title: optimisticTitle,
+                }
+              : state.currentChat,
           }))
-          
+
           logger.info('Set optimistic title for first message:', optimisticTitle)
         }
 
@@ -770,6 +838,14 @@ export const useCopilotStore = create<CopilotStore>()(
 
           if (result.success && result.stream) {
             await get().handleStreamingResponse(result.stream, streamingMessage.id)
+
+            // Invalidate chat cache after successful message to ensure fresh ordering
+            // since the chat's updatedAt timestamp would have changed
+            set({
+              chatsLastLoadedAt: null,
+              chatsLoadedForWorkflow: null,
+            })
+            logger.info('Invalidated chat cache after successful message send')
           } else {
             // Handle abort gracefully
             if (result.error === 'Request was aborted') {
@@ -821,24 +897,33 @@ export const useCopilotStore = create<CopilotStore>()(
           const lastMessage = messages[messages.length - 1]
           if (lastMessage && lastMessage.role === 'assistant') {
             // Mark any executing tool calls as aborted
-            const updatedToolCalls = lastMessage.toolCalls?.map(toolCall => 
-              toolCall.state === 'executing' 
-                ? { ...toolCall, state: 'aborted' as const, endTime: Date.now() }
-                : toolCall
-            ) || []
+            const updatedToolCalls =
+              lastMessage.toolCalls?.map((toolCall) =>
+                toolCall.state === 'executing'
+                  ? { ...toolCall, state: 'aborted' as const, endTime: Date.now() }
+                  : toolCall
+              ) || []
 
             // Update content blocks to reflect aborted tool calls
-            const updatedContentBlocks = lastMessage.contentBlocks?.map(block => 
-              block.type === 'tool_call' && block.toolCall.state === 'executing'
-                ? { ...block, toolCall: { ...block.toolCall, state: 'aborted' as const, endTime: Date.now() } }
-                : block
-            ) || []
+            const updatedContentBlocks =
+              lastMessage.contentBlocks?.map((block) =>
+                block.type === 'tool_call' && block.toolCall.state === 'executing'
+                  ? {
+                      ...block,
+                      toolCall: {
+                        ...block.toolCall,
+                        state: 'aborted' as const,
+                        endTime: Date.now(),
+                      },
+                    }
+                  : block
+              ) || []
 
-            const abortedCount = updatedToolCalls.filter(tc => tc.state === 'aborted').length
+            const abortedCount = updatedToolCalls.filter((tc) => tc.state === 'aborted').length
 
             set((state) => ({
               messages: state.messages.map((msg) =>
-                msg.id === lastMessage.id 
+                msg.id === lastMessage.id
                   ? {
                       ...msg,
                       toolCalls: updatedToolCalls,
@@ -851,7 +936,9 @@ export const useCopilotStore = create<CopilotStore>()(
               abortController: null,
             }))
 
-            logger.info(`Message streaming aborted successfully. Marked ${abortedCount} tool calls as aborted.`)
+            logger.info(
+              `Message streaming aborted successfully. Marked ${abortedCount} tool calls as aborted.`
+            )
           } else {
             // No streaming message found, just reset the state
             set({
@@ -953,7 +1040,9 @@ export const useCopilotStore = create<CopilotStore>()(
             (msg) =>
               msg.role === 'assistant' &&
               msg.toolCalls?.some(
-                (tc) => tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+                (tc) =>
+                  tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+                  tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
               )
           )
 
@@ -964,7 +1053,8 @@ export const useCopilotStore = create<CopilotStore>()(
                 ? {
                     ...msg,
                     toolCalls: msg.toolCalls?.map((tc) =>
-                      tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+                      tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+                      tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                         ? { ...tc, state: toolCallState }
                         : tc
                     ),
@@ -1070,7 +1160,9 @@ export const useCopilotStore = create<CopilotStore>()(
           if (existingMessage) {
             context.accumulatedContent = existingMessage.content || ''
             context.toolCalls = existingMessage.toolCalls ? [...existingMessage.toolCalls] : []
-            context.contentBlocks = existingMessage.contentBlocks ? [...existingMessage.contentBlocks] : []
+            context.contentBlocks = existingMessage.contentBlocks
+              ? [...existingMessage.contentBlocks]
+              : []
           }
         }
 
@@ -1102,12 +1194,14 @@ export const useCopilotStore = create<CopilotStore>()(
           }
 
           // Stream ended - finalize the message
-          logger.info(`Completed streaming response, content length: ${context.accumulatedContent.length}`)
+          logger.info(
+            `Completed streaming response, content length: ${context.accumulatedContent.length}`
+          )
 
           // Final update - build content from contentBlocks for final message
           const finalContent = context.contentBlocks
-            .filter(block => block.type === 'text')
-            .map(block => block.content)
+            .filter((block) => block.type === 'text')
+            .map((block) => block.content)
             .join('')
 
           set((state) => ({
@@ -1160,6 +1254,9 @@ export const useCopilotStore = create<CopilotStore>()(
         set({
           currentChat: newChat,
           chats: [newChat, ...get().chats],
+          // Invalidate cache since we have a new chat
+          chatsLastLoadedAt: null,
+          chatsLoadedForWorkflow: null,
         })
         logger.info(`Created new chat from streaming response: ${newChatId}`)
       },
@@ -1198,7 +1295,7 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.info('Updating diff store with copilot YAML', {
             yamlLength: yamlContent.length,
             yamlPreview: yamlContent.substring(0, 200),
-            toolName: toolName || 'unknown'
+            toolName: toolName || 'unknown',
           })
 
           // Check current diff store state before update
@@ -1206,25 +1303,28 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.info('Diff store state before update:', {
             isShowingDiff: diffStoreBefore.isShowingDiff,
             isDiffReady: diffStoreBefore.isDiffReady,
-            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow
+            hasDiffWorkflow: !!diffStoreBefore.diffWorkflow,
           })
 
           // Determine if we should clear or merge based on tool type and message context
           const { messages } = get()
           const currentMessage = messages[messages.length - 1]
-          const messageHasExistingEdits = currentMessage?.toolCalls?.some(
-            tc => (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) && 
-                  tc.state !== 'executing'
-          ) || false
+          const messageHasExistingEdits =
+            currentMessage?.toolCalls?.some(
+              (tc) =>
+                (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+                  tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
+                tc.state !== 'executing'
+            ) || false
 
-          const shouldClearDiff = 
+          const shouldClearDiff =
             toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || // build_workflow always clears
             (toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW && !messageHasExistingEdits) // first edit_workflow in message clears
 
           logger.info('Diff merge strategy:', {
             toolName,
             messageHasExistingEdits,
-            shouldClearDiff
+            shouldClearDiff,
           })
 
           // Generate diff analysis by comparing current vs proposed YAML
@@ -1236,7 +1336,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
             logger.info('Got current workflow YAML for diff:', {
               currentYamlLength: currentYaml?.length || 0,
-              hasCurrentYaml: !!currentYaml
+              hasCurrentYaml: !!currentYaml,
             })
 
             // Call the diff API to compare current vs proposed YAML
@@ -1271,7 +1371,7 @@ export const useCopilotStore = create<CopilotStore>()(
           const diffStore = useWorkflowDiffStore.getState()
           if (shouldClearDiff || !diffStoreBefore.diffWorkflow) {
             // Use setProposedChanges which will create a new diff
-          await diffStore.setProposedChanges(yamlContent, diffAnalysis)
+            await diffStore.setProposedChanges(yamlContent, diffAnalysis)
           } else {
             // Use mergeProposedChanges which will merge into existing diff
             await diffStore.mergeProposedChanges(yamlContent, diffAnalysis)
@@ -1283,7 +1383,9 @@ export const useCopilotStore = create<CopilotStore>()(
             isShowingDiff: diffStoreAfter.isShowingDiff,
             isDiffReady: diffStoreAfter.isDiffReady,
             hasDiffWorkflow: !!diffStoreAfter.diffWorkflow,
-            diffWorkflowBlockCount: diffStoreAfter.diffWorkflow ? Object.keys(diffStoreAfter.diffWorkflow.blocks).length : 0
+            diffWorkflowBlockCount: diffStoreAfter.diffWorkflow
+              ? Object.keys(diffStoreAfter.diffWorkflow.blocks).length
+              : 0,
           })
 
           logger.info('Successfully updated diff store with proposed workflow changes')

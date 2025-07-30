@@ -35,7 +35,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
   const logger = createLogger('BuildWorkflow')
   const { yamlContent, description } = params
 
-  logger.info('Building workflow for copilot', { 
+  logger.info('Building workflow for copilot', {
     yamlLength: yamlContent.length,
     description,
   })
@@ -44,7 +44,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
     // Import the necessary functions dynamically to avoid import issues
     const { parseWorkflowYaml } = await import('@/stores/workflows/yaml/importer')
     const { convertYamlToWorkflow } = await import('@/stores/workflows/yaml/importer')
-    
+
     // Parse YAML content
     const { data: yamlWorkflow, errors: parseErrors } = parseWorkflowYaml(yamlContent)
 
@@ -83,7 +83,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
 
     // Process blocks with unique IDs
     const blockIdMapping = new Map<string, string>()
-    
+
     Object.keys(blocks).forEach((blockId) => {
       const previewId = `preview-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
       blockIdMapping.set(blockId, previewId)
@@ -92,7 +92,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
     // Add blocks to workflow state
     for (const [originalBlockId, blockData] of Object.entries(blocks)) {
       const previewBlockId = blockIdMapping.get(originalBlockId)!
-      
+
       workflowState.blocks[previewBlockId] = {
         ...blockData,
         id: previewBlockId,
@@ -111,7 +111,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
 
     const blocksCount = Object.keys(workflowState.blocks).length
     const edgesCount = workflowState.edges.length
-    
+
     logger.info('Workflow built successfully', { blocksCount, edgesCount })
 
     return {
@@ -134,4 +134,4 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
       description,
     }
   }
-} 
+}

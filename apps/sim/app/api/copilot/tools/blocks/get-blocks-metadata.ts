@@ -30,7 +30,9 @@ class GetBlocksMetadataTool extends BaseCopilotTool<GetBlocksMetadataParams, Blo
 export const getBlocksMetadataTool = new GetBlocksMetadataTool()
 
 // Implementation function
-export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promise<BlocksMetadataResult> {
+export async function getBlocksMetadata(
+  params: GetBlocksMetadataParams
+): Promise<BlocksMetadataResult> {
   const { blockIds } = params
 
   if (!blockIds || !Array.isArray(blockIds)) {
@@ -82,7 +84,7 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
           const docPath = join(process.cwd(), 'content', 'docs', 'blocks', `${docFileName}.mdx`)
           if (existsSync(docPath)) {
             const docContent = readFileSync(docPath, 'utf-8')
-            
+
             // Extract schema from the documentation
             const schemaMatch = docContent.match(/```yaml\s*\n([\s\S]*?)```/i)
             if (schemaMatch) {
@@ -95,7 +97,7 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
               }
 
               // Extract field names and structure
-              lines.forEach(line => {
+              lines.forEach((line) => {
                 const match = line.match(/^(\s*)(\w+):/)
                 if (match) {
                   const indent = match[1].length

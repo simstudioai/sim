@@ -34,12 +34,12 @@ async function onlineSearch(params: OnlineSearchParams): Promise<OnlineSearchRes
   const logger = createLogger('OnlineSearch')
   const { query, num = 10, type = 'search', gl, hl } = params
 
-  logger.info('Performing online search', { 
-    query, 
+  logger.info('Performing online search', {
+    query,
     num,
     type,
     gl,
-    hl
+    hl,
   })
 
   // Execute the serper_search tool
@@ -65,4 +65,4 @@ async function onlineSearch(params: OnlineSearchParams): Promise<OnlineSearchRes
     type,
     totalResults: result.output.searchResults?.length || 0,
   }
-} 
+}

@@ -30,7 +30,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/components/providers/workspace-permissions-provider'
@@ -972,8 +971,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       </div>
     )
   }
-
-  
 
   /**
    * Render control bar toggle button
