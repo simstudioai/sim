@@ -153,7 +153,6 @@ Enriches company data using domain name.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Domain to find company data for |
-| `clearbit_format` | boolean | No | Return data in Clearbit format |
 | `apiKey` | string | Yes | Hunter.io API Key |
 
 #### Output
@@ -178,8 +177,8 @@ Returns the total number of email addresses found for a domain or company.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `domain` | string | No | Domain to count emails for |
-| `company` | string | No | Company name to count emails for |
+| `domain` | string | No | Domain to count emails for \(required if company not provided\) |
+| `company` | string | No | Company name to count emails for \(required if domain not provided\) |
 | `type` | string | No | Filter for personal or generic emails only |
 | `apiKey` | string | Yes | Hunter.io API Key |
 

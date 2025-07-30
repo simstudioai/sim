@@ -14,12 +14,6 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
       visibility: 'user-or-llm',
       description: 'Domain to find company data for',
     },
-    clearbit_format: {
-      type: 'boolean',
-      required: false,
-      visibility: 'hidden',
-      description: 'Return data in Clearbit format',
-    },
     apiKey: {
       type: 'string',
       required: true,
@@ -33,8 +27,6 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
       const url = new URL('https://api.hunter.io/v2/companies/find')
       url.searchParams.append('api_key', params.apiKey)
       url.searchParams.append('domain', params.domain || '')
-
-      if (params.clearbit_format) url.searchParams.append('clearbit_format', 'true')
 
       return url.toString()
     },

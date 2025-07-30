@@ -12,13 +12,13 @@ export const emailCountTool: ToolConfig<HunterEmailCountParams, HunterEmailCount
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Domain to count emails for',
+      description: 'Domain to count emails for (required if company not provided)',
     },
     company: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company name to count emails for',
+      description: 'Company name to count emails for (required if domain not provided)',
     },
     type: {
       type: 'string',

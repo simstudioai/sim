@@ -23,8 +23,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'PostgREST filter to identify rows to update (e.g., "id=eq.123", "status=eq.active", "name=not.is.null")',
+      description: 'PostgREST filter to identify rows to update (e.g., "id=eq.123")',
     },
     data: {
       type: 'object',

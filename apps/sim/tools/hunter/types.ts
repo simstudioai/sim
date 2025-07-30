@@ -150,7 +150,6 @@ export interface HunterEnrichmentParams extends HunterBaseParams {
   email?: string
   domain?: string
   linkedin_handle?: string
-  clearbit_format?: boolean
 }
 
 export interface HunterEnrichmentResponse extends ToolResponse {

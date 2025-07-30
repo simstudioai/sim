@@ -292,5 +292,5 @@ export const tools: Record<string, ToolConfig> = {
   hunter_email_finder: hunterEmailFinderTool,
   hunter_email_verifier: hunterEmailVerifierTool,
   hunter_companies_find: hunterCompaniesFindTool,
-  hunter_email_count: hunterEmailCountTool,
+  hunter_email_count: hunterEmailCountTool, 
 }

@@ -48,6 +48,11 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
 
   request: {
     url: (params) => {
+      // Validate that at least one search parameter is provided
+      if (!params.query && !params.domain && !params.headcount && !params.company_type && !params.technology) {
+        throw new Error('At least one search parameter (query, domain, headcount, company_type, or technology) must be provided')
+      }
+
       const url = new URL('https://api.hunter.io/v2/discover')
       url.searchParams.append('api_key', params.apiKey)
       return url.toString()

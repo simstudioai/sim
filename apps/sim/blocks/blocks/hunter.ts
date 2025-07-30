@@ -35,6 +35,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       title: 'Domain',
       type: 'short-input',
       layout: 'full',
+      required: true,
       placeholder: 'Enter domain name (e.g., stripe.com)',
       condition: { field: 'operation', value: 'hunter_domain_search' },
     },
@@ -87,6 +88,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       title: 'Domain',
       type: 'short-input',
       layout: 'full',
+      required: true,
       placeholder: 'Enter domain name (e.g., stripe.com)',
       condition: { field: 'operation', value: 'hunter_email_finder' },
     },
@@ -95,6 +97,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       title: 'First Name',
       type: 'short-input',
       layout: 'full',
+      required: true,
       placeholder: 'Enter first name',
       condition: { field: 'operation', value: 'hunter_email_finder' },
     },
@@ -103,6 +106,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       title: 'Last Name',
       type: 'short-input',
       layout: 'full',
+      required: true,
       placeholder: 'Enter last name',
       condition: { field: 'operation', value: 'hunter_email_finder' },
     },
@@ -120,6 +124,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       title: 'Email Address',
       type: 'short-input',
       layout: 'full',
+      required: true,
       placeholder: 'Enter email address to verify',
       condition: { field: 'operation', value: 'hunter_email_verifier' },
     },
@@ -147,7 +152,8 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       title: 'Domain',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter company domain to find company data',
+      required: true,
+      placeholder: 'Enter company domain',
       condition: { field: 'operation', value: 'hunter_companies_find' },
     },
     // Email Count operation inputs
@@ -206,6 +212,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
         if (params.limit) {
           params.limit = Number(params.limit)
         }
+        
 
         switch (params.operation) {
           case 'hunter_discover':

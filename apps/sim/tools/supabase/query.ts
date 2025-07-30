@@ -23,8 +23,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'PostgREST filter (e.g., "id=eq.2", "name=not.is.null", "age=gt.18&status=eq.active")',
+      description: 'PostgREST filter (e.g., "id=eq.123")',
     },
     orderBy: {
       type: 'string',
