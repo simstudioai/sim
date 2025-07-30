@@ -41,11 +41,23 @@ export const S3_KB_CONFIG = {
   region: env.AWS_REGION || '',
 }
 
+export const S3_EXECUTION_FILES_CONFIG = {
+  bucket: env.S3_EXECUTION_FILES_BUCKET_NAME || 'sim-execution-files',
+  region: env.AWS_REGION || '',
+}
+
 export const BLOB_KB_CONFIG = {
   accountName: env.AZURE_ACCOUNT_NAME || '',
   accountKey: env.AZURE_ACCOUNT_KEY || '',
   connectionString: env.AZURE_CONNECTION_STRING || '',
   containerName: env.AZURE_STORAGE_KB_CONTAINER_NAME || '',
+}
+
+export const BLOB_EXECUTION_FILES_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME || 'sim-execution-files',
 }
 
 export async function ensureUploadsDirectory() {

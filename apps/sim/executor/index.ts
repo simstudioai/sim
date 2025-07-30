@@ -812,10 +812,15 @@ export class Executor {
               Object.hasOwn(this.workflowInput, 'input') &&
               Object.hasOwn(this.workflowInput, 'conversationId')
             ) {
-              // Chat workflow: extract input and conversationId to root level
-              const starterOutput = {
+              // Chat workflow: extract input, conversationId, and files to root level
+              const starterOutput: any = {
                 input: this.workflowInput.input,
                 conversationId: this.workflowInput.conversationId,
+              }
+
+              // Add files if present
+              if (this.workflowInput.files && Array.isArray(this.workflowInput.files)) {
+                starterOutput.files = this.workflowInput.files
               }
 
               context.blockStates.set(initBlock.id, {
@@ -857,10 +862,15 @@ export class Executor {
             Object.hasOwn(this.workflowInput, 'input') &&
             Object.hasOwn(this.workflowInput, 'conversationId')
           ) {
-            // Chat workflow: extract input and conversationId to root level
+            // Chat workflow: extract input, conversationId, and files to root level
             blockOutput = {
               input: this.workflowInput.input,
               conversationId: this.workflowInput.conversationId,
+            }
+
+            // Add files if present
+            if (this.workflowInput.files && Array.isArray(this.workflowInput.files)) {
+              blockOutput.files = this.workflowInput.files
             }
           } else {
             // API workflow: spread the raw data directly (no wrapping)

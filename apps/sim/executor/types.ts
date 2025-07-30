@@ -2,6 +2,21 @@ import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 /**
+ * File reference for binary data transfer between blocks
+ */
+export interface FileReference {
+  id: string
+  name: string
+  size: number
+  type: string // MIME type
+  path: string // API path: /api/files/serve/...
+  directUrl?: string // Cloud storage URL for external services
+  key: string // Storage key: workspace_id/workflow_id/execution_id/filename
+  uploadedAt: string
+  expiresAt: string
+}
+
+/**
  * Standardized block output format that ensures compatibility with the execution engine.
  */
 export interface NormalizedBlockOutput {
@@ -18,6 +33,8 @@ export interface NormalizedBlockOutput {
     list: any[]
     count: number
   }
+  // File fields
+  files?: FileReference[] // Binary files/attachments from this block
   // Path selection fields
   selectedPath?: {
     blockId: string

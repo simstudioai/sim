@@ -268,6 +268,61 @@ export function useWorkflowExecution() {
             const streamedContent = new Map<string, string>()
             const streamReadingPromises: Promise<void>[] = []
 
+            // Handle file uploads if present
+            const uploadedFiles: any[] = []
+            if (workflowInput.files && Array.isArray(workflowInput.files)) {
+              try {
+                console.log('Processing files for upload:', workflowInput.files.length)
+
+                for (const fileData of workflowInput.files) {
+                  console.log('Uploading file:', fileData.name, fileData.size)
+
+                  // Create FormData for upload
+                  const formData = new FormData()
+                  formData.append('file', fileData.file)
+                  formData.append('workflowId', activeWorkflowId)
+                  formData.append('executionId', executionId)
+
+                  // Upload the file
+                  const response = await fetch('/api/files/upload', {
+                    method: 'POST',
+                    body: formData,
+                  })
+
+                  if (response.ok) {
+                    const uploadResult = await response.json()
+                    console.log('Upload successful:', uploadResult)
+
+                    // The API returns the file directly for single uploads
+                    // or { files: [...] } for multiple uploads
+                    if (uploadResult.files && Array.isArray(uploadResult.files)) {
+                      uploadedFiles.push(...uploadResult.files)
+                    } else if (uploadResult.path) {
+                      // Single file upload - the result IS the file object
+                      uploadedFiles.push(uploadResult)
+                    } else {
+                      console.error('Unexpected upload response format:', uploadResult)
+                    }
+                  } else {
+                    const errorText = await response.text()
+                    console.error(
+                      `Failed to upload file ${fileData.name}:`,
+                      response.status,
+                      errorText
+                    )
+                  }
+                }
+
+                console.log('All files processed. Uploaded files:', uploadedFiles)
+                // Update workflow input with uploaded files
+                workflowInput.files = uploadedFiles
+              } catch (error) {
+                console.error('Error uploading files:', error)
+                // Continue execution even if file upload fails
+                workflowInput.files = []
+              }
+            }
+
             const onStream = async (streamingExecution: StreamingExecution) => {
               const promise = (async () => {
                 if (!streamingExecution.stream) return

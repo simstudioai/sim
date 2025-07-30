@@ -95,6 +95,18 @@ export interface WorkflowExecutionLog {
   totalInputCost: number
   totalOutputCost: number
   totalTokens: number
+  files?: Array<{
+    id: string
+    name: string
+    size: number
+    type: string
+    path: string
+    directUrl?: string
+    key: string
+    uploadedAt: string
+    expiresAt: string
+    source: string
+  }>
   metadata: {
     environment: ExecutionEnvironment
     trigger: ExecutionTrigger

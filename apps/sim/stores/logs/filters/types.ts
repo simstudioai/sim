@@ -78,6 +78,18 @@ export interface WorkflowLog {
   trigger: string | null
   createdAt: string
   workflow?: WorkflowData | null
+  files?: Array<{
+    id: string
+    name: string
+    size: number
+    type: string
+    path: string
+    directUrl?: string
+    key: string
+    uploadedAt: string
+    expiresAt: string
+    source: string
+  }>
   metadata?: ToolCallMetadata & {
     traceSpans?: TraceSpan[]
     totalDuration?: number

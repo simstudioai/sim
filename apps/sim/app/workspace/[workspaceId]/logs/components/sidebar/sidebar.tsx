@@ -489,6 +489,43 @@ export function Sidebar({
                   </div>
                 )}
 
+                {/* Files */}
+                {log.files && log.files.length > 0 && (
+                  <div>
+                    <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
+                      Files ({log.files.length})
+                    </h3>
+                    <div className='space-y-2'>
+                      {log.files.map((file, index) => (
+                        <div
+                          key={file.id || index}
+                          className='flex items-center justify-between rounded-md border bg-muted/30 p-2'
+                        >
+                          <div className='flex-1 min-w-0'>
+                            <div className='text-sm font-medium truncate' title={file.name}>
+                              {file.name}
+                            </div>
+                            <div className='text-xs text-muted-foreground'>
+                              {file.size ? `${Math.round(file.size / 1024)}KB` : 'Unknown size'}
+                              {file.type && ` • ${file.type.split('/')[0]}`}
+                            </div>
+                          </div>
+                          <div className='flex items-center gap-1 ml-2'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='h-7 px-2 text-xs'
+                              onClick={() => window.open(file.path, '_blank')}
+                            >
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Frozen Canvas Button - only show for workflow execution logs with execution ID */}
                 {isWorkflowExecutionLog && log.executionId && (
                   <div>
