@@ -128,7 +128,7 @@ export function MicrosoftFileSelector({
     }
   }, [provider, getProviderId, selectedCredentialId])
 
-  // Fetch available Excel files for the selected credential
+  // Fetch available files for the selected credential
   const fetchAvailableFiles = useCallback(async () => {
     if (!selectedCredentialId) return
 
@@ -143,7 +143,12 @@ export function MicrosoftFileSelector({
         queryParams.append('query', searchQuery.trim())
       }
 
-      const response = await fetch(`/api/auth/oauth/microsoft/files?${queryParams.toString()}`)
+      // Route to correct endpoint based on service
+      const endpoint = serviceId === 'onedrive' 
+        ? `/api/tools/onedrive/folders?${queryParams.toString()}`
+        : `/api/auth/oauth/microsoft/files?${queryParams.toString()}`
+
+      const response = await fetch(endpoint)
 
       if (response.ok) {
         const data = await response.json()
@@ -160,7 +165,7 @@ export function MicrosoftFileSelector({
     } finally {
       setIsLoadingFiles(false)
     }
-  }, [selectedCredentialId, searchQuery])
+  }, [selectedCredentialId, searchQuery, serviceId])
 
   // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(
@@ -175,7 +180,12 @@ export function MicrosoftFileSelector({
           fileId: fileId,
         })
 
-        const response = await fetch(`/api/auth/oauth/microsoft/file?${queryParams.toString()}`)
+        // Route to correct endpoint based on service
+        const endpoint = serviceId === 'onedrive'
+          ? `/api/tools/onedrive/folder?${queryParams.toString()}`
+          : `/api/auth/oauth/microsoft/file?${queryParams.toString()}`
+
+        const response = await fetch(endpoint)
 
         if (response.ok) {
           const data = await response.json()
@@ -204,7 +214,7 @@ export function MicrosoftFileSelector({
         setIsLoadingSelectedFile(false)
       }
     },
-    [selectedCredentialId, onFileInfoChange]
+    [selectedCredentialId, onFileInfoChange, serviceId]
   )
 
   // Fetch credentials on initial mount
@@ -324,6 +334,14 @@ export function MicrosoftFileSelector({
       return <ExternalLink className='h-4 w-4' />
     }
 
+    // Handle OneDrive specifically by checking serviceId
+    if (baseProvider === 'microsoft' && serviceId === 'onedrive') {
+      const onedriveService = baseProviderConfig.services['onedrive']
+      if (onedriveService) {
+        return onedriveService.icon({ className: 'h-4 w-4' })
+      }
+    }
+
     // For compound providers, find the specific service
     if (providerName.includes('-')) {
       for (const service of Object.values(baseProviderConfig.services)) {
@@ -397,6 +415,27 @@ export function MicrosoftFileSelector({
     setSearchQuery(query)
   }
 
+  const getFileTypeTitleCase = () => {
+    return serviceId === 'onedrive' ? 'Folders' : 'Excel Files'
+  }
+
+  const getSearchPlaceholder = () => {
+    return serviceId === 'onedrive' ? 'Search OneDrive folders...' : 'Search Excel files...'
+  }
+
+  const getEmptyStateText = () => {
+    if (serviceId === 'onedrive') {
+      return {
+        title: 'No folders found.',
+        description: 'No folders were found in your OneDrive.'
+      }
+    }
+    return {
+      title: 'No Excel files found.',
+      description: 'No .xlsx files were found in your OneDrive.'
+    }
+  }
+
   return (
     <>
       <div className='space-y-2'>
@@ -463,7 +502,7 @@ export function MicrosoftFileSelector({
             )}
 
             <Command>
-              <CommandInput placeholder='Search Excel files...' onValueChange={handleSearch} />
+              <CommandInput placeholder={getSearchPlaceholder()} onValueChange={handleSearch} />
               <CommandList>
                 <CommandEmpty>
                   {isLoading || isLoadingFiles ? (
@@ -480,9 +519,9 @@ export function MicrosoftFileSelector({
                     </div>
                   ) : availableFiles.length === 0 ? (
                     <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No Excel files found.</p>
+                      <p className='font-medium text-sm'>{getEmptyStateText().title}</p>
                       <p className='text-muted-foreground text-xs'>
-                        No .xlsx files were found in your OneDrive.
+                        {getEmptyStateText().description}
                       </p>
                     </div>
                   ) : null}
@@ -510,11 +549,11 @@ export function MicrosoftFileSelector({
                   </CommandGroup>
                 )}
 
-                {/* Available Excel files - only show if we have credentials and files */}
+                {/* Available files - only show if we have credentials and files */}
                 {credentials.length > 0 && selectedCredentialId && availableFiles.length > 0 && (
                   <CommandGroup>
                     <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      Excel Files
+                      {getFileTypeTitleCase()}
                     </div>
                     {availableFiles.map((file) => (
                       <CommandItem

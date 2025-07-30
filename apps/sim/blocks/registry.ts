@@ -41,6 +41,7 @@ import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
 import { NotionBlock } from '@/blocks/blocks/notion'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
+import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
@@ -110,6 +111,7 @@ export const registry: Record<string, BlockConfig> = {
   notion: NotionBlock,
   openai: OpenAIBlock,
   outlook: OutlookBlock,
+  onedrive: OneDriveBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   qdrant: QdrantBlock,

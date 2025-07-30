@@ -68,6 +68,7 @@ export function FileSelectorInput({
   const isDiscord = provider === 'discord'
   const isMicrosoftTeams = provider === 'microsoft-teams'
   const isMicrosoftExcel = provider === 'microsoft-excel'
+  const isMicrosoftOneDrive = provider === 'microsoft' && subBlock.serviceId === 'onedrive'
   const isGoogleCalendar = subBlock.provider === 'google-calendar'
   const isWealthbox = provider === 'wealthbox'
   // For Confluence and Jira, we need the domain and credentials
@@ -318,6 +319,38 @@ export function FileSelectorInput({
           {!credential && (
             <TooltipContent side='top'>
               <p>Please select Microsoft Excel credentials first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Handle Microsoft OneDrive selector
+  if (isMicrosoftOneDrive) {
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <MicrosoftFileSelector
+                value={selectedFileId}
+                onChange={handleFileChange}
+                provider='microsoft'
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select OneDrive folder'}
+                disabled={disabled || !credential}
+                showPreview={true}
+                onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select Microsoft credentials first</p>
             </TooltipContent>
           )}
         </Tooltip>

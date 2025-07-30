@@ -79,6 +79,7 @@ import {
   microsoftExcelTableAddTool,
   microsoftExcelWriteTool,
 } from '@/tools/microsoft_excel'
+import { onedriveCreateFolderTool, onedriveUploadTool, onedriveListTool } from '@/tools/onedrive'
 import {
   microsoftTeamsReadChannelTool,
   microsoftTeamsReadChatTool,
@@ -265,6 +266,9 @@ export const tools: Record<string, ToolConfig> = {
   outlook_draft: outlookDraftTool,
   linear_read_issues: linearReadIssuesTool,
   linear_create_issue: linearCreateIssueTool,
+  onedrive_create_folder: onedriveCreateFolderTool,
+  onedrive_upload: onedriveUploadTool,
+  onedrive_list: onedriveListTool,
   microsoft_excel_read: microsoftExcelReadTool,
   microsoft_excel_write: microsoftExcelWriteTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,

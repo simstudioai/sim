@@ -15,6 +15,7 @@ import {
   MicrosoftExcelIcon,
   MicrosoftIcon,
   MicrosoftTeamsIcon,
+  MicrosoftOneDriveIcon,
   NotionIcon,
   OutlookIcon,
   RedditIcon,
@@ -67,7 +68,7 @@ export type OAuthService =
   | 'slack'
   | 'reddit'
   | 'wealthbox'
-
+  | 'onedrive'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -200,6 +201,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Mail.Send',
           'offline_access',
         ],
+      },
+      'onedrive': {
+        id: 'onedrive',
+        name: 'OneDrive',
+        description: 'Connect to OneDrive and manage files.',
+        providerId: 'onedrive',
+        icon: (props) => MicrosoftOneDriveIcon(props),
+        baseProviderIcon: (props) => MicrosoftIcon(props),
+        scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
       },
     },
     defaultService: 'microsoft',
@@ -541,6 +551,12 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
     return {
       baseProvider: 'microsoft',
       featureType: 'outlook',
+    }
+  }
+  else if (provider === 'onedrive') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'onedrive',
     }
   }
 
