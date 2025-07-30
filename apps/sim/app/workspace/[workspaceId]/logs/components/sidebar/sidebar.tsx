@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { redactApiKeys } from '@/lib/utils'
 import { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components/frozen-canvas/frozen-canvas-modal'
+import { FileDownload } from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/file-download'
 import LogMarkdownRenderer from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/markdown-renderer'
 import { ToolCallsDisplay } from '@/app/workspace/[workspaceId]/logs/components/tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '@/app/workspace/[workspaceId]/logs/components/trace-spans/trace-spans-display'
@@ -511,14 +512,7 @@ export function Sidebar({
                             </div>
                           </div>
                           <div className='flex items-center gap-1 ml-2'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              className='h-7 px-2 text-xs'
-                              onClick={() => window.open(file.path, '_blank')}
-                            >
-                              Download
-                            </Button>
+                            <FileDownload file={file} />
                           </div>
                         </div>
                       ))}

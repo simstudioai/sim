@@ -83,11 +83,12 @@ export async function POST(request: NextRequest) {
           }
 
           // Create the final result with proper URLs
+          // Use the actual key where the file was stored, not our custom storageKey
           const customResult = {
             name: originalName,
             size: file.size,
             type: file.type,
-            key: storageKey,
+            key: result.key, // Use the actual key from cloud storage
             path: servePath, // Keep for backward compatibility
             directUrl, // Use the generated presigned URL
             uploadedAt: new Date().toISOString(),

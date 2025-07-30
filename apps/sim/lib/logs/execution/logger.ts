@@ -433,21 +433,28 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // Check if this object has files property
       if (Array.isArray(obj.files)) {
         for (const file of obj.files) {
-          if (file && file.id && !seenFileIds.has(file.id)) {
-            seenFileIds.add(file.id)
-            files.push({
-              ...file,
-              source, // Track which block/source created this file
-            })
+          if (file && file.name && file.key) {
+            // Use key as unique identifier if id is not available
+            const fileId = file.id || file.key
+            if (!seenFileIds.has(fileId)) {
+              seenFileIds.add(fileId)
+              files.push({
+                id: fileId, // Ensure we have an id field
+                ...file,
+                source, // Track which block/source created this file
+              })
+            }
           }
         }
       }
 
       // Check if this object itself is a file reference
-      if (obj.id && obj.path && obj.name && typeof obj.size === 'number') {
-        if (!seenFileIds.has(obj.id)) {
-          seenFileIds.add(obj.id)
+      if (obj.name && obj.key && typeof obj.size === 'number') {
+        const fileId = obj.id || obj.key
+        if (!seenFileIds.has(fileId)) {
+          seenFileIds.add(fileId)
           files.push({
+            id: fileId, // Ensure we have an id field
             ...obj,
             source,
           })
