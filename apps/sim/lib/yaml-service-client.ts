@@ -24,10 +24,7 @@ interface GenerateYamlResponse {
   error?: string
 }
 
-interface DiffYamlResponse {
-  changes: any[]
-  errors: string[]
-}
+
 
 interface CreateDiffResponse {
   success: boolean
@@ -41,13 +38,6 @@ interface MergeDiffResponse {
   errors: string[]
 }
 
-
-
-interface AnalyzeDiffResponse {
-  success: boolean
-  data?: DiffAnalysis
-  errors: string[]
-}
 
 interface AutoLayoutResponse {
   success: boolean
@@ -65,7 +55,13 @@ export class YamlServiceClient {
    */
   private async fetchFromAPI(endpoint: string, body: any): Promise<any> {
     try {
-      const response = await fetch(`/api/yaml${endpoint}`, {
+      // Construct absolute URL for server-side context
+      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+      const url = `${baseUrl}/api/yaml${endpoint}`
+      
+      logger.info(`YamlServiceClient calling: ${url}`)
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,6 +74,7 @@ export class YamlServiceClient {
         logger.error(`API error for ${endpoint}:`, {
           status: response.status,
           error: errorData,
+          url: url
         })
         throw new Error(errorData?.error || `API error: ${response.statusText}`)
       }
@@ -117,12 +114,7 @@ export class YamlServiceClient {
     })
   }
 
-  async diffYaml(originalYaml: string, modifiedYaml: string): Promise<DiffYamlResponse> {
-    return this.fetchFromAPI('/diff/create', {
-      originalYaml,
-      modifiedYaml
-    })
-  }
+
 
   async createDiff(
     yamlContent: string,
@@ -215,7 +207,11 @@ export class YamlServiceClient {
   // Helper method to check if external service is available
   async healthCheck(): Promise<boolean> {
     try {
-      const response = await fetch('/api/yaml/health', {
+      // Construct absolute URL for server-side context
+      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+      const url = `${baseUrl}/api/yaml/health`
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -225,6 +221,7 @@ export class YamlServiceClient {
       if (!response.ok) {
         logger.error('YAML service health check failed:', {
           status: response.status,
+          url: url
         })
         return false
       }
@@ -242,4 +239,4 @@ export class YamlServiceClient {
 export const yamlService = new YamlServiceClient()
 
 // Export types for consumers
-export type { ParseYamlResponse, ConvertYamlToWorkflowResponse, GenerateYamlResponse, DiffYamlResponse, AutoLayoutResponse } 
+export type { ParseYamlResponse, ConvertYamlToWorkflowResponse, GenerateYamlResponse, AutoLayoutResponse } 

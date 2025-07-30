@@ -75,6 +75,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    logger.info(`[${requestId}] Calling sim-agent autolayout with strategy:`, {
+      strategy: options?.strategy || 'smart (default)',
+      direction: options?.direction || 'auto (default)',
+      spacing: options?.spacing,
+      alignment: options?.alignment || 'center (default)'
+    })
+
     // Call sim-agent API
     const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/autolayout`, {
       method: 'POST',
@@ -83,11 +90,27 @@ export async function POST(request: NextRequest) {
         ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
       },
       body: JSON.stringify({
-        blocks: workflowState.blocks,
-        edges: workflowState.edges,
-        loops: workflowState.loops || {},
-        parallels: workflowState.parallels || {},
-        options,
+        workflowState: {
+          blocks: workflowState.blocks,
+          edges: workflowState.edges,
+          loops: workflowState.loops || {},
+          parallels: workflowState.parallels || {}
+        },
+        options: {
+          strategy: 'smart',
+          direction: 'auto',
+          spacing: {
+            horizontal: 500,
+            vertical: 400,
+            layer: 700
+          },
+          alignment: 'center',
+          padding: {
+            x: 250,
+            y: 250
+          },
+          ...options // Allow override of defaults
+        },
         blockRegistry,
 
         utilities: {

@@ -69,7 +69,21 @@ export class WorkflowDiffEngine {
       // Call the sim agent service to create the diff
       const response = await yamlService.createDiff(yamlContent, diffAnalysis, {
         applyAutoLayout: true,
-        currentWorkflowState: currentWorkflowState
+        currentWorkflowState: currentWorkflowState,
+        layoutOptions: {
+          strategy: 'smart',
+          direction: 'auto',
+          spacing: {
+            horizontal: 500,
+            vertical: 400,
+            layer: 700
+          },
+          alignment: 'center',
+          padding: {
+            x: 250,
+            y: 250
+          }
+        }
       })
       
       logger.info('WorkflowDiffEngine.createDiffFromYaml response:', {
@@ -145,7 +159,21 @@ export class WorkflowDiffEngine {
         yamlContent,
         diffAnalysis,
         {
-          applyAutoLayout: true
+          applyAutoLayout: true,
+          layoutOptions: {
+            strategy: 'smart',
+            direction: 'auto',
+            spacing: {
+              horizontal: 500,
+              vertical: 400,
+              layer: 700
+            },
+            alignment: 'center',
+            padding: {
+              x: 250,
+              y: 250
+            }
+          }
         }
       )
 
@@ -269,28 +297,5 @@ export class WorkflowDiffEngine {
     }
   }
 
-  /**
-   * Analyze differences between two workflow states
-   */
-  static async analyzeDiff(
-    originalYaml: string,
-    proposedYaml: string
-  ): Promise<DiffAnalysis | null> {
-    try {
-      const result = await yamlService.diffYaml(originalYaml, proposedYaml)
-      
-      if (result && result.changes && result.changes.length > 0) {
-        // Convert the diff result to DiffAnalysis format
-        // The yaml service returns changes array, we need to extract the analysis
-        const firstChange = result.changes[0]
-        if (firstChange && firstChange.data) {
-          return firstChange.data
-        }
-      }
-    } catch (error) {
-      logger.error('Failed to analyze diff:', error)
-    }
 
-    return null
-  }
 }

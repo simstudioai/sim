@@ -173,10 +173,29 @@ export async function applyAutoLayoutAndUpdateStore(
 
     logger.info('Successfully updated workflow store with auto layout', { workflowId })
 
-    // Save to database in background (don't await to keep UI responsive)
-    saveAutoLayoutToDatabase(workflowId, options)
-
-    return { success: true }
+    // Save to database and handle errors properly
+    try {
+      await saveAutoLayoutToDatabase(workflowId, options)
+      logger.info('Auto layout successfully persisted to database', { workflowId })
+      return { success: true }
+    } catch (saveError) {
+      logger.error('Failed to save auto layout to database, reverting store changes:', {
+        workflowId,
+        error: saveError
+      })
+      
+      // Revert the store changes since database save failed
+      useWorkflowStore.setState({
+        ...workflowStore.getWorkflowState(),
+        blocks: blocks, // Revert to original blocks
+        lastSaved: workflowStore.lastSaved, // Revert lastSaved
+      })
+      
+      return { 
+        success: false, 
+        error: `Failed to save positions to database: ${saveError instanceof Error ? saveError.message : 'Unknown error'}` 
+      }
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown store update error'
     logger.error('Failed to update store with auto layout:', { workflowId, error: errorMessage })
