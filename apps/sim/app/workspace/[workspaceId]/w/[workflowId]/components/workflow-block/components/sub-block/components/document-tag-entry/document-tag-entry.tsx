@@ -390,11 +390,6 @@ export function DocumentTagEntry({
           {/* Tag slots usage indicator */}
           <div className='text-xs text-muted-foreground text-center'>
             {tagDefinitions.length + newTagsBeingCreated} of {MAX_TAG_SLOTS} tag slots used
-            {!canAddMoreTags && (
-              <div className='text-orange-600 dark:text-orange-400 mt-1'>
-                Maximum tag slots reached for this knowledge base
-              </div>
-            )}
           </div>
         </div>
       )}
