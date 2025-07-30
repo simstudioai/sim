@@ -90,7 +90,7 @@ export function DocumentTagEntry({
 
   // Get available tag names and check for case-insensitive duplicates
   const usedTagNames = new Set(
-    rows.map((row) => row.cells.tagName?.toLowerCase()).filter((name) => name && name.trim())
+    rows.map((row) => row.cells.tagName?.toLowerCase()).filter((name) => name?.trim())
   )
 
   const availableTagDefinitions = tagDefinitions.filter(
@@ -226,8 +226,8 @@ export function DocumentTagEntry({
   const renderHeader = () => (
     <thead>
       <tr className='border-b'>
-        <th className='px-4 py-2 text-center font-medium text-sm border-r'>Tag Name</th>
-        <th className='px-4 py-2 text-center font-medium text-sm border-r'>Type</th>
+        <th className='border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
+        <th className='border-r px-4 py-2 text-center font-medium text-sm'>Type</th>
         <th className='px-4 py-2 text-center font-medium text-sm'>Value</th>
       </tr>
     </thead>
@@ -243,7 +243,7 @@ export function DocumentTagEntry({
     }
 
     return (
-      <td className='relative p-1 border-r'>
+      <td className='relative border-r p-1'>
         <div className='relative w-full'>
           <Input
             value={cellValue}
@@ -254,7 +254,7 @@ export function DocumentTagEntry({
             className={cn(isDuplicate && 'border-red-500 bg-red-50')}
           />
           {showDropdown && availableTagDefinitions.length > 0 && (
-            <div className='absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-md max-h-60 overflow-auto'>
+            <div className='absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover shadow-md'>
               {availableTagDefinitions
                 .filter((tagDef) =>
                   tagDef.displayName.toLowerCase().includes(cellValue.toLowerCase())
@@ -262,7 +262,7 @@ export function DocumentTagEntry({
                 .map((tagDef) => (
                   <div
                     key={tagDef.id}
-                    className='px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground'
+                    className='cursor-pointer px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground'
                     onMouseDown={() => {
                       handleCellChange(rowIndex, 'tagName', tagDef.displayName)
                       setShowDropdown(false)
@@ -289,7 +289,7 @@ export function DocumentTagEntry({
     const isReadOnly = !!existingTag
 
     return (
-      <td className='p-1 border-r'>
+      <td className='border-r p-1'>
         <Select
           value={cellValue}
           onValueChange={(value) => handleCellChange(rowIndex, 'type', value)}
@@ -381,14 +381,14 @@ export function DocumentTagEntry({
 
       {/* Add Row Button */}
       {!isPreview && !disabled && (
-        <div className='flex flex-col items-center mt-3 gap-2'>
+        <div className='mt-3 flex flex-col items-center gap-2'>
           <Button variant='outline' size='sm' onClick={handleAddRow} disabled={!canAddMoreTags}>
-            <Plus className='h-3 w-3 mr-1' />
+            <Plus className='mr-1 h-3 w-3' />
             Add Tag
           </Button>
 
           {/* Tag slots usage indicator */}
-          <div className='text-xs text-muted-foreground text-center'>
+          <div className='text-center text-muted-foreground text-xs'>
             {tagDefinitions.length + newTagsBeingCreated} of {MAX_TAG_SLOTS} tag slots used
           </div>
         </div>
