@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
-import { yamlService } from '@/lib/yaml-service-client'
 import { useSubBlockStore } from '../subblock/store'
 import { useWorkflowStore } from '../workflow/store'
 
@@ -122,7 +121,25 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
         const workflowState = useWorkflowStore.getState()
         const subBlockValues = getSubBlockValues()
 
-        const result = await yamlService.generateYaml(workflowState, subBlockValues)
+        // Call the API route to generate YAML (server has access to API key)
+        const response = await fetch('/api/workflows/yaml/convert', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            workflowState,
+            subBlockValues,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null)
+          logger.error('Failed to generate YAML:', errorData?.error || response.statusText)
+          return
+        }
+
+        const result = await response.json()
 
         if (result.success && result.yaml) {
           set({

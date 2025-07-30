@@ -60,8 +60,7 @@ export async function applyAutoLayoutToWorkflow(
       edgeCount: edges.length,
     })
 
-    // Import yaml service
-    const { yamlService } = await import('@/lib/yaml-service-client')
+    // Call the autolayout API route instead of sim-agent directly
 
     // Merge with default options and ensure all required properties are present
     const layoutOptions = {
@@ -79,24 +78,34 @@ export async function applyAutoLayoutToWorkflow(
       },
     }
 
-    // Create workflow state object
-    const workflowState = {
-      blocks,
-      edges,
-      loops,
-      parallels,
+    // Call the autolayout API route which has access to the server-side API key
+    const response = await fetch(`/api/workflows/${workflowId}/autolayout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(layoutOptions),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      const errorMessage = errorData?.error || `Auto layout failed: ${response.statusText}`
+      logger.error('Auto layout API call failed:', {
+        status: response.status,
+        error: errorMessage,
+      })
+      return {
+        success: false,
+        error: errorMessage,
+      }
     }
 
-    // Apply auto layout using sim agent
-    const response = await yamlService.autoLayout(workflowState, layoutOptions)
+    const result = await response.json()
 
-    if (!response.success || !response.workflowState) {
-      const errorMessage = response.errors?.join(', ') || 'Auto layout failed'
-      logger.error('Auto layout response failed:', {
-        success: response.success,
-        hasWorkflowState: !!response.workflowState,
-        errors: response.errors,
-        errorMessage,
+    if (!result.success) {
+      const errorMessage = result.error || 'Auto layout failed'
+      logger.error('Auto layout failed:', {
+        error: errorMessage,
       })
       return {
         success: false,
@@ -107,12 +116,13 @@ export async function applyAutoLayoutToWorkflow(
     logger.info('Successfully applied auto layout', {
       workflowId,
       originalBlockCount: Object.keys(blocks).length,
-      layoutedBlockCount: Object.keys(response.workflowState.blocks).length,
+      layoutedBlockCount: result.data?.layoutedBlocks ? Object.keys(result.data.layoutedBlocks).length : 0,
     })
 
+    // Return the layouted blocks from the API response
     return {
       success: true,
-      layoutedBlocks: response.workflowState.blocks,
+      layoutedBlocks: result.data?.layoutedBlocks || blocks,
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown auto layout error'

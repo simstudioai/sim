@@ -1,6 +1,5 @@
 import { dump as yamlDump } from 'js-yaml'
 import { createLogger } from '@/lib/logs/console-logger'
-import { yamlService } from '@/lib/yaml-service-client'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -75,7 +74,26 @@ export async function exportWorkflow(format: EditorFormat): Promise<string> {
       // Use the YAML service for conversion
       const workflowState = useWorkflowStore.getState()
       const subBlockValues = getSubBlockValues()
-      const result = await yamlService.generateYaml(workflowState, subBlockValues)
+      
+      // Call the API route to generate YAML (server has access to API key)
+      const response = await fetch('/api/workflows/yaml/convert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workflowState,
+          subBlockValues,
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || `Failed to generate YAML: ${response.statusText}`)
+      }
+      
+      const result = await response.json()
+      
       if (!result.success || !result.yaml) {
         throw new Error(result.error || 'Failed to generate YAML')
       }
@@ -95,11 +113,9 @@ export async function exportWorkflow(format: EditorFormat): Promise<string> {
  */
 export async function parseWorkflowContent(content: string, format: EditorFormat): Promise<any> {
   if (format === 'yaml') {
-    const result = await yamlService.parseYaml(content)
-    if (!result.success || result.errors.length > 0) {
-      throw new Error(`YAML parsing errors: ${result.errors.join(', ')}`)
-    }
-    return result.data
+    // For now, we'll parse YAML on the server when it's being saved
+    // The workflow-text-editor should handle the actual conversion
+    throw new Error('YAML parsing should be handled by the server when saving the workflow')
   }
   return JSON.parse(content)
 }

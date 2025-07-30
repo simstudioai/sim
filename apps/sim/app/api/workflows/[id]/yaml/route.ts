@@ -7,15 +7,15 @@ import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/db-helpers'
-import { yamlService } from '@/lib/yaml-service-client'
-import { getUserId as getOAuthUserId } from '@/app/api/auth/oauth/utils'
-import { getBlock } from '@/blocks'
+import { simAgentClient } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { getUserId as getOAuthUserId } from '@/app/api/auth/oauth/utils'
+import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 // Sim Agent API configuration
 const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
@@ -568,17 +568,41 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           },
         }
 
-        const autoLayoutResult = await yamlService.autoLayout(
-          workflowStateForLayout,
-          autoLayoutOptions
+        // Gather block registry and utilities for sim-agent
+        const blocks = getAllBlocks()
+        const blockRegistry = blocks.reduce(
+          (acc, block) => {
+            const blockType = block.type
+            acc[blockType] = {
+              ...block,
+              id: blockType,
+              subBlocks: block.subBlocks || [],
+              outputs: block.outputs || {},
+            } as any
+            return acc
+          },
+          {} as Record<string, BlockConfig>
         )
 
-        if (autoLayoutResult.success && autoLayoutResult.workflowState) {
-          newWorkflowState.blocks = autoLayoutResult.workflowState.blocks
+        const autoLayoutResult = await simAgentClient.makeRequest('/api/yaml/autolayout', {
+          body: {
+            workflowState: workflowStateForLayout,
+            options: autoLayoutOptions,
+            blockRegistry,
+            utilities: {
+              generateLoopBlocks: generateLoopBlocks.toString(),
+              generateParallelBlocks: generateParallelBlocks.toString(),
+              resolveOutputType: resolveOutputType.toString(),
+            },
+          },
+        })
+
+        if (autoLayoutResult.success && autoLayoutResult.data?.workflowState) {
+          newWorkflowState.blocks = autoLayoutResult.data.workflowState.blocks
         } else {
           logger.warn(
             `[${requestId}] Auto layout failed, using original positions:`,
-            autoLayoutResult.errors
+            autoLayoutResult.error
           )
         }
         logger.info(`[${requestId}] Autolayout completed successfully`)

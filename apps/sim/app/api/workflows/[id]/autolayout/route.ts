@@ -8,7 +8,11 @@ import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/db-helpers'
-import { yamlService } from '@/lib/yaml-service-client'
+import { simAgentClient } from '@/lib/sim-agent'
+import { getAllBlocks } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
+import { resolveOutputType } from '@/blocks/utils'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
 
@@ -146,14 +150,41 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     }
 
-    const autoLayoutResult = await yamlService.autoLayout(workflowState, autoLayoutOptions)
+    // Gather block registry and utilities for sim-agent
+    const blocks = getAllBlocks()
+    const blockRegistry = blocks.reduce(
+      (acc, block) => {
+        const blockType = block.type
+        acc[blockType] = {
+          ...block,
+          id: blockType,
+          subBlocks: block.subBlocks || [],
+          outputs: block.outputs || {},
+        } as any
+        return acc
+      },
+      {} as Record<string, BlockConfig>
+    )
 
-    if (!autoLayoutResult.success || !autoLayoutResult.workflowState) {
-      logger.error(`[${requestId}] Auto layout failed:`, autoLayoutResult.errors)
+    const autoLayoutResult = await simAgentClient.makeRequest('/api/yaml/autolayout', {
+      body: {
+        workflowState,
+        options: autoLayoutOptions,
+        blockRegistry,
+        utilities: {
+          generateLoopBlocks: generateLoopBlocks.toString(),
+          generateParallelBlocks: generateParallelBlocks.toString(),
+          resolveOutputType: resolveOutputType.toString(),
+        },
+      },
+    })
+
+    if (!autoLayoutResult.success || !autoLayoutResult.data?.workflowState) {
+      logger.error(`[${requestId}] Auto layout failed:`, autoLayoutResult.error)
       return NextResponse.json({ error: 'Auto layout failed' }, { status: 500 })
     }
 
-    const layoutedBlocks = autoLayoutResult.workflowState.blocks
+    const layoutedBlocks = autoLayoutResult.data.workflowState.blocks
 
     // Create updated workflow state
     const updatedWorkflowState = {
@@ -213,6 +244,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         direction: layoutOptions.direction,
         blockCount,
         elapsed: `${elapsed}ms`,
+        layoutedBlocks: layoutedBlocks,
       },
     })
   } catch (error) {

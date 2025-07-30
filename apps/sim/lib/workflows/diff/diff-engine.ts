@@ -1,5 +1,4 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { yamlService } from '@/lib/yaml-service-client'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDiffEngine')
@@ -40,7 +39,7 @@ export interface DiffResult {
  * without polluting core workflow stores
  */
 export class WorkflowDiffEngine {
-  private currentDiff: WorkflowDiff | null = null
+  private currentDiff: WorkflowDiff | undefined = undefined
 
   /**
    * Create a diff from YAML content
@@ -66,10 +65,18 @@ export class WorkflowDiffEngine {
         hasParallels: Object.keys(currentWorkflowState.parallels || {}).length > 0,
       })
 
-      // Call the sim agent service to create the diff
-      const response = await yamlService.createDiff(yamlContent, diffAnalysis, {
-        applyAutoLayout: true,
+      // Call the API route to create the diff
+      const body: any = { 
+        yamlContent,
         currentWorkflowState: currentWorkflowState,
+      }
+      
+      if (diffAnalysis !== undefined && diffAnalysis !== null) {
+        body.diffAnalysis = diffAnalysis
+      }
+      
+      body.options = {
+        applyAutoLayout: true,
         layoutOptions: {
           strategy: 'smart',
           direction: 'auto',
@@ -84,36 +91,58 @@ export class WorkflowDiffEngine {
             y: 250,
           },
         },
+      }
+
+      const response = await fetch('/api/yaml/diff/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
       })
 
-      logger.info('WorkflowDiffEngine.createDiffFromYaml response:', {
-        success: response.success,
-        hasDiff: !!response.diff,
-        errors: response.errors,
-        hasDiffAnalysis: !!response.diff?.diffAnalysis,
-      })
-
-      if (!response.success || !response.diff) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        logger.error('Failed to create diff:', {
+          status: response.status,
+          error: errorData,
+        })
         return {
           success: false,
-          errors: response.errors,
+          errors: [errorData?.error || `Failed to create diff: ${response.statusText}`],
+        }
+      }
+
+      const result = await response.json()
+
+      logger.info('WorkflowDiffEngine.createDiffFromYaml response:', {
+        success: result.success,
+        hasDiff: !!result.diff,
+        errors: result.errors,
+        hasDiffAnalysis: !!result.diff?.diffAnalysis,
+      })
+
+      if (!result.success || !result.diff) {
+        return {
+          success: false,
+          errors: result.errors,
         }
       }
 
       // Log diff analysis details
-      if (response.diff.diffAnalysis) {
+      if (result.diff.diffAnalysis) {
         logger.info('WorkflowDiffEngine diff analysis:', {
-          new_blocks: response.diff.diffAnalysis.new_blocks,
-          edited_blocks: response.diff.diffAnalysis.edited_blocks,
-          deleted_blocks: response.diff.diffAnalysis.deleted_blocks,
-          field_diffs: response.diff.diffAnalysis.field_diffs
-            ? Object.keys(response.diff.diffAnalysis.field_diffs)
+          new_blocks: result.diff.diffAnalysis.new_blocks,
+          edited_blocks: result.diff.diffAnalysis.edited_blocks,
+          deleted_blocks: result.diff.diffAnalysis.deleted_blocks,
+          field_diffs: result.diff.diffAnalysis.field_diffs
+            ? Object.keys(result.diff.diffAnalysis.field_diffs)
             : [],
-          edge_diff: response.diff.diffAnalysis.edge_diff
+          edge_diff: result.diff.diffAnalysis.edge_diff
             ? {
-                new_edges_count: response.diff.diffAnalysis.edge_diff.new_edges.length,
-                deleted_edges_count: response.diff.diffAnalysis.edge_diff.deleted_edges.length,
-                unchanged_edges_count: response.diff.diffAnalysis.edge_diff.unchanged_edges.length,
+                new_edges_count: result.diff.diffAnalysis.edge_diff.new_edges.length,
+                deleted_edges_count: result.diff.diffAnalysis.edge_diff.deleted_edges.length,
+                unchanged_edges_count: result.diff.diffAnalysis.edge_diff.unchanged_edges.length,
               }
             : null,
         })
@@ -122,12 +151,12 @@ export class WorkflowDiffEngine {
       }
 
       // Store the current diff
-      this.currentDiff = response.diff
+      this.currentDiff = result.diff
 
       logger.info('Diff created successfully', {
-        blocksCount: Object.keys(response.diff.proposedState.blocks).length,
-        edgesCount: response.diff.proposedState.edges.length,
-        hasDiffAnalysis: !!response.diff.diffAnalysis,
+        blocksCount: Object.keys(result.diff.proposedState.blocks).length,
+        edgesCount: result.diff.proposedState.edges.length,
+        hasDiffAnalysis: !!result.diff.diffAnalysis,
       })
 
       return {
@@ -157,8 +186,17 @@ export class WorkflowDiffEngine {
         return this.createDiffFromYaml(yamlContent, diffAnalysis)
       }
 
-      // Call the sim agent service to merge the diff
-      const response = await yamlService.mergeDiff(this.currentDiff, yamlContent, diffAnalysis, {
+      // Call the API route to merge the diff
+      const body: any = {
+        existingDiff: this.currentDiff,
+        yamlContent,
+      }
+      
+      if (diffAnalysis !== undefined && diffAnalysis !== null) {
+        body.diffAnalysis = diffAnalysis
+      }
+      
+      body.options = {
         applyAutoLayout: true,
         layoutOptions: {
           strategy: 'smart',
@@ -174,21 +212,43 @@ export class WorkflowDiffEngine {
             y: 250,
           },
         },
+      }
+
+      const response = await fetch('/api/yaml/diff/merge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
       })
 
-      if (!response.success || !response.diff) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        logger.error('Failed to merge diff:', {
+          status: response.status,
+          error: errorData,
+        })
         return {
           success: false,
-          errors: response.errors,
+          errors: [errorData?.error || `Failed to merge diff: ${response.statusText}`],
+        }
+      }
+
+      const result = await response.json()
+
+      if (!result.success || !result.diff) {
+        return {
+          success: false,
+          errors: result.errors,
         }
       }
 
       // Update the current diff
-      this.currentDiff = response.diff
+      this.currentDiff = result.diff
 
       logger.info('Diff merged successfully', {
-        totalBlocksCount: Object.keys(response.diff.proposedState.blocks).length,
-        totalEdgesCount: response.diff.proposedState.edges.length,
+        totalBlocksCount: Object.keys(result.diff.proposedState.blocks).length,
+        totalEdgesCount: result.diff.proposedState.edges.length,
       })
 
       return {
@@ -207,7 +267,7 @@ export class WorkflowDiffEngine {
   /**
    * Get the current diff
    */
-  getCurrentDiff(): WorkflowDiff | null {
+  getCurrentDiff(): WorkflowDiff | undefined {
     return this.currentDiff
   }
 
@@ -215,7 +275,7 @@ export class WorkflowDiffEngine {
    * Clear the current diff
    */
   clearDiff(): void {
-    this.currentDiff = null
+    this.currentDiff = undefined
     logger.info('Diff cleared')
   }
 
@@ -223,7 +283,7 @@ export class WorkflowDiffEngine {
    * Check if a diff is active
    */
   hasDiff(): boolean {
-    return this.currentDiff !== null
+    return this.currentDiff !== undefined
   }
 
   /**
