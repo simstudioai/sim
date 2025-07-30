@@ -4,9 +4,10 @@ import { createLogger } from '@/lib/logs/console-logger'
 const logger = createLogger('SimAgentClient')
 
 // Base URL for the sim-agent service
-const SIM_AGENT_BASE_URL = env.NODE_ENV === 'development' 
-  ? 'http://localhost:8000'
-  : (env.NEXT_PUBLIC_SIM_AGENT_URL || 'https://sim-agent.vercel.app')
+const SIM_AGENT_BASE_URL =
+  env.NODE_ENV === 'development'
+    ? 'http://localhost:8000'
+    : env.NEXT_PUBLIC_SIM_AGENT_URL || 'https://sim-agent.vercel.app'
 
 export interface SimAgentRequest {
   workflowId: string
@@ -28,7 +29,7 @@ class SimAgentClient {
   constructor() {
     this.baseUrl = SIM_AGENT_BASE_URL
     this.apiKey = env.SIM_AGENT_API_KEY || ''
-    
+
     if (!this.apiKey) {
       logger.warn('SIM_AGENT_API_KEY not configured')
     }
@@ -50,7 +51,7 @@ class SimAgentClient {
 
     try {
       const url = `${this.baseUrl}${endpoint}`
-      
+
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-api-key': this.apiKey,
@@ -101,7 +102,6 @@ class SimAgentClient {
         error: response.ok ? undefined : responseData?.error || `HTTP ${responseStatus}`,
         status: responseStatus,
       }
-
     } catch (fetchError) {
       logger.error(`[${requestId}] Request failed`, fetchError)
       return {
@@ -146,4 +146,4 @@ class SimAgentClient {
 export const simAgentClient = new SimAgentClient()
 
 // Export types and class for advanced usage
-export { SimAgentClient } 
+export { SimAgentClient }

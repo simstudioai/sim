@@ -1,5 +1,5 @@
-import { CopilotTool } from './base'
-import { COPILOT_TOOL_DISPLAY_NAMES, type CopilotToolId } from '@/stores/constants'
+import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
+import type { CopilotTool } from './base'
 // Import all tools to register them
 import { getBlocksAndToolsTool } from './blocks/get-blocks-and-tools'
 import { getBlocksMetadataTool } from './blocks/get-blocks-metadata'
@@ -7,10 +7,10 @@ import { searchDocsTool } from './docs/search-docs'
 import { onlineSearchTool } from './other/online-search'
 import { getEnvironmentVariablesTool } from './user/get-environment-variables'
 import { setEnvironmentVariablesTool } from './user/set-environment-variables'
-import { getUserWorkflowTool } from './workflow/get-user-workflow'
 import { buildWorkflowTool } from './workflow/build-workflow'
-import { getWorkflowConsoleTool } from './workflow/get-workflow-console'
 import { editWorkflowTool } from './workflow/edit-workflow'
+import { getUserWorkflowTool } from './workflow/get-user-workflow'
+import { getWorkflowConsoleTool } from './workflow/get-workflow-console'
 
 // Registry of all copilot tools
 export class CopilotToolRegistry {
@@ -99,4 +99,4 @@ copilotToolRegistry.register(editWorkflowTool)
 export const COPILOT_TOOL_IDS = copilotToolRegistry.getAvailableIds()
 
 // Export the type from shared constants
-export type { CopilotToolId } from '@/stores/constants' 
+export type { CopilotToolId } from '@/stores/constants'

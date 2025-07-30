@@ -215,10 +215,7 @@ export function Panel() {
             ) : activeTab === 'console' ? (
               <Console panelWidth={panelWidth} />
             ) : activeTab === 'copilot' ? (
-              <Copilot
-                ref={copilotRef}
-                panelWidth={panelWidth}
-              />
+              <Copilot ref={copilotRef} panelWidth={panelWidth} />
             ) : (
               <Variables />
             )}

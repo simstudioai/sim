@@ -58,7 +58,8 @@ export const cspDirectives: CSPDirectives = {
   'connect-src': [
     "'self'",
     env.NEXT_PUBLIC_APP_URL || '',
-    env.NEXT_PUBLIC_SIM_AGENT_URL || (env.NODE_ENV === 'development' ? 'http://localhost:8000' : 'https://sim-agent.vercel.app'),
+    env.NEXT_PUBLIC_SIM_AGENT_URL ||
+      (env.NODE_ENV === 'development' ? 'http://localhost:8000' : 'https://sim-agent.vercel.app'),
     env.OLLAMA_URL || 'http://localhost:11434',
     env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002',
     env.NEXT_PUBLIC_SOCKET_URL?.replace('http://', 'ws://').replace('https://', 'wss://') ||

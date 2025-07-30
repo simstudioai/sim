@@ -2,13 +2,13 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { yamlService } from '@/lib/yaml-service-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/db-helpers'
+import { yamlService } from '@/lib/yaml-service-client'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
 
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       blocks: currentWorkflowData.blocks,
       edges: currentWorkflowData.edges,
       loops: currentWorkflowData.loops || {},
-      parallels: currentWorkflowData.parallels || {}
+      parallels: currentWorkflowData.parallels || {},
     }
 
     const autoLayoutOptions = {
@@ -147,12 +147,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const autoLayoutResult = await yamlService.autoLayout(workflowState, autoLayoutOptions)
-    
+
     if (!autoLayoutResult.success || !autoLayoutResult.workflowState) {
       logger.error(`[${requestId}] Auto layout failed:`, autoLayoutResult.errors)
       return NextResponse.json({ error: 'Auto layout failed' }, { status: 500 })
     }
-    
+
     const layoutedBlocks = autoLayoutResult.workflowState.blocks
 
     // Create updated workflow state

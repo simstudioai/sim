@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { type NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -20,7 +20,7 @@ export interface AuthResult {
  * 1. Session authentication (cookies)
  * 2. API key authentication (X-API-Key header)
  * 3. Internal JWT authentication (Authorization: Bearer header)
- * 
+ *
  * For internal JWT calls, requires workflowId to determine user context
  */
 export async function checkHybridAuth(
@@ -33,36 +33,36 @@ export async function checkHybridAuth(
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1]
       const isInternalCall = await verifyInternalToken(token)
-      
+
       if (isInternalCall) {
         // For internal calls, we need workflowId to determine user context
         let workflowId: string | null = null
-        
+
         // Try to get workflowId from query params or request body
         const { searchParams } = new URL(request.url)
         workflowId = searchParams.get('workflowId')
-        
-                 if (!workflowId && request.method === 'POST') {
-           try {
-             // Clone the request to avoid consuming the original body
-             const clonedRequest = request.clone()
-             const bodyText = await clonedRequest.text()
-             if (bodyText) {
-               const body = JSON.parse(bodyText)
-               workflowId = body.workflowId
-             }
-           } catch {
-             // Ignore JSON parse errors
-           }
-         }
-        
+
+        if (!workflowId && request.method === 'POST') {
+          try {
+            // Clone the request to avoid consuming the original body
+            const clonedRequest = request.clone()
+            const bodyText = await clonedRequest.text()
+            if (bodyText) {
+              const body = JSON.parse(bodyText)
+              workflowId = body.workflowId
+            }
+          } catch {
+            // Ignore JSON parse errors
+          }
+        }
+
         if (!workflowId && options.requireWorkflowId !== false) {
           return {
             success: false,
-            error: 'workflowId required for internal JWT calls'
+            error: 'workflowId required for internal JWT calls',
           }
         }
-        
+
         if (workflowId) {
           // Get workflow owner as user context
           const [workflowData] = await db
@@ -70,25 +70,24 @@ export async function checkHybridAuth(
             .from(workflow)
             .where(eq(workflow.id, workflowId))
             .limit(1)
-          
+
           if (!workflowData) {
             return {
               success: false,
-              error: 'Workflow not found'
+              error: 'Workflow not found',
             }
           }
-          
+
           return {
             success: true,
             userId: workflowData.userId,
-            authType: 'internal_jwt'
+            authType: 'internal_jwt',
           }
-        } else {
-          // Internal call without workflow context - still valid for some routes
-          return {
-            success: true,
-            authType: 'internal_jwt'
-          }
+        }
+        // Internal call without workflow context - still valid for some routes
+        return {
+          success: true,
+          authType: 'internal_jwt',
         }
       }
     }
@@ -99,7 +98,7 @@ export async function checkHybridAuth(
       return {
         success: true,
         userId: session.user.id,
-        authType: 'session'
+        authType: 'session',
       }
     }
 
@@ -116,26 +115,25 @@ export async function checkHybridAuth(
         return {
           success: true,
           userId: apiKeyRecord.userId,
-          authType: 'api_key'
+          authType: 'api_key',
         }
-      } else {
-        return {
-          success: false,
-          error: 'Invalid API key'
-        }
+      }
+      return {
+        success: false,
+        error: 'Invalid API key',
       }
     }
 
     // No authentication found
     return {
       success: false,
-      error: 'Authentication required - provide session, API key, or internal JWT'
+      error: 'Authentication required - provide session, API key, or internal JWT',
     }
   } catch (error) {
     logger.error('Error in hybrid authentication:', error)
     return {
       success: false,
-      error: 'Authentication error'
+      error: 'Authentication error',
     }
   }
-} 
+}

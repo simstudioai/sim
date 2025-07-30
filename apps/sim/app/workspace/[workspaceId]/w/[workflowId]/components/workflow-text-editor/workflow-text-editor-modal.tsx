@@ -42,10 +42,10 @@ export function WorkflowTextEditorModal({
     if (isOpen && activeWorkflowId) {
       setIsLoading(true)
       exportWorkflow(format)
-        .then(content => {
+        .then((content) => {
           setInitialContent(content)
         })
-        .catch(error => {
+        .catch((error) => {
           logger.error('Failed to export workflow:', error)
           setInitialContent('# Error loading workflow content')
         })

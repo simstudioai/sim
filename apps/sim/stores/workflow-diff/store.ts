@@ -52,7 +52,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           diffAnalysis: diffAnalysis,
           diffAnalysisType: typeof diffAnalysis,
           diffAnalysisUndefined: diffAnalysis === undefined,
-          diffAnalysisNull: diffAnalysis === null
+          diffAnalysisNull: diffAnalysis === null,
         })
 
         // First, set isDiffReady to false to prevent premature rendering
@@ -72,7 +72,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               new_blocks: result.diff.diffAnalysis.new_blocks,
               edited_blocks: result.diff.diffAnalysis.edited_blocks,
               deleted_blocks: result.diff.diffAnalysis.deleted_blocks,
-              total_blocks: Object.keys(result.diff.proposedState.blocks).length
+              total_blocks: Object.keys(result.diff.proposedState.blocks).length,
             })
           } else {
             logger.warn('[DiffStore] No diff analysis in result!')

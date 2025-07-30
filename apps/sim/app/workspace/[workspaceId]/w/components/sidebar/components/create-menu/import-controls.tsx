@@ -3,8 +3,8 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { yamlService } from '@/lib/yaml-service-client'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('ImportControls')
 
@@ -96,7 +96,7 @@ export const ImportControls = forwardRef<ImportControlsRef, ImportControlsProps>
           })
           return
         }
-        
+
         const yamlWorkflow = parseResult.data
 
         // Create a new workflow

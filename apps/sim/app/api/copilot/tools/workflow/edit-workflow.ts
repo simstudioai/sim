@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks/registry'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { resolveOutputType } from '@/blocks/utils'
 import type { BlockConfig } from '@/blocks/types'
+import { resolveOutputType } from '@/blocks/utils'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('EditWorkflowAPI')
 
@@ -27,16 +27,19 @@ async function applyOperationsToYaml(
   // Parse current YAML by calling sim-agent directly
   // Gather block registry and utilities
   const blocks = getAllBlocks()
-  const blockRegistry = blocks.reduce((acc, block) => {
-    const blockType = block.type
-    acc[blockType] = {
-      ...block,
-      id: blockType,
-      subBlocks: block.subBlocks || [],
-      outputs: block.outputs || {},
-    } as any
-    return acc
-  }, {} as Record<string, BlockConfig>)
+  const blockRegistry = blocks.reduce(
+    (acc, block) => {
+      const blockType = block.type
+      acc[blockType] = {
+        ...block,
+        id: blockType,
+        subBlocks: block.subBlocks || [],
+        outputs: block.outputs || {},
+      } as any
+      return acc
+    },
+    {} as Record<string, BlockConfig>
+  )
 
   const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/parse`, {
     method: 'POST',
@@ -50,8 +53,8 @@ async function applyOperationsToYaml(
       utilities: {
         generateLoopBlocks: generateLoopBlocks.toString(),
         generateParallelBlocks: generateParallelBlocks.toString(),
-        resolveOutputType: resolveOutputType.toString()
-      }
+        resolveOutputType: resolveOutputType.toString(),
+      },
     }),
   })
 
@@ -60,11 +63,11 @@ async function applyOperationsToYaml(
   }
 
   const parseResult = await response.json()
-  
+
   if (!parseResult.success || !parseResult.data || parseResult.errors?.length > 0) {
     throw new Error(`Invalid YAML format: ${parseResult.errors?.join(', ') || 'Unknown error'}`)
   }
-  
+
   const workflowData = parseResult.data
 
   // Apply operations to the parsed YAML data (preserving all existing fields)
@@ -297,14 +300,14 @@ export const editWorkflowTool = new EditWorkflowTool()
 async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowResult> {
   const { operations, workflowId } = params
 
-  logger.info('Processing targeted update request', { 
+  logger.info('Processing targeted update request', {
     workflowId,
-    operationCount: operations.length 
+    operationCount: operations.length,
   })
 
   // Get current workflow YAML directly by calling the function
   const { getUserWorkflowTool } = await import('./get-user-workflow')
-  
+
   const getUserWorkflowResult = await getUserWorkflowTool.execute({
     workflowId: workflowId,
     includeMetadata: false,

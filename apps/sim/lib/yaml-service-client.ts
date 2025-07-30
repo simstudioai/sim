@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { WorkflowState, BlockState } from '@/stores/workflows/workflow/types'
 import type { DiffAnalysis, WorkflowDiff } from '@/lib/workflows/diff/diff-engine'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('YamlServiceClient')
 
@@ -24,8 +24,6 @@ interface GenerateYamlResponse {
   error?: string
 }
 
-
-
 interface CreateDiffResponse {
   success: boolean
   diff?: WorkflowDiff
@@ -37,7 +35,6 @@ interface MergeDiffResponse {
   diff?: WorkflowDiff
   errors: string[]
 }
-
 
 interface AutoLayoutResponse {
   success: boolean
@@ -58,9 +55,9 @@ export class YamlServiceClient {
       // Construct absolute URL for server-side context
       const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
       const url = `${baseUrl}/api/yaml${endpoint}`
-      
+
       logger.info(`YamlServiceClient calling: ${url}`)
-      
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -74,7 +71,7 @@ export class YamlServiceClient {
         logger.error(`API error for ${endpoint}:`, {
           status: response.status,
           error: errorData,
-          url: url
+          url: url,
         })
         throw new Error(errorData?.error || `API error: ${response.statusText}`)
       }
@@ -100,7 +97,7 @@ export class YamlServiceClient {
   ): Promise<ConvertYamlToWorkflowResponse> {
     return this.fetchFromAPI('/to-workflow', {
       yamlContent,
-      options
+      options,
     })
   }
 
@@ -110,11 +107,9 @@ export class YamlServiceClient {
   ): Promise<GenerateYamlResponse> {
     return this.fetchFromAPI('/generate', {
       workflowState,
-      subBlockValues
+      subBlockValues,
     })
   }
-
-
 
   async createDiff(
     yamlContent: string,
@@ -129,9 +124,9 @@ export class YamlServiceClient {
       yamlContentLength: yamlContent.length,
       diffAnalysis: diffAnalysis,
       diffAnalysisType: typeof diffAnalysis,
-      options: options
+      options: options,
     })
-    
+
     const body: any = { yamlContent }
     if (diffAnalysis !== undefined && diffAnalysis !== null) {
       body.diffAnalysis = diffAnalysis
@@ -146,15 +141,17 @@ export class YamlServiceClient {
         body.options = restOptions
       }
     }
-    
+
     logger.info('YamlServiceClient.createDiff sending body:', {
       yamlContentLength: body.yamlContent?.length || 0,
       hasDiffAnalysis: !!body.diffAnalysis,
       diffAnalysis: body.diffAnalysis,
       hasCurrentWorkflowState: !!body.currentWorkflowState,
-      currentBlockCount: body.currentWorkflowState ? Object.keys(body.currentWorkflowState.blocks || {}).length : 0,
+      currentBlockCount: body.currentWorkflowState
+        ? Object.keys(body.currentWorkflowState.blocks || {}).length
+        : 0,
       currentEdgeCount: body.currentWorkflowState?.edges?.length || 0,
-      options: body.options
+      options: body.options,
     })
     return this.fetchFromAPI('/diff/create', body)
   }
@@ -170,7 +167,7 @@ export class YamlServiceClient {
   ): Promise<MergeDiffResponse> {
     const body: any = {
       existingDiff,
-      yamlContent
+      yamlContent,
     }
     if (diffAnalysis !== undefined) {
       body.diffAnalysis = diffAnalysis
@@ -200,7 +197,7 @@ export class YamlServiceClient {
   ): Promise<AutoLayoutResponse> {
     return this.fetchFromAPI('/autolayout', {
       workflowState,
-      options
+      options,
     })
   }
 
@@ -210,7 +207,7 @@ export class YamlServiceClient {
       // Construct absolute URL for server-side context
       const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
       const url = `${baseUrl}/api/yaml/health`
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -221,7 +218,7 @@ export class YamlServiceClient {
       if (!response.ok) {
         logger.error('YAML service health check failed:', {
           status: response.status,
-          url: url
+          url: url,
         })
         return false
       }
@@ -239,4 +236,9 @@ export class YamlServiceClient {
 export const yamlService = new YamlServiceClient()
 
 // Export types for consumers
-export type { ParseYamlResponse, ConvertYamlToWorkflowResponse, GenerateYamlResponse, AutoLayoutResponse } 
+export type {
+  ParseYamlResponse,
+  ConvertYamlToWorkflowResponse,
+  GenerateYamlResponse,
+  AutoLayoutResponse,
+}

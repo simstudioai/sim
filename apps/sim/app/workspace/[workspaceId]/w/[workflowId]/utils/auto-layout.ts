@@ -84,7 +84,7 @@ export async function applyAutoLayoutToWorkflow(
       blocks,
       edges,
       loops,
-      parallels
+      parallels,
     }
 
     // Apply auto layout using sim agent
@@ -96,11 +96,11 @@ export async function applyAutoLayoutToWorkflow(
         success: response.success,
         hasWorkflowState: !!response.workflowState,
         errors: response.errors,
-        errorMessage
+        errorMessage,
       })
       return {
         success: false,
-        error: errorMessage
+        error: errorMessage,
       }
     }
 
@@ -147,7 +147,7 @@ export async function applyAutoLayoutAndUpdateStore(
       blockCount: Object.keys(blocks).length,
       edgeCount: edges.length,
       loopCount: Object.keys(loops).length,
-      parallelCount: Object.keys(parallels).length
+      parallelCount: Object.keys(parallels).length,
     })
 
     if (Object.keys(blocks).length === 0) {
@@ -156,7 +156,14 @@ export async function applyAutoLayoutAndUpdateStore(
     }
 
     // Apply auto layout
-    const result = await applyAutoLayoutToWorkflow(workflowId, blocks, edges, loops, parallels, options)
+    const result = await applyAutoLayoutToWorkflow(
+      workflowId,
+      blocks,
+      edges,
+      loops,
+      parallels,
+      options
+    )
 
     if (!result.success || !result.layoutedBlocks) {
       return { success: false, error: result.error }
@@ -181,19 +188,19 @@ export async function applyAutoLayoutAndUpdateStore(
     } catch (saveError) {
       logger.error('Failed to save auto layout to database, reverting store changes:', {
         workflowId,
-        error: saveError
+        error: saveError,
       })
-      
+
       // Revert the store changes since database save failed
       useWorkflowStore.setState({
         ...workflowStore.getWorkflowState(),
         blocks: blocks, // Revert to original blocks
         lastSaved: workflowStore.lastSaved, // Revert lastSaved
       })
-      
-      return { 
-        success: false, 
-        error: `Failed to save positions to database: ${saveError instanceof Error ? saveError.message : 'Unknown error'}` 
+
+      return {
+        success: false,
+        error: `Failed to save positions to database: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`,
       }
     }
   } catch (error) {

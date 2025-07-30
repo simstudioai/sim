@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks/registry'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { resolveOutputType } from '@/blocks/utils'
 import type { BlockConfig } from '@/blocks/types'
+import { resolveOutputType } from '@/blocks/utils'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { BaseCopilotTool } from '../base'
 
 // Sim Agent API configuration
@@ -43,7 +43,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
   const logger = createLogger('BuildWorkflow')
   const { yamlContent, description } = params
 
-  logger.info('Building workflow for copilot', { 
+  logger.info('Building workflow for copilot', {
     yamlLength: yamlContent.length,
     description,
   })
@@ -52,16 +52,19 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
     // Convert YAML by calling sim-agent directly
     // Gather block registry and utilities
     const blocks = getAllBlocks()
-    const blockRegistry = blocks.reduce((acc, block) => {
-      const blockType = block.type
-      acc[blockType] = {
-        ...block,
-        id: blockType,
-        subBlocks: block.subBlocks || [],
-        outputs: block.outputs || {},
-      } as any
-      return acc
-    }, {} as Record<string, BlockConfig>)
+    const blockRegistry = blocks.reduce(
+      (acc, block) => {
+        const blockType = block.type
+        acc[blockType] = {
+          ...block,
+          id: blockType,
+          subBlocks: block.subBlocks || [],
+          outputs: block.outputs || {},
+        } as any
+        return acc
+      },
+      {} as Record<string, BlockConfig>
+    )
 
     const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/to-workflow`, {
       method: 'POST',
@@ -75,12 +78,12 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
         utilities: {
           generateLoopBlocks: generateLoopBlocks.toString(),
           generateParallelBlocks: generateParallelBlocks.toString(),
-          resolveOutputType: resolveOutputType.toString()
+          resolveOutputType: resolveOutputType.toString(),
         },
         options: {
           generateNewIds: true,
-          preservePositions: false
-        }
+          preservePositions: false,
+        },
       }),
     })
 
@@ -92,9 +95,9 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
     const conversionResult = await response.json()
 
     if (!conversionResult.success || !conversionResult.workflowState) {
-      logger.error('YAML conversion failed', { 
+      logger.error('YAML conversion failed', {
         errors: conversionResult.errors,
-        warnings: conversionResult.warnings 
+        warnings: conversionResult.warnings,
       })
       return {
         success: false,
@@ -118,7 +121,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
 
     // Process blocks with preview IDs
     const blockIdMapping = new Map<string, string>()
-    
+
     Object.keys(workflowState.blocks).forEach((blockId) => {
       const previewId = `preview-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
       blockIdMapping.set(blockId, previewId)
@@ -128,7 +131,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
     for (const [originalId, block] of Object.entries(workflowState.blocks)) {
       const previewBlockId = blockIdMapping.get(originalId)!
       const typedBlock = block as any
-      
+
       previewWorkflowState.blocks[previewBlockId] = {
         ...typedBlock,
         id: previewBlockId,
@@ -147,7 +150,7 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
 
     const blocksCount = Object.keys(previewWorkflowState.blocks).length
     const edgesCount = previewWorkflowState.edges.length
-    
+
     logger.info('Workflow built successfully', { blocksCount, edgesCount })
 
     return {
@@ -170,4 +173,4 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
       description,
     }
   }
-} 
+}

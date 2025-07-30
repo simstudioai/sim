@@ -93,7 +93,8 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   // Use the clean abstraction for current workflow state
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentWorkflow.getBlockById(id)
-  const diffStatus = currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).is_diff : undefined
+  const diffStatus =
+    currentWorkflow.isDiffMode && currentBlock ? (currentBlock as any).is_diff : undefined
 
   // Check if this is preview mode
   const isPreview = data?.isPreview || false

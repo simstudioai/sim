@@ -3,7 +3,6 @@
 import { memo, useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ToolCallCompletion, ToolCallExecution } from '@/components/ui/tool-call'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import MarkdownRenderer from './components/markdown-renderer'
 

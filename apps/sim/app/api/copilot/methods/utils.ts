@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { CopilotToolResponse } from '../tools/base'
+import type { CopilotToolResponse } from '../tools/base'
 
 const logger = createLogger('CopilotMethodsUtils')
 
@@ -21,4 +21,4 @@ export function createSuccessResponse(data: any): CopilotToolResponse {
     success: true,
     data,
   }
-} 
+}

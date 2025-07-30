@@ -11,11 +11,16 @@ interface SetEnvironmentVariablesResult {
   count: number
 }
 
-class SetEnvironmentVariablesTool extends BaseCopilotTool<SetEnvironmentVariablesParams, SetEnvironmentVariablesResult> {
+class SetEnvironmentVariablesTool extends BaseCopilotTool<
+  SetEnvironmentVariablesParams,
+  SetEnvironmentVariablesResult
+> {
   readonly id = 'set_environment_variables'
   readonly displayName = 'Setting environment variables'
 
-  protected async executeImpl(params: SetEnvironmentVariablesParams): Promise<SetEnvironmentVariablesResult> {
+  protected async executeImpl(
+    params: SetEnvironmentVariablesParams
+  ): Promise<SetEnvironmentVariablesResult> {
     return setEnvironmentVariables(params)
   }
 }
@@ -24,18 +29,20 @@ class SetEnvironmentVariablesTool extends BaseCopilotTool<SetEnvironmentVariable
 export const setEnvironmentVariablesTool = new SetEnvironmentVariablesTool()
 
 // Implementation function
-async function setEnvironmentVariables(params: SetEnvironmentVariablesParams): Promise<SetEnvironmentVariablesResult> {
+async function setEnvironmentVariables(
+  params: SetEnvironmentVariablesParams
+): Promise<SetEnvironmentVariablesResult> {
   const logger = createLogger('SetEnvironmentVariables')
   const { variables } = params
 
-  logger.info('Setting environment variables for copilot', { 
+  logger.info('Setting environment variables for copilot', {
     variableCount: Object.keys(variables).length,
     variableNames: Object.keys(variables),
   })
 
   // Forward the request to the existing environment variables endpoint
   const envUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/environment/variables`
-  
+
   const response = await fetch(envUrl, {
     method: 'PUT',
     headers: {
@@ -45,9 +52,9 @@ async function setEnvironmentVariables(params: SetEnvironmentVariablesParams): P
   })
 
   if (!response.ok) {
-    logger.error('Set environment variables API failed', { 
-      status: response.status, 
-      statusText: response.statusText 
+    logger.error('Set environment variables API failed', {
+      status: response.status,
+      statusText: response.statusText,
     })
     throw new Error('Failed to set environment variables')
   }
@@ -59,4 +66,4 @@ async function setEnvironmentVariables(params: SetEnvironmentVariablesParams): P
     updatedVariables: Object.keys(variables),
     count: Object.keys(variables).length,
   }
-} 
+}

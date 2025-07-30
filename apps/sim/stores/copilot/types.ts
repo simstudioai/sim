@@ -16,7 +16,14 @@ export interface CopilotToolCall {
   name: string
   displayName: string
   input: Record<string, any>
-  state: 'executing' | 'completed' | 'error' | 'ready_for_review' | 'applied' | 'rejected' | 'aborted'
+  state:
+    | 'executing'
+    | 'completed'
+    | 'error'
+    | 'ready_for_review'
+    | 'applied'
+    | 'rejected'
+    | 'aborted'
   startTime?: number
   endTime?: number
   duration?: number

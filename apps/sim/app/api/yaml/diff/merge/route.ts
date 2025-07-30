@@ -2,10 +2,16 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks/registry'
-import { generateLoopBlocks, generateParallelBlocks, convertLoopBlockToLoop, convertParallelBlockToParallel, findChildNodes, findAllDescendantNodes } from '@/stores/workflows/workflow/utils'
-import { resolveOutputType } from '@/blocks/utils'
-
 import type { BlockConfig } from '@/blocks/types'
+import { resolveOutputType } from '@/blocks/utils'
+import {
+  convertLoopBlockToLoop,
+  convertParallelBlockToParallel,
+  findAllDescendantNodes,
+  findChildNodes,
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('YamlDiffMergeAPI')
 
@@ -19,20 +25,22 @@ const MergeDiffRequestSchema = z.object({
       blocks: z.record(z.any()),
       edges: z.array(z.any()),
       loops: z.record(z.any()),
-      parallels: z.record(z.any())
+      parallels: z.record(z.any()),
     }),
     diffAnalysis: z.any().optional(),
     metadata: z.object({
       source: z.string(),
-      timestamp: z.number()
-    })
+      timestamp: z.number(),
+    }),
   }),
   yamlContent: z.string().min(1),
   diffAnalysis: z.any().optional(),
-  options: z.object({
-    applyAutoLayout: z.boolean().optional(),
-    layoutOptions: z.any().optional()
-  }).optional()
+  options: z
+    .object({
+      applyAutoLayout: z.boolean().optional(),
+      layoutOptions: z.any().optional(),
+    })
+    .optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -53,16 +61,19 @@ export async function POST(request: NextRequest) {
 
     // Gather block registry
     const blocks = getAllBlocks()
-    const blockRegistry = blocks.reduce((acc, block) => {
-      const blockType = block.type
-      acc[blockType] = {
-        ...block,
-        id: blockType,
-        subBlocks: block.subBlocks || [],
-        outputs: block.outputs || {},
-      } as any
-      return acc
-    }, {} as Record<string, BlockConfig>)
+    const blockRegistry = blocks.reduce(
+      (acc, block) => {
+        const blockType = block.type
+        acc[blockType] = {
+          ...block,
+          id: blockType,
+          subBlocks: block.subBlocks || [],
+          outputs: block.outputs || {},
+        } as any
+        return acc
+      },
+      {} as Record<string, BlockConfig>
+    )
 
     // Call sim-agent API
     const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/diff/merge`, {
@@ -84,9 +95,9 @@ export async function POST(request: NextRequest) {
           convertLoopBlockToLoop: convertLoopBlockToLoop.toString(),
           convertParallelBlockToParallel: convertParallelBlockToParallel.toString(),
           findChildNodes: findChildNodes.toString(),
-          findAllDescendantNodes: findAllDescendantNodes.toString()
+          findAllDescendantNodes: findAllDescendantNodes.toString(),
         },
-        options
+        options,
       }),
     })
 
@@ -103,15 +114,15 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json()
-    
+
     // Log the full response to see if auto-layout is happening
     logger.info(`[${requestId}] Full sim agent response:`, JSON.stringify(result, null, 2))
-    
+
     // If the sim agent returned blocks directly (when auto-layout is applied),
     // transform it to the expected diff format
     if (result.success && result.blocks && !result.diff) {
       logger.info(`[${requestId}] Transforming sim agent blocks response to diff format`)
-      
+
       const transformedResult = {
         success: result.success,
         diff: {
@@ -119,37 +130,37 @@ export async function POST(request: NextRequest) {
             blocks: result.blocks,
             edges: result.edges || existingDiff.proposedState.edges || [],
             loops: result.loops || existingDiff.proposedState.loops || {},
-            parallels: result.parallels || existingDiff.proposedState.parallels || {}
+            parallels: result.parallels || existingDiff.proposedState.parallels || {},
           },
           diffAnalysis: diffAnalysis,
           metadata: result.metadata || {
             source: 'sim-agent',
-            timestamp: Date.now()
-          }
+            timestamp: Date.now(),
+          },
         },
-        errors: result.errors || []
+        errors: result.errors || [],
       }
-      
+
       return NextResponse.json(transformedResult)
     }
-    
+
     return NextResponse.json(result)
   } catch (error) {
     logger.error(`[${requestId}] Diff merge failed:`, error)
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { success: false, errors: error.errors.map(e => e.message) },
+        { success: false, errors: error.errors.map((e) => e.message) },
         { status: 400 }
       )
     }
 
     return NextResponse.json(
-      { 
-        success: false, 
-        errors: [error instanceof Error ? error.message : 'Unknown error']
+      {
+        success: false,
+        errors: [error instanceof Error ? error.message : 'Unknown error'],
       },
       { status: 500 }
     )
   }
-} 
+}

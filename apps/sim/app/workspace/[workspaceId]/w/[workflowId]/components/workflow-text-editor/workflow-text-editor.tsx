@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { dump as yamlDump, load as yamlLoad } from 'js-yaml'
-import { yamlService } from '@/lib/yaml-service-client'
 import { AlertCircle, Check, FileCode, Save } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'

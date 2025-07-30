@@ -52,18 +52,18 @@ export class WorkflowDiffEngine {
         diffAnalysis: diffAnalysis,
         diffAnalysisType: typeof diffAnalysis,
         diffAnalysisUndefined: diffAnalysis === undefined,
-        diffAnalysisNull: diffAnalysis === null
+        diffAnalysisNull: diffAnalysis === null,
       })
 
       // Get current workflow state for comparison
       const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
       const currentWorkflowState = useWorkflowStore.getState().getWorkflowState()
-      
+
       logger.info('WorkflowDiffEngine current workflow state:', {
         blockCount: Object.keys(currentWorkflowState.blocks || {}).length,
         edgeCount: currentWorkflowState.edges?.length || 0,
         hasLoops: Object.keys(currentWorkflowState.loops || {}).length > 0,
-        hasParallels: Object.keys(currentWorkflowState.parallels || {}).length > 0
+        hasParallels: Object.keys(currentWorkflowState.parallels || {}).length > 0,
       })
 
       // Call the sim agent service to create the diff
@@ -76,21 +76,21 @@ export class WorkflowDiffEngine {
           spacing: {
             horizontal: 500,
             vertical: 400,
-            layer: 700
+            layer: 700,
           },
           alignment: 'center',
           padding: {
             x: 250,
-            y: 250
-          }
-        }
+            y: 250,
+          },
+        },
       })
-      
+
       logger.info('WorkflowDiffEngine.createDiffFromYaml response:', {
         success: response.success,
         hasDiff: !!response.diff,
         errors: response.errors,
-        hasDiffAnalysis: !!response.diff?.diffAnalysis
+        hasDiffAnalysis: !!response.diff?.diffAnalysis,
       })
 
       if (!response.success || !response.diff) {
@@ -106,12 +106,16 @@ export class WorkflowDiffEngine {
           new_blocks: response.diff.diffAnalysis.new_blocks,
           edited_blocks: response.diff.diffAnalysis.edited_blocks,
           deleted_blocks: response.diff.diffAnalysis.deleted_blocks,
-          field_diffs: response.diff.diffAnalysis.field_diffs ? Object.keys(response.diff.diffAnalysis.field_diffs) : [],
-          edge_diff: response.diff.diffAnalysis.edge_diff ? {
-            new_edges_count: response.diff.diffAnalysis.edge_diff.new_edges.length,
-            deleted_edges_count: response.diff.diffAnalysis.edge_diff.deleted_edges.length,
-            unchanged_edges_count: response.diff.diffAnalysis.edge_diff.unchanged_edges.length
-          } : null
+          field_diffs: response.diff.diffAnalysis.field_diffs
+            ? Object.keys(response.diff.diffAnalysis.field_diffs)
+            : [],
+          edge_diff: response.diff.diffAnalysis.edge_diff
+            ? {
+                new_edges_count: response.diff.diffAnalysis.edge_diff.new_edges.length,
+                deleted_edges_count: response.diff.diffAnalysis.edge_diff.deleted_edges.length,
+                unchanged_edges_count: response.diff.diffAnalysis.edge_diff.unchanged_edges.length,
+              }
+            : null,
         })
       } else {
         logger.warn('WorkflowDiffEngine: No diff analysis in response!')
@@ -123,7 +127,7 @@ export class WorkflowDiffEngine {
       logger.info('Diff created successfully', {
         blocksCount: Object.keys(response.diff.proposedState.blocks).length,
         edgesCount: response.diff.proposedState.edges.length,
-        hasDiffAnalysis: !!response.diff.diffAnalysis
+        hasDiffAnalysis: !!response.diff.diffAnalysis,
       })
 
       return {
@@ -154,28 +158,23 @@ export class WorkflowDiffEngine {
       }
 
       // Call the sim agent service to merge the diff
-      const response = await yamlService.mergeDiff(
-        this.currentDiff,
-        yamlContent,
-        diffAnalysis,
-        {
-          applyAutoLayout: true,
-          layoutOptions: {
-            strategy: 'smart',
-            direction: 'auto',
-            spacing: {
-              horizontal: 500,
-              vertical: 400,
-              layer: 700
-            },
-            alignment: 'center',
-            padding: {
-              x: 250,
-              y: 250
-            }
-          }
-        }
-      )
+      const response = await yamlService.mergeDiff(this.currentDiff, yamlContent, diffAnalysis, {
+        applyAutoLayout: true,
+        layoutOptions: {
+          strategy: 'smart',
+          direction: 'auto',
+          spacing: {
+            horizontal: 500,
+            vertical: 400,
+            layer: 700,
+          },
+          alignment: 'center',
+          padding: {
+            x: 250,
+            y: 250,
+          },
+        },
+      })
 
       if (!response.success || !response.diff) {
         return {
@@ -204,8 +203,6 @@ export class WorkflowDiffEngine {
       }
     }
   }
-
-
 
   /**
    * Get the current diff
@@ -239,7 +236,7 @@ export class WorkflowDiffEngine {
     return currentState
   }
 
-    /**
+  /**
    * Accept the diff and return the clean state
    */
   acceptDiff(): WorkflowState | null {
@@ -272,20 +269,21 @@ export class WorkflowDiffEngine {
    */
   private cleanDiffMarkers(state: WorkflowState): WorkflowState {
     const cleanBlocks: Record<string, BlockState> = {}
-    
+
     // Remove diff markers from each block
     for (const [blockId, block] of Object.entries(state.blocks)) {
-      const cleanBlock = { ...block }
-      
+      const cleanBlock: BlockState = { ...block }
+
       // Remove diff markers using bracket notation to avoid TypeScript errors
-      delete (cleanBlock as any)['is_diff']
-      delete (cleanBlock as any)['field_diff']
-      
+
+      ;(cleanBlock as any).is_diff = undefined
+      ;(cleanBlock as any).field_diff = undefined
+
       // Ensure outputs is never null/undefined
       if (cleanBlock.outputs === undefined || cleanBlock.outputs === null) {
         cleanBlock.outputs = {}
       }
-      
+
       cleanBlocks[blockId] = cleanBlock
     }
 
@@ -296,6 +294,4 @@ export class WorkflowDiffEngine {
       parallels: state.parallels || {},
     }
   }
-
-
 }

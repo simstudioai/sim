@@ -121,9 +121,9 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
 
         const workflowState = useWorkflowStore.getState()
         const subBlockValues = getSubBlockValues()
-        
+
         const result = await yamlService.generateYaml(workflowState, subBlockValues)
-        
+
         if (result.success && result.yaml) {
           set({
             yaml: result.yaml,

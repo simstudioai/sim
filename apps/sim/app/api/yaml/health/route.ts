@@ -25,23 +25,23 @@ export async function GET() {
     })
 
     const isHealthy = response.ok
-    
-    return NextResponse.json({ 
-      success: true, 
+
+    return NextResponse.json({
+      success: true,
       healthy: isHealthy,
-      service: 'yaml'
+      service: 'yaml',
     })
   } catch (error) {
     logger.error(`[${requestId}] YAML health check failed:`, error)
-    
+
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         healthy: false,
         service: 'yaml',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     )
   }
-} 
+}

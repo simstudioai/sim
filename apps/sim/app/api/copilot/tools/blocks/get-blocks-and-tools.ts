@@ -1,18 +1,19 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { tools as toolsRegistry } from '@/tools/registry'
 import { BaseCopilotTool } from '../base'
-import { createLogger } from '@/lib/logs/console-logger'
 
-interface GetBlocksAndToolsParams {
-  // No parameters needed - just return all blocks and tools
-}
+type GetBlocksAndToolsParams = Record<string, never>
 
 interface BlockInfo {
   block_name: string
   tool_names: string[]
 }
 
-class GetBlocksAndToolsTool extends BaseCopilotTool<GetBlocksAndToolsParams, Record<string, BlockInfo>> {
+class GetBlocksAndToolsTool extends BaseCopilotTool<
+  GetBlocksAndToolsParams,
+  Record<string, BlockInfo>
+> {
   readonly id = 'get_blocks_and_tools'
   readonly displayName = 'Getting block information'
 
@@ -43,16 +44,16 @@ async function getBlocksAndTools(): Promise<Record<string, BlockInfo>> {
     .forEach(([blockType, blockConfig]) => {
       // Get the tools for this block
       const blockToolIds = blockConfig.tools?.access || []
-      
+
       // Map tool IDs to tool names
-      const toolNames = blockToolIds.map(toolId => {
+      const toolNames = blockToolIds.map((toolId) => {
         const toolConfig = toolsRegistry[toolId]
         return toolConfig ? toolConfig.name : toolId // Fallback to ID if name not found
       })
-      
+
       blockToToolsMapping[blockType] = {
         block_name: blockConfig.name || blockType,
-        tool_names: toolNames
+        tool_names: toolNames,
       }
     })
 
@@ -72,7 +73,7 @@ async function getBlocksAndTools(): Promise<Record<string, BlockInfo>> {
   Object.entries(specialBlocks).forEach(([blockType, blockInfo]) => {
     blockToToolsMapping[blockType] = {
       block_name: blockInfo.name,
-      tool_names: blockInfo.tools
+      tool_names: blockInfo.tools,
     }
   })
 

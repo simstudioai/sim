@@ -72,7 +72,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
-      
+
       userId = authenticatedUserId
     }
 

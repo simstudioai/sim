@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Generate YAML using the yaml service
     const result = await yamlService.generateYaml(workflowState, subBlockValues)
-    
+
     if (!result.success || !result.yaml) {
       return NextResponse.json(
         {

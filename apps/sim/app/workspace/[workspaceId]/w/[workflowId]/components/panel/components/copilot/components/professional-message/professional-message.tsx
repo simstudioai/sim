@@ -10,9 +10,9 @@ import remarkGfm from 'remark-gfm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import type { ToolCallState } from '@/types/tool-call'
-import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 
 interface ProfessionalMessageProps {
   message: CopilotMessage
@@ -71,7 +71,8 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   }
 
   // Special handling for preview workflow and targeted updates
-      const isPreviewTool = tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+  const isPreviewTool =
+    tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
 
   if (isPreviewTool) {
     return (

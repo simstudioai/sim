@@ -1,8 +1,8 @@
+import { sql } from 'drizzle-orm'
+import { getCopilotConfig } from '@/lib/copilot/config'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { docsEmbeddings } from '@/db/schema'
-import { sql } from 'drizzle-orm'
-import { getCopilotConfig } from '@/lib/copilot/config'
 import { BaseCopilotTool } from '../base'
 
 interface DocsSearchParams {
@@ -42,8 +42,8 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
   const logger = createLogger('DocsSearch')
   const { query, topK = 10, threshold } = params
 
-  logger.info('Executing docs search for copilot', { 
-    query, 
+  logger.info('Executing docs search for copilot', {
+    query,
     topK,
   })
 
@@ -53,9 +53,9 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
 
     // Generate embedding for the query
     const { generateEmbeddings } = await import('@/app/api/knowledge/utils')
-    
+
     logger.info('About to generate embeddings for query', { query, queryLength: query.length })
-    
+
     const embeddings = await generateEmbeddings([query])
     const queryEmbedding = embeddings[0]
 
@@ -68,7 +68,9 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
       }
     }
 
-    logger.info('Successfully generated query embedding', { embeddingLength: queryEmbedding.length })
+    logger.info('Successfully generated query embedding', {
+      embeddingLength: queryEmbedding.length,
+    })
 
     // Search docs embeddings using vector similarity
     const results = await db
@@ -88,13 +90,15 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
     // Filter by similarity threshold
     const filteredResults = results.filter((result) => result.similarity >= similarityThreshold)
 
-    const documentationResults: DocumentationSearchResult[] = filteredResults.map((result, index) => ({
-      id: index + 1,
-      title: String(result.headerText || 'Untitled Section'),
-      url: String(result.sourceLink || '#'),
-      content: String(result.chunkText || ''),
-      similarity: result.similarity,
-    }))
+    const documentationResults: DocumentationSearchResult[] = filteredResults.map(
+      (result, index) => ({
+        id: index + 1,
+        title: String(result.headerText || 'Untitled Section'),
+        url: String(result.sourceLink || '#'),
+        content: String(result.chunkText || ''),
+        similarity: result.similarity,
+      })
+    )
 
     logger.info(`Found ${documentationResults.length} documentation results`, { query })
 
@@ -109,8 +113,10 @@ async function searchDocs(params: DocsSearchParams): Promise<DocsSearchResult> {
       stack: error instanceof Error ? error.stack : undefined,
       query,
       errorType: error?.constructor?.name,
-      status: (error as any)?.status
+      status: (error as any)?.status,
     })
-    throw new Error(`Documentation search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `Documentation search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
-} 
+}

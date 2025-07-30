@@ -30,7 +30,9 @@ class GetBlocksMetadataTool extends BaseCopilotTool<GetBlocksMetadataParams, Blo
 export const getBlocksMetadataTool = new GetBlocksMetadataTool()
 
 // Implementation function
-export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promise<BlocksMetadataResult> {
+export async function getBlocksMetadata(
+  params: GetBlocksMetadataParams
+): Promise<BlocksMetadataResult> {
   const { blockIds } = params
 
   if (!blockIds || !Array.isArray(blockIds)) {
@@ -57,7 +59,7 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
     for (const blockId of blockIds) {
       logger.info(`\n--- Processing block: ${blockId} ---`)
       let metadata: any = {}
-      
+
       // Check if it's a special block first
       if (SPECIAL_BLOCKS_METADATA[blockId]) {
         logger.info(`✓ Found ${blockId} in SPECIAL_BLOCKS_METADATA`)
@@ -86,8 +88,11 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
 
       // Read YAML schema from documentation if available (for both regular and special blocks)
       const docFileName = DOCS_FILE_MAPPING[blockId] || blockId
-      logger.info(`Checking if ${blockId} is in CORE_BLOCKS_WITH_DOCS:`, CORE_BLOCKS_WITH_DOCS.includes(blockId))
-      
+      logger.info(
+        `Checking if ${blockId} is in CORE_BLOCKS_WITH_DOCS:`,
+        CORE_BLOCKS_WITH_DOCS.includes(blockId)
+      )
+
       if (CORE_BLOCKS_WITH_DOCS.includes(blockId)) {
         try {
           // Updated path to point to the actual YAML documentation location
@@ -95,14 +100,23 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
           const workingDir = process.cwd()
           const isInAppsSim = workingDir.endsWith('/apps/sim') || workingDir.endsWith('\\apps\\sim')
           const basePath = isInAppsSim ? join(workingDir, '..', '..') : workingDir
-          const docPath = join(basePath, 'apps', 'docs', 'content', 'docs', 'yaml', 'blocks', `${docFileName}.mdx`)
+          const docPath = join(
+            basePath,
+            'apps',
+            'docs',
+            'content',
+            'docs',
+            'yaml',
+            'blocks',
+            `${docFileName}.mdx`
+          )
           logger.info(`Looking for docs at: ${docPath}`)
           logger.info(`File exists: ${existsSync(docPath)}`)
-          
+
           if (existsSync(docPath)) {
             const docContent = readFileSync(docPath, 'utf-8')
             logger.info(`Doc content length: ${docContent.length}`)
-            
+
             // Include the entire YAML documentation content
             metadata.yamlDocumentation = docContent
             logger.info(`✓ Added full YAML documentation for ${blockId}`)
@@ -132,14 +146,14 @@ export async function getBlocksMetadata(params: GetBlocksMetadataParams): Promis
 
       logger.info(`Final metadata keys for ${blockId}:`, Object.keys(metadata))
       logger.info(`Has YAML documentation: ${!!metadata.yamlDocumentation}`)
-      
+
       result[blockId] = metadata
     }
 
     logger.info('\n=== FINAL RESULT ===')
     logger.info(`Successfully retrieved metadata for ${Object.keys(result).length} blocks`)
     logger.info('Result keys:', Object.keys(result))
-    
+
     // Log the full result for parallel block if it's included
     if (result.parallel) {
       logger.info('\nParallel block metadata keys:', Object.keys(result.parallel))
@@ -220,5 +234,3 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     tools: { access: [] },
   },
 }
-
-

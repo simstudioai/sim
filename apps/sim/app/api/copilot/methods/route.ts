@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
-import { createErrorResponse } from './utils'
 import { copilotToolRegistry } from '../tools/registry'
+import { createErrorResponse } from './utils'
 
 const logger = createLogger('CopilotMethodsAPI')
 
@@ -16,19 +16,19 @@ const MethodExecutionSchema = z.object({
 function checkInternalApiKey(req: NextRequest) {
   const apiKey = req.headers.get('x-api-key')
   const expectedApiKey = process.env.INTERNAL_API_SECRET
-  
+
   if (!expectedApiKey) {
     return { success: false, error: 'Internal API key not configured' }
   }
-  
+
   if (!apiKey) {
     return { success: false, error: 'API key required' }
   }
-  
+
   if (apiKey !== expectedApiKey) {
     return { success: false, error: 'Invalid API key' }
   }
-  
+
   return { success: true }
 }
 
@@ -44,7 +44,9 @@ export async function POST(req: NextRequest) {
     // Check authentication (internal API key)
     const authResult = checkInternalApiKey(req)
     if (!authResult.success) {
-      return NextResponse.json(createErrorResponse(authResult.error || 'Authentication failed'), { status: 401 })
+      return NextResponse.json(createErrorResponse(authResult.error || 'Authentication failed'), {
+        status: 401,
+      })
     }
 
     const body = await req.json()
@@ -60,10 +62,12 @@ export async function POST(req: NextRequest) {
       logger.error(`[${requestId}] Tool not found in registry: ${methodId}`, {
         methodId,
         availableTools: copilotToolRegistry.getAvailableIds(),
-        registrySize: copilotToolRegistry.getAvailableIds().length
+        registrySize: copilotToolRegistry.getAvailableIds().length,
       })
       return NextResponse.json(
-        createErrorResponse(`Unknown method: ${methodId}. Available methods: ${copilotToolRegistry.getAvailableIds().join(', ')}`),
+        createErrorResponse(
+          `Unknown method: ${methodId}. Available methods: ${copilotToolRegistry.getAvailableIds().join(', ')}`
+        ),
         { status: 400 }
       )
     }
@@ -77,7 +81,7 @@ export async function POST(req: NextRequest) {
       methodId,
       success: result.success,
       hasData: !!result.data,
-      hasError: !!result.error
+      hasError: !!result.error,
     })
 
     const duration = Date.now() - startTime
@@ -90,14 +94,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result)
   } catch (error) {
     const duration = Date.now() - startTime
-    
+
     if (error instanceof z.ZodError) {
       logger.error(`[${requestId}] Request validation error:`, {
         duration,
-        errors: error.errors
+        errors: error.errors,
       })
       return NextResponse.json(
-        createErrorResponse(`Invalid request data: ${error.errors.map(e => e.message).join(', ')}`),
+        createErrorResponse(
+          `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
+        ),
         { status: 400 }
       )
     }
@@ -105,12 +111,12 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Unexpected error:`, {
       duration,
       error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     })
-    
+
     return NextResponse.json(
       createErrorResponse(error instanceof Error ? error.message : 'Internal server error'),
       { status: 500 }
     )
   }
-} 
+}

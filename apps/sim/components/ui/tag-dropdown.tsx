@@ -176,12 +176,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         const schemaFields = extractFieldsFromSchema(responseFormat)
         if (schemaFields.length > 0) {
           blockTags = schemaFields.map((field) => `${normalizedBlockName}.${field.name}`)
-              } else {
-        // Fallback to default if schema extraction failed
-        const outputPaths = generateOutputPaths(blockConfig.outputs || {})
-        blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-      }
-    } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
+        } else {
+          // Fallback to default if schema extraction failed
+          const outputPaths = generateOutputPaths(blockConfig.outputs || {})
+          blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+        }
+      } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
         // Handle blocks with no outputs (like starter) - check for custom input fields
         if (sourceBlock.type === 'starter') {
           // Check what start workflow mode is selected

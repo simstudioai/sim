@@ -3,11 +3,11 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { getBlock } from '@/blocks'
 import { getAllBlocks } from '@/blocks/registry'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { resolveOutputType } from '@/blocks/utils'
 import type { BlockConfig } from '@/blocks/types'
+import { resolveOutputType } from '@/blocks/utils'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { BaseCopilotTool } from '../base'
 
 // Sim Agent API configuration
@@ -92,16 +92,19 @@ async function getUserWorkflow(params: GetUserWorkflowParams): Promise<string> {
   // Generate YAML by calling sim-agent directly
   // Gather block registry and utilities
   const blocks = getAllBlocks()
-  const blockRegistry = blocks.reduce((acc, block) => {
-    const blockType = block.type
-    acc[blockType] = {
-      ...block,
-      id: blockType,
-      subBlocks: block.subBlocks || [],
-      outputs: block.outputs || {},
-    } as any
-    return acc
-  }, {} as Record<string, BlockConfig>)
+  const blockRegistry = blocks.reduce(
+    (acc, block) => {
+      const blockType = block.type
+      acc[blockType] = {
+        ...block,
+        id: blockType,
+        subBlocks: block.subBlocks || [],
+        outputs: block.outputs || {},
+      } as any
+      return acc
+    },
+    {} as Record<string, BlockConfig>
+  )
 
   const response = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
     method: 'POST',
@@ -116,8 +119,8 @@ async function getUserWorkflow(params: GetUserWorkflowParams): Promise<string> {
       utilities: {
         generateLoopBlocks: generateLoopBlocks.toString(),
         generateParallelBlocks: generateParallelBlocks.toString(),
-        resolveOutputType: resolveOutputType.toString()
-      }
+        resolveOutputType: resolveOutputType.toString(),
+      },
     }),
   })
 
@@ -127,13 +130,13 @@ async function getUserWorkflow(params: GetUserWorkflowParams): Promise<string> {
   }
 
   const generateResult = await response.json()
-  
+
   if (!generateResult.success || !generateResult.yaml) {
     throw new Error(generateResult.error || 'Failed to generate YAML')
   }
-  
+
   const yaml = generateResult.yaml
-  
+
   if (!yaml || yaml.trim() === '') {
     throw new Error('Generated YAML is empty')
   }
