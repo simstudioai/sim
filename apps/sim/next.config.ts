@@ -2,7 +2,7 @@ import path from 'path'
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/env'
-import { isDev, isProd } from './lib/environment'
+import { isDev, isHosted, isProd } from './lib/environment'
 import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/csp'
 
 const nextConfig: NextConfig = {
@@ -154,6 +154,11 @@ const nextConfig: NextConfig = {
     ]
   },
   async redirects() {
+    // Only enable domain redirects for the hosted version
+    if (!isHosted) {
+      return []
+    }
+
     return [
       {
         source: '/((?!api|_next|_vercel|favicon|static|.*\\..*).*)',
