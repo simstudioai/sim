@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { MAX_TAG_SLOTS } from '@/lib/constants/knowledge'
 import { cn } from '@/lib/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
@@ -96,6 +97,16 @@ export function DocumentTagEntry({
     (def) => !usedTagNames.has(def.displayName.toLowerCase())
   )
 
+  // Check if we can add more tags based on MAX_TAG_SLOTS
+  const newTagsBeingCreated = rows.filter(
+    (row) =>
+      row.cells.tagName?.trim() &&
+      !tagDefinitions.some(
+        (def) => def.displayName.toLowerCase() === row.cells.tagName.toLowerCase()
+      )
+  ).length
+  const canAddMoreTags = tagDefinitions.length + newTagsBeingCreated < MAX_TAG_SLOTS
+
   // Function to pre-fill existing tags
   const handlePreFillTags = () => {
     if (isPreview || disabled) return
@@ -112,6 +123,30 @@ export function DocumentTagEntry({
 
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
     if (isPreview || disabled) return
+
+    // Check if this is a new tag name that would exceed the limit
+    if (column === 'tagName' && value.trim()) {
+      const isExistingTag = tagDefinitions.some(
+        (def) => def.displayName.toLowerCase() === value.toLowerCase()
+      )
+
+      if (!isExistingTag) {
+        // Count current new tags being created (excluding the current row)
+        const currentNewTags = rows.filter(
+          (row, idx) =>
+            idx !== rowIndex &&
+            row.cells.tagName?.trim() &&
+            !tagDefinitions.some(
+              (def) => def.displayName.toLowerCase() === row.cells.tagName.toLowerCase()
+            )
+        ).length
+
+        if (tagDefinitions.length + currentNewTags >= MAX_TAG_SLOTS) {
+          // Don't allow creating new tags if we've reached the limit
+          return
+        }
+      }
+    }
 
     const updatedRows = [...rows].map((row, idx) => {
       if (idx === rowIndex) {
@@ -346,11 +381,21 @@ export function DocumentTagEntry({
 
       {/* Add Row Button */}
       {!isPreview && !disabled && (
-        <div className='flex justify-center mt-3'>
-          <Button variant='outline' size='sm' onClick={handleAddRow}>
+        <div className='flex flex-col items-center mt-3 gap-2'>
+          <Button variant='outline' size='sm' onClick={handleAddRow} disabled={!canAddMoreTags}>
             <Plus className='h-3 w-3 mr-1' />
             Add Tag
           </Button>
+
+          {/* Tag slots usage indicator */}
+          <div className='text-xs text-muted-foreground text-center'>
+            {tagDefinitions.length + newTagsBeingCreated} of {MAX_TAG_SLOTS} tag slots used
+            {!canAddMoreTags && (
+              <div className='text-orange-600 dark:text-orange-400 mt-1'>
+                Maximum tag slots reached for this knowledge base
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
