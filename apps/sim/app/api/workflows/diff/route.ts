@@ -3,9 +3,57 @@ import { dump as yamlDump } from 'js-yaml'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
-import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
+import { getAllBlocks } from '@/blocks/registry'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { resolveOutputType } from '@/blocks/utils'
+import type { BlockConfig } from '@/blocks/types'
 
 const logger = createLogger('WorkflowYamlDiffAPI')
+
+// Sim Agent API configuration
+const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
+const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
+
+/**
+ * Helper function to parse YAML by calling sim-agent
+ */
+async function parseYamlViaSim(yamlContent: string) {
+  // Gather block registry and utilities
+  const blocks = getAllBlocks()
+  const blockRegistry = blocks.reduce((acc, block) => {
+    const blockType = block.type
+    acc[blockType] = {
+      ...block,
+      id: blockType,
+      subBlocks: block.subBlocks || [],
+      outputs: block.outputs || {},
+    } as any
+    return acc
+  }, {} as Record<string, BlockConfig>)
+
+  const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/parse`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+    },
+    body: JSON.stringify({
+      yamlContent,
+      blockRegistry,
+      utilities: {
+        generateLoopBlocks: generateLoopBlocks.toString(),
+        generateParallelBlocks: generateParallelBlocks.toString(),
+        resolveOutputType: resolveOutputType.toString()
+      }
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Sim agent API error: ${response.statusText}`)
+  }
+
+  return response.json()
+}
 
 // Request schema for YAML diff operations
 const YamlDiffRequestSchema = z.object({
@@ -18,14 +66,16 @@ type YamlDiffRequest = z.infer<typeof YamlDiffRequestSchema>
 /**
  * Clean up YAML content by removing empty blocks and formatting
  */
-function cleanupYamlContent(yamlContent: string): string {
+async function cleanupYamlContent(yamlContent: string): Promise<string> {
   try {
-    // Parse the YAML using the validated parser
-    const { data: workflowData, errors } = parseWorkflowYaml(yamlContent)
+    // Parse the YAML by calling sim-agent directly
+    const parseResult = await parseYamlViaSim(yamlContent)
     
-    if (errors.length > 0 || !workflowData || !workflowData.blocks) {
+    if (!parseResult.success || !parseResult.data || !parseResult.data.blocks) {
       return yamlContent
     }
+    
+    const workflowData = parseResult.data
 
     // Filter out empty blocks
     const cleanedBlocks: Record<string, any> = {}
@@ -433,29 +483,44 @@ export async function POST(request: NextRequest) {
       agent_yaml.substring(0, 500)
     )
 
-    // Clean up YAML to remove empty blocks
-    const cleanedOriginalYaml = cleanupYamlContent(original_yaml)
-    const cleanedAgentYaml = cleanupYamlContent(agent_yaml)
-
-    logger.info(`[${requestId}] Cleaned YAML by removing empty blocks`)
-
-    // Parse both YAML documents
-    const { data: originalWorkflow, errors: originalErrors } =
-      parseWorkflowYaml(cleanedOriginalYaml)
-    const { data: agentWorkflow, errors: agentErrors } = parseWorkflowYaml(cleanedAgentYaml)
-
-    // Check for parsing errors
-    if (!originalWorkflow || originalErrors.length > 0) {
-      logger.error(`[${requestId}] Original YAML parsing failed`, { originalErrors })
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Failed to parse original YAML workflow',
-          errors: originalErrors,
-        },
-        { status: 400 }
-      )
+    // Handle empty original YAML (new workflow case)
+    let originalWorkflow: any = null
+    let originalErrors: string[] = []
+    
+    if (!original_yaml || original_yaml.trim() === '') {
+      logger.info(`[${requestId}] No original YAML provided, treating as new workflow`)
+      // Create empty workflow structure for comparison
+      originalWorkflow = {
+        name: 'New Workflow',
+        blocks: {},
+        edges: []
+      }
+    } else {
+      // Clean up and parse original YAML
+      const cleanedOriginalYaml = await cleanupYamlContent(original_yaml)
+      const originalParseResult = await parseYamlViaSim(cleanedOriginalYaml)
+      originalWorkflow = originalParseResult.data
+      originalErrors = originalParseResult.errors || []
+      
+      // Check for parsing errors
+      if (!originalWorkflow || originalErrors.length > 0) {
+        logger.error(`[${requestId}] Original YAML parsing failed`, { originalErrors })
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Failed to parse original YAML workflow',
+            errors: originalErrors,
+          },
+          { status: 400 }
+        )
+      }
     }
+
+    // Clean up and parse agent YAML
+    const cleanedAgentYaml = await cleanupYamlContent(agent_yaml)
+    const agentParseResult = await parseYamlViaSim(cleanedAgentYaml)
+    const agentWorkflow = agentParseResult.data
+    const agentErrors = agentParseResult.errors || []
 
     if (!agentWorkflow || agentErrors.length > 0) {
       logger.error(`[${requestId}] Agent YAML parsing failed`, { agentErrors })

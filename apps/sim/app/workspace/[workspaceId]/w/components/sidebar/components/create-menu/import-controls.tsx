@@ -4,7 +4,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
+import { yamlService } from '@/lib/yaml-service-client'
 
 const logger = createLogger('ImportControls')
 
@@ -86,16 +86,18 @@ export const ImportControls = forwardRef<ImportControlsRef, ImportControlsProps>
 
       try {
         // First validate the YAML without importing
-        const { data: yamlWorkflow, errors: parseErrors } = parseWorkflowYaml(content)
+        const parseResult = await yamlService.parseYaml(content)
 
-        if (!yamlWorkflow || parseErrors.length > 0) {
+        if (!parseResult.success || !parseResult.data) {
           setImportResult({
             success: false,
-            errors: parseErrors,
+            errors: parseResult.errors || ['Failed to parse YAML'],
             warnings: [],
           })
           return
         }
+        
+        const yamlWorkflow = parseResult.data
 
         // Create a new workflow
         const newWorkflowId = await createWorkflow({

@@ -177,7 +177,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const filteredBlocks = Object.entries(state.blocks).reduce(
       (acc, [blockId, block]) => {
         if (block.type && block.name) {
-          acc[blockId] = block
+          // Ensure all required fields are present
+          acc[blockId] = {
+            ...block,
+            enabled: block.enabled !== undefined ? block.enabled : true,
+            horizontalHandles: block.horizontalHandles !== undefined ? block.horizontalHandles : true,
+            isWide: block.isWide !== undefined ? block.isWide : false,
+            height: block.height !== undefined ? block.height : 0,
+            subBlocks: block.subBlocks || {},
+            outputs: block.outputs || {},
+            data: block.data || {}
+          }
         }
         return acc
       },

@@ -1,7 +1,6 @@
 import { dump as yamlDump } from 'js-yaml'
 import { createLogger } from '@/lib/logs/console-logger'
-import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
-import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
+import { yamlService } from '@/lib/yaml-service-client'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -70,13 +69,17 @@ export function generateFullWorkflowData() {
 /**
  * Export workflow in the specified format
  */
-export function exportWorkflow(format: EditorFormat): string {
+export async function exportWorkflow(format: EditorFormat): Promise<string> {
   try {
     if (format === 'yaml') {
-      // Use the existing YAML generator for condensed format
+      // Use the YAML service for conversion
       const workflowState = useWorkflowStore.getState()
       const subBlockValues = getSubBlockValues()
-      return generateWorkflowYaml(workflowState, subBlockValues)
+      const result = await yamlService.generateYaml(workflowState, subBlockValues)
+      if (!result.success || !result.yaml) {
+        throw new Error(result.error || 'Failed to generate YAML')
+      }
+      return result.yaml
     }
     // Generate full JSON format
     const fullData = generateFullWorkflowData()
@@ -90,13 +93,13 @@ export function exportWorkflow(format: EditorFormat): string {
 /**
  * Parse workflow content based on format
  */
-export function parseWorkflowContent(content: string, format: EditorFormat): any {
+export async function parseWorkflowContent(content: string, format: EditorFormat): Promise<any> {
   if (format === 'yaml') {
-    const { data, errors } = parseWorkflowYaml(content)
-    if (errors.length > 0) {
-      throw new Error(`YAML parsing errors: ${errors.join(', ')}`)
+    const result = await yamlService.parseYaml(content)
+    if (!result.success || result.errors.length > 0) {
+      throw new Error(`YAML parsing errors: ${result.errors.join(', ')}`)
     }
-    return data
+    return result.data
   }
   return JSON.parse(content)
 }

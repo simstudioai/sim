@@ -1,5 +1,13 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { getAllBlocks } from '@/blocks/registry'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { resolveOutputType } from '@/blocks/utils'
+import type { BlockConfig } from '@/blocks/types'
 import { BaseCopilotTool } from '../base'
+
+// Sim Agent API configuration
+const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
+const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 interface BuildWorkflowParams {
   yamlContent: string
@@ -41,14 +49,47 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
   })
 
   try {
-    // Import the unified converter
-    const { convertYamlToWorkflowState } = await import('@/lib/workflows/yaml-converter')
-    
-    // Use unified conversion with new IDs generation
-    const conversionResult = await convertYamlToWorkflowState(yamlContent, {
-      generateNewIds: true,
-      preservePositions: false
+    // Convert YAML by calling sim-agent directly
+    // Gather block registry and utilities
+    const blocks = getAllBlocks()
+    const blockRegistry = blocks.reduce((acc, block) => {
+      const blockType = block.type
+      acc[blockType] = {
+        ...block,
+        id: blockType,
+        subBlocks: block.subBlocks || [],
+        outputs: block.outputs || {},
+      } as any
+      return acc
+    }, {} as Record<string, BlockConfig>)
+
+    const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/to-workflow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+      },
+      body: JSON.stringify({
+        yamlContent,
+        blockRegistry,
+        utilities: {
+          generateLoopBlocks: generateLoopBlocks.toString(),
+          generateParallelBlocks: generateParallelBlocks.toString(),
+          resolveOutputType: resolveOutputType.toString()
+        },
+        options: {
+          generateNewIds: true,
+          preservePositions: false
+        }
+      }),
     })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Sim agent API error: ${response.statusText}`)
+    }
+
+    const conversionResult = await response.json()
 
     if (!conversionResult.success || !conversionResult.workflowState) {
       logger.error('YAML conversion failed', { 
@@ -86,11 +127,12 @@ async function buildWorkflow(params: BuildWorkflowParams): Promise<BuildWorkflow
     // Add blocks to preview workflow state
     for (const [originalId, block] of Object.entries(workflowState.blocks)) {
       const previewBlockId = blockIdMapping.get(originalId)!
+      const typedBlock = block as any
       
       previewWorkflowState.blocks[previewBlockId] = {
-        ...block,
+        ...typedBlock,
         id: previewBlockId,
-        position: (block as any).position || { x: 0, y: 0 },
+        position: typedBlock.position || { x: 0, y: 0 },
         enabled: true,
       }
     }

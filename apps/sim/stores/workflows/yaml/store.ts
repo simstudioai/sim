@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
-import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
+import { yamlService } from '@/lib/yaml-service-client'
 import { useSubBlockStore } from '../subblock/store'
 import { useWorkflowStore } from '../workflow/store'
 
@@ -13,7 +13,7 @@ interface WorkflowYamlState {
 }
 
 interface WorkflowYamlActions {
-  generateYaml: () => void
+  generateYaml: () => Promise<void>
   getYaml: () => string
   refreshYaml: () => void
 }
@@ -115,18 +115,23 @@ export const useWorkflowYamlStore = create<WorkflowYamlStore>()(
       yaml: '',
       lastGenerated: undefined,
 
-      generateYaml: () => {
+      generateYaml: async () => {
         // Initialize subscriptions on first use
         initializeSubscriptions()
 
         const workflowState = useWorkflowStore.getState()
         const subBlockValues = getSubBlockValues()
-        const yaml = generateWorkflowYaml(workflowState, subBlockValues)
-
-        set({
-          yaml,
-          lastGenerated: Date.now(),
-        })
+        
+        const result = await yamlService.generateYaml(workflowState, subBlockValues)
+        
+        if (result.success && result.yaml) {
+          set({
+            yaml: result.yaml,
+            lastGenerated: Date.now(),
+          })
+        } else {
+          logger.error('Failed to generate YAML:', result.error)
+        }
       },
 
       getYaml: () => {

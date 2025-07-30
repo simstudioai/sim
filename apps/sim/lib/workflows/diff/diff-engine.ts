@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { convertYamlToWorkflowState } from '@/lib/workflows/yaml-converter'
+import { yamlService } from '@/lib/yaml-service-client'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDiffEngine')
@@ -50,7 +50,7 @@ export class WorkflowDiffEngine {
       logger.info('Creating diff from YAML content')
 
       // Convert YAML to workflow state with new IDs
-      const conversionResult = await convertYamlToWorkflowState(yamlContent, {
+      const conversionResult = await yamlService.convertYamlToWorkflow(yamlContent, {
         generateNewIds: true,
       })
 
@@ -78,11 +78,12 @@ export class WorkflowDiffEngine {
           deleted_blocks: diffAnalysis.deleted_blocks,
           edge_diff: diffAnalysis.edge_diff,
         })
-        this.applyDiffMarkers(proposedState, diffAnalysis, conversionResult.idMapping!)
+        const idMapping = conversionResult.idMapping ? new Map(Object.entries(conversionResult.idMapping)) : new Map()
+        this.applyDiffMarkers(proposedState, diffAnalysis, idMapping)
         // Create a mapped version of the diff analysis with new IDs
         mappedDiffAnalysis = this.createMappedDiffAnalysis(
           diffAnalysis,
-          conversionResult.idMapping!
+          idMapping
         )
       } else {
         logger.info('No diff analysis provided, skipping diff markers')
@@ -224,7 +225,7 @@ export class WorkflowDiffEngine {
       }
 
       // Convert YAML to workflow state with new IDs
-      const conversionResult = await convertYamlToWorkflowState(yamlContent, {
+      const conversionResult = await yamlService.convertYamlToWorkflow(yamlContent, {
         generateNewIds: true,
       })
 
@@ -359,7 +360,7 @@ export class WorkflowDiffEngine {
         // Create a combined ID mapping that includes our block remapping
         const combinedIdMapping = new Map<string, string>()
         if (conversionResult.idMapping) {
-          conversionResult.idMapping.forEach((newId, oldId) => {
+          Object.entries(conversionResult.idMapping).forEach(([oldId, newId]) => {
             // Map original ID to final ID (which might be an existing block ID)
             const finalId = blockIdMapping.get(newId) || newId
             combinedIdMapping.set(oldId, finalId)
@@ -763,15 +764,28 @@ export class WorkflowDiffEngine {
     const filteredBlocks: Record<string, BlockState> = {}
     Object.entries(cleanState.blocks).forEach(([blockId, block]) => {
       if (block.type && block.name) {
+        // Remove diff markers and ensure all required fields are present
+        const cleanBlock: BlockState = {
+          ...block,
+          enabled: block.enabled !== undefined ? block.enabled : true,
+          horizontalHandles: block.horizontalHandles !== undefined ? block.horizontalHandles : true,
+          isWide: block.isWide !== undefined ? block.isWide : false,
+          height: block.height !== undefined ? block.height : 0,
+          subBlocks: block.subBlocks || {},
+          outputs: block.outputs !== undefined && block.outputs !== null ? block.outputs : {},
+          data: block.data || {}
+        }
+        
         // Remove diff markers
-        ;(block as any).is_diff = undefined
-        ;(block as any).field_diff = undefined
-        filteredBlocks[blockId] = block
+        ;(cleanBlock as any).is_diff = undefined
+        ;(cleanBlock as any).field_diff = undefined
+        
+        filteredBlocks[blockId] = cleanBlock
       } else {
         logger.info(`Filtering out block ${blockId} - missing type or name`)
       }
     })
-
+ 
     cleanState.blocks = filteredBlocks
 
     // Filter out edges that connect to removed blocks
@@ -780,9 +794,15 @@ export class WorkflowDiffEngine {
       (edge) => validBlockIds.has(edge.source) && validBlockIds.has(edge.target)
     )
 
+    // Ensure loops and parallels are always present (even if empty)
+    cleanState.loops = cleanState.loops || {}
+    cleanState.parallels = cleanState.parallels || {}
+
     logger.info('Diff accepted', {
       blocksCount: Object.keys(cleanState.blocks).length,
       edgesCount: cleanState.edges.length,
+      loopsCount: Object.keys(cleanState.loops).length,
+      parallelsCount: Object.keys(cleanState.parallels).length,
     })
 
     this.clearDiff()

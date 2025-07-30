@@ -3,8 +3,6 @@ import { COPILOT_TOOL_DISPLAY_NAMES, type CopilotToolId } from '@/stores/constan
 // Import all tools to register them
 import { getBlocksAndToolsTool } from './blocks/get-blocks-and-tools'
 import { getBlocksMetadataTool } from './blocks/get-blocks-metadata'
-import { getWorkflowExamplesTool } from './blocks/get-workflow-examples'
-import { getYamlStructureTool } from './blocks/get-yaml-structure'
 import { searchDocsTool } from './docs/search-docs'
 import { onlineSearchTool } from './other/online-search'
 import { getEnvironmentVariablesTool } from './user/get-environment-variables'
@@ -88,8 +86,6 @@ export const copilotToolRegistry = new CopilotToolRegistry()
 // Register all tools
 copilotToolRegistry.register(getBlocksAndToolsTool)
 copilotToolRegistry.register(getBlocksMetadataTool)
-copilotToolRegistry.register(getWorkflowExamplesTool)
-copilotToolRegistry.register(getYamlStructureTool)
 copilotToolRegistry.register(searchDocsTool)
 copilotToolRegistry.register(onlineSearchTool)
 copilotToolRegistry.register(getEnvironmentVariablesTool)

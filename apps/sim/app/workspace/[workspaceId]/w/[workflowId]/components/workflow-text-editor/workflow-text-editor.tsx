@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { dump as yamlDump } from 'js-yaml'
-import { parseWorkflowYaml } from '@/stores/workflows/yaml/importer'
+import { dump as yamlDump, load as yamlLoad } from 'js-yaml'
+import { yamlService } from '@/lib/yaml-service-client'
 import { AlertCircle, Check, FileCode, Save } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -63,18 +63,12 @@ export function WorkflowTextEditor({
 
     try {
       if (fmt === 'yaml') {
-        const { errors: yamlErrors } = parseWorkflowYaml(text)
-        if (yamlErrors.length > 0) {
-          yamlErrors.forEach(error => {
-            errors.push({
-              message: error,
-            })
-          })
-        }
+        // Basic YAML syntax validation using js-yaml
+        yamlLoad(text)
       } else if (fmt === 'json') {
         JSON.parse(text)
       }
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Parse error'
 
       // Extract line/column info if available
@@ -102,11 +96,8 @@ export function WorkflowTextEditor({
         let parsed: any
 
         if (fromFormat === 'yaml') {
-          const { data, errors } = parseWorkflowYaml(text)
-          if (errors.length > 0) {
-            throw new Error(`YAML parsing errors: ${errors.join(', ')}`)
-          }
-          parsed = data
+          // Use basic YAML parsing for synchronous conversion
+          parsed = yamlLoad(text)
         } else {
           parsed = JSON.parse(text)
         }

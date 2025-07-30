@@ -1,20 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { getAllBlocks } from '@/blocks'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { resolveOutputType } from '@/blocks/utils'
-import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-import type { BlockConfig } from '@/blocks/types'
+import type { WorkflowState, BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('YamlServiceClient')
-
-interface YamlServiceConfig {
-  blockRegistry: Record<string, BlockConfig>
-  utilities: {
-    generateLoopBlocks: string
-    generateParallelBlocks: string
-    resolveOutputType: string
-  }
-}
 
 interface ParseYamlResponse {
   success: boolean
@@ -42,69 +29,41 @@ interface DiffYamlResponse {
 }
 
 export class YamlServiceClient {
-  private simAgentClient: any
-
   constructor() {
-    // Lazy load sim-agent client to avoid circular dependencies
-    this.simAgentClient = null
+    logger.info('YamlServiceClient initialized')
   }
 
-  private async getSimAgentClient() {
-    if (!this.simAgentClient) {
-      const { simAgentClient } = await import('@/lib/sim-agent/client')
-      this.simAgentClient = simAgentClient
-    }
-    return this.simAgentClient
-  }
-
-  private async getConfig(): Promise<YamlServiceConfig> {
-    // Gather all dependencies needed by the YAML service
-    const blocks = getAllBlocks()
-    const blockRegistry = blocks.reduce((acc, block) => {
-      // Get the block type from the block config
-      const blockType = block.type
-      acc[blockType] = {
-        ...block,
-        id: blockType,  // Add id field for YAML service
-        subBlocks: block.subBlocks || [],
-        outputs: block.outputs || {},
-      } as any
-      return acc
-    }, {} as Record<string, BlockConfig>)
-
-    return {
-      blockRegistry,
-      utilities: {
-        generateLoopBlocks: generateLoopBlocks.toString(),
-        generateParallelBlocks: generateParallelBlocks.toString(),
-        resolveOutputType: resolveOutputType.toString()
-      }
-    }
-  }
-
-  private async fetchFromService(endpoint: string, body: any): Promise<any> {
+  /**
+   * Make a request to our API routes
+   */
+  private async fetchFromAPI(endpoint: string, body: any): Promise<any> {
     try {
-      const client = await this.getSimAgentClient()
-      
-      // Use the sim-agent client to make the request
-      const response = await client.call(endpoint, {
-        workflowId: body.workflowId || 'yaml-service',
-        data: body
+      const response = await fetch(`/api/yaml${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
       })
 
-      if (!response.success) {
-        throw new Error(response.error || 'YAML service error')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        logger.error(`API error for ${endpoint}:`, {
+          status: response.status,
+          error: errorData,
+        })
+        throw new Error(errorData?.error || `API error: ${response.statusText}`)
       }
 
-      return response.data
+      return await response.json()
     } catch (error) {
-      logger.error(`Failed to call YAML service ${endpoint}:`, error)
+      logger.error(`Failed to call API ${endpoint}:`, error)
       throw error
     }
   }
 
   async parseYaml(yamlContent: string): Promise<ParseYamlResponse> {
-    return this.fetchFromService('/api/yaml/parse', { yamlContent })
+    return this.fetchFromAPI('/parse', { yamlContent })
   }
 
   async convertYamlToWorkflow(
@@ -115,10 +74,8 @@ export class YamlServiceClient {
       existingBlocks?: Record<string, BlockState>
     }
   ): Promise<ConvertYamlToWorkflowResponse> {
-    const config = await this.getConfig()
-    return this.fetchFromService('/api/yaml/to-workflow', {
+    return this.fetchFromAPI('/to-workflow', {
       yamlContent,
-      ...config,
       options
     })
   }
@@ -127,31 +84,40 @@ export class YamlServiceClient {
     workflowState: WorkflowState,
     subBlockValues?: Record<string, Record<string, any>>
   ): Promise<GenerateYamlResponse> {
-    const config = await this.getConfig()
-    return this.fetchFromService('/api/workflow/to-yaml', {
+    return this.fetchFromAPI('/generate', {
       workflowState,
-      subBlockValues,
-      ...config
+      subBlockValues
     })
   }
 
   async diffYaml(originalYaml: string, modifiedYaml: string): Promise<DiffYamlResponse> {
-    const config = await this.getConfig()
-    return this.fetchFromService('/api/yaml/diff', {
+    return this.fetchFromAPI('/diff', {
       originalYaml,
-      modifiedYaml,
-      ...config
+      modifiedYaml
     })
   }
 
   // Helper method to check if external service is available
   async healthCheck(): Promise<boolean> {
     try {
-      const client = await this.getSimAgentClient()
-      // Check if sim-agent is configured and available
-      const config = client.getConfig()
-      return !!config.baseUrl && !!config.hasApiKey
-    } catch {
+      const response = await fetch('/api/yaml/health', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        logger.error('YAML service health check failed:', {
+          status: response.status,
+        })
+        return false
+      }
+
+      const data = await response.json()
+      return data.healthy === true
+    } catch (error) {
+      logger.error('YAML service health check failed:', error)
       return false
     }
   }

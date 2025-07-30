@@ -1,6 +1,14 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { getAllBlocks } from '@/blocks/registry'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { resolveOutputType } from '@/blocks/utils'
+import type { BlockConfig } from '@/blocks/types'
 
 const logger = createLogger('EditWorkflowAPI')
+
+// Sim Agent API configuration
+const SIM_AGENT_API_URL = process.env.SIM_AGENT_API_URL || 'http://localhost:8000'
+const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
 
 // Types for operations
 interface EditWorkflowOperation {
@@ -16,15 +24,48 @@ async function applyOperationsToYaml(
   currentYaml: string,
   operations: EditWorkflowOperation[]
 ): Promise<string> {
-  // Parse current YAML using unified converter for validation
-  const { convertYamlToWorkflowState } = await import('@/lib/workflows/yaml-converter')
-  const { parseWorkflowYaml } = await import('@/stores/workflows/yaml/importer')
-  
-  const { data: workflowData, errors } = parseWorkflowYaml(currentYaml)
-  
-  if (!workflowData || errors.length > 0) {
-    throw new Error(`Invalid YAML format: ${errors.join(', ')}`)
+  // Parse current YAML by calling sim-agent directly
+  // Gather block registry and utilities
+  const blocks = getAllBlocks()
+  const blockRegistry = blocks.reduce((acc, block) => {
+    const blockType = block.type
+    acc[blockType] = {
+      ...block,
+      id: blockType,
+      subBlocks: block.subBlocks || [],
+      outputs: block.outputs || {},
+    } as any
+    return acc
+  }, {} as Record<string, BlockConfig>)
+
+  const response = await fetch(`${SIM_AGENT_API_URL}/api/yaml/parse`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+    },
+    body: JSON.stringify({
+      yamlContent: currentYaml,
+      blockRegistry,
+      utilities: {
+        generateLoopBlocks: generateLoopBlocks.toString(),
+        generateParallelBlocks: generateParallelBlocks.toString(),
+        resolveOutputType: resolveOutputType.toString()
+      }
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Sim agent API error: ${response.statusText}`)
   }
+
+  const parseResult = await response.json()
+  
+  if (!parseResult.success || !parseResult.data || parseResult.errors?.length > 0) {
+    throw new Error(`Invalid YAML format: ${parseResult.errors?.join(', ') || 'Unknown error'}`)
+  }
+  
+  const workflowData = parseResult.data
 
   // Apply operations to the parsed YAML data (preserving all existing fields)
   logger.info('Starting YAML operations', {

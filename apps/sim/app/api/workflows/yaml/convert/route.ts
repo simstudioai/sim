@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { generateWorkflowYaml } from '@/lib/workflows/yaml-generator'
+import { yamlService } from '@/lib/yaml-service-client'
 
 const logger = createLogger('WorkflowYamlAPI')
 
@@ -20,16 +20,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate YAML using the shared utility
-    const yamlContent = generateWorkflowYaml(workflowState, subBlockValues)
+    // Generate YAML using the yaml service
+    const result = await yamlService.generateYaml(workflowState, subBlockValues)
+    
+    if (!result.success || !result.yaml) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error || 'Failed to generate YAML',
+        },
+        { status: 500 }
+      )
+    }
 
     logger.info(`[${requestId}] Successfully generated YAML`, {
-      yamlLength: yamlContent.length,
+      yamlLength: result.yaml.length,
     })
 
     return NextResponse.json({
       success: true,
-      yaml: yamlContent,
+      yaml: result.yaml,
     })
   } catch (error) {
     logger.error(`[${requestId}] YAML generation failed`, error)
