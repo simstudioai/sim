@@ -190,9 +190,25 @@ export async function applyAutoLayoutAndUpdateStore(
 
     logger.info('Successfully updated workflow store with auto layout', { workflowId })
 
-    // Save to database and handle errors properly
+    // Persist the changes to the database optimistically
     try {
-      await saveAutoLayoutToDatabase(workflowId, options)
+      // Update the lastSaved timestamp in the store
+      useWorkflowStore.getState().updateLastSaved()
+      
+      // Save the updated workflow state to the database
+      const response = await fetch(`/api/workflows/${workflowId}/state`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newWorkflowState),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
       logger.info('Auto layout successfully persisted to database', { workflowId })
       return { success: true }
     } catch (saveError) {
@@ -224,52 +240,7 @@ export async function applyAutoLayoutAndUpdateStore(
   }
 }
 
-/**
- * Save auto layout changes to database in background
- */
-async function saveAutoLayoutToDatabase(
-  workflowId: string,
-  options: AutoLayoutOptions = {}
-): Promise<void> {
-  try {
-    logger.info('Saving auto layout to database', { workflowId })
 
-    const response = await fetch(`/api/workflows/${workflowId}/autolayout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        strategy: options.strategy || DEFAULT_AUTO_LAYOUT_OPTIONS.strategy,
-        direction: options.direction || DEFAULT_AUTO_LAYOUT_OPTIONS.direction,
-        spacing: {
-          ...DEFAULT_AUTO_LAYOUT_OPTIONS.spacing,
-          ...options.spacing,
-        },
-        alignment: options.alignment || DEFAULT_AUTO_LAYOUT_OPTIONS.alignment,
-        padding: {
-          ...DEFAULT_AUTO_LAYOUT_OPTIONS.padding,
-          ...options.padding,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
-    }
-
-    const result = await response.json()
-    logger.info('Successfully saved auto layout to database', { workflowId, result })
-  } catch (error) {
-    logger.error('Failed to save auto layout to database (store already updated):', {
-      workflowId,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
-    // Don't throw - the store is already updated, so the UI is correct
-    // The socket will eventually sync when the database is available
-  }
-}
 
 /**
  * Apply auto layout to a specific set of blocks (used by copilot preview)

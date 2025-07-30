@@ -4,10 +4,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import {
-  loadWorkflowFromNormalizedTables,
-  saveWorkflowToNormalizedTables,
-} from '@/lib/workflows/db-helpers'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { simAgentClient } from '@/lib/sim-agent'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -19,6 +16,12 @@ import { workflow as workflowTable } from '@/db/schema'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AutoLayoutAPI')
+
+// Check API key configuration at module level
+const SIM_AGENT_API_KEY = process.env.SIM_AGENT_API_KEY
+if (!SIM_AGENT_API_KEY) {
+  logger.warn('SIM_AGENT_API_KEY not configured - autolayout requests will fail')
+}
 
 const AutoLayoutRequestSchema = z.object({
   strategy: z
@@ -124,7 +127,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Apply autolayout
     logger.info(
-      `[${requestId}] Applying autolayout to ${Object.keys(currentWorkflowData.blocks).length} blocks`
+      `[${requestId}] Applying autolayout to ${Object.keys(currentWorkflowData.blocks).length} blocks`,
+      {
+        hasApiKey: !!SIM_AGENT_API_KEY,
+        simAgentUrl: process.env.SIM_AGENT_API_URL || 'http://localhost:8000',
+      }
     )
 
     // Create workflow state for autolayout
@@ -177,54 +184,49 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           resolveOutputType: resolveOutputType.toString(),
         },
       },
+      apiKey: SIM_AGENT_API_KEY,
     })
 
-    if (!autoLayoutResult.success || !autoLayoutResult.data?.workflowState) {
-      logger.error(`[${requestId}] Auto layout failed:`, autoLayoutResult.error)
-      return NextResponse.json({ error: 'Auto layout failed' }, { status: 500 })
-    }
+    // Log the full response for debugging
+    logger.info(`[${requestId}] Sim-agent autolayout response:`, {
+      success: autoLayoutResult.success,
+      status: autoLayoutResult.status,
+      error: autoLayoutResult.error,
+      hasData: !!autoLayoutResult.data,
+      hasWorkflowState: !!autoLayoutResult.data?.workflowState,
+      hasBlocks: !!autoLayoutResult.data?.blocks,
+      dataKeys: autoLayoutResult.data ? Object.keys(autoLayoutResult.data) : [],
+    })
 
-    const layoutedBlocks = autoLayoutResult.data.workflowState.blocks
-
-    // Create updated workflow state
-    const updatedWorkflowState = {
-      ...currentWorkflowData,
-      blocks: layoutedBlocks,
-      lastSaved: Date.now(),
-    }
-
-    // Save to database
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, updatedWorkflowState)
-
-    if (!saveResult.success) {
-      logger.error(`[${requestId}] Failed to save autolayout results:`, saveResult.error)
-      return NextResponse.json(
-        { error: 'Failed to save autolayout results', details: saveResult.error },
-        { status: 500 }
-      )
-    }
-
-    // Update workflow's lastSynced timestamp
-    await db
-      .update(workflowTable)
-      .set({
-        lastSynced: new Date(),
-        updatedAt: new Date(),
-        state: saveResult.jsonBlob,
+    if (!autoLayoutResult.success || (!autoLayoutResult.data?.workflowState && !autoLayoutResult.data?.blocks)) {
+      logger.error(`[${requestId}] Auto layout failed:`, {
+        success: autoLayoutResult.success,
+        error: autoLayoutResult.error,
+        status: autoLayoutResult.status,
+        fullResponse: autoLayoutResult,
       })
-      .where(eq(workflowTable.id, workflowId))
+      const errorMessage = autoLayoutResult.error || 
+        (autoLayoutResult.status === 401 ? 'Unauthorized - check API key' : 
+         autoLayoutResult.status === 404 ? 'Sim-agent service not found' :
+         `HTTP ${autoLayoutResult.status}`)
+      
+      return NextResponse.json({ 
+        error: 'Auto layout failed',
+        details: errorMessage
+      }, { status: 500 })
+    }
 
-    // Notify the socket server to tell clients about the autolayout update
-    try {
-      const socketUrl = process.env.SOCKET_URL || 'http://localhost:3002'
-      await fetch(`${socketUrl}/api/workflow-updated`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflowId }),
+    // Handle both response formats from sim-agent
+    const layoutedBlocks = autoLayoutResult.data?.workflowState?.blocks || autoLayoutResult.data?.blocks
+    
+    if (!layoutedBlocks) {
+      logger.error(`[${requestId}] No blocks returned from sim-agent:`, {
+        responseData: autoLayoutResult.data,
       })
-      logger.info(`[${requestId}] Notified socket server of autolayout update`)
-    } catch (socketError) {
-      logger.warn(`[${requestId}] Failed to notify socket server:`, socketError)
+      return NextResponse.json({ 
+        error: 'Auto layout failed',
+        details: 'No blocks returned from sim-agent'
+      }, { status: 500 })
     }
 
     const elapsed = Date.now() - startTime
@@ -236,6 +238,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       workflowId,
     })
 
+    // Return the layouted blocks to the frontend - let the store handle saving
     return NextResponse.json({
       success: true,
       message: `Autolayout applied successfully to ${blockCount} blocks`,
