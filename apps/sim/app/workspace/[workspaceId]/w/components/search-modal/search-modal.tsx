@@ -85,6 +85,258 @@ interface DocItem {
   type: 'main' | 'block' | 'tool'
 }
 
+// Navigation types for the new system
+interface NavigationPosition {
+  sectionIndex: number
+  itemIndex: number
+}
+
+interface NavigationSection {
+  id: string
+  name: string
+  type: 'grid' | 'list'
+  items: any[]
+  gridCols?: number // How many columns per row for grid sections
+}
+
+// Custom hook for navigation logic
+function useSearchNavigation(sections: NavigationSection[], open: boolean) {
+  const [position, setPosition] = useState<NavigationPosition>({ sectionIndex: 0, itemIndex: 0 })
+  const scrollRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const lastItemIndex = useRef<Map<string, number>>(new Map()) // Store last item index for each section
+
+  // Reset position when modal opens or sections change
+  useEffect(() => {
+    if (open) {
+      setPosition({ sectionIndex: 0, itemIndex: 0 })
+    }
+  }, [open, sections])
+
+  // Get current selected item
+  const getCurrentItem = useCallback(() => {
+    const section = sections[position.sectionIndex]
+    if (!section || position.itemIndex >= section.items.length) return null
+
+    return {
+      section,
+      item: section.items[position.itemIndex],
+      position,
+    }
+  }, [sections, position])
+
+  // Navigate with keyboard
+  const navigate = useCallback(
+    (direction: 'up' | 'down' | 'left' | 'right') => {
+      setPosition((prev) => {
+        const section = sections[prev.sectionIndex]
+        if (!section) return prev
+
+        // Debug logging
+        console.log(
+          'Navigate:',
+          direction,
+          'Current:',
+          prev,
+          'Section:',
+          section.id,
+          'Items:',
+          section.items.length
+        )
+
+        switch (direction) {
+          case 'down':
+            if (section.type === 'grid' && section.gridCols) {
+              // CSS Grid with grid-flow-col and 2 rows means items flow column-wise
+              // Index pattern: 0=R0C0, 1=R1C0, 2=R0C1, 3=R1C1, 4=R0C2, 5=R1C2...
+              const totalRows = section.id === 'templates' ? 1 : 2
+              const currentCol = Math.floor(prev.itemIndex / totalRows)
+              const currentRow = prev.itemIndex % totalRows
+
+              console.log('Grid down:', {
+                itemIndex: prev.itemIndex,
+                totalRows,
+                currentCol,
+                currentRow,
+              })
+
+              // Try to move down one row in the same column
+              if (currentRow < totalRows - 1) {
+                const nextIndex = currentCol * totalRows + (currentRow + 1)
+                if (nextIndex < section.items.length) {
+                  return { ...prev, itemIndex: nextIndex }
+                }
+              }
+            } else if (section.type === 'list') {
+              // For list navigation, move to next item within the list
+              if (prev.itemIndex < section.items.length - 1) {
+                return { ...prev, itemIndex: prev.itemIndex + 1 }
+              }
+            }
+            // Move to next section
+            if (prev.sectionIndex < sections.length - 1) {
+              const nextSection = sections[prev.sectionIndex + 1]
+
+              // Store current item index for this section
+              lastItemIndex.current.set(section.id, prev.itemIndex)
+
+              // Check if we have a remembered position for the next section
+              const rememberedIndex = lastItemIndex.current.get(nextSection.id)
+              const targetIndex =
+                rememberedIndex !== undefined
+                  ? Math.min(rememberedIndex, nextSection.items.length - 1)
+                  : 0
+
+              console.log('Section transition down:', {
+                from: section.id,
+                to: nextSection.id,
+                storedIndex: prev.itemIndex,
+                rememberedIndex,
+                targetIndex,
+              })
+
+              return { sectionIndex: prev.sectionIndex + 1, itemIndex: targetIndex }
+            }
+            return prev
+
+          case 'up':
+            if (section.type === 'grid' && section.gridCols) {
+              // CSS Grid with grid-flow-col and 2 rows means items flow column-wise
+              const totalRows = section.id === 'templates' ? 1 : 2
+              const currentCol = Math.floor(prev.itemIndex / totalRows)
+              const currentRow = prev.itemIndex % totalRows
+
+              console.log('Grid up:', {
+                itemIndex: prev.itemIndex,
+                totalRows,
+                currentCol,
+                currentRow,
+              })
+
+              // Try to move up one row in the same column
+              if (currentRow > 0) {
+                const prevIndex = currentCol * totalRows + (currentRow - 1)
+                return { ...prev, itemIndex: prevIndex }
+              }
+            } else if (section.type === 'list') {
+              // For list navigation, move to previous item within the list
+              if (prev.itemIndex > 0) {
+                return { ...prev, itemIndex: prev.itemIndex - 1 }
+              }
+            }
+            // Move to previous section
+            if (prev.sectionIndex > 0) {
+              const prevSection = sections[prev.sectionIndex - 1]
+
+              // Store current item index for this section
+              lastItemIndex.current.set(section.id, prev.itemIndex)
+
+              // Check if we have a remembered position for the previous section
+              const rememberedIndex = lastItemIndex.current.get(prevSection.id)
+              const targetIndex =
+                rememberedIndex !== undefined
+                  ? Math.min(rememberedIndex, prevSection.items.length - 1)
+                  : prevSection.items.length - 1 // Default to last item
+
+              console.log('Section transition up:', {
+                from: section.id,
+                to: prevSection.id,
+                storedIndex: prev.itemIndex,
+                rememberedIndex,
+                targetIndex,
+              })
+
+              return { sectionIndex: prev.sectionIndex - 1, itemIndex: targetIndex }
+            }
+            return prev
+
+          case 'right':
+            if (section.type === 'grid' && section.gridCols) {
+              // CSS Grid with grid-flow-col: move right means next column, same row
+              const totalRows = section.id === 'templates' ? 1 : 2
+              const currentCol = Math.floor(prev.itemIndex / totalRows)
+              const currentRow = prev.itemIndex % totalRows
+              const totalCols = Math.ceil(section.items.length / totalRows)
+
+              // Can we move right to the next column?
+              if (currentCol < totalCols - 1) {
+                const nextIndex = (currentCol + 1) * totalRows + currentRow
+                if (nextIndex < section.items.length) {
+                  return { ...prev, itemIndex: nextIndex }
+                }
+              }
+            } else if (section.type === 'list') {
+              // List navigation - just move to next item
+              if (prev.itemIndex < section.items.length - 1) {
+                return { ...prev, itemIndex: prev.itemIndex + 1 }
+              }
+            }
+            return prev
+
+          case 'left':
+            if (section.type === 'grid' && section.gridCols) {
+              // CSS Grid with grid-flow-col: move left means previous column, same row
+              const totalRows = section.id === 'templates' ? 1 : 2
+              const currentCol = Math.floor(prev.itemIndex / totalRows)
+              const currentRow = prev.itemIndex % totalRows
+
+              // Can we move left to the previous column?
+              if (currentCol > 0) {
+                const prevIndex = (currentCol - 1) * totalRows + currentRow
+                return { ...prev, itemIndex: prevIndex }
+              }
+            } else if (section.type === 'list') {
+              // List navigation - move to previous item
+              if (prev.itemIndex > 0) {
+                return { ...prev, itemIndex: prev.itemIndex - 1 }
+              }
+            }
+            return prev
+
+          default:
+            return prev
+        }
+      })
+    },
+    [sections]
+  )
+
+  // Scroll item into view
+  const scrollIntoView = useCallback(() => {
+    const current = getCurrentItem()
+    if (!current) return
+
+    const container = scrollRefs.current.get(current.section.id)
+    if (!container) return
+
+    const itemSelector = `[data-nav-item="${current.section.id}-${current.position.itemIndex}"]`
+    const element = container.querySelector(itemSelector) as HTMLElement
+    if (!element) return
+
+    // Use modern scrollIntoView with proper options
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center', // This ensures horizontal centering
+    })
+  }, [getCurrentItem])
+
+  // Trigger scroll when position changes
+  useEffect(() => {
+    if (open) {
+      // Small delay to ensure DOM is updated
+      const timer = setTimeout(scrollIntoView, 10)
+      return () => clearTimeout(timer)
+    }
+  }, [position, open, scrollIntoView])
+
+  return {
+    position,
+    navigate,
+    getCurrentItem,
+    scrollRefs,
+  }
+}
+
 export function SearchModal({
   open,
   onOpenChange,
@@ -95,7 +347,6 @@ export function SearchModal({
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedIndex, setSelectedIndex] = useState(0)
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -107,37 +358,6 @@ export function SearchModal({
   useEffect(() => {
     setLocalTemplates(templates)
   }, [templates])
-
-  // Refs for synchronized scrolling
-  const blocksRow1Ref = useRef<HTMLDivElement>(null)
-  const blocksRow2Ref = useRef<HTMLDivElement>(null)
-  const toolsRow1Ref = useRef<HTMLDivElement>(null)
-  const toolsRow2Ref = useRef<HTMLDivElement>(null)
-
-  // Synchronized scrolling functions
-  const handleBlocksRow1Scroll = useCallback(() => {
-    if (blocksRow1Ref.current && blocksRow2Ref.current) {
-      blocksRow2Ref.current.scrollLeft = blocksRow1Ref.current.scrollLeft
-    }
-  }, [])
-
-  const handleBlocksRow2Scroll = useCallback(() => {
-    if (blocksRow1Ref.current && blocksRow2Ref.current) {
-      blocksRow1Ref.current.scrollLeft = blocksRow2Ref.current.scrollLeft
-    }
-  }, [])
-
-  const handleToolsRow1Scroll = useCallback(() => {
-    if (toolsRow1Ref.current && toolsRow2Ref.current) {
-      toolsRow2Ref.current.scrollLeft = toolsRow1Ref.current.scrollLeft
-    }
-  }, [])
-
-  const handleToolsRow2Scroll = useCallback(() => {
-    if (toolsRow1Ref.current && toolsRow2Ref.current) {
-      toolsRow1Ref.current.scrollLeft = toolsRow2Ref.current.scrollLeft
-    }
-  }, [])
 
   // Get all available blocks - only when on workflow page
   const blocks = useMemo(() => {
@@ -285,55 +505,73 @@ export function SearchModal({
     return docs.filter((doc) => doc.name.toLowerCase().includes(query))
   }, [docs, searchQuery])
 
-  // Create flattened list of navigatable items for keyboard navigation
-  const navigatableItems = useMemo(() => {
-    const items: Array<{
-      type: 'workspace' | 'workflow' | 'page' | 'doc'
-      data: any
-      section: string
-    }> = []
+  // Create navigation sections
+  const navigationSections = useMemo((): NavigationSection[] => {
+    const sections: NavigationSection[] = []
 
-    // Add workspaces
-    filteredWorkspaces.forEach((workspace) => {
-      items.push({ type: 'workspace', data: workspace, section: 'Workspaces' })
-    })
-
-    // Add workflows
-    filteredWorkflows.forEach((workflow) => {
-      items.push({ type: 'workflow', data: workflow, section: 'Workflows' })
-    })
-
-    // Add pages
-    filteredPages.forEach((page) => {
-      items.push({ type: 'page', data: page, section: 'Pages' })
-    })
-
-    // Add docs
-    filteredDocs.forEach((doc) => {
-      items.push({ type: 'doc', data: doc, section: 'Docs' })
-    })
-
-    return items
-  }, [filteredWorkspaces, filteredWorkflows, filteredPages, filteredDocs])
-
-  // Reset selected index when items change or modal opens
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [navigatableItems, open])
-
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && open) {
-        onOpenChange(false)
-      }
+    // Add blocks section
+    if (filteredBlocks.length > 0) {
+      sections.push({
+        id: 'blocks',
+        name: 'Blocks',
+        type: 'grid',
+        items: filteredBlocks,
+        gridCols: 4, // 4 items per row
+      })
     }
 
-    if (open) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
+    // Add tools section
+    if (filteredTools.length > 0) {
+      sections.push({
+        id: 'tools',
+        name: 'Tools',
+        type: 'grid',
+        items: filteredTools,
+        gridCols: 4, // 4 items per row
+      })
     }
-  }, [open, onOpenChange])
+
+    // Add templates section
+    if (filteredTemplates.length > 0) {
+      sections.push({
+        id: 'templates',
+        name: 'Templates',
+        type: 'grid',
+        items: filteredTemplates,
+        gridCols: 2, // 2 templates per row
+      })
+    }
+
+    // Add list sections
+    const listItems = [
+      ...filteredWorkspaces.map((item) => ({ type: 'workspace', data: item })),
+      ...filteredWorkflows.map((item) => ({ type: 'workflow', data: item })),
+      ...filteredPages.map((item) => ({ type: 'page', data: item })),
+      ...filteredDocs.map((item) => ({ type: 'doc', data: item })),
+    ]
+
+    if (listItems.length > 0) {
+      sections.push({
+        id: 'list',
+        name: 'Navigation',
+        type: 'list',
+        items: listItems,
+      })
+    }
+
+    return sections
+  }, [
+    filteredBlocks,
+    filteredTools,
+    filteredTemplates,
+    filteredWorkspaces,
+    filteredWorkflows,
+    filteredPages,
+    filteredDocs,
+  ])
+
+  // Use the navigation hook
+  const { navigate, getCurrentItem, scrollRefs } = useSearchNavigation(navigationSections, open)
 
   // Clear search when modal closes
   useEffect(() => {
@@ -342,14 +580,11 @@ export function SearchModal({
     }
   }, [open])
 
-  // Handle block/tool click (same as toolbar interaction)
+  // Handle block/tool click
   const handleBlockClick = useCallback(
     (blockType: string) => {
-      // Dispatch a custom event to be caught by the workflow component
       const event = new CustomEvent('add-block-from-toolbar', {
-        detail: {
-          type: blockType,
-        },
+        detail: { type: blockType },
       })
       window.dispatchEvent(event)
       onOpenChange(false)
@@ -360,7 +595,6 @@ export function SearchModal({
   // Handle page navigation
   const handlePageClick = useCallback(
     (href: string) => {
-      // External links open in new tab
       if (href.startsWith('http')) {
         window.open(href, '_blank', 'noopener,noreferrer')
       } else {
@@ -371,7 +605,7 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
-  // Handle workflow/workspace navigation (same as page navigation)
+  // Handle workflow/workspace navigation
   const handleNavigationClick = useCallback(
     (href: string) => {
       router.push(href)
@@ -383,7 +617,6 @@ export function SearchModal({
   // Handle docs navigation
   const handleDocsClick = useCallback(
     (href: string) => {
-      // External links open in new tab
       if (href.startsWith('http')) {
         window.open(href, '_blank', 'noopener,noreferrer')
       } else {
@@ -394,72 +627,18 @@ export function SearchModal({
     [router, onOpenChange]
   )
 
-  // Handle page navigation shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle shortcuts when modal is open
-      if (!open) return
+  // Handle item selection
+  const handleItemSelection = useCallback(() => {
+    const current = getCurrentItem()
+    if (!current) return
 
-      const isMac =
-        typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0
-      const isModifierPressed = isMac ? e.metaKey : e.ctrlKey
+    const { section, item } = current
 
-      // Check if this is one of our specific shortcuts
-      const isOurShortcut =
-        isModifierPressed &&
-        e.shiftKey &&
-        (e.key.toLowerCase() === 'l' || e.key.toLowerCase() === 'k')
-
-      // Don't trigger other shortcuts if user is typing in the search input
-      // But allow our specific shortcuts to pass through
-      if (!isOurShortcut) {
-        const activeElement = document.activeElement
-        const isEditableElement =
-          activeElement instanceof HTMLInputElement ||
-          activeElement instanceof HTMLTextAreaElement ||
-          activeElement?.hasAttribute('contenteditable')
-
-        if (isEditableElement) return
-      }
-
-      if (isModifierPressed && e.shiftKey) {
-        // Command+Shift+L - Navigate to Logs
-        if (e.key.toLowerCase() === 'l') {
-          e.preventDefault()
-          handlePageClick(`/workspace/${workspaceId}/logs`)
-        }
-        // Command+Shift+K - Navigate to Knowledge
-        else if (e.key.toLowerCase() === 'k') {
-          e.preventDefault()
-          handlePageClick(`/workspace/${workspaceId}/knowledge`)
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, handlePageClick, workspaceId])
-
-  // Handle template usage callback (closes modal after template is used)
-  const handleTemplateUsed = useCallback(() => {
-    onOpenChange(false)
-  }, [onOpenChange])
-
-  // Handle star change callback from template card
-  const handleStarChange = useCallback(
-    (templateId: string, isStarred: boolean, newStarCount: number) => {
-      setLocalTemplates((prevTemplates) =>
-        prevTemplates.map((template) =>
-          template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
-        )
-      )
-    },
-    []
-  )
-
-  // Handle item selection based on type
-  const handleItemSelection = useCallback(
-    (item: (typeof navigatableItems)[0]) => {
+    if (section.id === 'blocks' || section.id === 'tools') {
+      handleBlockClick(item.type)
+    } else if (section.id === 'templates') {
+      onOpenChange(false)
+    } else if (section.id === 'list') {
       switch (item.type) {
         case 'workspace':
           if (item.data.isCurrent) {
@@ -482,9 +661,15 @@ export function SearchModal({
           handleDocsClick(item.data.href)
           break
       }
-    },
-    [handleNavigationClick, handlePageClick, handleDocsClick, onOpenChange]
-  )
+    }
+  }, [
+    getCurrentItem,
+    handleBlockClick,
+    handleNavigationClick,
+    handlePageClick,
+    handleDocsClick,
+    onOpenChange,
+  ])
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -494,18 +679,23 @@ export function SearchModal({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          setSelectedIndex((prev) => Math.min(prev + 1, navigatableItems.length - 1))
+          navigate('down')
           break
         case 'ArrowUp':
           e.preventDefault()
-          setSelectedIndex((prev) => Math.max(prev - 1, 0))
+          navigate('up')
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          navigate('right')
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          navigate('left')
           break
         case 'Enter':
           e.preventDefault()
-          if (navigatableItems.length > 0 && selectedIndex < navigatableItems.length) {
-            const selectedItem = navigatableItems[selectedIndex]
-            handleItemSelection(selectedItem)
-          }
+          handleItemSelection()
           break
         case 'Escape':
           onOpenChange(false)
@@ -515,30 +705,28 @@ export function SearchModal({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, selectedIndex, navigatableItems, onOpenChange, handleItemSelection])
+  }, [open, navigate, handleItemSelection, onOpenChange])
 
-  // Helper function to check if an item is selected
-  const isItemSelected = useCallback(
-    (item: any, itemType: string) => {
-      if (navigatableItems.length === 0 || selectedIndex >= navigatableItems.length) return false
-      const selectedItem = navigatableItems[selectedIndex]
-      return selectedItem.type === itemType && selectedItem.data.id === item.id
+  // Handle template star changes
+  const handleStarChange = useCallback(
+    (templateId: string, isStarred: boolean, newStarCount: number) => {
+      setLocalTemplates((prevTemplates) =>
+        prevTemplates.map((template) =>
+          template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
+        )
+      )
     },
-    [navigatableItems, selectedIndex]
+    []
   )
 
-  // Scroll selected item into view
-  useEffect(() => {
-    if (selectedIndex >= 0 && navigatableItems.length > 0) {
-      const selectedItem = navigatableItems[selectedIndex]
-      const itemElement = document.querySelector(
-        `[data-search-item="${selectedItem.type}-${selectedItem.data.id}"]`
-      )
-      if (itemElement) {
-        itemElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      }
-    }
-  }, [selectedIndex, navigatableItems])
+  // Helper to check if item is selected
+  const isItemSelected = useCallback(
+    (sectionId: string, itemIndex: number) => {
+      const current = getCurrentItem()
+      return current?.section.id === sectionId && current.position.itemIndex === itemIndex
+    },
+    [getCurrentItem]
+  )
 
   // Render skeleton cards for loading state
   const renderSkeletonCards = () => {
@@ -560,6 +748,7 @@ export function SearchModal({
           <VisuallyHidden.Root>
             <DialogTitle>Search</DialogTitle>
           </VisuallyHidden.Root>
+
           {/* Header with search input */}
           <div className='flex items-center border-b px-6 py-2'>
             <Search className='h-5 w-5 font-sans text-muted-foreground text-xl' />
@@ -584,61 +773,40 @@ export function SearchModal({
                   <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
                     Blocks
                   </h3>
-                  <div className='space-y-2'>
-                    {/* First row */}
+                  <div
+                    ref={(el) => {
+                      if (el) scrollRefs.current.set('blocks', el)
+                    }}
+                    className='scrollbar-none overflow-x-auto pr-6 pb-1 pl-6'
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
                     <div
-                      ref={blocksRow1Ref}
-                      onScroll={handleBlocksRow1Scroll}
-                      className='scrollbar-none flex gap-2 overflow-x-auto pr-6 pb-1 pl-6'
-                      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                      className='grid auto-cols-max grid-flow-col gap-2'
+                      style={{ gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }}
                     >
-                      {filteredBlocks
-                        .slice(0, Math.ceil(filteredBlocks.length / 2))
-                        .map((block) => (
-                          <button
-                            key={block.id}
-                            onClick={() => handleBlockClick(block.type)}
-                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                      {filteredBlocks.map((block, index) => (
+                        <button
+                          key={block.id}
+                          onClick={() => handleBlockClick(block.type)}
+                          data-nav-item={`blocks-${index}`}
+                          className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-all duration-200 ${
+                            isItemSelected('blocks', index)
+                              ? 'bg-accent'
+                              : 'bg-secondary hover:bg-secondary/80'
+                          }`}
+                        >
+                          <div
+                            className='flex h-5 w-5 items-center justify-center rounded-md'
+                            style={{ backgroundColor: block.bgColor }}
                           >
-                            <div
-                              className='flex h-5 w-5 items-center justify-center rounded-md'
-                              style={{ backgroundColor: block.bgColor }}
-                            >
-                              <block.icon className='h-4 w-4 text-white' />
-                            </div>
-                            <span className='font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                              {block.name}
-                            </span>
-                          </button>
-                        ))}
+                            <block.icon className='h-4 w-4 text-white' />
+                          </div>
+                          <span className='font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                            {block.name}
+                          </span>
+                        </button>
+                      ))}
                     </div>
-                    {/* Second row */}
-                    {filteredBlocks.length > Math.ceil(filteredBlocks.length / 2) && (
-                      <div
-                        ref={blocksRow2Ref}
-                        onScroll={handleBlocksRow2Scroll}
-                        className='scrollbar-none flex gap-2 overflow-x-auto pr-6 pb-1 pl-6'
-                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                      >
-                        {filteredBlocks.slice(Math.ceil(filteredBlocks.length / 2)).map((block) => (
-                          <button
-                            key={block.id}
-                            onClick={() => handleBlockClick(block.type)}
-                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
-                          >
-                            <div
-                              className='flex h-5 w-5 items-center justify-center rounded-md'
-                              style={{ backgroundColor: block.bgColor }}
-                            >
-                              <block.icon className='h-4 w-4 text-white' />
-                            </div>
-                            <span className='font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                              {block.name}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -649,19 +817,27 @@ export function SearchModal({
                   <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
                     Tools
                   </h3>
-                  <div className='space-y-2'>
-                    {/* First row */}
+                  <div
+                    ref={(el) => {
+                      if (el) scrollRefs.current.set('tools', el)
+                    }}
+                    className='scrollbar-none overflow-x-auto pr-6 pb-1 pl-6'
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
                     <div
-                      ref={toolsRow1Ref}
-                      onScroll={handleToolsRow1Scroll}
-                      className='scrollbar-none flex gap-2 overflow-x-auto pr-6 pb-1 pl-6'
-                      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                      className='grid auto-cols-max grid-flow-col gap-2'
+                      style={{ gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }}
                     >
-                      {filteredTools.slice(0, Math.ceil(filteredTools.length / 2)).map((tool) => (
+                      {filteredTools.map((tool, index) => (
                         <button
                           key={tool.id}
                           onClick={() => handleBlockClick(tool.type)}
-                          className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
+                          data-nav-item={`tools-${index}`}
+                          className={`flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl p-2 transition-all duration-200 ${
+                            isItemSelected('tools', index)
+                              ? 'bg-accent'
+                              : 'bg-secondary hover:bg-secondary/80'
+                          }`}
                         >
                           <div
                             className='flex h-5 w-5 items-center justify-center rounded-md'
@@ -675,33 +851,6 @@ export function SearchModal({
                         </button>
                       ))}
                     </div>
-                    {/* Second row */}
-                    {filteredTools.length > Math.ceil(filteredTools.length / 2) && (
-                      <div
-                        ref={toolsRow2Ref}
-                        onScroll={handleToolsRow2Scroll}
-                        className='scrollbar-none flex gap-2 overflow-x-auto pr-6 pb-1 pl-6'
-                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                      >
-                        {filteredTools.slice(Math.ceil(filteredTools.length / 2)).map((tool) => (
-                          <button
-                            key={tool.id}
-                            onClick={() => handleBlockClick(tool.type)}
-                            className='flex h-9 w-[153.5px] flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-xl bg-secondary p-2 transition-colors hover:bg-secondary/80'
-                          >
-                            <div
-                              className='flex h-5 w-5 items-center justify-center rounded-md'
-                              style={{ backgroundColor: tool.bgColor }}
-                            >
-                              <tool.icon className='h-4 w-4 text-white' />
-                            </div>
-                            <span className='font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                              {tool.name}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -713,13 +862,22 @@ export function SearchModal({
                     Templates
                   </h3>
                   <div
+                    ref={(el) => {
+                      if (el) scrollRefs.current.set('templates', el)
+                    }}
                     className='scrollbar-none flex gap-4 overflow-x-auto pr-6 pb-1 pl-6'
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   >
                     {loading
                       ? renderSkeletonCards()
-                      : filteredTemplates.map((template) => (
-                          <div key={template.id} className='w-80 flex-shrink-0'>
+                      : filteredTemplates.map((template, index) => (
+                          <div
+                            key={template.id}
+                            data-nav-item={`templates-${index}`}
+                            className={`w-80 flex-shrink-0 rounded-lg transition-all duration-200 ${
+                              isItemSelected('templates', index) ? 'bg-accent' : ''
+                            }`}
+                          >
                             <TemplateCard
                               id={template.id}
                               title={template.title}
@@ -731,7 +889,7 @@ export function SearchModal({
                               iconColor={template.iconColor}
                               state={template.state}
                               isStarred={template.isStarred}
-                              onTemplateUsed={handleTemplateUsed}
+                              onTemplateUsed={() => onOpenChange(false)}
                               onStarChange={handleStarChange}
                             />
                           </div>
@@ -740,142 +898,168 @@ export function SearchModal({
                 </div>
               )}
 
-              {/* Workspaces Section */}
-              {filteredWorkspaces.length > 0 && (
-                <div>
-                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                    Workspaces
-                  </h3>
-                  <div className='space-y-1 px-6'>
-                    {filteredWorkspaces.map((workspace) => (
-                      <button
-                        key={workspace.id}
-                        onClick={() =>
-                          workspace.isCurrent
-                            ? onOpenChange(false)
-                            : handleNavigationClick(workspace.href)
-                        }
-                        data-search-item={`workspace-${workspace.id}`}
-                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
-                          isItemSelected(workspace, 'workspace')
-                            ? 'bg-accent text-accent-foreground'
-                            : 'hover:bg-accent/60 focus:bg-accent/60'
-                        }`}
-                      >
-                        <div className='flex h-5 w-5 items-center justify-center'>
-                          <Building2 className='h-4 w-4 text-muted-foreground' />
-                        </div>
-                        <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                          {workspace.name}
-                          {workspace.isCurrent && ' (current)'}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* List sections (Workspaces, Workflows, Pages, Docs) */}
+              {navigationSections.find((s) => s.id === 'list') && (
+                <div
+                  ref={(el) => {
+                    if (el) scrollRefs.current.set('list', el)
+                  }}
+                >
+                  {/* Workspaces */}
+                  {filteredWorkspaces.length > 0 && (
+                    <div className='mb-6'>
+                      <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                        Workspaces
+                      </h3>
+                      <div className='space-y-1 px-6'>
+                        {filteredWorkspaces.map((workspace, workspaceIndex) => {
+                          const globalIndex = workspaceIndex
+                          return (
+                            <button
+                              key={workspace.id}
+                              onClick={() =>
+                                workspace.isCurrent
+                                  ? onOpenChange(false)
+                                  : handleNavigationClick(workspace.href)
+                              }
+                              data-nav-item={`list-${globalIndex}`}
+                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                                isItemSelected('list', globalIndex)
+                                  ? 'bg-accent text-accent-foreground'
+                                  : 'hover:bg-accent/60 focus:bg-accent/60'
+                              }`}
+                            >
+                              <div className='flex h-5 w-5 items-center justify-center'>
+                                <Building2 className='h-4 w-4 text-muted-foreground' />
+                              </div>
+                              <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                                {workspace.name}
+                                {workspace.isCurrent && ' (current)'}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-              {/* Workflows Section */}
-              {filteredWorkflows.length > 0 && (
-                <div>
-                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                    Workflows
-                  </h3>
-                  <div className='space-y-1 px-6'>
-                    {filteredWorkflows.map((workflow) => (
-                      <button
-                        key={workflow.id}
-                        onClick={() =>
-                          workflow.isCurrent
-                            ? onOpenChange(false)
-                            : handleNavigationClick(workflow.href)
-                        }
-                        data-search-item={`workflow-${workflow.id}`}
-                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
-                          isItemSelected(workflow, 'workflow')
-                            ? 'bg-accent text-accent-foreground'
-                            : 'hover:bg-accent/60 focus:bg-accent/60'
-                        }`}
-                      >
-                        <div className='flex h-5 w-5 items-center justify-center'>
-                          <Workflow className='h-4 w-4 text-muted-foreground' />
-                        </div>
-                        <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                          {workflow.name}
-                          {workflow.isCurrent && ' (current)'}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                  {/* Workflows */}
+                  {filteredWorkflows.length > 0 && (
+                    <div className='mb-6'>
+                      <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                        Workflows
+                      </h3>
+                      <div className='space-y-1 px-6'>
+                        {filteredWorkflows.map((workflow, workflowIndex) => {
+                          const globalIndex = filteredWorkspaces.length + workflowIndex
+                          return (
+                            <button
+                              key={workflow.id}
+                              onClick={() =>
+                                workflow.isCurrent
+                                  ? onOpenChange(false)
+                                  : handleNavigationClick(workflow.href)
+                              }
+                              data-nav-item={`list-${globalIndex}`}
+                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                                isItemSelected('list', globalIndex)
+                                  ? 'bg-accent text-accent-foreground'
+                                  : 'hover:bg-accent/60 focus:bg-accent/60'
+                              }`}
+                            >
+                              <div className='flex h-5 w-5 items-center justify-center'>
+                                <Workflow className='h-4 w-4 text-muted-foreground' />
+                              </div>
+                              <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                                {workflow.name}
+                                {workflow.isCurrent && ' (current)'}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-              {/* Pages Section */}
-              {filteredPages.length > 0 && (
-                <div>
-                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                    Pages
-                  </h3>
-                  <div className='space-y-1 px-6'>
-                    {filteredPages.map((page) => (
-                      <button
-                        key={page.id}
-                        onClick={() => handlePageClick(page.href)}
-                        data-search-item={`page-${page.id}`}
-                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
-                          isItemSelected(page, 'page')
-                            ? 'bg-accent text-accent-foreground'
-                            : 'hover:bg-accent/60 focus:bg-accent/60'
-                        }`}
-                      >
-                        <div className='flex h-5 w-5 items-center justify-center'>
-                          <page.icon className='h-4 w-4 text-muted-foreground' />
-                        </div>
-                        <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                          {page.name}
-                        </span>
-                        {page.shortcut && (
-                          <kbd className='flex h-6 w-10 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]'>
-                            <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
-                              <span className='text-lg'>⌘</span>
-                              <span className='pb-[4px] text-lg'>⇧</span>
-                              <span className='text-xs'>{page.shortcut.slice(-1)}</span>
-                            </span>
-                          </kbd>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                  {/* Pages */}
+                  {filteredPages.length > 0 && (
+                    <div className='mb-6'>
+                      <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                        Pages
+                      </h3>
+                      <div className='space-y-1 px-6'>
+                        {filteredPages.map((page, pageIndex) => {
+                          const globalIndex =
+                            filteredWorkspaces.length + filteredWorkflows.length + pageIndex
+                          return (
+                            <button
+                              key={page.id}
+                              onClick={() => handlePageClick(page.href)}
+                              data-nav-item={`list-${globalIndex}`}
+                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                                isItemSelected('list', globalIndex)
+                                  ? 'bg-accent text-accent-foreground'
+                                  : 'hover:bg-accent/60 focus:bg-accent/60'
+                              }`}
+                            >
+                              <div className='flex h-5 w-5 items-center justify-center'>
+                                <page.icon className='h-4 w-4 text-muted-foreground' />
+                              </div>
+                              <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                                {page.name}
+                              </span>
+                              {page.shortcut && (
+                                <kbd className='flex h-6 w-10 items-center justify-center rounded-[5px] border border-border bg-background font-mono text-[#CDCDCD] text-xs dark:text-[#454545]'>
+                                  <span className='flex items-center justify-center gap-[1px] pt-[1px]'>
+                                    <span className='text-lg'>⌘</span>
+                                    <span className='pb-[4px] text-lg'>⇧</span>
+                                    <span className='text-xs'>{page.shortcut.slice(-1)}</span>
+                                  </span>
+                                </kbd>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-              {/* Docs Section */}
-              {filteredDocs.length > 0 && (
-                <div>
-                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                    Docs
-                  </h3>
-                  <div className='space-y-1 px-6'>
-                    {filteredDocs.map((doc) => (
-                      <button
-                        key={doc.id}
-                        onClick={() => handleDocsClick(doc.href)}
-                        data-search-item={`doc-${doc.id}`}
-                        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
-                          isItemSelected(doc, 'doc')
-                            ? 'bg-accent text-accent-foreground'
-                            : 'hover:bg-accent/60 focus:bg-accent/60'
-                        }`}
-                      >
-                        <div className='flex h-5 w-5 items-center justify-center'>
-                          <doc.icon className='h-4 w-4 text-muted-foreground' />
-                        </div>
-                        <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                          {doc.name}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  {/* Docs */}
+                  {filteredDocs.length > 0 && (
+                    <div>
+                      <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                        Docs
+                      </h3>
+                      <div className='space-y-1 px-6'>
+                        {filteredDocs.map((doc, docIndex) => {
+                          const globalIndex =
+                            filteredWorkspaces.length +
+                            filteredWorkflows.length +
+                            filteredPages.length +
+                            docIndex
+                          return (
+                            <button
+                              key={doc.id}
+                              onClick={() => handleDocsClick(doc.href)}
+                              data-nav-item={`list-${globalIndex}`}
+                              className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors focus:outline-none ${
+                                isItemSelected('list', globalIndex)
+                                  ? 'bg-accent text-accent-foreground'
+                                  : 'hover:bg-accent/60 focus:bg-accent/60'
+                              }`}
+                            >
+                              <div className='flex h-5 w-5 items-center justify-center'>
+                                <doc.icon className='h-4 w-4 text-muted-foreground' />
+                              </div>
+                              <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                                {doc.name}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
