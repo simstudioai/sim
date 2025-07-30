@@ -82,6 +82,7 @@ export const cspDirectives: CSPDirectives = {
     'https://vercel.com',
     'https://*.vercel.app',
     'wss://*.vercel.app',
+    'https://pro.ip-api.com',
   ],
 
   // Google Picker and Drive integration
