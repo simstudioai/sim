@@ -728,6 +728,18 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         useBasicAuth: false,
       }
     }
+    case 'onedrive': {
+      const { clientId, clientSecret } = getCredentials(
+        env.MICROSOFT_CLIENT_ID,
+        env.MICROSOFT_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
     case 'linear': {
       const { clientId, clientSecret } = getCredentials(
         env.LINEAR_CLIENT_ID,
