@@ -1,13 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronsUpDown } from 'lucide-react'
+import { ChevronsUpDown, Wand2 } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
+import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 
 const logger = createLogger('LongInput')
@@ -44,7 +47,38 @@ export function LongInput({
   onChange,
   disabled,
 }: LongInputProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  // Local state for immediate UI updates during streaming
+  const [localContent, setLocalContent] = useState<string>('')
+
+  // Wand functionality (only if wandConfig is enabled) - define early to get streaming state
+  const wandHook = config.wandConfig?.enabled
+    ? useWand({
+        wandConfig: config.wandConfig,
+        currentValue: localContent,
+        onStreamStart: () => {
+          // Clear the content when streaming starts
+          setLocalContent('')
+        },
+        onStreamChunk: (chunk) => {
+          // Update local content with each chunk as it arrives
+          setLocalContent((current) => current + chunk)
+        },
+        onGeneratedContent: (content) => {
+          // Final content update (fallback)
+          setLocalContent(content)
+        },
+      })
+    : null
+
+  // State management - useSubBlockValue with explicit streaming control
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
+    debounceMs: 150,
+    isStreaming: wandHook?.isStreaming || false, // Use wand streaming state
+    onStreamingEnd: () => {
+      logger.debug('Wand streaming ended, value persisted', { blockId, subBlockId })
+    },
+  })
+
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -55,7 +89,29 @@ export function LongInput({
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Use preview value when in preview mode, otherwise use store value or prop value
-  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+  const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+
+  // During streaming, use local content; otherwise use base value
+  const value = wandHook?.isStreaming ? localContent : baseValue
+
+  // Sync local content with base value when not streaming
+  useEffect(() => {
+    if (!wandHook?.isStreaming) {
+      const baseValueString = baseValue?.toString() ?? ''
+      if (baseValueString !== localContent) {
+        setLocalContent(baseValueString)
+      }
+    }
+  }, [baseValue, wandHook?.isStreaming]) // Removed localContent to prevent infinite loop
+
+  // Update store value during streaming (but won't persist until streaming ends)
+  useEffect(() => {
+    if (wandHook?.isStreaming && localContent !== '') {
+      if (!isPreview && !disabled) {
+        setStoreValue(localContent)
+      }
+    }
+  }, [localContent, wandHook?.isStreaming, isPreview, disabled, setStoreValue])
 
   // Calculate initial height based on rows prop with reasonable defaults
   const getInitialHeight = () => {
@@ -83,11 +139,14 @@ export function LongInput({
 
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // Don't allow changes if disabled
-    if (disabled) return
+    // Don't allow changes if disabled or streaming
+    if (disabled || wandHook?.isStreaming) return
 
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
+
+    // Update local content immediately
+    setLocalContent(newValue)
 
     if (onChange) {
       onChange(newValue)
@@ -190,7 +249,12 @@ export function LongInput({
 
       // Update all state in a single batch
       Promise.resolve().then(() => {
-        if (!isPreview) {
+        // Update local content immediately
+        setLocalContent(newValue)
+
+        if (onChange) {
+          onChange(newValue)
+        } else if (!isPreview) {
           setStoreValue(newValue)
         }
         setCursorPosition(dropPosition + 1)
@@ -270,96 +334,130 @@ export function LongInput({
   }
 
   return (
-    <div ref={containerRef} className='relative w-full' style={{ height: `${height}px` }}>
-      <Textarea
-        ref={textareaRef}
-        className={cn(
-          'allow-scroll min-h-full w-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50',
-          isConnecting &&
-            config?.connectionDroppable !== false &&
-            'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
+    <>
+      {/* Wand Prompt Bar - positioned above the textarea */}
+      {wandHook && (
+        <WandPromptBar
+          isVisible={wandHook.isPromptVisible}
+          isLoading={wandHook.isLoading}
+          isStreaming={wandHook.isStreaming}
+          promptValue={wandHook.promptInputValue}
+          onSubmit={(prompt: string) => wandHook.generateStream({ prompt })}
+          onCancel={wandHook.isStreaming ? wandHook.cancelGeneration : wandHook.hidePromptInline}
+          onChange={wandHook.updatePromptValue}
+          placeholder={config.wandConfig?.placeholder || 'Describe what you want to generate...'}
+        />
+      )}
+
+      <div ref={containerRef} className='group relative w-full' style={{ height: `${height}px` }}>
+        <Textarea
+          ref={textareaRef}
+          className={cn(
+            'allow-scroll min-h-full w-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50',
+            isConnecting &&
+              config?.connectionDroppable !== false &&
+              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
+          )}
+          rows={rows ?? DEFAULT_ROWS}
+          placeholder={placeholder ?? ''}
+          value={value?.toString() ?? ''}
+          onChange={handleChange}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onScroll={handleScroll}
+          onWheel={handleWheel}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            setShowEnvVars(false)
+            setShowTags(false)
+            setSearchTerm('')
+          }}
+          disabled={isPreview || disabled}
+          style={{
+            fontFamily: 'inherit',
+            lineHeight: 'inherit',
+            height: `${height}px`,
+          }}
+        />
+        <div
+          ref={overlayRef}
+          className='pointer-events-none absolute inset-0 whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-sm'
+          style={{
+            fontFamily: 'inherit',
+            lineHeight: 'inherit',
+            width: textareaRef.current ? `${textareaRef.current.clientWidth}px` : '100%',
+            height: `${height}px`,
+            overflow: 'hidden',
+          }}
+        >
+          {formatDisplayText(value?.toString() ?? '', true)}
+        </div>
+
+        {/* Wand Button */}
+        {wandHook && !isPreview && (
+          <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={
+                wandHook.isPromptVisible ? wandHook.hidePromptInline : wandHook.showPromptInline
+              }
+              disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
+              aria-label='Generate content with AI'
+              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
+            >
+              <Wand2 className='h-4 w-4' />
+            </Button>
+          </div>
         )}
-        rows={rows ?? DEFAULT_ROWS}
-        placeholder={placeholder ?? ''}
-        value={value?.toString() ?? ''}
-        onChange={handleChange}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onScroll={handleScroll}
-        onWheel={handleWheel}
-        onKeyDown={handleKeyDown}
-        onFocus={() => {
-          setShowEnvVars(false)
-          setShowTags(false)
-          setSearchTerm('')
-        }}
-        disabled={isPreview || disabled}
-        style={{
-          fontFamily: 'inherit',
-          lineHeight: 'inherit',
-          height: `${height}px`,
-        }}
-      />
-      <div
-        ref={overlayRef}
-        className='pointer-events-none absolute inset-0 whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-sm'
-        style={{
-          fontFamily: 'inherit',
-          lineHeight: 'inherit',
-          width: textareaRef.current ? `${textareaRef.current.clientWidth}px` : '100%',
-          height: `${height}px`,
-          overflow: 'hidden',
-        }}
-      >
-        {formatDisplayText(value?.toString() ?? '', true)}
-      </div>
 
-      {/* Custom resize handle */}
-      <div
-        className='absolute right-1 bottom-1 flex h-4 w-4 cursor-s-resize items-center justify-center rounded-sm bg-background'
-        onMouseDown={startResize}
-        onDragStart={(e) => {
-          e.preventDefault()
-        }}
-      >
-        <ChevronsUpDown className='h-3 w-3 text-muted-foreground/70' />
-      </div>
+        {/* Custom resize handle */}
+        <div
+          className='absolute right-1 bottom-1 flex h-4 w-4 cursor-s-resize items-center justify-center rounded-sm bg-background'
+          onMouseDown={startResize}
+          onDragStart={(e) => {
+            e.preventDefault()
+          }}
+        >
+          <ChevronsUpDown className='h-3 w-3 text-muted-foreground/70' />
+        </div>
 
-      <EnvVarDropdown
-        visible={showEnvVars}
-        onSelect={(newValue) => {
-          if (onChange) {
-            onChange(newValue)
-          } else if (!isPreview) {
-            setStoreValue(newValue)
-          }
-        }}
-        searchTerm={searchTerm}
-        inputValue={value?.toString() ?? ''}
-        cursorPosition={cursorPosition}
-        onClose={() => {
-          setShowEnvVars(false)
-          setSearchTerm('')
-        }}
-      />
-      <TagDropdown
-        visible={showTags}
-        onSelect={(newValue) => {
-          if (onChange) {
-            onChange(newValue)
-          } else if (!isPreview) {
-            setStoreValue(newValue)
-          }
-        }}
-        blockId={blockId}
-        activeSourceBlockId={activeSourceBlockId}
-        inputValue={value?.toString() ?? ''}
-        cursorPosition={cursorPosition}
-        onClose={() => {
-          setShowTags(false)
-          setActiveSourceBlockId(null)
-        }}
-      />
-    </div>
+        <EnvVarDropdown
+          visible={showEnvVars}
+          onSelect={(newValue) => {
+            if (onChange) {
+              onChange(newValue)
+            } else if (!isPreview) {
+              setStoreValue(newValue)
+            }
+          }}
+          searchTerm={searchTerm}
+          inputValue={value?.toString() ?? ''}
+          cursorPosition={cursorPosition}
+          onClose={() => {
+            setShowEnvVars(false)
+            setSearchTerm('')
+          }}
+        />
+        <TagDropdown
+          visible={showTags}
+          onSelect={(newValue) => {
+            if (onChange) {
+              onChange(newValue)
+            } else if (!isPreview) {
+              setStoreValue(newValue)
+            }
+          }}
+          blockId={blockId}
+          activeSourceBlockId={activeSourceBlockId}
+          inputValue={value?.toString() ?? ''}
+          cursorPosition={cursorPosition}
+          onClose={() => {
+            setShowTags(false)
+            setActiveSourceBlockId(null)
+          }}
+        />
+      </div>
+    </>
   )
 }
