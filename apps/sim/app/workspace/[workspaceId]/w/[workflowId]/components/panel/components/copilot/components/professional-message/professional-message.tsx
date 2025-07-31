@@ -28,7 +28,6 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
-import { COPILOT_TOOL_DISPLAY_NAMES, COPILOT_TOOL_PAST_TENSE, COPILOT_TOOL_ERROR_NAMES } from '@/stores/constants'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import type { ToolCallState } from '@/types/tool-call'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -182,39 +181,10 @@ const WordWrap = ({ text }: { text: string }) => {
   )
 }
 
-// Helper function to get appropriate tool display name based on state
-function getToolDisplayNameByState(tool: any): string {
-  // Always calculate display name based on current state rather than using cached displayName
-  // This ensures state transitions are reflected immediately in the UI
-  const toolName = tool.name
-  const state = tool.state
-  const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-  
-  if (state === 'ready_for_review' && isWorkflowTool) {
-    // Special display for workflow tools awaiting review
-    const baseText = COPILOT_TOOL_PAST_TENSE[toolName] || toolName
-    return `${baseText} - ready for review`
-  } else if (state === 'applied' && isWorkflowTool) {
-    // Show completion/done state after accept
-    return 'Applied workflow changes'
-  } else if (state === 'completed' || state === 'applied') {
-    // Regular tools and non-workflow applied states use past tense
-    return COPILOT_TOOL_PAST_TENSE[toolName] || toolName
-  } else if (state === 'error') {
-    return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${toolName.toLowerCase()}`
-  } else if (state === 'rejected') {
-    // Special handling for rejected workflow tools
-    return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${toolName.toLowerCase()}`
-  } else {
-    // For executing, aborted, etc. - use present tense
-    return COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
-  }
-}
-
 // Inline Tool Call Component
 function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepNumber?: number }) {
   const getToolIcon = () => {
-    const displayName = getToolDisplayNameByState(tool)
+    const displayName = tool.displayName || tool.name || ''
     const lowerName = displayName.toLowerCase()
 
     console.log("[ASDF] IN HERE: ", displayName)
@@ -292,7 +262,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   return (
     <div className='flex items-center gap-2 py-1 text-muted-foreground'>
       <div className='flex-shrink-0'>{getStateIcon()}</div>
-      <span className='text-sm'>{getToolDisplayNameByState(tool)}</span>
+      <span className='text-sm'>{tool.displayName || tool.name}</span>
     </div>
   )
 }
@@ -541,11 +511,6 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
         )
       }
       if (block.type === 'tool_call') {
-        console.log('[ASDF] Rendering tool call from contentBlocks:', {
-          toolName: block.toolCall?.name,
-          toolState: block.toolCall?.state,
-          toolDisplayName: block.toolCall?.displayName
-        })
         return (
           <div 
             key={`tool-${block.toolCall.id}`}

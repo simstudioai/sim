@@ -47,14 +47,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
       diffMetadata: null,
 
       setProposedChanges: async (yamlContent: string, diffAnalysis?: DiffAnalysis) => {
-        logger.info('WorkflowDiffStore.setProposedChanges called with:', {
-          yamlContentLength: yamlContent.length,
-          diffAnalysis: diffAnalysis,
-          diffAnalysisType: typeof diffAnalysis,
-          diffAnalysisUndefined: diffAnalysis === undefined,
-          diffAnalysisNull: diffAnalysis === null,
-        })
-
         // First, set isDiffReady to false to prevent premature rendering
         set({ isDiffReady: false })
 
@@ -77,14 +69,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           } else {
             logger.warn('[DiffStore] No diff analysis in result!')
           }
-
-          console.log('[DiffStore] Setting new diff:', {
-            blockCount: Object.keys(result.diff.proposedState.blocks).length,
-            sampleBlockId,
-            sampleDiffStatus,
-            hasDiffAnalysis: !!result.diff.diffAnalysis,
-            timestamp: Date.now(),
-          })
 
           // Set all state at once, with isDiffReady true to indicate everything is ready
           set({
@@ -112,20 +96,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
         const result = await diffEngine.mergeDiffFromYaml(yamlContent, diffAnalysis)
 
         if (result.success && result.diff) {
-          // Debug: Log the diff state being merged
-          const sampleBlockId = Object.keys(result.diff.proposedState.blocks)[0]
-          const sampleBlock = sampleBlockId ? result.diff.proposedState.blocks[sampleBlockId] : null
-          const sampleDiffStatus = sampleBlock ? (sampleBlock as any).is_diff : undefined
-
-          console.log('[DiffStore] Merging diff:', {
-            blockCount: Object.keys(result.diff.proposedState.blocks).length,
-            sampleBlockId,
-            sampleDiffStatus,
-            hasDiffAnalysis: !!result.diff.diffAnalysis,
-            timestamp: Date.now(),
-          })
-
-          // Set all state at once, with isDiffReady true to indicate everything is ready
+          // Set all state at once, with isDiffReady true
           set({
             isShowingDiff: true,
             isDiffReady: true, // Now it's safe to render
@@ -144,7 +115,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
       clearDiff: () => {
         logger.info('Clearing diff')
-        console.log('[DiffStore] Clearing diff at:', Date.now())
         diffEngine.clearDiff()
         set({
           isShowingDiff: false,
@@ -252,9 +222,12 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           // Update copilot tool call state to 'applied'
           try {
+            console.log('[DEBUG] acceptChanges calling updatePreviewToolCallState with applied')
             const { useCopilotStore } = await import('@/stores/copilot/store')
             useCopilotStore.getState().updatePreviewToolCallState('applied')
+            console.log('[DEBUG] acceptChanges successfully called updatePreviewToolCallState')
           } catch (error) {
+            console.log('[DEBUG] acceptChanges failed to call updatePreviewToolCallState:', error)
             logger.warn('Failed to update copilot tool call state after accept:', error)
           }
         } catch (error) {
@@ -269,9 +242,12 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
         // Update copilot tool call state to 'rejected'
         try {
+          console.log('[DEBUG] rejectChanges calling updatePreviewToolCallState with rejected')
           const { useCopilotStore } = await import('@/stores/copilot/store')
           useCopilotStore.getState().updatePreviewToolCallState('rejected')
+          console.log('[DEBUG] rejectChanges successfully called updatePreviewToolCallState')
         } catch (error) {
+          console.log('[DEBUG] rejectChanges failed to call updatePreviewToolCallState:', error)
           logger.warn('Failed to update copilot tool call state after reject:', error)
         }
       },

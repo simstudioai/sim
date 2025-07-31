@@ -184,8 +184,7 @@ export function DiffControls() {
       logger.error('Checkpoint creation failed:', error)
     })
 
-    // Immediately update UI state (optimistic)
-    updatePreviewToolCallState('applied')
+    // Clear preview YAML immediately
     clearPreviewYaml().catch((error) => {
       logger.warn('Failed to clear preview YAML:', error)
     })
@@ -203,8 +202,7 @@ export function DiffControls() {
   const handleReject = () => {
     logger.info('Rejecting proposed changes (optimistic)')
 
-    // Immediately update UI state (optimistic)
-    updatePreviewToolCallState('rejected')
+    // Clear preview YAML immediately
     clearPreviewYaml().catch((error) => {
       logger.warn('Failed to clear preview YAML:', error)
     })

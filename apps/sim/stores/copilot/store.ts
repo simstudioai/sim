@@ -128,8 +128,36 @@ function getToolDisplayNameByState(toolCall: any): string {
  * don't go through createToolCall()
  */
 function ensureToolCallDisplayNames(messages: CopilotMessage[]): CopilotMessage[] {
+  console.log('[DEBUG] ensureToolCallDisplayNames called, processing', messages.length, 'messages')
+  
   return messages.map((message: CopilotMessage) => {
     if (message.role === 'assistant' && (message.toolCalls || message.contentBlocks)) {
+      // Check for workflow tools before recalculating
+      const hasWorkflowTools = message.toolCalls?.some(tc => 
+        tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+      ) || message.contentBlocks?.some(block => 
+        block.type === 'tool_call' && 
+        (block as any).toolCall?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
+        (block as any).toolCall?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+      )
+      
+      if (hasWorkflowTools) {
+        console.log('[DEBUG] ensureToolCallDisplayNames found workflow tools in message:', message.id)
+        
+        // Log current states before recalculation
+        const workflowToolStates = message.contentBlocks?.filter(b => 
+          b.type === 'tool_call' && 
+          ((b as any).toolCall?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
+           (b as any).toolCall?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW)
+        ).map(b => ({ 
+          name: (b as any).toolCall.name, 
+          state: (b as any).toolCall.state, 
+          displayName: (b as any).toolCall.displayName 
+        }))
+        
+        console.log('[DEBUG] Current workflow tool states before recalculation:', workflowToolStates)
+      }
+      
       return {
         ...message,
         // Always recalculate displayName based on current state
@@ -214,37 +242,57 @@ function createToolCall(id: string, name: string, input: any = {}): any {
 /**
  * Helper function to finalize a tool call
  */
-function finalizeToolCall(toolCall: any, success: boolean, result?: any): void {
+function finalizeToolCall(toolCall: any, success: boolean, result?: any, get?: () => CopilotStore): void {
   toolCall.endTime = Date.now()
   toolCall.duration = toolCall.endTime - toolCall.startTime
 
   if (success) {
     toolCall.result = result
     
-    // Debug - log ALL tool names to see what's actually coming through
-    console.log('[DEBUG] Tool completing:', {
-      name: toolCall.name,
-      expectedBuildWorkflow: 'build_workflow',
-      expectedEditWorkflow: 'edit_workflow',
-      nameMatchesBuild: toolCall.name === 'build_workflow',
-      nameMatchesEdit: toolCall.name === 'edit_workflow'
-    })
-    
-    // Workflow tools need review, others are completed
-    toolCall.state =
-      toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-      toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-        ? 'ready_for_review'
-        : 'completed'
+    // For workflow tools, check if they're already in a terminal state in the store
+    if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
+      // Get current state from store if get function is available
+      if (get) {
+        const state = get()
+        const currentMessage = state.messages.find((msg: any) => 
+          msg.toolCalls?.some((tc: any) => tc.id === toolCall.id) ||
+          msg.contentBlocks?.some((block: any) => block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id)
+        )
+        
+        if (currentMessage) {
+          // Check both toolCalls array and contentBlocks
+          const currentToolCall = currentMessage.toolCalls?.find((tc: any) => tc.id === toolCall.id)
+          if (!currentToolCall) {
+            const toolBlock = currentMessage.contentBlocks?.find((block: any) => 
+              block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id
+            ) as any
+            const blockToolCall = toolBlock?.toolCall
+            if (blockToolCall && (blockToolCall.state === 'applied' || blockToolCall.state === 'rejected')) {
+              console.log('[DEBUG] finalizeToolCall: preserving terminal state', blockToolCall.state, 'for tool', toolCall.name)
+              // Don't override terminal states, just update result and timing
+              toolCall.state = blockToolCall.state
+              toolCall.displayName = blockToolCall.displayName
+              return
+            }
+          } else if (currentToolCall && (currentToolCall.state === 'applied' || currentToolCall.state === 'rejected')) {
+            console.log('[DEBUG] finalizeToolCall: preserving terminal state', currentToolCall.state, 'for tool', toolCall.name)
+            // Don't override terminal states, just update result and timing
+            toolCall.state = currentToolCall.state
+            toolCall.displayName = currentToolCall.displayName
+            return
+          }
+        }
+      }
+      
+      // Not in terminal state, set to ready_for_review
+      toolCall.state = 'ready_for_review'
+    } else {
+      // Non-workflow tools are completed
+      toolCall.state = 'completed'
+    }
     
     // Update displayName to match the new state
     toolCall.displayName = getToolDisplayNameByState(toolCall)
-    
-    console.log('[DEBUG] Tool state after finalize:', {
-      name: toolCall.name,
-      state: toolCall.state,
-      displayName: toolCall.displayName
-    })
   }
 }
 
@@ -347,7 +395,7 @@ const sseHandlers: Record<string, SSEHandler> = {
             })()
           : result
 
-      finalizeToolCall(toolCall, true, parsedResult)
+      finalizeToolCall(toolCall, true, parsedResult, get)
 
       // Handle workflow tools
       if (
@@ -366,7 +414,21 @@ const sseHandlers: Record<string, SSEHandler> = {
     // Ensure the toolCall in context.toolCalls is also updated with the latest state
     const toolCallIndex = context.toolCalls.findIndex(tc => tc.id === toolCallId)
     if (toolCallIndex !== -1) {
-      context.toolCalls[toolCallIndex] = { ...toolCall }
+      const existingToolCall = context.toolCalls[toolCallIndex]
+      const isWorkflowTool = toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+      const hasTerminalState = existingToolCall.state === 'applied' || existingToolCall.state === 'rejected'
+      
+      if (isWorkflowTool && hasTerminalState) {
+        console.log('[DEBUG] tool_result handler: preserving terminal state', existingToolCall.state, 'for tool', toolCall.name)
+        // Don't override terminal states, just update result and timing if available
+        context.toolCalls[toolCallIndex] = { 
+          ...toolCall,
+          state: existingToolCall.state,
+          displayName: existingToolCall.displayName
+        }
+      } else {
+        context.toolCalls[toolCallIndex] = { ...toolCall }
+      }
     }
     
     updateStreamingMessage(set, context)
@@ -500,7 +562,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       try {
         // Parse complete tool input
         context.toolCallBuffer.input = JSON.parse(context.toolCallBuffer.partialInput || '{}')
-        finalizeToolCall(context.toolCallBuffer, true)
+        finalizeToolCall(context.toolCallBuffer, true, context.toolCallBuffer.input, get)
 
         // Handle workflow tools immediately
         if (
@@ -520,7 +582,21 @@ const sseHandlers: Record<string, SSEHandler> = {
         // Ensure the toolCall in context.toolCalls is also updated with the latest state
         const toolCallIndex = context.toolCalls.findIndex(tc => tc.id === context.toolCallBuffer.id)
         if (toolCallIndex !== -1) {
-          context.toolCalls[toolCallIndex] = { ...context.toolCallBuffer }
+          const existingToolCall = context.toolCalls[toolCallIndex]
+          const isWorkflowTool = context.toolCallBuffer.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || context.toolCallBuffer.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+          const hasTerminalState = existingToolCall.state === 'applied' || existingToolCall.state === 'rejected'
+          
+          if (isWorkflowTool && hasTerminalState) {
+            console.log('[DEBUG] content_block_stop handler: preserving terminal state', existingToolCall.state, 'for tool', context.toolCallBuffer.name)
+            // Don't override terminal states, just update result and timing if available
+            context.toolCalls[toolCallIndex] = { 
+              ...context.toolCallBuffer,
+              state: existingToolCall.state,
+              displayName: existingToolCall.displayName
+            }
+          } else {
+            context.toolCalls[toolCallIndex] = { ...context.toolCallBuffer }
+          }
         }
         
         updateStreamingMessage(set, context)
@@ -586,10 +662,29 @@ function updateContentBlockToolCall(contentBlocks: any[], toolCallId: string, to
   for (let i = 0; i < contentBlocks.length; i++) {
     const block = contentBlocks[i]
     if (block.type === 'tool_call' && block.toolCall.id === toolCallId) {
-      contentBlocks[i] = {
-        type: 'tool_call',
-        toolCall: { ...toolCall },
-        timestamp: block.timestamp,
+      // Preserve terminal states (applied/rejected) for workflow tools
+      const existingToolCall = block.toolCall
+      const isWorkflowTool = toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+      const hasTerminalState = existingToolCall.state === 'applied' || existingToolCall.state === 'rejected'
+      
+      if (isWorkflowTool && hasTerminalState) {
+        console.log('[DEBUG] updateContentBlockToolCall: preserving terminal state', existingToolCall.state, 'for tool', toolCall.name)
+        // Don't override terminal states, just update result and timing if available
+        contentBlocks[i] = {
+          type: 'tool_call',
+          toolCall: { 
+            ...toolCall,
+            state: existingToolCall.state,
+            displayName: existingToolCall.displayName
+          },
+          timestamp: block.timestamp,
+        }
+      } else {
+        contentBlocks[i] = {
+          type: 'tool_call',
+          toolCall: { ...toolCall },
+          timestamp: block.timestamp,
+        }
       }
       break
     }
@@ -656,11 +751,54 @@ function updateStreamingMessage(set: any, context: StreamingContext) {
         if (updates.size === 1 && lastMessageUpdate) {
           // Fast path: only updating the last message
           const newMessages = [...messages]
+          
+          // Merge tool calls while preserving terminal states
+          const mergedToolCalls = lastMessageUpdate.toolCalls.map(newToolCall => {
+            const existingToolCall = lastMessage.toolCalls?.find(tc => tc.id === newToolCall.id)
+            const isWorkflowTool = newToolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || newToolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+            const hasTerminalState = existingToolCall?.state === 'applied' || existingToolCall?.state === 'rejected'
+            
+            if (isWorkflowTool && hasTerminalState && existingToolCall) {
+              console.log('[DEBUG] updateStreamingMessage: preserving terminal state', existingToolCall.state, 'for tool', newToolCall.name)
+              return {
+                ...newToolCall,
+                state: existingToolCall.state,
+                displayName: existingToolCall.displayName
+              }
+            }
+            return newToolCall
+          })
+          
+          // Merge content blocks while preserving terminal states
+          const mergedContentBlocks = lastMessageUpdate.contentBlocks.map(newBlock => {
+            if (newBlock.type === 'tool_call') {
+              const existingBlock = lastMessage.contentBlocks?.find(
+                (b): b is any => b.type === 'tool_call' && (b as any).toolCall.id === (newBlock as any).toolCall.id
+              )
+              const toolCallBlock = newBlock as any
+              const isWorkflowTool = toolCallBlock.toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCallBlock.toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+              const hasTerminalState = existingBlock?.toolCall.state === 'applied' || existingBlock?.toolCall.state === 'rejected'
+              
+              if (isWorkflowTool && hasTerminalState && existingBlock) {
+                console.log('[DEBUG] updateStreamingMessage contentBlocks: preserving terminal state', existingBlock.toolCall.state, 'for tool', toolCallBlock.toolCall.name)
+                return {
+                  ...newBlock,
+                  toolCall: {
+                    ...toolCallBlock.toolCall,
+                    state: existingBlock.toolCall.state,
+                    displayName: existingBlock.toolCall.displayName
+                  }
+                }
+              }
+            }
+            return newBlock
+          })
+          
           newMessages[messages.length - 1] = {
             ...lastMessage,
             content: '', // Don't use accumulated content for display
-            toolCalls: lastMessageUpdate.toolCalls.length > 0 ? [...lastMessageUpdate.toolCalls] : [],
-            contentBlocks: lastMessageUpdate.contentBlocks.length > 0 ? createOptimizedContentBlocks(lastMessageUpdate.contentBlocks) : [],
+            toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : [],
+            contentBlocks: mergedContentBlocks.length > 0 ? createOptimizedContentBlocks(mergedContentBlocks) : [],
           }
           return { messages: newMessages }
         } else {
@@ -669,11 +807,53 @@ function updateStreamingMessage(set: any, context: StreamingContext) {
             messages: messages.map((msg: CopilotMessage) => {
               const update = updates.get(msg.id)
               if (update) {
+                // Merge tool calls while preserving terminal states
+                const mergedToolCalls = update.toolCalls.map(newToolCall => {
+                  const existingToolCall = msg.toolCalls?.find(tc => tc.id === newToolCall.id)
+                  const isWorkflowTool = newToolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || newToolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+                  const hasTerminalState = existingToolCall?.state === 'applied' || existingToolCall?.state === 'rejected'
+                  
+                  if (isWorkflowTool && hasTerminalState && existingToolCall) {
+                    console.log('[DEBUG] updateStreamingMessage fallback: preserving terminal state', existingToolCall.state, 'for tool', newToolCall.name)
+                    return {
+                      ...newToolCall,
+                      state: existingToolCall.state,
+                      displayName: existingToolCall.displayName
+                    }
+                  }
+                  return newToolCall
+                })
+                
+                // Merge content blocks while preserving terminal states
+                const mergedContentBlocks = update.contentBlocks.map(newBlock => {
+                  if (newBlock.type === 'tool_call') {
+                    const existingBlock = msg.contentBlocks?.find(
+                      (b): b is any => b.type === 'tool_call' && (b as any).toolCall.id === (newBlock as any).toolCall.id
+                    )
+                    const toolCallBlock = newBlock as any
+                    const isWorkflowTool = toolCallBlock.toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCallBlock.toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+                    const hasTerminalState = existingBlock?.toolCall.state === 'applied' || existingBlock?.toolCall.state === 'rejected'
+                    
+                    if (isWorkflowTool && hasTerminalState && existingBlock) {
+                      console.log('[DEBUG] updateStreamingMessage fallback contentBlocks: preserving terminal state', existingBlock.toolCall.state, 'for tool', toolCallBlock.toolCall.name)
+                      return {
+                        ...newBlock,
+                        toolCall: {
+                          ...toolCallBlock.toolCall,
+                          state: existingBlock.toolCall.state,
+                          displayName: existingBlock.toolCall.displayName
+                        }
+                      }
+                    }
+                  }
+                  return newBlock
+                })
+                
                 return {
                   ...msg,
                   content: '', // Don't use accumulated content for display
-                  toolCalls: update.toolCalls.length > 0 ? [...update.toolCalls] : [],
-                  contentBlocks: update.contentBlocks.length > 0 ? createOptimizedContentBlocks(update.contentBlocks) : [],
+                  toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : [],
+                  contentBlocks: mergedContentBlocks.length > 0 ? createOptimizedContentBlocks(mergedContentBlocks) : [],
                 }
               }
               return msg
@@ -1260,6 +1440,8 @@ export const useCopilotStore = create<CopilotStore>()(
       // Update preview tool call state
       updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected') => {
         const { messages } = get()
+        
+        console.log('[DEBUG] updatePreviewToolCallState called with:', toolCallState)
 
         // Find the last message with a preview_workflow or targeted_updates tool call
         const lastMessageWithPreview = [...messages]
@@ -1275,8 +1457,10 @@ export const useCopilotStore = create<CopilotStore>()(
           )
 
         if (lastMessageWithPreview) {
-          set((state) => ({
-            messages: state.messages.map((msg) =>
+          console.log('[DEBUG] About to update tool call states in store')
+          
+          set((state) => {
+            const updatedMessages = state.messages.map((msg) =>
               msg.id === lastMessageWithPreview.id
                 ? {
                     ...msg,
@@ -1306,12 +1490,22 @@ export const useCopilotStore = create<CopilotStore>()(
                     ),
                   }
                 : msg
-            ),
-          }))
+            )
+            
+            console.log('[DEBUG] Updated messages with new tool call states:', {
+              messageId: lastMessageWithPreview.id,
+              newState: toolCallState,
+              updatedCount: updatedMessages.filter(m => m.id === lastMessageWithPreview.id).length
+            })
+            
+            return { messages: updatedMessages }
+          })
           
           // Persist the updated tool call states to the database
           const { currentChat } = get()
           if (currentChat) {
+            console.log('[DEBUG] Starting database persistence for tool call state update')
+            
             // Get the updated messages after state change
             const updatedMessages = get().messages
             const dbMessages = updatedMessages.map(msg => ({
@@ -1323,6 +1517,8 @@ export const useCopilotStore = create<CopilotStore>()(
               ...(msg.contentBlocks && msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks })
             }))
 
+            console.log('[DEBUG] About to persist', dbMessages.length, 'messages to database')
+
             fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1332,11 +1528,14 @@ export const useCopilotStore = create<CopilotStore>()(
               })
             }).then(response => {
               if (response.ok) {
+                console.log('[DEBUG] Successfully persisted tool call state update to database')
                 logger.info('Successfully persisted updated tool call states to database')
               } else {
+                console.log('[DEBUG] Failed to persist tool call state update:', response.statusText)
                 logger.error('Failed to persist updated tool call states:', response.statusText)
               }
             }).catch(error => {
+              console.log('[DEBUG] Error persisting tool call state update:', error)
               logger.error('Error persisting updated tool call states:', error)
             })
           }
@@ -1691,16 +1890,62 @@ export const useCopilotStore = create<CopilotStore>()(
             .join('')
 
           set((state) => ({
-            messages: state.messages.map((msg) =>
-              msg.id === messageId
-                ? {
-                    ...msg,
-                    content: finalContent, // Set final content for non-streaming display
-                    toolCalls: context.toolCalls,
-                    contentBlocks: context.contentBlocks,
+            messages: state.messages.map((msg) => {
+              if (msg.id === messageId) {
+                // Preserve terminal states in final update
+                const existingMsg = state.messages.find(m => m.id === messageId)
+                
+                // Merge tool calls while preserving terminal states
+                const mergedToolCalls = context.toolCalls.map(newToolCall => {
+                  const existingToolCall = existingMsg?.toolCalls?.find(tc => tc.id === newToolCall.id)
+                  const isWorkflowTool = newToolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || newToolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+                  const hasTerminalState = existingToolCall?.state === 'applied' || existingToolCall?.state === 'rejected'
+                  
+                  if (isWorkflowTool && hasTerminalState && existingToolCall) {
+                    console.log('[DEBUG] final update: preserving terminal state', existingToolCall.state, 'for tool', newToolCall.name)
+                    return {
+                      ...newToolCall,
+                      state: existingToolCall.state,
+                      displayName: existingToolCall.displayName
+                    }
                   }
-                : msg
-            ),
+                  return newToolCall
+                })
+                
+                // Merge content blocks while preserving terminal states
+                const mergedContentBlocks = context.contentBlocks.map(newBlock => {
+                  if (newBlock.type === 'tool_call') {
+                    const existingBlock = existingMsg?.contentBlocks?.find(
+                      (b): b is any => b.type === 'tool_call' && (b as any).toolCall.id === (newBlock as any).toolCall.id
+                    )
+                    const toolCallBlock = newBlock as any
+                    const isWorkflowTool = toolCallBlock.toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCallBlock.toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+                    const hasTerminalState = existingBlock?.toolCall.state === 'applied' || existingBlock?.toolCall.state === 'rejected'
+                    
+                    if (isWorkflowTool && hasTerminalState && existingBlock) {
+                      console.log('[DEBUG] final update contentBlocks: preserving terminal state', existingBlock.toolCall.state, 'for tool', toolCallBlock.toolCall.name)
+                      return {
+                        ...newBlock,
+                        toolCall: {
+                          ...toolCallBlock.toolCall,
+                          state: existingBlock.toolCall.state,
+                          displayName: existingBlock.toolCall.displayName
+                        }
+                      }
+                    }
+                  }
+                  return newBlock
+                })
+                
+                return {
+                  ...msg,
+                  content: finalContent, // Set final content for non-streaming display
+                  toolCalls: mergedToolCalls,
+                  contentBlocks: mergedContentBlocks,
+                }
+              }
+              return msg
+            }),
             isSendingMessage: false,
             abortController: null,
           }))
