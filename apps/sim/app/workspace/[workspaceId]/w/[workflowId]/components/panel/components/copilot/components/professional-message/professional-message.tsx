@@ -433,18 +433,18 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
       </a>
     ),
     ul: ({ children }: any) => (
-      <div className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 py-1 my-1'>
-        <ul className='list-disc space-y-0 leading-tight pl-4'>{children}</ul>
+      <div className='border-muted-foreground/10 border-l-2 bg-muted/15 pl-3 py-1 -mt-1 mb-1 rounded-r-md'>
+        <ul className='list-disc space-y-0 leading-none pl-4 my-0'>{children}</ul>
       </div>
     ),
     ol: ({ children }: any) => (
-      <div className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 py-1 my-1'>
-        <ol className='list-decimal space-y-0 leading-tight pl-4'>{children}</ol>
+      <div className='border-muted-foreground/10 border-l-2 bg-muted/15 pl-3 py-1 -mt-1 mb-1 rounded-r-md'>
+        <ol className='list-decimal space-y-0 leading-none pl-4 my-0'>{children}</ol>
       </div>
     ),
-    li: ({ children }: any) => <li className='text-foreground leading-tight'>{children}</li>,
+    li: ({ children }: any) => <li className='text-foreground leading-none my-0 py-0'>{children}</li>,
     blockquote: ({ children }: any) => (
-      <blockquote className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 text-muted-foreground italic leading-tight [&_div:has(ul)]:border-0 [&_div:has(ul)]:bg-transparent [&_div:has(ol)]:border-0 [&_div:has(ol)]:bg-transparent'>
+      <blockquote className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 text-muted-foreground italic leading-tight'>
         {children}
       </blockquote>
     ),
