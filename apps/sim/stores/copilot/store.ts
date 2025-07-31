@@ -100,20 +100,18 @@ function getToolDisplayNameByState(toolCall: any): string {
   const toolName = toolCall.name
   const state = toolCall.state
   
-  const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-  
-  if (state === 'ready_for_review' && isWorkflowTool) {
-    const pastTense = COPILOT_TOOL_PAST_TENSE[toolName] || toolCall.displayName || getToolDisplayName(toolName)
-    return `${pastTense} - ready for review`
-  } else if (state === 'completed' || state === 'applied') {
-    return COPILOT_TOOL_PAST_TENSE[toolName] || toolCall.displayName || getToolDisplayName(toolName)
+  if (state === 'completed' || state === 'applied' || state === 'ready_for_review') {
+    // All success states use past tense
+    return COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
   } else if (state === 'error') {
-    return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${(toolCall.displayName || getToolDisplayName(toolName)).toLowerCase()}`
-  } else if (state === 'rejected' && isWorkflowTool) {
-    return 'Workflow changes rejected'
+    return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${getToolDisplayName(toolName).toLowerCase()}`
+  } else if (state === 'rejected') {
+    // Special handling for rejected workflow tools
+    const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+    return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
   } else {
     // For executing, aborted, etc. - use present tense
-    return toolCall.displayName || getToolDisplayName(toolName)
+    return getToolDisplayName(toolName)
   }
 }
 
@@ -127,14 +125,14 @@ function ensureToolCallDisplayNames(messages: CopilotMessage[]): CopilotMessage[
     if (message.role === 'assistant' && (message.toolCalls || message.contentBlocks)) {
       return {
         ...message,
-        // Add displayName to toolCalls if missing, considering state
+        // Always recalculate displayName based on current state
         ...(message.toolCalls && {
           toolCalls: message.toolCalls.map((toolCall: any) => ({
             ...toolCall,
             displayName: getToolDisplayNameByState(toolCall)
           }))
         }),
-        // Add displayName to tool calls in contentBlocks if missing, considering state
+        // Always recalculate displayName based on current state
         ...(message.contentBlocks && {
           contentBlocks: message.contentBlocks.map((block: any) => 
             block.type === 'tool_call' ? {
@@ -184,6 +182,9 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
 function handleToolFailure(toolCall: any, error: string): void {
   toolCall.state = 'error'
   toolCall.error = error
+  
+  // Update displayName to match the error state
+  toolCall.displayName = getToolDisplayNameByState(toolCall)
 
   logger.error('Tool call failed:', toolCall.id, toolCall.name, error)
 }
@@ -218,6 +219,9 @@ function finalizeToolCall(toolCall: any, success: boolean, result?: any): void {
       toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
         ? 'ready_for_review'
         : 'completed'
+    
+    // Update displayName to match the new state
+    toolCall.displayName = getToolDisplayNameByState(toolCall)
   }
 }
 
@@ -351,11 +355,12 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     context.accumulatedContent += data.data
 
-    // Update existing text block or create new one
+    // Update existing text block or create new one (optimized for minimal array mutations)
     if (context.currentTextBlock && context.contentBlocks.length > 0) {
-      // Find the last text block and update it
+      // Find the last text block and update it in-place
       const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
-      if (lastBlock.type === 'text') {
+      if (lastBlock.type === 'text' && lastBlock === context.currentTextBlock) {
+        // Efficiently update existing text block content in-place
         lastBlock.content += data.data
       } else {
         // Last block is not text, create a new text block
@@ -447,9 +452,10 @@ const sseHandlers: Record<string, SSEHandler> = {
 
   content_block_delta: (data, context, get, set) => {
     if (context.currentBlockType === 'text' && data.delta?.text) {
-      // For Anthropic, update the current text block
+      // For Anthropic, update the current text block efficiently
       context.accumulatedContent += data.delta.text
       if (context.currentTextBlock) {
+        // Update text content in-place for better performance
         context.currentTextBlock.content += data.delta.text
         updateStreamingMessage(set, context)
       }
@@ -458,6 +464,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       data.delta?.partial_json &&
       context.toolCallBuffer
     ) {
+      // Update partial JSON in-place
       context.toolCallBuffer.partialInput += data.delta.partial_json
     }
   },
@@ -582,22 +589,77 @@ function updateContentBlockText(contentBlocks: any[], textBlock: any) {
 }
 
 /**
- * Helper function to update streaming message in state
+ * Debounced UI update queue for smoother streaming
+ */
+let streamingUpdateQueue = new Map<string, StreamingContext>()
+let streamingUpdateRAF: number | null = null
+
+/**
+ * Helper function to create a shallow copy of content blocks only when needed
+ */
+function createOptimizedContentBlocks(contentBlocks: any[]): any[] {
+  // Create shallow copy for React to detect changes, but reuse objects where possible
+  return contentBlocks.map(block => ({ ...block }))
+}
+
+/**
+ * Helper function to update streaming message in state with debouncing
  */
 function updateStreamingMessage(set: any, context: StreamingContext) {
-  set((state: CopilotStore) => ({
-    messages: state.messages.map((msg: CopilotMessage) =>
-      msg.id === context.messageId
-        ? {
-            ...msg,
+  // Queue this update
+  streamingUpdateQueue.set(context.messageId, context)
+  
+  // If no RAF is scheduled, schedule one
+  if (streamingUpdateRAF === null) {
+    streamingUpdateRAF = requestAnimationFrame(() => {
+      // Process all queued updates in a single batch
+      const updates = new Map(streamingUpdateQueue)
+      streamingUpdateQueue.clear()
+      streamingUpdateRAF = null
+      
+      set((state: CopilotStore) => {
+        // Optimize for the common case where we're only updating the last message
+        const messages = state.messages
+        const hasUpdates = updates.size > 0
+        
+        if (!hasUpdates) {
+          return state
+        }
+        
+        // Check if we're only updating the last message (common during streaming)
+        const lastMessage = messages[messages.length - 1]
+        const lastMessageUpdate = lastMessage ? updates.get(lastMessage.id) : null
+        
+        if (updates.size === 1 && lastMessageUpdate) {
+          // Fast path: only updating the last message
+          const newMessages = [...messages]
+          newMessages[messages.length - 1] = {
+            ...lastMessage,
             content: '', // Don't use accumulated content for display
-            toolCalls: [...context.toolCalls],
-            contentBlocks: [...context.contentBlocks], // This preserves stream order
-            lastUpdated: Date.now(),
+            toolCalls: lastMessageUpdate.toolCalls.length > 0 ? [...lastMessageUpdate.toolCalls] : [],
+            contentBlocks: lastMessageUpdate.contentBlocks.length > 0 ? createOptimizedContentBlocks(lastMessageUpdate.contentBlocks) : [],
           }
-        : msg
-    ),
-  }))
+          return { messages: newMessages }
+        } else {
+          // Fallback to mapping for multiple updates or non-last message updates
+          return {
+            messages: messages.map((msg: CopilotMessage) => {
+              const update = updates.get(msg.id)
+              if (update) {
+                return {
+                  ...msg,
+                  content: '', // Don't use accumulated content for display
+                  toolCalls: update.toolCalls.length > 0 ? [...update.toolCalls] : [],
+                  contentBlocks: update.contentBlocks.length > 0 ? createOptimizedContentBlocks(update.contentBlocks) : [],
+                }
+              }
+              return msg
+            }),
+          }
+        }
+      })
+    })
+  }
 }
 
 /**
@@ -1212,6 +1274,40 @@ export const useCopilotStore = create<CopilotStore>()(
                 : msg
             ),
           }))
+          
+          // Persist the updated tool call states to the database
+          const { currentChat } = get()
+          if (currentChat) {
+            // Get the updated messages after state change
+            const updatedMessages = get().messages
+            const dbMessages = updatedMessages.map(msg => ({
+              id: msg.id,
+              role: msg.role,
+              content: msg.content,
+              timestamp: msg.timestamp,
+              ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
+              ...(msg.contentBlocks && msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks })
+            }))
+
+            fetch('/api/copilot/chat/update-messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                chatId: currentChat.id,
+                messages: dbMessages
+              })
+            }).then(response => {
+              if (response.ok) {
+                logger.info('Successfully persisted updated tool call states to database')
+              } else {
+                logger.error('Failed to persist updated tool call states:', response.statusText)
+              }
+            }).catch(error => {
+              logger.error('Error persisting updated tool call states:', error)
+            })
+          }
+        } else {
+          logger.warn('No message with workflow tool calls found for state update')
         }
       },
 
@@ -1547,6 +1643,13 @@ export const useCopilotStore = create<CopilotStore>()(
             `Completed streaming response, content length: ${context.accumulatedContent.length}`
           )
 
+          // Cancel any pending RAF updates and clear queue
+          if (streamingUpdateRAF !== null) {
+            cancelAnimationFrame(streamingUpdateRAF)
+            streamingUpdateRAF = null
+          }
+          streamingUpdateQueue.clear()
+
           // Final update - build content from contentBlocks for final message
           const finalContent = context.contentBlocks
             .filter((block) => block.type === 'text')
@@ -1618,6 +1721,12 @@ export const useCopilotStore = create<CopilotStore>()(
           // Handle AbortError gracefully
           if (error instanceof Error && error.name === 'AbortError') {
             logger.info('Stream reading was aborted by user')
+            // Cancel any pending RAF updates and clear queue on abort
+            if (streamingUpdateRAF !== null) {
+              cancelAnimationFrame(streamingUpdateRAF)
+              streamingUpdateRAF = null
+            }
+            streamingUpdateQueue.clear()
             return
           }
 

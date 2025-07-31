@@ -30,7 +30,7 @@ interface WorkflowDiffActions {
   getCurrentWorkflowForCanvas: () => WorkflowState
   toggleDiffView: () => void
   acceptChanges: () => Promise<void>
-  rejectChanges: () => void
+  rejectChanges: () => Promise<void>
 }
 
 /**
@@ -249,15 +249,31 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           // Clear the diff
           get().clearDiff()
+
+          // Update copilot tool call state to 'applied'
+          try {
+            const { useCopilotStore } = await import('@/stores/copilot/store')
+            useCopilotStore.getState().updatePreviewToolCallState('applied')
+          } catch (error) {
+            logger.warn('Failed to update copilot tool call state after accept:', error)
+          }
         } catch (error) {
           logger.error('Failed to accept changes:', error)
           throw error
         }
       },
 
-      rejectChanges: () => {
+      rejectChanges: async () => {
         logger.info('Rejecting proposed changes')
         get().clearDiff()
+
+        // Update copilot tool call state to 'rejected'
+        try {
+          const { useCopilotStore } = await import('@/stores/copilot/store')
+          useCopilotStore.getState().updatePreviewToolCallState('rejected')
+        } catch (error) {
+          logger.warn('Failed to update copilot tool call state after reject:', error)
+        }
       },
 
       getCurrentWorkflowForCanvas: () => {

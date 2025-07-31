@@ -1,6 +1,6 @@
 'use client'
 
-import { type FC, memo, useEffect, useMemo, useState } from 'react'
+import { type FC, memo, useEffect, useMemo, useState, useRef } from 'react'
 import {
   Check,
   CheckCircle,
@@ -20,6 +20,7 @@ import {
   ThumbsDown,
   ThumbsUp,
   Wrench,
+  X,
   XCircle,
   Zap,
 } from 'lucide-react'
@@ -36,6 +37,115 @@ interface ProfessionalMessageProps {
   message: CopilotMessage
   isStreaming?: boolean
 }
+
+// Memoized streaming indicator component for better performance
+const StreamingIndicator = memo(() => (
+  <div className='flex items-center py-1 text-muted-foreground transition-opacity duration-200 ease-in-out'>
+    <div className='flex space-x-0.5'>
+      <div
+        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
+        style={{ animationDelay: '0ms', animationDuration: '1.2s' }}
+      />
+      <div
+        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
+        style={{ animationDelay: '0.15s', animationDuration: '1.2s' }}
+      />
+      <div
+        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
+        style={{ animationDelay: '0.3s', animationDuration: '1.2s' }}
+      />
+    </div>
+  </div>
+))
+
+StreamingIndicator.displayName = 'StreamingIndicator'
+
+// Smooth streaming text component with typewriter effect
+interface SmoothStreamingTextProps {
+  content: string
+  isStreaming: boolean
+  markdownComponents: any
+}
+
+const SmoothStreamingText = memo(({ content, isStreaming, markdownComponents }: SmoothStreamingTextProps) => {
+  const [displayedContent, setDisplayedContent] = useState('')
+  const contentRef = useRef(content)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const indexRef = useRef(0)
+
+  useEffect(() => {
+    // Update content reference
+    contentRef.current = content
+    
+    if (content.length === 0) {
+      setDisplayedContent('')
+      indexRef.current = 0
+      return
+    }
+
+    // If content increased and we're streaming, animate the new characters
+    if (isStreaming && content.length > displayedContent.length) {
+      const animateText = () => {
+        const currentContent = contentRef.current
+        const currentIndex = indexRef.current
+        
+        if (currentIndex < currentContent.length) {
+          // Add characters in small chunks for smoother appearance
+          const chunkSize = Math.min(3, currentContent.length - currentIndex)
+          const newDisplayed = currentContent.slice(0, currentIndex + chunkSize)
+          
+          setDisplayedContent(newDisplayed)
+          indexRef.current = currentIndex + chunkSize
+          
+          // Vary speed based on character type for more natural feel
+          const nextChar = currentContent[currentIndex + chunkSize]
+          let delay = 12 // Base delay in ms (faster for more responsive feel)
+          
+          if (nextChar === ' ') delay = 20 // Slightly slower for spaces
+          else if (nextChar === '.' || nextChar === '!' || nextChar === '?') delay = 80 // Pause at sentence endings
+          else if (nextChar === ',' || nextChar === ';') delay = 40 // Short pause at commas
+          else if (nextChar === '\n') delay = 60 // Pause at line breaks
+          
+          timeoutRef.current = setTimeout(animateText, delay)
+        }
+      }
+
+      // Clear any existing animation
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+      
+      // Start or continue animation from where we left off
+      animateText()
+    } else if (!isStreaming) {
+      // Not streaming, show all content immediately
+      setDisplayedContent(content)
+      indexRef.current = content.length
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [content, isStreaming, displayedContent.length])
+
+  return (
+    <div className='relative' style={{ minHeight: '1.25rem' }}>
+      <div className='whitespace-pre-wrap break-words text-foreground'>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={markdownComponents}
+        >
+          {displayedContent}
+        </ReactMarkdown>
+      </div>
+    </div>
+  )
+})
+
+SmoothStreamingText.displayName = 'SmoothStreamingText'
 
 // Maximum character length for a word before it's broken up
 const MAX_WORD_LENGTH = 25
@@ -74,23 +184,28 @@ const WordWrap = ({ text }: { text: string }) => {
 
 // Helper function to get appropriate tool display name based on state
 function getToolDisplayNameByState(tool: any): string {
+  // Use the pre-calculated displayName from the store if available
+  // The store's version handles all the state transitions properly
+  if (tool.displayName) {
+    return tool.displayName
+  }
+  
+  // Fallback logic if displayName is not set (shouldn't happen with proper store setup)
   const toolName = tool.name
   const state = tool.state
   
-  const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-  
-  if (state === 'ready_for_review' && isWorkflowTool) {
-    const pastTense = COPILOT_TOOL_PAST_TENSE[toolName] || tool.displayName || toolName
-    return `${pastTense} - ready for review`
-  } else if (state === 'completed' || state === 'applied') {
-    return COPILOT_TOOL_PAST_TENSE[toolName] || tool.displayName || toolName
+  if (state === 'completed' || state === 'applied' || state === 'ready_for_review') {
+    // All success states use past tense
+    return COPILOT_TOOL_PAST_TENSE[toolName] || toolName
   } else if (state === 'error') {
-    return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${(tool.displayName || toolName).toLowerCase()}`
-  } else if (state === 'rejected' && isWorkflowTool) {
-    return 'Workflow changes rejected'
+    return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${toolName.toLowerCase()}`
+  } else if (state === 'rejected') {
+    // Special handling for rejected workflow tools
+    const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+    return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${toolName.toLowerCase()}`
   } else {
     // For executing, aborted, etc. - use present tense
-    return tool.displayName || COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
+    return COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
   }
 }
 
@@ -374,6 +489,68 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
     ),
   }
 
+  // Memoize content blocks to avoid re-rendering unchanged blocks
+  const memoizedContentBlocks = useMemo(() => {
+    if (!message.contentBlocks || message.contentBlocks.length === 0) {
+      return null
+    }
+
+    return message.contentBlocks.map((block, index) => {
+      if (block.type === 'text') {
+        const isLastTextBlock =
+          index === message.contentBlocks!.length - 1 && block.type === 'text'
+        // Clean content for this text block
+        const cleanBlockContent = block.content.replace(/\n{3,}/g, '\n\n')
+        
+        // Use smooth streaming for the last text block if we're streaming
+        const shouldUseSmoothing = isStreaming && isLastTextBlock
+        
+        return (
+          <div 
+            key={`text-${index}-${block.timestamp || index}`} 
+            className='w-full transition-opacity duration-200 ease-in-out'
+            style={{ 
+              opacity: cleanBlockContent.length > 0 ? 1 : 0.7,
+              transform: shouldUseSmoothing ? 'translateY(0)' : undefined,
+              transition: shouldUseSmoothing ? 'transform 0.1s ease-out, opacity 0.2s ease-in-out' : 'opacity 0.2s ease-in-out'
+            }}
+          >
+            <div className='overflow-wrap-anywhere relative whitespace-normal break-normal font-normal text-sm leading-tight'>
+              {shouldUseSmoothing ? (
+                <SmoothStreamingText
+                  content={cleanBlockContent}
+                  isStreaming={isStreaming}
+                  markdownComponents={markdownComponents}
+                />
+              ) : (
+                <div className='whitespace-pre-wrap break-words text-foreground'>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents}
+                  >
+                    {cleanBlockContent}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+      if (block.type === 'tool_call') {
+        return (
+          <div 
+            key={`tool-${block.toolCall.id}`}
+            className='transition-opacity duration-300 ease-in-out'
+            style={{ opacity: 1 }}
+          >
+            <InlineToolCall tool={block.toolCall} />
+          </div>
+        )
+      }
+      return null
+    })
+  }, [message.contentBlocks, markdownComponents, isStreaming])
+
   if (isUser) {
     return (
       <div className='w-full py-2'>
@@ -398,7 +575,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
                       {isRevertingCheckpoint ? (
                         <Loader2 className='h-3 w-3 animate-spin' />
                       ) : (
-                        <ThumbsUp className='h-3 w-3' />
+                        <Check className='h-3 w-3' />
                       )}
                     </button>
                     <button
@@ -407,7 +584,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
                       className='text-xs text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
                       title='Cancel restore'
                     >
-                      <ThumbsDown className='h-3 w-3' />
+                      <X className='h-3 w-3' />
                     </button>
                   </div>
                 ) : (
@@ -432,58 +609,18 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
   if (isAssistant) {
     return (
       <div className='w-full py-2 pl-[2px]'>
-        <div className='space-y-2'>
+        <div className='space-y-2 transition-all duration-200 ease-in-out'>
           {/* Content blocks in chronological order or fallback to old layout */}
-          {message.contentBlocks && message.contentBlocks.length > 0 ? (
+          {memoizedContentBlocks ? (
             // Render content blocks in chronological order
             <>
-              {message.contentBlocks.map((block, index) => {
-                if (block.type === 'text') {
-                  const isLastTextBlock =
-                    index === message.contentBlocks!.length - 1 && block.type === 'text'
-                  // Clean content for this text block
-                  const cleanBlockContent = block.content.replace(/\n{3,}/g, '\n\n')
-                  return (
-                    <div key={`text-${index}`} className='w-full'>
-                      <div className='overflow-wrap-anywhere relative whitespace-normal break-normal font-normal text-sm leading-tight'>
-                        <div className='whitespace-pre-wrap break-words text-foreground'>
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={markdownComponents}
-                          >
-                            {cleanBlockContent}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                }
-                if (block.type === 'tool_call') {
-                  return <InlineToolCall key={`tool-${block.toolCall.id}`} tool={block.toolCall} />
-                }
-                return null
-              })}
+              {memoizedContentBlocks}
 
               {/* Show streaming indicator if streaming but no text content yet after tool calls */}
               {isStreaming &&
                 !message.content &&
-                message.contentBlocks.every((block) => block.type === 'tool_call') && (
-                  <div className='flex items-center py-1 text-muted-foreground'>
-                    <div className='flex space-x-0.5'>
-                      <div
-                        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-                        style={{ animationDelay: '0ms' }}
-                      />
-                      <div
-                        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-                        style={{ animationDelay: '100ms' }}
-                      />
-                      <div
-                        className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-                        style={{ animationDelay: '200ms' }}
-                      />
-                    </div>
-                  </div>
+                message.contentBlocks?.every((block) => block.type === 'tool_call') && (
+                  <StreamingIndicator />
                 )}
             </>
           ) : (
@@ -500,13 +637,27 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
 
               {/* Regular text content */}
               {cleanTextContent && (
-                <div className='w-full'>
+                <div 
+                  className='w-full transition-opacity duration-200 ease-in-out'
+                  style={{ 
+                    opacity: cleanTextContent.length > 0 ? 1 : 0.7,
+                    transition: 'opacity 0.2s ease-in-out'
+                  }}
+                >
                   <div className='overflow-wrap-anywhere relative whitespace-normal break-normal font-normal text-sm leading-tight'>
-                    <div className='whitespace-pre-wrap break-words text-foreground'>
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                        {cleanTextContent}
-                      </ReactMarkdown>
-                    </div>
+                    {isStreaming ? (
+                      <SmoothStreamingText
+                        content={cleanTextContent}
+                        isStreaming={isStreaming}
+                        markdownComponents={markdownComponents}
+                      />
+                    ) : (
+                      <div className='whitespace-pre-wrap break-words text-foreground'>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                          {cleanTextContent}
+                        </ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -515,22 +666,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
 
           {/* Streaming indicator when no content yet */}
           {!cleanTextContent && !message.contentBlocks?.length && isStreaming && (
-            <div className='flex items-center py-2 text-muted-foreground'>
-              <div className='flex space-x-0.5'>
-                <div
-                  className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-                  style={{ animationDelay: '0ms' }}
-                />
-                <div
-                  className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-                  style={{ animationDelay: '100ms' }}
-                />
-                <div
-                  className='h-1 w-1 animate-bounce rounded-full bg-muted-foreground'
-                  style={{ animationDelay: '200ms' }}
-                />
-              </div>
-            </div>
+            <StreamingIndicator />
           )}
 
           {/* Action buttons for completed messages */}
@@ -597,6 +733,69 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
   }
 
   return null
+}, (prevProps, nextProps) => {
+  // Custom comparison function for better streaming performance
+  const prevMessage = prevProps.message
+  const nextMessage = nextProps.message
+  
+  // If message IDs are different, always re-render
+  if (prevMessage.id !== nextMessage.id) {
+    return false
+  }
+  
+  // If streaming state changed, re-render
+  if (prevProps.isStreaming !== nextProps.isStreaming) {
+    return false
+  }
+  
+  // For streaming messages, check if content actually changed
+  if (nextProps.isStreaming) {
+    // Compare contentBlocks length and lastUpdated for streaming messages
+    const prevBlocks = prevMessage.contentBlocks || []
+    const nextBlocks = nextMessage.contentBlocks || []
+    
+    if (prevBlocks.length !== nextBlocks.length) {
+      return false // Content blocks changed
+    }
+    
+    // Check if any text content changed in the last block
+    if (nextBlocks.length > 0) {
+      const prevLastBlock = prevBlocks[prevBlocks.length - 1]
+      const nextLastBlock = nextBlocks[nextBlocks.length - 1]
+      
+      if (prevLastBlock?.type === 'text' && nextLastBlock?.type === 'text') {
+        if (prevLastBlock.content !== nextLastBlock.content) {
+          return false // Text content changed
+        }
+      }
+    }
+    
+    // Check if tool calls changed
+    const prevToolCalls = prevMessage.toolCalls || []
+    const nextToolCalls = nextMessage.toolCalls || []
+    
+    if (prevToolCalls.length !== nextToolCalls.length) {
+      return false // Tool calls count changed
+    }
+    
+    // Check if any tool call state changed
+    for (let i = 0; i < nextToolCalls.length; i++) {
+      if (prevToolCalls[i]?.state !== nextToolCalls[i]?.state) {
+        return false // Tool call state changed
+      }
+    }
+    
+    // If we reach here, nothing meaningful changed during streaming
+    return true
+  }
+  
+  // For non-streaming messages, do a basic comparison
+  return (
+    prevMessage.content === nextMessage.content &&
+    prevMessage.role === nextMessage.role &&
+    (prevMessage.toolCalls?.length || 0) === (nextMessage.toolCalls?.length || 0) &&
+    (prevMessage.contentBlocks?.length || 0) === (nextMessage.contentBlocks?.length || 0)
+  )
 })
 
 ProfessionalMessage.displayName = 'ProfessionalMessage'
