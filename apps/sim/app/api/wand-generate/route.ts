@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = (await req.json()) as RequestBody
     noStore()
+    const body = (await req.json()) as RequestBody
 
     const { prompt, systemPrompt, stream = false, history = [] } = body
 
