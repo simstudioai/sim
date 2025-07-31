@@ -216,6 +216,7 @@ export interface CopilotActions {
   clearSaveError: () => void
   clearCheckpointError: () => void
   retrySave: (chatId: string) => Promise<void>
+  cleanup: () => void
   reset: () => void
 
   // Input control actions

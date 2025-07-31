@@ -903,6 +903,13 @@ export const useCopilotStore = create<CopilotStore>()(
           return
         }
 
+        // Abort any ongoing streams before switching workflows
+        const { isSendingMessage } = get()
+        if (isSendingMessage) {
+          logger.info('Aborting ongoing copilot stream due to workflow switch')
+          get().abortMessage()
+        }
+
         logger.info(`Setting workflow ID: ${workflowId}`)
 
         // Reset state when switching workflows, including chat cache and checkpoints
@@ -940,11 +947,29 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Select chat and load latest messages
       selectChat: async (chat: CopilotChat) => {
-        const { workflowId } = get()
+        console.log('💬💬💬 SELECT CHAT CALLED 💬💬💬', { newChatId: chat.id })
+        const { workflowId, currentChat } = get()
 
         if (!workflowId) {
           logger.warn('Cannot select chat: no workflow ID set')
           return
+        }
+
+        // Abort any ongoing streams before switching chats
+        if (currentChat && currentChat.id !== chat.id) {
+          console.log('🔍 Different chat selected, checking for active stream')
+          const { isSendingMessage, abortController } = get()
+          console.log('🔍 Stream state on chat switch:', { isSendingMessage, hasAbortController: !!abortController })
+          
+          if (isSendingMessage) {
+            console.log('🛑 ABORTING STREAM DUE TO CHAT SWITCH')
+            logger.info('Aborting ongoing copilot stream due to chat switch')
+            get().abortMessage()
+          } else {
+            console.log('ℹ️ NO ACTIVE STREAM TO ABORT ON CHAT SWITCH')
+          }
+        } else {
+          console.log('ℹ️ Same chat selected or no current chat')
         }
 
         // Optimistically set the chat first
@@ -1001,13 +1026,31 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Create a new chat - clear current chat state like when switching workflows
       createNewChat: async () => {
+        console.log('🆕🆕🆕 CREATE NEW CHAT CALLED 🆕🆕🆕')
+        logger.info('=== CREATE NEW CHAT CALLED ===')
+        
+        // Abort any ongoing streams before creating new chat
+        const { isSendingMessage, abortController } = get()
+        console.log('🔍 Current streaming state:', { isSendingMessage, hasAbortController: !!abortController })
+        logger.info('Current streaming state:', { isSendingMessage, hasAbortController: !!abortController })
+        
+        if (isSendingMessage) {
+          console.log('🛑 ABORTING STREAM DUE TO NEW CHAT')
+          logger.info('🛑 Aborting ongoing copilot stream due to new chat creation')
+          get().abortMessage()
+          logger.info('✅ Abort message completed')
+        } else {
+          console.log('ℹ️ NO ACTIVE STREAM TO ABORT')
+          logger.info('ℹ️ No active stream to abort')
+        }
+
         // Set state to null so backend creates a new chat on first message
         set({
           currentChat: null,
           messages: [],
           messageCheckpoints: {}, // Clear checkpoints when creating new chat
         })
-        logger.info('Cleared chat state for new conversation')
+        logger.info('🆕 Cleared chat state for new conversation')
       },
 
       // Delete chat is now a no-op since we don't have the API
@@ -1231,19 +1274,28 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Abort current message streaming
       abortMessage: () => {
+        logger.info('🛑 ABORT MESSAGE CALLED')
         const { abortController, isSendingMessage, messages } = get()
+        logger.info('Abort state check:', { 
+          isSendingMessage, 
+          hasAbortController: !!abortController,
+          abortControllerSignalAborted: abortController?.signal.aborted,
+          messagesCount: messages.length 
+        })
 
         if (!isSendingMessage || !abortController) {
-          logger.warn('Cannot abort: no active streaming request')
+          logger.warn('❌ Cannot abort: no active streaming request', { isSendingMessage, hasAbortController: !!abortController })
           return
         }
 
-        logger.info('Aborting message streaming')
+        logger.info('✅ Proceeding with abort - setting isAborting: true')
         set({ isAborting: true })
 
         try {
           // Abort the request
+          logger.info('🚫 Calling abortController.abort()')
           abortController.abort()
+          logger.info('🚫 AbortController.abort() completed, signal.aborted:', abortController.signal.aborted)
 
           // Find the last streaming message and mark any executing tool calls as aborted
           const lastMessage = messages[messages.length - 1]
@@ -1823,7 +1875,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
             // Check if we should abort
             if (abortController?.signal.aborted) {
-              logger.info('Stream reading aborted')
+              logger.info('🚫 Stream reading aborted - breaking out of SSE loop')
               break
             }
 
@@ -1991,8 +2043,34 @@ export const useCopilotStore = create<CopilotStore>()(
         await get().saveChatMessages(chatId)
       },
 
+      // Cleanup any ongoing streams
+      cleanup: () => {
+        logger.info('🧹 CLEANUP CALLED')
+        const { isSendingMessage } = get()
+        logger.info('Cleanup state check:', { isSendingMessage })
+        
+        if (isSendingMessage) {
+          logger.info('🧹 Cleaning up ongoing copilot stream')
+          // Call the full abort logic, not just abortController.abort()
+          get().abortMessage()
+        } else {
+          logger.info('🧹 No active stream to cleanup')
+        }
+        
+        // Cancel any pending RAF updates and clear queue
+        if (streamingUpdateRAF !== null) {
+          logger.info('🧹 Cancelling RAF updates')
+          cancelAnimationFrame(streamingUpdateRAF)
+          streamingUpdateRAF = null
+        }
+        streamingUpdateQueue.clear()
+        logger.info('🧹 Cleanup completed')
+      },
+
       // Reset entire store
       reset: () => {
+        // Cleanup before reset
+        get().cleanup()
         set(initialState)
       },
 
@@ -2007,11 +2085,18 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Update the diff store with proposed workflow changes
       updateDiffStore: async (yamlContent: string, toolName?: string) => {
+        // Check if we're in an aborted state before updating diff
+        const { abortController } = get()
+        if (abortController?.signal.aborted) {
+          logger.info('🚫 Skipping diff update - request was aborted')
+          return
+        }
+        
         try {
           // Import diff store dynamically to avoid circular dependencies
           const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
 
-          logger.info('Updating diff store with copilot YAML', {
+          logger.info('📊 Updating diff store with copilot YAML', {
             yamlLength: yamlContent.length,
             yamlPreview: yamlContent.substring(0, 200),
             toolName: toolName || 'unknown',

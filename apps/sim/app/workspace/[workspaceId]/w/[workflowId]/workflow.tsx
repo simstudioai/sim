@@ -22,6 +22,7 @@ import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/p
 import { ParallelNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/parallel-node/parallel-node'
 import { getBlock } from '@/blocks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -29,6 +30,7 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCopilotStore } from '@/stores/copilot/store'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
 import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
 import { useCurrentWorkflow } from './hooks'
@@ -91,6 +93,12 @@ const WorkflowContent = React.memo(() => {
   const currentWorkflow = useCurrentWorkflow()
 
   const { updateNodeDimensions, updateBlockPosition: storeUpdateBlockPosition } = useWorkflowStore()
+
+  // Get copilot cleanup function
+  const copilotCleanup = useCopilotStore((state) => state.cleanup)
+
+  // Handle copilot stream cleanup on page unload and component unmount
+  useStreamCleanup(copilotCleanup)
 
   // Extract workflow data from the abstraction
   const { blocks, edges, loops, parallels, isDiffMode } = currentWorkflow
