@@ -135,7 +135,7 @@ interface TemplateCardProps {
 // Skeleton component for loading states
 export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('rounded-[14px] border bg-card shadow-xs', 'flex h-[142px]', className)}>
+    <div className={cn('rounded-[8px] border bg-card shadow-xs', 'flex h-[142px]', className)}>
       {/* Left side - Info skeleton */}
       <div className='flex min-w-0 flex-1 flex-col justify-between p-4'>
         {/* Top section skeleton */}
@@ -180,7 +180,7 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
       </div>
 
       {/* Right side - Block Icons skeleton */}
-      <div className='flex w-16 flex-col items-center justify-center gap-2 rounded-r-[14px] border-border border-l bg-secondary p-2'>
+      <div className='flex w-16 flex-col items-center justify-center gap-2 rounded-r-[8px] border-border border-l bg-secondary p-2'>
         {Array.from({ length: 3 }).map((_, index) => (
           <div
             key={index}
@@ -365,7 +365,7 @@ export function TemplateCard({
   return (
     <div
       className={cn(
-        'group rounded-[14px] border bg-card shadow-xs transition-all duration-200 hover:border-border/80 hover:shadow-sm',
+        'group rounded-[8px] border bg-card shadow-xs transition-shadow duration-200 hover:border-border/80 hover:shadow-sm',
         'flex h-[142px]',
         className
       )}
@@ -379,7 +379,7 @@ export function TemplateCard({
               {/* Icon container */}
               <div
                 className={cn(
-                  'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md',
+                  'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[8px]',
                   // Use CSS class if iconColor doesn't start with #
                   iconColor?.startsWith('#') ? '' : iconColor || 'bg-blue-500'
                 )}
@@ -401,7 +401,7 @@ export function TemplateCard({
               <Star
                 onClick={handleStarClick}
                 className={cn(
-                  'h-4 w-4 cursor-pointer transition-all duration-200',
+                  'h-4 w-4 cursor-pointer transition-colors duration-50',
                   localIsStarred
                     ? 'fill-yellow-400 text-yellow-400'
                     : 'text-muted-foreground hover:fill-yellow-400 hover:text-yellow-400',
@@ -411,7 +411,7 @@ export function TemplateCard({
               <button
                 onClick={handleUseClick}
                 className={cn(
-                  'rounded-md px-3 py-1 font-medium font-sans text-white text-xs transition-all duration-200',
+                  'rounded-[8px] px-3 py-1 font-medium font-sans text-white text-xs transition-[background-color,box-shadow] duration-200',
                   'bg-[#701FFC] hover:bg-[#6518E6]',
                   'shadow-[0_0_0_0_#701FFC] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
                 )}
@@ -444,7 +444,7 @@ export function TemplateCard({
       </div>
 
       {/* Right side - Block Icons */}
-      <div className='flex w-16 flex-col items-center justify-center gap-2 rounded-r-[14px] border-border border-l bg-secondary p-2'>
+      <div className='flex w-16 flex-col items-center justify-center gap-2 rounded-r-[8px] border-border border-l bg-secondary p-2'>
         {blockTypes.length > 3 ? (
           <>
             {/* Show first 2 blocks when there are more than 3 */}
@@ -455,7 +455,7 @@ export function TemplateCard({
               return (
                 <div key={index} className='flex items-center justify-center'>
                   <div
-                    className='flex flex-shrink-0 items-center justify-center rounded'
+                    className='flex flex-shrink-0 items-center justify-center rounded-[8px]'
                     style={{
                       backgroundColor: blockConfig.bgColor || 'gray',
                       width: '30px',
@@ -470,7 +470,7 @@ export function TemplateCard({
             {/* Show +n block for remaining blocks */}
             <div className='flex items-center justify-center'>
               <div
-                className='flex flex-shrink-0 items-center justify-center rounded bg-muted-foreground'
+                className='flex flex-shrink-0 items-center justify-center rounded-[8px] bg-muted-foreground'
                 style={{ width: '30px', height: '30px' }}
               >
                 <span className='font-medium text-white text-xs'>+{blockTypes.length - 2}</span>
@@ -486,7 +486,7 @@ export function TemplateCard({
             return (
               <div key={index} className='flex items-center justify-center'>
                 <div
-                  className='flex flex-shrink-0 items-center justify-center rounded'
+                  className='flex flex-shrink-0 items-center justify-center rounded-[8px]'
                   style={{
                     backgroundColor: blockConfig.bgColor || 'gray',
                     width: '30px',

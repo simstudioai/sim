@@ -40,7 +40,6 @@ import {
   ExportControls,
   TemplateModal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components'
-import { WorkflowTextEditorModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-text-editor-modal'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import {
   getKeyboardShortcutText,

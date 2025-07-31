@@ -47,14 +47,14 @@ export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
       )}
     >
       <div
-        className='relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-[8px]'
+        className='relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
         style={{ backgroundColor: config.bgColor }}
       >
         <config.icon
           className={cn(
             'text-white transition-transform duration-200',
             !disabled && 'group-hover:scale-110',
-            'h-[14px] w-[14px]'
+            '!h-4 !w-4'
           )}
         />
       </div>
