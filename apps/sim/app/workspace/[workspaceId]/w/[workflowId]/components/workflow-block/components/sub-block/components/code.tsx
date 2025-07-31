@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
+import type { GenerationType } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('Code')
@@ -23,7 +24,7 @@ interface CodeProps {
   isConnecting: boolean
   placeholder?: string
   language?: 'javascript' | 'json'
-  generationType?: 'javascript-function-body' | 'json-schema' | 'json-object'
+  generationType?: GenerationType
   value?: string
   isPreview?: boolean
   previewValue?: string | null

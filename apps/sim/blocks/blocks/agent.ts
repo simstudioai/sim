@@ -238,7 +238,6 @@ Write naturally and comprehensively based on what the user actually asks for.`,
       layout: 'full',
       placeholder: 'Enter JSON schema...',
       language: 'json',
-      generationType: 'json-schema',
       wandConfig: {
         enabled: true,
         maintainHistory: true,

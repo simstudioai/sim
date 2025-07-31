@@ -41,7 +41,6 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
       layout: 'full',
       placeholder: '{\n  "message": "Hello world",\n  "userId": "<variable.userId>"\n}',
       language: 'json',
-      generationType: 'json-object',
       condition: { field: 'dataMode', value: 'json' },
       description:
         'Data that will be sent as the response body on API calls. Use <variable.name> to reference workflow variables.',

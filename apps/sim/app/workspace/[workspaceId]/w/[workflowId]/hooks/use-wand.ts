@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { GenerationType } from '@/blocks/types'
 
 const logger = createLogger('useWand')
 
@@ -54,7 +55,7 @@ interface ChatMessage {
 export interface WandConfig {
   enabled: boolean
   prompt: string
-  generationType?: string
+  generationType?: GenerationType
   placeholder?: string
   maintainHistory?: boolean // Whether to keep conversation history
 }
@@ -151,16 +152,14 @@ export function useWand({
         // Build context-aware message
         const contextInfo = buildContextInfo(currentValue, wandConfig.generationType)
 
-        // Build the user message by combining the wand config prompt with the user's input
-        let userMessage = wandConfig.prompt
-
-        // Replace {context} placeholder with rich context information
-        if (userMessage.includes('{context}')) {
-          userMessage = userMessage.replace('{context}', contextInfo)
+        // Build the system prompt with context information
+        let systemPrompt = wandConfig.prompt
+        if (systemPrompt.includes('{context}')) {
+          systemPrompt = systemPrompt.replace('{context}', contextInfo)
         }
 
-        // Append the user's specific prompt
-        userMessage += `\n\nSpecific request: ${prompt}`
+        // User message is just the user's specific request
+        const userMessage = prompt
 
         // Keep track of the current prompt for history
         const currentPrompt = prompt
@@ -173,7 +172,7 @@ export function useWand({
           },
           body: JSON.stringify({
             prompt: userMessage,
-            systemPrompt: wandConfig.prompt, // Send the wand config prompt as system prompt
+            systemPrompt: systemPrompt, // Send the processed system prompt with context
             stream: true,
             history: wandConfig.maintainHistory ? conversationHistory : [], // Include history if enabled
           }),
@@ -270,7 +269,14 @@ export function useWand({
         abortControllerRef.current = null
       }
     },
-    [wandConfig, currentValue, onGeneratedContent]
+    [
+      wandConfig,
+      currentValue,
+      onGeneratedContent,
+      onStreamChunk,
+      onStreamStart,
+      onGenerationComplete,
+    ]
   )
 
   return {

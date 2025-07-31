@@ -102,7 +102,7 @@ export function LongInput({
         setLocalContent(baseValueString)
       }
     }
-  }, [baseValue, wandHook?.isStreaming, localContent])
+  }, [baseValue, wandHook?.isStreaming]) // Removed localContent to prevent infinite loop
 
   // Update store value during streaming (but won't persist until streaming ends)
   useEffect(() => {
