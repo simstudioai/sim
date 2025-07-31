@@ -9,6 +9,15 @@ export type PrimitiveValueType = 'string' | 'number' | 'boolean' | 'json' | 'any
 // Block classification
 export type BlockCategory = 'blocks' | 'tools' | 'triggers'
 
+// Valid generation types for AI assistance
+export type GenerationType =
+  | 'javascript-function-body'
+  | 'typescript-function-body'
+  | 'json-schema'
+  | 'json-object'
+  | 'system-prompt'
+  | 'custom-tool-schema'
+
 // SubBlock types
 export type SubBlockType =
   | 'short-input' // Single line input
@@ -117,7 +126,7 @@ export interface SubBlockConfig {
   }
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json'
-  generationType?: 'javascript-function-body' | 'json-schema' | 'json-object'
+  generationType?: GenerationType
   // OAuth specific properties
   provider?: string
   serviceId?: string
@@ -135,6 +144,14 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
+  // Wand configuration for AI assistance
+  wandConfig?: {
+    enabled: boolean
+    prompt: string // Custom prompt template for this subblock
+    generationType?: GenerationType // Optional custom generation type
+    placeholder?: string // Custom placeholder for the prompt input
+    maintainHistory?: boolean // Whether to maintain conversation history
+  }
 }
 
 // Main block definition

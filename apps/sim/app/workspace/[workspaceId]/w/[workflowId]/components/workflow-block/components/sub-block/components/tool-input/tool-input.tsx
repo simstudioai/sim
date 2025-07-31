@@ -314,6 +314,10 @@ function CodeSyncWrapper({
         language={uiComponent.language}
         generationType={uiComponent.generationType}
         disabled={disabled}
+        wandConfig={{
+          enabled: false,
+          prompt: '',
+        }}
       />
     </GenericSyncWrapper>
   )

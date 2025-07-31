@@ -24,9 +24,9 @@ import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { CodePromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/code-prompt-bar/code-prompt-bar'
+import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { CodeEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/code-editor/code-editor'
-import { useCodeGeneration } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-code-generation'
+import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 
 const logger = createLogger('CustomToolModal')
@@ -73,8 +73,82 @@ export function CustomToolModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // AI Code Generation Hooks
-  const schemaGeneration = useCodeGeneration({
-    generationType: 'custom-tool-schema',
+  const schemaGeneration = useWand({
+    wandConfig: {
+      enabled: true,
+      maintainHistory: true,
+      prompt: `You are an expert programmer specializing in creating OpenAI function calling format JSON schemas for custom tools.
+Generate ONLY the JSON schema based on the user's request.
+The output MUST be a single, valid JSON object, starting with { and ending with }.
+The JSON schema MUST follow this specific format:
+1. Top-level property "type" must be set to "function"
+2. A "function" object containing:
+   - "name": A concise, camelCase name for the function
+   - "description": A clear description of what the function does
+   - "parameters": A JSON Schema object describing the function's parameters with:
+     - "type": "object"
+     - "properties": An object containing parameter definitions
+     - "required": An array of required parameter names
+
+Current schema: {context}
+
+Do not include any explanations, markdown formatting, or other text outside the JSON object.
+
+Valid Schema Examples:
+
+Example 1:
+{
+  "type": "function",
+  "function": {
+    "name": "getWeather",
+    "description": "Fetches the current weather for a specific location.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The city and state, e.g., San Francisco, CA"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Temperature unit",
+          "enum": ["celsius", "fahrenheit"]
+        }
+      },
+      "required": ["location"],
+      "additionalProperties": false
+    }
+  }
+}
+
+Example 2:
+{
+  "type": "function",
+  "function": {
+    "name": "addItemToOrder",
+    "description": "Add one quantity of a food item to the order.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "itemName": {
+          "type": "string",
+          "description": "The name of the food item to add to order"
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "The quantity of the item to add",
+          "default": 1
+        }
+      },
+      "required": ["itemName"],
+      "additionalProperties": false
+    }
+  }
+}`,
+      placeholder: 'Describe the function parameters and structure...',
+      generationType: 'custom-tool-schema',
+    },
+    currentValue: jsonSchema,
     onGeneratedContent: (content) => {
       handleJsonSchemaChange(content)
       setSchemaError(null) // Clear error on successful generation
@@ -89,8 +163,61 @@ export function CustomToolModal({
     },
   })
 
-  const codeGeneration = useCodeGeneration({
-    generationType: 'javascript-function-body',
+  const codeGeneration = useWand({
+    wandConfig: {
+      enabled: true,
+      maintainHistory: true,
+      prompt: `You are an expert JavaScript programmer.
+Generate ONLY the raw body of a JavaScript function based on the user's request.
+The code should be executable within an 'async function(params, environmentVariables) {...}' context.
+- 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
+- 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or env.
+
+Current code: {context}
+
+IMPORTANT FORMATTING RULES:
+1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes (e.g., use 'apiKey = {{SERVICE_API_KEY}}' not 'apiKey = "{{SERVICE_API_KEY}}"'). Our system replaces these placeholders before execution.
+2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes (e.g., use 'userId = <userId>;' not 'userId = "<userId>";'). This includes parameters defined in the block's schema and outputs from previous blocks.
+3. Function Body ONLY: Do NOT include the function signature (e.g., 'async function myFunction() {' or the surrounding '}').
+4. Imports: Do NOT include import/require statements unless they are standard Node.js built-in modules (e.g., 'crypto', 'fs'). External libraries are not supported in this context.
+5. Output: Ensure the code returns a value if the function is expected to produce output. Use 'return'.
+6. Clarity: Write clean, readable code.
+7. No Explanations: Do NOT include markdown formatting, comments explaining the rules, or any text other than the raw JavaScript code for the function body.
+
+Example Scenario:
+User Prompt: "Fetch user data from an API. Use the User ID passed in as 'userId' and an API Key stored as the 'SERVICE_API_KEY' environment variable."
+
+Generated Code:
+const userId = <block.content>; // Correct: Accessing input parameter without quotes
+const apiKey = {{SERVICE_API_KEY}}; // Correct: Accessing environment variable without quotes
+const url = \`https://api.example.com/users/\${userId}\`;
+
+try {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': \`Bearer \${apiKey}\`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    // Throwing an error will mark the block execution as failed
+    throw new Error(\`API request failed with status \${response.status}: \${await response.text()}\`);
+  }
+
+  const data = await response.json();
+  console.log('User data fetched successfully.'); // Optional: logging for debugging
+  return data; // Return the fetched data which becomes the block's output
+} catch (error) {
+  console.error(\`Error fetching user data: \${error.message}\`);
+  // Re-throwing the error ensures the workflow knows this step failed.
+  throw error;
+}`,
+      placeholder: 'Describe the JavaScript function to generate...',
+      generationType: 'javascript-function-body',
+    },
+    currentValue: functionCode,
     onGeneratedContent: (content) => {
       handleFunctionCodeChange(content) // Use existing handler to also trigger dropdown checks
       setCodeError(null) // Clear error on successful generation
@@ -532,14 +659,12 @@ export function CustomToolModal({
             <div className='relative flex-1 overflow-auto px-6 pt-6 pb-12'>
               {/* Schema Section AI Prompt Bar */}
               {activeSection === 'schema' && (
-                <CodePromptBar
+                <WandPromptBar
                   isVisible={schemaGeneration.isPromptVisible}
                   isLoading={schemaGeneration.isLoading}
                   isStreaming={schemaGeneration.isStreaming}
                   promptValue={schemaGeneration.promptInputValue}
-                  onSubmit={(prompt: string) =>
-                    schemaGeneration.generateStream({ prompt, context: jsonSchema })
-                  }
+                  onSubmit={(prompt: string) => schemaGeneration.generateStream({ prompt })}
                   onCancel={
                     schemaGeneration.isStreaming
                       ? schemaGeneration.cancelGeneration
@@ -553,14 +678,12 @@ export function CustomToolModal({
 
               {/* Code Section AI Prompt Bar */}
               {activeSection === 'code' && (
-                <CodePromptBar
+                <WandPromptBar
                   isVisible={codeGeneration.isPromptVisible}
                   isLoading={codeGeneration.isLoading}
                   isStreaming={codeGeneration.isStreaming}
                   promptValue={codeGeneration.promptInputValue}
-                  onSubmit={(prompt: string) =>
-                    codeGeneration.generateStream({ prompt, context: functionCode })
-                  }
+                  onSubmit={(prompt: string) => codeGeneration.generateStream({ prompt })}
                   onCancel={
                     codeGeneration.isStreaming
                       ? codeGeneration.cancelGeneration
