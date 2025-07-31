@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { env, getEnv } from '../env'
 
 /**
@@ -150,27 +149,6 @@ export function generateRuntimeCSP(): string {
  */
 export function getMainCSPPolicy(): string {
   return buildCSPString(buildTimeCSPDirectives)
-}
-
-/**
- * Generate a cryptographically secure nonce for CSP
- */
-export function generateNonce(): string {
-  return Buffer.from(crypto.randomUUID()).toString('base64')
-}
-
-/**
- * Get the current request's nonce from headers (for use in app components)
- */
-export function getNonce(): string | null {
-  try {
-    // This requires dynamic imports to avoid edge runtime issues
-    const { headers } = require('next/headers')
-    const headersList = headers()
-    return headersList.get('x-nonce')
-  } catch {
-    return null
-  }
 }
 
 /**

@@ -445,7 +445,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('workflow-state', (workflowData) => {
-          logger.info('Received workflow state from server:', workflowData)
+          logger.info('Received workflow state from server')
 
           // Update local stores with the fresh workflow state (same logic as YAML editor)
           if (workflowData?.state && workflowData.id === urlWorkflowId) {
