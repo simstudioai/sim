@@ -77,12 +77,19 @@ function getToolDisplayNameByState(tool: any): string {
   const toolName = tool.name
   const state = tool.state
   
-  if (state === 'completed' || state === 'applied') {
+  const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+  
+  if (state === 'ready_for_review' && isWorkflowTool) {
+    const pastTense = COPILOT_TOOL_PAST_TENSE[toolName] || tool.displayName || toolName
+    return `${pastTense} - ready for review`
+  } else if (state === 'completed' || state === 'applied') {
     return COPILOT_TOOL_PAST_TENSE[toolName] || tool.displayName || toolName
   } else if (state === 'error') {
     return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${(tool.displayName || toolName).toLowerCase()}`
+  } else if (state === 'rejected' && isWorkflowTool) {
+    return 'Workflow changes rejected'
   } else {
-    // For executing, aborted, ready_for_review, rejected, etc. - use present tense
+    // For executing, aborted, etc. - use present tense
     return tool.displayName || COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
   }
 }
@@ -132,15 +139,24 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   }
 
   const getStateIcon = () => {
+    const isWorkflowTool = tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+    
     switch (tool.state) {
       case 'executing':
         return <Loader2 className='h-3 w-3 animate-spin text-muted-foreground' />
       case 'completed':
-        return <Search className='h-3 w-3 text-muted-foreground' />
+        return isWorkflowTool 
+          ? <CheckCircle className='h-3 w-3 text-muted-foreground' />
+          : <Search className='h-3 w-3 text-muted-foreground' />
       case 'ready_for_review':
-        return <Search className='h-3 w-3 text-muted-foreground' />
+        // For workflow tools, ready_for_review means complete with diff ready
+        return isWorkflowTool 
+          ? <CheckCircle className='h-3 w-3 text-muted-foreground' />
+          : <Search className='h-3 w-3 text-muted-foreground' />
       case 'applied':
-        return <Search className='h-3 w-3 text-muted-foreground' />
+        return isWorkflowTool 
+          ? <CheckCircle className='h-3 w-3 text-muted-foreground' />
+          : <Search className='h-3 w-3 text-muted-foreground' />
       case 'rejected':
         return <XCircle className='h-3 w-3 text-muted-foreground' />
       case 'aborted':
@@ -152,56 +168,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
     }
   }
 
-  // Special handling for preview workflow and targeted updates
-  const isPreviewTool =
-    tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
 
-  if (isPreviewTool) {
-    return (
-      <div className='rounded-xl border-2 border-muted bg-muted/30 p-4 transition-all duration-300'>
-        <div className='flex items-center gap-3'>
-          <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-muted'>
-            {tool.state === 'executing' && (
-              <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />
-            )}
-            {tool.state === 'ready_for_review' && (
-              <CheckCircle className='h-4 w-4 text-muted-foreground' />
-            )}
-            {tool.state === 'applied' && <CheckCircle className='h-4 w-4 text-muted-foreground' />}
-            {tool.state === 'rejected' && <XCircle className='h-4 w-4 text-muted-foreground' />}
-            {tool.state === 'aborted' && <XCircle className='h-4 w-4 text-muted-foreground' />}
-            {tool.state === 'error' && <XCircle className='h-4 w-4 text-muted-foreground' />}
-          </div>
-          <div className='flex-1'>
-            <div className='font-semibold text-muted-foreground text-sm'>
-              {tool.state === 'executing'
-                ? tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-                  ? 'Editing workflow'
-                  : 'Building workflow'
-                : getToolDisplayNameByState(tool)}
-            </div>
-            <div className='text-muted-foreground text-xs'>
-              {tool.state === 'executing'
-                ? tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-                  ? 'Editing workflow...'
-                  : 'Building workflow...'
-                : tool.state === 'ready_for_review'
-                  ? 'Ready for review'
-                  : tool.state === 'applied'
-                    ? 'Applied changes'
-                    : tool.state === 'rejected'
-                      ? 'Rejected changes'
-                      : tool.state === 'aborted'
-                        ? 'Aborted'
-                        : tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-                          ? 'Workflow editing failed'
-                          : 'Workflow generation failed'}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className='flex items-center gap-2 py-1 text-muted-foreground'>

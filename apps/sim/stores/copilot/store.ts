@@ -100,12 +100,19 @@ function getToolDisplayNameByState(toolCall: any): string {
   const toolName = toolCall.name
   const state = toolCall.state
   
-  if (state === 'completed' || state === 'applied') {
+  const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+  
+  if (state === 'ready_for_review' && isWorkflowTool) {
+    const pastTense = COPILOT_TOOL_PAST_TENSE[toolName] || toolCall.displayName || getToolDisplayName(toolName)
+    return `${pastTense} - ready for review`
+  } else if (state === 'completed' || state === 'applied') {
     return COPILOT_TOOL_PAST_TENSE[toolName] || toolCall.displayName || getToolDisplayName(toolName)
   } else if (state === 'error') {
     return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${(toolCall.displayName || getToolDisplayName(toolName)).toLowerCase()}`
+  } else if (state === 'rejected' && isWorkflowTool) {
+    return 'Workflow changes rejected'
   } else {
-    // For executing, aborted, ready_for_review, rejected, etc. - use present tense
+    // For executing, aborted, etc. - use present tense
     return toolCall.displayName || getToolDisplayName(toolName)
   }
 }
@@ -326,7 +333,15 @@ const sseHandlers: Record<string, SSEHandler> = {
       handleToolFailure(toolCall, result || 'Tool execution failed')
     }
 
+    // Update both contentBlocks and toolCalls atomically before UI update
     updateContentBlockToolCall(context.contentBlocks, toolCallId, toolCall)
+    
+    // Ensure the toolCall in context.toolCalls is also updated with the latest state
+    const toolCallIndex = context.toolCalls.findIndex(tc => tc.id === toolCallId)
+    if (toolCallIndex !== -1) {
+      context.toolCalls[toolCallIndex] = { ...toolCall }
+    }
+    
     updateStreamingMessage(set, context)
   },
 
@@ -391,7 +406,11 @@ const sseHandlers: Record<string, SSEHandler> = {
     const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
     if (toolCall) {
       toolCall.state = 'executing'
+      
+      // Update both contentBlocks and toolCalls atomically before UI update
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
+      
+      // toolCall is already updated by reference in context.toolCalls since we found it there
       updateStreamingMessage(set, context)
     }
   },
@@ -461,11 +480,19 @@ const sseHandlers: Record<string, SSEHandler> = {
           processWorkflowToolResult(context.toolCallBuffer, context.toolCallBuffer.input, get)
         }
 
+        // Update both contentBlocks and toolCalls atomically before UI update
         updateContentBlockToolCall(
           context.contentBlocks,
           context.toolCallBuffer.id,
           context.toolCallBuffer
         )
+        
+        // Ensure the toolCall in context.toolCalls is also updated with the latest state
+        const toolCallIndex = context.toolCalls.findIndex(tc => tc.id === context.toolCallBuffer.id)
+        if (toolCallIndex !== -1) {
+          context.toolCalls[toolCallIndex] = { ...context.toolCallBuffer }
+        }
+        
         updateStreamingMessage(set, context)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
