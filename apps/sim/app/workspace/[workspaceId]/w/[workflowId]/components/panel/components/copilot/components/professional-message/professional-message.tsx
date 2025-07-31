@@ -184,24 +184,26 @@ const WordWrap = ({ text }: { text: string }) => {
 
 // Helper function to get appropriate tool display name based on state
 function getToolDisplayNameByState(tool: any): string {
-  // Use the pre-calculated displayName from the store if available
-  // The store's version handles all the state transitions properly
-  if (tool.displayName) {
-    return tool.displayName
-  }
-  
-  // Fallback logic if displayName is not set (shouldn't happen with proper store setup)
+  // Always calculate display name based on current state rather than using cached displayName
+  // This ensures state transitions are reflected immediately in the UI
   const toolName = tool.name
   const state = tool.state
+  const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
   
-  if (state === 'completed' || state === 'applied' || state === 'ready_for_review') {
-    // All success states use past tense
+  if (state === 'ready_for_review' && isWorkflowTool) {
+    // Special display for workflow tools awaiting review
+    const baseText = COPILOT_TOOL_PAST_TENSE[toolName] || toolName
+    return `${baseText} - ready for review`
+  } else if (state === 'applied' && isWorkflowTool) {
+    // Show completion/done state after accept
+    return 'Applied workflow changes'
+  } else if (state === 'completed' || state === 'applied') {
+    // Regular tools and non-workflow applied states use past tense
     return COPILOT_TOOL_PAST_TENSE[toolName] || toolName
   } else if (state === 'error') {
     return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${toolName.toLowerCase()}`
   } else if (state === 'rejected') {
     // Special handling for rejected workflow tools
-    const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
     return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${toolName.toLowerCase()}`
   } else {
     // For executing, aborted, etc. - use present tense
@@ -212,8 +214,10 @@ function getToolDisplayNameByState(tool: any): string {
 // Inline Tool Call Component
 function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepNumber?: number }) {
   const getToolIcon = () => {
-    const displayName = tool.displayName || tool.name || ''
+    const displayName = getToolDisplayNameByState(tool)
     const lowerName = displayName.toLowerCase()
+
+    console.log("[ASDF] IN HERE: ", displayName)
 
     if (lowerName.includes('analyz') && lowerName.includes('workflow')) {
       return <Search className='h-3 w-3 text-muted-foreground' />
@@ -537,6 +541,11 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
         )
       }
       if (block.type === 'tool_call') {
+        console.log('[ASDF] Rendering tool call from contentBlocks:', {
+          toolName: block.toolCall?.name,
+          toolState: block.toolCall?.state,
+          toolDisplayName: block.toolCall?.displayName
+        })
         return (
           <div 
             key={`tool-${block.toolCall.id}`}
@@ -789,13 +798,41 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
     return true
   }
   
-  // For non-streaming messages, do a basic comparison
-  return (
-    prevMessage.content === nextMessage.content &&
-    prevMessage.role === nextMessage.role &&
-    (prevMessage.toolCalls?.length || 0) === (nextMessage.toolCalls?.length || 0) &&
-    (prevMessage.contentBlocks?.length || 0) === (nextMessage.contentBlocks?.length || 0)
-  )
+  // For non-streaming messages, do a deeper comparison including tool call states
+  if (
+    prevMessage.content !== nextMessage.content ||
+    prevMessage.role !== nextMessage.role ||
+    (prevMessage.toolCalls?.length || 0) !== (nextMessage.toolCalls?.length || 0) ||
+    (prevMessage.contentBlocks?.length || 0) !== (nextMessage.contentBlocks?.length || 0)
+  ) {
+    return false
+  }
+  
+  // Check tool call states for non-streaming messages too
+  const prevToolCalls = prevMessage.toolCalls || []
+  const nextToolCalls = nextMessage.toolCalls || []
+  for (let i = 0; i < nextToolCalls.length; i++) {
+    if (prevToolCalls[i]?.state !== nextToolCalls[i]?.state) {
+      return false // Tool call state changed
+    }
+  }
+  
+  // Check contentBlocks tool call states
+  const prevContentBlocks = prevMessage.contentBlocks || []
+  const nextContentBlocks = nextMessage.contentBlocks || []
+  for (let i = 0; i < nextContentBlocks.length; i++) {
+    const prevBlock = prevContentBlocks[i]
+    const nextBlock = nextContentBlocks[i]
+    if (
+      prevBlock?.type === 'tool_call' && 
+      nextBlock?.type === 'tool_call' && 
+      prevBlock.toolCall?.state !== nextBlock.toolCall?.state
+    ) {
+      return false // ContentBlock tool call state changed
+    }
+  }
+  
+  return true
 })
 
 ProfessionalMessage.displayName = 'ProfessionalMessage'

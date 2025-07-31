@@ -99,15 +99,22 @@ function getToolDisplayName(toolName: string): string {
 function getToolDisplayNameByState(toolCall: any): string {
   const toolName = toolCall.name
   const state = toolCall.state
+  const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
   
-  if (state === 'completed' || state === 'applied' || state === 'ready_for_review') {
-    // All success states use past tense
+  if (state === 'ready_for_review' && isWorkflowTool) {
+    // Special display for workflow tools awaiting review
+    const baseText = COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
+    return `${baseText} - ready for review`
+  } else if (state === 'applied' && isWorkflowTool) {
+    // Show completion/done state after accept
+    return 'Applied workflow changes'
+  } else if (state === 'completed' || state === 'applied') {
+    // Regular tools and non-workflow applied states use past tense
     return COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
   } else if (state === 'error') {
     return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${getToolDisplayName(toolName).toLowerCase()}`
   } else if (state === 'rejected') {
     // Special handling for rejected workflow tools
-    const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
     return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
   } else {
     // For executing, aborted, etc. - use present tense
@@ -213,6 +220,16 @@ function finalizeToolCall(toolCall: any, success: boolean, result?: any): void {
 
   if (success) {
     toolCall.result = result
+    
+    // Debug - log ALL tool names to see what's actually coming through
+    console.log('[DEBUG] Tool completing:', {
+      name: toolCall.name,
+      expectedBuildWorkflow: 'build_workflow',
+      expectedEditWorkflow: 'edit_workflow',
+      nameMatchesBuild: toolCall.name === 'build_workflow',
+      nameMatchesEdit: toolCall.name === 'edit_workflow'
+    })
+    
     // Workflow tools need review, others are completed
     toolCall.state =
       toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
@@ -222,6 +239,12 @@ function finalizeToolCall(toolCall: any, success: boolean, result?: any): void {
     
     // Update displayName to match the new state
     toolCall.displayName = getToolDisplayNameByState(toolCall)
+    
+    console.log('[DEBUG] Tool state after finalize:', {
+      name: toolCall.name,
+      state: toolCall.state,
+      displayName: toolCall.displayName
+    })
   }
 }
 
@@ -1260,14 +1283,25 @@ export const useCopilotStore = create<CopilotStore>()(
                     toolCalls: msg.toolCalls?.map((tc) =>
                       tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
                       tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-                        ? { ...tc, state: toolCallState }
+                        ? { 
+                            ...tc, 
+                            state: toolCallState,
+                            displayName: getToolDisplayNameByState({ ...tc, state: toolCallState })
+                          }
                         : tc
                     ),
                     contentBlocks: msg.contentBlocks?.map((block) =>
                       block.type === 'tool_call' &&
                       (block.toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
                         block.toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW)
-                        ? { ...block, toolCall: { ...block.toolCall, state: toolCallState } }
+                        ? { 
+                            ...block, 
+                            toolCall: { 
+                              ...block.toolCall, 
+                              state: toolCallState,
+                              displayName: getToolDisplayNameByState({ ...block.toolCall, state: toolCallState })
+                            } 
+                          }
                         : block
                     ),
                   }
