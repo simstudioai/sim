@@ -3,6 +3,7 @@ import { BaseCopilotTool } from '../base'
 
 interface SetEnvironmentVariablesParams {
   variables: Record<string, any>
+  workflowId?: string
 }
 
 interface SetEnvironmentVariablesResult {
@@ -33,11 +34,12 @@ async function setEnvironmentVariables(
   params: SetEnvironmentVariablesParams
 ): Promise<SetEnvironmentVariablesResult> {
   const logger = createLogger('SetEnvironmentVariables')
-  const { variables } = params
+  const { variables, workflowId } = params
 
   logger.info('Setting environment variables for copilot', {
     variableCount: Object.keys(variables).length,
     variableNames: Object.keys(variables),
+    hasWorkflowId: !!workflowId,
   })
 
   // Forward the request to the existing environment variables endpoint
@@ -48,7 +50,7 @@ async function setEnvironmentVariables(
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ variables }),
+    body: JSON.stringify({ variables, workflowId }),
   })
 
   if (!response.ok) {
