@@ -201,6 +201,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showUpvoteSuccess, setShowUpvoteSuccess] = useState(false)
   const [showDownvoteSuccess, setShowDownvoteSuccess] = useState(false)
+  const [showRestoreConfirmation, setShowRestoreConfirmation] = useState(false)
 
   // Get checkpoint functionality from copilot store
   const { 
@@ -231,16 +232,26 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
     setShowDownvoteSuccess(true)
   }
 
-  const handleRevertToCheckpoint = async () => {
+  const handleRevertToCheckpoint = () => {
+    setShowRestoreConfirmation(true)
+  }
+
+  const handleConfirmRevert = async () => {
     if (messageCheckpoints.length > 0) {
       // Use the most recent checkpoint for this message
       const latestCheckpoint = messageCheckpoints[0]
       try {
         await revertToCheckpoint(latestCheckpoint.id)
+        setShowRestoreConfirmation(false)
       } catch (error) {
         console.error('Failed to revert to checkpoint:', error)
+        setShowRestoreConfirmation(false)
       }
     }
+  }
+
+  const handleCancelRevert = () => {
+    setShowRestoreConfirmation(false)
   }
 
   useEffect(() => {
@@ -389,28 +400,46 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
               <div className='whitespace-pre-wrap break-words font-normal text-foreground text-sm leading-tight'>
                 <WordWrap text={message.content} />
               </div>
-              {hasCheckpoints && (
-                <div className='mt-2 flex items-center justify-end gap-2'>
-                  <div className='flex items-center gap-1 text-xs text-muted-foreground'>
-                    <History className='h-3 w-3' />
-                    <span>{messageCheckpoints.length} checkpoint{messageCheckpoints.length > 1 ? 's' : ''}</span>
+            </div>
+            {hasCheckpoints && (
+              <div className='mt-1 flex justify-end'>
+                {showRestoreConfirmation ? (
+                  <div className='flex items-center gap-2'>
+                    <span className='text-xs text-muted-foreground'>Restore?</span>
+                    <button
+                      onClick={handleConfirmRevert}
+                      disabled={isRevertingCheckpoint}
+                      className='text-xs text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+                      title='Confirm restore'
+                    >
+                      {isRevertingCheckpoint ? (
+                        <Loader2 className='h-3 w-3 animate-spin' />
+                      ) : (
+                        <ThumbsUp className='h-3 w-3' />
+                      )}
+                    </button>
+                    <button
+                      onClick={handleCancelRevert}
+                      disabled={isRevertingCheckpoint}
+                      className='text-xs text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+                      title='Cancel restore'
+                    >
+                      <ThumbsDown className='h-3 w-3' />
+                    </button>
                   </div>
+                ) : (
                   <button
                     onClick={handleRevertToCheckpoint}
                     disabled={isRevertingCheckpoint}
-                    className='flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
-                    title='Revert workflow to this state'
+                    className='flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
+                    title='Restore workflow to this checkpoint state'
                   >
-                    {isRevertingCheckpoint ? (
-                      <Loader2 className='h-3 w-3 animate-spin' />
-                    ) : (
-                      <RotateCcw className='h-3 w-3' />
-                    )}
-                    Revert
+                    <RotateCcw className='h-3 w-3' />
+                    Restore
                   </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -526,36 +555,33 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
             <div className='flex items-center gap-2'>
               <button
                 onClick={handleCopyContent}
-                className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
-                style={{ color: 'var(--base-muted-foreground)' }}
+                className='text-muted-foreground transition-colors hover:bg-muted'
                 title='Copy'
               >
                 {showCopySuccess ? (
-                  <Check className='h-3 w-3 text-gray-500' strokeWidth={2} />
+                  <Check className='h-3 w-3' strokeWidth={2} />
                 ) : (
                   <Clipboard className='h-3 w-3' strokeWidth={2} />
                 )}
               </button>
               <button
                 onClick={handleUpvote}
-                className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
-                style={{ color: 'var(--base-muted-foreground)' }}
+                className='text-muted-foreground transition-colors hover:bg-muted'
                 title='Upvote'
               >
                 {showUpvoteSuccess ? (
-                  <Check className='h-3 w-3 text-gray-500' strokeWidth={2} />
+                  <Check className='h-3 w-3' strokeWidth={2} />
                 ) : (
                   <ThumbsUp className='h-3 w-3' strokeWidth={2} />
                 )}
               </button>
               <button
                 onClick={handleDownvote}
-                className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
-                style={{ color: 'var(--base-muted-foreground)' }}
+                className='text-muted-foreground transition-colors hover:bg-muted'
                 title='Downvote'
               >
                 {showDownvoteSuccess ? (
-                  <Check className='h-3 w-3 text-gray-500' strokeWidth={2} />
+                  <Check className='h-3 w-3' strokeWidth={2} />
                 ) : (
                   <ThumbsDown className='h-3 w-3' strokeWidth={2} />
                 )}

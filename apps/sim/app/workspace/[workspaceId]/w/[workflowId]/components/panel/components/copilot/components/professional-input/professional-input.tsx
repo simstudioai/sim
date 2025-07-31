@@ -16,6 +16,8 @@ interface ProfessionalInputProps {
   className?: string
   mode?: 'ask' | 'agent'
   onModeChange?: (mode: 'ask' | 'agent') => void
+  value?: string // Controlled value from outside
+  onChange?: (value: string) => void // Callback when value changes
 }
 
 const ProfessionalInput: FC<ProfessionalInputProps> = ({
@@ -28,9 +30,15 @@ const ProfessionalInput: FC<ProfessionalInputProps> = ({
   className,
   mode = 'agent',
   onModeChange,
+  value: controlledValue,
+  onChange: onControlledChange,
 }) => {
-  const [message, setMessage] = useState('')
+  const [internalMessage, setInternalMessage] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  
+  // Use controlled value if provided, otherwise use internal state
+  const message = controlledValue !== undefined ? controlledValue : internalMessage
+  const setMessage = controlledValue !== undefined ? (onControlledChange || (() => {})) : setInternalMessage
 
   // Auto-resize textarea
   useEffect(() => {
@@ -46,7 +54,12 @@ const ProfessionalInput: FC<ProfessionalInputProps> = ({
     if (!trimmedMessage || disabled || isLoading) return
 
     onSubmit(trimmedMessage)
-    setMessage('')
+    // Clear the message after submit
+    if (controlledValue !== undefined) {
+      onControlledChange?.('')
+    } else {
+      setInternalMessage('')
+    }
   }
 
   const handleAbort = () => {
@@ -63,7 +76,12 @@ const ProfessionalInput: FC<ProfessionalInputProps> = ({
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value)
+    const newValue = e.target.value
+    if (controlledValue !== undefined) {
+      onControlledChange?.(newValue)
+    } else {
+      setInternalMessage(newValue)
+    }
   }
 
   const canSubmit = message.trim().length > 0 && !disabled && !isLoading

@@ -40,11 +40,13 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     isSendingMessage,
     isAborting,
     mode,
+    inputValue,
     sendMessage,
     abortMessage,
     createNewChat,
     clearMessages,
     setMode,
+    setInputValue,
   } = useCopilotStore()
 
   // Clear any existing preview when component mounts or workflow changes
@@ -164,6 +166,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             isAborting={isAborting}
             mode={mode}
             onModeChange={setMode}
+            value={inputValue}
+            onChange={setInputValue}
           />
         )}
       </div>

@@ -34,6 +34,9 @@ const initialState = {
   abortController: null,
   chatsLastLoadedAt: null, // Track when chats were last loaded
   chatsLoadedForWorkflow: null, // Track which workflow the chats were loaded for
+  // Revert state management
+  revertState: null as { messageId: string; messageContent: string } | null, // Track which message we reverted from
+  inputValue: '', // Control the input field
 }
 
 /**
@@ -792,7 +795,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Send a message
       sendMessage: async (message: string, options = {}) => {
-        const { workflowId, currentChat, mode } = get()
+        const { workflowId, currentChat, mode, revertState } = get()
         const { stream = true } = options
 
         if (!workflowId) {
@@ -807,13 +810,30 @@ export const useCopilotStore = create<CopilotStore>()(
         const userMessage = createUserMessage(message)
         const streamingMessage = createStreamingMessage()
 
-        // Check if this is the first message before updating state
-        const currentMessages = get().messages
-        const isFirstMessage = currentMessages.length === 0 && !currentChat?.title
+        // Handle message history rewriting if we're in revert state
+        let newMessages: CopilotMessage[]
+        if (revertState) {
+          // Since we already truncated the history on revert (excluding the reverted message),
+          // just append the new message and assistant response to the remaining messages
+          const currentMessages = get().messages
+          newMessages = [
+            ...currentMessages, // Keep all remaining messages (reverted message already removed)
+            userMessage, // Add new message
+            streamingMessage // Add assistant response
+          ]
+          logger.info(`Added new message after revert point, continuing conversation from ${currentMessages.length} existing messages`)
+          
+          // Clear revert state since we're now continuing from this point
+          set({ revertState: null, inputValue: '' })
+        } else {
+          // Normal message append
+          newMessages = [...get().messages, userMessage, streamingMessage]
+        }
 
-        set((state) => ({
-          messages: [...state.messages, userMessage, streamingMessage],
-        }))
+        // Check if this is the first message before updating state
+        const isFirstMessage = get().messages.length === 0 && !currentChat?.title
+
+        set({ messages: newMessages })
 
         // Optimistic title update for first message
         if (isFirstMessage) {
@@ -1146,6 +1166,19 @@ export const useCopilotStore = create<CopilotStore>()(
         set({ isRevertingCheckpoint: true, checkpointError: null })
 
         try {
+          // Find the checkpoint to get its associated message
+          const { messageCheckpoints, messages } = get()
+          let checkpointMessage: CopilotMessage | null = null
+          
+          // Find which message this checkpoint belongs to
+          for (const [messageId, checkpoints] of Object.entries(messageCheckpoints)) {
+            const checkpoint = checkpoints.find(cp => cp.id === checkpointId)
+            if (checkpoint) {
+              checkpointMessage = messages.find(msg => msg.id === messageId) || null
+              break
+            }
+          }
+
           const response = await fetch('/api/copilot/checkpoints/revert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1203,6 +1236,77 @@ export const useCopilotStore = create<CopilotStore>()(
             // Clear any pending diff changes since we've reverted to a checkpoint
             const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
             useWorkflowDiffStore.getState().clearDiff()
+
+            // Set up revert state and populate input if we found the message
+            if (checkpointMessage) {
+              // Find the index of the reverted message and truncate chat history
+              const currentMessages = get().messages
+              const revertedMessageIndex = currentMessages.findIndex(msg => msg.id === checkpointMessage.id)
+              
+              let newMessages = currentMessages
+              if (revertedMessageIndex !== -1) {
+                // Keep only messages up to (but NOT including) the reverted message
+                // since the reverted message is now in the text box for editing
+                newMessages = currentMessages.slice(0, revertedMessageIndex)
+                logger.info(`Truncated chat history: kept ${newMessages.length} messages, removed ${currentMessages.length - newMessages.length} messages from revert point onwards`)
+              }
+
+              set({
+                revertState: {
+                  messageId: checkpointMessage.id,
+                  messageContent: checkpointMessage.content
+                },
+                inputValue: checkpointMessage.content,
+                messages: newMessages // Update the chat UI immediately
+              })
+              logger.info('Set revert state, populated input, and updated chat UI')
+
+              // Persist the truncated chat state to the database
+              if (get().currentChat) {
+                try {
+                  const chatId = get().currentChat!.id
+                  
+                  // Format messages for database storage (same format as the chat API)
+                  const dbMessages = newMessages.map(msg => ({
+                    id: msg.id,
+                    role: msg.role,
+                    content: msg.content,
+                    timestamp: msg.timestamp,
+                    ...(msg.toolCalls && { toolCalls: msg.toolCalls }),
+                    ...(msg.contentBlocks && { contentBlocks: msg.contentBlocks })
+                  }))
+
+                  const response = await fetch('/api/copilot/chat/update-messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                      chatId,
+                      messages: dbMessages
+                    })
+                  })
+
+                  if (!response.ok) {
+                    logger.error('Failed to persist truncated chat state:', response.statusText)
+                  } else {
+                    logger.info('Successfully persisted truncated chat state to database')
+                    
+                    // Update the current chat object to reflect the new messages
+                    set((state) => ({
+                      currentChat: state.currentChat ? {
+                        ...state.currentChat,
+                        messages: newMessages,
+                        updatedAt: new Date()
+                      } : state.currentChat,
+                      // Invalidate chat cache to ensure fresh data on reload
+                      chatsLastLoadedAt: null,
+                      chatsLoadedForWorkflow: null,
+                    }))
+                  }
+                } catch (error) {
+                  logger.error('Error persisting truncated chat state:', error)
+                }
+              }
+            }
 
             logger.info('Successfully applied checkpoint state to workflow store and cleared pending diffs')
           } else {
@@ -1414,6 +1518,15 @@ export const useCopilotStore = create<CopilotStore>()(
       // Reset entire store
       reset: () => {
         set(initialState)
+      },
+
+      // Input control actions
+      setInputValue: (value: string) => {
+        set({ inputValue: value })
+      },
+
+      clearRevertState: () => {
+        set({ revertState: null })
       },
 
       // Update the diff store with proposed workflow changes

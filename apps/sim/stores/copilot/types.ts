@@ -167,6 +167,10 @@ export interface CopilotState {
   // Cache management
   chatsLastLoadedAt: Date | null // When chats were last loaded
   chatsLoadedForWorkflow: string | null // Which workflow the chats were loaded for
+
+  // Revert state management
+  revertState: { messageId: string; messageContent: string } | null // Track which message we reverted from
+  inputValue: string // Control the input field
 }
 
 /**
@@ -213,6 +217,10 @@ export interface CopilotActions {
   clearCheckpointError: () => void
   retrySave: (chatId: string) => Promise<void>
   reset: () => void
+
+  // Input control actions
+  setInputValue: (value: string) => void
+  clearRevertState: () => void
 
   // Internal helpers (not exposed publicly)
   handleStreamingResponse: (
