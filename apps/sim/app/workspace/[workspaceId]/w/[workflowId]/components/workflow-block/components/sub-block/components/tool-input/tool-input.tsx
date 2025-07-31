@@ -317,7 +317,6 @@ function CodeSyncWrapper({
         wandConfig={{
           enabled: false,
           prompt: '',
-          placeholder: '',
         }}
       />
     </GenericSyncWrapper>
