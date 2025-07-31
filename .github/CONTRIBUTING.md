@@ -301,8 +301,8 @@ In addition, you will need to update the registries:
 
    ```typescript:/apps/sim/blocks/blocks/pinecone.ts
    import { PineconeIcon } from '@/components/icons'
-   import { PineconeResponse } from '@/tools/pinecone/types'
-   import { BlockConfig } from '../types'
+   import type { BlockConfig } from '@/blocks/types'
+   import type { PineconeResponse } from '@/tools/pinecone/types'
 
    export const PineconeBlock: BlockConfig<PineconeResponse> = {
      type: 'pinecone',
@@ -313,13 +313,58 @@ In addition, you will need to update the registries:
      bgColor: '#123456',
      icon: PineconeIcon,
 
-     // If this block requires OAuth authentication
-     provider: 'pinecone',
-
-     // Define subBlocks for the UI configuration
      subBlocks: [
-       // Block configuration options
+       {
+         id: 'operation',
+         title: 'Operation',
+         type: 'dropdown',
+         layout: 'full',
+         required: true,
+         options: [
+           { label: 'Generate Embeddings', id: 'generate' },
+           { label: 'Search Text', id: 'search_text' },
+         ],
+         value: () => 'generate',
+       },
+       {
+         id: 'apiKey',
+         title: 'API Key',
+         type: 'short-input',
+         layout: 'full',
+         placeholder: 'Your Pinecone API key',
+         password: true,
+         required: true,
+       },
      ],
+
+     tools: {
+       access: ['pinecone_generate_embeddings', 'pinecone_search_text'],
+       config: {
+         tool: (params: Record<string, any>) => {
+           switch (params.operation) {
+             case 'generate':
+               return 'pinecone_generate_embeddings'
+             case 'search_text':
+               return 'pinecone_search_text'
+             default:
+               throw new Error('Invalid operation selected')
+           }
+         },
+       },
+     },
+
+     inputs: {
+       operation: { type: 'string', description: 'Operation to perform' },
+       apiKey: { type: 'string', description: 'Pinecone API key' },
+       searchQuery: { type: 'string', description: 'Search query text' },
+       topK: { type: 'string', description: 'Number of results to return' },
+     },
+
+     outputs: {
+       matches: { type: 'any', description: 'Search results or generated embeddings' },
+       data: { type: 'any', description: 'Response data from Pinecone' },
+       usage: { type: 'any', description: 'API usage statistics' },
+     },
    }
    ```
 
