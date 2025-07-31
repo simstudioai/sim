@@ -627,29 +627,49 @@ const sseHandlers: Record<string, SSEHandler> = {
   },
 }
 
+// Cache workflow tool IDs for faster lookup
+const WORKFLOW_TOOL_IDS = new Set<string>([COPILOT_TOOL_IDS.BUILD_WORKFLOW, COPILOT_TOOL_IDS.EDIT_WORKFLOW])
+
 /**
  * Helper function to preserve terminal states for workflow tools
  */
 function preserveWorkflowToolTerminalState(newToolCall: any, existingToolCall: any): any {
-  const isWorkflowTool = newToolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || newToolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-  const hasTerminalState = existingToolCall?.state === 'applied' || existingToolCall?.state === 'rejected'
-  
-  if (isWorkflowTool && hasTerminalState && existingToolCall) {
-    return {
-      ...newToolCall,
-      state: existingToolCall.state,
-      displayName: existingToolCall.displayName
-    }
+  // Early return if not a workflow tool
+  if (!WORKFLOW_TOOL_IDS.has(newToolCall.name)) {
+    return newToolCall
   }
-  return newToolCall
+  
+  // Early return if no existing tool call or no terminal state
+  if (!existingToolCall || (existingToolCall.state !== 'applied' && existingToolCall.state !== 'rejected')) {
+    return newToolCall
+  }
+  
+  // Only create new object if state would actually change
+  if (newToolCall.state === existingToolCall.state && newToolCall.displayName === existingToolCall.displayName) {
+    return newToolCall
+  }
+  
+  return {
+    ...newToolCall,
+    state: existingToolCall.state,
+    displayName: existingToolCall.displayName
+  }
 }
 
 /**
  * Helper function to merge tool calls while preserving terminal states
  */
 function mergeToolCallsPreservingTerminalStates(newToolCalls: any[], existingToolCalls: any[] = []): any[] {
+  // Early return if no existing tool calls or no workflow tools to check
+  if (!existingToolCalls.length || !newToolCalls.some(tc => WORKFLOW_TOOL_IDS.has(tc.name))) {
+    return newToolCalls
+  }
+  
+  // Create a lookup map for faster access
+  const existingMap = new Map(existingToolCalls.map(tc => [tc.id, tc]))
+  
   return newToolCalls.map(newToolCall => {
-    const existingToolCall = existingToolCalls.find(tc => tc.id === newToolCall.id)
+    const existingToolCall = existingMap.get(newToolCall.id)
     return preserveWorkflowToolTerminalState(newToolCall, existingToolCall)
   })
 }
@@ -658,17 +678,35 @@ function mergeToolCallsPreservingTerminalStates(newToolCalls: any[], existingToo
  * Helper function to merge content blocks while preserving terminal states
  */
 function mergeContentBlocksPreservingTerminalStates(newContentBlocks: any[], existingContentBlocks: any[] = []): any[] {
+  // Early return if no existing blocks or no tool call blocks to check
+  if (!existingContentBlocks.length || !newContentBlocks.some(b => b.type === 'tool_call')) {
+    return newContentBlocks
+  }
+  
+  // Create a lookup map for tool call blocks for faster access
+  const existingToolCallMap = new Map()
+  existingContentBlocks.forEach(block => {
+    if (block.type === 'tool_call') {
+      existingToolCallMap.set((block as any).toolCall.id, block)
+    }
+  })
+  
   return newContentBlocks.map(newBlock => {
     if (newBlock.type === 'tool_call') {
-      const existingBlock = existingContentBlocks.find(
-        (b): b is any => b.type === 'tool_call' && (b as any).toolCall.id === (newBlock as any).toolCall.id
-      )
       const toolCallBlock = newBlock as any
+      
+      // Skip if not a workflow tool
+      if (!WORKFLOW_TOOL_IDS.has(toolCallBlock.toolCall.name)) {
+        return newBlock
+      }
+      
+      const existingBlock = existingToolCallMap.get(toolCallBlock.toolCall.id)
       const preservedToolCall = preserveWorkflowToolTerminalState(
         toolCallBlock.toolCall, 
         existingBlock?.toolCall
       )
       
+      // Only create new object if something actually changed
       if (preservedToolCall !== toolCallBlock.toolCall) {
         return {
           ...newBlock,
@@ -1382,23 +1420,19 @@ export const useCopilotStore = create<CopilotStore>()(
       updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected') => {
         const { messages } = get()
 
-        // Find the last message with a preview_workflow or targeted_updates tool call
+        // Find the last message with a workflow tool call
         const lastMessageWithPreview = [...messages]
           .reverse()
           .find(
             (msg) =>
               msg.role === 'assistant' &&
-              msg.toolCalls?.some(
-                (tc) =>
-                  tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-                  tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-              )
+              msg.toolCalls?.some((tc) => WORKFLOW_TOOL_IDS.has(tc.name))
           )
 
         if (lastMessageWithPreview) {
           // Find the most recent workflow tool call in the message
           const workflowToolCalls = lastMessageWithPreview.toolCalls?.filter(
-            (tc) => tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+            (tc) => WORKFLOW_TOOL_IDS.has(tc.name)
           ) || []
           
           const lastWorkflowToolCall = workflowToolCalls[workflowToolCalls.length - 1]
