@@ -26,4 +26,38 @@ export const COPILOT_TOOL_DISPLAY_NAMES: Record<string, string> = {
   search_online: 'Searching online',
 } as const
 
+// Past tense versions for completed tool calls
+export const COPILOT_TOOL_PAST_TENSE: Record<string, string> = {
+  search_documentation: 'Searched documentation',
+  get_user_workflow: 'Analyzed your workflow',
+  build_workflow: 'Built your workflow',
+  get_blocks_and_tools: 'Got block information',
+  get_blocks_metadata: 'Got block metadata',
+  get_yaml_structure: 'Analyzed workflow structure',
+  get_build_workflow_examples: 'Got workflow examples',
+  get_edit_workflow_examples: 'Got workflow examples',
+  get_environment_variables: 'Got environment variables',
+  set_environment_variables: 'Set environment variables',
+  get_workflow_console: 'Got workflow console',
+  edit_workflow: 'Updated workflow',
+  search_online: 'Searched online',
+} as const
+
+// Error versions for failed tool calls
+export const COPILOT_TOOL_ERROR_NAMES: Record<string, string> = {
+  search_documentation: 'Errored searching documentation',
+  get_user_workflow: 'Errored analyzing your workflow',
+  build_workflow: 'Errored building your workflow',
+  get_blocks_and_tools: 'Errored getting block information',
+  get_blocks_metadata: 'Errored getting block metadata',
+  get_yaml_structure: 'Errored analyzing workflow structure',
+  get_build_workflow_examples: 'Errored getting workflow examples',
+  get_edit_workflow_examples: 'Errored getting workflow examples',
+  get_environment_variables: 'Errored getting environment variables',
+  set_environment_variables: 'Errored setting environment variables',
+  get_workflow_console: 'Errored getting workflow console',
+  edit_workflow: 'Errored updating workflow',
+  search_online: 'Errored searching online',
+} as const
+
 export type CopilotToolId = keyof typeof COPILOT_TOOL_DISPLAY_NAMES

@@ -27,6 +27,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
+import { COPILOT_TOOL_DISPLAY_NAMES, COPILOT_TOOL_PAST_TENSE, COPILOT_TOOL_ERROR_NAMES } from '@/stores/constants'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import type { ToolCallState } from '@/types/tool-call'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -69,6 +70,21 @@ const WordWrap = ({ text }: { text: string }) => {
       })}
     </>
   )
+}
+
+// Helper function to get appropriate tool display name based on state
+function getToolDisplayNameByState(tool: any): string {
+  const toolName = tool.name
+  const state = tool.state
+  
+  if (state === 'completed' || state === 'applied') {
+    return COPILOT_TOOL_PAST_TENSE[toolName] || tool.displayName || toolName
+  } else if (state === 'error') {
+    return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${(tool.displayName || toolName).toLowerCase()}`
+  } else {
+    // For executing, aborted, ready_for_review, rejected, etc. - use present tense
+    return tool.displayName || COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
+  }
 }
 
 // Inline Tool Call Component
@@ -162,7 +178,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
                 ? tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
                   ? 'Editing workflow'
                   : 'Building workflow'
-                : tool.displayName || tool.name}
+                : getToolDisplayNameByState(tool)}
             </div>
             <div className='text-muted-foreground text-xs'>
               {tool.state === 'executing'
@@ -190,7 +206,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   return (
     <div className='flex items-center gap-2 py-1 text-muted-foreground'>
       <div className='flex-shrink-0'>{getStateIcon()}</div>
-      <span className='text-sm'>{tool.displayName || tool.name}</span>
+      <span className='text-sm'>{getToolDisplayNameByState(tool)}</span>
     </div>
   )
 }

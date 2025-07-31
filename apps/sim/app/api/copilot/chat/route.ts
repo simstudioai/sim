@@ -458,20 +458,21 @@ export async function POST(req: NextRequest) {
             if (currentChat) {
               const updatedMessages = [...conversationHistory, userMessage]
 
-              // Save assistant message if there's any content (even partial from abort)
-              if (assistantContent.trim()) {
+              // Save assistant message if there's any content or tool calls (even partial from abort)
+              if (assistantContent.trim() || toolCalls.length > 0) {
                 const assistantMessage = {
                   id: crypto.randomUUID(),
                   role: 'assistant',
                   content: assistantContent,
                   timestamp: new Date().toISOString(),
+                  ...(toolCalls.length > 0 && { toolCalls }),
                 }
                 updatedMessages.push(assistantMessage)
                 logger.info(
-                  `[${requestId}] Saving assistant message with content (${assistantContent.length} chars)`
+                  `[${requestId}] Saving assistant message with content (${assistantContent.length} chars) and ${toolCalls.length} tool calls`
                 )
               } else {
-                logger.info(`[${requestId}] No assistant content to save (aborted before response)`)
+                logger.info(`[${requestId}] No assistant content or tool calls to save (aborted before response)`)
               }
 
               // Update chat in database immediately (without title)

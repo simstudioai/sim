@@ -2,9 +2,10 @@
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { type CopilotChat, type CopilotMessage, sendStreamingMessage } from '@/lib/copilot/api'
+import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
+import type { CopilotMessage } from './types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
+import { COPILOT_TOOL_DISPLAY_NAMES, COPILOT_TOOL_PAST_TENSE, COPILOT_TOOL_ERROR_NAMES } from '@/stores/constants'
 import { COPILOT_TOOL_IDS } from './constants'
 import type { CopilotStore, WorkflowCheckpoint } from './types'
 
@@ -90,6 +91,58 @@ function handleStoreError(error: unknown, fallbackMessage: string): string {
 function getToolDisplayName(toolName: string): string {
   // Use dynamically generated display names from the tool registry
   return COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
+}
+
+/**
+ * Helper function to get appropriate tool display name based on state
+ */
+function getToolDisplayNameByState(toolCall: any): string {
+  const toolName = toolCall.name
+  const state = toolCall.state
+  
+  if (state === 'completed' || state === 'applied') {
+    return COPILOT_TOOL_PAST_TENSE[toolName] || toolCall.displayName || getToolDisplayName(toolName)
+  } else if (state === 'error') {
+    return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${(toolCall.displayName || getToolDisplayName(toolName)).toLowerCase()}`
+  } else {
+    // For executing, aborted, ready_for_review, rejected, etc. - use present tense
+    return toolCall.displayName || getToolDisplayName(toolName)
+  }
+}
+
+/**
+ * Helper function to ensure tool calls have display names
+ * This is needed when loading messages from database where tool calls
+ * don't go through createToolCall()
+ */
+function ensureToolCallDisplayNames(messages: CopilotMessage[]): CopilotMessage[] {
+  return messages.map((message: CopilotMessage) => {
+    if (message.role === 'assistant' && (message.toolCalls || message.contentBlocks)) {
+      return {
+        ...message,
+        // Add displayName to toolCalls if missing, considering state
+        ...(message.toolCalls && {
+          toolCalls: message.toolCalls.map((toolCall: any) => ({
+            ...toolCall,
+            displayName: getToolDisplayNameByState(toolCall)
+          }))
+        }),
+        // Add displayName to tool calls in contentBlocks if missing, considering state
+        ...(message.contentBlocks && {
+          contentBlocks: message.contentBlocks.map((block: any) => 
+            block.type === 'tool_call' ? {
+              ...block,
+              toolCall: {
+                ...block.toolCall,
+                displayName: getToolDisplayNameByState(block.toolCall)
+              }
+            } : block
+          )
+        })
+      }
+    }
+    return message
+  })
 }
 
 /**
@@ -626,7 +679,7 @@ export const useCopilotStore = create<CopilotStore>()(
         // Optimistically set the chat first
         set({
           currentChat: chat,
-          messages: chat.messages || [],
+          messages: ensureToolCallDisplayNames(chat.messages || []),
         })
 
         try {
@@ -647,7 +700,7 @@ export const useCopilotStore = create<CopilotStore>()(
               // Update with the latest messages
               set({
                 currentChat: latestChat,
-                messages: latestChat.messages || [],
+                messages: ensureToolCallDisplayNames(latestChat.messages || []),
                 // Also update the chat in the chats array with latest data
                 chats: get().chats.map((c: CopilotChat) => (c.id === chat.id ? latestChat : c)),
               })
@@ -758,7 +811,7 @@ export const useCopilotStore = create<CopilotStore>()(
               const mostRecentChat = data.chats[0]
               set({
                 currentChat: mostRecentChat,
-                messages: mostRecentChat.messages || [],
+                messages: ensureToolCallDisplayNames(mostRecentChat.messages || []),
               })
               logger.info(
                 `Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`
@@ -967,6 +1020,41 @@ export const useCopilotStore = create<CopilotStore>()(
             logger.info(
               `Message streaming aborted successfully. Marked ${abortedCount} tool calls as aborted.`
             )
+
+            // Save the aborted state to database immediately
+            const { currentChat } = get()
+            if (currentChat && abortedCount > 0) {
+              try {
+                const currentMessages = get().messages
+                const dbMessages = currentMessages.map(msg => ({
+                  id: msg.id,
+                  role: msg.role,
+                  content: msg.content,
+                  timestamp: msg.timestamp,
+                  ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
+                  ...(msg.contentBlocks && msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks })
+                }))
+
+                fetch('/api/copilot/chat/update-messages', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    chatId: currentChat.id,
+                    messages: dbMessages
+                  })
+                }).then(response => {
+                  if (response.ok) {
+                    logger.info('Successfully persisted aborted tool call states to database')
+                  } else {
+                    logger.error('Failed to persist aborted tool call states:', response.statusText)
+                  }
+                }).catch(error => {
+                  logger.error('Error persisting aborted tool call states:', error)
+                })
+              } catch (error) {
+                logger.error('Error persisting aborted tool call states:', error)
+              }
+            }
           } else {
             // No streaming message found, just reset the state
             set({
@@ -1456,6 +1544,48 @@ export const useCopilotStore = create<CopilotStore>()(
           // Handle new chat creation if needed
           if (context.newChatId && !get().currentChat) {
             await get().handleNewChatCreation(context.newChatId)
+          }
+
+          // Save the complete message state (with contentBlocks and toolCalls) to database
+          // This ensures all streamed content including thinking text and tool calls are persisted
+          const { currentChat } = get()
+          if (currentChat) {
+            try {
+              const currentMessages = get().messages
+              const updatedMessage = currentMessages.find(msg => msg.id === messageId)
+              
+              if (updatedMessage && (updatedMessage.toolCalls?.length || updatedMessage.contentBlocks?.length)) {
+                const dbMessages = currentMessages.map(msg => ({
+                  id: msg.id,
+                  role: msg.role,
+                  content: msg.content,
+                  timestamp: msg.timestamp,
+                  ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
+                  ...(msg.contentBlocks && msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks })
+                }))
+
+                const response = await fetch('/api/copilot/chat/update-messages', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    chatId: currentChat.id,
+                    messages: dbMessages
+                  })
+                })
+
+                if (response.ok) {
+                  logger.info('Successfully persisted complete streaming state to database', {
+                    messageId,
+                    toolCallsCount: updatedMessage.toolCalls?.length || 0,
+                    contentBlocksCount: updatedMessage.contentBlocks?.length || 0
+                  })
+                } else {
+                  logger.error('Failed to persist complete streaming state:', response.statusText)
+                }
+              }
+            } catch (error) {
+              logger.error('Error persisting complete streaming state:', error)
+            }
           }
         } catch (error) {
           // Handle AbortError gracefully
