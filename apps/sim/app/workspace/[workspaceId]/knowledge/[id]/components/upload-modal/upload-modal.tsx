@@ -187,6 +187,10 @@ export function UploadModal({
             disabled={isUploading}
             knowledgeBaseId={knowledgeBaseId}
             documentId={null} // No specific document for upload
+            onSave={async () => {
+              // For upload modal, tags are saved when document is uploaded
+              // This is a placeholder as tags will be applied during upload
+            }}
           />
 
           {/* File Upload Section */}
