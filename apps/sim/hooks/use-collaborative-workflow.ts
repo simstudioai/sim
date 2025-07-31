@@ -665,6 +665,64 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, workflowStore]
   )
 
+  const collaborativeAddEdge = useCallback(
+    (edge: Edge) => {
+      executeQueuedOperation('add', 'edge', edge, () => workflowStore.addEdge(edge))
+    },
+    [executeQueuedOperation, workflowStore]
+  )
+
+  const collaborativeRemoveEdge = useCallback(
+    (edgeId: string) => {
+      executeQueuedOperation('remove', 'edge', { id: edgeId }, () =>
+        workflowStore.removeEdge(edgeId)
+      )
+    },
+    [executeQueuedOperation, workflowStore]
+  )
+
+  const collaborativeSetSubblockValue = useCallback(
+    (blockId: string, subblockId: string, value: any) => {
+      if (isApplyingRemoteChange.current) return
+
+      if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
+        logger.debug('Skipping subblock update - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+          blockId,
+          subblockId,
+        })
+        return
+      }
+
+      // Generate operation ID for queue tracking
+      const operationId = crypto.randomUUID()
+
+      // Add to queue for retry mechanism
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'subblock-update',
+          target: 'subblock',
+          payload: { blockId, subblockId, value },
+        },
+        workflowId: activeWorkflowId || '',
+        userId: session?.user?.id || 'unknown',
+      })
+
+      // Apply locally first (immediate UI feedback)
+      subBlockStore.setValue(blockId, subblockId, value)
+    },
+    [
+      subBlockStore,
+      emitSubblockUpdate,
+      currentWorkflowId,
+      activeWorkflowId,
+      addToQueue,
+      session?.user?.id,
+    ]
+  )
+
   const collaborativeDuplicateBlock = useCallback(
     (sourceId: string) => {
       const sourceBlock = workflowStore.blocks[sourceId]
@@ -737,69 +795,17 @@ export function useCollaborativeWorkflow() {
         const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId]
         if (subBlockValues && activeWorkflowId) {
           Object.entries(subBlockValues).forEach(([subblockId, value]) => {
-            subBlockStore.setValue(newId, subblockId, value)
+            collaborativeSetSubblockValue(newId, subblockId, value)
           })
         }
       })
     },
-    [executeQueuedOperation, workflowStore, subBlockStore, activeWorkflowId]
-  )
-
-  const collaborativeAddEdge = useCallback(
-    (edge: Edge) => {
-      executeQueuedOperation('add', 'edge', edge, () => workflowStore.addEdge(edge))
-    },
-    [executeQueuedOperation, workflowStore]
-  )
-
-  const collaborativeRemoveEdge = useCallback(
-    (edgeId: string) => {
-      executeQueuedOperation('remove', 'edge', { id: edgeId }, () =>
-        workflowStore.removeEdge(edgeId)
-      )
-    },
-    [executeQueuedOperation, workflowStore]
-  )
-
-  const collaborativeSetSubblockValue = useCallback(
-    (blockId: string, subblockId: string, value: any) => {
-      if (isApplyingRemoteChange.current) return
-
-      if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
-        logger.debug('Skipping subblock update - not in active workflow', {
-          currentWorkflowId,
-          activeWorkflowId,
-          blockId,
-          subblockId,
-        })
-        return
-      }
-
-      // Generate operation ID for queue tracking
-      const operationId = crypto.randomUUID()
-
-      // Add to queue for retry mechanism
-      addToQueue({
-        id: operationId,
-        operation: {
-          operation: 'subblock-update',
-          target: 'subblock',
-          payload: { blockId, subblockId, value },
-        },
-        workflowId: activeWorkflowId || '',
-        userId: session?.user?.id || 'unknown',
-      })
-
-      // Apply locally first (immediate UI feedback)
-      subBlockStore.setValue(blockId, subblockId, value)
-    },
     [
+      executeQueuedOperation,
+      workflowStore,
       subBlockStore,
-      emitSubblockUpdate,
-      currentWorkflowId,
       activeWorkflowId,
-      addToQueue,
-      session?.user?.id,
+      collaborativeSetSubblockValue,
     ]
   )
 
