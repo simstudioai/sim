@@ -19,6 +19,7 @@ export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter the starting URL for the agent',
+      required: true,
     },
     {
       id: 'task',
@@ -27,6 +28,7 @@ export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
       layout: 'full',
       placeholder:
         'Enter the task or goal for the agent to achieve. Reference variables using %key% syntax.',
+      required: true,
     },
     {
       id: 'variables',
@@ -42,6 +44,7 @@ export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
       layout: 'full',
       placeholder: 'Enter your Anthropic API key',
       password: true,
+      required: true,
     },
     {
       id: 'outputSchema',
@@ -60,14 +63,14 @@ export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
     },
   },
   inputs: {
-    startUrl: { type: 'string', required: true },
-    task: { type: 'string', required: true },
-    variables: { type: 'json', required: false },
-    apiKey: { type: 'string', required: true },
-    outputSchema: { type: 'json', required: false },
+    startUrl: { type: 'string', description: 'Starting URL for agent' },
+    task: { type: 'string', description: 'Task description' },
+    variables: { type: 'json', description: 'Task variables' },
+    apiKey: { type: 'string', description: 'Anthropic API key' },
+    outputSchema: { type: 'json', description: 'Output schema' },
   },
   outputs: {
-    agentResult: 'json',
-    structuredOutput: 'any',
+    agentResult: { type: 'json', description: 'Agent execution result' },
+    structuredOutput: { type: 'any', description: 'Structured output data' },
   },
 }

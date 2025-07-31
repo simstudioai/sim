@@ -19,6 +19,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter phone number with country code (e.g., +1234567890)',
+      required: true,
     },
     {
       id: 'message',
@@ -26,6 +27,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter your message',
+      required: true,
     },
     {
       id: 'phoneNumberId',
@@ -33,6 +35,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Your WhatsApp Business Phone Number ID',
+      required: true,
     },
     {
       id: 'accessToken',
@@ -41,6 +44,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
       layout: 'full',
       placeholder: 'Your WhatsApp Business API Access Token',
       password: true,
+      required: true,
     },
   ],
   tools: {
@@ -50,14 +54,14 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
     },
   },
   inputs: {
-    phoneNumber: { type: 'string', required: true },
-    message: { type: 'string', required: true },
-    phoneNumberId: { type: 'string', required: true },
-    accessToken: { type: 'string', required: true },
+    phoneNumber: { type: 'string', description: 'Recipient phone number' },
+    message: { type: 'string', description: 'Message text' },
+    phoneNumberId: { type: 'string', description: 'WhatsApp phone number ID' },
+    accessToken: { type: 'string', description: 'WhatsApp access token' },
   },
   outputs: {
-    success: 'boolean',
-    messageId: 'any',
-    error: 'any',
+    success: { type: 'boolean', description: 'Send success status' },
+    messageId: { type: 'any', description: 'Message identifier' },
+    error: { type: 'any', description: 'Error information' },
   },
 }

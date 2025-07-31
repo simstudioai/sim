@@ -31,7 +31,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Search type: neural, keyword, auto or magic (default: auto)',
+      description: 'Search type: neural, keyword, auto or fast (default: auto)',
     },
     apiKey: {
       type: 'string',

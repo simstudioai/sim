@@ -36,7 +36,7 @@ export const StarterBlock: BlockConfig = {
     access: [],
   },
   inputs: {
-    input: { type: 'json', required: false },
+    input: { type: 'json', description: 'Workflow input data' },
   },
-  outputs: {},
+  outputs: {}, // No outputs - starter blocks initiate workflow execution
 }

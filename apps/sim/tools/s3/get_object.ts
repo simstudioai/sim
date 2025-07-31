@@ -29,7 +29,7 @@ export const s3GetObjectTool: ToolConfig = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'S3 Object URL (e.g., https://bucket-name.s3.region.amazonaws.com/path/to/file)',
+      description: 'S3 Object URL',
     },
   },
   request: {

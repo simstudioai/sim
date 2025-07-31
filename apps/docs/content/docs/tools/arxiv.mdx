@@ -61,7 +61,7 @@ Search for academic papers on ArXiv by keywords, authors, titles, or other field
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | The search query to execute |
+| `searchQuery` | string | Yes | The search query to execute |
 | `searchField` | string | No | Field to search in: all, ti \(title\), au \(author\), abs \(abstract\), co \(comment\), jr \(journal\), cat \(category\), rn \(report number\) |
 | `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 2000\) |
 | `sortBy` | string | No | Sort by: relevance, lastUpdatedDate, submittedDate \(default: relevance\) |
@@ -69,11 +69,12 @@ Search for academic papers on ArXiv by keywords, authors, titles, or other field
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `query` | string |
-| `papers` | string |
-| `totalResults` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `papers` | json | Found papers data |
+| `totalResults` | number | Total results count |
+| `paper` | json | Paper details |
+| `authorPapers` | json | Author papers list |
 
 ### `arxiv_get_paper`
 
@@ -87,9 +88,12 @@ Get detailed information about a specific ArXiv paper by its ID.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `paper` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `papers` | json | Found papers data |
+| `totalResults` | number | Total results count |
+| `paper` | json | Paper details |
+| `authorPapers` | json | Author papers list |
 
 ### `arxiv_get_author_papers`
 
@@ -104,32 +108,13 @@ Search for papers by a specific author on ArXiv.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `authorPapers` | string |
-| `authorName` | string |
-| `totalResults` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `papers` | json | Found papers data |
+| `totalResults` | number | Total results count |
+| `paper` | json | Paper details |
+| `authorPapers` | json | Author papers list |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `papers` | json | papers output from the block |
-| `totalResults` | number | totalResults output from the block |
-| `paper` | json | paper output from the block |
-| `authorPapers` | json | authorPapers output from the block |
 
 
 ## Notes

@@ -64,13 +64,10 @@ Read content from a Notion page
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
-| `lastEditedTime` | string |
-| `createdTime` | string |
-| `url` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Page content |
+| `metadata` | any | Page metadata |
 
 ### `notion_read_database`
 
@@ -85,16 +82,10 @@ Read database information and structure from Notion
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `url` | string |
-| `id` | string |
-| `createdTime` | string |
-| `lastEditedTime` | string |
-| `properties` | string |
-| `content` | string |
-| `title` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Page content |
+| `metadata` | any | Page metadata |
 
 ### `notion_write`
 
@@ -110,9 +101,10 @@ Append content to a Notion page
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Page content |
+| `metadata` | any | Page metadata |
 
 ### `notion_create_page`
 
@@ -129,9 +121,10 @@ Create a new page in Notion
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Page content |
+| `metadata` | any | Page metadata |
 
 ### `notion_query_database`
 
@@ -149,13 +142,10 @@ Query and filter Notion database entries with advanced filtering
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
-| `hasMore` | string |
-| `nextCursor` | string |
-| `results` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Page content |
+| `metadata` | any | Page metadata |
 
 ### `notion_search`
 
@@ -172,13 +162,10 @@ Search across all pages and databases in Notion workspace
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
-| `hasMore` | string |
-| `nextCursor` | string |
-| `results` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Page content |
+| `metadata` | any | Page metadata |
 
 ### `notion_create_database`
 
@@ -195,33 +182,11 @@ Create a new database in Notion with custom properties
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `url` | string |
-| `createdTime` | string |
-| `properties` | string |
-| `content` | string |
-| `title` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Page content |
+| `metadata` | any | Page metadata |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `content` | string | content output from the block |
-| `metadata` | any | metadata output from the block |
 
 
 ## Notes

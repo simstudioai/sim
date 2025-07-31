@@ -76,10 +76,14 @@ export type BlockOutput =
   | PrimitiveValueType
   | { [key: string]: PrimitiveValueType | Record<string, any> }
 
+// Output field definition with optional description
+export type OutputFieldDefinition =
+  | PrimitiveValueType
+  | { type: PrimitiveValueType; description?: string }
+
 // Parameter validation rules
 export interface ParamConfig {
   type: ParamType
-  required: boolean
   description?: string
   schema?: {
     type: string
@@ -102,6 +106,7 @@ export interface SubBlockConfig {
   type: SubBlockType
   layout?: SubBlockLayout
   mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
+  required?: boolean
   options?:
     | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]
     | (() => { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])
@@ -173,7 +178,7 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     }
   }
   inputs: Record<string, ParamConfig>
-  outputs: ToolOutputToValueType<ExtractToolOutput<T>> & {
+  outputs: Record<string, OutputFieldDefinition> & {
     visualization?: {
       type: 'image'
       url: string

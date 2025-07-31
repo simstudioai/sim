@@ -29,9 +29,7 @@ import {
   ToolInput,
   WebhookConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
-import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { DocumentTagEntry } from './components/document-tag-entry/document-tag-entry'
 import { KnowledgeTagFilter } from './components/knowledge-tag-filter/knowledge-tag-filter'
 import { KnowledgeTagFilters } from './components/knowledge-tag-filters/knowledge-tag-filters'
@@ -64,13 +62,7 @@ export function SubBlock({
   }
 
   const isFieldRequired = () => {
-    const blockType = useWorkflowStore.getState().blocks[blockId]?.type
-    if (!blockType) return false
-
-    const blockConfig = getBlock(blockType)
-    if (!blockConfig) return false
-
-    return blockConfig.inputs[config.id]?.required === true
+    return config.required === true
   }
 
   // Get preview value for this specific sub-block

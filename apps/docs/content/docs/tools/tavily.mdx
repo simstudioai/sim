@@ -78,13 +78,14 @@ Perform AI-powered web searches using Tavily
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `query` | string |
-| `results` | string |
-| `url` | string |
-| `snippet` | string |
-| `raw_content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results data |
+| `answer` | any | Search answer |
+| `query` | string | Query used |
+| `content` | string | Extracted content |
+| `title` | string | Page title |
+| `url` | string | Source URL |
 
 ### `tavily_extract`
 
@@ -100,33 +101,15 @@ Extract raw content from multiple web pages simultaneously using Tavily
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `results` | string |
-| `failed_results` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results data |
+| `answer` | any | Search answer |
+| `query` | string | Query used |
+| `content` | string | Extracted content |
+| `title` | string | Page title |
+| `url` | string | Source URL |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `results` | json | results output from the block |
-| `answer` | any | answer output from the block |
-| `query` | string | query output from the block |
-| `content` | string | content output from the block |
-| `title` | string | title output from the block |
-| `url` | string | url output from the block |
 
 
 ## Notes

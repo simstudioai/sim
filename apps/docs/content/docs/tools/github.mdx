@@ -56,24 +56,10 @@ Fetch PR details including diff and files changed
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `title` | string |
-| `state` | string |
-| `html_url` | string |
-| `diff_url` | string |
-| `created_at` | string |
-| `updated_at` | string |
-| `files` | string |
-| `additions` | string |
-| `deletions` | string |
-| `changes` | string |
-| `patch` | string |
-| `blob_url` | string |
-| `raw_url` | string |
-| `status` | string |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Response content |
+| `metadata` | json | Response metadata |
 
 ### `github_comment`
 
@@ -97,17 +83,10 @@ Create comments on GitHub PRs
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `html_url` | string |
-| `created_at` | string |
-| `updated_at` | string |
-| `path` | string |
-| `line` | string |
-| `side` | string |
-| `commit_id` | string |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Response content |
+| `metadata` | json | Response metadata |
 
 ### `github_repo_info`
 
@@ -123,15 +102,10 @@ Retrieve comprehensive GitHub repository metadata including stars, forks, issues
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `description` | string |
-| `stars` | string |
-| `forks` | string |
-| `openIssues` | string |
-| `language` | string |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Response content |
+| `metadata` | json | Response metadata |
 
 ### `github_latest_commit`
 
@@ -148,34 +122,11 @@ Retrieve the latest commit from a GitHub repository
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `html_url` | string |
-| `commit_message` | string |
-| `author` | string |
-| `login` | string |
-| `avatar_url` | string |
-| `content` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Response content |
+| `metadata` | json | Response metadata |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `content` | string | content output from the block |
-| `metadata` | json | metadata output from the block |
 
 
 ## Notes

@@ -23,6 +23,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         { label: 'Read Page', id: 'read' },
         { label: 'Update Page', id: 'update' },
       ],
+      value: () => 'read',
     },
     {
       id: 'domain',
@@ -30,6 +31,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter Confluence domain (e.g., simstudio.atlassian.net)',
+      required: true,
     },
     {
       id: 'credential',
@@ -45,6 +47,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         'offline_access',
       ],
       placeholder: 'Select Confluence account',
+      required: true,
     },
     // Page selector (basic mode)
     {
@@ -116,20 +119,20 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    domain: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    pageId: { type: 'string', required: false },
-    manualPageId: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    domain: { type: 'string', description: 'Confluence domain' },
+    credential: { type: 'string', description: 'Confluence access token' },
+    pageId: { type: 'string', description: 'Page identifier' },
+    manualPageId: { type: 'string', description: 'Manual page identifier' },
     // Update operation inputs
-    title: { type: 'string', required: false },
-    content: { type: 'string', required: false },
+    title: { type: 'string', description: 'New page title' },
+    content: { type: 'string', description: 'New page content' },
   },
   outputs: {
-    ts: 'string',
-    pageId: 'string',
-    content: 'string',
-    title: 'string',
-    success: 'boolean',
+    ts: { type: 'string', description: 'Timestamp' },
+    pageId: { type: 'string', description: 'Page identifier' },
+    content: { type: 'string', description: 'Page content' },
+    title: { type: 'string', description: 'Page title' },
+    success: { type: 'boolean', description: 'Operation success status' },
   },
 }

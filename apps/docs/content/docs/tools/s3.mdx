@@ -78,36 +78,15 @@ Retrieve an object from an AWS S3 bucket
 | --------- | ---- | -------- | ----------- |
 | `accessKeyId` | string | Yes | Your AWS Access Key ID |
 | `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
-| `s3Uri` | string | Yes | S3 Object URL \(e.g., https://bucket-name.s3.region.amazonaws.com/path/to/file\) |
+| `s3Uri` | string | Yes | S3 Object URL |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `size` | string |
-| `name` | string |
-| `lastModified` | string |
-| `url` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | Presigned URL |
+| `metadata` | json | Object metadata |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `accessKeyId` | string | Yes | Access Key ID - Enter your AWS Access Key ID |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `url` | string | url output from the block |
-| `metadata` | json | metadata output from the block |
 
 
 ## Notes

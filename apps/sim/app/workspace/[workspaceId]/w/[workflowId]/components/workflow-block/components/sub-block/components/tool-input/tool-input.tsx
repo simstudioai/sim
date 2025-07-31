@@ -416,7 +416,9 @@ export function ToolInput({
   const provider = model ? getProviderFromModel(model) : ''
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
-  const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
+  const toolBlocks = getAllBlocks().filter(
+    (block) => block.category === 'tools' && block.type !== 'evaluator'
+  )
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
@@ -719,7 +721,21 @@ export function ToolInput({
     // Initialize parameters for the new operation
     const initialParams = initializeToolParams(newToolId, toolParams.userInputParameters, blockId)
 
-    // Clear fields when operation changes for Jira
+    // Preserve ALL existing parameters that also exist in the new tool configuration
+    // This mimics how regular blocks work - each field maintains its state independently
+    const oldToolParams = getToolParametersConfig(tool.toolId, tool.type)
+    const oldParamIds = new Set(oldToolParams?.userInputParameters.map((p) => p.id) || [])
+    const newParamIds = new Set(toolParams.userInputParameters.map((p) => p.id))
+
+    // Preserve any parameter that exists in both configurations and has a value
+    const preservedParams: Record<string, string> = {}
+    Object.entries(tool.params).forEach(([paramId, value]) => {
+      if (newParamIds.has(paramId) && value) {
+        preservedParams[paramId] = value
+      }
+    })
+
+    // Clear fields when operation changes for Jira (special case)
     if (tool.type === 'jira') {
       const subBlockStore = useSubBlockStore.getState()
       // Clear all fields that might be shared between operations
@@ -737,7 +753,7 @@ export function ToolInput({
               ...tool,
               toolId: newToolId,
               operation,
-              params: initialParams, // Reset params when operation changes
+              params: { ...initialParams, ...preservedParams }, // Preserve all compatible existing values
             }
           : tool
       )

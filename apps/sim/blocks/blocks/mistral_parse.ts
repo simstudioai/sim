@@ -53,6 +53,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       type: 'short-input' as SubBlockType,
       layout: 'full' as SubBlockLayout,
       placeholder: 'Enter full URL to a PDF document (https://example.com/document.pdf)',
+      required: !shouldEnableFileUpload,
       ...(shouldEnableFileUpload
         ? {
             condition: {
@@ -116,6 +117,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       layout: 'full' as SubBlockLayout,
       placeholder: 'Enter your Mistral API key',
       password: true,
+      required: true,
     },
   ],
   tools: {
@@ -191,19 +193,15 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
     },
   },
   inputs: {
-    inputMethod: { type: 'string', required: false },
-    filePath: { type: 'string', required: !shouldEnableFileUpload },
-    fileUpload: { type: 'json', required: false },
-    apiKey: { type: 'string', required: true },
-    resultType: { type: 'string', required: false },
-    pages: { type: 'string', required: false },
-    // Image-related inputs - temporarily disabled
-    // includeImageBase64: { type: 'boolean', required: false },
-    // imageLimit: { type: 'string', required: false },
-    // imageMinSize: { type: 'string', required: false },
+    inputMethod: { type: 'string', description: 'Input method selection' },
+    filePath: { type: 'string', description: 'PDF document URL' },
+    fileUpload: { type: 'json', description: 'Uploaded PDF file' },
+    apiKey: { type: 'string', description: 'Mistral API key' },
+    resultType: { type: 'string', description: 'Output format type' },
+    pages: { type: 'string', description: 'Page selection' },
   },
   outputs: {
-    content: 'string',
-    metadata: 'json',
+    content: { type: 'string', description: 'Extracted content' },
+    metadata: { type: 'json', description: 'Processing metadata' },
   },
 }

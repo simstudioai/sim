@@ -58,16 +58,16 @@ Post new tweets, reply to tweets, or create polls on X (Twitter)
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `tweet` | string |
-| `text` | string |
-| `createdAt` | string |
-| `authorId` | string |
-| `conversationId` | string |
-| `inReplyToUserId` | string |
-| `attachments` | string |
-| `pollId` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweet` | json | Tweet data |
+| `replies` | any | Tweet replies |
+| `context` | any | Tweet context |
+| `tweets` | json | Tweets data |
+| `includes` | any | Additional data |
+| `meta` | json | Response metadata |
+| `user` | json | User profile data |
+| `recentTweets` | any | Recent tweets data |
 
 ### `x_read`
 
@@ -83,10 +83,16 @@ Read tweet details, including replies and conversation context
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `tweet` | string |
-| `context` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweet` | json | Tweet data |
+| `replies` | any | Tweet replies |
+| `context` | any | Tweet context |
+| `tweets` | json | Tweets data |
+| `includes` | any | Additional data |
+| `meta` | json | Response metadata |
+| `user` | json | User profile data |
+| `recentTweets` | any | Recent tweets data |
 
 ### `x_search`
 
@@ -105,12 +111,16 @@ Search for tweets using keywords, hashtags, or advanced queries
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `tweets` | string |
-| `includes` | string |
-| `media` | string |
-| `polls` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweet` | json | Tweet data |
+| `replies` | any | Tweet replies |
+| `context` | any | Tweet context |
+| `tweets` | json | Tweets data |
+| `includes` | any | Additional data |
+| `meta` | json | Response metadata |
+| `user` | json | User profile data |
+| `recentTweets` | any | Recent tweets data |
 
 ### `x_user`
 
@@ -125,34 +135,17 @@ Get user profile information
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `user` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tweet` | json | Tweet data |
+| `replies` | any | Tweet replies |
+| `context` | any | Tweet context |
+| `tweets` | json | Tweets data |
+| `includes` | any | Additional data |
+| `meta` | json | Response metadata |
+| `user` | json | User profile data |
+| `recentTweets` | any | Recent tweets data |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `tweet` | json | tweet output from the block |
-| `replies` | any | replies output from the block |
-| `context` | any | context output from the block |
-| `tweets` | json | tweets output from the block |
-| `includes` | any | includes output from the block |
-| `meta` | json | meta output from the block |
-| `user` | json | user output from the block |
-| `recentTweets` | any | recentTweets output from the block |
 
 
 ## Notes

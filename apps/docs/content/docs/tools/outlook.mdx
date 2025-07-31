@@ -161,11 +161,10 @@ Send emails using Outlook
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
-| `results` | string |
-| `timestamp` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Response message |
+| `results` | json | Email results |
 
 ### `outlook_draft`
 
@@ -182,13 +181,10 @@ Draft emails using Outlook
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
-| `results` | string |
-| `subject` | string |
-| `status` | string |
-| `timestamp` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Response message |
+| `results` | json | Email results |
 
 ### `outlook_read`
 
@@ -204,29 +200,11 @@ Read emails from Outlook
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
-| `results` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Response message |
+| `results` | json | Email results |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `message` | string | message output from the block |
-| `results` | json | results output from the block |
 
 
 ## Notes

@@ -19,12 +19,14 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter URL',
+      required: true,
     },
     {
       id: 'method',
       title: 'Method',
       type: 'dropdown',
       layout: 'half',
+      required: true,
       options: [
         { label: 'GET', id: 'GET' },
         { label: 'POST', id: 'POST' },
@@ -85,15 +87,15 @@ Example:
     access: ['http_request'],
   },
   inputs: {
-    url: { type: 'string', required: true },
-    method: { type: 'string', required: true },
-    headers: { type: 'json', required: false },
-    body: { type: 'json', required: false },
-    params: { type: 'json', required: false },
+    url: { type: 'string', description: 'Request URL' },
+    method: { type: 'string', description: 'HTTP method' },
+    headers: { type: 'json', description: 'Request headers' },
+    body: { type: 'json', description: 'Request body data' },
+    params: { type: 'json', description: 'URL query parameters' },
   },
   outputs: {
-    data: 'any',
-    status: 'number',
-    headers: 'json',
+    data: { type: 'any', description: 'Response data' },
+    status: { type: 'number', description: 'HTTP status code' },
+    headers: { type: 'json', description: 'Response headers' },
   },
 }

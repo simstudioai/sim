@@ -99,10 +99,10 @@ Query data from a Supabase table
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
-| `results` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation message |
+| `results` | json | Query results |
 
 ### `supabase_insert`
 
@@ -119,10 +119,10 @@ Insert data into a Supabase table
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
-| `results` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation message |
+| `results` | json | Query results |
 
 ### `supabase_get_row`
 
@@ -139,10 +139,10 @@ Get a single row from a Supabase table based on filter criteria
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
-| `results` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation message |
+| `results` | json | Query results |
 
 ### `supabase_update`
 
@@ -160,9 +160,10 @@ Update rows in a Supabase table based on filter criteria
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation message |
+| `results` | json | Query results |
 
 ### `supabase_delete`
 
@@ -179,28 +180,11 @@ Delete rows from a Supabase table based on filter criteria
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `message` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation message |
+| `results` | json | Query results |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `message` | string | message output from the block |
-| `results` | json | results output from the block |
 
 
 ## Notes

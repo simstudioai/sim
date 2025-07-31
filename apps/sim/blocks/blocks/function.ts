@@ -76,11 +76,11 @@ try {
     access: ['function_execute'],
   },
   inputs: {
-    code: { type: 'string', required: false },
-    timeout: { type: 'number', required: false },
+    code: { type: 'string', description: 'JavaScript/TypeScript code to execute' },
+    timeout: { type: 'number', description: 'Execution timeout' },
   },
   outputs: {
-    result: 'any',
-    stdout: 'string',
+    result: { type: 'any', description: 'Execution result' },
+    stdout: { type: 'string', description: 'Console output' },
   },
 }

@@ -79,33 +79,13 @@ Runs a browser automation task using BrowserUse
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `id` | string |
-| `success` | string |
-| `output` | string |
-| `steps` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Task execution identifier |
+| `success` | boolean | Task completion status |
+| `output` | any | Task output data |
+| `steps` | json | Execution steps taken |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `task` | string | Yes | Task - Describe what the browser agent should do... |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `id` | string | id output from the block |
-| `success` | boolean | success output from the block |
-| `output` | any | output output from the block |
-| `steps` | json | steps output from the block |
 
 
 ## Notes

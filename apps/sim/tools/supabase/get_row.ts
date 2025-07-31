@@ -23,8 +23,7 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'PostgREST filter to find the specific row (e.g., "id=eq.123", "status=eq.active", "name=not.is.null")',
+      description: 'PostgREST filter to find the specific row (e.g., "id=eq.123")',
     },
     apiKey: {
       type: 'string',

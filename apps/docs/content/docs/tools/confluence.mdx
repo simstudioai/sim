@@ -64,12 +64,13 @@ Retrieve content from Confluence pages using the Confluence API.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
-| `pageId` | string |
-| `content` | string |
-| `title` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp |
+| `pageId` | string | Page identifier |
+| `content` | string | Page content |
+| `title` | string | Page title |
+| `success` | boolean | Operation success status |
 
 ### `confluence_update`
 
@@ -89,35 +90,14 @@ Update a Confluence page using the Confluence API.
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
-| `pageId` | string |
-| `title` | string |
-| `body` | string |
-| `success` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Timestamp |
+| `pageId` | string | Page identifier |
+| `content` | string | Page content |
+| `title` | string | Page title |
+| `success` | boolean | Operation success status |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `ts` | string | ts output from the block |
-| `pageId` | string | pageId output from the block |
-| `content` | string | content output from the block |
-| `title` | string | title output from the block |
-| `success` | boolean | success output from the block |
 
 
 ## Notes

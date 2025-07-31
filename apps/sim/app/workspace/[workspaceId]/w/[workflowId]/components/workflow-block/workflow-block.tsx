@@ -705,9 +705,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                             {Object.entries(config.outputs).map(([key, value]) => (
                               <div key={key} className='mb-1'>
                                 <span className='text-muted-foreground'>{key}</span>{' '}
-                                {typeof value === 'object' ? (
+                                {typeof value === 'object' && value !== null && 'type' in value ? (
+                                  // New format: { type: 'string', description: '...' }
+                                  <span className='text-green-500'>{value.type}</span>
+                                ) : typeof value === 'object' && value !== null ? (
+                                  // Legacy complex object format
                                   <div className='mt-1 pl-3'>
-                                    {Object.entries(value.type).map(([typeKey, typeValue]) => (
+                                    {Object.entries(value).map(([typeKey, typeValue]) => (
                                       <div key={typeKey} className='flex items-start'>
                                         <span className='font-medium text-blue-500'>
                                           {typeKey}:
@@ -719,6 +723,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                                     ))}
                                   </div>
                                 ) : (
+                                  // Old format: just a string
                                   <span className='text-green-500'>{value as string}</span>
                                 )}
                               </div>

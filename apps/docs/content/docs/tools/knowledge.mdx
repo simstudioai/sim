@@ -57,31 +57,24 @@ Perform semantic vector search across knowledge bases, upload individual chunks 
 
 ### `knowledge_search`
 
-Search for similar content in one or more knowledge bases using vector similarity
+Search for similar content in a knowledge base using vector similarity
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `knowledgeBaseIds` | string | Yes | ID of the knowledge base to search in, or comma-separated IDs for multiple knowledge bases |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base to search in |
 | `query` | string | Yes | Search query text |
 | `topK` | number | No | Number of most similar results to return \(1-100\) |
-| `tag1` | string | No | Filter by tag 1 value |
-| `tag2` | string | No | Filter by tag 2 value |
-| `tag3` | string | No | Filter by tag 3 value |
-| `tag4` | string | No | Filter by tag 4 value |
-| `tag5` | string | No | Filter by tag 5 value |
-| `tag6` | string | No | Filter by tag 6 value |
-| `tag7` | string | No | Filter by tag 7 value |
+| `tagFilters` | any | No | Array of tag filters with tagName and tagValue properties |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `results` | string |
-| `query` | string |
-| `totalResults` | string |
-| `cost` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `query` | string | Query used |
+| `totalResults` | number | Total results count |
 
 ### `knowledge_upload_chunk`
 
@@ -97,16 +90,11 @@ Upload a new chunk to a document in a knowledge base
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `chunkIndex` | string |
-| `content` | string |
-| `contentLength` | string |
-| `tokenCount` | string |
-| `enabled` | string |
-| `createdAt` | string |
-| `updatedAt` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `query` | string | Query used |
+| `totalResults` | number | Total results count |
 
 ### `knowledge_create_document`
 
@@ -126,33 +114,16 @@ Create a new document in a knowledge base
 | `tag5` | string | No | Tag 5 value for the document |
 | `tag6` | string | No | Tag 6 value for the document |
 | `tag7` | string | No | Tag 7 value for the document |
+| `documentTagsData` | array | No | Structured tag data with names, types, and values |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `name` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `query` | string | Query used |
+| `totalResults` | number | Total results count |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `results` | json | results output from the block |
-| `query` | string | query output from the block |
-| `totalResults` | number | totalResults output from the block |
 
 
 ## Notes

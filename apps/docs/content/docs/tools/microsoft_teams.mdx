@@ -117,14 +117,11 @@ Read content from a Microsoft Teams chat
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
-| `messageCount` | string |
-| `messages` | string |
-| `totalAttachments` | string |
-| `attachmentTypes` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message content |
+| `metadata` | json | Message metadata |
+| `updatedContent` | boolean | Content update status |
 
 ### `microsoft_teams_write_chat`
 
@@ -140,10 +137,11 @@ Write or update content in a Microsoft Teams chat
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `updatedContent` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message content |
+| `metadata` | json | Message metadata |
+| `updatedContent` | boolean | Content update status |
 
 ### `microsoft_teams_read_channel`
 
@@ -159,15 +157,11 @@ Read content from a Microsoft Teams channel
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
-| `channelId` | string |
-| `messageCount` | string |
-| `messages` | string |
-| `totalAttachments` | string |
-| `attachmentTypes` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message content |
+| `metadata` | json | Message metadata |
+| `updatedContent` | boolean | Content update status |
 
 ### `microsoft_teams_write_channel`
 
@@ -184,30 +178,12 @@ Write or send a message to a Microsoft Teams channel
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `updatedContent` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Message content |
+| `metadata` | json | Message metadata |
+| `updatedContent` | boolean | Content update status |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `content` | string | content output from the block |
-| `metadata` | json | metadata output from the block |
-| `updatedContent` | boolean | updatedContent output from the block |
 
 
 ## Notes

@@ -7,7 +7,7 @@
  * converting between workflow state (blocks, edges, loops) and serialized format
  * used by the executor.
  */
-import { describe, expect, test, vi } from 'vitest'
+import { describe, expect, vi } from 'vitest'
 import { getProviderFromModel } from '@/providers/utils'
 import {
   createAgentWithToolsWorkflowState,
@@ -22,7 +22,6 @@ import {
 import { Serializer } from '@/serializer/index'
 import type { SerializedWorkflow } from '@/serializer/types'
 
-// Mock getBlock function
 vi.mock('@/blocks', () => ({
   getBlock: (type: string) => {
     // Mock block configurations for different block types
@@ -120,9 +119,73 @@ vi.mock('@/blocks', () => ({
         ],
         inputs: {},
       },
+      jina: {
+        name: 'Jina',
+        description: 'Convert website content into text',
+        category: 'tools',
+        bgColor: '#333333',
+        tools: {
+          access: ['jina_read_url'],
+          config: {
+            tool: () => 'jina_read_url',
+          },
+        },
+        subBlocks: [
+          { id: 'url', type: 'short-input', title: 'URL', required: true },
+          { id: 'apiKey', type: 'short-input', title: 'API Key', required: true },
+        ],
+        inputs: {
+          url: { type: 'string' },
+          apiKey: { type: 'string' },
+        },
+      },
+      reddit: {
+        name: 'Reddit',
+        description: 'Access Reddit data and content',
+        category: 'tools',
+        bgColor: '#FF5700',
+        tools: {
+          access: ['reddit_get_posts', 'reddit_get_comments'],
+          config: {
+            tool: () => 'reddit_get_posts',
+          },
+        },
+        subBlocks: [
+          { id: 'operation', type: 'dropdown', title: 'Operation', required: true },
+          { id: 'credential', type: 'oauth-input', title: 'Reddit Account', required: true },
+          { id: 'subreddit', type: 'short-input', title: 'Subreddit', required: true },
+        ],
+        inputs: {
+          operation: { type: 'string' },
+          credential: { type: 'string' },
+          subreddit: { type: 'string' },
+        },
+      },
     }
 
     return mockConfigs[type] || null
+  },
+}))
+
+// Mock getTool function
+vi.mock('@/tools/utils', () => ({
+  getTool: (toolId: string) => {
+    // Mock tool configurations for testing
+    const mockTools: Record<string, any> = {
+      jina_read_url: {
+        params: {
+          url: { visibility: 'user-or-llm', required: true },
+          apiKey: { visibility: 'user-only', required: true },
+        },
+      },
+      reddit_get_posts: {
+        params: {
+          subreddit: { visibility: 'user-or-llm', required: true },
+          credential: { visibility: 'user-only', required: true },
+        },
+      },
+    }
+    return mockTools[toolId] || null
   },
 }))
 
@@ -141,7 +204,7 @@ describe('Serializer', () => {
    * Serialization tests
    */
   describe('serializeWorkflow', () => {
-    test('should serialize a minimal workflow correctly', () => {
+    it.concurrent('should serialize a minimal workflow correctly', () => {
       const { blocks, edges, loops } = createMinimalWorkflowState()
       const serializer = new Serializer()
 
@@ -170,7 +233,7 @@ describe('Serializer', () => {
       expect(serialized.connections[0].target).toBe('agent1')
     })
 
-    test('should serialize a conditional workflow correctly', () => {
+    it.concurrent('should serialize a conditional workflow correctly', () => {
       const { blocks, edges, loops } = createConditionalWorkflowState()
       const serializer = new Serializer()
 
@@ -202,7 +265,7 @@ describe('Serializer', () => {
       expect(falsePathConnection?.target).toBe('agent2')
     })
 
-    test('should serialize a workflow with loops correctly', () => {
+    it.concurrent('should serialize a workflow with loops correctly', () => {
       const { blocks, edges, loops } = createLoopWorkflowState()
       const serializer = new Serializer()
 
@@ -223,7 +286,7 @@ describe('Serializer', () => {
       expect(loopBackConnection?.sourceHandle).toBe('condition-true')
     })
 
-    test('should serialize a complex workflow with multiple block types', () => {
+    it.concurrent('should serialize a complex workflow with multiple block types', () => {
       const { blocks, edges, loops } = createComplexWorkflowState()
       const serializer = new Serializer()
 
@@ -260,7 +323,7 @@ describe('Serializer', () => {
       expect(agentBlock?.outputs.responseFormat).toBeDefined()
     })
 
-    test('should serialize agent block with custom tools correctly', () => {
+    it.concurrent('should serialize agent block with custom tools correctly', () => {
       const { blocks, edges, loops } = createAgentWithToolsWorkflowState()
       const serializer = new Serializer()
 
@@ -292,7 +355,7 @@ describe('Serializer', () => {
       expect(functionTool.name).toBe('calculator')
     })
 
-    test('should handle invalid block types gracefully', () => {
+    it.concurrent('should handle invalid block types gracefully', () => {
       const { blocks, edges, loops } = createInvalidWorkflowState()
       const serializer = new Serializer()
 
@@ -307,7 +370,7 @@ describe('Serializer', () => {
    * Deserialization tests
    */
   describe('deserializeWorkflow', () => {
-    test('should deserialize a serialized workflow correctly', () => {
+    it.concurrent('should deserialize a serialized workflow correctly', () => {
       const { blocks, edges, loops } = createMinimalWorkflowState()
       const serializer = new Serializer()
 
@@ -341,7 +404,7 @@ describe('Serializer', () => {
       expect(deserialized.edges[0].target).toBe('agent1')
     })
 
-    test('should deserialize a complex workflow with all block types', () => {
+    it.concurrent('should deserialize a complex workflow with all block types', () => {
       const { blocks, edges, loops } = createComplexWorkflowState()
       const serializer = new Serializer()
 
@@ -379,7 +442,7 @@ describe('Serializer', () => {
       expect(agentBlock.subBlocks.provider.value).toBe('openai')
     })
 
-    test('should handle serialized workflow with invalid block metadata', () => {
+    it.concurrent('should handle serialized workflow with invalid block metadata', () => {
       const invalidWorkflow = createInvalidSerializedWorkflow() as SerializedWorkflow
       const serializer = new Serializer()
 
@@ -389,7 +452,7 @@ describe('Serializer', () => {
       )
     })
 
-    test('should handle serialized workflow with missing metadata', () => {
+    it.concurrent('should handle serialized workflow with missing metadata', () => {
       const invalidWorkflow = createMissingMetadataWorkflow() as SerializedWorkflow
       const serializer = new Serializer()
 
@@ -402,7 +465,7 @@ describe('Serializer', () => {
    * End-to-end serialization/deserialization tests
    */
   describe('round-trip serialization', () => {
-    test('should preserve all data through serialization and deserialization', () => {
+    it.concurrent('should preserve all data through serialization and deserialization', () => {
       const { blocks, edges, loops } = createComplexWorkflowState()
       const serializer = new Serializer()
 
@@ -444,6 +507,213 @@ describe('Serializer', () => {
 
       // Check loops
       expect(reserialized.loops).toEqual(serialized.loops)
+    })
+  })
+
+  describe('validation during serialization', () => {
+    it.concurrent('should throw error for missing user-only required fields', () => {
+      const serializer = new Serializer()
+
+      // Create a block state with a missing user-only required field (API key)
+      const blockWithMissingUserOnlyField: any = {
+        id: 'test-block',
+        type: 'jina',
+        name: 'Test Jina Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          url: { value: 'https://example.com' },
+          apiKey: { value: null }, // Missing user-only required field
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => {
+        serializer.serializeWorkflow(
+          { 'test-block': blockWithMissingUserOnlyField },
+          [],
+          {},
+          undefined,
+          true
+        )
+      }).toThrow('Test Jina Block is missing required fields: API Key')
+    })
+
+    it.concurrent('should not throw error when all user-only required fields are present', () => {
+      const serializer = new Serializer()
+
+      const blockWithAllUserOnlyFields: any = {
+        id: 'test-block',
+        type: 'jina',
+        name: 'Test Jina Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          url: { value: 'https://example.com' },
+          apiKey: { value: 'test-api-key' },
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => {
+        serializer.serializeWorkflow(
+          { 'test-block': blockWithAllUserOnlyFields },
+          [],
+          {},
+          undefined,
+          true
+        )
+      }).not.toThrow()
+    })
+
+    it.concurrent('should not validate user-or-llm fields during serialization', () => {
+      const serializer = new Serializer()
+
+      // Create a Reddit block with missing subreddit (user-or-llm field)
+      const blockWithMissingUserOrLlmField: any = {
+        id: 'test-block',
+        type: 'reddit',
+        name: 'Test Reddit Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          operation: { value: 'get_posts' },
+          credential: { value: 'test-credential' },
+          subreddit: { value: null }, // Missing user-or-llm field - should NOT be validated here
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      // Should NOT throw because subreddit is user-or-llm, not user-only
+      expect(() => {
+        serializer.serializeWorkflow(
+          { 'test-block': blockWithMissingUserOrLlmField },
+          [],
+          {},
+          undefined,
+          true
+        )
+      }).not.toThrow()
+    })
+
+    it.concurrent('should not validate when validateRequired is false', () => {
+      const serializer = new Serializer()
+
+      const blockWithMissingField: any = {
+        id: 'test-block',
+        type: 'jina',
+        name: 'Test Jina Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          url: { value: 'https://example.com' },
+          apiKey: { value: null }, // Missing required field
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      // Should NOT throw when validation is disabled (default behavior)
+      expect(() => {
+        serializer.serializeWorkflow({ 'test-block': blockWithMissingField }, [], {})
+      }).not.toThrow()
+    })
+
+    it.concurrent('should validate multiple user-only fields and report all missing', () => {
+      const serializer = new Serializer()
+
+      const blockWithMultipleMissing: any = {
+        id: 'test-block',
+        type: 'jina',
+        name: 'Test Jina Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          url: { value: null }, // Missing user-or-llm field (should NOT be validated)
+          apiKey: { value: null }, // Missing user-only field (should be validated)
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => {
+        serializer.serializeWorkflow(
+          { 'test-block': blockWithMultipleMissing },
+          [],
+          {},
+          undefined,
+          true
+        )
+      }).toThrow('Test Jina Block is missing required fields: API Key')
+    })
+
+    it.concurrent('should handle blocks with no tool configuration gracefully', () => {
+      const serializer = new Serializer()
+
+      const blockWithNoTools: any = {
+        id: 'test-block',
+        type: 'condition', // Condition blocks have different tool setup
+        name: 'Test Condition Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          condition: { value: null }, // Missing required field but not user-only
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      // Should NOT throw because condition blocks don't have user-only params
+      expect(() => {
+        serializer.serializeWorkflow({ 'test-block': blockWithNoTools }, [], {}, undefined, true)
+      }).not.toThrow()
+    })
+
+    it.concurrent('should handle empty string values as missing', () => {
+      const serializer = new Serializer()
+
+      const blockWithEmptyString: any = {
+        id: 'test-block',
+        type: 'jina',
+        name: 'Test Jina Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          url: { value: 'https://example.com' },
+          apiKey: { value: '' }, // Empty string should be treated as missing
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => {
+        serializer.serializeWorkflow(
+          { 'test-block': blockWithEmptyString },
+          [],
+          {},
+          undefined,
+          true
+        )
+      }).toThrow('Test Jina Block is missing required fields: API Key')
+    })
+
+    it.concurrent('should only validate user-only fields, not user-or-llm fields', () => {
+      const serializer = new Serializer()
+
+      // Block with both user-only and user-or-llm missing fields
+      const mixedBlock: any = {
+        id: 'test-block',
+        type: 'reddit',
+        name: 'Test Reddit Block',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          operation: { value: 'get_posts' },
+          credential: { value: null }, // user-only - should be validated
+          subreddit: { value: null }, // user-or-llm - should NOT be validated
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => {
+        serializer.serializeWorkflow({ 'test-block': mixedBlock }, [], {}, undefined, true)
+      }).toThrow('Test Reddit Block is missing required fields: Reddit Account')
     })
   })
 })

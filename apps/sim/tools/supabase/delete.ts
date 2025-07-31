@@ -23,8 +23,7 @@ export const deleteTool: ToolConfig<SupabaseDeleteParams, SupabaseDeleteResponse
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'PostgREST filter to identify rows to delete (e.g., "id=eq.123", "status=eq.active", "name=not.is.null")',
+      description: 'PostgREST filter to identify rows to delete (e.g., "id=eq.123")',
     },
     apiKey: {
       type: 'string',

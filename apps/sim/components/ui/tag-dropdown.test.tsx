@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest'
+import { describe, expect, vi } from 'vitest'
 import { checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -35,7 +35,7 @@ vi.mock('@/stores/workflows/subblock/store', () => ({
 }))
 
 describe('TagDropdown Loop Suggestions', () => {
-  test('should generate correct loop suggestions for forEach loops', () => {
+  it.concurrent('should generate correct loop suggestions for forEach loops', () => {
     const blocks: Record<string, BlockState> = {
       loop1: {
         id: 'loop1',
@@ -99,7 +99,7 @@ describe('TagDropdown Loop Suggestions', () => {
     expect(loopTags).toHaveLength(3)
   })
 
-  test('should only generate loop.index for regular for loops', () => {
+  it.concurrent('should only generate loop.index for regular for loops', () => {
     const blocks: Record<string, BlockState> = {
       loop1: {
         id: 'loop1',
@@ -158,7 +158,7 @@ describe('TagDropdown Loop Suggestions', () => {
 })
 
 describe('TagDropdown Parallel Suggestions', () => {
-  test('should generate correct parallel suggestions', () => {
+  it.concurrent('should generate correct parallel suggestions', () => {
     const blocks: Record<string, BlockState> = {
       parallel1: {
         id: 'parallel1',
@@ -217,7 +217,7 @@ describe('TagDropdown Parallel Suggestions', () => {
 })
 
 describe('TagDropdown Variable Suggestions', () => {
-  test('should generate variable tags with correct format', () => {
+  it.concurrent('should generate variable tags with correct format', () => {
     const variables = [
       { id: 'var1', name: 'User Name', type: 'string' },
       { id: 'var2', name: 'User Age', type: 'number' },
@@ -232,7 +232,7 @@ describe('TagDropdown Variable Suggestions', () => {
     expect(variableTags).toEqual(['variable.UserName', 'variable.UserAge', 'variable.IsActive'])
   })
 
-  test('should create variable info map correctly', () => {
+  it.concurrent('should create variable info map correctly', () => {
     const variables = [
       { id: 'var1', name: 'User Name', type: 'string' },
       { id: 'var2', name: 'User Age', type: 'number' },
@@ -259,7 +259,7 @@ describe('TagDropdown Variable Suggestions', () => {
 })
 
 describe('TagDropdown Search and Filtering', () => {
-  test('should extract search term from input correctly', () => {
+  it.concurrent('should extract search term from input correctly', () => {
     const testCases = [
       { input: 'Hello <var', cursorPosition: 10, expected: 'var' },
       { input: 'Hello <Variable.', cursorPosition: 16, expected: 'variable.' },
@@ -277,7 +277,7 @@ describe('TagDropdown Search and Filtering', () => {
     })
   })
 
-  test('should filter tags based on search term', () => {
+  it.concurrent('should filter tags based on search term', () => {
     const tags = [
       'variable.userName',
       'variable.userAge',
@@ -293,7 +293,7 @@ describe('TagDropdown Search and Filtering', () => {
     expect(filteredTags).toEqual(['variable.userName', 'variable.userAge'])
   })
 
-  test('should group tags correctly by type', () => {
+  it.concurrent('should group tags correctly by type', () => {
     const tags = [
       'variable.userName',
       'loop.index',
@@ -328,7 +328,7 @@ describe('TagDropdown Search and Filtering', () => {
 })
 
 describe('checkTagTrigger helper function', () => {
-  test('should return true when there is an unclosed < bracket', () => {
+  it.concurrent('should return true when there is an unclosed < bracket', () => {
     const testCases = [
       { text: 'Hello <', cursorPosition: 7, expected: true },
       { text: 'Hello <var', cursorPosition: 10, expected: true },
@@ -341,7 +341,7 @@ describe('checkTagTrigger helper function', () => {
     })
   })
 
-  test('should return false when there is no unclosed < bracket', () => {
+  it.concurrent('should return false when there is no unclosed < bracket', () => {
     const testCases = [
       { text: 'Hello world', cursorPosition: 11, expected: false },
       { text: 'Hello <var>', cursorPosition: 11, expected: false },
@@ -355,7 +355,7 @@ describe('checkTagTrigger helper function', () => {
     })
   })
 
-  test('should handle edge cases correctly', () => {
+  it.concurrent('should handle edge cases correctly', () => {
     // Cursor at position 0
     expect(checkTagTrigger('Hello', 0).show).toBe(false)
 
@@ -368,7 +368,7 @@ describe('checkTagTrigger helper function', () => {
 })
 
 describe('extractFieldsFromSchema helper function logic', () => {
-  test('should extract fields from JSON Schema format', () => {
+  it.concurrent('should extract fields from JSON Schema format', () => {
     const responseFormat = {
       schema: {
         properties: {
@@ -388,7 +388,7 @@ describe('extractFieldsFromSchema helper function logic', () => {
     ])
   })
 
-  test('should handle direct schema format', () => {
+  it.concurrent('should handle direct schema format', () => {
     const responseFormat = {
       properties: {
         status: { type: 'boolean', description: 'Status flag' },
@@ -404,7 +404,7 @@ describe('extractFieldsFromSchema helper function logic', () => {
     ])
   })
 
-  test('should return empty array for invalid or missing schema', () => {
+  it.concurrent('should return empty array for invalid or missing schema', () => {
     expect(extractFieldsFromSchema(null)).toEqual([])
     expect(extractFieldsFromSchema(undefined)).toEqual([])
     expect(extractFieldsFromSchema({})).toEqual([])
@@ -413,7 +413,7 @@ describe('extractFieldsFromSchema helper function logic', () => {
     expect(extractFieldsFromSchema('invalid')).toEqual([])
   })
 
-  test('should handle array properties correctly', () => {
+  it.concurrent('should handle array properties correctly', () => {
     const responseFormat = {
       properties: {
         items: ['string', 'array'],
@@ -429,7 +429,7 @@ describe('extractFieldsFromSchema helper function logic', () => {
     ])
   })
 
-  test('should default to string type when type is missing', () => {
+  it.concurrent('should default to string type when type is missing', () => {
     const responseFormat = {
       properties: {
         name: { description: 'User name' },
@@ -445,7 +445,7 @@ describe('extractFieldsFromSchema helper function logic', () => {
     ])
   })
 
-  test('should handle flattened response format (new format)', () => {
+  it.concurrent('should handle flattened response format (new format)', () => {
     const responseFormat = {
       schema: {
         properties: {
@@ -467,7 +467,7 @@ describe('extractFieldsFromSchema helper function logic', () => {
 })
 
 describe('TagDropdown Tag Ordering', () => {
-  test('should create ordered tags array in correct sequence', () => {
+  it.concurrent('should create ordered tags array in correct sequence', () => {
     const variableTags = ['variable.userName', 'variable.userAge']
     const loopTags = ['loop.index', 'loop.currentItem']
     const parallelTags = ['parallel.index']
@@ -485,7 +485,7 @@ describe('TagDropdown Tag Ordering', () => {
     ])
   })
 
-  test('should create tag index map correctly', () => {
+  it.concurrent('should create tag index map correctly', () => {
     const orderedTags = ['variable.userName', 'loop.index', 'block.data']
 
     const tagIndexMap = new Map<string, number>()
@@ -501,7 +501,7 @@ describe('TagDropdown Tag Ordering', () => {
 })
 
 describe('TagDropdown Tag Selection Logic', () => {
-  test('should handle existing closing bracket correctly when editing tags', () => {
+  it.concurrent('should handle existing closing bracket correctly when editing tags', () => {
     const testCases = [
       {
         description: 'should remove existing closing bracket from incomplete tag',
@@ -564,7 +564,7 @@ describe('TagDropdown Tag Selection Logic', () => {
     })
   })
 
-  test('should validate tag-like character regex correctly', () => {
+  it.concurrent('should validate tag-like character regex correctly', () => {
     const regex = /^[a-zA-Z0-9._]*$/
 
     // Valid tag-like text
@@ -583,7 +583,7 @@ describe('TagDropdown Tag Selection Logic', () => {
     expect(regex.test('content.data!')).toBe(false) // exclamation
   })
 
-  test('should find correct position of last open bracket', () => {
+  it.concurrent('should find correct position of last open bracket', () => {
     const testCases = [
       { input: 'Hello <start', expected: 6 },
       { input: 'Hello <var> and <start', expected: 16 },
@@ -598,7 +598,7 @@ describe('TagDropdown Tag Selection Logic', () => {
     })
   })
 
-  test('should find correct position of next closing bracket', () => {
+  it.concurrent('should find correct position of next closing bracket', () => {
     const testCases = [
       { input: 'input>', expected: 5 },
       { input: 'content.data> more text', expected: 12 },

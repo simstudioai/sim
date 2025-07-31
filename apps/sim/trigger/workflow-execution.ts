@@ -127,7 +127,8 @@ export const workflowExecution = task({
         mergedStates,
         edges,
         loops || {},
-        parallels || {}
+        parallels || {},
+        true // Enable validation during execution
       )
 
       // Create executor and execute

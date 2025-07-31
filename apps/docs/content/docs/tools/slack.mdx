@@ -86,10 +86,13 @@ Send messages to Slack channels or users through the Slack API. Supports Slack m
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
-| `channel` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Message timestamp |
+| `channel` | string | Channel identifier |
+| `canvas_id` | string | Canvas identifier |
+| `title` | string | Canvas title |
+| `messages` | json | Message data |
 
 ### `slack_canvas`
 
@@ -109,11 +112,13 @@ Create and share Slack canvases in channels. Canvases are collaborative document
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `canvas_id` | string |
-| `channel` | string |
-| `title` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Message timestamp |
+| `channel` | string | Channel identifier |
+| `canvas_id` | string | Canvas identifier |
+| `title` | string | Canvas title |
+| `messages` | json | Message data |
 
 ### `slack_message_reader`
 
@@ -133,31 +138,14 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `messages` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ts` | string | Message timestamp |
+| `channel` | string | Channel identifier |
+| `canvas_id` | string | Canvas identifier |
+| `title` | string | Canvas title |
+| `messages` | json | Message data |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `ts` | string | ts output from the block |
-| `channel` | string | channel output from the block |
-| `canvas_id` | string | canvas_id output from the block |
-| `title` | string | title output from the block |
-| `messages` | json | messages output from the block |
 
 
 ## Notes

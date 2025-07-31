@@ -500,7 +500,8 @@ export function useWorkflowExecution() {
       filteredStates,
       filteredEdges,
       loops,
-      parallels
+      parallels,
+      true // Enable validation during execution
     )
 
     // Determine if this is a chat execution
@@ -586,6 +587,54 @@ export function useWorkflowExecution() {
     setIsExecuting(false)
     setIsDebugging(false)
     setActiveBlocks(new Set())
+
+    // Add the error to the console so users can see what went wrong
+    // This ensures serialization errors appear in the console just like execution errors
+    if (activeWorkflowId) {
+      const consoleStore = useConsoleStore.getState()
+
+      // Try to extract block information from the error message
+      // Serialization errors typically have format: "BlockName is missing required fields: FieldName"
+      let blockName = 'Workflow Execution'
+      let blockId = 'workflow-error'
+      let blockType = 'workflow'
+
+      const blockErrorMatch = errorMessage.match(/^(.+?)\s+is missing required fields/)
+      if (blockErrorMatch) {
+        const failedBlockName = blockErrorMatch[1]
+        blockName = failedBlockName
+
+        // Try to find the actual block in the current workflow to get its ID and type
+        const allBlocks = Object.values(blocks)
+        const failedBlock = allBlocks.find((block) => block.name === failedBlockName)
+        if (failedBlock) {
+          blockId = failedBlock.id
+          blockType = failedBlock.type
+        } else {
+          // Fallback: use the block name as ID if we can't find the actual block
+          blockId = failedBlockName.toLowerCase().replace(/\s+/g, '-')
+          blockType = 'unknown'
+        }
+      }
+
+      consoleStore.addConsole({
+        workflowId: activeWorkflowId,
+        blockId: blockId,
+        blockName: blockName,
+        blockType: blockType,
+        success: false,
+        error: errorMessage,
+        output: {},
+        startedAt: new Date().toISOString(),
+        endedAt: new Date().toISOString(),
+        durationMs: 0,
+      })
+
+      // Auto-open the console so users can see the error (only if it's not already open)
+      if (!consoleStore.isOpen) {
+        toggleConsole()
+      }
+    }
 
     let notificationMessage = 'Workflow execution failed'
     if (error?.request?.url) {

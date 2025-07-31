@@ -11,7 +11,7 @@ export interface ExaSearchParams extends ExaBaseParams {
   query: string
   numResults?: number
   useAutoprompt?: boolean
-  type?: 'auto' | 'neural' | 'keyword' | 'magic'
+  type?: 'auto' | 'neural' | 'keyword' | 'fast'
 }
 
 export interface ExaSearchResult {

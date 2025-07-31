@@ -23,6 +23,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         { label: 'Draft Email', id: 'draft_outlook' },
         { label: 'Read Email', id: 'read_outlook' },
       ],
+      value: () => 'send_outlook',
     },
     {
       id: 'credential',
@@ -42,6 +43,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         'email',
       ],
       placeholder: 'Select Microsoft account',
+      required: true,
     },
     {
       id: 'to',
@@ -50,6 +52,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       layout: 'full',
       placeholder: 'Recipient email address',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      required: true,
     },
     {
       id: 'subject',
@@ -58,6 +61,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       layout: 'full',
       placeholder: 'Email subject',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      required: true,
     },
     {
       id: 'body',
@@ -66,6 +70,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       layout: 'full',
       placeholder: 'Email content',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      required: true,
     },
     // Read Email Fields - Add folder selector (basic mode)
     {
@@ -134,19 +139,19 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Outlook access token' },
     // Send operation inputs
-    to: { type: 'string', required: false },
-    subject: { type: 'string', required: false },
-    body: { type: 'string', required: false },
+    to: { type: 'string', description: 'Recipient email address' },
+    subject: { type: 'string', description: 'Email subject' },
+    body: { type: 'string', description: 'Email content' },
     // Read operation inputs
-    folder: { type: 'string', required: false },
-    manualFolder: { type: 'string', required: false },
-    maxResults: { type: 'number', required: false },
+    folder: { type: 'string', description: 'Email folder' },
+    manualFolder: { type: 'string', description: 'Manual folder name' },
+    maxResults: { type: 'number', description: 'Maximum emails' },
   },
   outputs: {
-    message: 'string',
-    results: 'json',
+    message: { type: 'string', description: 'Response message' },
+    results: { type: 'json', description: 'Email results' },
   },
 }

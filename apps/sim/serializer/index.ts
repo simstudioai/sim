@@ -3,6 +3,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
+import { getTool } from '@/tools/utils'
 
 const logger = createLogger('Serializer')
 
@@ -11,11 +12,12 @@ export class Serializer {
     blocks: Record<string, BlockState>,
     edges: Edge[],
     loops: Record<string, Loop>,
-    parallels?: Record<string, Parallel>
+    parallels?: Record<string, Parallel>,
+    validateRequired = false
   ): SerializedWorkflow {
     return {
       version: '1.0',
-      blocks: Object.values(blocks).map((block) => this.serializeBlock(block)),
+      blocks: Object.values(blocks).map((block) => this.serializeBlock(block, validateRequired)),
       connections: edges.map((edge) => ({
         source: edge.source,
         target: edge.target,
@@ -27,7 +29,7 @@ export class Serializer {
     }
   }
 
-  private serializeBlock(block: BlockState): SerializedBlock {
+  private serializeBlock(block: BlockState, validateRequired = false): SerializedBlock {
     // Special handling for subflow blocks (loops, parallels, etc.)
     if (block.type === 'loop' || block.type === 'parallel') {
       return {
@@ -55,8 +57,14 @@ export class Serializer {
       throw new Error(`Invalid block type: ${block.type}`)
     }
 
-    // Check if this is an agent block with custom tools
+    // Extract parameters from UI state
     const params = this.extractParams(block)
+
+    // Validate required fields that only users can provide (before execution starts)
+    if (validateRequired) {
+      this.validateRequiredFieldsBeforeExecution(block, blockConfig, params)
+    }
+
     let toolId = ''
 
     if (block.type === 'agent' && params.tools) {
@@ -206,6 +214,62 @@ export class Serializer {
     })
 
     return params
+  }
+
+  private validateRequiredFieldsBeforeExecution(
+    block: BlockState,
+    blockConfig: any,
+    params: Record<string, any>
+  ) {
+    // Validate user-only required fields before execution starts
+    // This catches missing API keys, credentials, and other user-provided values early
+    // Fields that are user-or-llm will be validated later after parameter merging
+
+    // Get the tool configuration to check parameter visibility
+    const toolAccess = blockConfig.tools?.access
+    if (!toolAccess || toolAccess.length === 0) {
+      return // No tools to validate against
+    }
+
+    // Determine the current tool ID using the same logic as the serializer
+    let currentToolId = ''
+    try {
+      currentToolId = blockConfig.tools.config?.tool
+        ? blockConfig.tools.config.tool(params)
+        : blockConfig.tools.access[0]
+    } catch (error) {
+      logger.warn('Tool selection failed during validation, using default:', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      currentToolId = blockConfig.tools.access[0]
+    }
+
+    // Get the specific tool to validate against
+    const currentTool = getTool(currentToolId)
+    if (!currentTool) {
+      return // Tool not found, skip validation
+    }
+
+    // Check required user-only parameters for the current tool
+    const missingFields: string[] = []
+
+    // Iterate through the tool's parameters, not the block's subBlocks
+    Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
+      if (paramConfig.required && paramConfig.visibility === 'user-only') {
+        const fieldValue = params[paramId]
+        if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
+          // Find the corresponding subBlock to get the display title
+          const subBlockConfig = blockConfig.subBlocks?.find((sb: any) => sb.id === paramId)
+          const displayName = subBlockConfig?.title || paramId
+          missingFields.push(displayName)
+        }
+      }
+    })
+
+    if (missingFields.length > 0) {
+      const blockName = block.name || blockConfig.name || 'Block'
+      throw new Error(`${blockName} is missing required fields: ${missingFields.join(', ')}`)
+    }
   }
 
   deserializeWorkflow(workflow: SerializedWorkflow): {

@@ -25,6 +25,7 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
 1. If you haven't already, message "/newbot" to @BotFather
 2. Choose a name for your bot
 3. Copy the token it provides and paste it here`,
+      required: true,
     },
     {
       id: 'chatId',
@@ -37,6 +38,7 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
 2. Send any message to the channel (e.g. "I love Sim")
 3. Visit https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
 4. Look for the chat field in the JSON response at the very bottomwhere you'll find the chat ID`,
+      required: true,
     },
     {
       id: 'text',
@@ -44,18 +46,19 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter the message to send',
+      required: true,
     },
   ],
   tools: {
     access: ['telegram_message'],
   },
   inputs: {
-    botToken: { type: 'string', required: true },
-    chatId: { type: 'string', required: true },
-    text: { type: 'string', required: true },
+    botToken: { type: 'string', description: 'Telegram bot token' },
+    chatId: { type: 'string', description: 'Chat identifier' },
+    text: { type: 'string', description: 'Message text' },
   },
   outputs: {
-    ok: 'boolean',
-    result: 'json',
+    ok: { type: 'boolean', description: 'Success status' },
+    result: { type: 'json', description: 'Message result' },
   },
 }

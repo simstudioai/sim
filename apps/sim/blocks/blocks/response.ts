@@ -90,33 +90,28 @@ Example:
   inputs: {
     dataMode: {
       type: 'string',
-      required: false,
-      description: 'Mode for defining response data structure',
+      description: 'Response data definition mode',
     },
     builderData: {
       type: 'json',
-      required: false,
-      description: 'The JSON data to send in the response body',
+      description: 'Structured response data',
     },
     data: {
       type: 'json',
-      required: false,
-      description: 'The JSON data to send in the response body',
+      description: 'JSON response body',
     },
     status: {
       type: 'number',
-      required: false,
-      description: 'HTTP status code (default: 200)',
+      description: 'HTTP status code',
     },
     headers: {
       type: 'json',
-      required: false,
-      description: 'Additional response headers',
+      description: 'Response headers',
     },
   },
   outputs: {
-    data: 'json',
-    status: 'number',
-    headers: 'json',
+    data: { type: 'json', description: 'Response data' },
+    status: { type: 'number', description: 'HTTP status code' },
+    headers: { type: 'json', description: 'Response headers' },
   },
 }
