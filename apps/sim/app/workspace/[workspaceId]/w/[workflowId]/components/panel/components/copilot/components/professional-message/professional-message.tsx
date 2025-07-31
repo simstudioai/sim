@@ -71,6 +71,8 @@ const SmoothStreamingText = memo(({ content, isStreaming, markdownComponents }: 
   const contentRef = useRef(content)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const indexRef = useRef(0)
+  const displayedLengthRef = useRef(0)
+  const isAnimatingRef = useRef(false)
 
   useEffect(() => {
     // Update content reference
@@ -79,11 +81,12 @@ const SmoothStreamingText = memo(({ content, isStreaming, markdownComponents }: 
     if (content.length === 0) {
       setDisplayedContent('')
       indexRef.current = 0
+      displayedLengthRef.current = 0
       return
     }
 
     // If content increased and we're streaming, animate the new characters
-    if (isStreaming && content.length > displayedContent.length) {
+    if (isStreaming && content.length > displayedLengthRef.current) {
       const animateText = () => {
         const currentContent = contentRef.current
         const currentIndex = indexRef.current
@@ -95,31 +98,35 @@ const SmoothStreamingText = memo(({ content, isStreaming, markdownComponents }: 
           
           setDisplayedContent(newDisplayed)
           indexRef.current = currentIndex + chunkSize
+          displayedLengthRef.current = newDisplayed.length
           
-          // Vary speed based on character type for more natural feel
-          const nextChar = currentContent[currentIndex + chunkSize]
-          let delay = 12 // Base delay in ms (faster for more responsive feel)
-          
-          if (nextChar === ' ') delay = 20 // Slightly slower for spaces
-          else if (nextChar === '.' || nextChar === '!' || nextChar === '?') delay = 80 // Pause at sentence endings
-          else if (nextChar === ',' || nextChar === ';') delay = 40 // Short pause at commas
-          else if (nextChar === '\n') delay = 60 // Pause at line breaks
+          // Consistent fast speed for all characters
+          const delay = 3 // Consistent fast delay in ms for all characters
           
           timeoutRef.current = setTimeout(animateText, delay)
+        } else {
+          // Animation complete
+          isAnimatingRef.current = false
         }
       }
 
-      // Clear any existing animation
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
+      // Only start new animation if not already animating
+      if (!isAnimatingRef.current) {
+        // Clear any existing animation
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
+        }
+        
+        isAnimatingRef.current = true
+        // Start or continue animation from where we left off
+        animateText()
       }
-      
-      // Start or continue animation from where we left off
-      animateText()
     } else if (!isStreaming) {
       // Not streaming, show all content immediately
       setDisplayedContent(content)
       indexRef.current = content.length
+      displayedLengthRef.current = content.length
+      isAnimatingRef.current = false
     }
 
     // Cleanup on unmount
@@ -127,8 +134,9 @@ const SmoothStreamingText = memo(({ content, isStreaming, markdownComponents }: 
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
+      isAnimatingRef.current = false
     }
-  }, [content, isStreaming, displayedContent.length])
+  }, [content, isStreaming])
 
   return (
     <div className='relative' style={{ minHeight: '1.25rem' }}>
@@ -141,6 +149,13 @@ const SmoothStreamingText = memo(({ content, isStreaming, markdownComponents }: 
         </ReactMarkdown>
       </div>
     </div>
+  )
+}, (prevProps, nextProps) => {
+  // Prevent re-renders during streaming unless content actually changed
+  return (
+    prevProps.content === nextProps.content &&
+    prevProps.isStreaming === nextProps.isStreaming
+    // markdownComponents is now memoized so no need to compare
   )
 })
 
@@ -365,8 +380,8 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
     return message.content.replace(/\n{3,}/g, '\n\n')
   }, [message.content])
 
-  // Custom components for react-markdown with improved styling
-  const markdownComponents = {
+  // Custom components for react-markdown with improved styling - memoized to prevent re-renders
+  const markdownComponents = useMemo(() => ({
     code: ({ inline, className, children, ...props }: any) => {
       const match = /language-(\w+)/.exec(className || '')
       const language = match ? match[1] : ''
@@ -461,7 +476,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
     td: ({ children }: any) => (
       <td className='border-muted/30 border-b px-2 text-sm leading-tight'>{children}</td>
     ),
-  }
+  }), [])
 
   // Memoize content blocks to avoid re-rendering unchanged blocks
   const memoizedContentBlocks = useMemo(() => {
@@ -523,7 +538,7 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
       }
       return null
     })
-  }, [message.contentBlocks, markdownComponents, isStreaming])
+  }, [message.contentBlocks, isStreaming])
 
   if (isUser) {
     return (
