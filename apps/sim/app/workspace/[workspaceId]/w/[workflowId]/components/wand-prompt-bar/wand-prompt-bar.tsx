@@ -24,7 +24,7 @@ export function WandPromptBar({
   onSubmit,
   onCancel,
   onChange,
-  placeholder = 'Describe the JavaScript code to generate...',
+  placeholder = 'Describe what you want to generate...',
   className,
 }: WandPromptBarProps) {
   const promptBarRef = useRef<HTMLDivElement>(null)
