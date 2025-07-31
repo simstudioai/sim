@@ -1,7 +1,7 @@
-import type { BlockOutput } from '@/blocks/types'
+import type { BlockOutput, OutputFieldDefinition } from '@/blocks/types'
 
 export function resolveOutputType(
-  outputs: Record<string, string | BlockOutput>
+  outputs: Record<string, OutputFieldDefinition>
 ): Record<string, BlockOutput> {
   const resolvedOutputs: Record<string, BlockOutput> = {}
 
