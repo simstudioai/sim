@@ -324,14 +324,18 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
       </a>
     ),
     ul: ({ children }: any) => (
-      <ul className='ml-4 list-disc space-y-0 leading-tight'>{children}</ul>
+      <div className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 py-1 my-1'>
+        <ul className='list-disc space-y-0 leading-tight pl-4'>{children}</ul>
+      </div>
     ),
     ol: ({ children }: any) => (
-      <ol className='ml-4 list-decimal space-y-0 leading-tight'>{children}</ol>
+      <div className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 py-1 my-1'>
+        <ol className='list-decimal space-y-0 leading-tight pl-4'>{children}</ol>
+      </div>
     ),
     li: ({ children }: any) => <li className='text-foreground leading-tight'>{children}</li>,
     blockquote: ({ children }: any) => (
-      <blockquote className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 text-muted-foreground italic leading-tight'>
+      <blockquote className='border-muted-foreground/20 border-l-4 bg-muted/30 pl-3 text-muted-foreground italic leading-tight [&_div:has(ul)]:border-0 [&_div:has(ul)]:bg-transparent [&_div:has(ol)]:border-0 [&_div:has(ol)]:bg-transparent'>
         {children}
       </blockquote>
     ),
@@ -355,8 +359,8 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
       <div className='w-full py-2'>
         <div className='flex justify-end'>
           <div className='max-w-[80%]'>
-            <div className='rounded-[10px] bg-secondary px-3 py-2'>
-              <div className='whitespace-pre-wrap break-words font-normal text-secondary-foreground text-sm leading-tight'>
+            <div className='rounded-[10px] px-3 py-2' style={{ backgroundColor: 'rgba(128, 47, 255, 0.08)' }}>
+              <div className='whitespace-pre-wrap break-words font-normal text-foreground text-sm leading-tight'>
                 <WordWrap text={message.content} />
               </div>
             </div>
