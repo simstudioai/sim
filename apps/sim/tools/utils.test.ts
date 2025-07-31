@@ -234,7 +234,7 @@ describe('validateRequiredParametersAfterMerge', () => {
         required1: 'value',
         // required2 is missing
       })
-    }).toThrow('"required2" is required for Test Tool')
+    }).toThrow('"Required2" is required for Test Tool')
   })
 
   it.concurrent('should not throw error when all required parameters are provided', () => {
@@ -262,7 +262,7 @@ describe('validateRequiredParametersAfterMerge', () => {
         required1: null,
         required2: '',
       })
-    }).toThrow('"required1" is required for Test Tool')
+    }).toThrow('"Required1" is required for Test Tool')
   })
 
   it.concurrent(
@@ -319,7 +319,7 @@ describe('validateRequiredParametersAfterMerge', () => {
         // userOrLlmParam missing - should cause error
         // userOnlyParam missing - should NOT cause error (validated earlier)
       })
-    }).toThrow('"userOrLlmParam" is required for')
+    }).toThrow('"User Or Llm Param" is required for')
   })
 
   it.concurrent('should use parameter description in error messages when available', () => {
@@ -337,7 +337,7 @@ describe('validateRequiredParametersAfterMerge', () => {
 
     expect(() => {
       validateRequiredParametersAfterMerge('test-tool', toolWithDescriptions, {})
-    }).toThrow('"subreddit" is required for Test Tool')
+    }).toThrow('"Subreddit" is required for Test Tool')
   })
 
   it.concurrent('should fall back to parameter name when no description available', () => {
@@ -355,7 +355,7 @@ describe('validateRequiredParametersAfterMerge', () => {
 
     expect(() => {
       validateRequiredParametersAfterMerge('test-tool', toolWithoutDescription, {})
-    }).toThrow('"subreddit" is required for Test Tool')
+    }).toThrow('"Subreddit" is required for Test Tool')
   })
 
   it.concurrent('should handle undefined values as missing', () => {
@@ -364,7 +364,7 @@ describe('validateRequiredParametersAfterMerge', () => {
         required1: 'value',
         required2: undefined, // Explicitly undefined
       })
-    }).toThrow('"required2" is required for Test Tool')
+    }).toThrow('"Required2" is required for Test Tool')
   })
 
   it.concurrent('should validate all missing parameters at once', () => {
@@ -389,7 +389,7 @@ describe('validateRequiredParametersAfterMerge', () => {
     // Should throw for the first missing parameter it encounters
     expect(() => {
       validateRequiredParametersAfterMerge('test-tool', toolWithMultipleRequired, {})
-    }).toThrow('"param1" is required for Test Tool')
+    }).toThrow('"Param1" is required for Test Tool')
   })
 })
 

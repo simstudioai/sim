@@ -165,6 +165,19 @@ export async function executeRequest(
 }
 
 /**
+ * Formats a parameter name for user-friendly error messages
+ * Converts parameter names and descriptions to more readable format
+ */
+function formatParameterNameForError(paramName: string): string {
+  // Split camelCase and snake_case/kebab-case into words, then capitalize first letter of each word
+  return paramName
+    .split(/(?=[A-Z])|[_-]/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+/**
  * Validates required parameters after LLM and user params have been merged
  * This is the final validation before tool execution - ensures all required
  * user-or-llm parameters are present after the merge process
@@ -172,7 +185,8 @@ export async function executeRequest(
 export function validateRequiredParametersAfterMerge(
   toolId: string,
   tool: ToolConfig | undefined,
-  params: Record<string, any>
+  params: Record<string, any>,
+  parameterNameMap?: Record<string, string>
 ): void {
   if (!tool) {
     throw new Error(`Tool not found: ${toolId}`)
@@ -191,7 +205,9 @@ export function validateRequiredParametersAfterMerge(
     ) {
       // Create a more user-friendly error message
       const toolName = tool.name || toolId
-      throw new Error(`"${paramName}" is required for ${toolName}`)
+      const friendlyParamName =
+        parameterNameMap?.[paramName] || formatParameterNameForError(paramName)
+      throw new Error(`"${friendlyParamName}" is required for ${toolName}`)
     }
   }
 }

@@ -17,7 +17,6 @@ export const KnowledgeBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Search', id: 'search' },
         { label: 'Upload Chunk', id: 'upload_chunk' },

@@ -18,7 +18,6 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Domain Search', id: 'hunter_domain_search' },
         { label: 'Email Finder', id: 'hunter_email_finder' },

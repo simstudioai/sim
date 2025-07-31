@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { MAX_TAG_SLOTS } from '@/lib/constants/knowledge'
 import { cn } from '@/lib/utils'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -54,6 +55,15 @@ export function DocumentTagEntry({
 
   // State for dropdown visibility - one for each row
   const [dropdownStates, setDropdownStates] = useState<Record<number, boolean>>({})
+
+  // State for managing tag dropdown
+  const [activeTagDropdown, setActiveTagDropdown] = useState<{
+    rowIndex: number
+    showTags: boolean
+    cursorPosition: number
+    activeSourceBlockId: string | null
+    element?: HTMLElement | null
+  } | null>(null)
 
   // Use preview value when in preview mode, otherwise use store value
   const currentValue = isPreview ? previewValue : storeValue
@@ -305,8 +315,6 @@ export function DocumentTagEntry({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='text'>Text</SelectItem>
-            <SelectItem value='number'>Number</SelectItem>
-            <SelectItem value='date'>Date</SelectItem>
           </SelectContent>
         </Select>
       </td>
@@ -318,11 +326,48 @@ export function DocumentTagEntry({
 
     return (
       <td className='p-1'>
-        <Input
-          value={cellValue}
-          onChange={(e) => handleCellChange(rowIndex, 'value', e.target.value)}
-          disabled={disabled || isConnecting}
-        />
+        <div className='relative w-full'>
+          <Input
+            value={cellValue}
+            onChange={(e) => {
+              const newValue = e.target.value
+              const cursorPosition = e.target.selectionStart ?? 0
+
+              handleCellChange(rowIndex, 'value', newValue)
+
+              // Check for tag trigger
+              const tagTrigger = checkTagTrigger(newValue, cursorPosition)
+
+              setActiveTagDropdown({
+                rowIndex,
+                showTags: tagTrigger.show,
+                cursorPosition,
+                activeSourceBlockId: null,
+                element: e.target,
+              })
+            }}
+            onFocus={(e) => {
+              if (!disabled && !isConnecting) {
+                setActiveTagDropdown({
+                  rowIndex,
+                  showTags: false,
+                  cursorPosition: 0,
+                  activeSourceBlockId: null,
+                  element: e.target,
+                })
+              }
+            }}
+            onBlur={() => {
+              setTimeout(() => setActiveTagDropdown(null), 200)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setActiveTagDropdown(null)
+              }
+            }}
+            disabled={disabled || isConnecting}
+          />
+        </div>
       </td>
     )
   }
@@ -379,16 +424,35 @@ export function DocumentTagEntry({
         </table>
       </div>
 
-      {/* Add Row Button */}
+      {/* Tag Dropdown */}
+      {activeTagDropdown?.element && (
+        <TagDropdown
+          visible={activeTagDropdown.showTags}
+          onSelect={(newValue) => {
+            handleCellChange(activeTagDropdown.rowIndex, 'value', newValue)
+            setActiveTagDropdown(null)
+          }}
+          blockId={blockId}
+          activeSourceBlockId={activeTagDropdown.activeSourceBlockId}
+          inputValue={rows[activeTagDropdown.rowIndex]?.cells.value || ''}
+          cursorPosition={activeTagDropdown.cursorPosition}
+          onClose={() => {
+            setActiveTagDropdown((prev) => (prev ? { ...prev, showTags: false } : null))
+          }}
+          className='absolute z-[9999] mt-0'
+        />
+      )}
+
+      {/* Add Row Button and Tag slots usage indicator */}
       {!isPreview && !disabled && (
-        <div className='mt-3 flex flex-col items-center gap-2'>
+        <div className='mt-3 flex items-center justify-between'>
           <Button variant='outline' size='sm' onClick={handleAddRow} disabled={!canAddMoreTags}>
             <Plus className='mr-1 h-3 w-3' />
             Add Tag
           </Button>
 
           {/* Tag slots usage indicator */}
-          <div className='text-center text-muted-foreground text-xs'>
+          <div className='text-muted-foreground text-xs'>
             {tagDefinitions.length + newTagsBeingCreated} of {MAX_TAG_SLOTS} tag slots used
           </div>
         </div>

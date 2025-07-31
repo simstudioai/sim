@@ -19,7 +19,6 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Read Data', id: 'read' },
         { label: 'Write Data', id: 'write' },

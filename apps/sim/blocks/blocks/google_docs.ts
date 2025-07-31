@@ -19,7 +19,6 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Read Document', id: 'read' },
         { label: 'Write to Document', id: 'write' },

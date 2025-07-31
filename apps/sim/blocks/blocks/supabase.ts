@@ -29,7 +29,6 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Delete a Row', id: 'delete' },
       ],
       value: () => 'query',
-      required: true,
     },
     {
       id: 'projectId',
@@ -65,6 +64,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
       condition: { field: 'operation', value: 'insert' },
+      required: true,
     },
     {
       id: 'data',
@@ -73,6 +73,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
       condition: { field: 'operation', value: 'update' },
+      required: true,
     },
     // Filter for get_row, update, delete operations (required)
     {
@@ -82,6 +83,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: 'id=eq.123',
       condition: { field: 'operation', value: 'get_row' },
+      required: true,
     },
     {
       id: 'filter',
@@ -90,6 +92,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: 'id=eq.123',
       condition: { field: 'operation', value: 'update' },
+      required: true,
     },
     {
       id: 'filter',
@@ -98,6 +101,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: 'id=eq.123',
       condition: { field: 'operation', value: 'delete' },
+      required: true,
     },
     // Optional filter for query operation
     {

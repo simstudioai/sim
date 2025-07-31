@@ -24,7 +24,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         { label: 'Get Comments', id: 'get_comments' },
       ],
       value: () => 'get_posts',
-      required: true,
     },
 
     // Reddit OAuth Authentication

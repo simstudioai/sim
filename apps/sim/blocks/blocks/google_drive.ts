@@ -19,7 +19,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Create Folder', id: 'create_folder' },
         { label: 'Upload File', id: 'upload' },

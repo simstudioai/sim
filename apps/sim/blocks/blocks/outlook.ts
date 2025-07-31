@@ -24,7 +24,6 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         { label: 'Read Email', id: 'read_outlook' },
       ],
       value: () => 'send_outlook',
-      required: true,
     },
     {
       id: 'credential',
@@ -53,6 +52,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       layout: 'full',
       placeholder: 'Recipient email address',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      required: true,
     },
     {
       id: 'subject',
@@ -61,6 +61,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       layout: 'full',
       placeholder: 'Email subject',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      required: true,
     },
     {
       id: 'body',
@@ -69,6 +70,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       layout: 'full',
       placeholder: 'Email content',
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      required: true,
     },
     // Read Email Fields - Add folder selector (basic mode)
     {

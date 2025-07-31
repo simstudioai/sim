@@ -25,7 +25,6 @@ export const MemoryBlock: BlockConfig = {
       ],
       placeholder: 'Select operation',
       value: () => 'add',
-      required: true,
     },
     {
       id: 'id',

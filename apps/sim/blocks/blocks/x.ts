@@ -43,6 +43,7 @@ export const XBlock: BlockConfig<XResponse> = {
       layout: 'full',
       placeholder: "What's happening?",
       condition: { field: 'operation', value: 'x_write' },
+      required: true,
     },
     {
       id: 'replyTo',
@@ -67,6 +68,7 @@ export const XBlock: BlockConfig<XResponse> = {
       layout: 'full',
       placeholder: 'Enter tweet ID to read',
       condition: { field: 'operation', value: 'x_read' },
+      required: true,
     },
     {
       id: 'includeReplies',
@@ -87,6 +89,7 @@ export const XBlock: BlockConfig<XResponse> = {
       layout: 'full',
       placeholder: 'Enter search terms (supports X search operators)',
       condition: { field: 'operation', value: 'x_search' },
+      required: true,
     },
     {
       id: 'maxResults',
@@ -131,6 +134,7 @@ export const XBlock: BlockConfig<XResponse> = {
       layout: 'full',
       placeholder: 'Enter username (without @)',
       condition: { field: 'operation', value: 'x_user' },
+      required: true,
     },
   ],
   tools: {

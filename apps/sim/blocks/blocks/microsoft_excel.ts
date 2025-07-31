@@ -24,7 +24,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         { label: 'Add to Table', id: 'table_add' },
       ],
       value: () => 'read',
-      required: true,
     },
     {
       id: 'credential',
@@ -72,6 +71,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       layout: 'full',
       placeholder: 'Name of the Excel table',
       condition: { field: 'operation', value: ['table_add'] },
+      required: true,
     },
     {
       id: 'values',
@@ -81,6 +81,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'write' },
+      required: true,
     },
     {
       id: 'valueInputOption',
@@ -101,6 +102,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'update' },
+      required: true,
     },
     {
       id: 'valueInputOption',
@@ -121,6 +123,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'table_add' },
+      required: true,
     },
   ],
   tools: {

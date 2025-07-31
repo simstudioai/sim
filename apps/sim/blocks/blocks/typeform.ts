@@ -24,7 +24,6 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
         { label: 'Form Insights', id: 'typeform_insights' },
       ],
       value: () => 'typeform_responses',
-      required: true,
     },
     {
       id: 'formId',

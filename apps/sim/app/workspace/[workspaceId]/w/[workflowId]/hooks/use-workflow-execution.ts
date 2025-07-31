@@ -592,21 +592,21 @@ export function useWorkflowExecution() {
     // This ensures serialization errors appear in the console just like execution errors
     if (activeWorkflowId) {
       const consoleStore = useConsoleStore.getState()
-      
+
       // Try to extract block information from the error message
       // Serialization errors typically have format: "BlockName is missing required fields: FieldName"
       let blockName = 'Workflow Execution'
       let blockId = 'workflow-error'
       let blockType = 'workflow'
-      
+
       const blockErrorMatch = errorMessage.match(/^(.+?)\s+is missing required fields/)
       if (blockErrorMatch) {
         const failedBlockName = blockErrorMatch[1]
         blockName = failedBlockName
-        
+
         // Try to find the actual block in the current workflow to get its ID and type
         const allBlocks = Object.values(blocks)
-        const failedBlock = allBlocks.find(block => block.name === failedBlockName)
+        const failedBlock = allBlocks.find((block) => block.name === failedBlockName)
         if (failedBlock) {
           blockId = failedBlock.id
           blockType = failedBlock.type
@@ -616,7 +616,7 @@ export function useWorkflowExecution() {
           blockType = 'unknown'
         }
       }
-      
+
       consoleStore.addConsole({
         workflowId: activeWorkflowId,
         blockId: blockId,

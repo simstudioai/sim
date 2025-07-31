@@ -18,7 +18,7 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
       title: 'System Prompt',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Optional system prompt to guide the model behavior...',
+      placeholder: 'System prompt to guide the model behavior...',
     },
     {
       id: 'content',
@@ -42,7 +42,6 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
         { label: 'GPT-4o', id: 'gpt-4o' },
       ],
       value: () => 'sonar',
-      required: true,
     },
     {
       id: 'temperature',

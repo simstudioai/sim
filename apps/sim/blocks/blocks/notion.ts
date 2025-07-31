@@ -28,7 +28,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         { label: 'Search Workspace', id: 'notion_search' },
       ],
       value: () => 'notion_read',
-      required: true,
     },
     {
       id: 'credential',
@@ -52,6 +51,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_read',
       },
+      required: true,
     },
     {
       id: 'databaseId',
@@ -63,6 +63,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_read_database',
       },
+      required: true,
     },
     {
       id: 'pageId',
@@ -74,6 +75,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_write',
       },
+      required: true,
     },
     // Create operation fields
     {
@@ -83,6 +85,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'ID of parent page',
       condition: { field: 'operation', value: 'notion_create_page' },
+      required: true,
     },
     {
       id: 'title',
@@ -106,6 +109,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_write',
       },
+      required: true,
     },
     {
       id: 'content',
@@ -117,6 +121,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
         field: 'operation',
         value: 'notion_create_page',
       },
+      required: true,
     },
     // Query Database Fields
     {
@@ -126,6 +131,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'Enter Notion database ID',
       condition: { field: 'operation', value: 'notion_query_database' },
+      required: true,
     },
     {
       id: 'filter',
@@ -134,6 +140,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'Enter filter conditions as JSON (optional)',
       condition: { field: 'operation', value: 'notion_query_database' },
+      required: true,
     },
     {
       id: 'sorts',
@@ -180,6 +187,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'ID of parent page where database will be created',
       condition: { field: 'operation', value: 'notion_create_database' },
+      required: true,
     },
     {
       id: 'title',
@@ -188,6 +196,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'Title for the new database',
       condition: { field: 'operation', value: 'notion_create_database' },
+      required: true,
     },
     {
       id: 'properties',

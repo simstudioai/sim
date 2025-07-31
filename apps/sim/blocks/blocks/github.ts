@@ -18,7 +18,6 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Get PR details', id: 'github_pr' },
         { label: 'Create PR comment', id: 'github_comment' },

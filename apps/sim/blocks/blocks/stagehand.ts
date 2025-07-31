@@ -29,7 +29,7 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
     },
     {
       id: 'instruction',
-      title: 'Instruction',
+      title: 'Instructions',
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter detailed instructions for what data to extract from the page...',

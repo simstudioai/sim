@@ -39,6 +39,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter prompt for image analysis',
+      required: true,
     },
     {
       id: 'apiKey',

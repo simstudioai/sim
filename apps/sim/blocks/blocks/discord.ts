@@ -17,7 +17,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Send Message', id: 'discord_send_message' },
         { label: 'Get Channel Messages', id: 'discord_get_messages' },

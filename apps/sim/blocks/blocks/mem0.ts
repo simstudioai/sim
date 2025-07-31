@@ -25,7 +25,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       ],
       placeholder: 'Select an operation',
       value: () => 'add',
-      required: true,
     },
     {
       id: 'userId',
@@ -47,6 +46,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'add',
       },
+      required: true,
     },
     {
       id: 'query',

@@ -27,7 +27,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         { label: 'Fetch Vectors', id: 'fetch' },
       ],
       value: () => 'generate',
-      required: true,
     },
     // Generate embeddings fields
     {
@@ -44,6 +43,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         },
       ],
       condition: { field: 'operation', value: 'generate' },
+      value: () => 'multilingual-e5-large',
     },
     {
       id: 'inputs',
@@ -52,6 +52,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: '[{"text": "Your text here"}]',
       condition: { field: 'operation', value: 'generate' },
+      required: true,
     },
     // Upsert text fields
     {
@@ -61,6 +62,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
       condition: { field: 'operation', value: 'upsert_text' },
+      required: true,
     },
     {
       id: 'namespace',
@@ -69,6 +71,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'default',
       condition: { field: 'operation', value: 'upsert_text' },
+      required: true,
     },
     {
       id: 'records',
@@ -78,6 +81,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       placeholder:
         '{"_id": "rec1", "text": "Apple\'s first product, the Apple I, was released in 1976.", "category": "product"}\n{"_id": "rec2", "chunk_text": "Apples are a great source of dietary fiber.", "category": "nutrition"}',
       condition: { field: 'operation', value: 'upsert_text' },
+      required: true,
     },
     // Search text fields
     {
@@ -87,6 +91,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
       condition: { field: 'operation', value: 'search_text' },
+      required: true,
     },
     {
       id: 'namespace',
@@ -95,6 +100,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'default',
       condition: { field: 'operation', value: 'search_text' },
+      required: true,
     },
     {
       id: 'searchQuery',
@@ -103,6 +109,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'Enter text to search for',
       condition: { field: 'operation', value: 'search_text' },
+      required: true,
     },
     {
       id: 'topK',
@@ -144,6 +151,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
       condition: { field: 'operation', value: 'fetch' },
+      required: true,
     },
     {
       id: 'namespace',
@@ -152,6 +160,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'Namespace',
       condition: { field: 'operation', value: 'fetch' },
+      required: true,
     },
     {
       id: 'ids',
@@ -160,6 +169,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: '["vec1", "vec2"]',
       condition: { field: 'operation', value: 'fetch' },
+      required: true,
     },
     // Add vector search fields
     {
@@ -169,6 +179,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
       condition: { field: 'operation', value: 'search_vector' },
+      required: true,
     },
     {
       id: 'namespace',
@@ -177,6 +188,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'default',
       condition: { field: 'operation', value: 'search_vector' },
+      required: true,
     },
     {
       id: 'vector',
@@ -185,6 +197,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: '[0.1, 0.2, 0.3, ...]',
       condition: { field: 'operation', value: 'search_vector' },
+      required: true,
     },
     {
       id: 'topK',

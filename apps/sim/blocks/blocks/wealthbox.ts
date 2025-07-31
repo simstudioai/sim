@@ -27,7 +27,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         { label: 'Write Task', id: 'write_task' },
       ],
       value: () => 'read_note',
-      required: true,
     },
     {
       id: 'credential',
@@ -97,6 +96,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       layout: 'full',
       placeholder: 'Enter Title',
       condition: { field: 'operation', value: ['write_task'] },
+      required: true,
     },
     {
       id: 'dueDate',
@@ -105,6 +105,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       layout: 'full',
       placeholder: 'Enter due date (e.g., 2015-05-24 11:00 AM -0400)',
       condition: { field: 'operation', value: ['write_task'] },
+      required: true,
     },
     {
       id: 'firstName',
@@ -113,6 +114,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       layout: 'full',
       placeholder: 'Enter First Name',
       condition: { field: 'operation', value: ['write_contact'] },
+      required: true,
     },
     {
       id: 'lastName',
@@ -121,6 +123,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       layout: 'full',
       placeholder: 'Enter Last Name',
       condition: { field: 'operation', value: ['write_contact'] },
+      required: true,
     },
     {
       id: 'emailAddress',
@@ -137,6 +140,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       layout: 'full',
       placeholder: 'Enter Content',
       condition: { field: 'operation', value: ['write_note', 'write_event', 'write_task'] },
+      required: true,
     },
     {
       id: 'backgroundInformation',

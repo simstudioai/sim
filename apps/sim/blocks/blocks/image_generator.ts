@@ -18,7 +18,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      required: true,
       options: [
         { label: 'DALL-E 3', id: 'dall-e-3' },
         { label: 'GPT Image', id: 'gpt-image-1' },

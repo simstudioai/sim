@@ -22,7 +22,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
         { label: 'Create Issue', id: 'write' },
       ],
       value: () => 'read',
-      required: true,
     },
     {
       id: 'credential',
@@ -79,6 +78,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       type: 'short-input',
       layout: 'full',
       condition: { field: 'operation', value: ['write'] },
+      required: true,
     },
     {
       id: 'description',

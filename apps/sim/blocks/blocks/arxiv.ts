@@ -18,7 +18,6 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Search Papers', id: 'arxiv_search' },
         { label: 'Get Paper Details', id: 'arxiv_get_paper' },
@@ -28,7 +27,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
     },
     // Search operation inputs
     {
-      id: 'query',
+      id: 'searchQuery',
       title: 'Search Query',
       type: 'long-input',
       layout: 'full',
@@ -141,7 +140,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     // Search operation
-    query: { type: 'string', description: 'Search terms' },
+    searchQuery: { type: 'string', description: 'Search terms' },
     searchField: { type: 'string', description: 'Field to search in' },
     maxResults: { type: 'number', description: 'Maximum results to return' },
     sortBy: { type: 'string', description: 'Sort results by' },

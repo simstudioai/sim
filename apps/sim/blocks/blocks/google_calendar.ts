@@ -18,7 +18,6 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Create Event', id: 'create' },
         { label: 'List Events', id: 'list' },

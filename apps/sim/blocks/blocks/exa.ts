@@ -18,7 +18,6 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Search', id: 'exa_search' },
         { label: 'Get Contents', id: 'exa_get_contents' },

@@ -20,7 +20,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'List Records', id: 'list' },
         { label: 'Get Record', id: 'get' },

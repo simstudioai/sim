@@ -24,7 +24,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Read Messages', id: 'read' },
       ],
       value: () => 'send',
-      required: true,
     },
     {
       id: 'authMethod',
@@ -102,6 +101,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'operation',
         value: 'send',
       },
+      required: true,
     },
     // Canvas specific fields
     {
@@ -114,6 +114,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'operation',
         value: 'canvas',
       },
+      required: true,
     },
     {
       id: 'content',
@@ -125,6 +126,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'operation',
         value: 'canvas',
       },
+      required: true,
     },
     // Message Reader specific fields
     {
@@ -132,7 +134,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       title: 'Message Limit',
       type: 'short-input',
       layout: 'half',
-      placeholder: '50',
+      placeholder: '15',
       condition: {
         field: 'operation',
         value: 'read',

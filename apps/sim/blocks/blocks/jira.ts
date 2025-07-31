@@ -18,7 +18,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Read Issue', id: 'read' },
         { label: 'Read Issues', id: 'read-bulk' },

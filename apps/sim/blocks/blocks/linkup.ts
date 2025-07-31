@@ -32,7 +32,6 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
         { label: 'Search', id: 'searchResults' },
       ],
       value: () => 'sourcedAnswer',
-      required: true,
     },
     {
       id: 'depth',
@@ -43,7 +42,6 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
         { label: 'Standard', id: 'standard' },
         { label: 'Deep', id: 'deep' },
       ],
-      required: true,
     },
     {
       id: 'apiKey',

@@ -19,7 +19,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Read Page', id: 'read' },
         { label: 'Update Page', id: 'update' },

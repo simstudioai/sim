@@ -231,6 +231,25 @@ export class Serializer {
       return // No tools to validate against
     }
 
+    // Determine the current tool ID using the same logic as the serializer
+    let currentToolId = ''
+    try {
+      currentToolId = blockConfig.tools.config?.tool
+        ? blockConfig.tools.config.tool(params)
+        : blockConfig.tools.access[0]
+    } catch (error) {
+      logger.warn('Tool selection failed during validation, using default:', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      currentToolId = blockConfig.tools.access[0]
+    }
+
+    // Get the specific tool to validate against
+    const currentTool = getTool(currentToolId)
+    if (!currentTool) {
+      return // Tool not found, skip validation
+    }
+
     // Check each subBlock for user-only required fields
     const missingFields: string[] = []
 
@@ -238,22 +257,9 @@ export class Serializer {
       if (subBlockConfig.required === true) {
         const fieldValue = params[subBlockConfig.id]
         if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-          // Check if this field corresponds to a user-only parameter in any of the tools
-          let isUserOnlyField = false
-
-          for (const toolId of toolAccess) {
-            const tool = getTool(toolId)
-            if (tool?.params?.[subBlockConfig.id]) {
-              const paramConfig = tool.params[subBlockConfig.id]
-              if (paramConfig.visibility === 'user-only') {
-                isUserOnlyField = true
-                break
-              }
-            }
-          }
-
-          // Only add to missing fields if it's a user-only parameter
-          if (isUserOnlyField) {
+          // Check if this field corresponds to a user-only parameter in the current tool
+          const paramConfig = currentTool.params?.[subBlockConfig.id]
+          if (paramConfig && paramConfig.visibility === 'user-only') {
             missingFields.push(subBlockConfig.title || subBlockConfig.id)
           }
         }

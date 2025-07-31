@@ -18,7 +18,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Scrape', id: 'scrape' },
         { label: 'Search', id: 'search' },

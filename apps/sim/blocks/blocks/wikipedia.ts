@@ -25,7 +25,6 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
         { label: 'Random Page', id: 'wikipedia_random' },
       ],
       value: () => 'wikipedia_summary',
-      required: true,
     },
     // Page Summary operation inputs
     {
@@ -35,6 +34,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
       layout: 'full',
       placeholder: 'Enter Wikipedia page title (e.g., "Python programming language")...',
       condition: { field: 'operation', value: 'wikipedia_summary' },
+      required: true,
     },
     // Search Pages operation inputs
     {
@@ -44,6 +44,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
       layout: 'full',
       placeholder: 'Enter search terms...',
       condition: { field: 'operation', value: 'wikipedia_search' },
+      required: true,
     },
     {
       id: 'searchLimit',
@@ -61,6 +62,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
       layout: 'full',
       placeholder: 'Enter Wikipedia page title...',
       condition: { field: 'operation', value: 'wikipedia_content' },
+      required: true,
     },
   ],
   tools: {

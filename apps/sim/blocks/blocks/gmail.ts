@@ -19,7 +19,6 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       title: 'Operation',
       type: 'dropdown',
       layout: 'full',
-      required: true,
       options: [
         { label: 'Send Email', id: 'send_gmail' },
         { label: 'Read Email', id: 'read_gmail' },

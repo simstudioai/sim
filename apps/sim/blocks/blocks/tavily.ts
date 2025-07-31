@@ -23,16 +23,6 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Extract Content', id: 'tavily_extract' },
       ],
       value: () => 'tavily_search',
-      required: true,
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter your Tavily API key',
-      password: true,
-      required: true,
     },
     {
       id: 'query',
@@ -41,6 +31,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       layout: 'full',
       placeholder: 'Enter your search query...',
       condition: { field: 'operation', value: 'tavily_search' },
+      required: true,
     },
     {
       id: 'maxResults',
@@ -57,6 +48,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       layout: 'full',
       placeholder: 'Enter URL to extract content from...',
       condition: { field: 'operation', value: 'tavily_extract' },
+      required: true,
     },
     {
       id: 'extract_depth',
@@ -69,6 +61,15 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       ],
       value: () => 'basic',
       condition: { field: 'operation', value: 'tavily_extract' },
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your Tavily API key',
+      password: true,
+      required: true,
     },
   ],
   tools: {

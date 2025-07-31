@@ -25,7 +25,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         { label: 'Write Channel Message', id: 'write_channel' },
       ],
       value: () => 'read_chat',
-      required: true,
     },
     {
       id: 'credential',
@@ -124,6 +123,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       layout: 'full',
       placeholder: 'Enter message content',
       condition: { field: 'operation', value: ['write_chat', 'write_channel'] },
+      required: true,
     },
   ],
   tools: {
