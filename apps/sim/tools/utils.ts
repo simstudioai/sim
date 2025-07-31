@@ -191,8 +191,7 @@ export function validateRequiredParametersAfterMerge(
     ) {
       // Create a more user-friendly error message
       const toolName = tool.name || toolId
-      const paramDescription = paramConfig.description || paramName
-      throw new Error(`"${paramDescription}" is required for ${toolName}`)
+      throw new Error(`"${paramName}" is required for ${toolName}`)
     }
   }
 }

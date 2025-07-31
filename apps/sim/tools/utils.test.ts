@@ -337,7 +337,7 @@ describe('validateRequiredParametersAfterMerge', () => {
 
     expect(() => {
       validateRequiredParametersAfterMerge('test-tool', toolWithDescriptions, {})
-    }).toThrow('"Subreddit name (without r/ prefix)" is required for Test Tool')
+    }).toThrow('"subreddit" is required for Test Tool')
   })
 
   it.concurrent('should fall back to parameter name when no description available', () => {
@@ -389,7 +389,7 @@ describe('validateRequiredParametersAfterMerge', () => {
     // Should throw for the first missing parameter it encounters
     expect(() => {
       validateRequiredParametersAfterMerge('test-tool', toolWithMultipleRequired, {})
-    }).toThrow('"First parameter" is required for Test Tool')
+    }).toThrow('"param1" is required for Test Tool')
   })
 })
 

@@ -195,7 +195,7 @@ describe('Validation Integration Tests', () => {
           } as any,
           mergedParams
         )
-      }).toThrow('"URL to extract content from" is required for Jina Reader')
+      }).toThrow('"url" is required for Jina Reader')
     }
   )
 
@@ -314,7 +314,7 @@ describe('Validation Integration Tests', () => {
         } as any,
         mergedParams
       )
-    }).toThrow('"Subreddit name" is required for Reddit Posts')
+    }).toThrow('"subreddit" is required for Reddit Posts')
   })
 
   it.concurrent('complete success: all required fields provided correctly', () => {
