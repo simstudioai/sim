@@ -86,6 +86,46 @@ function handleStoreError(error: unknown, fallbackMessage: string): string {
 }
 
 /**
+ * Helper function to validate and clean messages for LLM consumption
+ */
+function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
+  return messages
+    .map(msg => {
+      // Build content from contentBlocks if content is empty
+      let validContent = msg.content || ''
+      
+      // For assistant messages, if content is empty but there are contentBlocks, build content from them
+      if (msg.role === 'assistant' && !validContent.trim() && msg.contentBlocks?.length) {
+        validContent = msg.contentBlocks
+          .filter(block => block.type === 'text')
+          .map(block => block.content)
+          .join('')
+          .trim()
+      }
+      
+      return {
+        id: msg.id,
+        role: msg.role,
+        content: validContent,
+        timestamp: msg.timestamp,
+        ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
+        ...(msg.contentBlocks && msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks })
+      }
+    })
+    .filter(msg => {
+      // Remove assistant messages with no meaningful content (aborted/incomplete messages)
+      if (msg.role === 'assistant') {
+        const hasContent = msg.content && msg.content.trim().length > 0
+        const hasCompletedTools = msg.toolCalls?.some(tc => 
+          tc.state === 'completed' || tc.state === 'applied' || tc.state === 'ready_for_review'
+        )
+        return hasContent || hasCompletedTools
+      }
+      return true // Keep all non-assistant messages
+    })
+}
+
+/**
  * Helper function to get a display name for a tool
  */
 function getToolDisplayName(toolName: string): string {
@@ -947,7 +987,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Select chat and load latest messages
       selectChat: async (chat: CopilotChat) => {
-        console.log('💬💬💬 SELECT CHAT CALLED 💬💬💬', { newChatId: chat.id })
+        logger.info('💬 SELECT CHAT CALLED', { newChatId: chat.id })
         const { workflowId, currentChat } = get()
 
         if (!workflowId) {
@@ -957,19 +997,13 @@ export const useCopilotStore = create<CopilotStore>()(
 
         // Abort any ongoing streams before switching chats
         if (currentChat && currentChat.id !== chat.id) {
-          console.log('🔍 Different chat selected, checking for active stream')
-          const { isSendingMessage, abortController } = get()
-          console.log('🔍 Stream state on chat switch:', { isSendingMessage, hasAbortController: !!abortController })
+          const { isSendingMessage } = get()
+          logger.info('Different chat selected, checking for active stream:', { isSendingMessage })
           
           if (isSendingMessage) {
-            console.log('🛑 ABORTING STREAM DUE TO CHAT SWITCH')
-            logger.info('Aborting ongoing copilot stream due to chat switch')
+            logger.info('🛑 Aborting ongoing copilot stream due to chat switch')
             get().abortMessage()
-          } else {
-            console.log('ℹ️ NO ACTIVE STREAM TO ABORT ON CHAT SWITCH')
           }
-        } else {
-          console.log('ℹ️ Same chat selected or no current chat')
         }
 
         // Optimistically set the chat first
@@ -1026,22 +1060,15 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Create a new chat - clear current chat state like when switching workflows
       createNewChat: async () => {
-        console.log('🆕🆕🆕 CREATE NEW CHAT CALLED 🆕🆕🆕')
-        logger.info('=== CREATE NEW CHAT CALLED ===')
+        logger.info('🆕 CREATE NEW CHAT CALLED')
         
         // Abort any ongoing streams before creating new chat
         const { isSendingMessage, abortController } = get()
-        console.log('🔍 Current streaming state:', { isSendingMessage, hasAbortController: !!abortController })
         logger.info('Current streaming state:', { isSendingMessage, hasAbortController: !!abortController })
         
         if (isSendingMessage) {
-          console.log('🛑 ABORTING STREAM DUE TO NEW CHAT')
           logger.info('🛑 Aborting ongoing copilot stream due to new chat creation')
           get().abortMessage()
-          logger.info('✅ Abort message completed')
-        } else {
-          console.log('ℹ️ NO ACTIVE STREAM TO ABORT')
-          logger.info('ℹ️ No active stream to abort')
         }
 
         // Set state to null so backend creates a new chat on first message
@@ -1274,37 +1301,35 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Abort current message streaming
       abortMessage: () => {
-        logger.info('🛑 ABORT MESSAGE CALLED')
         const { abortController, isSendingMessage, messages } = get()
-        logger.info('Abort state check:', { 
-          isSendingMessage, 
-          hasAbortController: !!abortController,
-          abortControllerSignalAborted: abortController?.signal.aborted,
-          messagesCount: messages.length 
-        })
+        logger.info('🛑 Abort message called:', { isSendingMessage, hasAbortController: !!abortController })
 
         if (!isSendingMessage || !abortController) {
-          logger.warn('❌ Cannot abort: no active streaming request', { isSendingMessage, hasAbortController: !!abortController })
+          logger.warn('Cannot abort: no active streaming request')
           return
         }
 
-        logger.info('✅ Proceeding with abort - setting isAborting: true')
+        logger.info('Aborting stream and updating tool states')
         set({ isAborting: true })
 
         try {
           // Abort the request
-          logger.info('🚫 Calling abortController.abort()')
           abortController.abort()
-          logger.info('🚫 AbortController.abort() completed, signal.aborted:', abortController.signal.aborted)
 
           // Find the last streaming message and mark any executing tool calls as aborted
           const lastMessage = messages[messages.length - 1]
           if (lastMessage && lastMessage.role === 'assistant') {
-            // Mark any executing tool calls as aborted
+            // Mark any executing tool calls as errors (more LLM-friendly than "aborted")
             const updatedToolCalls =
               lastMessage.toolCalls?.map((toolCall) =>
                 toolCall.state === 'executing'
-                  ? { ...toolCall, state: 'aborted' as const, endTime: Date.now() }
+                  ? { 
+                      ...toolCall, 
+                      state: 'error' as const, 
+                      endTime: Date.now(),
+                      error: 'Operation was interrupted by user action',
+                      displayName: getToolDisplayNameByState({ ...toolCall, state: 'error' })
+                    }
                   : toolCall
               ) || []
 
@@ -1316,47 +1341,73 @@ export const useCopilotStore = create<CopilotStore>()(
                       ...block,
                       toolCall: {
                         ...block.toolCall,
-                        state: 'aborted' as const,
+                        state: 'error' as const,
                         endTime: Date.now(),
+                        error: 'Operation was interrupted by user action',
+                        displayName: getToolDisplayNameByState({ ...block.toolCall, state: 'error' })
                       },
                     }
                   : block
               ) || []
 
-            const abortedCount = updatedToolCalls.filter((tc) => tc.state === 'aborted').length
+            const abortedCount = updatedToolCalls.filter((tc) => tc.state === 'error' && tc.error?.includes('interrupted')).length
 
-            set((state) => ({
-              messages: state.messages.map((msg) =>
-                msg.id === lastMessage.id
-                  ? {
-                      ...msg,
-                      toolCalls: updatedToolCalls,
-                      contentBlocks: updatedContentBlocks,
-                    }
-                  : msg
-              ),
-              isSendingMessage: false,
-              isAborting: false,
-              abortController: null,
-            }))
+            // Check if the assistant message has any meaningful content
+            const textContent = lastMessage.contentBlocks
+              ?.filter((block) => block.type === 'text')
+              .map((block) => block.content)
+              .join('') || ''
+            
+            const hasContent = textContent.trim().length > 0
+            const hasCompletedToolCalls = updatedToolCalls.some(tc => tc.state === 'completed' || tc.state === 'applied' || tc.state === 'ready_for_review')
+            
+            if (!hasContent && !hasCompletedToolCalls) {
+              // Remove the incomplete assistant message entirely - cleaner for user and LLM
+              set((state) => ({
+                messages: state.messages.filter((msg) => msg.id !== lastMessage.id),
+                isSendingMessage: false,
+                isAborting: false,
+                abortController: null,
+              }))
+              logger.info('Removed incomplete assistant message after abort')
+            } else {
+              // Keep the message but clean it up
+              set((state) => ({
+                messages: state.messages.map((msg) =>
+                  msg.id === lastMessage.id
+                    ? {
+                        ...msg,
+                        content: textContent.trim(), // Use actual content, no fallback text
+                        toolCalls: updatedToolCalls,
+                        contentBlocks: updatedContentBlocks,
+                      }
+                    : msg
+                ),
+                isSendingMessage: false,
+                isAborting: false,
+                abortController: null,
+              }))
+              logger.info('Cleaned up assistant message after abort, keeping meaningful content')
+            }
 
             logger.info(
-              `Message streaming aborted successfully. Marked ${abortedCount} tool calls as aborted.`
+              `Message streaming aborted successfully. ${abortedCount > 0 ? `Marked ${abortedCount} tool calls as interrupted.` : 'No tool calls were running.'}`
             )
 
-            // Save the aborted state to database immediately
+            // Save the cleaned state to database immediately
             const { currentChat } = get()
-            if (currentChat && abortedCount > 0) {
+            if (currentChat) {
               try {
                 const currentMessages = get().messages
-                const dbMessages = currentMessages.map(msg => ({
-                  id: msg.id,
-                  role: msg.role,
-                  content: msg.content,
-                  timestamp: msg.timestamp,
-                  ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
-                  ...(msg.contentBlocks && msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks })
-                }))
+                const wasMessageRemoved = !hasContent && !hasCompletedToolCalls
+                
+                // Validate and clean messages before saving using helper function
+                const dbMessages = validateMessagesForLLM(currentMessages)
+                
+                logger.info('💾 Saving cleaned message state after abort:', {
+                  messageCount: dbMessages.length,
+                  removedIncompleteMessage: wasMessageRemoved
+                })
 
                 fetch('/api/copilot/chat/update-messages', {
                   method: 'POST',
@@ -1367,16 +1418,16 @@ export const useCopilotStore = create<CopilotStore>()(
                   })
                 }).then(response => {
                   if (response.ok) {
-                    logger.info('Successfully persisted aborted tool call states to database')
+                    logger.info('Successfully persisted cleaned message state to database')
                   } else {
-                    logger.error('Failed to persist aborted tool call states:', response.statusText)
+                    logger.error('Failed to persist cleaned message state:', response.statusText)
                   }
                 }).catch(error => {
-                  logger.error('Error persisting aborted tool call states:', error)
+                  logger.error('Error persisting cleaned message state:', error)
                 })
-              } catch (error) {
-                logger.error('Error persisting aborted tool call states:', error)
-              }
+                              } catch (error) {
+                  logger.error('Error persisting cleaned message state:', error)
+                }
             }
           } else {
             // No streaming message found, just reset the state
@@ -1531,14 +1582,7 @@ export const useCopilotStore = create<CopilotStore>()(
           if (currentChat) {
             // Get the updated messages after state change
             const updatedMessages = get().messages
-            const dbMessages = updatedMessages.map(msg => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              timestamp: msg.timestamp,
-              ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
-              ...(msg.contentBlocks && msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks })
-            }))
+            const dbMessages = validateMessagesForLLM(updatedMessages)
 
             fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
@@ -1728,15 +1772,8 @@ export const useCopilotStore = create<CopilotStore>()(
                 try {
                   const chatId = get().currentChat!.id
                   
-                  // Format messages for database storage (same format as the chat API)
-                  const dbMessages = newMessages.map(msg => ({
-                    id: msg.id,
-                    role: msg.role,
-                    content: msg.content,
-                    timestamp: msg.timestamp,
-                    ...(msg.toolCalls && { toolCalls: msg.toolCalls }),
-                    ...(msg.contentBlocks && { contentBlocks: msg.contentBlocks })
-                  }))
+                  // Format messages for database storage using validation
+                  const dbMessages = validateMessagesForLLM(newMessages)
 
                   const response = await fetch('/api/copilot/chat/update-messages', {
                     method: 'POST',
@@ -1947,14 +1984,7 @@ export const useCopilotStore = create<CopilotStore>()(
               const updatedMessage = currentMessages.find(msg => msg.id === messageId)
               
               if (updatedMessage && (updatedMessage.toolCalls?.length || updatedMessage.contentBlocks?.length)) {
-                const dbMessages = currentMessages.map(msg => ({
-                  id: msg.id,
-                  role: msg.role,
-                  content: msg.content,
-                  timestamp: msg.timestamp,
-                  ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
-                  ...(msg.contentBlocks && msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks })
-                }))
+                const dbMessages = validateMessagesForLLM(currentMessages)
 
                 const response = await fetch('/api/copilot/chat/update-messages', {
                   method: 'POST',
@@ -2045,26 +2075,21 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Cleanup any ongoing streams
       cleanup: () => {
-        logger.info('🧹 CLEANUP CALLED')
         const { isSendingMessage } = get()
-        logger.info('Cleanup state check:', { isSendingMessage })
+        logger.info('🧹 Cleanup called:', { isSendingMessage })
         
         if (isSendingMessage) {
-          logger.info('🧹 Cleaning up ongoing copilot stream')
+          logger.info('Cleaning up ongoing copilot stream')
           // Call the full abort logic, not just abortController.abort()
           get().abortMessage()
-        } else {
-          logger.info('🧹 No active stream to cleanup')
         }
         
         // Cancel any pending RAF updates and clear queue
         if (streamingUpdateRAF !== null) {
-          logger.info('🧹 Cancelling RAF updates')
           cancelAnimationFrame(streamingUpdateRAF)
           streamingUpdateRAF = null
         }
         streamingUpdateQueue.clear()
-        logger.info('🧹 Cleanup completed')
       },
 
       // Reset entire store

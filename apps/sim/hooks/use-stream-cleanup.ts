@@ -15,12 +15,10 @@ export function useStreamCleanup(cleanup: () => void) {
   // Wrap cleanup function to ensure it's stable
   const stableCleanup = useCallback(() => {
     try {
-      console.log('🔧 useStreamCleanup: calling cleanup function')
       cleanup()
-      console.log('🔧 useStreamCleanup: cleanup function completed')
     } catch (error) {
       // Ignore errors during cleanup to prevent issues during page unload
-      console.warn('❌ Error during stream cleanup:', error)
+      console.warn('Error during stream cleanup:', error)
     }
   }, [cleanup])
 
