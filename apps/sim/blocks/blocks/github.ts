@@ -49,6 +49,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       layout: 'half',
       placeholder: 'e.g., 123',
       condition: { field: 'operation', value: 'github_pr' },
+      required: true,
     },
     {
       id: 'body',
@@ -57,6 +58,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       layout: 'full',
       placeholder: 'Enter comment text',
       condition: { field: 'operation', value: 'github_comment' },
+      required: true,
     },
     {
       id: 'pullNumber',
@@ -65,6 +67,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       layout: 'half',
       placeholder: 'e.g., 123',
       condition: { field: 'operation', value: 'github_comment' },
+      required: true,
     },
     {
       id: 'branch',

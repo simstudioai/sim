@@ -87,6 +87,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       layout: 'full',
       placeholder: 'For Create: `[{ "fields": { ... } }]`\n',
       condition: { field: 'operation', value: ['create', 'updateMultiple'] },
+      required: true,
     },
     {
       id: 'fields',
@@ -95,6 +96,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       layout: 'full',
       placeholder: 'Fields to update: `{ "Field Name": "New Value" }`',
       condition: { field: 'operation', value: 'update' },
+      required: true,
     },
   ],
   tools: {

@@ -61,7 +61,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
         { label: 'Auto', id: 'auto' },
         { label: 'Neural', id: 'neural' },
         { label: 'Keyword', id: 'keyword' },
-        { label: 'Magic', id: 'magic' },
+        { label: 'Fast', id: 'fast' },
       ],
       value: () => 'auto',
       condition: { field: 'operation', value: 'exa_search' },

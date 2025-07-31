@@ -28,7 +28,6 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your Custom Search Engine ID',
-      description: 'Required Custom Search Engine ID',
       required: true,
     },
     {
@@ -37,7 +36,6 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your Google API key',
-      description: 'Required API Key for Google Search',
       password: true,
       required: true,
     },
@@ -47,7 +45,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       type: 'short-input',
       layout: 'half',
       placeholder: '10',
-      description: 'Number of search results to return (max: 10)',
+      required: true,
     },
   ],
 

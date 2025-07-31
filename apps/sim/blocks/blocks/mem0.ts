@@ -58,6 +58,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'search',
       },
+      required: true,
     },
     {
       id: 'memoryId',

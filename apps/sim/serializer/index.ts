@@ -250,18 +250,18 @@ export class Serializer {
       return // Tool not found, skip validation
     }
 
-    // Check each subBlock for user-only required fields
+    // Check required user-only parameters for the current tool
     const missingFields: string[] = []
 
-    blockConfig.subBlocks?.forEach((subBlockConfig: any) => {
-      if (subBlockConfig.required === true) {
-        const fieldValue = params[subBlockConfig.id]
+    // Iterate through the tool's parameters, not the block's subBlocks
+    Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
+      if (paramConfig.required && paramConfig.visibility === 'user-only') {
+        const fieldValue = params[paramId]
         if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-          // Check if this field corresponds to a user-only parameter in the current tool
-          const paramConfig = currentTool.params?.[subBlockConfig.id]
-          if (paramConfig && paramConfig.visibility === 'user-only') {
-            missingFields.push(subBlockConfig.title || subBlockConfig.id)
-          }
+          // Find the corresponding subBlock to get the display title
+          const subBlockConfig = blockConfig.subBlocks?.find((sb: any) => sb.id === paramId)
+          const displayName = subBlockConfig?.title || paramId
+          missingFields.push(displayName)
         }
       }
     })
