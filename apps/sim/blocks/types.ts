@@ -135,6 +135,14 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
+  // Wand configuration for AI assistance
+  wandConfig?: {
+    enabled: boolean
+    prompt: string // Custom prompt template for this subblock
+    generationType?: string // Optional custom generation type
+    placeholder?: string // Custom placeholder for the prompt input
+    maintainHistory?: boolean // Whether to maintain conversation history
+  }
 }
 
 // Main block definition

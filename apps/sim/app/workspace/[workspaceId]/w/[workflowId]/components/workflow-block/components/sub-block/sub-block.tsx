@@ -181,6 +181,13 @@ export function SubBlock({
             previewValue={previewValue}
             disabled={isDisabled}
             onValidationChange={handleValidationChange}
+            wandConfig={
+              config.wandConfig || {
+                enabled: false,
+                prompt: '',
+                placeholder: '',
+              }
+            }
           />
         )
       case 'switch':

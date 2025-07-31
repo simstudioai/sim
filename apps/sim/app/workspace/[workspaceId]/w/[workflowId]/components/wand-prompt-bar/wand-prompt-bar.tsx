@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
-interface CodePromptBarProps {
+interface WandPromptBarProps {
   isVisible: boolean
   isLoading: boolean
   isStreaming: boolean
@@ -16,7 +16,7 @@ interface CodePromptBarProps {
   className?: string
 }
 
-export function CodePromptBar({
+export function WandPromptBar({
   isVisible,
   isLoading,
   isStreaming,
@@ -26,7 +26,7 @@ export function CodePromptBar({
   onChange,
   placeholder = 'Describe the JavaScript code to generate...',
   className,
-}: CodePromptBarProps) {
+}: WandPromptBarProps) {
   const promptBarRef = useRef<HTMLDivElement>(null)
   const [isExiting, setIsExiting] = useState(false)
 

@@ -55,6 +55,30 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       type: 'code',
       layout: 'full',
       placeholder: 'Enter JSON...',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert JSON programmer.
+Generate ONLY the raw JSON object based on the user's request.
+The output MUST be a single, valid JSON object, starting with { and ending with }.
+
+Current body: {context}
+
+Do not include any explanations, markdown formatting, or other text outside the JSON object.
+
+You have access to the following variables you can use to generate the JSON body:
+- 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
+- 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or env.
+
+Example:
+{
+  "name": "<block.agent.response.content>",
+  "age": <block.function.output.age>,
+  "success": true
+}`,
+        placeholder: 'Describe the API request body you need...',
+        generationType: 'json-object',
+      },
     },
   ],
   tools: {
