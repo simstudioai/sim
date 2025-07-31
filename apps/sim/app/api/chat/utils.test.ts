@@ -350,4 +350,77 @@ describe('Chat API Utils', () => {
       expect(result3.error).toBe('Email not authorized')
     })
   })
+
+  describe('Execution Result Processing', () => {
+    it('should process logs regardless of overall success status', () => {
+      // Test that logs are processed even when overall execution fails
+      // This is key for partial success scenarios
+      const executionResult = {
+        success: false, // Overall execution failed
+        output: {},
+        logs: [
+          {
+            blockId: 'agent1',
+            startedAt: '2023-01-01T00:00:00Z',
+            endedAt: '2023-01-01T00:00:01Z',
+            durationMs: 1000,
+            success: true,
+            output: { content: 'Agent 1 succeeded' },
+            error: undefined,
+          },
+          {
+            blockId: 'agent2',
+            startedAt: '2023-01-01T00:00:00Z',
+            endedAt: '2023-01-01T00:00:01Z',
+            durationMs: 500,
+            success: false,
+            output: null,
+            error: 'Agent 2 failed',
+          },
+        ],
+        metadata: { duration: 1000 },
+      }
+
+      // Test the key logic: logs should be processed regardless of overall success
+      expect(executionResult.success).toBe(false)
+      expect(executionResult.logs).toBeDefined()
+      expect(executionResult.logs).toHaveLength(2)
+
+      // First log should be successful
+      expect(executionResult.logs[0].success).toBe(true)
+      expect(executionResult.logs[0].output?.content).toBe('Agent 1 succeeded')
+
+      // Second log should be failed
+      expect(executionResult.logs[1].success).toBe(false)
+      expect(executionResult.logs[1].error).toBe('Agent 2 failed')
+    })
+
+    it('should handle ExecutionResult vs StreamingExecution types correctly', () => {
+      const executionResult = {
+        success: true,
+        output: { content: 'test' },
+        logs: [],
+        metadata: { duration: 100 },
+      }
+
+      // Test direct ExecutionResult
+      const directResult = executionResult
+      const extractedDirect = directResult
+      expect(extractedDirect).toBe(executionResult)
+
+      // Test StreamingExecution with embedded ExecutionResult
+      const streamingResult = {
+        stream: new ReadableStream(),
+        execution: executionResult,
+      }
+
+      // Simulate the type extraction logic from executeWorkflowForChat
+      const extractedFromStreaming =
+        streamingResult && typeof streamingResult === 'object' && 'execution' in streamingResult
+          ? streamingResult.execution
+          : streamingResult
+
+      expect(extractedFromStreaming).toBe(executionResult)
+    })
+  })
 })

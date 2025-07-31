@@ -967,4 +967,91 @@ describe('Executor', () => {
       }
     })
   })
+
+  describe('Parallel Execution with Mixed Results', () => {
+    it.concurrent(
+      'should handle parallel execution where some blocks succeed and others fail',
+      async () => {
+        // Create a workflow with two parallel agents
+        const workflow = {
+          blocks: [
+            {
+              id: 'starter',
+              metadata: { id: BlockType.STARTER },
+              subBlocks: {},
+              enabled: true,
+            },
+            {
+              id: 'agent1',
+              metadata: { id: BlockType.AGENT, name: 'Agent 1' },
+              subBlocks: {
+                model: { value: 'gpt-4o' },
+                input: { value: 'Hello' },
+              },
+              enabled: true,
+            },
+            {
+              id: 'agent2',
+              metadata: { id: BlockType.AGENT, name: 'Agent 2' },
+              subBlocks: {
+                model: { value: 'gpt-4o' },
+                input: { value: 'Hello' },
+              },
+              enabled: true,
+            },
+          ],
+          connections: [
+            { source: 'starter', sourceHandle: 'out', target: 'agent1', targetHandle: 'in' },
+            { source: 'starter', sourceHandle: 'out', target: 'agent2', targetHandle: 'in' },
+          ],
+          loops: [],
+          parallels: [],
+        }
+
+        const executor = new Executor(workflow)
+
+        // Mock agent1 to succeed and agent2 to fail
+        const mockExecuteBlock = vi
+          .fn()
+          .mockImplementationOnce(() => ({ content: 'Success from agent1' })) // agent1 succeeds
+          .mockImplementationOnce(() => {
+            throw new Error('Agent 2 failed')
+          }) // agent2 fails
+
+        // Replace the executeBlock method
+
+        ;(executor as any).executeBlock = mockExecuteBlock
+
+        // Mock other necessary methods
+
+        ;(executor as any).createExecutionContext = vi.fn(() => ({
+          blockStates: new Map(),
+          executedBlocks: new Set(['starter']),
+          blockLogs: [],
+          metadata: { startTime: new Date().toISOString() },
+          pendingBlocks: [],
+          parallelBlockMapping: new Map(),
+          onStream: undefined,
+        }))
+
+        ;(executor as any).getNextExecutionLayer = vi
+          .fn()
+          .mockReturnValueOnce(['agent1', 'agent2']) // First call returns both agents
+          .mockReturnValueOnce([]) // Second call returns empty (execution complete)
+
+        ;(executor as any).pathTracker = {
+          updateExecutionPaths: vi.fn(),
+        }
+
+        const result = await executor.execute('test-workflow')
+
+        // Should succeed with partial results - not throw an error
+        expect(result).toBeDefined()
+        expect(mockExecuteBlock).toHaveBeenCalledTimes(2)
+
+        // The execution should complete despite one block failing
+        // This tests our Promise.allSettled() behavior
+      }
+    )
+  })
 })

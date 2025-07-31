@@ -2,6 +2,7 @@ import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isDev } from './lib/environment'
 import { createLogger } from './lib/logs/console/logger'
+import { generateRuntimeCSP } from './lib/security/csp'
 import { getBaseDomain } from './lib/urls/utils'
 
 const logger = createLogger('Middleware')
@@ -159,6 +160,16 @@ export async function middleware(request: NextRequest) {
 
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
+
+  // Generate runtime CSP for main application routes that need dynamic environment variables
+  if (
+    url.pathname.startsWith('/workspace') ||
+    url.pathname.startsWith('/chat') ||
+    url.pathname === '/'
+  ) {
+    response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+  }
+
   return response
 }
 
