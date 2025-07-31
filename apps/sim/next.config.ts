@@ -133,9 +133,10 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Apply security headers to all routes
+      // Apply security headers to routes not handled by middleware runtime CSP
+      // Middleware handles: /, /workspace/*, /chat/*
       {
-        source: '/:path*',
+        source: '/((?!workspace|chat$).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
