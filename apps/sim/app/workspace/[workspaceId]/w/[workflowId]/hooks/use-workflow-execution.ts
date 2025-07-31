@@ -323,15 +323,32 @@ export function useWorkflowExecution() {
 
               await Promise.all(streamReadingPromises)
 
-              if (result && 'success' in result) {
-                if (!result.metadata) {
-                  result.metadata = { duration: 0, startTime: new Date().toISOString() }
+              // Handle both ExecutionResult and StreamingExecution types - process regardless of success status
+              if (result) {
+                // Handle both ExecutionResult and StreamingExecution types
+                const executionResult =
+                  result && typeof result === 'object' && 'execution' in result
+                    ? (result.execution as ExecutionResult)
+                    : (result as ExecutionResult)
+
+                if (!executionResult.metadata) {
+                  executionResult.metadata = { duration: 0, startTime: new Date().toISOString() }
                 }
-                ;(result.metadata as any).source = 'chat'
-                // Update streamed content and apply tokenization
-                if (result.logs) {
-                  result.logs.forEach((log: BlockLog) => {
+                ;(executionResult.metadata as any).source = 'chat'
+
+                // Update streamed content and apply tokenization - process logs regardless of success status
+                if (executionResult.logs) {
+                  // Add newlines between different agent outputs for better readability
+                  const processedOutputs = new Set<string>()
+                  executionResult.logs.forEach((log: BlockLog) => {
                     if (streamedContent.has(log.blockId)) {
+                      const content = streamedContent.get(log.blockId)
+                      if (log.output && content) {
+                        const separator = processedOutputs.size > 0 ? '\n\n' : ''
+                        log.output.content = separator + content
+                        processedOutputs.add(log.blockId)
+                      }
+
                       // For console display, show the actual structured block output instead of formatted streaming content
                       // This ensures console logs match the block state structure
                       // Use replaceOutput to completely replace the output instead of merging
@@ -348,14 +365,19 @@ export function useWorkflowExecution() {
                   })
 
                   // Process all logs for streaming tokenization
-                  const processedCount = processStreamingBlockLogs(result.logs, streamedContent)
+                  const processedCount = processStreamingBlockLogs(
+                    executionResult.logs,
+                    streamedContent
+                  )
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
 
                 controller.enqueue(
-                  encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
+                  encoder.encode(
+                    `data: ${JSON.stringify({ event: 'final', data: executionResult })}\n\n`
+                  )
                 )
-                persistLogs(executionId, result).catch((err) =>
+                persistLogs(executionId, executionResult).catch((err) =>
                   logger.error('Error persisting logs:', err)
                 )
               }
