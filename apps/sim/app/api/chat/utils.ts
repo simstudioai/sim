@@ -10,6 +10,7 @@ import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { decryptSecret } from '@/lib/utils'
+import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
@@ -423,7 +424,22 @@ export async function executeWorkflowForChat(
 
   // Prepare for execution, similar to use-workflow-execution.ts
   const mergedStates = mergeSubblockState(blocks)
-  const currentBlockStates = Object.entries(mergedStates).reduce(
+
+  const filteredStates = Object.entries(mergedStates).reduce(
+    (acc, [id, block]) => {
+      const blockConfig = getBlock(block.type)
+      const isTriggerBlock = blockConfig?.category === 'triggers'
+
+      // Skip trigger blocks during chat execution
+      if (!isTriggerBlock) {
+        acc[id] = block
+      }
+      return acc
+    },
+    {} as typeof mergedStates
+  )
+
+  const currentBlockStates = Object.entries(filteredStates).reduce(
     (acc, [id, block]) => {
       acc[id] = Object.entries(block.subBlocks).reduce(
         (subAcc, [key, subBlock]) => {
@@ -465,10 +481,20 @@ export async function executeWorkflowForChat(
     logger.warn(`[${requestId}] Could not parse workflow variables:`, error)
   }
 
-  // Create serialized workflow
+  // Filter edges to exclude connections to/from trigger blocks (same as manual execution)
+  const triggerBlockIds = Object.keys(mergedStates).filter((id) => {
+    const blockConfig = getBlock(mergedStates[id].type)
+    return blockConfig?.category === 'triggers'
+  })
+
+  const filteredEdges = edges.filter(
+    (edge) => !triggerBlockIds.includes(edge.source) && !triggerBlockIds.includes(edge.target)
+  )
+
+  // Create serialized workflow with filtered blocks and edges
   const serializedWorkflow = new Serializer().serializeWorkflow(
-    mergedStates,
-    edges,
+    filteredStates,
+    filteredEdges,
     loops,
     parallels,
     true // Enable validation during execution
@@ -562,7 +588,7 @@ export async function executeWorkflowForChat(
         contextExtensions: {
           stream: true,
           selectedOutputIds: selectedOutputIds.length > 0 ? selectedOutputIds : outputBlockIds,
-          edges: edges.map((e: any) => ({
+          edges: filteredEdges.map((e: any) => ({
             source: e.source,
             target: e.target,
           })),
