@@ -222,12 +222,9 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           // Update copilot tool call state to 'applied'
           try {
-            console.log('[DEBUG] acceptChanges calling updatePreviewToolCallState with applied')
             const { useCopilotStore } = await import('@/stores/copilot/store')
             useCopilotStore.getState().updatePreviewToolCallState('applied')
-            console.log('[DEBUG] acceptChanges successfully called updatePreviewToolCallState')
           } catch (error) {
-            console.log('[DEBUG] acceptChanges failed to call updatePreviewToolCallState:', error)
             logger.warn('Failed to update copilot tool call state after accept:', error)
           }
         } catch (error) {
@@ -242,12 +239,9 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
         // Update copilot tool call state to 'rejected'
         try {
-          console.log('[DEBUG] rejectChanges calling updatePreviewToolCallState with rejected')
           const { useCopilotStore } = await import('@/stores/copilot/store')
           useCopilotStore.getState().updatePreviewToolCallState('rejected')
-          console.log('[DEBUG] rejectChanges successfully called updatePreviewToolCallState')
         } catch (error) {
-          console.log('[DEBUG] rejectChanges failed to call updatePreviewToolCallState:', error)
           logger.warn('Failed to update copilot tool call state after reject:', error)
         }
       },
