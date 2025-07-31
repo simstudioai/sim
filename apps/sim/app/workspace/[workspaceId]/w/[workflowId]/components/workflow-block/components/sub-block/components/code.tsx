@@ -33,7 +33,7 @@ interface CodeProps {
   wandConfig: {
     enabled: boolean
     prompt: string
-    generationType?: string
+    generationType?: GenerationType
     placeholder?: string
     maintainHistory?: boolean
   }
