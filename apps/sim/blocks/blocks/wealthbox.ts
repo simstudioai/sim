@@ -70,11 +70,8 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
     },
     {
       id: 'taskId',
-      title: 'Select Task',
-      type: 'file-selector',
-      provider: 'wealthbox',
-      serviceId: 'wealthbox',
-      requiredScopes: ['login', 'data'],
+      title: 'Task ID',
+      type: 'short-input',
       layout: 'full',
       placeholder: 'Enter Task ID',
       mode: 'basic',
