@@ -116,32 +116,23 @@ const WorkflowContent = React.memo(() => {
 
       // Parse deleted edge identifiers to reconstruct edges
       diffAnalysis.edge_diff.deleted_edges.forEach((edgeIdentifier) => {
-        // Edge identifier format: "sourceName:sourceHandle->targetName:targetHandle"
+        // Edge identifier format: "sourceId-source-targetId-target"
         // Parse this to extract the components
-        const match = edgeIdentifier.match(/^([^:]+):([^-]+)->([^:]+)(?::(.+))?$/)
+        const match = edgeIdentifier.match(/^([^-]+)-source-([^-]+)-target$/)
         if (match) {
-          const [, sourceName, sourceHandle, targetName, targetHandle] = match
+          const [, sourceId, targetId] = match
 
-          // Find block IDs by name
-          let sourceId: string | null = null
-          let targetId: string | null = null
-
-          Object.entries(blocks).forEach(([blockId, block]) => {
-            if (block.name === sourceName) sourceId = blockId
-            if (block.name === targetName) targetId = blockId
-          })
-
-          // Only reconstruct if both blocks exist
-          if (sourceId && targetId) {
+          // Only reconstruct if both blocks still exist
+          if (blocks[sourceId] && blocks[targetId]) {
             // Generate a unique edge ID
-            const edgeId = `deleted-edge-${sourceId}-${sourceHandle}-${targetId}-${targetHandle || 'default'}`
+            const edgeId = `deleted-edge-${sourceId}-${targetId}`
 
             reconstructedEdges.push({
               id: edgeId,
               source: sourceId,
               target: targetId,
-              sourceHandle: sourceHandle === 'success' ? null : sourceHandle, // Convert 'success' back to null
-              targetHandle: targetHandle || null,
+              sourceHandle: null, // Default handle
+              targetHandle: null, // Default handle
               type: 'workflowEdge',
             })
           }

@@ -48,39 +48,26 @@ export const WorkflowEdge = ({
   const isDiffReady = useWorkflowDiffStore((state) => state.isDiffReady)
   const currentWorkflow = useCurrentWorkflow()
 
-  // Generate edge identifier using block names (not IDs) to match diff analysis
-  // This must exactly match the logic used by the yaml service diff analysis
+  // Generate edge identifier using block IDs to match diff analysis from sim agent
+  // This must exactly match the logic used by the sim agent diff analysis
   const generateEdgeIdentity = (
-    sourceName: string,
-    targetName: string,
+    sourceId: string,
+    targetId: string,
     sourceHandle?: string | null,
     targetHandle?: string | null
   ): string => {
-    // The API route uses "success" as the default handle when sourceHandle is null/undefined
-    // We need to match this logic exactly
-    const effectiveSourceHandle = sourceHandle || 'success'
-    return `${sourceName}:${effectiveSourceHandle}->${targetName}${targetHandle ? `:${targetHandle}` : ''}`
+    // The sim agent generates edge identifiers in the format: sourceId-source-targetId-target
+    return `${sourceId}-source-${targetId}-target`
   }
 
-  // Get block names from workflow - handle both diff and normal modes
-  const sourceBlock = currentWorkflow.getBlockById(source)
-  const targetBlock = currentWorkflow.getBlockById(target)
-  const sourceName = sourceBlock?.name
-  const targetName = targetBlock?.name
-
-  // Generate edge identifier using the exact same logic as the API route
-  const edgeIdentifier =
-    sourceName && targetName
-      ? generateEdgeIdentity(sourceName, targetName, sourceHandle, targetHandle)
-      : null
+  // Generate edge identifier using the exact same logic as the sim agent
+  const edgeIdentifier = generateEdgeIdentity(source, target, sourceHandle, targetHandle)
 
   // Debug logging to understand what's happening
   useEffect(() => {
     if (edgeIdentifier && diffAnalysis?.edge_diff) {
       console.log(`[Edge Debug] Edge ${id}:`, {
         edgeIdentifier,
-        sourceName,
-        targetName,
         sourceHandle,
         targetHandle,
         sourceBlockId: source,
@@ -103,8 +90,6 @@ export const WorkflowEdge = ({
     diffAnalysis,
     isShowingDiff,
     id,
-    sourceName,
-    targetName,
     sourceHandle,
     targetHandle,
     source,
@@ -132,7 +117,7 @@ export const WorkflowEdge = ({
   let edgeDiffStatus: 'new' | 'deleted' | 'unchanged' | null = null
 
   // Only attempt to determine diff status if all required data is available
-  if (diffAnalysis?.edge_diff && edgeIdentifier && sourceName && targetName && isDiffReady) {
+  if (diffAnalysis?.edge_diff && edgeIdentifier && isDiffReady) {
     if (isShowingDiff) {
       // In diff view, show new edges
       if (diffAnalysis.edge_diff.new_edges.includes(edgeIdentifier)) {
