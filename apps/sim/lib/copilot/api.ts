@@ -42,6 +42,7 @@ export interface CopilotChat {
  */
 export interface SendMessageRequest {
   message: string
+  userMessageId?: string // ID from frontend for the user message
   chatId?: string
   workflowId?: string
   mode?: 'ask' | 'agent'

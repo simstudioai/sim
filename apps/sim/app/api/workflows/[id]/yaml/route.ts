@@ -14,7 +14,7 @@ import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
 import { db } from '@/db'
-import { copilotCheckpoints, workflow as workflowTable } from '@/db/schema'
+import { workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 // Sim Agent API configuration
@@ -98,12 +98,12 @@ async function createWorkflowCheckpoint(
       }
       const currentYaml = generateResult.yaml
 
-      // Create checkpoint
-      await db.insert(copilotCheckpoints).values({
+      // Create checkpoint using new workflow_checkpoints table
+      await db.insert(workflowCheckpoints).values({
         userId,
         workflowId,
         chatId,
-        yaml: currentYaml,
+        workflowState: currentWorkflowData, // Store JSON workflow state
       })
 
       logger.info(`[${requestId}] Checkpoint created successfully`)

@@ -6,7 +6,7 @@ import { type CopilotChat, type CopilotMessage, sendStreamingMessage } from '@/l
 import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_DISPLAY_NAMES } from '@/stores/constants'
 import { COPILOT_TOOL_IDS } from './constants'
-import type { CopilotStore } from './types'
+import type { CopilotStore, WorkflowCheckpoint } from './types'
 
 const logger = createLogger('CopilotStore')
 
@@ -19,6 +19,7 @@ const initialState = {
   chats: [],
   messages: [],
   checkpoints: [],
+  messageCheckpoints: {}, // New field for message-checkpoint mappings
   isLoading: false,
   isLoadingChats: false,
   isLoadingCheckpoints: false,
@@ -577,7 +578,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
         logger.info(`Setting workflow ID: ${workflowId}`)
 
-        // Reset state when switching workflows, including chat cache
+        // Reset state when switching workflows, including chat cache and checkpoints
         set({
           ...initialState,
           workflowId,
@@ -650,6 +651,10 @@ export const useCopilotStore = create<CopilotStore>()(
               logger.info(
                 `Selected chat with latest messages: ${latestChat.title || 'Untitled'} (${latestChat.messages?.length || 0} messages)`
               )
+
+              // Automatically load checkpoints for this chat
+              await get().loadMessageCheckpoints(chat.id)
+              
             } else {
               logger.warn(`Selected chat ${chat.id} not found in latest data`)
             }
@@ -657,6 +662,13 @@ export const useCopilotStore = create<CopilotStore>()(
         } catch (error) {
           logger.error('Failed to fetch latest chat data, using cached messages:', error)
           // Already set optimistically above, so just log the error
+          
+          // Still try to load checkpoints even if chat refresh failed
+          try {
+            await get().loadMessageCheckpoints(chat.id)
+          } catch (checkpointError) {
+            logger.error('Failed to load checkpoints for selected chat:', checkpointError)
+          }
         }
       },
 
@@ -666,6 +678,7 @@ export const useCopilotStore = create<CopilotStore>()(
         set({
           currentChat: null,
           messages: [],
+          messageCheckpoints: {}, // Clear checkpoints when creating new chat
         })
         logger.info('Cleared chat state for new conversation')
       },
@@ -747,6 +760,13 @@ export const useCopilotStore = create<CopilotStore>()(
               logger.info(
                 `Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`
               )
+              
+              // Load checkpoints for the auto-selected chat
+              try {
+                await get().loadMessageCheckpoints(mostRecentChat.id)
+              } catch (checkpointError) {
+                logger.error('Failed to load checkpoints for auto-selected chat:', checkpointError)
+              }
             } else {
               // Ensure we clear everything if there are no chats for this workflow
               set({
@@ -815,6 +835,7 @@ export const useCopilotStore = create<CopilotStore>()(
         try {
           const result = await sendStreamingMessage({
             message,
+            userMessageId: userMessage.id, // Send the frontend-generated ID
             chatId: currentChat?.id,
             workflowId,
             mode,
@@ -1070,15 +1091,137 @@ export const useCopilotStore = create<CopilotStore>()(
         logger.info('Chat saving handled automatically by backend')
       },
 
-      // Load checkpoints - no-op
+      // Load checkpoints - no-op (legacy)
       loadCheckpoints: async (chatId: string) => {
-        logger.warn('Checkpoint loading not implemented')
+        logger.warn('Legacy checkpoint loading not implemented')
         set({ checkpoints: [] })
       },
 
-      // Revert checkpoint - no-op
+      // Load message checkpoints
+      loadMessageCheckpoints: async (chatId: string) => {
+        const { workflowId } = get()
+        if (!workflowId) {
+          logger.warn('Cannot load message checkpoints: no workflow ID')
+          return
+        }
+
+        set({ isLoadingCheckpoints: true, checkpointError: null })
+
+        try {
+          const response = await fetch(`/api/copilot/checkpoints?chatId=${chatId}`)
+          if (!response.ok) {
+            throw new Error(`Failed to load checkpoints: ${response.statusText}`)
+          }
+
+          const data = await response.json()
+          if (data.success && Array.isArray(data.checkpoints)) {
+            // Group checkpoints by messageId
+            const messageCheckpoints: Record<string, WorkflowCheckpoint[]> = {}
+            data.checkpoints.forEach((checkpoint: WorkflowCheckpoint) => {
+              if (checkpoint.messageId) {
+                if (!messageCheckpoints[checkpoint.messageId]) {
+                  messageCheckpoints[checkpoint.messageId] = []
+                }
+                messageCheckpoints[checkpoint.messageId].push(checkpoint)
+              }
+            })
+
+            set({ 
+              messageCheckpoints,
+              isLoadingCheckpoints: false 
+            })
+            logger.info(`Loaded checkpoints for ${Object.keys(messageCheckpoints).length} messages`)
+          }
+        } catch (error) {
+          logger.error('Failed to load message checkpoints:', error)
+          set({
+            isLoadingCheckpoints: false,
+            checkpointError: error instanceof Error ? error.message : 'Failed to load checkpoints'
+          })
+        }
+      },
+
+      // Revert to checkpoint
       revertToCheckpoint: async (checkpointId: string) => {
-        logger.warn('Checkpoint reverting not implemented')
+        set({ isRevertingCheckpoint: true, checkpointError: null })
+
+        try {
+          const response = await fetch('/api/copilot/checkpoints/revert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ checkpointId })
+          })
+
+          if (!response.ok) {
+            throw new Error(`Failed to revert checkpoint: ${response.statusText}`)
+          }
+
+          const result = await response.json()
+          if (result.success && result.checkpoint?.workflowState) {
+            logger.info(`Successfully reverted to checkpoint ${checkpointId}`)
+            
+            // Update the workflow store directly instead of refreshing the page
+            // This follows the same pattern as diff acceptance
+            const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
+            const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
+            const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+            
+            const checkpointState = result.checkpoint.workflowState
+            const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+            
+            // Update the main workflow store state
+            useWorkflowStore.setState({
+              blocks: checkpointState.blocks || {},
+              edges: checkpointState.edges || [],
+              loops: checkpointState.loops || {},
+              parallels: checkpointState.parallels || {},
+            })
+
+            // Update the subblock store with the values from the checkpoint blocks
+            if (activeWorkflowId) {
+              const subblockValues: Record<string, Record<string, any>> = {}
+
+              Object.entries(checkpointState.blocks || {}).forEach(([blockId, block]) => {
+                subblockValues[blockId] = {}
+                Object.entries((block as any).subBlocks || {}).forEach(([subblockId, subblock]) => {
+                  subblockValues[blockId][subblockId] = (subblock as any).value
+                })
+              })
+
+              useSubBlockStore.setState((state: any) => ({
+                workflowValues: {
+                  ...state.workflowValues,
+                  [activeWorkflowId]: subblockValues,
+                },
+              }))
+            }
+
+            // Trigger save and history update
+            const workflowStore = useWorkflowStore.getState()
+            workflowStore.updateLastSaved()
+
+            // Clear any pending diff changes since we've reverted to a checkpoint
+            const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')
+            useWorkflowDiffStore.getState().clearDiff()
+
+            logger.info('Successfully applied checkpoint state to workflow store and cleared pending diffs')
+          } else {
+            throw new Error(result.error || 'Failed to revert checkpoint')
+          }
+        } catch (error) {
+          logger.error('Failed to revert to checkpoint:', error)
+          set({
+            checkpointError: error instanceof Error ? error.message : 'Failed to revert checkpoint'
+          })
+          throw error
+        } finally {
+          set({ isRevertingCheckpoint: false })
+        }
+      },
+
+      getCheckpointsForMessage: (messageId: string) => {
+        const { messageCheckpoints } = get()
+        return messageCheckpoints[messageId] || []
       },
 
       // Set preview YAML

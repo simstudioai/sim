@@ -11,8 +11,10 @@ import {
   Eye,
   FileText,
   Globe,
+  History,
   Lightbulb,
   Loader2,
+  RotateCcw,
   Search,
   Settings,
   ThumbsDown,
@@ -27,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import type { ToolCallState } from '@/types/tool-call'
+import { useCopilotStore } from '@/stores/copilot/store'
 
 interface ProfessionalMessageProps {
   message: CopilotMessage
@@ -199,6 +202,17 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
   const [showUpvoteSuccess, setShowUpvoteSuccess] = useState(false)
   const [showDownvoteSuccess, setShowDownvoteSuccess] = useState(false)
 
+  // Get checkpoint functionality from copilot store
+  const { 
+    messageCheckpoints: allMessageCheckpoints,
+    revertToCheckpoint, 
+    isRevertingCheckpoint 
+  } = useCopilotStore()
+  
+  // Get checkpoints for this message if it's a user message
+  const messageCheckpoints = isUser ? (allMessageCheckpoints[message.id] || []) : []
+  const hasCheckpoints = messageCheckpoints.length > 0
+
   const handleCopyContent = () => {
     // Copy clean text content
     navigator.clipboard.writeText(message.content)
@@ -215,6 +229,18 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
     // Reset upvote if it was active
     setShowUpvoteSuccess(false)
     setShowDownvoteSuccess(true)
+  }
+
+  const handleRevertToCheckpoint = async () => {
+    if (messageCheckpoints.length > 0) {
+      // Use the most recent checkpoint for this message
+      const latestCheckpoint = messageCheckpoints[0]
+      try {
+        await revertToCheckpoint(latestCheckpoint.id)
+      } catch (error) {
+        console.error('Failed to revert to checkpoint:', error)
+      }
+    }
   }
 
   useEffect(() => {
@@ -363,6 +389,27 @@ const ProfessionalMessage: FC<ProfessionalMessageProps> = memo(({ message, isStr
               <div className='whitespace-pre-wrap break-words font-normal text-foreground text-sm leading-tight'>
                 <WordWrap text={message.content} />
               </div>
+              {hasCheckpoints && (
+                <div className='mt-2 flex items-center justify-end gap-2'>
+                  <div className='flex items-center gap-1 text-xs text-muted-foreground'>
+                    <History className='h-3 w-3' />
+                    <span>{messageCheckpoints.length} checkpoint{messageCheckpoints.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <button
+                    onClick={handleRevertToCheckpoint}
+                    disabled={isRevertingCheckpoint}
+                    className='flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50'
+                    title='Revert workflow to this state'
+                  >
+                    {isRevertingCheckpoint ? (
+                      <Loader2 className='h-3 w-3 animate-spin' />
+                    ) : (
+                      <RotateCcw className='h-3 w-3' />
+                    )}
+                    Revert
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

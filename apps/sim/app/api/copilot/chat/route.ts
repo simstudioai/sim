@@ -14,6 +14,7 @@ const logger = createLogger('CopilotChatAPI')
 // Schema for chat messages
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
+  userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
   mode: z.enum(['ask', 'agent']).optional().default('agent'),
@@ -144,7 +145,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { message, chatId, workflowId, mode, createNewChat, stream, implicitFeedback } =
+    const { message, userMessageId, chatId, workflowId, mode, createNewChat, stream, implicitFeedback } =
       ChatMessageSchema.parse(body)
 
     logger.info(`[${requestId}] Processing copilot chat request`, {
@@ -265,7 +266,7 @@ export async function POST(req: NextRequest) {
 
       // Create user message to save
       const userMessage = {
-        id: crypto.randomUUID(),
+        id: userMessageId || crypto.randomUUID(), // Use frontend ID if provided
         role: 'user',
         content: message,
         timestamp: new Date().toISOString(),
@@ -545,7 +546,7 @@ export async function POST(req: NextRequest) {
     // Save messages if we have a chat
     if (currentChat && responseData.content) {
       const userMessage = {
-        id: crypto.randomUUID(),
+        id: userMessageId || crypto.randomUUID(), // Use frontend ID if provided
         role: 'user',
         content: message,
         timestamp: new Date().toISOString(),

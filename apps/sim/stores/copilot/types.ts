@@ -75,6 +75,20 @@ export interface CopilotCheckpoint {
 }
 
 /**
+ * Workflow checkpoint structure for storing workflow state snapshots
+ */
+export interface WorkflowCheckpoint {
+  id: string
+  userId: string
+  workflowId: string
+  chatId: string
+  messageId?: string // ID of the user message that triggered this checkpoint
+  workflowState: any // JSON workflow state object
+  createdAt: Date
+  updatedAt: Date
+}
+
+/**
  * Chat mode types
  */
 export type CopilotMode = 'ask' | 'agent'
@@ -131,6 +145,7 @@ export interface CopilotState {
 
   // Checkpoint management
   checkpoints: CopilotCheckpoint[]
+  messageCheckpoints: Record<string, WorkflowCheckpoint[]> // messageId -> checkpoints
 
   // Loading states
   isLoading: boolean
@@ -183,7 +198,9 @@ export interface CopilotActions {
 
   // Checkpoint management
   loadCheckpoints: (chatId: string) => Promise<void>
+  loadMessageCheckpoints: (chatId: string) => Promise<void>
   revertToCheckpoint: (checkpointId: string) => Promise<void>
+  getCheckpointsForMessage: (messageId: string) => WorkflowCheckpoint[]
 
   // Preview management
   setPreviewYaml: (yamlContent: string) => Promise<void>
