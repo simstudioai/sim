@@ -6,10 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  type DocumentTag,
-  DocumentTagEntry,
-} from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('UploadModal')
@@ -50,7 +46,7 @@ export function UploadModal({
 }: UploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
-  const [tags, setTags] = useState<DocumentTag[]>([])
+
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -66,7 +62,6 @@ export function UploadModal({
     if (isUploading) return // Prevent closing during upload
 
     setFiles([])
-    setTags([])
     setFileError(null)
     setIsDragging(false)
     onOpenChange(false)
@@ -145,23 +140,7 @@ export function UploadModal({
     if (files.length === 0) return
 
     try {
-      // Convert DocumentTag array to TagData format
-      const tagData: Record<string, string> = {}
-      tags.forEach((tag) => {
-        if (tag.value.trim()) {
-          tagData[tag.slot] = tag.value.trim()
-        }
-      })
-
-      // Create files with tags for upload
-      const filesWithTags = files.map((file) => {
-        // Add tags as custom properties to the file object
-        const fileWithTags = file as unknown as File & Record<string, string>
-        Object.assign(fileWithTags, tagData)
-        return fileWithTags
-      })
-
-      await uploadFiles(filesWithTags, knowledgeBaseId, {
+      await uploadFiles(files, knowledgeBaseId, {
         chunkSize: chunkingConfig?.maxSize || 1024,
         minCharactersPerChunk: chunkingConfig?.minSize || 100,
         chunkOverlap: chunkingConfig?.overlap || 200,
@@ -180,19 +159,6 @@ export function UploadModal({
         </DialogHeader>
 
         <div className='flex-1 space-y-6 overflow-auto'>
-          {/* Document Tag Entry Section */}
-          <DocumentTagEntry
-            tags={tags}
-            onTagsChange={setTags}
-            disabled={isUploading}
-            knowledgeBaseId={knowledgeBaseId}
-            documentId={null} // No specific document for upload
-            onSave={async () => {
-              // For upload modal, tags are saved when document is uploaded
-              // This is a placeholder as tags will be applied during upload
-            }}
-          />
-
           {/* File Upload Section */}
           <div className='space-y-3'>
             <Label>Select Files</Label>
