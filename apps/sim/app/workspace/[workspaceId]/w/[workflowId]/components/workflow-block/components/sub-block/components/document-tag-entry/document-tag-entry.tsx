@@ -84,7 +84,7 @@ export function DocumentTagEntry({
         const tagData = JSON.parse(currentValue)
         if (Array.isArray(tagData) && tagData.length > 0) {
           return tagData.map((tag: any, index: number) => ({
-            id: `tag-${index}`,
+            id: tag.id || `tag-${index}`,
             cells: {
               tagName: tag.tagName || '',
               type: tag.fieldType || 'text',
@@ -100,7 +100,7 @@ export function DocumentTagEntry({
     // Default: just one empty row
     return [
       {
-        id: 'empty-row',
+        id: 'empty-row-0',
         cells: { tagName: '', type: 'text', value: '' },
       },
     ]
@@ -129,7 +129,8 @@ export function DocumentTagEntry({
   const handlePreFillTags = () => {
     if (isPreview || disabled) return
 
-    const existingTagRows = tagDefinitions.map((tagDef) => ({
+    const existingTagRows = tagDefinitions.map((tagDef, index) => ({
+      id: `prefill-${tagDef.id}-${index}`,
       tagName: tagDef.displayName,
       fieldType: tagDef.fieldType,
       value: '',
@@ -192,6 +193,7 @@ export function DocumentTagEntry({
 
     // Store all rows including empty ones - don't auto-remove
     const dataToStore = updatedRows.map((row) => ({
+      id: row.id,
       tagName: row.cells.tagName || '',
       fieldType: row.cells.type || 'text',
       value: row.cells.value || '',
@@ -206,7 +208,8 @@ export function DocumentTagEntry({
 
     // Get current data and add a new empty row
     const currentData = currentValue ? JSON.parse(currentValue) : []
-    const newData = [...currentData, { tagName: '', fieldType: 'text', value: '' }]
+    const newRowId = `tag-${currentData.length}-${Math.random().toString(36).substr(2, 9)}`
+    const newData = [...currentData, { id: newRowId, tagName: '', fieldType: 'text', value: '' }]
     setStoreValue(JSON.stringify(newData))
   }
 
@@ -216,6 +219,7 @@ export function DocumentTagEntry({
 
     // Store all remaining rows including empty ones - don't auto-remove
     const tableDataForStorage = updatedRows.map((row) => ({
+      id: row.id,
       tagName: row.cells.tagName || '',
       fieldType: row.cells.type || 'text',
       value: row.cells.value || '',
@@ -269,8 +273,14 @@ export function DocumentTagEntry({
             onFocus={() => setShowDropdown(true)}
             onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
             disabled={disabled || isConnecting}
-            className={cn(isDuplicate && 'border-red-500 bg-red-50')}
+            className={cn(
+              'w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0',
+              isDuplicate && 'border-red-500 bg-red-50'
+            )}
           />
+          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
+          </div>
           {showDropdown && availableTagDefinitions.length > 0 && (
             <div className='absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover shadow-md'>
               {availableTagDefinitions
@@ -308,23 +318,25 @@ export function DocumentTagEntry({
 
     return (
       <td className='border-r p-1'>
-        <Select
-          value={cellValue}
-          onValueChange={(value) => handleCellChange(rowIndex, 'type', value)}
-          disabled={disabled || isConnecting || isReadOnly}
-        >
-          <SelectTrigger
-            className={cn(
-              isReadOnly && 'bg-gray-50 dark:bg-gray-800',
-              'text-foreground' // Ensure proper text color in dark mode
-            )}
+        <div className='relative w-full'>
+          <Select
+            value={cellValue}
+            onValueChange={(value) => handleCellChange(rowIndex, 'type', value)}
+            disabled={disabled || isConnecting || isReadOnly}
           >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value='text'>Text</SelectItem>
-          </SelectContent>
-        </Select>
+            <SelectTrigger className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0 [&>svg]:hidden'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='text'>Text</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+            <div className='whitespace-pre text-muted-foreground'>
+              {formatDisplayText(cellValue)}
+            </div>
+          </div>
+        </div>
       </td>
     )
   }
@@ -458,8 +470,14 @@ export function DocumentTagEntry({
       {/* Add Row Button and Tag slots usage indicator */}
       {!isPreview && !disabled && (
         <div className='mt-3 flex items-center justify-between'>
-          <Button variant='outline' size='sm' onClick={handleAddRow} disabled={!canAddMoreTags}>
-            <Plus className='mr-1 h-3 w-3' />
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={handleAddRow}
+            disabled={!canAddMoreTags}
+            className='h-7 px-2 text-xs'
+          >
+            <Plus className='mr-1 h-2.5 w-2.5' />
             Add Tag
           </Button>
 
