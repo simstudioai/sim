@@ -10,9 +10,10 @@ import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-drop
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { CodePromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/code-prompt-bar/code-prompt-bar'
+import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
-import { useCodeGeneration } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-code-generation'
+import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
+import type { GenerationType } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('Code')
@@ -23,12 +24,19 @@ interface CodeProps {
   isConnecting: boolean
   placeholder?: string
   language?: 'javascript' | 'json'
-  generationType?: 'javascript-function-body' | 'json-schema' | 'json-object'
+  generationType?: GenerationType
   value?: string
   isPreview?: boolean
   previewValue?: string | null
   disabled?: boolean
   onValidationChange?: (isValid: boolean) => void
+  wandConfig: {
+    enabled: boolean
+    prompt: string
+    generationType?: GenerationType
+    placeholder?: string
+    maintainHistory?: boolean
+  }
 }
 
 if (typeof document !== 'undefined') {
@@ -61,6 +69,7 @@ export function Code({
   previewValue,
   disabled = false,
   onValidationChange,
+  wandConfig,
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
   const aiPromptPlaceholder = useMemo(() => {
@@ -124,25 +133,27 @@ export function Code({
   const handleGeneratedContentRef = useRef<(generatedCode: string) => void>(() => {})
   const handleStreamChunkRef = useRef<(chunk: string) => void>(() => {})
 
-  // AI Code Generation Hook
-  const {
-    isLoading: isAiLoading,
-    isStreaming: isAiStreaming,
-    generate: generateCode,
-    generateStream: generateCodeStream,
-    cancelGeneration,
-    isPromptVisible,
-    showPromptInline,
-    hidePromptInline,
-    promptInputValue,
-    updatePromptValue,
-  } = useCodeGeneration({
-    generationType: generationType,
-    initialContext: code,
-    onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
-    onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
-    onStreamStart: () => handleStreamStartRef.current?.(),
-  })
+  // AI Code Generation Hook - use new wand system
+  const wandHook = wandConfig?.enabled
+    ? useWand({
+        wandConfig,
+        currentValue: code,
+        onStreamStart: () => handleStreamStartRef.current?.(),
+        onStreamChunk: (chunk: string) => handleStreamChunkRef.current?.(chunk),
+        onGeneratedContent: (content: string) => handleGeneratedContentRef.current?.(content),
+      })
+    : null
+
+  // Extract values from wand hook
+  const isAiLoading = wandHook?.isLoading || false
+  const isAiStreaming = wandHook?.isStreaming || false
+  const generateCodeStream = wandHook?.generateStream || (() => {})
+  const isPromptVisible = wandHook?.isPromptVisible || false
+  const showPromptInline = wandHook?.showPromptInline || (() => {})
+  const hidePromptInline = wandHook?.hidePromptInline || (() => {})
+  const promptInputValue = wandHook?.promptInputValue || ''
+  const updatePromptValue = wandHook?.updatePromptValue || (() => {})
+  const cancelGeneration = wandHook?.cancelGeneration || (() => {})
 
   // State management - useSubBlockValue with explicit streaming control
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
@@ -156,30 +167,32 @@ export function Code({
   // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
-  // Define the handlers now that we have access to setStoreValue
-  handleStreamStartRef.current = () => {
-    setCode('')
-    // Streaming state is now controlled by isAiStreaming
-  }
-
-  handleGeneratedContentRef.current = (generatedCode: string) => {
-    setCode(generatedCode)
-    if (!isPreview && !disabled) {
-      setStoreValue(generatedCode)
-      // Final value will be persisted when isAiStreaming becomes false
+  // Define the handlers in useEffect to avoid setState during render
+  useEffect(() => {
+    handleStreamStartRef.current = () => {
+      setCode('')
+      // Streaming state is now controlled by isAiStreaming
     }
-  }
 
-  handleStreamChunkRef.current = (chunk: string) => {
-    setCode((currentCode) => {
-      const newCode = currentCode + chunk
+    handleGeneratedContentRef.current = (generatedCode: string) => {
+      setCode(generatedCode)
       if (!isPreview && !disabled) {
-        // Update the value - it won't be persisted until streaming ends
-        setStoreValue(newCode)
+        setStoreValue(generatedCode)
+        // Final value will be persisted when isAiStreaming becomes false
       }
-      return newCode
-    })
-  }
+    }
+
+    handleStreamChunkRef.current = (chunk: string) => {
+      setCode((currentCode) => {
+        const newCode = currentCode + chunk
+        if (!isPreview && !disabled) {
+          // Update the value - it won't be persisted until streaming ends
+          setStoreValue(newCode)
+        }
+        return newCode
+      })
+    }
+  }, [isPreview, disabled, setStoreValue])
 
   // Effects
   useEffect(() => {
@@ -352,15 +365,15 @@ export function Code({
 
   return (
     <>
-      <CodePromptBar
+      <WandPromptBar
         isVisible={isPromptVisible}
         isLoading={isAiLoading}
         isStreaming={isAiStreaming}
         promptValue={promptInputValue}
-        onSubmit={(prompt: string) => generateCodeStream({ prompt, context: code })}
+        onSubmit={(prompt: string) => generateCodeStream({ prompt })}
         onCancel={isAiStreaming ? cancelGeneration : hidePromptInline}
         onChange={updatePromptValue}
-        placeholder={aiPromptPlaceholder}
+        placeholder={wandConfig?.placeholder || aiPromptPlaceholder}
       />
 
       <div

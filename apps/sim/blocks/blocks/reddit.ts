@@ -23,6 +23,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         { label: 'Get Posts', id: 'get_posts' },
         { label: 'Get Comments', id: 'get_comments' },
       ],
+      value: () => 'get_posts',
     },
 
     // Reddit OAuth Authentication
@@ -35,6 +36,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       serviceId: 'reddit',
       requiredScopes: ['identity', 'read'],
       placeholder: 'Select Reddit account',
+      required: true,
     },
 
     // Common fields - appear for all actions
@@ -48,6 +50,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         field: 'operation',
         value: ['get_posts', 'get_comments'],
       },
+      required: true,
     },
 
     // Get Posts specific fields
@@ -66,6 +69,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         field: 'operation',
         value: 'get_posts',
       },
+      required: true,
     },
     {
       id: 'time',
@@ -111,6 +115,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         field: 'operation',
         value: 'get_comments',
       },
+      required: true,
     },
     {
       id: 'commentSort',
@@ -180,20 +185,20 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    subreddit: { type: 'string', required: true },
-    sort: { type: 'string', required: true },
-    time: { type: 'string', required: false },
-    limit: { type: 'number', required: false },
-    postId: { type: 'string', required: true },
-    commentSort: { type: 'string', required: false },
-    commentLimit: { type: 'number', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Reddit access token' },
+    subreddit: { type: 'string', description: 'Subreddit name' },
+    sort: { type: 'string', description: 'Sort order' },
+    time: { type: 'string', description: 'Time filter' },
+    limit: { type: 'number', description: 'Maximum posts' },
+    postId: { type: 'string', description: 'Post identifier' },
+    commentSort: { type: 'string', description: 'Comment sort order' },
+    commentLimit: { type: 'number', description: 'Maximum comments' },
   },
   outputs: {
-    subreddit: 'string',
-    posts: 'json',
-    post: 'json',
-    comments: 'json',
+    subreddit: { type: 'string', description: 'Subreddit name' },
+    posts: { type: 'json', description: 'Posts data' },
+    post: { type: 'json', description: 'Single post data' },
+    comments: { type: 'json', description: 'Comments data' },
   },
 }

@@ -70,14 +70,11 @@ Retrieve form responses from Typeform
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `total_items` | string |
-| `answers` | string |
-| `type` | string |
-| `hidden` | string |
-| `calculated` | string |
-| `variables` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_items` | number | Total response count |
+| `page_count` | number | Total page count |
+| `items` | json | Response items |
 
 ### `typeform_files`
 
@@ -96,11 +93,11 @@ Download files uploaded in Typeform responses
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `fileUrl` | string |
-| `contentType` | string |
-| `filename` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_items` | number | Total response count |
+| `page_count` | number | Total page count |
+| `items` | json | Response items |
 
 ### `typeform_insights`
 
@@ -115,27 +112,12 @@ Retrieve insights and analytics for Typeform forms
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total_items` | number | Total response count |
+| `page_count` | number | Total page count |
+| `items` | json | Response items |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `total_items` | number | total_items output from the block |
-| `page_count` | number | page_count output from the block |
-| `items` | json | items output from the block |
 
 
 ## Notes

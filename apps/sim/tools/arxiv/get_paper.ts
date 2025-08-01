@@ -13,7 +13,7 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ArXiv paper ID (e.g., "1706.03762", "cs.AI/0001001")',
+      description: 'ArXiv paper ID (e.g., "1706.03762")',
     },
   },
 

@@ -35,6 +35,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Custom Bot', id: 'bot_token' },
       ],
       value: () => 'oauth',
+      required: true,
     },
     {
       id: 'credential',
@@ -100,6 +101,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'operation',
         value: 'send',
       },
+      required: true,
     },
     // Canvas specific fields
     {
@@ -112,6 +114,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'operation',
         value: 'canvas',
       },
+      required: true,
     },
     {
       id: 'content',
@@ -123,6 +126,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         field: 'operation',
         value: 'canvas',
       },
+      required: true,
     },
     // Message Reader specific fields
     {
@@ -130,7 +134,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       title: 'Message Limit',
       type: 'short-input',
       layout: 'half',
-      placeholder: '50',
+      placeholder: '15',
       condition: {
         field: 'operation',
         value: 'read',
@@ -240,23 +244,23 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    authMethod: { type: 'string', required: true },
-    credential: { type: 'string', required: false },
-    botToken: { type: 'string', required: false },
-    channel: { type: 'string', required: false },
-    manualChannel: { type: 'string', required: false },
-    text: { type: 'string', required: false },
-    title: { type: 'string', required: false },
-    content: { type: 'string', required: false },
-    limit: { type: 'string', required: false },
-    oldest: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    authMethod: { type: 'string', description: 'Authentication method' },
+    credential: { type: 'string', description: 'Slack access token' },
+    botToken: { type: 'string', description: 'Bot token' },
+    channel: { type: 'string', description: 'Channel identifier' },
+    manualChannel: { type: 'string', description: 'Manual channel identifier' },
+    text: { type: 'string', description: 'Message text' },
+    title: { type: 'string', description: 'Canvas title' },
+    content: { type: 'string', description: 'Canvas content' },
+    limit: { type: 'string', description: 'Message limit' },
+    oldest: { type: 'string', description: 'Oldest timestamp' },
   },
   outputs: {
-    ts: 'string',
-    channel: 'string',
-    canvas_id: 'string',
-    title: 'string',
-    messages: 'json',
+    ts: { type: 'string', description: 'Message timestamp' },
+    channel: { type: 'string', description: 'Channel identifier' },
+    canvas_id: { type: 'string', description: 'Canvas identifier' },
+    title: { type: 'string', description: 'Canvas title' },
+    messages: { type: 'json', description: 'Message data' },
   },
 }

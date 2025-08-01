@@ -22,15 +22,16 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
       layout: 'full',
       placeholder: 'Describe the step-by-step thinking process here...',
       hidden: true,
+      required: true,
     },
   ],
 
   inputs: {
-    thought: { type: 'string', required: true },
+    thought: { type: 'string', description: 'Thinking process instructions' },
   },
 
   outputs: {
-    acknowledgedThought: 'string',
+    acknowledgedThought: { type: 'string', description: 'Acknowledged thought process' },
   },
 
   tools: {

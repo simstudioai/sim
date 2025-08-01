@@ -176,7 +176,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowState.blocks,
         workflowState.edges || [],
         workflowState.loops || {},
-        workflowState.parallels || {}
+        workflowState.parallels || {},
+        true // Enable validation during execution
       )
 
       const workflowVariables = (workflowData.variables as Record<string, any>) || {}

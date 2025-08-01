@@ -6,7 +6,7 @@
  * This file contains unit tests for the HTTP Request tool, which is used
  * to make HTTP requests to external APIs and services.
  */
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, vi } from 'vitest'
 import { mockHttpResponses } from '@/tools/__test-utils__/mock-data'
 import { ToolTester } from '@/tools/__test-utils__/test-tools'
 import { requestTool } from '@/tools/http/request'
@@ -29,7 +29,7 @@ describe('HTTP Request Tool', () => {
   })
 
   describe('URL Construction', () => {
-    test('should construct URLs correctly', () => {
+    it.concurrent('should construct URLs correctly', () => {
       // Base URL
       expect(tester.getRequestUrl({ url: 'https://api.example.com/data' })).toBe(
         'https://api.example.com/data'
@@ -76,7 +76,7 @@ describe('HTTP Request Tool', () => {
   })
 
   describe('Headers Construction', () => {
-    test('should set headers correctly', () => {
+    it.concurrent('should set headers correctly', () => {
       // Default headers
       expect(tester.getRequestHeaders({ url: 'https://api.example.com', method: 'GET' })).toEqual(
         {}
@@ -109,7 +109,7 @@ describe('HTTP Request Tool', () => {
       })
     })
 
-    test('should set dynamic Referer header correctly', async () => {
+    it('should set dynamic Referer header correctly', async () => {
       const originalWindow = global.window
       Object.defineProperty(global, 'window', {
         value: {
@@ -137,7 +137,7 @@ describe('HTTP Request Tool', () => {
       global.window = originalWindow
     })
 
-    test('should set dynamic Host header correctly', async () => {
+    it('should set dynamic Host header correctly', async () => {
       // Setup mock response
       tester.setup(mockHttpResponses.simple)
 
@@ -165,7 +165,7 @@ describe('HTTP Request Tool', () => {
   })
 
   describe('Request Execution', () => {
-    test('should apply default and dynamic headers to requests', async () => {
+    it('should apply default and dynamic headers to requests', async () => {
       // Setup mock response
       tester.setup(mockHttpResponses.simple)
 
@@ -204,7 +204,7 @@ describe('HTTP Request Tool', () => {
       global.window = originalWindow
     })
 
-    test('should handle successful GET requests', async () => {
+    it('should handle successful GET requests', async () => {
       // Setup mock response
       tester.setup(mockHttpResponses.simple)
 
@@ -221,7 +221,7 @@ describe('HTTP Request Tool', () => {
       expect(result.output.headers).toHaveProperty('content-type')
     })
 
-    test('should handle POST requests with body', async () => {
+    it('should handle POST requests with body', async () => {
       // Setup mock response
       tester.setup({ result: 'success' })
 
@@ -253,7 +253,7 @@ describe('HTTP Request Tool', () => {
       expect(bodyArg).toEqual(body)
     })
 
-    test('should handle errors correctly', async () => {
+    it('should handle errors correctly', async () => {
       // Setup error response
       tester.setup(mockHttpResponses.error, { ok: false, status: 400 })
 
@@ -268,7 +268,7 @@ describe('HTTP Request Tool', () => {
       expect(result.error).toBeDefined()
     })
 
-    test('should handle timeout parameter', async () => {
+    it('should handle timeout parameter', async () => {
       // Setup successful response
       tester.setup({ result: 'success' })
 
@@ -285,7 +285,7 @@ describe('HTTP Request Tool', () => {
   })
 
   describe('Response Transformation', () => {
-    test('should transform JSON responses correctly', async () => {
+    it('should transform JSON responses correctly', async () => {
       // Setup JSON response
       tester.setup({ data: { key: 'value' } }, { headers: { 'content-type': 'application/json' } })
 
@@ -299,7 +299,7 @@ describe('HTTP Request Tool', () => {
       expect(result.output.data).toEqual({ data: { key: 'value' } })
     })
 
-    test('should transform text responses correctly', async () => {
+    it('should transform text responses correctly', async () => {
       // Setup text response
       const textContent = 'Plain text response'
       tester.setup(textContent, { headers: { 'content-type': 'text/plain' } })
@@ -316,7 +316,7 @@ describe('HTTP Request Tool', () => {
   })
 
   describe('Error Handling', () => {
-    test('should handle network errors', async () => {
+    it('should handle network errors', async () => {
       // Setup network error
       tester.setupError('Network error')
 
@@ -330,7 +330,7 @@ describe('HTTP Request Tool', () => {
       expect(result.error).toContain('Network error')
     })
 
-    test('should handle 404 errors', async () => {
+    it('should handle 404 errors', async () => {
       // Setup 404 response
       tester.setup(mockHttpResponses.notFound, { ok: false, status: 404 })
 
@@ -344,7 +344,7 @@ describe('HTTP Request Tool', () => {
       expect(result.output).toEqual({})
     })
 
-    test('should handle 401 unauthorized errors', async () => {
+    it('should handle 401 unauthorized errors', async () => {
       // Setup 401 response
       tester.setup(mockHttpResponses.unauthorized, { ok: false, status: 401 })
 
@@ -360,7 +360,7 @@ describe('HTTP Request Tool', () => {
   })
 
   describe('Default Headers', () => {
-    test('should apply all default headers correctly', async () => {
+    it('should apply all default headers correctly', async () => {
       // Setup mock response
       tester.setup(mockHttpResponses.simple)
 
@@ -401,7 +401,7 @@ describe('HTTP Request Tool', () => {
       global.window = originalWindow
     })
 
-    test('should allow overriding default headers', async () => {
+    it('should allow overriding default headers', async () => {
       // Setup mock response
       tester.setup(mockHttpResponses.simple)
 
@@ -430,7 +430,7 @@ describe('HTTP Request Tool', () => {
   })
 
   describe('Proxy Functionality', () => {
-    test('should not use proxy in test environment', () => {
+    it.concurrent('should not use proxy in test environment', () => {
       // This test verifies that the shouldUseProxy function has been disabled for tests
 
       // Create a browser-like environment
@@ -453,7 +453,7 @@ describe('HTTP Request Tool', () => {
       global.window = originalWindow
     })
 
-    test('should include method parameter in proxy URL', () => {
+    it.concurrent('should include method parameter in proxy URL', () => {
       const originalWindow = global.window
       Object.defineProperty(global, 'window', {
         value: {

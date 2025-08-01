@@ -90,7 +90,7 @@ export const WebhookBlock: BlockConfig = {
     access: [], // No external tools needed
   },
 
-  inputs: {}, // No inputs - webhook triggers are pure input sources
+  inputs: {}, // No inputs - webhook triggers receive data externally
 
   outputs: {}, // No outputs - webhook data is injected directly into workflow context
 }

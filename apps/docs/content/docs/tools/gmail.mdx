@@ -72,12 +72,10 @@ Send emails using Gmail
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
-| `threadId` | string |
-| `labelIds` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Response content |
+| `metadata` | json | Email metadata |
 
 ### `gmail_draft`
 
@@ -94,13 +92,10 @@ Draft emails using Gmail
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
-| `message` | string |
-| `threadId` | string |
-| `labelIds` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Response content |
+| `metadata` | json | Email metadata |
 
 ### `gmail_read`
 
@@ -118,10 +113,10 @@ Read emails from Gmail
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Response content |
+| `metadata` | json | Email metadata |
 
 ### `gmail_search`
 
@@ -137,29 +132,11 @@ Search emails in Gmail
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Response content |
+| `metadata` | json | Email metadata |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `content` | string | content output from the block |
-| `metadata` | json | metadata output from the block |
 
 
 ## Notes

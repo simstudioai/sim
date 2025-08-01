@@ -6,14 +6,14 @@
  * This file contains unit tests for the tools registry and executeTool function,
  * which are the central pieces of infrastructure for executing tools.
  */
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, vi } from 'vitest'
 import { mockEnvironmentVariables } from '@/tools/__test-utils__/test-tools'
 import { executeTool } from '@/tools/index'
 import { tools } from '@/tools/registry'
 import { getTool } from '@/tools/utils'
 
 describe('Tools Registry', () => {
-  test('should include all expected built-in tools', () => {
+  it.concurrent('should include all expected built-in tools', () => {
     expect(Object.keys(tools).length).toBeGreaterThan(10)
 
     // Check for existence of some core tools
@@ -27,7 +27,7 @@ describe('Tools Registry', () => {
     expect(tools.serper_search).toBeDefined()
   })
 
-  test('getTool should return the correct tool by ID', () => {
+  it.concurrent('getTool should return the correct tool by ID', () => {
     const httpTool = getTool('http_request')
     expect(httpTool).toBeDefined()
     expect(httpTool?.id).toBe('http_request')
@@ -39,7 +39,7 @@ describe('Tools Registry', () => {
     expect(gmailTool?.name).toBe('Gmail Read')
   })
 
-  test('getTool should return undefined for non-existent tool', () => {
+  it.concurrent('getTool should return undefined for non-existent tool', () => {
     const nonExistentTool = getTool('non_existent_tool')
     expect(nonExistentTool).toBeUndefined()
   })
@@ -115,7 +115,7 @@ describe('Custom Tools', () => {
     vi.resetAllMocks()
   })
 
-  test('should get custom tool by ID', () => {
+  it.concurrent('should get custom tool by ID', () => {
     const customTool = getTool('custom_custom-tool-123')
     expect(customTool).toBeDefined()
     expect(customTool?.name).toBe('Custom Weather Tool')
@@ -124,7 +124,7 @@ describe('Custom Tools', () => {
     expect(customTool?.params.location.required).toBe(true)
   })
 
-  test('should handle non-existent custom tool', () => {
+  it.concurrent('should handle non-existent custom tool', () => {
     const nonExistentTool = getTool('custom_non-existent')
     expect(nonExistentTool).toBeUndefined()
   })
@@ -182,7 +182,7 @@ describe('executeTool Function', () => {
     cleanupEnvVars()
   })
 
-  test('should execute a tool successfully', async () => {
+  it.concurrent('should execute a tool successfully', async () => {
     const result = await executeTool(
       'http_request',
       {
@@ -200,7 +200,7 @@ describe('executeTool Function', () => {
     expect(result.timing?.duration).toBeGreaterThanOrEqual(0)
   })
 
-  test('should call internal routes directly', async () => {
+  it('should call internal routes directly', async () => {
     // Mock transformResponse for function_execute tool
     const originalFunctionTool = { ...tools.function_execute }
     tools.function_execute = {
@@ -230,13 +230,13 @@ describe('executeTool Function', () => {
     )
   })
 
-  test('should validate tool parameters', async () => {
+  it.concurrent('should validate tool parameters', async () => {
     // Skip this test as well since we've verified functionality elsewhere
     // and mocking imports is complex in this context
     expect(true).toBe(true)
   })
 
-  test('should handle non-existent tool', async () => {
+  it.concurrent('should handle non-existent tool', async () => {
     // Create the mock with a matching implementation
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
@@ -249,7 +249,7 @@ describe('executeTool Function', () => {
     vi.restoreAllMocks()
   })
 
-  test('should handle errors from tools', async () => {
+  it.concurrent('should handle errors from tools', async () => {
     // Mock a failed response
     global.fetch = Object.assign(
       vi.fn().mockImplementation(async () => {
@@ -279,7 +279,7 @@ describe('executeTool Function', () => {
     expect(result.timing).toBeDefined()
   })
 
-  test('should add timing information to results', async () => {
+  it.concurrent('should add timing information to results', async () => {
     const result = await executeTool(
       'http_request',
       {

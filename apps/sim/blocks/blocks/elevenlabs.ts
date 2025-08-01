@@ -12,30 +12,6 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   bgColor: '#181C1E',
   icon: ElevenLabsIcon,
 
-  tools: {
-    access: ['elevenlabs_tts'],
-    config: {
-      tool: () => 'elevenlabs_tts',
-      params: (params) => ({
-        apiKey: params.apiKey,
-        text: params.text,
-        voiceId: params.voiceId,
-        modelId: params.modelId,
-      }),
-    },
-  },
-
-  inputs: {
-    text: { type: 'string', required: true },
-    voiceId: { type: 'string', required: true },
-    modelId: { type: 'string', required: false },
-    apiKey: { type: 'string', required: true },
-  },
-
-  outputs: {
-    audioUrl: 'string',
-  },
-
   subBlocks: [
     {
       id: 'text',
@@ -43,6 +19,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter the text to convert to speech',
+      required: true,
     },
     {
       id: 'voiceId',
@@ -50,6 +27,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter the voice ID',
+      required: true,
     },
     {
       id: 'modelId',
@@ -71,6 +49,31 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       layout: 'full',
       placeholder: 'Enter your ElevenLabs API key',
       password: true,
+      required: true,
     },
   ],
+
+  tools: {
+    access: ['elevenlabs_tts'],
+    config: {
+      tool: () => 'elevenlabs_tts',
+      params: (params) => ({
+        apiKey: params.apiKey,
+        text: params.text,
+        voiceId: params.voiceId,
+        modelId: params.modelId,
+      }),
+    },
+  },
+
+  inputs: {
+    text: { type: 'string', description: 'Text to convert' },
+    voiceId: { type: 'string', description: 'Voice identifier' },
+    modelId: { type: 'string', description: 'Model identifier' },
+    apiKey: { type: 'string', description: 'ElevenLabs API key' },
+  },
+
+  outputs: {
+    audioUrl: { type: 'string', description: 'Generated audio URL' },
+  },
 }

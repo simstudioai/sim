@@ -7,7 +7,7 @@ import {
   formatRequestParams,
   getClientEnvVars,
   transformTable,
-  validateToolRequest,
+  validateRequiredParametersAfterMerge,
 } from '@/tools/utils'
 
 vi.mock('@/lib/logs/console/logger', () => ({
@@ -190,7 +190,7 @@ describe('formatRequestParams', () => {
   })
 })
 
-describe('validateToolRequest', () => {
+describe('validateRequiredParametersAfterMerge', () => {
   let mockTool: ToolConfig
 
   beforeEach(() => {
@@ -224,22 +224,22 @@ describe('validateToolRequest', () => {
 
   it.concurrent('should throw error for missing tool', () => {
     expect(() => {
-      validateToolRequest('missing-tool', undefined, {})
+      validateRequiredParametersAfterMerge('missing-tool', undefined, {})
     }).toThrow('Tool not found: missing-tool')
   })
 
   it.concurrent('should throw error for missing required parameters', () => {
     expect(() => {
-      validateToolRequest('test-tool', mockTool, {
+      validateRequiredParametersAfterMerge('test-tool', mockTool, {
         required1: 'value',
         // required2 is missing
       })
-    }).toThrow('Parameter "required2" is required for test-tool but was not provided')
+    }).toThrow('"Required2" is required for Test Tool')
   })
 
   it.concurrent('should not throw error when all required parameters are provided', () => {
     expect(() => {
-      validateToolRequest('test-tool', mockTool, {
+      validateRequiredParametersAfterMerge('test-tool', mockTool, {
         required1: 'value',
         required2: 42,
       })
@@ -248,12 +248,148 @@ describe('validateToolRequest', () => {
 
   it.concurrent('should not require optional parameters', () => {
     expect(() => {
-      validateToolRequest('test-tool', mockTool, {
+      validateRequiredParametersAfterMerge('test-tool', mockTool, {
         required1: 'value',
         required2: 42,
         // optional parameter not provided
       })
     }).not.toThrow()
+  })
+
+  it.concurrent('should handle null and empty string values as missing', () => {
+    expect(() => {
+      validateRequiredParametersAfterMerge('test-tool', mockTool, {
+        required1: null,
+        required2: '',
+      })
+    }).toThrow('"Required1" is required for Test Tool')
+  })
+
+  it.concurrent(
+    'should not validate user-only parameters (they should be validated earlier)',
+    () => {
+      const toolWithUserOnlyParam = {
+        ...mockTool,
+        params: {
+          ...mockTool.params,
+          apiKey: {
+            type: 'string' as const,
+            required: true,
+            visibility: 'user-only' as const, // This should NOT be validated here
+          },
+        },
+      }
+
+      // Should NOT throw for missing user-only params - they're validated at serialization
+      expect(() => {
+        validateRequiredParametersAfterMerge('test-tool', toolWithUserOnlyParam, {
+          required1: 'value',
+          required2: 42,
+          // apiKey missing but it's user-only, so not validated here
+        })
+      }).not.toThrow()
+    }
+  )
+
+  it.concurrent('should validate mixed user-or-llm and user-only parameters correctly', () => {
+    const toolWithMixedParams = {
+      ...mockTool,
+      params: {
+        userOrLlmParam: {
+          type: 'string' as const,
+          required: true,
+          visibility: 'user-or-llm' as const, // Should be validated
+        },
+        userOnlyParam: {
+          type: 'string' as const,
+          required: true,
+          visibility: 'user-only' as const, // Should NOT be validated
+        },
+        optionalParam: {
+          type: 'string' as const,
+          required: false,
+          visibility: 'user-or-llm' as const,
+        },
+      },
+    }
+
+    // Should throw for missing user-or-llm param, but not user-only param
+    expect(() => {
+      validateRequiredParametersAfterMerge('test-tool', toolWithMixedParams, {
+        // userOrLlmParam missing - should cause error
+        // userOnlyParam missing - should NOT cause error (validated earlier)
+      })
+    }).toThrow('"User Or Llm Param" is required for')
+  })
+
+  it.concurrent('should use parameter description in error messages when available', () => {
+    const toolWithDescriptions = {
+      ...mockTool,
+      params: {
+        subreddit: {
+          type: 'string' as const,
+          required: true,
+          visibility: 'user-or-llm' as const,
+          description: 'Subreddit name (without r/ prefix)',
+        },
+      },
+    }
+
+    expect(() => {
+      validateRequiredParametersAfterMerge('test-tool', toolWithDescriptions, {})
+    }).toThrow('"Subreddit" is required for Test Tool')
+  })
+
+  it.concurrent('should fall back to parameter name when no description available', () => {
+    const toolWithoutDescription = {
+      ...mockTool,
+      params: {
+        subreddit: {
+          type: 'string' as const,
+          required: true,
+          visibility: 'user-or-llm' as const,
+          // No description provided
+        },
+      },
+    }
+
+    expect(() => {
+      validateRequiredParametersAfterMerge('test-tool', toolWithoutDescription, {})
+    }).toThrow('"Subreddit" is required for Test Tool')
+  })
+
+  it.concurrent('should handle undefined values as missing', () => {
+    expect(() => {
+      validateRequiredParametersAfterMerge('test-tool', mockTool, {
+        required1: 'value',
+        required2: undefined, // Explicitly undefined
+      })
+    }).toThrow('"Required2" is required for Test Tool')
+  })
+
+  it.concurrent('should validate all missing parameters at once', () => {
+    const toolWithMultipleRequired = {
+      ...mockTool,
+      params: {
+        param1: {
+          type: 'string' as const,
+          required: true,
+          visibility: 'user-or-llm' as const,
+          description: 'First parameter',
+        },
+        param2: {
+          type: 'string' as const,
+          required: true,
+          visibility: 'user-or-llm' as const,
+          description: 'Second parameter',
+        },
+      },
+    }
+
+    // Should throw for the first missing parameter it encounters
+    expect(() => {
+      validateRequiredParametersAfterMerge('test-tool', toolWithMultipleRequired, {})
+    }).toThrow('"Param1" is required for Test Tool')
   })
 })
 

@@ -160,6 +160,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       title: 'Evaluation Metrics',
       type: 'eval-input',
       layout: 'full',
+      required: true,
     },
     {
       id: 'content',
@@ -167,12 +168,14 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter the content to evaluate',
+      required: true,
     },
     {
       id: 'model',
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
+      required: true,
       options: () => {
         const ollamaModels = useOllamaStore.getState().models
         const baseModels = Object.keys(getBaseModelProviders())
@@ -190,6 +193,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
+      required: true,
       condition: isHosted
         ? {
             field: 'model',
@@ -270,8 +274,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   inputs: {
     metrics: {
       type: 'json' as ParamType,
-      required: true,
-      description: 'Array of metrics to evaluate against',
+      description: 'Evaluation metrics configuration',
       schema: {
         type: 'array',
         properties: {},
@@ -305,14 +308,14 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
         },
       },
     },
-    model: { type: 'string' as ParamType, required: true },
-    apiKey: { type: 'string' as ParamType, required: true },
-    content: { type: 'string' as ParamType, required: true },
+    model: { type: 'string' as ParamType, description: 'AI model to use' },
+    apiKey: { type: 'string' as ParamType, description: 'Provider API key' },
+    content: { type: 'string' as ParamType, description: 'Content to evaluate' },
   },
   outputs: {
-    content: 'string',
-    model: 'string',
-    tokens: 'any',
-    cost: 'any',
+    content: { type: 'string', description: 'Evaluation results' },
+    model: { type: 'string', description: 'Model used' },
+    tokens: { type: 'any', description: 'Token usage' },
+    cost: { type: 'any', description: 'Cost information' },
   } as any,
 }

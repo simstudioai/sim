@@ -9,6 +9,15 @@ export type PrimitiveValueType = 'string' | 'number' | 'boolean' | 'json' | 'any
 // Block classification
 export type BlockCategory = 'blocks' | 'tools' | 'triggers'
 
+// Valid generation types for AI assistance
+export type GenerationType =
+  | 'javascript-function-body'
+  | 'typescript-function-body'
+  | 'json-schema'
+  | 'json-object'
+  | 'system-prompt'
+  | 'custom-tool-schema'
+
 // SubBlock types
 export type SubBlockType =
   | 'short-input' // Single line input
@@ -33,7 +42,6 @@ export type SubBlockType =
   | 'channel-selector' // Channel selector for Slack, Discord, etc.
   | 'folder-selector' // Folder selector for Gmail, etc.
   | 'knowledge-base-selector' // Knowledge base selector
-  | 'knowledge-tag-filter' // Dynamic tag filter for knowledge bases
   | 'knowledge-tag-filters' // Multiple tag filters for knowledge bases
   | 'document-selector' // Document selector for knowledge bases
   | 'document-tag-entry' // Document tag entry for creating documents
@@ -67,10 +75,14 @@ export type BlockOutput =
   | PrimitiveValueType
   | { [key: string]: PrimitiveValueType | Record<string, any> }
 
+// Output field definition with optional description
+export type OutputFieldDefinition =
+  | PrimitiveValueType
+  | { type: PrimitiveValueType; description?: string }
+
 // Parameter validation rules
 export interface ParamConfig {
   type: ParamType
-  required: boolean
   description?: string
   schema?: {
     type: string
@@ -93,6 +105,7 @@ export interface SubBlockConfig {
   type: SubBlockType
   layout?: SubBlockLayout
   mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
+  required?: boolean
   options?:
     | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]
     | (() => { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])
@@ -117,7 +130,7 @@ export interface SubBlockConfig {
   }
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json'
-  generationType?: 'javascript-function-body' | 'json-schema' | 'json-object'
+  generationType?: GenerationType
   // OAuth specific properties
   provider?: string
   serviceId?: string
@@ -135,6 +148,14 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
+  // Wand configuration for AI assistance
+  wandConfig?: {
+    enabled: boolean
+    prompt: string // Custom prompt template for this subblock
+    generationType?: GenerationType // Optional custom generation type
+    placeholder?: string // Custom placeholder for the prompt input
+    maintainHistory?: boolean // Whether to maintain conversation history
+  }
 }
 
 // Main block definition
@@ -156,7 +177,7 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     }
   }
   inputs: Record<string, ParamConfig>
-  outputs: ToolOutputToValueType<ExtractToolOutput<T>> & {
+  outputs: Record<string, OutputFieldDefinition> & {
     visualization?: {
       type: 'image'
       url: string

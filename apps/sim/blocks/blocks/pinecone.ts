@@ -26,6 +26,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         { label: 'Search With Vector', id: 'search_vector' },
         { label: 'Fetch Vectors', id: 'fetch' },
       ],
+      value: () => 'generate',
     },
     // Generate embeddings fields
     {
@@ -42,6 +43,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         },
       ],
       condition: { field: 'operation', value: 'generate' },
+      value: () => 'multilingual-e5-large',
     },
     {
       id: 'inputs',
@@ -50,6 +52,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: '[{"text": "Your text here"}]',
       condition: { field: 'operation', value: 'generate' },
+      required: true,
     },
     // Upsert text fields
     {
@@ -59,6 +62,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
       condition: { field: 'operation', value: 'upsert_text' },
+      required: true,
     },
     {
       id: 'namespace',
@@ -67,6 +71,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'default',
       condition: { field: 'operation', value: 'upsert_text' },
+      required: true,
     },
     {
       id: 'records',
@@ -76,6 +81,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       placeholder:
         '{"_id": "rec1", "text": "Apple\'s first product, the Apple I, was released in 1976.", "category": "product"}\n{"_id": "rec2", "chunk_text": "Apples are a great source of dietary fiber.", "category": "nutrition"}',
       condition: { field: 'operation', value: 'upsert_text' },
+      required: true,
     },
     // Search text fields
     {
@@ -85,6 +91,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
       condition: { field: 'operation', value: 'search_text' },
+      required: true,
     },
     {
       id: 'namespace',
@@ -93,6 +100,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'default',
       condition: { field: 'operation', value: 'search_text' },
+      required: true,
     },
     {
       id: 'searchQuery',
@@ -101,6 +109,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'Enter text to search for',
       condition: { field: 'operation', value: 'search_text' },
+      required: true,
     },
     {
       id: 'topK',
@@ -142,6 +151,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
       condition: { field: 'operation', value: 'fetch' },
+      required: true,
     },
     {
       id: 'namespace',
@@ -150,6 +160,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'Namespace',
       condition: { field: 'operation', value: 'fetch' },
+      required: true,
     },
     {
       id: 'ids',
@@ -158,6 +169,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: '["vec1", "vec2"]',
       condition: { field: 'operation', value: 'fetch' },
+      required: true,
     },
     // Add vector search fields
     {
@@ -167,6 +179,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
       condition: { field: 'operation', value: 'search_vector' },
+      required: true,
     },
     {
       id: 'namespace',
@@ -175,6 +188,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'default',
       condition: { field: 'operation', value: 'search_vector' },
+      required: true,
     },
     {
       id: 'vector',
@@ -183,6 +197,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: '[0.1, 0.2, 0.3, ...]',
       condition: { field: 'operation', value: 'search_vector' },
+      required: true,
     },
     {
       id: 'topK',
@@ -211,6 +226,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'Your Pinecone API key',
       password: true,
+      required: true,
     },
   ],
 
@@ -243,35 +259,35 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   },
 
   inputs: {
-    operation: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
-    indexHost: { type: 'string', required: false },
-    namespace: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    apiKey: { type: 'string', description: 'Pinecone API key' },
+    indexHost: { type: 'string', description: 'Index host URL' },
+    namespace: { type: 'string', description: 'Vector namespace' },
     // Generate embeddings inputs
-    model: { type: 'string', required: false },
-    inputs: { type: 'json', required: false },
-    parameters: { type: 'json', required: false },
+    model: { type: 'string', description: 'Embedding model' },
+    inputs: { type: 'json', description: 'Text inputs' },
+    parameters: { type: 'json', description: 'Model parameters' },
     // Upsert text inputs
-    records: { type: 'json', required: false },
+    records: { type: 'json', description: 'Records to upsert' },
     // Search text inputs
-    searchQuery: { type: 'string', required: false },
-    topK: { type: 'string', required: false },
-    fields: { type: 'json', required: false },
-    filter: { type: 'json', required: false },
-    rerank: { type: 'json', required: false },
+    searchQuery: { type: 'string', description: 'Search query text' },
+    topK: { type: 'string', description: 'Top K results' },
+    fields: { type: 'json', description: 'Fields to return' },
+    filter: { type: 'json', description: 'Search filter' },
+    rerank: { type: 'json', description: 'Rerank options' },
     // Fetch inputs
-    ids: { type: 'json', required: false },
-    vector: { type: 'json', required: false },
-    includeValues: { type: 'boolean', required: false },
-    includeMetadata: { type: 'boolean', required: false },
+    ids: { type: 'json', description: 'Vector identifiers' },
+    vector: { type: 'json', description: 'Query vector' },
+    includeValues: { type: 'boolean', description: 'Include vector values' },
+    includeMetadata: { type: 'boolean', description: 'Include metadata' },
   },
 
   outputs: {
-    matches: 'any',
-    upsertedCount: 'any',
-    data: 'any',
-    model: 'any',
-    vector_type: 'any',
-    usage: 'any',
+    matches: { type: 'any', description: 'Search matches' },
+    upsertedCount: { type: 'any', description: 'Upserted count' },
+    data: { type: 'any', description: 'Response data' },
+    model: { type: 'any', description: 'Model information' },
+    vector_type: { type: 'any', description: 'Vector type' },
+    usage: { type: 'any', description: 'Usage statistics' },
   },
 }

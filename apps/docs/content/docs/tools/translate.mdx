@@ -63,7 +63,11 @@ Convert text between languages while preserving meaning, nuance, and formatting.
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Translated text |
+| `model` | string | Model used |
+| `tokens` | any | Token usage |
 
 ### `anthropic_chat`
 
@@ -77,27 +81,12 @@ This tool does not produce any outputs.
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Translated text |
+| `model` | string | Model used |
+| `tokens` | any | Token usage |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `context` | string | Yes | Text to Translate - Enter the text you want to translate |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `content` | string | content output from the block |
-| `model` | string | model output from the block |
-| `tokens` | any | tokens output from the block |
 
 
 ## Notes

@@ -9,7 +9,7 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
   version: '1.0.0',
 
   params: {
-    query: {
+    searchQuery: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
@@ -48,9 +48,9 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
       const searchParams = new URLSearchParams()
 
       // Build search query
-      let searchQuery = params.query
+      let searchQuery = params.searchQuery
       if (params.searchField && params.searchField !== 'all') {
-        searchQuery = `${params.searchField}:${params.query}`
+        searchQuery = `${params.searchField}:${params.searchQuery}`
       }
       searchParams.append('search_query', searchQuery)
 

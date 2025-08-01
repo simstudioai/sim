@@ -69,6 +69,42 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       layout: 'full',
       placeholder: 'Enter system prompt...',
       rows: 5,
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true, // Enable conversation history for iterative improvements
+        prompt: `You are an expert at writing system prompts for AI agents. Write a system prompt based exactly on what the user asks for.
+
+Current context: {context}
+
+IMPORTANT: Write the system prompt as if the user asked you directly to create it. Match their level of detail and complexity. If they ask for something "comprehensive" or "detailed", write a thorough, in-depth prompt. If they ask for something "simple", keep it concise.
+
+Key guidelines:
+- Always start with "You are..." to define the agent's role
+- Include everything the user specifically requests
+- If they mention specific tools (like "use Exa to search", "send emails via Gmail", "post to Slack"), explicitly include those tool usage instructions in the prompt
+- If they want extensive capabilities, write extensively about them
+- If they mention specific behaviors, tone, or constraints, include those
+- Write naturally - don't worry about sentence counts or rigid structure
+- Focus on being comprehensive when they ask for comprehensive
+
+Tool Integration: Since this is an AI agent platform, users often want agents that use specific tools. If the user mentions:
+- Web search → Include instructions about using search tools like Exa
+- Email → Include instructions about Gmail integration
+- Communication → Include Slack, Discord, Teams instructions
+- Data → Include instructions about databases, APIs, spreadsheets
+- Any other specific tools → Include explicit usage instructions
+
+Examples:
+SIMPLE REQUEST: "Write a basic customer service agent"
+You are a helpful customer service representative. Assist customers with their questions about orders, returns, and products. Be polite and professional in all interactions.
+
+COMPREHENSIVE REQUEST: "Create a detailed AI research assistant that can search the web and analyze information"
+You are an advanced AI research assistant specializing in conducting thorough research and analysis across various topics. Your primary capabilities include web searching, information synthesis, critical analysis, and presenting findings in clear, actionable formats. When conducting research, use Exa or other web search tools to gather current, relevant information from authoritative sources. Always verify information from multiple sources when possible and clearly distinguish between established facts and emerging trends or opinions. For each research query, begin by understanding the specific research objectives, target audience, and desired depth of analysis. Structure your research process systematically: start with broad topic exploration, then narrow down to specific aspects, and finally synthesize findings into coherent insights. When presenting results, include source citations, highlight key findings, note any limitations or gaps in available information, and suggest areas for further investigation. Adapt your communication style to match the user's expertise level - provide detailed technical explanations for expert audiences and clear, accessible summaries for general audiences. Always maintain objectivity and acknowledge when information is uncertain or conflicting.
+
+Write naturally and comprehensively based on what the user actually asks for.`,
+        placeholder: 'Describe the AI agent you want to create...',
+        generationType: 'system-prompt',
+      },
     },
     {
       id: 'userPrompt',
@@ -92,6 +128,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'combobox',
       layout: 'half',
       placeholder: 'Type or select a model...',
+      required: true,
       options: () => {
         const ollamaModels = useOllamaStore.getState().models
         const baseModels = Object.keys(getBaseModelProviders())
@@ -155,6 +192,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
+      required: true,
       // Hide API key for all hosted models when running on hosted version
       condition: isHosted
         ? {
@@ -202,7 +240,97 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       layout: 'full',
       placeholder: 'Enter JSON schema...',
       language: 'json',
-      generationType: 'json-schema',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `You are an expert programmer specializing in creating JSON schemas according to a specific format.
+Generate ONLY the JSON schema based on the user's request.
+The output MUST be a single, valid JSON object, starting with { and ending with }.
+The JSON object MUST have the following top-level properties: 'name' (string), 'description' (string), 'strict' (boolean, usually true), and 'schema' (object).
+The 'schema' object must define the structure and MUST contain 'type': 'object', 'properties': {...}, 'additionalProperties': false, and 'required': [...].
+Inside 'properties', use standard JSON Schema properties (type, description, enum, items for arrays, etc.).
+
+Current schema: {context}
+
+Do not include any explanations, markdown formatting, or other text outside the JSON object.
+
+Valid Schema Examples:
+
+Example 1:
+{
+    "name": "reddit_post",
+    "description": "Fetches the reddit posts in the given subreddit",
+    "strict": true,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "The title of the post"
+            },
+            "content": {
+                "type": "string",
+                "description": "The content of the post"
+            }
+        },
+        "additionalProperties": false,
+        "required": [ "title", "content" ]
+    }
+}
+
+Example 2:
+{
+    "name": "get_weather",
+    "description": "Fetches the current weather for a specific location.",
+    "strict": true,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "location": {
+                "type": "string",
+                "description": "The city and state, e.g., San Francisco, CA"
+            },
+            "unit": {
+                "type": "string",
+                "description": "Temperature unit",
+                "enum": ["celsius", "fahrenheit"]
+            }
+        },
+        "additionalProperties": false,
+        "required": ["location", "unit"]
+    }
+}
+
+Example 3 (Array Input):
+{
+    "name": "process_items",
+    "description": "Processes a list of items with specific IDs.",
+    "strict": true,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "item_ids": {
+                "type": "array",
+                "description": "A list of unique item identifiers to process.",
+                "items": {
+                    "type": "string",
+                    "description": "An item ID"
+                }
+            },
+            "processing_mode": {
+                "type": "string",
+                "description": "The mode for processing",
+                "enum": ["fast", "thorough"]
+            }
+        },
+        "additionalProperties": false,
+        "required": ["item_ids", "processing_mode"]
+    }
+}
+`,
+        placeholder: 'Describe the JSON schema structure you need...',
+        generationType: 'json-schema',
+      },
     },
   ],
   tools: {
@@ -275,18 +403,16 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     },
   },
   inputs: {
-    systemPrompt: { type: 'string', required: false },
-    userPrompt: { type: 'string', required: false },
-    memories: { type: 'json', required: false },
-    model: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
-    azureEndpoint: { type: 'string', required: false },
-    azureApiVersion: { type: 'string', required: false },
+    systemPrompt: { type: 'string', description: 'Initial system instructions' },
+    userPrompt: { type: 'string', description: 'User message or context' },
+    memories: { type: 'json', description: 'Agent memory data' },
+    model: { type: 'string', description: 'AI model to use' },
+    apiKey: { type: 'string', description: 'Provider API key' },
+    azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
+    azureApiVersion: { type: 'string', description: 'Azure API version' },
     responseFormat: {
       type: 'json',
-      required: false,
-      description:
-        'Define the expected response format using JSON Schema. If not provided, returns plain text content.',
+      description: 'JSON response format schema',
       schema: {
         type: 'object',
         properties: {
@@ -328,13 +454,13 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         required: ['schema'],
       },
     },
-    temperature: { type: 'number', required: false },
-    tools: { type: 'json', required: false },
+    temperature: { type: 'number', description: 'Response randomness level' },
+    tools: { type: 'json', description: 'Available tools configuration' },
   },
   outputs: {
-    content: 'string',
-    model: 'string',
-    tokens: 'any',
-    toolCalls: 'any',
+    content: { type: 'string', description: 'Generated response content' },
+    model: { type: 'string', description: 'Model used for generation' },
+    tokens: { type: 'any', description: 'Token usage statistics' },
+    toolCalls: { type: 'any', description: 'Tool calls made' },
   },
 }

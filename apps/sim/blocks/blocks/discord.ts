@@ -23,6 +23,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         { label: 'Get Server Information', id: 'discord_get_server' },
         { label: 'Get User Information', id: 'discord_get_user' },
       ],
+      value: () => 'discord_send_message',
     },
     {
       id: 'botToken',
@@ -31,6 +32,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       layout: 'full',
       placeholder: 'Enter Discord bot token',
       password: true,
+      required: true,
     },
     // Server selector (basic mode)
     {
@@ -198,18 +200,18 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    botToken: { type: 'string', required: true },
-    serverId: { type: 'string', required: false },
-    manualServerId: { type: 'string', required: false },
-    channelId: { type: 'string', required: false },
-    manualChannelId: { type: 'string', required: false },
-    content: { type: 'string', required: false },
-    limit: { type: 'number', required: false },
-    userId: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    botToken: { type: 'string', description: 'Discord bot token' },
+    serverId: { type: 'string', description: 'Discord server identifier' },
+    manualServerId: { type: 'string', description: 'Manual server identifier' },
+    channelId: { type: 'string', description: 'Discord channel identifier' },
+    manualChannelId: { type: 'string', description: 'Manual channel identifier' },
+    content: { type: 'string', description: 'Message content' },
+    limit: { type: 'number', description: 'Message limit' },
+    userId: { type: 'string', description: 'Discord user identifier' },
   },
   outputs: {
-    message: 'string',
-    data: 'any',
+    message: { type: 'string', description: 'Message content' },
+    data: { type: 'any', description: 'Response data' },
   },
 }

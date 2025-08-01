@@ -17,6 +17,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter phone numbers with country code (one per line, e.g., +1234567890)',
+      required: true,
     },
     {
       id: 'message',
@@ -24,6 +25,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'e.g. "Hello! This is a test message."',
+      required: true,
     },
     {
       id: 'accountSid',
@@ -31,6 +33,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Your Twilio Account SID',
+      required: true,
     },
     {
       id: 'authToken',
@@ -39,6 +42,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
       layout: 'full',
       placeholder: 'Your Twilio Auth Token',
       password: true,
+      required: true,
     },
     {
       id: 'fromNumber',
@@ -46,6 +50,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'e.g. +1234567890',
+      required: true,
     },
   ],
   tools: {
@@ -55,16 +60,16 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
     },
   },
   inputs: {
-    phoneNumbers: { type: 'string', required: true },
-    message: { type: 'string', required: true },
-    accountSid: { type: 'string', required: true },
-    authToken: { type: 'string', required: true },
-    fromNumber: { type: 'string', required: true },
+    phoneNumbers: { type: 'string', description: 'Recipient phone numbers' },
+    message: { type: 'string', description: 'SMS message text' },
+    accountSid: { type: 'string', description: 'Twilio account SID' },
+    authToken: { type: 'string', description: 'Twilio auth token' },
+    fromNumber: { type: 'string', description: 'Sender phone number' },
   },
   outputs: {
-    success: 'boolean',
-    messageId: 'any',
-    status: 'any',
-    error: 'any',
+    success: { type: 'boolean', description: 'Send success status' },
+    messageId: { type: 'any', description: 'Message identifier' },
+    status: { type: 'any', description: 'Delivery status' },
+    error: { type: 'any', description: 'Error information' },
   },
 }

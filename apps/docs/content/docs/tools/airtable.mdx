@@ -79,11 +79,11 @@ Read records from an Airtable table
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `records` | string |
-| `metadata` | string |
-| `totalRecords` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Retrieved record data |
+| `record` | json | Single record data |
+| `metadata` | json | Operation metadata |
 
 ### `airtable_get_record`
 
@@ -100,10 +100,11 @@ Retrieve a single record from an Airtable table by its ID
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `record` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Retrieved record data |
+| `record` | json | Single record data |
+| `metadata` | json | Operation metadata |
 
 ### `airtable_create_records`
 
@@ -119,10 +120,11 @@ Write new records to an Airtable table
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `records` | string |
-| `metadata` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Retrieved record data |
+| `record` | json | Single record data |
+| `metadata` | json | Operation metadata |
 
 ### `airtable_update_record`
 
@@ -140,11 +142,11 @@ Update an existing record in an Airtable table by ID
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `record` | string |
-| `metadata` | string |
-| `updatedFields` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Retrieved record data |
+| `record` | json | Single record data |
+| `metadata` | json | Operation metadata |
 
 ### `airtable_update_multiple_records`
 
@@ -160,31 +162,12 @@ Update multiple existing records in an Airtable table
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `records` | string |
-| `metadata` | string |
-| `updatedRecordIds` | string |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Retrieved record data |
+| `record` | json | Single record data |
+| `metadata` | json | Operation metadata |
 
-
-
-## Block Configuration
-
-### Input
-
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
-
-### Outputs
-
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `records` | json | records output from the block |
-| `record` | json | record output from the block |
-| `metadata` | json | metadata output from the block |
 
 
 ## Notes

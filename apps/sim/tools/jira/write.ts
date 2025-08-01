@@ -78,7 +78,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       type: 'string',
       required: true,
       visibility: 'hidden',
-      description: 'Type of issue to create (e.g., Task, Story, Bug, Sub-task)',
+      description: 'Type of issue to create (e.g., Task, Story)',
     },
   },
 

@@ -122,16 +122,16 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
     // Conditionally require inputMethod and filePath only if URL input is enabled
     ...(shouldEnableURLInput
       ? {
-          inputMethod: { type: 'string', required: false }, // Not strictly required as it defaults
-          filePath: { type: 'string', required: false }, // Required only if inputMethod is 'url' (validated in params)
+          inputMethod: { type: 'string', description: 'Input method selection' }, // Not strictly required as it defaults
+          filePath: { type: 'string', description: 'File URL path' }, // Required only if inputMethod is 'url' (validated in params)
         }
       : {}),
-    fileType: { type: 'string', required: false },
+    fileType: { type: 'string', description: 'File type' },
     // File input is always potentially needed, but only required if method is 'upload' (validated in params)
-    file: { type: 'json', required: false },
+    file: { type: 'json', description: 'Uploaded file data' },
   },
   outputs: {
-    files: 'json',
-    combinedContent: 'string',
+    files: { type: 'json', description: 'Parsed file data' },
+    combinedContent: { type: 'string', description: 'Combined file content' },
   },
 }

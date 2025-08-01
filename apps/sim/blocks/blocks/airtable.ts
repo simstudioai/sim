@@ -26,6 +26,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
         { label: 'Create Records', id: 'create' },
         { label: 'Update Record', id: 'update' },
       ],
+      value: () => 'list',
     },
     {
       id: 'credential',
@@ -36,6 +37,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       serviceId: 'airtable',
       requiredScopes: ['data.records:read', 'data.records:write'], // Keep both scopes
       placeholder: 'Select Airtable account',
+      required: true,
     },
     {
       id: 'baseId',
@@ -43,6 +45,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your base ID (e.g., appXXXXXXXXXXXXXX)',
+      required: true,
     },
     {
       id: 'tableId',
@@ -50,6 +53,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter table ID (e.g., tblXXXXXXXXXXXXXX)',
+      required: true,
     },
     {
       id: 'recordId',
@@ -58,6 +62,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       layout: 'full',
       placeholder: 'ID of the record (e.g., recXXXXXXXXXXXXXX)',
       condition: { field: 'operation', value: ['get', 'update'] },
+      required: true,
     },
     {
       id: 'maxRecords',
@@ -82,6 +87,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       layout: 'full',
       placeholder: 'For Create: `[{ "fields": { ... } }]`\n',
       condition: { field: 'operation', value: ['create', 'updateMultiple'] },
+      required: true,
     },
     {
       id: 'fields',
@@ -90,6 +96,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       layout: 'full',
       placeholder: 'Fields to update: `{ "Field Name": "New Value" }`',
       condition: { field: 'operation', value: 'update' },
+      required: true,
     },
   ],
   tools: {
@@ -153,21 +160,21 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    baseId: { type: 'string', required: true },
-    tableId: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Airtable access token' },
+    baseId: { type: 'string', description: 'Airtable base identifier' },
+    tableId: { type: 'string', description: 'Airtable table identifier' },
     // Conditional inputs
-    recordId: { type: 'string', required: true }, // Required for get/update
-    maxRecords: { type: 'number', required: false }, // Optional for list
-    filterFormula: { type: 'string', required: false }, // Optional for list
-    records: { type: 'json', required: false }, // Required for create/updateMultiple
-    fields: { type: 'json', required: false }, // Required for update single
+    recordId: { type: 'string', description: 'Record identifier' }, // Required for get/update
+    maxRecords: { type: 'number', description: 'Maximum records to return' }, // Optional for list
+    filterFormula: { type: 'string', description: 'Filter formula expression' }, // Optional for list
+    records: { type: 'json', description: 'Record data array' }, // Required for create/updateMultiple
+    fields: { type: 'json', description: 'Field data object' }, // Required for update single
   },
   // Output structure depends on the operation, covered by AirtableResponse union type
   outputs: {
-    records: 'json', // Optional: for list, create, updateMultiple
-    record: 'json', // Optional: for get, update single
-    metadata: 'json', // Required: present in all responses
+    records: { type: 'json', description: 'Retrieved record data' }, // Optional: for list, create, updateMultiple
+    record: { type: 'json', description: 'Single record data' }, // Optional: for get, update single
+    metadata: { type: 'json', description: 'Operation metadata' }, // Required: present in all responses
   },
 }

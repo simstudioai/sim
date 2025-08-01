@@ -19,6 +19,7 @@ export const YouTubeBlock: BlockConfig<YouTubeSearchResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter search query',
+      required: true,
     },
     {
       id: 'apiKey',
@@ -27,6 +28,7 @@ export const YouTubeBlock: BlockConfig<YouTubeSearchResponse> = {
       layout: 'full',
       placeholder: 'Enter YouTube API Key',
       password: true,
+      required: true,
     },
     {
       id: 'maxResults',
@@ -41,12 +43,15 @@ export const YouTubeBlock: BlockConfig<YouTubeSearchResponse> = {
     access: ['youtube_search'],
   },
   inputs: {
-    apiKey: { type: 'string', required: true },
-    query: { type: 'string', required: true },
-    maxResults: { type: 'number', required: false },
+    apiKey: { type: 'string', description: 'The API key for the YouTube search' },
+    query: { type: 'string', description: 'The query for the YouTube search' },
+    maxResults: { type: 'number', description: 'The maximum number of results to return' },
   },
   outputs: {
-    items: 'json',
-    totalResults: 'number',
+    items: { type: 'json', description: 'The items returned by the YouTube search' },
+    totalResults: {
+      type: 'number',
+      description: 'The total number of results returned by the YouTube search',
+    },
   },
 }

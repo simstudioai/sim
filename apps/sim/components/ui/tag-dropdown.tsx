@@ -57,9 +57,15 @@ const generateOutputPaths = (outputs: Record<string, any>, prefix = ''): string[
       // Simple type like 'string', 'number', 'json', 'any'
       paths.push(currentPath)
     } else if (typeof value === 'object' && value !== null) {
-      // Nested object - recurse
-      const subPaths = generateOutputPaths(value, currentPath)
-      paths.push(...subPaths)
+      // Check if this is our new format with type and description
+      if ('type' in value && typeof value.type === 'string') {
+        // New format: { type: 'string', description: '...' } - treat as leaf node
+        paths.push(currentPath)
+      } else {
+        // Legacy nested object - recurse
+        const subPaths = generateOutputPaths(value, currentPath)
+        paths.push(...subPaths)
+      }
     } else {
       // Fallback - add the path
       paths.push(currentPath)

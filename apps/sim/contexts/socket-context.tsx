@@ -50,11 +50,13 @@ interface SocketContextType {
     value: any,
     operationId?: string
   ) => void
+
   emitCursorUpdate: (cursor: { x: number; y: number }) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
   // Event handlers for receiving real-time updates
   onWorkflowOperation: (handler: (data: any) => void) => void
   onSubblockUpdate: (handler: (data: any) => void) => void
+
   onCursorUpdate: (handler: (data: any) => void) => void
   onSelectionUpdate: (handler: (data: any) => void) => void
   onUserJoined: (handler: (data: any) => void) => void
@@ -111,6 +113,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const eventHandlers = useRef<{
     workflowOperation?: (data: any) => void
     subblockUpdate?: (data: any) => void
+
     cursorUpdate?: (data: any) => void
     selectionUpdate?: (data: any) => void
     userJoined?: (data: any) => void
@@ -445,7 +448,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('workflow-state', (workflowData) => {
-          logger.info('Received workflow state from server:', workflowData)
+          logger.info('Received workflow state from server')
 
           // Update local stores with the fresh workflow state (same logic as YAML editor)
           if (workflowData?.state && workflowData.id === urlWorkflowId) {
@@ -773,10 +776,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         leaveWorkflow,
         emitWorkflowOperation,
         emitSubblockUpdate,
+
         emitCursorUpdate,
         emitSelectionUpdate,
         onWorkflowOperation,
         onSubblockUpdate,
+
         onCursorUpdate,
         onSelectionUpdate,
         onUserJoined,

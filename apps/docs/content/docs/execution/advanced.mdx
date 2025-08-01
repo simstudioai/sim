@@ -136,12 +136,18 @@ Sim automatically calculates costs for all AI model usage:
 
 ### How Costs Are Calculated
 
+Every workflow execution includes two cost components:
+
+**Base Execution Charge**: $0.001 per execution
+
+**AI Model Usage**: Variable cost based on token consumption
 ```javascript
-cost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
+modelCost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
+totalCost = baseExecutionCharge + modelCost
 ```
 
 <Callout type="info">
-  Prices are per million tokens. The calculation divides by 1,000,000 to get the actual cost.
+  AI model prices are per million tokens. The calculation divides by 1,000,000 to get the actual cost. Workflows without AI blocks only incur the base execution charge.
 </Callout>
 
 ### Pricing Options

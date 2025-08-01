@@ -28,6 +28,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Update a Row', id: 'update' },
         { label: 'Delete a Row', id: 'delete' },
       ],
+      value: () => 'query',
     },
     {
       id: 'projectId',
@@ -36,6 +37,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       password: true,
       placeholder: 'Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)',
+      required: true,
     },
     {
       id: 'table',
@@ -43,6 +45,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Name of the table',
+      required: true,
     },
     {
       id: 'apiKey',
@@ -51,6 +54,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: 'Your Supabase service role secret key',
       password: true,
+      required: true,
     },
     // Data input for create/update operations
     {
@@ -60,6 +64,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
       condition: { field: 'operation', value: 'insert' },
+      required: true,
     },
     {
       id: 'data',
@@ -68,6 +73,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
       condition: { field: 'operation', value: 'update' },
+      required: true,
     },
     // Filter for get_row, update, delete operations (required)
     {
@@ -77,6 +83,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: 'id=eq.123',
       condition: { field: 'operation', value: 'get_row' },
+      required: true,
     },
     {
       id: 'filter',
@@ -85,6 +92,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: 'id=eq.123',
       condition: { field: 'operation', value: 'update' },
+      required: true,
     },
     {
       id: 'filter',
@@ -93,6 +101,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: 'id=eq.123',
       condition: { field: 'operation', value: 'delete' },
+      required: true,
     },
     // Optional filter for query operation
     {
@@ -184,20 +193,20 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    projectId: { type: 'string', required: true },
-    table: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    projectId: { type: 'string', description: 'Supabase project identifier' },
+    table: { type: 'string', description: 'Database table name' },
+    apiKey: { type: 'string', description: 'Service role secret key' },
     // Data for insert/update operations
-    data: { type: 'json', required: false },
+    data: { type: 'json', description: 'Row data' },
     // Filter for operations
-    filter: { type: 'string', required: false },
+    filter: { type: 'string', description: 'PostgREST filter syntax' },
     // Query operation inputs
-    orderBy: { type: 'string', required: false },
-    limit: { type: 'number', required: false },
+    orderBy: { type: 'string', description: 'Sort column' },
+    limit: { type: 'number', description: 'Result limit' },
   },
   outputs: {
-    message: 'string',
-    results: 'json',
+    message: { type: 'string', description: 'Operation message' },
+    results: { type: 'json', description: 'Query results' },
   },
 }
