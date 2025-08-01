@@ -23,6 +23,7 @@ const chatSchema = z.object({
   customizations: z.object({
     primaryColor: z.string(),
     welcomeMessage: z.string(),
+    imageUrl: z.string().optional(),
   }),
   authType: z.enum(['public', 'password', 'email']).default('public'),
   password: z.string().optional(),
@@ -50,7 +51,8 @@ export function useChatDeployment() {
       workflowId: string,
       formData: ChatFormData,
       deploymentInfo: { apiKey: string } | null,
-      existingChatId?: string
+      existingChatId?: string,
+      imageUrl?: string | null
     ) => {
       setState({ isLoading: true, error: null, deployedUrl: null })
 
@@ -79,6 +81,7 @@ export function useChatDeployment() {
           customizations: {
             primaryColor: '#802FFF',
             welcomeMessage: formData.welcomeMessage.trim(),
+            ...(imageUrl && { imageUrl }),
           },
           authType: formData.authType,
           password: formData.authType === 'password' ? formData.password : undefined,

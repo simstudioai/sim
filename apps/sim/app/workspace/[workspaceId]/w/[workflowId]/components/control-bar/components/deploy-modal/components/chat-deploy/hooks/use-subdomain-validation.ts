@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 
-export function useSubdomainValidation(subdomain: string, originalSubdomain?: string) {
+export function useSubdomainValidation(
+  subdomain: string,
+  originalSubdomain?: string,
+  isEditingExisting?: boolean
+) {
   const [isChecking, setIsChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isValid, setIsValid] = useState(false)
@@ -18,12 +22,20 @@ export function useSubdomainValidation(subdomain: string, originalSubdomain?: st
     setIsValid(false)
     setIsChecking(false)
 
-    // Skip validation if empty or same as original
+    // Skip validation if empty
     if (!subdomain.trim()) {
       return
     }
 
-    if (subdomain === originalSubdomain) {
+    // Skip validation if same as original (existing deployment)
+    if (originalSubdomain && subdomain === originalSubdomain) {
+      setIsValid(true)
+      return
+    }
+
+    // If we're editing an existing deployment but originalSubdomain isn't available yet,
+    // assume it's valid and wait for the data to load
+    if (isEditingExisting && !originalSubdomain) {
       setIsValid(true)
       return
     }
@@ -64,7 +76,7 @@ export function useSubdomainValidation(subdomain: string, originalSubdomain?: st
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [subdomain, originalSubdomain])
+  }, [subdomain, originalSubdomain, isEditingExisting])
 
   return { isChecking, error, isValid }
 }
