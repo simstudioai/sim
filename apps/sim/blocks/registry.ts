@@ -36,6 +36,7 @@ import { LinkupBlock } from '@/blocks/blocks/linkup'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
 import { MicrosoftExcelBlock } from '@/blocks/blocks/microsoft_excel'
+import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
@@ -107,6 +108,7 @@ export const registry: Record<string, BlockConfig> = {
   linkup: LinkupBlock,
   mem0: Mem0Block,
   microsoft_excel: MicrosoftExcelBlock,
+  microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   sharepoint: SharepointBlock,
   mistral_parse: MistralParseBlock,

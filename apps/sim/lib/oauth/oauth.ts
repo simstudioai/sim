@@ -24,6 +24,7 @@ import {
   SupabaseIcon,
   WealthboxIcon,
   xIcon,
+  MicrosoftPlannerIcon,
 } from '@/components/icons'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -64,6 +65,7 @@ export type OAuthService =
   | 'discord'
   | 'microsoft-excel'
   | 'microsoft-teams'
+  | 'microsoft-planner'
   | 'sharepoint'
   | 'outlook'
   | 'linear'
@@ -161,6 +163,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: (props) => MicrosoftExcelIcon(props),
         baseProviderIcon: (props) => MicrosoftIcon(props),
         scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+      },
+      'microsoft-planner': {
+        id: 'microsoft-planner',
+        name: 'Microsoft Planner',
+        description: 'Connect to Microsoft Planner and manage tasks.',
+        providerId: 'microsoft-planner',
+        icon: (props) => MicrosoftPlannerIcon(props),
+        baseProviderIcon: (props) => MicrosoftIcon(props),
+        scopes: ['openid', 'profile', 'email', 'Group.ReadWrite.All','Group.Read.All', 'Tasks.ReadWrite', 'offline_access'],
       },
       'microsoft-teams': {
         id: 'microsoft-teams',
@@ -495,6 +506,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'outlook'
   } else if (provider === 'sharepoint') {
     return 'sharepoint'
+  } else if (provider === 'microsoft-planner') {
+    return 'microsoft-planner'
   } else if (provider === 'github') {
     return 'github'
   } else if (provider === 'supabase') {

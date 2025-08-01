@@ -79,6 +79,10 @@ import {
   microsoftExcelTableAddTool,
   microsoftExcelWriteTool,
 } from '@/tools/microsoft_excel'
+import {
+  microsoftPlannerCreateTaskTool,
+  microsoftPlannerReadTaskTool,
+} from '@/tools/microsoft_planner'
 import { onedriveCreateFolderTool, onedriveUploadTool, onedriveListTool } from '@/tools/onedrive'
 import {
   microsoftTeamsReadChannelTool,
@@ -273,6 +277,8 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_excel_read: microsoftExcelReadTool,
   microsoft_excel_write: microsoftExcelWriteTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,
+  microsoft_planner_create_task: microsoftPlannerCreateTaskTool,
+  microsoft_planner_read_task: microsoftPlannerReadTaskTool,
   google_calendar_create: googleCalendarCreateTool,
   google_calendar_get: googleCalendarGetTool,
   google_calendar_list: googleCalendarListTool,

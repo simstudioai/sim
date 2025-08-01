@@ -441,6 +441,21 @@ export const auth = betterAuth({
           pkce: true,
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/microsoft-excel`,
         },
+        {
+          providerId: 'microsoft-planner',
+          clientId: env.MICROSOFT_CLIENT_ID as string,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+          authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+          tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+          userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+          scopes: ['openid', 'profile', 'email', 'Group.ReadWrite.All', 'Group.Read.All', 'Tasks.ReadWrite', 'offline_access'],
+          responseType: 'code',
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          pkce: true,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/microsoft-planner`,
+        },
 
         {
           providerId: 'outlook',
