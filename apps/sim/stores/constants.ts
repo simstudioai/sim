@@ -23,6 +23,7 @@ export const COPILOT_TOOL_DISPLAY_NAMES: Record<string, string> = {
   set_environment_variables: 'Setting environment variables',
   get_workflow_console: 'Reading workflow console',
   edit_workflow: 'Updating workflow',
+  run_workflow: 'Running workflow',
   search_online: 'Searching online',
 } as const
 
@@ -40,6 +41,7 @@ export const COPILOT_TOOL_PAST_TENSE: Record<string, string> = {
   set_environment_variables: 'Set environment variables',
   get_workflow_console: 'Read workflow console',
   edit_workflow: 'Updated workflow',
+  run_workflow: 'Ran workflow',
   search_online: 'Searched online',
 } as const
 
@@ -57,6 +59,7 @@ export const COPILOT_TOOL_ERROR_NAMES: Record<string, string> = {
   set_environment_variables: 'Errored setting environment variables',
   get_workflow_console: 'Errored getting workflow console',
   edit_workflow: 'Errored updating workflow',
+  run_workflow: 'Errored running workflow',
   search_online: 'Errored searching online',
 } as const
 

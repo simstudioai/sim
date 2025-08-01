@@ -600,12 +600,37 @@ const sseHandlers: Record<string, SSEHandler> = {
     const toolData = data.data
     if (!toolData) return
 
-    // Skip if already exists
-    if (context.toolCalls.find((tc) => tc.id === toolData.id)) {
+    // Log the raw tool data from LLM stream
+    if (toolData.name === 'run_workflow') {
+      console.log('🔍 LLM tool call data:', JSON.stringify(toolData, null, 2))
+      console.log('🔍 LLM arguments field:', JSON.stringify(toolData.arguments, null, 2))
+    }
+
+    // Check if tool call already exists
+    const existingToolCall = context.toolCalls.find((tc) => tc.id === toolData.id)
+    
+    if (existingToolCall) {
+      // Update existing tool call with new arguments (for partial -> complete transition)
+      existingToolCall.input = toolData.arguments || {}
+      
+      // Log the updated tool call
+      if (toolData.name === 'run_workflow') {
+        console.log('🔍 Updated existing tool call:', JSON.stringify(existingToolCall, null, 2))
+      }
+      
+      // Update the content block as well
+      updateContentBlockToolCall(context.contentBlocks, toolData.id, existingToolCall)
+      updateStreamingMessage(set, context)
       return
     }
 
     const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
+    
+    // Log the created tool call
+    if (toolData.name === 'run_workflow') {
+      console.log('🔍 Created tool call:', JSON.stringify(toolCall, null, 2))
+    }
+    
     context.toolCalls.push(toolCall)
 
     context.contentBlocks.push({

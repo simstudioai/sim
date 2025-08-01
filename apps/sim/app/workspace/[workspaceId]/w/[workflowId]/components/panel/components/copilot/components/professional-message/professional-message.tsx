@@ -35,6 +35,9 @@ import type { CopilotMessage } from '@/stores/copilot/types'
 import type { ToolCallState } from '@/types/tool-call'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { toolRequiresInterrupt } from '@/stores/copilot/constants'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import { useChatStore } from '@/stores/panel/chat/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { cn } from '@/lib/utils'
 
 interface ProfessionalMessageProps {
@@ -236,6 +239,25 @@ function getToolDisplayNameByState(toolCall: any): string {
       // Fallback if structure is unexpected
       return 'Setting environment variables'
     }
+    
+    // Custom display for run workflow tool
+    if (toolName === COPILOT_TOOL_IDS.RUN_WORKFLOW) {
+      // Extract workflow information from parameters or args
+      const params = toolCall.parameters || toolCall.args || {}
+      
+      if (params.description) {
+        const truncatedDescription = params.description.length > 30 ? params.description.substring(0, 30) + '...' : params.description
+        return `Running workflow: ${truncatedDescription}`
+      }
+      
+      if (params.workflowId) {
+        const truncatedId = params.workflowId.length > 20 ? params.workflowId.substring(0, 20) + '...' : params.workflowId
+        return `Running workflow: ${truncatedId}`
+      }
+      
+      // Fallback if structure is unexpected
+      return 'Running workflow'
+    }
     // Add more custom interrupt tool displays here as needed
     
     // Default for other interrupt tools
@@ -306,8 +328,6 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   const getToolIcon = () => {
     const displayName = tool.displayName || tool.name || ''
     const lowerName = displayName.toLowerCase()
-
-    console.log("[ASDF] IN HERE: ", displayName)
 
     if (lowerName.includes('analyz') && lowerName.includes('workflow')) {
       return <Search className='h-3 w-3 text-muted-foreground' />
@@ -388,6 +408,13 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
     }
   }
 
+  // Get workflow execution hook for run_workflow tool
+  const { handleRunWorkflow } = useWorkflowExecution()
+  
+  // Get current workflow ID and conversation ID for chat execution
+  const { activeWorkflowId } = useWorkflowRegistry()
+  const { getConversationId } = useChatStore()
+
   // API call to confirm tool action
   const handleConfirmTool = async (toolCallId: string, status: 'Accept' | 'Reject') => {
     if (isProcessing) return
@@ -399,6 +426,40 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
     updatePreviewToolCallState(newState, toolCallId)
 
     try {
+      // Special handling for run_workflow tool
+      if (tool.name === COPILOT_TOOL_IDS.RUN_WORKFLOW && status === 'Accept') {
+        console.log('Executing workflow via run_workflow tool...')
+        console.log('🔍 Full tool object:', JSON.stringify(tool, null, 2))
+        
+        // Get chat parameter from tool call if available
+        const params = tool.input || tool.parameters || tool.args || {}
+        console.log('🔍 Extracted params:', JSON.stringify(params, null, 2))
+        
+        const chatInput = params.workflow_input
+        console.log('🔍 Chat input extracted:', chatInput)
+        
+        // Execute the workflow
+        try {
+          // Get conversation ID for the current workflow to ensure proper chat execution
+          const conversationId = activeWorkflowId ? getConversationId(activeWorkflowId) : undefined
+          console.log('🔍 Active workflow ID:', activeWorkflowId)
+          console.log('🔍 Conversation ID:', conversationId)
+          
+          const workflowInput = chatInput ? { 
+            input: chatInput,
+            conversationId: conversationId
+          } : undefined
+          
+          console.log('🔍 Final workflow input:', JSON.stringify(workflowInput, null, 2))
+          
+          await handleRunWorkflow(workflowInput)
+          console.log('Workflow execution completed successfully')
+        } catch (workflowError) {
+          console.error('Workflow execution failed:', workflowError)
+          // Don't throw here - we still want to call the confirm API
+        }
+      }
+
       const response = await fetch('/api/copilot/confirm', {
         method: 'POST',
         headers: {

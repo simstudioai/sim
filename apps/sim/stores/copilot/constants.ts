@@ -13,12 +13,14 @@ export const COPILOT_TOOL_IDS = {
   SET_ENVIRONMENT_VARIABLES: 'set_environment_variables',
   GET_WORKFLOW_CONSOLE: 'get_workflow_console',
   EDIT_WORKFLOW: 'edit_workflow',
+  RUN_WORKFLOW: 'run_workflow',
   SEARCH_ONLINE: 'search_online',
 } as const
 
 // Tools that require user interruption/approval
 export const TOOLS_REQUIRING_INTERRUPT = new Set([
   COPILOT_TOOL_IDS.SET_ENVIRONMENT_VARIABLES,
+  COPILOT_TOOL_IDS.RUN_WORKFLOW,
 ])
 
 // Helper function to check if a tool requires interrupt

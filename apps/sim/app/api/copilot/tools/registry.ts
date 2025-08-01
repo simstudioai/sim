@@ -4,6 +4,7 @@ import type { CopilotTool } from './base'
 import { getBlocksAndToolsTool } from './blocks/get-blocks-and-tools'
 import { getBlocksMetadataTool } from './blocks/get-blocks-metadata'
 import { searchDocsTool } from './docs/search-docs'
+import { noOpTool } from './other/no-op'
 import { onlineSearchTool } from './other/online-search'
 import { getEnvironmentVariablesTool } from './user/get-environment-variables'
 import { setEnvironmentVariablesTool } from './user/set-environment-variables'
@@ -87,6 +88,7 @@ export const copilotToolRegistry = new CopilotToolRegistry()
 copilotToolRegistry.register(getBlocksAndToolsTool)
 copilotToolRegistry.register(getBlocksMetadataTool)
 copilotToolRegistry.register(searchDocsTool)
+copilotToolRegistry.register(noOpTool)
 copilotToolRegistry.register(onlineSearchTool)
 copilotToolRegistry.register(getEnvironmentVariablesTool)
 copilotToolRegistry.register(setEnvironmentVariablesTool)
