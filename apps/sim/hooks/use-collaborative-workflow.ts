@@ -22,10 +22,8 @@ export function useCollaborativeWorkflow() {
     leaveWorkflow,
     emitWorkflowOperation,
     emitSubblockUpdate,
-    emitBatchSubblockUpdate,
     onWorkflowOperation,
     onSubblockUpdate,
-    onBatchSubblockUpdate,
     onUserJoined,
     onUserLeft,
     onWorkflowDeleted,
@@ -73,13 +71,8 @@ export function useCollaborativeWorkflow() {
 
   // Register emit functions with operation queue store
   useEffect(() => {
-    registerEmitFunctions(
-      emitWorkflowOperation,
-      emitSubblockUpdate,
-      emitBatchSubblockUpdate,
-      currentWorkflowId
-    )
-  }, [emitWorkflowOperation, emitSubblockUpdate, emitBatchSubblockUpdate, currentWorkflowId])
+    registerEmitFunctions(emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId)
+  }, [emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId])
 
   useEffect(() => {
     const handleWorkflowOperation = (data: any) => {
@@ -245,29 +238,6 @@ export function useCollaborativeWorkflow() {
       }
     }
 
-    const handleBatchSubblockUpdate = (data: any) => {
-      const { blockId, subblockValues, userId } = data
-
-      if (isApplyingRemoteChange.current) return
-
-      logger.info(
-        `Received batch subblock update from user ${userId}: ${blockId} (${Object.keys(subblockValues).length} subblocks)`
-      )
-
-      isApplyingRemoteChange.current = true
-
-      try {
-        // Apply all subblock values in batch
-        Object.entries(subblockValues).forEach(([subblockId, value]) => {
-          subBlockStore.setValue(blockId, subblockId, value)
-        })
-      } catch (error) {
-        logger.error('Error applying remote batch subblock update:', error)
-      } finally {
-        isApplyingRemoteChange.current = false
-      }
-    }
-
     const handleUserJoined = (data: any) => {
       logger.info(`User joined: ${data.userName}`)
     }
@@ -373,7 +343,6 @@ export function useCollaborativeWorkflow() {
     // Register event handlers
     onWorkflowOperation(handleWorkflowOperation)
     onSubblockUpdate(handleSubblockUpdate)
-    onBatchSubblockUpdate(handleBatchSubblockUpdate)
     onUserJoined(handleUserJoined)
     onUserLeft(handleUserLeft)
     onWorkflowDeleted(handleWorkflowDeleted)
@@ -387,7 +356,6 @@ export function useCollaborativeWorkflow() {
   }, [
     onWorkflowOperation,
     onSubblockUpdate,
-    onBatchSubblockUpdate,
     onUserJoined,
     onUserLeft,
     onWorkflowDeleted,
