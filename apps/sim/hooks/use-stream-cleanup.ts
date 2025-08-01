@@ -9,7 +9,6 @@ import { useCallback, useEffect } from 'react'
  * - User navigates away
  * - Component unmounts
  * - Tab is closed
- * - Tab becomes hidden
  */
 export function useStreamCleanup(cleanup: () => void) {
   // Wrap cleanup function to ensure it's stable
@@ -28,21 +27,12 @@ export function useStreamCleanup(cleanup: () => void) {
       stableCleanup()
     }
 
-    // Handle visibility change (tab switching, minimizing)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        stableCleanup()
-      }
-    }
-
     // Add event listeners
     window.addEventListener('beforeunload', handleBeforeUnload)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     // Cleanup on component unmount
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
       stableCleanup()
     }
   }, [stableCleanup])

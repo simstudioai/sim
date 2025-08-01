@@ -38,6 +38,7 @@ import { toolRequiresInterrupt } from '@/stores/copilot/constants'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useExecutionStore } from '@/stores/execution/store'
 import { cn } from '@/lib/utils'
 
 interface ProfessionalMessageProps {
@@ -421,6 +422,9 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   // Get current workflow ID and conversation ID for chat execution
   const { activeWorkflowId } = useWorkflowRegistry()
   const { getConversationId } = useChatStore()
+  
+  // Get execution state to check if workflow is already running
+  const { isExecuting } = useExecutionStore()
 
     // API call to move workflow to background
   const handleMoveToBackground = async (toolCallId: string) => {
@@ -490,6 +494,33 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
             const error = await response.json()
             console.log(`Tool ${toolCallId} rejected by user`)
           }
+          return
+        }
+        
+        // Check if workflow is already executing
+        if (isExecuting) {
+          console.log('Workflow is already executing, auto-rejecting...')
+          
+          // Auto-reject with specific message
+          const response = await fetch('/api/copilot/confirm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              toolCallId,
+              status: 'Reject',
+              message: 'The workflow is already in the middle of an execution. Try again later'
+            }),
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            console.error('Failed to auto-reject due to existing execution:', error)
+          }
+          
+          // Update UI to show rejected state
+          updatePreviewToolCallState('rejected', toolCallId)
           return
         }
         

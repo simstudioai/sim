@@ -1,4 +1,7 @@
 import { BaseCopilotTool } from '../base'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('NoOpTool')
 
 // No parameters interface - empty object
 interface NoOpParams {
@@ -20,10 +23,19 @@ class NoOpTool extends BaseCopilotTool<NoOpParams, NoOpResult> {
       ? `No-op tool executed successfully. ${params.confirmationMessage}`
       : 'No-op tool executed successfully'
 
-    return {
+    const result = {
       message,
       status: 'success'
     }
+
+    // Log the noop tool response for debugging
+    logger.info('NoOp tool executed', {
+      result,
+      confirmationMessage: params.confirmationMessage,
+      hasConfirmationMessage: !!params.confirmationMessage
+    })
+
+    return result
   }
 }
 
