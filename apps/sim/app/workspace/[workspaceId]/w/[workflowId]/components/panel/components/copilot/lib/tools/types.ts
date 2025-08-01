@@ -3,25 +3,12 @@
  * Clean architecture for client-side tool management
  */
 
-// Tool states that a tool can be in
-export type ToolState = 
-  | 'pending'      // Waiting for user confirmation (shows Run/Skip buttons)
-  | 'executing'    // Currently executing
-  | 'success'      // Successfully completed
-  | 'accepted'     // User accepted but not yet executed
-  | 'rejected'     // User rejected/skipped
-  | 'errored'      // Failed with error
-  | 'background'   // Moved to background execution
+import type { CopilotToolCall, ToolState } from '@/stores/copilot/types'
 
-// Tool call from the AI assistant
-export interface ToolCall {
-  id: string
-  name: string
-  state: ToolState
-  parameters?: Record<string, any>
-  error?: string | { message: string }
-  timestamp?: string
-}
+export type NotificationStatus = 'success' | 'error' | 'accepted' | 'rejected' | 'background'
+
+// Export the consolidated types
+export type { CopilotToolCall, ToolState }
 
 // Display configuration for different states
 export interface StateDisplayConfig {
@@ -63,6 +50,7 @@ export interface ToolMetadata {
   displayConfig: ToolDisplayConfig
   schema: ToolSchema
   requiresInterrupt: boolean
+  stateMessages?: Partial<Record<NotificationStatus, string>>
 }
 
 // Result from executing a tool
@@ -97,21 +85,21 @@ export interface Tool {
   metadata: ToolMetadata
   
   // Execute the tool
-  execute(toolCall: ToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult>
+  execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult>
   
   // Get the display name for the current state
-  getDisplayName(toolCall: ToolCall): string
+  getDisplayName(toolCall: CopilotToolCall): string
   
   // Get the icon for the current state
-  getIcon(toolCall: ToolCall): string
+  getIcon(toolCall: CopilotToolCall): string
   
   // Handle user action (run/skip)
   handleUserAction(
-    toolCall: ToolCall, 
+    toolCall: CopilotToolCall, 
     action: 'run' | 'skip' | 'background',
     options?: ToolExecutionOptions
   ): Promise<void>
   
   // Check if tool shows confirmation UI for current state
-  requiresConfirmation(toolCall: ToolCall): boolean
+  requiresConfirmation(toolCall: CopilotToolCall): boolean
 } 

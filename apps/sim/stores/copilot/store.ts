@@ -398,12 +398,16 @@ function handleToolFailure(toolCall: any, error: string): void {
  * Helper function to create a tool call object
  */
 function createToolCall(id: string, name: string, input: any = {}): any {
+  // Check if tool requires interrupt to determine initial state
+  const requiresInterrupt = toolRequiresInterrupt(name)
+  const initialState = requiresInterrupt ? 'pending' : 'executing'
+  
   return {
     id,
     name,
     input,
     displayName: getToolDisplayName(name),
-    state: 'executing',
+    state: initialState,
     startTime: Date.now(),
     timestamp: Date.now(),
   }

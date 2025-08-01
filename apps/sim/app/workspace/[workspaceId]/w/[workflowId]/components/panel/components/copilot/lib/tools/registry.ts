@@ -12,12 +12,10 @@ import type { Tool, ToolMetadata } from './types'
 import { BaseTool } from './base-tool'
 
 // Import client tool implementations
-import { SetEnvironmentVariablesTool } from './client-tools/set-environment-variables'
 import { RunWorkflowTool } from './client-tools/run-workflow'
 
 // Import server tool definitions
 import { SERVER_TOOL_METADATA } from './server-tools/definitions'
-import { ServerToolWrapper } from './server-tool-wrapper'
 
 /**
  * Tool Registry class that manages all available tools
@@ -29,7 +27,6 @@ export class ToolRegistry {
   private constructor() {
     // Register all tools on initialization
     this.registerDefaultTools()
-    this.registerServerTools()
   }
 
   /**
@@ -96,8 +93,22 @@ export class ToolRegistry {
    * Check if a tool requires interrupt
    */
   requiresInterrupt(toolId: string): boolean {
+    // Check client tools first
     const tool = this.getTool(toolId)
-    return tool?.metadata.requiresInterrupt ?? false
+    if (tool) {
+      return tool.metadata.requiresInterrupt ?? false
+    }
+    
+    // Check server tools
+    const serverToolMetadata = SERVER_TOOL_METADATA[toolId as keyof typeof SERVER_TOOL_METADATA]
+    return serverToolMetadata?.requiresInterrupt ?? false
+  }
+
+  /**
+   * Get server tool metadata by ID
+   */
+  getServerToolMetadata(toolId: string): ToolMetadata | undefined {
+    return SERVER_TOOL_METADATA[toolId as keyof typeof SERVER_TOOL_METADATA]
   }
 
   /**
@@ -105,19 +116,10 @@ export class ToolRegistry {
    */
   private registerDefaultTools(): void {
     // Register actual client tool implementations
-    this.register(new SetEnvironmentVariablesTool())
     this.register(new RunWorkflowTool())
   }
 
-  /**
-   * Register server tool metadata as wrapped tools
-   */
-  private registerServerTools(): void {
-    // Create wrapped tools for server tool metadata
-    Object.values(SERVER_TOOL_METADATA).forEach(metadata => {
-      this.register(new ServerToolWrapper(metadata))
-    })
-  }
+
 }
 
 // Export singleton instance

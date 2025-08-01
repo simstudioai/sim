@@ -16,6 +16,7 @@ export const SERVER_TOOL_IDS = {
   GET_YAML_STRUCTURE: 'get_yaml_structure',
   GET_WORKFLOW_EXAMPLES: 'get_workflow_examples',
   GET_ENVIRONMENT_VARIABLES: 'get_environment_variables',
+  SET_ENVIRONMENT_VARIABLES: 'set_environment_variables',
   GET_WORKFLOW_CONSOLE: 'get_workflow_console',
   SEARCH_ONLINE: 'search_online',
 } as const
@@ -187,6 +188,39 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
       description: 'Get environment variables'
     },
     requiresInterrupt: false
+  },
+
+  [SERVER_TOOL_IDS.SET_ENVIRONMENT_VARIABLES]: {
+    id: SERVER_TOOL_IDS.SET_ENVIRONMENT_VARIABLES,
+    displayConfig: {
+      states: {
+        pending: { displayName: 'Set environment variables', icon: 'edit' },
+        executing: { displayName: 'Setting environment variables', icon: 'loader' },
+        accepted: { displayName: 'Setting environment variables', icon: 'edit' },
+        success: { displayName: 'Set environment variables', icon: 'check' },
+        rejected: { displayName: 'Skipped setting environment variables', icon: 'skip' },
+        errored: { displayName: 'Failed to set environment variables', icon: 'error' },
+        background: { displayName: 'Setting environment variables in background', icon: 'background' },
+      }
+    },
+    schema: {
+      name: SERVER_TOOL_IDS.SET_ENVIRONMENT_VARIABLES,
+      description: 'Set environment variables for the workflow',
+      parameters: {
+        type: 'object',
+        properties: {
+          variables: {
+            type: 'object',
+            description: 'Key-value pairs of environment variables to set',
+            additionalProperties: {
+              type: 'string'
+            }
+          }
+        },
+        required: ['variables']
+      }
+    },
+    requiresInterrupt: true,
   },
 
   [SERVER_TOOL_IDS.GET_WORKFLOW_CONSOLE]: {

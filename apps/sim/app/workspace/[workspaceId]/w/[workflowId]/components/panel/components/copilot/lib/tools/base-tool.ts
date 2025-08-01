@@ -4,7 +4,7 @@
 
 import type { 
   Tool, 
-  ToolCall, 
+  CopilotToolCall, 
   ToolConfirmResponse, 
   ToolExecuteResult, 
   ToolMetadata, 
@@ -54,12 +54,12 @@ export abstract class BaseTool implements Tool {
   /**
    * Execute the tool - must be implemented by each tool
    */
-  abstract execute(toolCall: ToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult>
+  abstract execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult>
 
   /**
    * Get the display name for the current state
    */
-  getDisplayName(toolCall: ToolCall): string {
+  getDisplayName(toolCall: CopilotToolCall): string {
     const { state, parameters = {} } = toolCall
     const { displayConfig } = this.metadata
 
@@ -82,7 +82,7 @@ export abstract class BaseTool implements Tool {
   /**
    * Get the icon for the current state
    */
-  getIcon(toolCall: ToolCall): string {
+  getIcon(toolCall: CopilotToolCall): string {
     const { state } = toolCall
     const stateConfig = this.metadata.displayConfig.states[state]
     
@@ -93,7 +93,7 @@ export abstract class BaseTool implements Tool {
   /**
    * Check if tool requires confirmation in current state
    */
-  requiresConfirmation(toolCall: ToolCall): boolean {
+  requiresConfirmation(toolCall: CopilotToolCall): boolean {
     // Only show confirmation UI if tool requires interrupt and is in pending state
     return this.metadata.requiresInterrupt && toolCall.state === 'pending'
   }
@@ -102,7 +102,7 @@ export abstract class BaseTool implements Tool {
    * Handle user action (run/skip/background)
    */
   async handleUserAction(
-    toolCall: ToolCall,
+    toolCall: CopilotToolCall,
     action: 'run' | 'skip' | 'background',
     options?: ToolExecutionOptions
   ): Promise<void> {
@@ -139,7 +139,7 @@ export abstract class BaseTool implements Tool {
    * Execute with proper state management
    */
   protected async executeWithStateManagement(
-    toolCall: ToolCall,
+    toolCall: CopilotToolCall,
     options?: ToolExecutionOptions
   ): Promise<void> {
     // Update to executing state

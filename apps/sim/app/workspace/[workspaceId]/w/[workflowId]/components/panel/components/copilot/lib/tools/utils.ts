@@ -23,7 +23,7 @@ import {
   Zap,
   type LucideIcon
 } from 'lucide-react'
-import type { ToolCall, ToolState } from './types'
+import type { CopilotToolCall, ToolState } from './types'
 import { toolRegistry } from './registry'
 
 /**
@@ -59,7 +59,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
 /**
  * Get the React icon component for a tool state
  */
-export function getToolIcon(toolCall: ToolCall): LucideIcon {
+export function getToolIcon(toolCall: CopilotToolCall): LucideIcon {
   const tool = toolRegistry.getTool(toolCall.name)
   if (!tool) return ICON_MAP.default
 
@@ -70,7 +70,7 @@ export function getToolIcon(toolCall: ToolCall): LucideIcon {
 /**
  * Get the display name for a tool in its current state
  */
-export function getToolDisplayName(toolCall: ToolCall): string {
+export function getToolDisplayName(toolCall: CopilotToolCall): string {
   const tool = toolRegistry.getTool(toolCall.name)
   if (!tool) return toolCall.name
 
@@ -80,11 +80,16 @@ export function getToolDisplayName(toolCall: ToolCall): string {
 /**
  * Check if a tool requires user confirmation in its current state
  */
-export function toolRequiresConfirmation(toolCall: ToolCall): boolean {
+export function toolRequiresConfirmation(toolCall: CopilotToolCall): boolean {
   const tool = toolRegistry.getTool(toolCall.name)
-  if (!tool) return false
-
-  return tool.requiresConfirmation(toolCall)
+  if (tool) {
+    // Client-side tool
+    return tool.requiresConfirmation(toolCall)
+  }
+  
+  // Server-side tool - check if it requires interrupt and is in pending state
+  const requiresInterrupt = toolRegistry.requiresInterrupt(toolCall.name)
+  return requiresInterrupt && toolCall.state === 'pending'
 }
 
 /**
@@ -121,7 +126,7 @@ export function getToolStateClasses(state: ToolState): string {
 /**
  * Render the appropriate icon for a tool state
  */
-export function renderToolStateIcon(toolCall: ToolCall, className: string = 'h-3 w-3'): React.ReactElement {
+export function renderToolStateIcon(toolCall: CopilotToolCall, className: string = 'h-3 w-3'): React.ReactElement {
   const Icon = getToolIcon(toolCall)
   const stateClasses = getToolStateClasses(toolCall.state)
   
@@ -145,7 +150,7 @@ export function renderToolStateIcon(toolCall: ToolCall, className: string = 'h-3
  * Handle tool execution with proper state management
  */
 export async function executeToolWithStateManagement(
-  toolCall: ToolCall,
+  toolCall: CopilotToolCall,
   action: 'run' | 'skip' | 'background',
   options: {
     onStateChange: (state: ToolState) => void
@@ -168,7 +173,7 @@ export async function executeToolWithStateManagement(
  * Props for the tool confirmation component
  */
 export interface ToolConfirmationProps {
-  toolCall: ToolCall
+  toolCall: CopilotToolCall
   onAction: (action: 'run' | 'skip' | 'background') => void
   isProcessing?: boolean
   showBackground?: boolean

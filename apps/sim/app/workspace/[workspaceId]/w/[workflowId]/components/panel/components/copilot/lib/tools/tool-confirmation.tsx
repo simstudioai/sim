@@ -8,11 +8,13 @@
 import React, { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { ToolCall } from './types'
+import type { CopilotToolCall } from './types'
 import { executeToolWithStateManagement } from './utils'
+import { notifyServerTool } from './notification-utils'
+import { toolRegistry } from './registry'
 
 interface ToolConfirmationProps {
-  toolCall: ToolCall
+  toolCall: CopilotToolCall
   onStateChange: (state: any) => void
   context?: Record<string, any>
   onConfirm?: () => void
@@ -48,11 +50,36 @@ export function ToolConfirmation({
         onConfirm()
       }
 
-      // Execute the tool with state management
-      await executeToolWithStateManagement(toolCall, action, {
-        onStateChange,
-        context
-      })
+      // Check if this is a server tool or client tool
+      const isClientTool = toolRegistry.getTool(toolCall.name) !== undefined
+      
+      if (isClientTool) {
+        // For client tools, use the existing state management system
+        await executeToolWithStateManagement(toolCall, action, {
+          onStateChange,
+          context
+        })
+      } else {
+        // For server tools, use the notification system
+        const toolState = action === 'run' ? 'accepted' : 'rejected'
+        const uiState = action === 'run' ? 'accepted' : 'rejected'
+        
+        // Update UI state
+        onStateChange(uiState)
+        
+        try {
+          await notifyServerTool(toolCall.id, toolCall.name, toolState)
+          console.log(`Server tool ${toolCall.id} ${action === 'run' ? 'accepted' : 'rejected'}`)
+        } catch (error) {
+          console.error(`Failed to notify server tool ${toolCall.id}:`, error)
+          // Don't throw error for rejections - user explicitly chose to reject
+          if (action === 'skip') {
+            console.log(`Tool ${toolCall.id} rejected by user (notification error ignored)`)
+            return
+          }
+          throw error
+        }
+      }
     } finally {
       setIsProcessing(false)
       setIsMovingToBackground(false)

@@ -6,7 +6,7 @@
 // Core types and interfaces
 export type {
   Tool,
-  ToolCall,
+  CopilotToolCall,
   ToolState,
   ToolMetadata,
   ToolSchema,
@@ -24,7 +24,6 @@ export { BaseTool } from './base-tool'
 export { toolRegistry, ToolRegistry } from './registry'
 
 // Client tool implementations
-export { SetEnvironmentVariablesTool } from './client-tools/set-environment-variables'
 export { RunWorkflowTool } from './client-tools/run-workflow'
 
 // Server tool definitions

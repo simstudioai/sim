@@ -19,7 +19,7 @@ export class RunWorkflowTool extends BaseTool {
     displayConfig: {
       states: {
         pending: {
-          displayName: 'Running workflow',
+          displayName: 'Run workflow?',
           icon: 'play'
         },
         executing: {
@@ -46,41 +46,6 @@ export class RunWorkflowTool extends BaseTool {
           displayName: 'Running workflow in background',
           icon: 'background'
         }
-      },
-      // Dynamic display name based on parameters
-      getDynamicDisplayName: (state, params: any) => {
-        const { description, workflowId } = params as RunWorkflowParams
-        
-        let descriptor = ''
-        if (description) {
-          descriptor = description.length > 30
-            ? `${description.substring(0, 30)}...`
-            : description
-        } else if (workflowId) {
-          descriptor = workflowId.length > 20
-            ? `${workflowId.substring(0, 20)}...`
-            : workflowId
-        }
-
-        if (!descriptor) return null // Use default state display name
-
-        // Return dynamic names based on state
-        switch (state) {
-          case 'pending':
-          case 'executing':
-          case 'accepted':
-            return `Running workflow: ${descriptor}`
-          case 'success':
-            return `Executed workflow: ${descriptor}`
-          case 'rejected':
-            return `Skipped workflow: ${descriptor}`
-          case 'errored':
-            return `Failed to execute workflow: ${descriptor}`
-          case 'background':
-            return `Running workflow in background: ${descriptor}`
-          default:
-            return null
-        }
       }
     },
     schema: {
@@ -105,7 +70,13 @@ export class RunWorkflowTool extends BaseTool {
         required: []
       }
     },
-    requiresInterrupt: true
+    requiresInterrupt: true,
+    stateMessages: {
+      success: 'Workflow successfully executed',
+      background: 'User moved workflow exectuion to background. The workflow execution is not complete, but will continue to run in the background.',
+      error: 'Error during workflow execution',
+      rejected: 'The user chose to skip the workflow execution'
+    }
   }
 
   /**
