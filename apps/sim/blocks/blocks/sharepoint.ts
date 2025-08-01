@@ -159,8 +159,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     pageSize: { type: 'number', required: false },
   },
   outputs: {
-    page: 'json',
-    content: 'json',
     sites: 'json',
   },
 }
