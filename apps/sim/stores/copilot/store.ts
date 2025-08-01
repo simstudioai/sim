@@ -403,7 +403,7 @@ function handleToolFailure(toolCall: any, error: string): void {
     return
   }
 
-  toolCall.state = 'error'
+  toolCall.state = 'errored'
   toolCall.error = error
 
   // Update displayName to match the error state
@@ -449,7 +449,7 @@ function setToolCallState(toolCall: any, newState: string, options: {
       }
       break
       
-    case 'error':
+    case 'errored':
       toolCall.endTime = Date.now()
       toolCall.duration = toolCall.endTime - toolCall.startTime
       if (error) {
@@ -707,7 +707,7 @@ const sseHandlers: Record<string, SSEHandler> = {
       // finalizeToolCall(toolCall, true, parsedResult, get)
     } else {
       // NEW LOGIC: Use centralized state management  
-      setToolCallState(toolCall, 'error', { error: result || 'Tool execution failed' })
+      setToolCallState(toolCall, 'errored', { error: result || 'Tool execution failed' })
       
       // COMMENTED OUT OLD LOGIC:
       // handleToolFailure(toolCall, result || 'Tool execution failed')
@@ -1737,16 +1737,16 @@ export const useCopilotStore = create<CopilotStore>()(
           // Find the last streaming message and mark any executing tool calls as aborted
           const lastMessage = messages[messages.length - 1]
           if (lastMessage && lastMessage.role === 'assistant') {
-            // Mark any executing tool calls as errors (more LLM-friendly than "aborted")
+            // Mark any executing tool calls as aborted
             const updatedToolCalls =
               lastMessage.toolCalls?.map((toolCall) =>
                 toolCall.state === 'executing'
                   ? {
                       ...toolCall,
-                      state: 'error' as const,
+                      state: 'aborted' as const,
                       endTime: Date.now(),
                       error: 'Operation was interrupted by user action',
-                      displayName: getToolDisplayNameByState({ ...toolCall, state: 'error' }),
+                      displayName: getToolDisplayNameByState({ ...toolCall, state: 'aborted' }),
                     }
                   : toolCall
               ) || []
@@ -1759,12 +1759,12 @@ export const useCopilotStore = create<CopilotStore>()(
                       ...block,
                       toolCall: {
                         ...block.toolCall,
-                        state: 'error' as const,
+                        state: 'aborted' as const,
                         endTime: Date.now(),
                         error: 'Operation was interrupted by user action',
                         displayName: getToolDisplayNameByState({
                           ...block.toolCall,
-                          state: 'error',
+                          state: 'aborted',
                         }),
                       },
                     }
@@ -1772,7 +1772,7 @@ export const useCopilotStore = create<CopilotStore>()(
               ) || []
 
             const abortedCount = updatedToolCalls.filter(
-              (tc) => tc.state === 'error' && tc.error?.includes('interrupted')
+              (tc) => tc.state === 'aborted' && typeof tc.error === 'string' && tc.error.includes('interrupted')
             ).length
 
             // Check if the assistant message has any meaningful content
@@ -1782,42 +1782,23 @@ export const useCopilotStore = create<CopilotStore>()(
                 .map((block) => block.content)
                 .join('') || ''
 
-            const hasContent = textContent.trim().length > 0
-            const hasCompletedToolCalls = updatedToolCalls.some(
-              (tc) =>
-                tc.state === 'completed' ||
-                tc.state === 'applied' ||
-                tc.state === 'ready_for_review'
-            )
-
-            if (!hasContent && !hasCompletedToolCalls) {
-              // Remove the incomplete assistant message entirely - cleaner for user and LLM
-              set((state) => ({
-                messages: state.messages.filter((msg) => msg.id !== lastMessage.id),
-                isSendingMessage: false,
-                isAborting: false,
-                abortController: null,
-              }))
-              logger.info('Removed incomplete assistant message after abort')
-            } else {
-              // Keep the message but clean it up
-              set((state) => ({
-                messages: state.messages.map((msg) =>
-                  msg.id === lastMessage.id
-                    ? {
-                        ...msg,
-                        content: textContent.trim(), // Use actual content, no fallback text
-                        toolCalls: updatedToolCalls,
-                        contentBlocks: updatedContentBlocks,
-                      }
-                    : msg
-                ),
-                isSendingMessage: false,
-                isAborting: false,
-                abortController: null,
-              }))
-              logger.info('Cleaned up assistant message after abort, keeping meaningful content')
-            }
+            // Always keep the message when aborted - user should see what was attempted
+            set((state) => ({
+              messages: state.messages.map((msg) =>
+                msg.id === lastMessage.id
+                  ? {
+                      ...msg,
+                      content: textContent.trim() || 'Message was aborted', // Show fallback if no content
+                      toolCalls: updatedToolCalls,
+                      contentBlocks: updatedContentBlocks,
+                    }
+                  : msg
+              ),
+              isSendingMessage: false,
+              isAborting: false,
+              abortController: null,
+            }))
+            logger.info('Preserved assistant message after abort to show what was attempted')
 
             logger.info(
               `Message streaming aborted successfully. ${abortedCount > 0 ? `Marked ${abortedCount} tool calls as interrupted.` : 'No tool calls were running.'}`
@@ -1828,14 +1809,13 @@ export const useCopilotStore = create<CopilotStore>()(
             if (currentChat) {
               try {
                 const currentMessages = get().messages
-                const wasMessageRemoved = !hasContent && !hasCompletedToolCalls
 
                 // Validate and clean messages before saving using helper function
                 const dbMessages = validateMessagesForLLM(currentMessages)
 
                 logger.info('💾 Saving cleaned message state after abort:', {
                   messageCount: dbMessages.length,
-                  removedIncompleteMessage: wasMessageRemoved,
+                  preservedMessage: true, // Messages are always preserved on abort
                 })
 
                 fetch('/api/copilot/chat/update-messages', {
@@ -1882,7 +1862,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Send implicit feedback
       sendImplicitFeedback: async (
         implicitFeedback: string,
-        toolCallState?: 'applied' | 'rejected' | 'error'
+        toolCallState?: 'applied' | 'rejected' | 'errored'
       ) => {
         const { workflowId, currentChat, mode } = get()
 
@@ -1963,7 +1943,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Update preview tool call state
       updatePreviewToolCallState: (
-        toolCallState: 'applied' | 'rejected' | 'error',
+        toolCallState: 'applied' | 'rejected' | 'errored',
         toolCallId?: string
       ) => {
         const { messages } = get()

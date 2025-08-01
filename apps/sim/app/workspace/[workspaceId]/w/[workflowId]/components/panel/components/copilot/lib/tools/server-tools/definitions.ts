@@ -37,6 +37,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Searched documentation', icon: 'file' },
         rejected: { displayName: 'Skipped documentation search', icon: 'skip' },
         errored: { displayName: 'Failed to search documentation', icon: 'error' },
+        aborted: { displayName: 'Documentation search aborted', icon: 'x' },
       }
     },
     schema: {
@@ -54,6 +55,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Analyzed workflow', icon: 'workflow' },
         rejected: { displayName: 'Skipped workflow analysis', icon: 'skip' },
         errored: { displayName: 'Failed to analyze workflow', icon: 'error' },
+        aborted: { displayName: 'Workflow analysis aborted', icon: 'x' },
       }
     },
     schema: {
@@ -72,6 +74,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Built workflow', icon: 'network' },
         rejected: { displayName: 'Rejected workflow changes', icon: 'skip' },
         errored: { displayName: 'Failed to build workflow', icon: 'error' },
+        aborted: { displayName: 'Workflow build aborted', icon: 'x' },
       }
     },
     schema: {
@@ -90,6 +93,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Edited workflow', icon: 'network' },
         rejected: { displayName: 'Rejected workflow changes', icon: 'skip' },
         errored: { displayName: 'Failed to edit workflow', icon: 'error' },
+        aborted: { displayName: 'Workflow edit aborted', icon: 'x' },
       }
     },
     schema: {
@@ -107,6 +111,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Retrieved block information', icon: 'blocks' },
         rejected: { displayName: 'Skipped getting block information', icon: 'skip' },
         errored: { displayName: 'Failed to get block information', icon: 'error' },
+        aborted: { displayName: 'Block information retrieval aborted', icon: 'x' },
       }
     },
     schema: {
@@ -124,6 +129,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Retrieved block metadata', icon: 'blocks' },
         rejected: { displayName: 'Skipped getting block metadata', icon: 'skip' },
         errored: { displayName: 'Failed to get block metadata', icon: 'error' },
+        aborted: { displayName: 'Block metadata retrieval aborted', icon: 'x' },
       }
     },
     schema: {
@@ -141,6 +147,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Analyzed workflow structure', icon: 'tree' },
         rejected: { displayName: 'Skipped workflow structure analysis', icon: 'skip' },
         errored: { displayName: 'Failed to analyze workflow structure', icon: 'error' },
+        aborted: { displayName: 'Workflow structure analysis aborted', icon: 'x' },
       }
     },
     schema: {
@@ -158,6 +165,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Viewed workflow examples', icon: 'gitbranch' },
         rejected: { displayName: 'Skipped workflow examples', icon: 'skip' },
         errored: { displayName: 'Failed to view workflow examples', icon: 'error' },
+        aborted: { displayName: 'Workflow examples viewing aborted', icon: 'x' },
       }
     },
     schema: {
@@ -176,6 +184,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Viewed workflow examples', icon: 'gitbranch' },
         rejected: { displayName: 'Skipped workflow examples', icon: 'skip' },
         errored: { displayName: 'Failed to view workflow examples', icon: 'error' },
+        aborted: { displayName: 'Workflow examples viewing aborted', icon: 'x' },
       }
     },
     schema: {
@@ -193,6 +202,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Found environment variables', icon: 'settings' },
         rejected: { displayName: 'Skipped viewing environment variables', icon: 'skip' },
         errored: { displayName: 'Failed to get environment variables', icon: 'error' },
+        aborted: { displayName: 'Environment variables viewing aborted', icon: 'x' },
       }
     },
     schema: {
@@ -213,6 +223,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         rejected: { displayName: 'Skipped setting environment variables', icon: 'skip' },
         errored: { displayName: 'Failed to set environment variables', icon: 'error' },
         background: { displayName: 'Setting environment variables in background', icon: 'background' },
+        aborted: { displayName: 'Environment variables setting aborted', icon: 'x' },
       }
     },
     schema: {
@@ -243,6 +254,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Read workflow console', icon: 'terminal' },
         rejected: { displayName: 'Skipped reading workflow console', icon: 'skip' },
         errored: { displayName: 'Failed to read workflow console', icon: 'error' },
+        aborted: { displayName: 'Workflow console reading aborted', icon: 'x' },
       }
     },
     schema: {
@@ -260,6 +272,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         success: { displayName: 'Searched online', icon: 'globe' },
         rejected: { displayName: 'Skipped online search', icon: 'skip' },
         errored: { displayName: 'Failed to search online', icon: 'error' },
+        aborted: { displayName: 'Online search aborted', icon: 'x' },
       }
     },
     schema: {

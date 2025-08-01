@@ -20,10 +20,9 @@ export type ToolState =
   | 'applied'      // Applied/executed successfully
   | 'rejected'     // User rejected/skipped
   | 'errored'      // Failed with error
-  | 'error'        // Failed with error (legacy)
   | 'background'   // Moved to background execution
   | 'ready_for_review' // Ready for review (workflow tools)
-  | 'aborted'      // Aborted
+  | 'aborted'      // Operation aborted (e.g., due to page refresh during diff view)
 
 /**
  * Tool call interface for copilot
@@ -207,10 +206,10 @@ export interface CopilotActions {
   abortMessage: () => void
   sendImplicitFeedback: (
     implicitFeedback: string,
-    toolCallState?: 'applied' | 'rejected' | 'error'
+    toolCallState?: 'applied' | 'rejected' | 'errored'
   ) => Promise<void>
   updatePreviewToolCallState: (
-    toolCallState: 'applied' | 'rejected' | 'error',
+    toolCallState: 'applied' | 'rejected' | 'errored',
     toolCallId?: string
   ) => void
   setToolCallState: (toolCall: any, newState: string, options?: any) => void
