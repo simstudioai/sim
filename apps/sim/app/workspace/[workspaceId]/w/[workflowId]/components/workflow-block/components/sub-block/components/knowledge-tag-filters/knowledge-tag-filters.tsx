@@ -6,13 +6,6 @@ import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
@@ -28,7 +21,6 @@ interface TagFilterRow {
   id: string
   cells: {
     tagName: string
-    type: string
     value: string
   }
 }
@@ -68,6 +60,9 @@ export function KnowledgeTagFilters({
     element?: HTMLElement | null
   } | null>(null)
 
+  // State for dropdown visibility - one for each row
+  const [dropdownStates, setDropdownStates] = useState<Record<number, boolean>>({})
+
   // Parse the current value to extract filters
   const parseFilters = (filterValue: string | null): TagFilter[] => {
     if (!filterValue) return []
@@ -88,14 +83,13 @@ export function KnowledgeTagFilters({
           id: filter.id,
           cells: {
             tagName: filter.tagName || '',
-            type: 'text', // Always text for filters
             value: filter.tagValue || '',
           },
         }))
       : [
           {
             id: 'empty-row-0',
-            cells: { tagName: '', type: 'text', value: '' },
+            cells: { tagName: '', value: '' },
           },
         ]
 
@@ -171,29 +165,72 @@ export function KnowledgeTagFilters({
 
   const renderTagNameCell = (row: TagFilterRow, rowIndex: number) => {
     const cellValue = row.cells.tagName || ''
+    const showDropdown = dropdownStates[rowIndex] || false
+
+    const setShowDropdown = (show: boolean) => {
+      setDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
+    }
+
+    const handleDropdownClick = (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!disabled && !isConnecting && !isLoading) {
+        if (!showDropdown) {
+          setShowDropdown(true)
+        }
+      }
+    }
+
+    const handleFocus = () => {
+      if (!disabled && !isConnecting && !isLoading) {
+        setShowDropdown(true)
+      }
+    }
+
+    const handleBlur = () => {
+      // Delay closing to allow dropdown selection
+      setTimeout(() => setShowDropdown(false), 150)
+    }
 
     return (
       <td className='relative border-r p-1'>
         <div className='relative w-full'>
-          <Select
+          <Input
             value={cellValue}
-            onValueChange={(value) => handleCellChange(rowIndex, 'tagName', value)}
+            readOnly
             disabled={disabled || isConnecting || isLoading}
-          >
-            <SelectTrigger className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0 [&>svg]:hidden'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {tagDefinitions.map((tag) => (
-                <SelectItem key={tag.id} value={tag.displayName}>
-                  {tag.displayName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+            onClick={handleDropdownClick}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+          />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
+            <div className='whitespace-pre'>{formatDisplayText(cellValue || 'Select tag')}</div>
           </div>
+          {showDropdown && tagDefinitions.length > 0 && (
+            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
+              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
+                <div
+                  className='allow-scroll max-h-48 overflow-y-auto p-1'
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  {tagDefinitions.map((tag) => (
+                    <div
+                      key={tag.id}
+                      className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleCellChange(rowIndex, 'tagName', tag.displayName)
+                        setShowDropdown(false)
+                      }}
+                    >
+                      <span className='flex-1 truncate'>{tag.displayName}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </td>
     )

@@ -5,26 +5,12 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { MAX_TAG_SLOTS } from '@/lib/constants/knowledge'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
-
-export interface DocumentTag {
-  slot: string
-  displayName: string
-  fieldType: string
-  value: string
-}
 
 interface DocumentTagRow {
   id: string
@@ -63,6 +49,8 @@ export function DocumentTagEntry({
 
   // State for dropdown visibility - one for each row
   const [dropdownStates, setDropdownStates] = useState<Record<number, boolean>>({})
+  // State for type dropdown visibility - one for each row
+  const [typeDropdownStates, setTypeDropdownStates] = useState<Record<number, boolean>>({})
 
   // State for managing tag dropdown
   const [activeTagDropdown, setActiveTagDropdown] = useState<{
@@ -248,8 +236,8 @@ export function DocumentTagEntry({
   const renderHeader = () => (
     <thead>
       <tr className='border-b'>
-        <th className='border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
-        <th className='border-r px-4 py-2 text-center font-medium text-sm'>Type</th>
+        <th className='w-2/5 border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
+        <th className='w-1/5 border-r px-4 py-2 text-center font-medium text-sm'>Type</th>
         <th className='px-4 py-2 text-center font-medium text-sm'>Value</th>
       </tr>
     </thead>
@@ -264,14 +252,35 @@ export function DocumentTagEntry({
       setDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
     }
 
+    const handleDropdownClick = (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!disabled && !isConnecting) {
+        if (!showDropdown) {
+          setShowDropdown(true)
+        }
+      }
+    }
+
+    const handleFocus = () => {
+      if (!disabled && !isConnecting) {
+        setShowDropdown(true)
+      }
+    }
+
+    const handleBlur = () => {
+      // Delay closing to allow dropdown selection
+      setTimeout(() => setShowDropdown(false), 150)
+    }
+
     return (
       <td className='relative border-r p-1'>
         <div className='relative w-full'>
           <Input
             value={cellValue}
             onChange={(e) => handleCellChange(rowIndex, 'tagName', e.target.value)}
-            onFocus={() => setShowDropdown(true)}
-            onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             disabled={disabled || isConnecting}
             className={cn(
               'w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0',
@@ -282,23 +291,31 @@ export function DocumentTagEntry({
             <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
           </div>
           {showDropdown && availableTagDefinitions.length > 0 && (
-            <div className='absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover shadow-md'>
-              {availableTagDefinitions
-                .filter((tagDef) =>
-                  tagDef.displayName.toLowerCase().includes(cellValue.toLowerCase())
-                )
-                .map((tagDef) => (
-                  <div
-                    key={tagDef.id}
-                    className='cursor-pointer px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground'
-                    onMouseDown={() => {
-                      handleCellChange(rowIndex, 'tagName', tagDef.displayName)
-                      setShowDropdown(false)
-                    }}
-                  >
-                    {tagDef.displayName}
-                  </div>
-                ))}
+            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
+              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
+                <div
+                  className='allow-scroll max-h-48 overflow-y-auto p-1'
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  {availableTagDefinitions
+                    .filter((tagDef) =>
+                      tagDef.displayName.toLowerCase().includes(cellValue.toLowerCase())
+                    )
+                    .map((tagDef) => (
+                      <div
+                        key={tagDef.id}
+                        className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          handleCellChange(rowIndex, 'tagName', tagDef.displayName)
+                          setShowDropdown(false)
+                        }}
+                      >
+                        <span className='flex-1 truncate'>{tagDef.displayName}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -316,26 +333,76 @@ export function DocumentTagEntry({
     )
     const isReadOnly = !!existingTag
 
+    const showTypeDropdown = typeDropdownStates[rowIndex] || false
+
+    const setShowTypeDropdown = (show: boolean) => {
+      setTypeDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
+    }
+
+    const handleTypeDropdownClick = (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!disabled && !isConnecting && !isReadOnly) {
+        if (!showTypeDropdown) {
+          setShowTypeDropdown(true)
+        }
+      }
+    }
+
+    const handleTypeFocus = () => {
+      if (!disabled && !isConnecting && !isReadOnly) {
+        setShowTypeDropdown(true)
+      }
+    }
+
+    const handleTypeBlur = () => {
+      // Delay closing to allow dropdown selection
+      setTimeout(() => setShowTypeDropdown(false), 150)
+    }
+
+    const typeOptions = [{ value: 'text', label: 'Text' }]
+
     return (
       <td className='border-r p-1'>
         <div className='relative w-full'>
-          <Select
+          <Input
             value={cellValue}
-            onValueChange={(value) => handleCellChange(rowIndex, 'type', value)}
+            readOnly
             disabled={disabled || isConnecting || isReadOnly}
-          >
-            <SelectTrigger className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0 [&>svg]:hidden'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='text'>Text</SelectItem>
-            </SelectContent>
-          </Select>
+            className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+            onClick={handleTypeDropdownClick}
+            onFocus={handleTypeFocus}
+            onBlur={handleTypeBlur}
+          />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
             <div className='whitespace-pre text-muted-foreground'>
               {formatDisplayText(cellValue)}
             </div>
           </div>
+          {showTypeDropdown && !isReadOnly && (
+            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
+              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
+                <div
+                  className='allow-scroll max-h-48 overflow-y-auto p-1'
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  {typeOptions.map((option) => (
+                    <div
+                      key={option.value}
+                      className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleCellChange(rowIndex, 'type', option.value)
+                        setShowTypeDropdown(false)
+                      }}
+                    >
+                      <span className='flex-1 truncate'>{option.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </td>
     )
