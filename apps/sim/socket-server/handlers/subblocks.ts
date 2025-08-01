@@ -159,7 +159,7 @@ export function setupSubblocksHandlers(
     }
   })
 
-  // Handle immediate tag/dropdown selections (no database persistence, just broadcast)
+  // Handle immediate tag/dropdown selections (persist to database and broadcast)
   socket.on('tag-selection', async (data) => {
     const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
     const session = roomManager.getUserSession(socket.id)
