@@ -3,9 +3,9 @@ import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('DiffControls')
 
@@ -37,21 +37,21 @@ export function DiffControls() {
     if (!activeWorkflowId || !currentChat?.id) {
       logger.warn('Cannot create checkpoint: missing workflowId or chatId', {
         workflowId: activeWorkflowId,
-        chatId: currentChat?.id
+        chatId: currentChat?.id,
       })
       return false
     }
 
     try {
       logger.info('Creating checkpoint before accepting changes')
-      
+
       // Get current workflow state from the store and ensure it's complete
       const rawState = useWorkflowStore.getState().getWorkflowState()
-      
+
       // Merge subblock values from the SubBlockStore to get complete state
       // This ensures all user inputs and subblock data are captured
       const blocksWithSubblockValues = mergeSubblockState(rawState.blocks, activeWorkflowId)
-      
+
       // Filter and complete blocks to ensure all required fields are present
       // This matches the validation logic from /api/workflows/[id]/state
       const filteredBlocks = Object.entries(blocksWithSubblockValues).reduce(
@@ -62,7 +62,8 @@ export function DiffControls() {
               ...block,
               id: block.id || blockId, // Ensure id field is set
               enabled: block.enabled !== undefined ? block.enabled : true,
-              horizontalHandles: block.horizontalHandles !== undefined ? block.horizontalHandles : true,
+              horizontalHandles:
+                block.horizontalHandles !== undefined ? block.horizontalHandles : true,
               isWide: block.isWide !== undefined ? block.isWide : false,
               height: block.height !== undefined ? block.height : 90,
               subBlocks: block.subBlocks || {},
@@ -75,7 +76,7 @@ export function DiffControls() {
         },
         {} as typeof rawState.blocks
       )
-      
+
       // Clean the workflow state - only include valid fields, exclude null/undefined values
       const workflowState = {
         blocks: filteredBlocks,
@@ -87,48 +88,57 @@ export function DiffControls() {
         deploymentStatuses: rawState.deploymentStatuses || {},
         hasActiveWebhook: rawState.hasActiveWebhook || false,
         // Only include deployedAt if it's a valid date, never include null/undefined
-        ...(rawState.deployedAt && rawState.deployedAt instanceof Date 
-          ? { deployedAt: rawState.deployedAt } 
-          : {})
+        ...(rawState.deployedAt && rawState.deployedAt instanceof Date
+          ? { deployedAt: rawState.deployedAt }
+          : {}),
       }
-      
+
       logger.info('Prepared complete workflow state for checkpoint', {
         blocksCount: Object.keys(workflowState.blocks).length,
         edgesCount: workflowState.edges.length,
         loopsCount: Object.keys(workflowState.loops).length,
         parallelsCount: Object.keys(workflowState.parallels).length,
-        hasRequiredFields: Object.values(workflowState.blocks).every(block => 
-          block.id && block.type && block.name && block.position
+        hasRequiredFields: Object.values(workflowState.blocks).every(
+          (block) => block.id && block.type && block.name && block.position
         ),
-        hasSubblockValues: Object.values(workflowState.blocks).some(block =>
-          Object.values(block.subBlocks || {}).some(subblock => subblock.value !== null && subblock.value !== undefined)
+        hasSubblockValues: Object.values(workflowState.blocks).some((block) =>
+          Object.values(block.subBlocks || {}).some(
+            (subblock) => subblock.value !== null && subblock.value !== undefined
+          )
         ),
-        sampleBlock: Object.values(workflowState.blocks)[0]
+        sampleBlock: Object.values(workflowState.blocks)[0],
       })
-      
+
       // Find the most recent user message ID from the current chat
-      const userMessages = messages.filter(msg => msg.role === 'user')
+      const userMessages = messages.filter((msg) => msg.role === 'user')
       const lastUserMessage = userMessages[userMessages.length - 1]
       const messageId = lastUserMessage?.id
-      
+
       logger.info('Creating checkpoint with message association', {
         totalMessages: messages.length,
         userMessageCount: userMessages.length,
         lastUserMessageId: messageId,
         chatId: currentChat.id,
         entireMessageArray: messages,
-        allMessageIds: messages.map(m => ({ id: m.id, role: m.role, content: m.content.substring(0, 50) })),
-        selectedUserMessages: userMessages.map(m => ({ id: m.id, content: m.content.substring(0, 100) })),
-        allRawMessageIds: messages.map(m => m.id),
-        userMessageIds: userMessages.map(m => m.id),
+        allMessageIds: messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content.substring(0, 50),
+        })),
+        selectedUserMessages: userMessages.map((m) => ({
+          id: m.id,
+          content: m.content.substring(0, 100),
+        })),
+        allRawMessageIds: messages.map((m) => m.id),
+        userMessageIds: userMessages.map((m) => m.id),
         checkpointData: {
           workflowId: activeWorkflowId,
           chatId: currentChat.id,
           messageId: messageId,
-          messageFound: !!lastUserMessage
-        }
+          messageFound: !!lastUserMessage,
+        },
       })
-      
+
       const response = await fetch('/api/copilot/checkpoints', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -136,8 +146,8 @@ export function DiffControls() {
           workflowId: activeWorkflowId,
           chatId: currentChat.id,
           messageId,
-          workflowState: JSON.stringify(workflowState)
-        })
+          workflowState: JSON.stringify(workflowState),
+        }),
       })
 
       if (!response.ok) {
@@ -147,22 +157,29 @@ export function DiffControls() {
       const result = await response.json()
       const newCheckpoint = result.checkpoint
 
-      logger.info('Checkpoint created successfully', { messageId, chatId: currentChat.id, checkpointId: newCheckpoint?.id })
-      
+      logger.info('Checkpoint created successfully', {
+        messageId,
+        chatId: currentChat.id,
+        checkpointId: newCheckpoint?.id,
+      })
+
       // Update the copilot store immediately to show the checkpoint icon
       if (newCheckpoint && messageId) {
         const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
         const existingCheckpoints = currentCheckpoints[messageId] || []
-        
+
         const updatedCheckpoints = {
           ...currentCheckpoints,
-          [messageId]: [newCheckpoint, ...existingCheckpoints]
+          [messageId]: [newCheckpoint, ...existingCheckpoints],
         }
-        
+
         useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
-        logger.info('Updated copilot store with new checkpoint', { messageId, checkpointId: newCheckpoint.id })
+        logger.info('Updated copilot store with new checkpoint', {
+          messageId,
+          checkpointId: newCheckpoint.id,
+        })
       }
-      
+
       return true
     } catch (error) {
       logger.error('Failed to create checkpoint:', error)
@@ -174,15 +191,17 @@ export function DiffControls() {
     logger.info('Accepting proposed changes (optimistic)')
 
     // Create checkpoint in the background (don't await to avoid blocking)
-    createCheckpoint().then((checkpointCreated) => {
-      if (!checkpointCreated) {
-        logger.warn('Checkpoint creation failed, but proceeding with accept')
-      } else {
-        logger.info('Checkpoint created successfully before accept')
-      }
-    }).catch((error) => {
-      logger.error('Checkpoint creation failed:', error)
-    })
+    createCheckpoint()
+      .then((checkpointCreated) => {
+        if (!checkpointCreated) {
+          logger.warn('Checkpoint creation failed, but proceeding with accept')
+        } else {
+          logger.info('Checkpoint created successfully before accept')
+        }
+      })
+      .catch((error) => {
+        logger.error('Checkpoint creation failed:', error)
+      })
 
     // Clear preview YAML immediately
     clearPreviewYaml().catch((error) => {

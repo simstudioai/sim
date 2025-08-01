@@ -145,8 +145,16 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { message, userMessageId, chatId, workflowId, mode, createNewChat, stream, implicitFeedback } =
-      ChatMessageSchema.parse(body)
+    const {
+      message,
+      userMessageId,
+      chatId,
+      workflowId,
+      mode,
+      createNewChat,
+      stream,
+      implicitFeedback,
+    } = ChatMessageSchema.parse(body)
 
     logger.info(`[${requestId}] Processing copilot chat request`, {
       userId: authenticatedUserId,
@@ -354,15 +362,16 @@ export async function POST(req: NextRequest) {
                 if (line.startsWith('data: ') && line.length > 6) {
                   try {
                     const jsonStr = line.slice(6)
-                    
+
                     // Check if the JSON string is unusually large (potential streaming issue)
-                    if (jsonStr.length > 50000) { // 50KB limit
+                    if (jsonStr.length > 50000) {
+                      // 50KB limit
                       logger.warn(`[${requestId}] Large SSE event detected`, {
                         size: jsonStr.length,
-                        preview: jsonStr.substring(0, 100) + '...'
+                        preview: `${jsonStr.substring(0, 100)}...`,
                       })
                     }
-                    
+
                     const event = JSON.parse(jsonStr)
 
                     // Log different event types comprehensively
@@ -437,15 +446,21 @@ export async function POST(req: NextRequest) {
                     // Enhanced error handling for large payloads and parsing issues
                     const lineLength = line.length
                     const isLargePayload = lineLength > 10000
-                    
+
                     if (isLargePayload) {
-                      logger.error(`[${requestId}] Failed to parse large SSE event (${lineLength} chars)`, {
-                        error: e,
-                        preview: line.substring(0, 200) + '...',
-                        size: lineLength
-                      })
+                      logger.error(
+                        `[${requestId}] Failed to parse large SSE event (${lineLength} chars)`,
+                        {
+                          error: e,
+                          preview: `${line.substring(0, 200)}...`,
+                          size: lineLength,
+                        }
+                      )
                     } else {
-                      logger.warn(`[${requestId}] Failed to parse SSE event: "${line.substring(0, 200)}..."`, e)
+                      logger.warn(
+                        `[${requestId}] Failed to parse SSE event: "${line.substring(0, 200)}..."`,
+                        e
+                      )
                     }
                   }
                 } else if (line.trim() && line !== 'data: [DONE]') {
@@ -495,7 +510,9 @@ export async function POST(req: NextRequest) {
                   `[${requestId}] Saving assistant message with content (${assistantContent.length} chars) and ${toolCalls.length} tool calls`
                 )
               } else {
-                logger.info(`[${requestId}] No assistant content or tool calls to save (aborted before response)`)
+                logger.info(
+                  `[${requestId}] No assistant content or tool calls to save (aborted before response)`
+                )
               }
 
               // Update chat in database immediately (without title)

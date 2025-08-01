@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEnvironmentVariableKeys } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import { encryptSecret, decryptSecret } from '@/lib/utils'
+import { decryptSecret, encryptSecret } from '@/lib/utils'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { environment } from '@/db/schema'
@@ -79,7 +79,8 @@ export async function PUT(request: NextRequest) {
         .limit(1)
 
       // Start with existing encrypted variables or empty object
-      const existingEncryptedVariables = (existingData[0]?.variables as Record<string, string>) || {}
+      const existingEncryptedVariables =
+        (existingData[0]?.variables as Record<string, string>) || {}
 
       // Determine which variables are new or changed by comparing with decrypted existing values
       const variablesToEncrypt: Record<string, string> = {}
@@ -94,8 +95,10 @@ export async function PUT(request: NextRequest) {
         } else {
           // Check if the value has actually changed by decrypting the existing value
           try {
-            const { decrypted: existingValue } = await decryptSecret(existingEncryptedVariables[key])
-            
+            const { decrypted: existingValue } = await decryptSecret(
+              existingEncryptedVariables[key]
+            )
+
             if (existingValue !== newValue) {
               // Value changed, needs re-encryption
               variablesToEncrypt[key] = newValue
@@ -104,7 +107,10 @@ export async function PUT(request: NextRequest) {
             // If values are the same, keep the existing encrypted value
           } catch (decryptError) {
             // If we can't decrypt the existing value, treat as changed and re-encrypt
-            logger.warn(`[${requestId}] Could not decrypt existing variable ${key}, re-encrypting`, { error: decryptError })
+            logger.warn(
+              `[${requestId}] Could not decrypt existing variable ${key}, re-encrypting`,
+              { error: decryptError }
+            )
             variablesToEncrypt[key] = newValue
             updatedVariables.push(key)
           }

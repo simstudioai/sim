@@ -196,7 +196,10 @@ export interface CopilotActions {
     implicitFeedback: string,
     toolCallState?: 'applied' | 'rejected' | 'error'
   ) => Promise<void>
-  updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected' | 'error', toolCallId?: string) => void
+  updatePreviewToolCallState: (
+    toolCallState: 'applied' | 'rejected' | 'error',
+    toolCallId?: string
+  ) => void
   sendDocsMessage: (query: string, options?: SendDocsMessageOptions) => Promise<void>
   saveChatMessages: (chatId: string) => Promise<void>
 

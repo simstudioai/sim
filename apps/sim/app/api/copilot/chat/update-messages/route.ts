@@ -1,23 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
-import { db } from '@/db'
-import { copilotChats } from '@/db/schema'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { db } from '@/db'
+import { copilotChats } from '@/db/schema'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 
 const UpdateMessagesSchema = z.object({
   chatId: z.string(),
-  messages: z.array(z.object({
-    id: z.string(),
-    role: z.enum(['user', 'assistant']),
-    content: z.string(),
-    timestamp: z.string(),
-    toolCalls: z.array(z.any()).optional(),
-    contentBlocks: z.array(z.any()).optional(),
-  }))
+  messages: z.array(
+    z.object({
+      id: z.string(),
+      role: z.enum(['user', 'assistant']),
+      content: z.string(),
+      timestamp: z.string(),
+      toolCalls: z.array(z.any()).optional(),
+      contentBlocks: z.array(z.any()).optional(),
+    })
+  ),
 })
 
 export async function POST(req: NextRequest) {
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     logger.info(`[${requestId}] Updating chat messages`, {
       userId: session.user.id,
       chatId,
-      messageCount: messages.length
+      messageCount: messages.length,
     })
 
     // Verify that the chat belongs to the user
@@ -60,19 +62,15 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${requestId}] Successfully updated chat messages`, {
       chatId,
-      newMessageCount: messages.length
+      newMessageCount: messages.length,
     })
 
     return NextResponse.json({
       success: true,
-      messageCount: messages.length
+      messageCount: messages.length,
     })
-
   } catch (error) {
     logger.error(`[${requestId}] Error updating chat messages:`, error)
-    return NextResponse.json(
-      { error: 'Failed to update chat messages' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to update chat messages' }, { status: 500 })
   }
-} 
+}

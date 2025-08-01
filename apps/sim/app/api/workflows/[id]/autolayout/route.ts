@@ -4,14 +4,14 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { simAgentClient } from '@/lib/sim-agent'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -198,35 +198,48 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       dataKeys: autoLayoutResult.data ? Object.keys(autoLayoutResult.data) : [],
     })
 
-    if (!autoLayoutResult.success || (!autoLayoutResult.data?.workflowState && !autoLayoutResult.data?.blocks)) {
+    if (
+      !autoLayoutResult.success ||
+      (!autoLayoutResult.data?.workflowState && !autoLayoutResult.data?.blocks)
+    ) {
       logger.error(`[${requestId}] Auto layout failed:`, {
         success: autoLayoutResult.success,
         error: autoLayoutResult.error,
         status: autoLayoutResult.status,
         fullResponse: autoLayoutResult,
       })
-      const errorMessage = autoLayoutResult.error || 
-        (autoLayoutResult.status === 401 ? 'Unauthorized - check API key' : 
-         autoLayoutResult.status === 404 ? 'Sim-agent service not found' :
-         `HTTP ${autoLayoutResult.status}`)
-      
-      return NextResponse.json({ 
-        error: 'Auto layout failed',
-        details: errorMessage
-      }, { status: 500 })
+      const errorMessage =
+        autoLayoutResult.error ||
+        (autoLayoutResult.status === 401
+          ? 'Unauthorized - check API key'
+          : autoLayoutResult.status === 404
+            ? 'Sim-agent service not found'
+            : `HTTP ${autoLayoutResult.status}`)
+
+      return NextResponse.json(
+        {
+          error: 'Auto layout failed',
+          details: errorMessage,
+        },
+        { status: 500 }
+      )
     }
 
     // Handle both response formats from sim-agent
-    const layoutedBlocks = autoLayoutResult.data?.workflowState?.blocks || autoLayoutResult.data?.blocks
-    
+    const layoutedBlocks =
+      autoLayoutResult.data?.workflowState?.blocks || autoLayoutResult.data?.blocks
+
     if (!layoutedBlocks) {
       logger.error(`[${requestId}] No blocks returned from sim-agent:`, {
         responseData: autoLayoutResult.data,
       })
-      return NextResponse.json({ 
-        error: 'Auto layout failed',
-        details: 'No blocks returned from sim-agent'
-      }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: 'Auto layout failed',
+          details: 'No blocks returned from sim-agent',
+        },
+        { status: 500 }
+      )
     }
 
     const elapsed = Date.now() - startTime

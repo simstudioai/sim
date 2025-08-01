@@ -74,7 +74,7 @@ export async function exportWorkflow(format: EditorFormat): Promise<string> {
       // Use the YAML service for conversion
       const workflowState = useWorkflowStore.getState()
       const subBlockValues = getSubBlockValues()
-      
+
       // Call the API route to generate YAML (server has access to API key)
       const response = await fetch('/api/workflows/yaml/convert', {
         method: 'POST',
@@ -86,14 +86,14 @@ export async function exportWorkflow(format: EditorFormat): Promise<string> {
           subBlockValues,
         }),
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
         throw new Error(errorData?.error || `Failed to generate YAML: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
-      
+
       if (!result.success || !result.yaml) {
         throw new Error(result.error || 'Failed to generate YAML')
       }

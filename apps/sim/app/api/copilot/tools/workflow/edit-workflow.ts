@@ -340,7 +340,10 @@ async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowRes
 
   logger.info('Extracted subblock values', {
     blockCount: Object.keys(subBlockValues).length,
-    totalSubblocks: Object.values(subBlockValues).reduce((sum, blockValues) => sum + Object.keys(blockValues).length, 0),
+    totalSubblocks: Object.values(subBlockValues).reduce(
+      (sum, blockValues) => sum + Object.keys(blockValues).length,
+      0
+    ),
   })
 
   // Convert workflow state to YAML format using the same endpoint as the UI

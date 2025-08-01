@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { and, desc, eq } from 'drizzle-orm'
-import { db } from '@/db'
-import { copilotChats, workflowCheckpoints } from '@/db/schema'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { db } from '@/db'
+import { copilotChats, workflowCheckpoints } from '@/db/schema'
 
 const logger = createLogger('WorkflowCheckpointsAPI')
 
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       fullRequestBody: body,
       parsedData: { workflowId, chatId, messageId },
       messageIdType: typeof messageId,
-      messageIdExists: !!messageId
+      messageIdExists: !!messageId,
     })
 
     // Verify that the chat belongs to the user
@@ -81,8 +81,8 @@ export async function POST(req: NextRequest) {
         workflowId: checkpoint.workflowId,
         chatId: checkpoint.chatId,
         messageId: checkpoint.messageId,
-        createdAt: checkpoint.createdAt
-      }
+        createdAt: checkpoint.createdAt,
+      },
     })
 
     return NextResponse.json({
@@ -99,10 +99,7 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     logger.error(`[${requestId}] Failed to create workflow checkpoint:`, error)
-    return NextResponse.json(
-      { error: 'Failed to create checkpoint' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to create checkpoint' }, { status: 500 })
   }
 }
 
@@ -144,10 +141,7 @@ export async function GET(req: NextRequest) {
       })
       .from(workflowCheckpoints)
       .where(
-        and(
-          eq(workflowCheckpoints.chatId, chatId),
-          eq(workflowCheckpoints.userId, session.user.id)
-        )
+        and(eq(workflowCheckpoints.chatId, chatId), eq(workflowCheckpoints.userId, session.user.id))
       )
       .orderBy(desc(workflowCheckpoints.createdAt))
 
@@ -159,9 +153,6 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     logger.error(`[${requestId}] Failed to fetch workflow checkpoints:`, error)
-    return NextResponse.json(
-      { error: 'Failed to fetch checkpoints' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch checkpoints' }, { status: 500 })
   }
-} 
+}

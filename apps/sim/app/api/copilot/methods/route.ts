@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getRedisClient } from '@/lib/redis'
 import { copilotToolRegistry } from '../tools/registry'
 import { createErrorResponse } from './utils'
-import { getRedisClient } from '@/lib/redis'
 
 const logger = createLogger('CopilotMethodsAPI')
 
@@ -28,17 +28,17 @@ async function addToolToRedis(toolCallId: string): Promise<void> {
   try {
     const key = `tool_call:${toolCallId}`
     const status: ToolCallStatus = 'Pending'
-    
+
     // Store as JSON object for consistency with confirm API
     const toolCallData = {
       status,
       message: null,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }
-    
+
     // Set with 24 hour expiry (86400 seconds)
     await redis.set(key, JSON.stringify(toolCallData), 'EX', 86400)
-    
+
     logger.info('Tool call added to Redis', {
       toolCallId,
       key,
@@ -56,7 +56,9 @@ async function addToolToRedis(toolCallId: string): Promise<void> {
  * Poll Redis for tool call status updates
  * Returns when status changes to 'Accepted' or 'Rejected', or times out after 60 seconds
  */
-async function pollRedisForTool(toolCallId: string): Promise<{ status: ToolCallStatus; message?: string } | null> {
+async function pollRedisForTool(
+  toolCallId: string
+): Promise<{ status: ToolCallStatus; message?: string } | null> {
   const redis = getRedisClient()
   if (!redis) {
     logger.warn('pollRedisForTool: Redis client not available')
@@ -79,13 +81,13 @@ async function pollRedisForTool(toolCallId: string): Promise<{ status: ToolCallS
       const redisValue = await redis.get(key)
       if (!redisValue) {
         // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, pollInterval))
+        await new Promise((resolve) => setTimeout(resolve, pollInterval))
         continue
       }
 
       let status: ToolCallStatus | null = null
-      let message: string | undefined = undefined
-      
+      let message: string | undefined
+
       // Try to parse as JSON (new format), fallback to string (old format)
       try {
         const parsedData = JSON.parse(redisValue)
@@ -95,7 +97,7 @@ async function pollRedisForTool(toolCallId: string): Promise<{ status: ToolCallS
         // Fallback to old format (direct status string)
         status = redisValue as ToolCallStatus
       }
-      
+
       if (status === 'Accepted' || status === 'Rejected' || status === 'Error') {
         logger.info('Tool call status resolved', {
           toolCallId,
@@ -107,7 +109,7 @@ async function pollRedisForTool(toolCallId: string): Promise<{ status: ToolCallS
       }
 
       // Wait before next poll
-      await new Promise(resolve => setTimeout(resolve, pollInterval))
+      await new Promise((resolve) => setTimeout(resolve, pollInterval))
     } catch (error) {
       logger.error('Error polling Redis for tool call status', {
         toolCallId,
@@ -128,7 +130,9 @@ async function pollRedisForTool(toolCallId: string): Promise<{ status: ToolCallS
  * Handle tool calls that require user interruption/approval
  * Returns { approved: boolean, rejected: boolean, message?: string } to distinguish between rejection and timeout
  */
-async function interruptHandler(toolCallId: string): Promise<{ approved: boolean; rejected: boolean; message?: string }> {
+async function interruptHandler(
+  toolCallId: string
+): Promise<{ approved: boolean; rejected: boolean; message?: string }> {
   if (!toolCallId) {
     logger.error('interruptHandler: No tool call ID provided')
     return { approved: false, rejected: false }
@@ -269,7 +273,7 @@ export async function POST(req: NextRequest) {
 
       // Handle interrupt flow
       const { approved, rejected, message } = await interruptHandler(toolCallId)
-      
+
       if (rejected) {
         logger.info(`[${requestId}] Tool execution rejected by user`, {
           methodId,
@@ -277,11 +281,13 @@ export async function POST(req: NextRequest) {
           message,
         })
         return NextResponse.json(
-          createErrorResponse('The user decided to skip running this tool. This was a user decision.'),
+          createErrorResponse(
+            'The user decided to skip running this tool. This was a user decision.'
+          ),
           { status: 200 } // Changed to 200 - user rejection is a valid response
         )
       }
-      
+
       if (!approved) {
         logger.warn(`[${requestId}] Tool execution timed out`, {
           methodId,

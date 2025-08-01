@@ -75,9 +75,10 @@ async function getWorkflowConsole(
       level: log.level,
       message: log.message,
       // Truncate trigger data if it's too large to prevent streaming issues
-      trigger: typeof log.trigger === 'string' && log.trigger.length > 100 
-        ? log.trigger.substring(0, 100) + '...' 
-        : log.trigger,
+      trigger:
+        typeof log.trigger === 'string' && log.trigger.length > 100
+          ? `${log.trigger.substring(0, 100)}...`
+          : log.trigger,
       startedAt: log.startedAt,
       endedAt: log.endedAt,
       durationMs: log.totalDurationMs,
@@ -90,8 +91,10 @@ async function getWorkflowConsole(
 
     // Only include metadata if details are requested and it's not too large
     if (includeDetails && log.metadata) {
-      const metadataStr = typeof log.metadata === 'string' ? log.metadata : JSON.stringify(log.metadata)
-      if (metadataStr.length <= 500) { // Limit metadata size
+      const metadataStr =
+        typeof log.metadata === 'string' ? log.metadata : JSON.stringify(log.metadata)
+      if (metadataStr.length <= 500) {
+        // Limit metadata size
         entry.metadata = log.metadata
       }
     }
@@ -101,9 +104,9 @@ async function getWorkflowConsole(
 
   // Log the result size for monitoring
   const resultSize = JSON.stringify(formattedEntries).length
-  logger.info('Workflow console result prepared', { 
-    entryCount: formattedEntries.length, 
-    resultSizeKB: Math.round(resultSize / 1024) 
+  logger.info('Workflow console result prepared', {
+    entryCount: formattedEntries.length,
+    resultSizeKB: Math.round(resultSize / 1024),
   })
 
   return {

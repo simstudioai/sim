@@ -3,13 +3,14 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { type CopilotChat, sendStreamingMessage } from '@/lib/copilot/api'
-import type { CopilotMessage } from './types'
 import { createLogger } from '@/lib/logs/console/logger'
-import { COPILOT_TOOL_DISPLAY_NAMES, COPILOT_TOOL_PAST_TENSE, COPILOT_TOOL_ERROR_NAMES } from '@/stores/constants'
-import { COPILOT_TOOL_IDS } from './constants'
-import type { CopilotStore, WorkflowCheckpoint } from './types'
-import { toolRequiresInterrupt } from './constants'
-import { getSession } from '@/lib/auth'
+import {
+  COPILOT_TOOL_DISPLAY_NAMES,
+  COPILOT_TOOL_ERROR_NAMES,
+  COPILOT_TOOL_PAST_TENSE,
+} from '@/stores/constants'
+import { COPILOT_TOOL_IDS, toolRequiresInterrupt } from './constants'
+import type { CopilotMessage, CopilotStore, WorkflowCheckpoint } from './types'
 
 const logger = createLogger('CopilotStore')
 
@@ -49,7 +50,8 @@ class ObjectPool<T> {
   }
 
   release(obj: T): void {
-    if (this.pool.length < 20) { // Cap pool size
+    if (this.pool.length < 20) {
+      // Cap pool size
       this.pool.push(obj)
     }
   }
@@ -171,34 +173,36 @@ function handleStoreError(error: unknown, fallbackMessage: string): string {
  */
 function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
   return messages
-    .map(msg => {
+    .map((msg) => {
       // Build content from contentBlocks if content is empty
       let validContent = msg.content || ''
-      
+
       // For assistant messages, if content is empty but there are contentBlocks, build content from them
       if (msg.role === 'assistant' && !validContent.trim() && msg.contentBlocks?.length) {
         validContent = msg.contentBlocks
-          .filter(block => block.type === 'text')
-          .map(block => block.content)
+          .filter((block) => block.type === 'text')
+          .map((block) => block.content)
           .join('')
           .trim()
       }
-      
+
       return {
         id: msg.id,
         role: msg.role,
         content: validContent,
         timestamp: msg.timestamp,
         ...(msg.toolCalls && msg.toolCalls.length > 0 && { toolCalls: msg.toolCalls }),
-        ...(msg.contentBlocks && msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks })
+        ...(msg.contentBlocks &&
+          msg.contentBlocks.length > 0 && { contentBlocks: msg.contentBlocks }),
       }
     })
-    .filter(msg => {
+    .filter((msg) => {
       // Remove assistant messages with no meaningful content (aborted/incomplete messages)
       if (msg.role === 'assistant') {
         const hasContent = msg.content && msg.content.trim().length > 0
-        const hasCompletedTools = msg.toolCalls?.some(tc => 
-          tc.state === 'completed' || tc.state === 'applied' || tc.state === 'ready_for_review'
+        const hasCompletedTools = msg.toolCalls?.some(
+          (tc) =>
+            tc.state === 'completed' || tc.state === 'applied' || tc.state === 'ready_for_review'
         )
         return hasContent || hasCompletedTools
       }
@@ -220,27 +224,35 @@ function getToolDisplayName(toolName: string): string {
 function getToolDisplayNameByState(toolCall: any): string {
   const toolName = toolCall.name
   const state = toolCall.state
-  const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-  
+  const isWorkflowTool =
+    toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+
   if (state === 'ready_for_review' && isWorkflowTool) {
     // Special display for workflow tools awaiting review
     const baseText = COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
     return `${baseText} - ready for review`
-  } else if (state === 'applied' && isWorkflowTool) {
+  }
+  if (state === 'applied' && isWorkflowTool) {
     // Show completion/done state after accept
     return 'Applied workflow changes'
-  } else if (state === 'completed' || state === 'applied') {
+  }
+  if (state === 'completed' || state === 'applied') {
     // Regular tools and non-workflow applied states use past tense
     return COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
-  } else if (state === 'error') {
-    return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${getToolDisplayName(toolName).toLowerCase()}`
-  } else if (state === 'rejected') {
-    // Special handling for rejected workflow tools
-    return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
-  } else {
-    // For executing, aborted, etc. - use present tense
-    return getToolDisplayName(toolName)
   }
+  if (state === 'error') {
+    return (
+      COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${getToolDisplayName(toolName).toLowerCase()}`
+    )
+  }
+  if (state === 'rejected') {
+    // Special handling for rejected workflow tools
+    return isWorkflowTool
+      ? 'Rejected workflow changes'
+      : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
+  }
+  // For executing, aborted, etc. - use present tense
+  return getToolDisplayName(toolName)
 }
 
 /**
@@ -250,56 +262,72 @@ function getToolDisplayNameByState(toolCall: any): string {
  */
 function ensureToolCallDisplayNames(messages: CopilotMessage[]): CopilotMessage[] {
   console.log('[DEBUG] ensureToolCallDisplayNames called, processing', messages.length, 'messages')
-  
+
   return messages.map((message: CopilotMessage) => {
     if (message.role === 'assistant' && (message.toolCalls || message.contentBlocks)) {
       // Check for workflow tools before recalculating
-      const hasWorkflowTools = message.toolCalls?.some(tc => 
-        tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-      ) || message.contentBlocks?.some(block => 
-        block.type === 'tool_call' && 
-        (block as any).toolCall?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
-        (block as any).toolCall?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-      )
-      
+      const hasWorkflowTools =
+        message.toolCalls?.some(
+          (tc) =>
+            tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+            tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+        ) ||
+        message.contentBlocks?.some(
+          (block) =>
+            (block.type === 'tool_call' &&
+              (block as any).toolCall?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW) ||
+            (block as any).toolCall?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+        )
+
       if (hasWorkflowTools) {
-        console.log('[DEBUG] ensureToolCallDisplayNames found workflow tools in message:', message.id)
-        
+        console.log(
+          '[DEBUG] ensureToolCallDisplayNames found workflow tools in message:',
+          message.id
+        )
+
         // Log current states before recalculation
-        const workflowToolStates = message.contentBlocks?.filter(b => 
-          b.type === 'tool_call' && 
-          ((b as any).toolCall?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
-           (b as any).toolCall?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW)
-        ).map(b => ({ 
-          name: (b as any).toolCall.name, 
-          state: (b as any).toolCall.state, 
-          displayName: (b as any).toolCall.displayName 
-        }))
-        
-        console.log('[DEBUG] Current workflow tool states before recalculation:', workflowToolStates)
+        const workflowToolStates = message.contentBlocks
+          ?.filter(
+            (b) =>
+              b.type === 'tool_call' &&
+              ((b as any).toolCall?.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+                (b as any).toolCall?.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW)
+          )
+          .map((b) => ({
+            name: (b as any).toolCall.name,
+            state: (b as any).toolCall.state,
+            displayName: (b as any).toolCall.displayName,
+          }))
+
+        console.log(
+          '[DEBUG] Current workflow tool states before recalculation:',
+          workflowToolStates
+        )
       }
-      
+
       return {
         ...message,
         // Always recalculate displayName based on current state
         ...(message.toolCalls && {
           toolCalls: message.toolCalls.map((toolCall: any) => ({
             ...toolCall,
-            displayName: getToolDisplayNameByState(toolCall)
-          }))
+            displayName: getToolDisplayNameByState(toolCall),
+          })),
         }),
         // Always recalculate displayName based on current state
         ...(message.contentBlocks && {
-          contentBlocks: message.contentBlocks.map((block: any) => 
-            block.type === 'tool_call' ? {
-              ...block,
-              toolCall: {
-                ...block.toolCall,
-                displayName: getToolDisplayNameByState(block.toolCall)
-              }
-            } : block
-          )
-        })
+          contentBlocks: message.contentBlocks.map((block: any) =>
+            block.type === 'tool_call'
+              ? {
+                  ...block,
+                  toolCall: {
+                    ...block.toolCall,
+                    displayName: getToolDisplayNameByState(block.toolCall),
+                  },
+                }
+              : block
+          ),
+        }),
       }
     }
     return message
@@ -337,16 +365,23 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
  */
 function handleToolFailure(toolCall: any, error: string): void {
   // Don't override terminal states for workflow tools and interrupt tools
-  if ((WORKFLOW_TOOL_IDS.has(toolCall.name) || toolRequiresInterrupt(toolCall.name)) && 
-      (toolCall.state === 'applied' || toolCall.state === 'rejected')) {
+  if (
+    (WORKFLOW_TOOL_IDS.has(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
+    (toolCall.state === 'applied' || toolCall.state === 'rejected')
+  ) {
     // Tool is already in a terminal state, don't override it
-    logger.info('Tool call already in terminal state, preserving:', toolCall.id, toolCall.name, toolCall.state)
+    logger.info(
+      'Tool call already in terminal state, preserving:',
+      toolCall.id,
+      toolCall.name,
+      toolCall.state
+    )
     return
   }
-  
+
   toolCall.state = 'error'
   toolCall.error = error
-  
+
   // Update displayName to match the error state
   toolCall.displayName = getToolDisplayNameByState(toolCall)
 
@@ -371,40 +406,58 @@ function createToolCall(id: string, name: string, input: any = {}): any {
 /**
  * Helper function to finalize a tool call
  */
-function finalizeToolCall(toolCall: any, success: boolean, result?: any, get?: () => CopilotStore): void {
+function finalizeToolCall(
+  toolCall: any,
+  success: boolean,
+  result?: any,
+  get?: () => CopilotStore
+): void {
   toolCall.endTime = Date.now()
   toolCall.duration = toolCall.endTime - toolCall.startTime
 
   if (success) {
     toolCall.result = result
-    
+
     // For workflow tools and interrupt tools, check if they're already in a terminal state in the store
-    if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
-        toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW ||
-        toolRequiresInterrupt(toolCall.name)) {
+    if (
+      toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+      toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW ||
+      toolRequiresInterrupt(toolCall.name)
+    ) {
       // Get current state from store if get function is available
       if (get) {
         const state = get()
-        const currentMessage = state.messages.find((msg: any) => 
-          msg.toolCalls?.some((tc: any) => tc.id === toolCall.id) ||
-          msg.contentBlocks?.some((block: any) => block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id)
+        const currentMessage = state.messages.find(
+          (msg: any) =>
+            msg.toolCalls?.some((tc: any) => tc.id === toolCall.id) ||
+            msg.contentBlocks?.some(
+              (block: any) =>
+                block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id
+            )
         )
-        
+
         if (currentMessage) {
           // Check both toolCalls array and contentBlocks
           const currentToolCall = currentMessage.toolCalls?.find((tc: any) => tc.id === toolCall.id)
           if (!currentToolCall) {
-            const toolBlock = currentMessage.contentBlocks?.find((block: any) => 
-              block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id
+            const toolBlock = currentMessage.contentBlocks?.find(
+              (block: any) =>
+                block.type === 'tool_call' && (block as any).toolCall.id === toolCall.id
             ) as any
             const blockToolCall = toolBlock?.toolCall
-            if (blockToolCall && (blockToolCall.state === 'applied' || blockToolCall.state === 'rejected')) {
+            if (
+              blockToolCall &&
+              (blockToolCall.state === 'applied' || blockToolCall.state === 'rejected')
+            ) {
               // Don't override terminal states, just update result and timing
               toolCall.state = blockToolCall.state
               toolCall.displayName = blockToolCall.displayName
               return
             }
-          } else if (currentToolCall && (currentToolCall.state === 'applied' || currentToolCall.state === 'rejected')) {
+          } else if (
+            currentToolCall &&
+            (currentToolCall.state === 'applied' || currentToolCall.state === 'rejected')
+          ) {
             // Don't override terminal states, just update result and timing
             toolCall.state = currentToolCall.state
             toolCall.displayName = currentToolCall.displayName
@@ -412,9 +465,12 @@ function finalizeToolCall(toolCall: any, success: boolean, result?: any, get?: (
           }
         }
       }
-      
+
       // Not in terminal state, set appropriate state
-      if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
+      if (
+        toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+        toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+      ) {
         toolCall.state = 'ready_for_review'
       } else if (toolCall.name === COPILOT_TOOL_IDS.RUN_WORKFLOW) {
         // For run_workflow, check if it's still executing (e.g., moved to background)
@@ -558,14 +614,14 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     // Update both contentBlocks and toolCalls atomically before UI update
     updateContentBlockToolCall(context.contentBlocks, toolCallId, toolCall)
-    
+
     // Ensure the toolCall in context.toolCalls is also updated with the latest state
-    const toolCallIndex = context.toolCalls.findIndex(tc => tc.id === toolCallId)
+    const toolCallIndex = context.toolCalls.findIndex((tc) => tc.id === toolCallId)
     if (toolCallIndex !== -1) {
       const existingToolCall = context.toolCalls[toolCallIndex]
       context.toolCalls[toolCallIndex] = preserveToolTerminalState(toolCall, existingToolCall)
     }
-    
+
     updateStreamingMessage(set, context)
   },
 
@@ -616,16 +672,16 @@ const sseHandlers: Record<string, SSEHandler> = {
 
     // Check if tool call already exists
     const existingToolCall = context.toolCalls.find((tc) => tc.id === toolData.id)
-    
+
     if (existingToolCall) {
       // Update existing tool call with new arguments (for partial -> complete transition)
       existingToolCall.input = toolData.arguments || {}
-      
+
       // Log the updated tool call
       if (toolData.name === 'run_workflow') {
         console.log('🔍 Updated existing tool call:', JSON.stringify(existingToolCall, null, 2))
       }
-      
+
       // Update the content block as well
       updateContentBlockToolCall(context.contentBlocks, toolData.id, existingToolCall)
       updateStreamingMessage(set, context)
@@ -633,12 +689,12 @@ const sseHandlers: Record<string, SSEHandler> = {
     }
 
     const toolCall = createToolCall(toolData.id, toolData.name, toolData.arguments)
-    
+
     // Log the created tool call
     if (toolData.name === 'run_workflow') {
       console.log('🔍 Created tool call:', JSON.stringify(toolCall, null, 2))
     }
-    
+
     context.toolCalls.push(toolCall)
 
     context.contentBlocks.push({
@@ -655,10 +711,10 @@ const sseHandlers: Record<string, SSEHandler> = {
     const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
     if (toolCall) {
       toolCall.state = 'executing'
-      
+
       // Update both contentBlocks and toolCalls atomically before UI update
       updateContentBlockToolCall(context.contentBlocks, data.toolCallId, toolCall)
-      
+
       // toolCall is already updated by reference in context.toolCalls since we found it there
       updateStreamingMessage(set, context)
     }
@@ -741,14 +797,19 @@ const sseHandlers: Record<string, SSEHandler> = {
           context.toolCallBuffer.id,
           context.toolCallBuffer
         )
-        
+
         // Ensure the toolCall in context.toolCalls is also updated with the latest state
-        const toolCallIndex = context.toolCalls.findIndex(tc => tc.id === context.toolCallBuffer.id)
+        const toolCallIndex = context.toolCalls.findIndex(
+          (tc) => tc.id === context.toolCallBuffer.id
+        )
         if (toolCallIndex !== -1) {
           const existingToolCall = context.toolCalls[toolCallIndex]
-          context.toolCalls[toolCallIndex] = preserveToolTerminalState(context.toolCallBuffer, existingToolCall)
+          context.toolCalls[toolCallIndex] = preserveToolTerminalState(
+            context.toolCallBuffer,
+            existingToolCall
+          )
         }
-        
+
         updateStreamingMessage(set, context)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
@@ -806,7 +867,10 @@ const sseHandlers: Record<string, SSEHandler> = {
 }
 
 // Cache workflow and interrupt tool IDs for faster lookup
-const WORKFLOW_TOOL_IDS = new Set<string>([COPILOT_TOOL_IDS.BUILD_WORKFLOW, COPILOT_TOOL_IDS.EDIT_WORKFLOW])
+const WORKFLOW_TOOL_IDS = new Set<string>([
+  COPILOT_TOOL_IDS.BUILD_WORKFLOW,
+  COPILOT_TOOL_IDS.EDIT_WORKFLOW,
+])
 
 /**
  * Helper function to preserve terminal states for workflow tools and interrupt tools
@@ -816,37 +880,48 @@ function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any
   if (!WORKFLOW_TOOL_IDS.has(newToolCall.name) && !toolRequiresInterrupt(newToolCall.name)) {
     return newToolCall
   }
-  
+
   // Early return if no existing tool call or no terminal state
-  if (!existingToolCall || (existingToolCall.state !== 'applied' && existingToolCall.state !== 'rejected')) {
+  if (
+    !existingToolCall ||
+    (existingToolCall.state !== 'applied' && existingToolCall.state !== 'rejected')
+  ) {
     return newToolCall
   }
-  
+
   // Only create new object if state would actually change
-  if (newToolCall.state === existingToolCall.state && newToolCall.displayName === existingToolCall.displayName) {
+  if (
+    newToolCall.state === existingToolCall.state &&
+    newToolCall.displayName === existingToolCall.displayName
+  ) {
     return newToolCall
   }
-  
+
   return {
     ...newToolCall,
     state: existingToolCall.state,
-    displayName: existingToolCall.displayName
+    displayName: existingToolCall.displayName,
   }
 }
 
 /**
  * Helper function to merge tool calls while preserving terminal states
  */
-function mergeToolCallsPreservingTerminalStates(newToolCalls: any[], existingToolCalls: any[] = []): any[] {
-  
-  if (!existingToolCalls.length || !newToolCalls.some(tc => WORKFLOW_TOOL_IDS.has(tc.name) || toolRequiresInterrupt(tc.name))) {
+function mergeToolCallsPreservingTerminalStates(
+  newToolCalls: any[],
+  existingToolCalls: any[] = []
+): any[] {
+  if (
+    !existingToolCalls.length ||
+    !newToolCalls.some((tc) => WORKFLOW_TOOL_IDS.has(tc.name) || toolRequiresInterrupt(tc.name))
+  ) {
     return newToolCalls
   }
-  
+
   // Create a lookup map for faster access
-  const existingMap = new Map(existingToolCalls.map(tc => [tc.id, tc]))
-  
-  return newToolCalls.map(newToolCall => {
+  const existingMap = new Map(existingToolCalls.map((tc) => [tc.id, tc]))
+
+  return newToolCalls.map((newToolCall) => {
     const existingToolCall = existingMap.get(newToolCall.id)
     return preserveToolTerminalState(newToolCall, existingToolCall)
   })
@@ -855,40 +930,46 @@ function mergeToolCallsPreservingTerminalStates(newToolCalls: any[], existingToo
 /**
  * Helper function to merge content blocks while preserving terminal states
  */
-function mergeContentBlocksPreservingTerminalStates(newContentBlocks: any[], existingContentBlocks: any[] = []): any[] {
+function mergeContentBlocksPreservingTerminalStates(
+  newContentBlocks: any[],
+  existingContentBlocks: any[] = []
+): any[] {
   // Early return if no existing blocks or no tool call blocks to check
-  if (!existingContentBlocks.length || !newContentBlocks.some(b => b.type === 'tool_call')) {
+  if (!existingContentBlocks.length || !newContentBlocks.some((b) => b.type === 'tool_call')) {
     return newContentBlocks
   }
-  
+
   // Create a lookup map for tool call blocks for faster access
   const existingToolCallMap = new Map()
-  existingContentBlocks.forEach(block => {
+  existingContentBlocks.forEach((block) => {
     if (block.type === 'tool_call') {
       existingToolCallMap.set((block as any).toolCall.id, block)
     }
   })
-  
-  return newContentBlocks.map(newBlock => {
+
+  return newContentBlocks.map((newBlock) => {
     if (newBlock.type === 'tool_call') {
       const toolCallBlock = newBlock as any
-      
+
       // Skip if not a workflow tool or interrupt tool
-      if (!WORKFLOW_TOOL_IDS.has(toolCallBlock.toolCall.name) && !toolRequiresInterrupt(toolCallBlock.toolCall.name)) {
+      if (
+        !WORKFLOW_TOOL_IDS.has(toolCallBlock.toolCall.name) &&
+        !toolRequiresInterrupt(toolCallBlock.toolCall.name)
+      ) {
         return newBlock
       }
-      
+
       const existingBlock = existingToolCallMap.get(toolCallBlock.toolCall.id)
       const preservedToolCall = preserveToolTerminalState(
-        toolCallBlock.toolCall, 
+        toolCallBlock.toolCall,
         existingBlock?.toolCall
       )
-      
+
       // Only create new object if something actually changed
       if (preservedToolCall !== toolCallBlock.toolCall) {
         return {
           ...newBlock,
-          toolCall: preservedToolCall
+          toolCall: preservedToolCall,
         }
       }
     }
@@ -933,7 +1014,7 @@ function updateContentBlockText(contentBlocks: any[], textBlock: any) {
  * Debounced UI update queue for smoother streaming
  */
 // PERFORMANCE OPTIMIZATION: Enhanced RAF-based update batching with adaptive timing
-let streamingUpdateQueue = new Map<string, StreamingContext>()
+const streamingUpdateQueue = new Map<string, StreamingContext>()
 let streamingUpdateRAF: number | null = null
 let lastBatchTime = 0
 const MIN_BATCH_INTERVAL = 16 // ~60fps for smooth updates
@@ -958,17 +1039,16 @@ function createOptimizedContentBlocks(contentBlocks: any[]): any[] {
  */
 function updateStreamingMessage(set: any, context: StreamingContext) {
   const now = performance.now()
-  
+
   // Queue this update with timestamp
   streamingUpdateQueue.set(context.messageId, context)
   context._lastUpdateTime = now
-  
+
   // Adaptive batching strategy
   const timeSinceLastBatch = now - lastBatchTime
-  const shouldFlushImmediately = 
-    streamingUpdateQueue.size >= MAX_QUEUE_SIZE || 
-    timeSinceLastBatch > MAX_BATCH_INTERVAL
-  
+  const shouldFlushImmediately =
+    streamingUpdateQueue.size >= MAX_QUEUE_SIZE || timeSinceLastBatch > MAX_BATCH_INTERVAL
+
   // Schedule RAF if none pending
   if (streamingUpdateRAF === null) {
     const scheduleUpdate = () => {
@@ -978,67 +1058,72 @@ function updateStreamingMessage(set: any, context: StreamingContext) {
         streamingUpdateQueue.clear()
         streamingUpdateRAF = null
         lastBatchTime = performance.now()
-        
+
         set((state: CopilotStore) => {
           // Fast exit for no updates
           if (updates.size === 0) return state
-          
+
           const messages = state.messages
-          
+
           // PERFORMANCE OPTIMIZATION: Single message update (most common case)
           const lastMessage = messages[messages.length - 1]
           const lastMessageUpdate = lastMessage ? updates.get(lastMessage.id) : null
-        
-        if (updates.size === 1 && lastMessageUpdate) {
-          // Fast path: only updating the last message
-          const newMessages = [...messages]
-          
-          const mergedToolCalls = mergeToolCallsPreservingTerminalStates(
-            lastMessageUpdate.toolCalls, 
-            lastMessage.toolCalls
-          )
-          const mergedContentBlocks = mergeContentBlocksPreservingTerminalStates(
-            lastMessageUpdate.contentBlocks, 
-            lastMessage.contentBlocks
-          )
-          
-          newMessages[messages.length - 1] = {
-            ...lastMessage,
-            content: '', // Don't use accumulated content for display
-            toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : [],
-            contentBlocks: mergedContentBlocks.length > 0 ? createOptimizedContentBlocks(mergedContentBlocks) : [],
+
+          if (updates.size === 1 && lastMessageUpdate) {
+            // Fast path: only updating the last message
+            const newMessages = [...messages]
+
+            const mergedToolCalls = mergeToolCallsPreservingTerminalStates(
+              lastMessageUpdate.toolCalls,
+              lastMessage.toolCalls
+            )
+            const mergedContentBlocks = mergeContentBlocksPreservingTerminalStates(
+              lastMessageUpdate.contentBlocks,
+              lastMessage.contentBlocks
+            )
+
+            newMessages[messages.length - 1] = {
+              ...lastMessage,
+              content: '', // Don't use accumulated content for display
+              toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : [],
+              contentBlocks:
+                mergedContentBlocks.length > 0
+                  ? createOptimizedContentBlocks(mergedContentBlocks)
+                  : [],
+            }
+            return { messages: newMessages }
           }
-          return { messages: newMessages }
-        } else {
           // Fallback to mapping for multiple updates or non-last message updates
           return {
             messages: messages.map((msg: CopilotMessage) => {
               const update = updates.get(msg.id)
               if (update) {
                 const mergedToolCalls = mergeToolCallsPreservingTerminalStates(
-                  update.toolCalls, 
+                  update.toolCalls,
                   msg.toolCalls
                 )
                 const mergedContentBlocks = mergeContentBlocksPreservingTerminalStates(
-                  update.contentBlocks, 
+                  update.contentBlocks,
                   msg.contentBlocks
                 )
-                
+
                 return {
                   ...msg,
                   content: '', // Don't use accumulated content for display
                   toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : [],
-                  contentBlocks: mergedContentBlocks.length > 0 ? createOptimizedContentBlocks(mergedContentBlocks) : [],
+                  contentBlocks:
+                    mergedContentBlocks.length > 0
+                      ? createOptimizedContentBlocks(mergedContentBlocks)
+                      : [],
                 }
               }
               return msg
             }),
           }
-        }
-      })
+        })
       })
     }
-    
+
     // Execute immediately or with delay based on batching strategy
     if (shouldFlushImmediately) {
       scheduleUpdate()
@@ -1059,7 +1144,7 @@ async function* parseSSEStream(
   // PERFORMANCE OPTIMIZATION: Pre-allocated buffers and constants
   let buffer = ''
   const chunkBuilder = new StringBuilder()
-  
+
   // Reuse array for line splitting to reduce allocations
   let lineBuffer: string[] = []
 
@@ -1072,19 +1157,20 @@ async function* parseSSEStream(
     buffer += chunk
 
     // PERFORMANCE OPTIMIZATION: Process lines in chunks to reduce split() calls
-    let lastNewlineIndex = buffer.lastIndexOf('\n')
+    const lastNewlineIndex = buffer.lastIndexOf('\n')
     if (lastNewlineIndex !== -1) {
       const linesToProcess = buffer.substring(0, lastNewlineIndex)
       buffer = buffer.substring(lastNewlineIndex + 1)
 
       // Split only the portion with complete lines
       lineBuffer = linesToProcess.split('\n')
-      
+
       for (let i = 0; i < lineBuffer.length; i++) {
         const line = lineBuffer[i]
         // PERFORMANCE OPTIMIZATION: Avoid trim() for empty check
         if (line.length === 0) continue
-        if (line.charCodeAt(0) === 100 && line.startsWith(DATA_PREFIX)) { // 'd' === 100
+        if (line.charCodeAt(0) === 100 && line.startsWith(DATA_PREFIX)) {
+          // 'd' === 100
           try {
             // PERFORMANCE OPTIMIZATION: Use slice with pre-calculated length
             const jsonStr = line.substring(DATA_PREFIX_LENGTH)
@@ -1094,7 +1180,7 @@ async function* parseSSEStream(
           }
         }
       }
-      
+
       // Clear line buffer for reuse
       lineBuffer.length = 0
     }
@@ -1186,7 +1272,7 @@ export const useCopilotStore = create<CopilotStore>()(
         if (currentChat && currentChat.id !== chat.id) {
           const { isSendingMessage } = get()
           logger.info('Different chat selected, checking for active stream:', { isSendingMessage })
-          
+
           if (isSendingMessage) {
             logger.info('🛑 Aborting ongoing copilot stream due to chat switch')
             get().abortMessage()
@@ -1227,7 +1313,6 @@ export const useCopilotStore = create<CopilotStore>()(
 
               // Automatically load checkpoints for this chat
               await get().loadMessageCheckpoints(chat.id)
-              
             } else {
               logger.warn(`Selected chat ${chat.id} not found in latest data`)
             }
@@ -1235,7 +1320,7 @@ export const useCopilotStore = create<CopilotStore>()(
         } catch (error) {
           logger.error('Failed to fetch latest chat data, using cached messages:', error)
           // Already set optimistically above, so just log the error
-          
+
           // Still try to load checkpoints even if chat refresh failed
           try {
             await get().loadMessageCheckpoints(chat.id)
@@ -1248,11 +1333,14 @@ export const useCopilotStore = create<CopilotStore>()(
       // Create a new chat - clear current chat state like when switching workflows
       createNewChat: async () => {
         logger.info('🆕 CREATE NEW CHAT CALLED')
-        
+
         // Abort any ongoing streams before creating new chat
         const { isSendingMessage, abortController } = get()
-        logger.info('Current streaming state:', { isSendingMessage, hasAbortController: !!abortController })
-        
+        logger.info('Current streaming state:', {
+          isSendingMessage,
+          hasAbortController: !!abortController,
+        })
+
         if (isSendingMessage) {
           logger.info('🛑 Aborting ongoing copilot stream due to new chat creation')
           get().abortMessage()
@@ -1344,7 +1432,7 @@ export const useCopilotStore = create<CopilotStore>()(
               logger.info(
                 `Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`
               )
-              
+
               // Load checkpoints for the auto-selected chat
               try {
                 await get().loadMessageCheckpoints(mostRecentChat.id)
@@ -1400,10 +1488,12 @@ export const useCopilotStore = create<CopilotStore>()(
           newMessages = [
             ...currentMessages, // Keep all remaining messages (reverted message already removed)
             userMessage, // Add new message
-            streamingMessage // Add assistant response
+            streamingMessage, // Add assistant response
           ]
-          logger.info(`Added new message after revert point, continuing conversation from ${currentMessages.length} existing messages`)
-          
+          logger.info(
+            `Added new message after revert point, continuing conversation from ${currentMessages.length} existing messages`
+          )
+
           // Clear revert state since we're now continuing from this point
           set({ revertState: null, inputValue: '' })
         } else {
@@ -1489,7 +1579,10 @@ export const useCopilotStore = create<CopilotStore>()(
       // Abort current message streaming
       abortMessage: () => {
         const { abortController, isSendingMessage, messages } = get()
-        logger.info('🛑 Abort message called:', { isSendingMessage, hasAbortController: !!abortController })
+        logger.info('🛑 Abort message called:', {
+          isSendingMessage,
+          hasAbortController: !!abortController,
+        })
 
         if (!isSendingMessage || !abortController) {
           logger.warn('Cannot abort: no active streaming request')
@@ -1510,12 +1603,12 @@ export const useCopilotStore = create<CopilotStore>()(
             const updatedToolCalls =
               lastMessage.toolCalls?.map((toolCall) =>
                 toolCall.state === 'executing'
-                  ? { 
-                      ...toolCall, 
-                      state: 'error' as const, 
+                  ? {
+                      ...toolCall,
+                      state: 'error' as const,
                       endTime: Date.now(),
                       error: 'Operation was interrupted by user action',
-                      displayName: getToolDisplayNameByState({ ...toolCall, state: 'error' })
+                      displayName: getToolDisplayNameByState({ ...toolCall, state: 'error' }),
                     }
                   : toolCall
               ) || []
@@ -1531,23 +1624,34 @@ export const useCopilotStore = create<CopilotStore>()(
                         state: 'error' as const,
                         endTime: Date.now(),
                         error: 'Operation was interrupted by user action',
-                        displayName: getToolDisplayNameByState({ ...block.toolCall, state: 'error' })
+                        displayName: getToolDisplayNameByState({
+                          ...block.toolCall,
+                          state: 'error',
+                        }),
                       },
                     }
                   : block
               ) || []
 
-            const abortedCount = updatedToolCalls.filter((tc) => tc.state === 'error' && tc.error?.includes('interrupted')).length
+            const abortedCount = updatedToolCalls.filter(
+              (tc) => tc.state === 'error' && tc.error?.includes('interrupted')
+            ).length
 
             // Check if the assistant message has any meaningful content
-            const textContent = lastMessage.contentBlocks
-              ?.filter((block) => block.type === 'text')
-              .map((block) => block.content)
-              .join('') || ''
-            
+            const textContent =
+              lastMessage.contentBlocks
+                ?.filter((block) => block.type === 'text')
+                .map((block) => block.content)
+                .join('') || ''
+
             const hasContent = textContent.trim().length > 0
-            const hasCompletedToolCalls = updatedToolCalls.some(tc => tc.state === 'completed' || tc.state === 'applied' || tc.state === 'ready_for_review')
-            
+            const hasCompletedToolCalls = updatedToolCalls.some(
+              (tc) =>
+                tc.state === 'completed' ||
+                tc.state === 'applied' ||
+                tc.state === 'ready_for_review'
+            )
+
             if (!hasContent && !hasCompletedToolCalls) {
               // Remove the incomplete assistant message entirely - cleaner for user and LLM
               set((state) => ({
@@ -1587,34 +1691,36 @@ export const useCopilotStore = create<CopilotStore>()(
               try {
                 const currentMessages = get().messages
                 const wasMessageRemoved = !hasContent && !hasCompletedToolCalls
-                
+
                 // Validate and clean messages before saving using helper function
                 const dbMessages = validateMessagesForLLM(currentMessages)
-                
+
                 logger.info('💾 Saving cleaned message state after abort:', {
                   messageCount: dbMessages.length,
-                  removedIncompleteMessage: wasMessageRemoved
+                  removedIncompleteMessage: wasMessageRemoved,
                 })
 
                 fetch('/api/copilot/chat/update-messages', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
+                  body: JSON.stringify({
                     chatId: currentChat.id,
-                    messages: dbMessages
-                  })
-                }).then(response => {
-                  if (response.ok) {
-                    logger.info('Successfully persisted cleaned message state to database')
-                  } else {
-                    logger.error('Failed to persist cleaned message state:', response.statusText)
-                  }
-                }).catch(error => {
-                  logger.error('Error persisting cleaned message state:', error)
+                    messages: dbMessages,
+                  }),
                 })
-                              } catch (error) {
-                  logger.error('Error persisting cleaned message state:', error)
-                }
+                  .then((response) => {
+                    if (response.ok) {
+                      logger.info('Successfully persisted cleaned message state to database')
+                    } else {
+                      logger.error('Failed to persist cleaned message state:', response.statusText)
+                    }
+                  })
+                  .catch((error) => {
+                    logger.error('Error persisting cleaned message state:', error)
+                  })
+              } catch (error) {
+                logger.error('Error persisting cleaned message state:', error)
+              }
             }
           } else {
             // No streaming message found, just reset the state
@@ -1707,35 +1813,43 @@ export const useCopilotStore = create<CopilotStore>()(
       },
 
       // Update preview tool call state
-      updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected' | 'error', toolCallId?: string) => {
+      updatePreviewToolCallState: (
+        toolCallState: 'applied' | 'rejected' | 'error',
+        toolCallId?: string
+      ) => {
         const { messages } = get()
 
         // If toolCallId is provided, update specific tool call (for interrupt tools)
         if (toolCallId) {
           set((state) => {
             const updatedMessages = state.messages.map((msg) =>
-              msg.toolCalls?.some(tc => tc.id === toolCallId) || 
-              msg.contentBlocks?.some(block => block.type === 'tool_call' && (block as any).toolCall.id === toolCallId)
+              msg.toolCalls?.some((tc) => tc.id === toolCallId) ||
+              msg.contentBlocks?.some(
+                (block) => block.type === 'tool_call' && (block as any).toolCall.id === toolCallId
+              )
                 ? {
                     ...msg,
                     toolCalls: msg.toolCalls?.map((tc) =>
                       tc.id === toolCallId
-                        ? { 
-                            ...tc, 
+                        ? {
+                            ...tc,
                             state: toolCallState,
-                            displayName: getToolDisplayNameByState({ ...tc, state: toolCallState })
+                            displayName: getToolDisplayNameByState({ ...tc, state: toolCallState }),
                           }
                         : tc
                     ),
                     contentBlocks: msg.contentBlocks?.map((block) =>
                       block.type === 'tool_call' && (block as any).toolCall.id === toolCallId
-                        ? { 
-                            ...block, 
-                            toolCall: { 
-                              ...(block as any).toolCall, 
+                        ? {
+                            ...block,
+                            toolCall: {
+                              ...(block as any).toolCall,
                               state: toolCallState,
-                              displayName: getToolDisplayNameByState({ ...(block as any).toolCall, state: toolCallState })
-                            } 
+                              displayName: getToolDisplayNameByState({
+                                ...(block as any).toolCall,
+                                state: toolCallState,
+                              }),
+                            },
                           }
                         : block
                     ),
@@ -1785,22 +1899,26 @@ export const useCopilotStore = create<CopilotStore>()(
                   ...msg,
                   toolCalls: msg.toolCalls?.map((tc) =>
                     tc.id === lastWorkflowToolCall.id
-                      ? { 
-                          ...tc, 
+                      ? {
+                          ...tc,
                           state: toolCallState,
-                          displayName: getToolDisplayNameByState({ ...tc, state: toolCallState })
+                          displayName: getToolDisplayNameByState({ ...tc, state: toolCallState }),
                         }
                       : tc
                   ),
                   contentBlocks: msg.contentBlocks?.map((block) =>
-                    block.type === 'tool_call' && (block as any).toolCall.id === lastWorkflowToolCall.id
-                      ? { 
-                          ...block, 
-                          toolCall: { 
-                            ...(block as any).toolCall, 
+                    block.type === 'tool_call' &&
+                    (block as any).toolCall.id === lastWorkflowToolCall.id
+                      ? {
+                          ...block,
+                          toolCall: {
+                            ...(block as any).toolCall,
                             state: toolCallState,
-                            displayName: getToolDisplayNameByState({ ...(block as any).toolCall, state: toolCallState })
-                          } 
+                            displayName: getToolDisplayNameByState({
+                              ...(block as any).toolCall,
+                              state: toolCallState,
+                            }),
+                          },
                         }
                       : block
                   ),
@@ -1857,9 +1975,9 @@ export const useCopilotStore = create<CopilotStore>()(
               }
             })
 
-            set({ 
+            set({
               messageCheckpoints,
-              isLoadingCheckpoints: false 
+              isLoadingCheckpoints: false,
             })
             logger.info(`Loaded checkpoints for ${Object.keys(messageCheckpoints).length} messages`)
           }
@@ -1867,7 +1985,7 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.error('Failed to load message checkpoints:', error)
           set({
             isLoadingCheckpoints: false,
-            checkpointError: error instanceof Error ? error.message : 'Failed to load checkpoints'
+            checkpointError: error instanceof Error ? error.message : 'Failed to load checkpoints',
           })
         }
       },
@@ -1887,12 +2005,12 @@ export const useCopilotStore = create<CopilotStore>()(
           // Find the checkpoint to get its associated message
           const { messageCheckpoints, messages } = get()
           let checkpointMessage: CopilotMessage | null = null
-          
+
           // Find which message this checkpoint belongs to
           for (const [messageId, checkpoints] of Object.entries(messageCheckpoints)) {
-            const checkpoint = checkpoints.find(cp => cp.id === checkpointId)
+            const checkpoint = checkpoints.find((cp) => cp.id === checkpointId)
             if (checkpoint) {
-              checkpointMessage = messages.find(msg => msg.id === messageId) || null
+              checkpointMessage = messages.find((msg) => msg.id === messageId) || null
               break
             }
           }
@@ -1900,7 +2018,7 @@ export const useCopilotStore = create<CopilotStore>()(
           const response = await fetch('/api/copilot/checkpoints/revert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ checkpointId })
+            body: JSON.stringify({ checkpointId }),
           })
 
           if (!response.ok) {
@@ -1910,16 +2028,16 @@ export const useCopilotStore = create<CopilotStore>()(
           const result = await response.json()
           if (result.success && result.checkpoint?.workflowState) {
             logger.info(`Successfully reverted to checkpoint ${checkpointId}`)
-            
+
             // Update the workflow store directly instead of refreshing the page
             // This follows the same pattern as diff acceptance
             const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
             const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
             const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-            
+
             const checkpointState = result.checkpoint.workflowState
             const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-            
+
             // Update the main workflow store state
             useWorkflowStore.setState({
               blocks: checkpointState.blocks || {},
@@ -1959,23 +2077,27 @@ export const useCopilotStore = create<CopilotStore>()(
             if (checkpointMessage) {
               // Find the index of the reverted message and truncate chat history
               const currentMessages = get().messages
-              const revertedMessageIndex = currentMessages.findIndex(msg => msg.id === checkpointMessage.id)
-              
+              const revertedMessageIndex = currentMessages.findIndex(
+                (msg) => msg.id === checkpointMessage.id
+              )
+
               let newMessages = currentMessages
               if (revertedMessageIndex !== -1) {
                 // Keep only messages up to (but NOT including) the reverted message
                 // since the reverted message is now in the text box for editing
                 newMessages = currentMessages.slice(0, revertedMessageIndex)
-                logger.info(`Truncated chat history: kept ${newMessages.length} messages, removed ${currentMessages.length - newMessages.length} messages from revert point onwards`)
+                logger.info(
+                  `Truncated chat history: kept ${newMessages.length} messages, removed ${currentMessages.length - newMessages.length} messages from revert point onwards`
+                )
               }
 
               set({
                 revertState: {
                   messageId: checkpointMessage.id,
-                  messageContent: checkpointMessage.content
+                  messageContent: checkpointMessage.content,
                 },
                 inputValue: checkpointMessage.content,
-                messages: newMessages // Update the chat UI immediately
+                messages: newMessages, // Update the chat UI immediately
               })
               logger.info('Set revert state, populated input, and updated chat UI')
 
@@ -1983,31 +2105,33 @@ export const useCopilotStore = create<CopilotStore>()(
               if (get().currentChat) {
                 try {
                   const chatId = get().currentChat!.id
-                  
+
                   // Format messages for database storage using validation
                   const dbMessages = validateMessagesForLLM(newMessages)
 
                   const response = await fetch('/api/copilot/chat/update-messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                       chatId,
-                      messages: dbMessages
-                    })
+                      messages: dbMessages,
+                    }),
                   })
 
                   if (!response.ok) {
                     logger.error('Failed to persist truncated chat state:', response.statusText)
                   } else {
                     logger.info('Successfully persisted truncated chat state to database')
-                    
+
                     // Update the current chat object to reflect the new messages
                     set((state) => ({
-                      currentChat: state.currentChat ? {
-                        ...state.currentChat,
-                        messages: newMessages,
-                        updatedAt: new Date()
-                      } : state.currentChat,
+                      currentChat: state.currentChat
+                        ? {
+                            ...state.currentChat,
+                            messages: newMessages,
+                            updatedAt: new Date(),
+                          }
+                        : state.currentChat,
                       // Invalidate chat cache to ensure fresh data on reload
                       chatsLastLoadedAt: null,
                       chatsLoadedForWorkflow: null,
@@ -2019,14 +2143,16 @@ export const useCopilotStore = create<CopilotStore>()(
               }
             }
 
-            logger.info('Successfully applied checkpoint state to workflow store and cleared pending diffs')
+            logger.info(
+              'Successfully applied checkpoint state to workflow store and cleared pending diffs'
+            )
           } else {
             throw new Error(result.error || 'Failed to revert checkpoint')
           }
         } catch (error) {
           logger.error('Failed to revert to checkpoint:', error)
           set({
-            checkpointError: error instanceof Error ? error.message : 'Failed to revert checkpoint'
+            checkpointError: error instanceof Error ? error.message : 'Failed to revert checkpoint',
           })
           throw error
         } finally {
@@ -2154,32 +2280,32 @@ export const useCopilotStore = create<CopilotStore>()(
             streamingUpdateRAF = null
           }
           streamingUpdateQueue.clear()
-          
+
           // Release pooled objects back to pool for reuse
           if (context.contentBlocks) {
-            context.contentBlocks.forEach(block => {
+            context.contentBlocks.forEach((block) => {
               if (block.type === TEXT_BLOCK_TYPE) {
                 contentBlockPool.release(block)
               }
             })
           }
-          
+
           // PERFORMANCE OPTIMIZATION: Final content update with completed content from StringBuilder
           const finalContent = context.accumulatedContent.toString()
 
           set((state) => ({
             messages: state.messages.map((msg) => {
               if (msg.id === messageId) {
-                const existingMsg = state.messages.find(m => m.id === messageId)
+                const existingMsg = state.messages.find((m) => m.id === messageId)
                 const mergedToolCalls = mergeToolCallsPreservingTerminalStates(
-                  context.toolCalls, 
+                  context.toolCalls,
                   existingMsg?.toolCalls
                 )
                 const mergedContentBlocks = mergeContentBlocksPreservingTerminalStates(
-                  context.contentBlocks, 
+                  context.contentBlocks,
                   existingMsg?.contentBlocks
                 )
-                
+
                 return {
                   ...msg,
                   content: finalContent, // Set final content for non-streaming display
@@ -2204,25 +2330,28 @@ export const useCopilotStore = create<CopilotStore>()(
           if (currentChat) {
             try {
               const currentMessages = get().messages
-              const updatedMessage = currentMessages.find(msg => msg.id === messageId)
-              
-              if (updatedMessage && (updatedMessage.toolCalls?.length || updatedMessage.contentBlocks?.length)) {
+              const updatedMessage = currentMessages.find((msg) => msg.id === messageId)
+
+              if (
+                updatedMessage &&
+                (updatedMessage.toolCalls?.length || updatedMessage.contentBlocks?.length)
+              ) {
                 const dbMessages = validateMessagesForLLM(currentMessages)
 
                 const response = await fetch('/api/copilot/chat/update-messages', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
+                  body: JSON.stringify({
                     chatId: currentChat.id,
-                    messages: dbMessages
-                  })
+                    messages: dbMessages,
+                  }),
                 })
 
                 if (response.ok) {
                   logger.info('Successfully persisted complete streaming state to database', {
                     messageId,
                     toolCallsCount: updatedMessage.toolCalls?.length || 0,
-                    contentBlocksCount: updatedMessage.contentBlocks?.length || 0
+                    contentBlocksCount: updatedMessage.contentBlocks?.length || 0,
                   })
                 } else {
                   logger.error('Failed to persist complete streaming state:', response.statusText)
@@ -2300,13 +2429,13 @@ export const useCopilotStore = create<CopilotStore>()(
       cleanup: () => {
         const { isSendingMessage } = get()
         logger.info('🧹 Cleanup called:', { isSendingMessage })
-        
+
         if (isSendingMessage) {
           logger.info('Cleaning up ongoing copilot stream')
           // Call the full abort logic, not just abortController.abort()
           get().abortMessage()
         }
-        
+
         // Cancel any pending RAF updates and clear queue
         if (streamingUpdateRAF !== null) {
           cancelAnimationFrame(streamingUpdateRAF)
@@ -2339,7 +2468,7 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.info('🚫 Skipping diff update - request was aborted')
           return
         }
-        
+
         try {
           // Import diff store dynamically to avoid circular dependencies
           const { useWorkflowDiffStore } = await import('@/stores/workflow-diff')

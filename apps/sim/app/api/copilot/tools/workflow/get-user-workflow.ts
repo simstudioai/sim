@@ -1,13 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
-import { getBlock } from '@/blocks'
-import { getAllBlocks } from '@/blocks/registry'
-import type { BlockConfig } from '@/blocks/types'
-import { resolveOutputType } from '@/blocks/utils'
 import { db } from '@/db'
 import { workflow as workflowTable } from '@/db/schema'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { BaseCopilotTool } from '../base'
 
 // Sim Agent API configuration

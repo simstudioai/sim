@@ -1,5 +1,5 @@
-import { BaseCopilotTool } from '../base'
 import { createLogger } from '@/lib/logs/console/logger'
+import { BaseCopilotTool } from '../base'
 
 const logger = createLogger('NoOpTool')
 
@@ -19,20 +19,20 @@ class NoOpTool extends BaseCopilotTool<NoOpParams, NoOpResult> {
   readonly requiresInterrupt = true
 
   protected async executeImpl(params: NoOpParams): Promise<NoOpResult> {
-    const message = params.confirmationMessage 
+    const message = params.confirmationMessage
       ? `No-op tool executed successfully. ${params.confirmationMessage}`
       : 'No-op tool executed successfully'
 
     const result = {
       message,
-      status: 'success'
+      status: 'success',
     }
 
     // Log the noop tool response for debugging
     logger.info('NoOp tool executed', {
       result,
       confirmationMessage: params.confirmationMessage,
-      hasConfirmationMessage: !!params.confirmationMessage
+      hasConfirmationMessage: !!params.confirmationMessage,
     })
 
     return result
@@ -40,4 +40,4 @@ class NoOpTool extends BaseCopilotTool<NoOpParams, NoOpResult> {
 }
 
 // Export the tool instance
-export const noOpTool = new NoOpTool() 
+export const noOpTool = new NoOpTool()

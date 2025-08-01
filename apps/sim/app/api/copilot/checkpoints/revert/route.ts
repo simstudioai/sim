@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { eq, and } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('CheckpointRevertAPI')
 
@@ -18,7 +18,7 @@ const RevertCheckpointSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  
+
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // Apply the checkpoint state to the workflow using the existing state endpoint
     const checkpointState = checkpoint.workflowState as any // Cast to any for property access
-    
+
     // Clean the checkpoint state to remove any null/undefined values that could cause validation errors
     const cleanedState = {
       blocks: checkpointState?.blocks || {},
@@ -75,38 +75,46 @@ export async function POST(request: NextRequest) {
       hasActiveWebhook: checkpointState?.hasActiveWebhook || false,
       lastSaved: Date.now(),
       // Only include deployedAt if it's a valid date string that can be converted
-      ...(checkpointState?.deployedAt && 
-          checkpointState.deployedAt !== null && 
-          checkpointState.deployedAt !== undefined &&
-          !isNaN(new Date(checkpointState.deployedAt).getTime())
-        ? { deployedAt: new Date(checkpointState.deployedAt) } 
-        : {})
+      ...(checkpointState?.deployedAt &&
+      checkpointState.deployedAt !== null &&
+      checkpointState.deployedAt !== undefined &&
+      !Number.isNaN(new Date(checkpointState.deployedAt).getTime())
+        ? { deployedAt: new Date(checkpointState.deployedAt) }
+        : {}),
     }
-    
+
     logger.info(`[${requestId}] Applying cleaned checkpoint state`, {
       blocksCount: Object.keys(cleanedState.blocks).length,
       edgesCount: cleanedState.edges.length,
       hasDeployedAt: !!cleanedState.deployedAt,
-      isDeployed: cleanedState.isDeployed
+      isDeployed: cleanedState.isDeployed,
     })
-    
-    const stateResponse = await fetch(`${request.nextUrl.origin}/api/workflows/${checkpoint.workflowId}/state`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': request.headers.get('Cookie') || '', // Forward auth cookies
-      },
-      body: JSON.stringify(cleanedState),
-    })
+
+    const stateResponse = await fetch(
+      `${request.nextUrl.origin}/api/workflows/${checkpoint.workflowId}/state`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: request.headers.get('Cookie') || '', // Forward auth cookies
+        },
+        body: JSON.stringify(cleanedState),
+      }
+    )
 
     if (!stateResponse.ok) {
       const errorData = await stateResponse.text()
       logger.error(`[${requestId}] Failed to apply checkpoint state: ${errorData}`)
-      return NextResponse.json({ error: 'Failed to revert workflow to checkpoint' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Failed to revert workflow to checkpoint' },
+        { status: 500 }
+      )
     }
 
     const result = await stateResponse.json()
-    logger.info(`[${requestId}] Successfully reverted workflow ${checkpoint.workflowId} to checkpoint ${checkpointId}`)
+    logger.info(
+      `[${requestId}] Successfully reverted workflow ${checkpoint.workflowId} to checkpoint ${checkpointId}`
+    )
 
     return NextResponse.json({
       success: true,
@@ -118,9 +126,8 @@ export async function POST(request: NextRequest) {
         workflowState: cleanedState, // Return the reverted state for frontend use
       },
     })
-
   } catch (error) {
     logger.error(`[${requestId}] Error reverting to checkpoint:`, error)
     return NextResponse.json({ error: 'Failed to revert to checkpoint' }, { status: 500 })
   }
-} 
+}

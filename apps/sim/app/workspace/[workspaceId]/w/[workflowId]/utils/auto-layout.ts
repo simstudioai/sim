@@ -196,7 +196,7 @@ export async function applyAutoLayoutAndUpdateStore(
     try {
       // Update the lastSaved timestamp in the store
       useWorkflowStore.getState().updateLastSaved()
-      
+
       // Clean up the workflow state for API validation
       const cleanedWorkflowState = {
         ...newWorkflowState,

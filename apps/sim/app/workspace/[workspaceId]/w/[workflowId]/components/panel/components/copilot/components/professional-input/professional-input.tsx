@@ -35,10 +35,11 @@ const ProfessionalInput: FC<ProfessionalInputProps> = ({
 }) => {
   const [internalMessage, setInternalMessage] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  
+
   // Use controlled value if provided, otherwise use internal state
   const message = controlledValue !== undefined ? controlledValue : internalMessage
-  const setMessage = controlledValue !== undefined ? (onControlledChange || (() => {})) : setInternalMessage
+  const setMessage =
+    controlledValue !== undefined ? onControlledChange || (() => {}) : setInternalMessage
 
   // Auto-resize textarea
   useEffect(() => {

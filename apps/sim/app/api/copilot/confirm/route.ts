@@ -1,11 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
-import { db } from '@/db'
-import { apiKey as apiKeyTable } from '@/db/schema'
 
 const logger = createLogger('CopilotConfirmAPI')
 
@@ -24,7 +21,11 @@ const ConfirmationSchema = z.object({
 /**
  * Update tool call status in Redis
  */
-async function updateToolCallStatus(toolCallId: string, status: ToolCallStatus, message?: string): Promise<boolean> {
+async function updateToolCallStatus(
+  toolCallId: string,
+  status: ToolCallStatus,
+  message?: string
+): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
     logger.warn('updateToolCallStatus: Redis client not available')
@@ -33,7 +34,7 @@ async function updateToolCallStatus(toolCallId: string, status: ToolCallStatus, 
 
   try {
     const key = `tool_call:${toolCallId}`
-    
+
     // Check if the key exists first
     const exists = await redis.exists(key)
     if (!exists) {
@@ -45,10 +46,10 @@ async function updateToolCallStatus(toolCallId: string, status: ToolCallStatus, 
     const toolCallData = {
       status,
       message: message || null,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }
     await redis.set(key, JSON.stringify(toolCallData), 'EX', 86400) // Keep 24 hour expiry
-    
+
     logger.info('Tool call status updated in Redis', {
       toolCallId,
       key,
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
   try {
     // Authenticate user (same pattern as copilot chat)
     const session = await getSession()
-    let authenticatedUserId: string | null = session?.user?.id || null
+    const authenticatedUserId: string | null = session?.user?.id || null
 
     if (!authenticatedUserId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -157,4 +158,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

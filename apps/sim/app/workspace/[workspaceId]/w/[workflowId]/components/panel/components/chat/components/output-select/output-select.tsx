@@ -26,9 +26,9 @@ export function OutputSelect({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
   const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore()
-  
+
   // Track subblock store state to ensure proper reactivity
-  const subBlockValues = useSubBlockStore((state) => 
+  const subBlockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : null
   )
 
@@ -47,7 +47,7 @@ export function OutputSelect({
     }[] = []
 
     if (!workflowId) return outputs
-    
+
     // Check if workflowBlocks is defined
     if (!workflowBlocks || typeof workflowBlocks !== 'object') {
       return outputs
@@ -107,7 +107,6 @@ export function OutputSelect({
 
       // Add response outputs
       if (Object.keys(outputsToProcess).length > 0) {
-        
         const addOutput = (path: string, outputObj: any, prefix = '') => {
           const fullPath = prefix ? `${prefix}.${path}` : path
 

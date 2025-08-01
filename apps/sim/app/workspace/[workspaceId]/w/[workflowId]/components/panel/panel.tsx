@@ -90,7 +90,7 @@ export function Panel() {
         if (activeWorkflowId) {
           await loadChats(forceRefresh)
           validateCurrentChat()
-          
+
           // Mark this workflow as loaded for the legacy ref
           lastLoadedWorkflowRef.current = activeWorkflowId
         }

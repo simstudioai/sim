@@ -49,7 +49,10 @@ const processSafeStorage = (obj: any): any => {
 
   if (Array.isArray(obj)) {
     if (obj.length > 100) {
-      return [`[Array truncated, original length: ${obj.length}]`, ...obj.slice(0, 10).map((item) => processSafeStorage(item))]
+      return [
+        `[Array truncated, original length: ${obj.length}]`,
+        ...obj.slice(0, 10).map((item) => processSafeStorage(item)),
+      ]
     }
     return obj.map((item) => processSafeStorage(item))
   }
@@ -85,7 +88,8 @@ const processSafeStorage = (obj: any): any => {
         }
       } else {
         // Truncate large text/JSON data
-        result[key] = `[Large text truncated, original length: ${value.length}]${value.substring(0, 500)}...`
+        result[key] =
+          `[Large text truncated, original length: ${value.length}]${value.substring(0, 500)}...`
       }
     } else {
       result[key] = value
@@ -354,19 +358,20 @@ export const useConsoleStore = create<ConsoleStore>()(
               input: processSafeStorage(entry.input),
               output: processSafeStorage(entry.output),
             }
-            
+
             // Check total entry size and truncate further if needed
             const entryJson = JSON.stringify(sanitizedEntry)
             if (entryJson.length > MAX_TOTAL_ENTRY_SIZE) {
               return {
                 ...sanitizedEntry,
                 output: `[Entry too large for storage, original size: ${entryJson.length} chars]`,
-                input: typeof sanitizedEntry.input === 'string' && sanitizedEntry.input.length > 1000 
-                  ? `[Input truncated]${sanitizedEntry.input.substring(0, 200)}...` 
-                  : sanitizedEntry.input
+                input:
+                  typeof sanitizedEntry.input === 'string' && sanitizedEntry.input.length > 1000
+                    ? `[Input truncated]${sanitizedEntry.input.substring(0, 200)}...`
+                    : sanitizedEntry.input,
               }
             }
-            
+
             return sanitizedEntry
           })
 

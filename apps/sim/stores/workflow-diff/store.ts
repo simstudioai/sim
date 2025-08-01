@@ -20,22 +20,22 @@ const UPDATE_DEBOUNCE_MS = 16 // ~60fps
 const stateSelectors = {
   workflowState: null as WorkflowState | null,
   lastWorkflowStateHash: '',
-  
+
   getWorkflowState(): WorkflowState {
     const current = useWorkflowStore.getState().getWorkflowState()
-    const currentHash = JSON.stringify({ 
+    const currentHash = JSON.stringify({
       blocksLength: Object.keys(current.blocks).length,
       edgesLength: current.edges.length,
-      timestamp: current.lastSaved
+      timestamp: current.lastSaved,
     })
-    
+
     if (currentHash !== this.lastWorkflowStateHash) {
       this.workflowState = current
       this.lastWorkflowStateHash = currentHash
     }
-    
+
     return this.workflowState!
-  }
+  },
 }
 
 interface WorkflowDiffState {
@@ -69,22 +69,22 @@ interface WorkflowDiffActions {
  */
 function createBatchedUpdater(set: any) {
   let pendingUpdates: Partial<WorkflowDiffState> = {}
-  
+
   return (updates: Partial<WorkflowDiffState>) => {
     // Merge updates
     Object.assign(pendingUpdates, updates)
-    
+
     // Clear existing timer
     if (updateTimer) {
       clearTimeout(updateTimer)
     }
-    
+
     // Schedule batched update
     updateTimer = setTimeout(() => {
       const finalUpdates = { ...pendingUpdates }
       pendingUpdates = {}
       updateTimer = null
-      
+
       set(finalUpdates)
     }, UPDATE_DEBOUNCE_MS)
   }
@@ -98,7 +98,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
     (set, get) => {
       // PERFORMANCE OPTIMIZATION: Create batched updater once
       const batchedUpdate = createBatchedUpdater(set)
-      
+
       return {
         isShowingDiff: false,
         isDiffReady: false,
@@ -138,7 +138,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               _cachedDisplayState: undefined, // Clear cache
               _lastDisplayStateHash: undefined,
             })
-            
+
             logger.info('Diff created successfully')
           } else {
             logger.error('Failed to create diff:', result.errors)
@@ -306,36 +306,36 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           }
         },
 
-                 getCurrentWorkflowForCanvas: () => {
-           const state = get()
-           const { isShowingDiff, isDiffReady, _cachedDisplayState, _lastDisplayStateHash } = state
+        getCurrentWorkflowForCanvas: () => {
+          const state = get()
+          const { isShowingDiff, isDiffReady, _cachedDisplayState, _lastDisplayStateHash } = state
 
-           // PERFORMANCE OPTIMIZATION: Return cached display state if available and valid
-           if (isShowingDiff && isDiffReady && diffEngine.hasDiff()) {
-             const currentState = stateSelectors.getWorkflowState()
-             const currentHash = stateSelectors.lastWorkflowStateHash
-             
-             // Use cached display state if hash matches
-             if (_cachedDisplayState && _lastDisplayStateHash === currentHash) {
-               return _cachedDisplayState
-             }
-             
-             // Generate and cache new display state
-             logger.debug('Returning diff workflow for canvas')
-             const displayState = diffEngine.getDisplayState(currentState)
-             
-             // Cache the result for future calls
-             state._batchedStateUpdate({
-               _cachedDisplayState: displayState,
-               _lastDisplayStateHash: currentHash,
-             })
-             
-             return displayState
-           }
+          // PERFORMANCE OPTIMIZATION: Return cached display state if available and valid
+          if (isShowingDiff && isDiffReady && diffEngine.hasDiff()) {
+            const currentState = stateSelectors.getWorkflowState()
+            const currentHash = stateSelectors.lastWorkflowStateHash
 
-           // PERFORMANCE OPTIMIZATION: Use cached workflow state selector
-           return stateSelectors.getWorkflowState()
-         },
+            // Use cached display state if hash matches
+            if (_cachedDisplayState && _lastDisplayStateHash === currentHash) {
+              return _cachedDisplayState
+            }
+
+            // Generate and cache new display state
+            logger.debug('Returning diff workflow for canvas')
+            const displayState = diffEngine.getDisplayState(currentState)
+
+            // Cache the result for future calls
+            state._batchedStateUpdate({
+              _cachedDisplayState: displayState,
+              _lastDisplayStateHash: currentHash,
+            })
+
+            return displayState
+          }
+
+          // PERFORMANCE OPTIMIZATION: Use cached workflow state selector
+          return stateSelectors.getWorkflowState()
+        },
       }
     },
     { name: 'workflow-diff-store' }
