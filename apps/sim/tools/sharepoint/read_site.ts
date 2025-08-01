@@ -3,7 +3,7 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 export interface SharepointReadSiteResponse extends ToolResponse {
   output: {
-    site: {
+    site?: {
       id: string
       name: string
       displayName: string
@@ -19,6 +19,15 @@ export interface SharepointReadSiteResponse extends ToolResponse {
         hostname: string
       }
     }
+    sites?: Array<{
+      id: string
+      name: string
+      displayName: string
+      webUrl: string
+      description?: string
+      createdDateTime?: string
+      lastModifiedDateTime?: string
+    }>
   }
 }
 
@@ -70,8 +79,8 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
         const siteId = params.siteId || params.siteSelector
         baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}`
       } else {
-        // Default to root site
-        baseUrl = 'https://graph.microsoft.com/v1.0/sites/root'
+        // get all sites
+        baseUrl = 'https://graph.microsoft.com/v1.0/sites?search=*'
       }
       
       const url = new URL(baseUrl)
@@ -90,29 +99,49 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       Accept: 'application/json',
     }),
   },
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to read SharePoint site')
+      throw new Error(data.error?.message || 'Failed to read SharePoint site(s)')
     }
 
-    return {
-      success: true,
-      output: {
-        site: {
-          id: data.id,
-          name: data.name,
-          displayName: data.displayName,
-          webUrl: data.webUrl,
-          description: data.description,
-          createdDateTime: data.createdDateTime,
-          lastModifiedDateTime: data.lastModifiedDateTime,
-          isPersonalSite: data.isPersonalSite,
-          root: data.root,
-          siteCollection: data.siteCollection,
+    // Check if this is a search result (multiple sites) or single site
+    if (data.value && Array.isArray(data.value)) {
+      // Multiple sites from search
+      return {
+        success: true,
+        output: {
+          sites: data.value.map((site: any) => ({
+            id: site.id,
+            name: site.name,
+            displayName: site.displayName,
+            webUrl: site.webUrl,
+            description: site.description,
+            createdDateTime: site.createdDateTime,
+            lastModifiedDateTime: site.lastModifiedDateTime,
+          }))
         },
-      },
+      }
+    } else {
+      // Single site response
+      return {
+        success: true,
+        output: {
+          site: {
+            id: data.id,
+            name: data.name,
+            displayName: data.displayName,
+            webUrl: data.webUrl,
+            description: data.description,
+            createdDateTime: data.createdDateTime,
+            lastModifiedDateTime: data.lastModifiedDateTime,
+            isPersonalSite: data.isPersonalSite,
+            root: data.root,
+            siteCollection: data.siteCollection,
+          },
+        },
+      }
     }
   },
   transformError: (error) => {

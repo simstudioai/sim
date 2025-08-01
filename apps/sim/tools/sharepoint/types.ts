@@ -16,13 +16,8 @@ export interface SharepointPage {
   title: string
   webUrl: string
   pageLayout?: string
-  promotionKind?: string
   createdDateTime?: string
   lastModifiedDateTime?: string
-  contentType?: {
-    id: string
-    name: string
-  }
 }
 
 export interface SharepointPageContent {
@@ -60,6 +55,36 @@ export interface SharepointReadPageResponse extends ToolResponse {
   }
 }
 
+export interface SharepointReadSiteResponse extends ToolResponse {
+  output: {
+    site?: {
+      id: string
+      name: string
+      displayName: string
+      webUrl: string
+      description?: string
+      createdDateTime?: string
+      lastModifiedDateTime?: string
+      isPersonalSite?: boolean
+      root?: {
+        serverRelativeUrl: string
+      }
+      siteCollection?: {
+        hostname: string
+      }
+    }
+    sites?: Array<{
+      id: string
+      name: string
+      displayName: string
+      webUrl: string
+      description?: string
+      createdDateTime?: string
+      lastModifiedDateTime?: string
+    }>
+  }
+}
+
 export interface SharepointToolParams {
   accessToken: string
   siteId?: string
@@ -81,3 +106,4 @@ export type SharepointResponse =
   | SharepointListSitesResponse
   | SharepointCreatePageResponse
   | SharepointReadPageResponse
+  | SharepointReadSiteResponse

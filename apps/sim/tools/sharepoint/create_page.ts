@@ -138,10 +138,8 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
           title: data.title || data.name,
           webUrl: data.webUrl,
           pageLayout: data.pageLayout,
-          promotionKind: data.promotionKind,
           createdDateTime: data.createdDateTime,
           lastModifiedDateTime: data.lastModifiedDateTime,
-          contentType: data.contentType,
         },
       },
     }

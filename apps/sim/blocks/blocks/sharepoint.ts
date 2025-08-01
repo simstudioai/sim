@@ -48,7 +48,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a site',
       mode: 'basic',
-      condition: { field: 'operation', value: ['create_page', 'read_page'] },
+      condition: { field: 'operation', value: ['create_page', 'read_page', 'list_sites'] },
     },
 
      {
@@ -58,6 +58,16 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       layout: 'full',
       placeholder: 'Name for the new page',
       condition: { field: 'operation', value:  ['create_page', 'read_page'] },
+    },
+
+    {
+      id: 'pageId',
+      title: 'Page ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Page ID (alternative to page name)',
+      condition: { field: 'operation', value: 'read_page' },
+      mode: 'advanced',
     },
 
     {
@@ -78,27 +88,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       mode: 'advanced',
       condition: { field: 'operation', value: 'upload' },
     },
-    // Manual Folder ID input (advanced mode)
-    {
-      id: 'manualSiteId',
-      title: 'Site ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter site ID (leave empty for root site)',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'create_page' },
-    },
-    // List Fields - Site Selector (basic mode)
-    // Manual Site ID input (advanced mode)
-    {
-      id: 'manualSiteId',
-      title: 'Site ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter site ID (leave empty for root site)',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'list_sites' },
-    },
+
     {
       id: 'query',
       title: 'Search Query',
@@ -146,8 +136,8 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     pageName: { type: 'string', required: false },
     pageContent: { type: 'string', required: false },
     pageTitle: { type: 'string', required: false },
-    // Get Content operation inputs
-    // fileId: { type: 'string', required: false },
+    // Read Page operation inputs
+    pageId: { type: 'string', required: false },
     // List operation inputs
     siteSelector: { type: 'string', required: false },
     manualSiteId: { type: 'string', required: false },
