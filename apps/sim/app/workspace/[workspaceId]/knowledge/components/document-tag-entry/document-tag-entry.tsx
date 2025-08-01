@@ -184,9 +184,7 @@ export function DocumentTagEntry({
       }
 
       setModalOpen(false)
-    } catch (error) {
-      console.error('Failed to save tag:', error)
-    }
+    } catch (error) {}
   }
 
   // Filter available tag definitions (exclude already used ones)
