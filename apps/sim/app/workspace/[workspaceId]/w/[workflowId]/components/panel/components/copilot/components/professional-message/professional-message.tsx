@@ -28,6 +28,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
+import { COPILOT_TOOL_DISPLAY_NAMES, COPILOT_TOOL_PAST_TENSE, COPILOT_TOOL_ERROR_NAMES } from '@/stores/constants'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import type { ToolCallState } from '@/types/tool-call'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -198,6 +199,49 @@ const WordWrap = ({ text }: { text: string }) => {
   )
 }
 
+// Helper function to get tool display name based on state
+function getToolDisplayName(toolName: string): string {
+  return COPILOT_TOOL_DISPLAY_NAMES[toolName] || toolName
+}
+
+function getToolDisplayNameByState(toolCall: any): string {
+  const toolName = toolCall.name
+  const state = toolCall.state
+  const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+  
+  // Check for rejected state first (highest priority)
+  if (state === 'rejected') {
+    return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
+  }
+  
+  // Check if error is actually a rejection by examining the error message
+  if (state === 'error' && toolCall.error) {
+    const errorMessage = typeof toolCall.error === 'string' ? toolCall.error : toolCall.error.message || ''
+    if (errorMessage.toLowerCase().includes('rejected') || 
+        errorMessage.toLowerCase().includes('not approved') ||
+        errorMessage.toLowerCase().includes('denied')) {
+      return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
+    }
+  }
+  
+  if (state === 'ready_for_review' && isWorkflowTool) {
+    // Special display for workflow tools awaiting review
+    const baseText = COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
+    return `${baseText} - ready for review`
+  } else if (state === 'applied' && isWorkflowTool) {
+    // Show completion/done state after accept
+    return 'Applied workflow changes'
+  } else if (state === 'completed' || state === 'applied') {
+    // Regular tools and non-workflow applied states use past tense
+    return COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
+  } else if (state === 'error') {
+    return COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${getToolDisplayName(toolName).toLowerCase()}`
+  } else {
+    // For executing, aborted, etc. - use present tense
+    return getToolDisplayName(toolName)
+  }
+}
+
 // Interrupt Confirmation Component
 function InterruptConfirmation({ 
   toolCall, 
@@ -257,6 +301,9 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   const requiresInterrupt = toolRequiresInterrupt(tool.name)
   const showInterruptConfirmation = requiresInterrupt && 
     (tool.state === 'executing' || tool.state === 'pending')
+
+  // Get access to the copilot store
+  const { updatePreviewToolCallState } = useCopilotStore()
 
   const getToolIcon = () => {
     const displayName = tool.displayName || tool.name || ''
@@ -339,6 +386,10 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
 
   // API call to confirm tool action
   const handleConfirmTool = async (toolCallId: string, status: 'Accept' | 'Reject') => {
+    // Immediately update the tool state using the store
+    const newState = status === 'Accept' ? 'applied' : 'rejected'
+    updatePreviewToolCallState(newState, toolCallId)
+
     try {
       const response = await fetch('/api/copilot/confirm', {
         method: 'POST',
@@ -353,12 +404,22 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
 
       if (!response.ok) {
         const error = await response.json()
+        // Don't throw error for rejections - user explicitly chose to reject
+        if (status === 'Reject') {
+          console.log(`Tool ${toolCallId} rejected by user`)
+          return
+        }
         throw new Error(error.error || 'Failed to confirm tool')
       }
 
       const result = await response.json()
       console.log(`Tool ${toolCallId} ${status.toLowerCase()}ed:`, result)
     } catch (error) {
+      // Don't show errors for explicit rejections
+      if (status === 'Reject') {
+        console.log(`Tool ${toolCallId} rejected by user (server error ignored)`)
+        return
+      }
       console.error('Error confirming tool:', error)
       throw error
     }
@@ -368,7 +429,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
     <div>
       <div className='flex items-center gap-2 py-1 text-muted-foreground'>
         <div className='flex-shrink-0'>{getStateIcon()}</div>
-        <span className='text-sm'>{tool.displayName || tool.name}</span>
+        <span className='text-sm'>{getToolDisplayNameByState(tool)}</span>
       </div>
       
       {showInterruptConfirmation && (

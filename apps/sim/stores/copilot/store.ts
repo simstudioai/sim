@@ -8,6 +8,8 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_DISPLAY_NAMES, COPILOT_TOOL_PAST_TENSE, COPILOT_TOOL_ERROR_NAMES } from '@/stores/constants'
 import { COPILOT_TOOL_IDS } from './constants'
 import type { CopilotStore, WorkflowCheckpoint } from './types'
+import { toolRequiresInterrupt } from './constants'
+import { getSession } from '@/lib/auth'
 
 const logger = createLogger('CopilotStore')
 
@@ -334,6 +336,14 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
  * Helper function to handle tool execution failure
  */
 function handleToolFailure(toolCall: any, error: string): void {
+  // Don't override terminal states for workflow tools and interrupt tools
+  if ((WORKFLOW_TOOL_IDS.has(toolCall.name) || toolRequiresInterrupt(toolCall.name)) && 
+      (toolCall.state === 'applied' || toolCall.state === 'rejected')) {
+    // Tool is already in a terminal state, don't override it
+    logger.info('Tool call already in terminal state, preserving:', toolCall.id, toolCall.name, toolCall.state)
+    return
+  }
+  
   toolCall.state = 'error'
   toolCall.error = error
   
@@ -368,8 +378,10 @@ function finalizeToolCall(toolCall: any, success: boolean, result?: any, get?: (
   if (success) {
     toolCall.result = result
     
-    // For workflow tools, check if they're already in a terminal state in the store
-    if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
+    // For workflow tools and interrupt tools, check if they're already in a terminal state in the store
+    if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
+        toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW ||
+        toolRequiresInterrupt(toolCall.name)) {
       // Get current state from store if get function is available
       if (get) {
         const state = get()
@@ -401,14 +413,21 @@ function finalizeToolCall(toolCall: any, success: boolean, result?: any, get?: (
         }
       }
       
-      // Not in terminal state, set to ready_for_review
-      toolCall.state = 'ready_for_review'
+      // Not in terminal state, set appropriate state
+      if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
+        toolCall.state = 'ready_for_review'
+      } else {
+        toolCall.state = 'completed'
+      }
     } else {
-      // Non-workflow tools are completed
       toolCall.state = 'completed'
     }
-    
-    // Update displayName to match the new state
+  } else {
+    handleToolFailure(toolCall, result || 'Tool execution failed')
+  }
+
+  // Set display name if not already set
+  if (!toolCall.displayName) {
     toolCall.displayName = getToolDisplayNameByState(toolCall)
   }
 }
@@ -536,7 +555,7 @@ const sseHandlers: Record<string, SSEHandler> = {
     const toolCallIndex = context.toolCalls.findIndex(tc => tc.id === toolCallId)
     if (toolCallIndex !== -1) {
       const existingToolCall = context.toolCalls[toolCallIndex]
-      context.toolCalls[toolCallIndex] = preserveWorkflowToolTerminalState(toolCall, existingToolCall)
+      context.toolCalls[toolCallIndex] = preserveToolTerminalState(toolCall, existingToolCall)
     }
     
     updateStreamingMessage(set, context)
@@ -694,7 +713,7 @@ const sseHandlers: Record<string, SSEHandler> = {
         const toolCallIndex = context.toolCalls.findIndex(tc => tc.id === context.toolCallBuffer.id)
         if (toolCallIndex !== -1) {
           const existingToolCall = context.toolCalls[toolCallIndex]
-          context.toolCalls[toolCallIndex] = preserveWorkflowToolTerminalState(context.toolCallBuffer, existingToolCall)
+          context.toolCalls[toolCallIndex] = preserveToolTerminalState(context.toolCallBuffer, existingToolCall)
         }
         
         updateStreamingMessage(set, context)
@@ -753,15 +772,15 @@ const sseHandlers: Record<string, SSEHandler> = {
   },
 }
 
-// Cache workflow tool IDs for faster lookup
+// Cache workflow and interrupt tool IDs for faster lookup
 const WORKFLOW_TOOL_IDS = new Set<string>([COPILOT_TOOL_IDS.BUILD_WORKFLOW, COPILOT_TOOL_IDS.EDIT_WORKFLOW])
 
 /**
- * Helper function to preserve terminal states for workflow tools
+ * Helper function to preserve terminal states for workflow tools and interrupt tools
  */
-function preserveWorkflowToolTerminalState(newToolCall: any, existingToolCall: any): any {
-  // Early return if not a workflow tool
-  if (!WORKFLOW_TOOL_IDS.has(newToolCall.name)) {
+function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any {
+  // Early return if not a workflow tool or interrupt tool
+  if (!WORKFLOW_TOOL_IDS.has(newToolCall.name) && !toolRequiresInterrupt(newToolCall.name)) {
     return newToolCall
   }
   
@@ -786,8 +805,8 @@ function preserveWorkflowToolTerminalState(newToolCall: any, existingToolCall: a
  * Helper function to merge tool calls while preserving terminal states
  */
 function mergeToolCallsPreservingTerminalStates(newToolCalls: any[], existingToolCalls: any[] = []): any[] {
-  // Early return if no existing tool calls or no workflow tools to check
-  if (!existingToolCalls.length || !newToolCalls.some(tc => WORKFLOW_TOOL_IDS.has(tc.name))) {
+  
+  if (!existingToolCalls.length || !newToolCalls.some(tc => WORKFLOW_TOOL_IDS.has(tc.name) || toolRequiresInterrupt(tc.name))) {
     return newToolCalls
   }
   
@@ -796,7 +815,7 @@ function mergeToolCallsPreservingTerminalStates(newToolCalls: any[], existingToo
   
   return newToolCalls.map(newToolCall => {
     const existingToolCall = existingMap.get(newToolCall.id)
-    return preserveWorkflowToolTerminalState(newToolCall, existingToolCall)
+    return preserveToolTerminalState(newToolCall, existingToolCall)
   })
 }
 
@@ -821,13 +840,13 @@ function mergeContentBlocksPreservingTerminalStates(newContentBlocks: any[], exi
     if (newBlock.type === 'tool_call') {
       const toolCallBlock = newBlock as any
       
-      // Skip if not a workflow tool
-      if (!WORKFLOW_TOOL_IDS.has(toolCallBlock.toolCall.name)) {
+      // Skip if not a workflow tool or interrupt tool
+      if (!WORKFLOW_TOOL_IDS.has(toolCallBlock.toolCall.name) && !toolRequiresInterrupt(toolCallBlock.toolCall.name)) {
         return newBlock
       }
       
       const existingBlock = existingToolCallMap.get(toolCallBlock.toolCall.id)
-      const preservedToolCall = preserveWorkflowToolTerminalState(
+      const preservedToolCall = preserveToolTerminalState(
         toolCallBlock.toolCall, 
         existingBlock?.toolCall
       )
@@ -851,7 +870,7 @@ function updateContentBlockToolCall(contentBlocks: any[], toolCallId: string, to
   for (let i = 0; i < contentBlocks.length; i++) {
     const block = contentBlocks[i]
     if (block.type === 'tool_call' && block.toolCall.id === toolCallId) {
-      const preservedToolCall = preserveWorkflowToolTerminalState(toolCall, block.toolCall)
+      const preservedToolCall = preserveToolTerminalState(toolCall, block.toolCall)
       contentBlocks[i] = {
         type: 'tool_call',
         toolCall: preservedToolCall,
@@ -1655,38 +1674,19 @@ export const useCopilotStore = create<CopilotStore>()(
       },
 
       // Update preview tool call state
-      updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected') => {
+      updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected', toolCallId?: string) => {
         const { messages } = get()
 
-        // Find the last message with a workflow tool call
-        const lastMessageWithPreview = [...messages]
-          .reverse()
-          .find(
-            (msg) =>
-              msg.role === 'assistant' &&
-              msg.toolCalls?.some((tc) => WORKFLOW_TOOL_IDS.has(tc.name))
-          )
-
-        if (lastMessageWithPreview) {
-          // Find the most recent workflow tool call in the message
-          const workflowToolCalls = lastMessageWithPreview.toolCalls?.filter(
-            (tc) => WORKFLOW_TOOL_IDS.has(tc.name)
-          ) || []
-          
-          const lastWorkflowToolCall = workflowToolCalls[workflowToolCalls.length - 1]
-          
-          if (!lastWorkflowToolCall) {
-            logger.warn('No workflow tool calls found in message')
-            return
-          }
-
+        // If toolCallId is provided, update specific tool call (for interrupt tools)
+        if (toolCallId) {
           set((state) => {
             const updatedMessages = state.messages.map((msg) =>
-              msg.id === lastMessageWithPreview.id
+              msg.toolCalls?.some(tc => tc.id === toolCallId) || 
+              msg.contentBlocks?.some(block => block.type === 'tool_call' && (block as any).toolCall.id === toolCallId)
                 ? {
                     ...msg,
                     toolCalls: msg.toolCalls?.map((tc) =>
-                      tc.id === lastWorkflowToolCall.id
+                      tc.id === toolCallId
                         ? { 
                             ...tc, 
                             state: toolCallState,
@@ -1695,7 +1695,7 @@ export const useCopilotStore = create<CopilotStore>()(
                         : tc
                     ),
                     contentBlocks: msg.contentBlocks?.map((block) =>
-                      block.type === 'tool_call' && (block as any).toolCall.id === lastWorkflowToolCall.id
+                      block.type === 'tool_call' && (block as any).toolCall.id === toolCallId
                         ? { 
                             ...block, 
                             toolCall: { 
@@ -1711,34 +1711,71 @@ export const useCopilotStore = create<CopilotStore>()(
             )
             return { messages: updatedMessages }
           })
-          
-          // Persist the updated tool call states to the database
-          const { currentChat } = get()
-          if (currentChat) {
-            // Get the updated messages after state change
-            const updatedMessages = get().messages
-            const dbMessages = validateMessagesForLLM(updatedMessages)
-
-            fetch('/api/copilot/chat/update-messages', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                chatId: currentChat.id,
-                messages: dbMessages
-              })
-            }).then(response => {
-              if (response.ok) {
-                logger.info('Successfully persisted updated tool call states to database')
-              } else {
-                logger.error('Failed to persist updated tool call states:', response.statusText)
-              }
-            }).catch(error => {
-              logger.error('Error persisting updated tool call states:', error)
-            })
-          }
-        } else {
-          logger.warn('No message with workflow tool calls found for state update')
+          return
         }
+
+        // Existing workflow tool logic
+        // Find last message with workflow tools
+        const lastMessageWithPreview = messages
+          .slice()
+          .reverse()
+          .find((msg) =>
+            msg.toolCalls?.some(
+              (tc) =>
+                (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+                  tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
+                (tc.state === 'ready_for_review' || tc.state === 'completed')
+            )
+          )
+
+        if (!lastMessageWithPreview) {
+          logger.error('No message with workflow tools found')
+          return
+        }
+
+        const lastWorkflowToolCall = lastMessageWithPreview.toolCalls?.find(
+          (tc) =>
+            (tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
+              tc.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) &&
+            (tc.state === 'ready_for_review' || tc.state === 'completed')
+        )
+
+        if (!lastWorkflowToolCall) {
+          logger.error('No workflow tool call found in message')
+          return
+        }
+
+        set((state) => {
+          const updatedMessages = state.messages.map((msg) =>
+            msg.id === lastMessageWithPreview.id
+              ? {
+                  ...msg,
+                  toolCalls: msg.toolCalls?.map((tc) =>
+                    tc.id === lastWorkflowToolCall.id
+                      ? { 
+                          ...tc, 
+                          state: toolCallState,
+                          displayName: getToolDisplayNameByState({ ...tc, state: toolCallState })
+                        }
+                      : tc
+                  ),
+                  contentBlocks: msg.contentBlocks?.map((block) =>
+                    block.type === 'tool_call' && (block as any).toolCall.id === lastWorkflowToolCall.id
+                      ? { 
+                          ...block, 
+                          toolCall: { 
+                            ...(block as any).toolCall, 
+                            state: toolCallState,
+                            displayName: getToolDisplayNameByState({ ...(block as any).toolCall, state: toolCallState })
+                          } 
+                        }
+                      : block
+                  ),
+                }
+              : msg
+          )
+          return { messages: updatedMessages }
+        })
       },
 
       // Send docs message - simplified without separate API
