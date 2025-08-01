@@ -22,6 +22,7 @@ export function useCollaborativeWorkflow() {
     leaveWorkflow,
     emitWorkflowOperation,
     emitSubblockUpdate,
+    emitTagSelection,
     onWorkflowOperation,
     onSubblockUpdate,
     onUserJoined,
@@ -723,6 +724,30 @@ export function useCollaborativeWorkflow() {
     ]
   )
 
+  // Immediate tag selection (bypasses debouncing for instant collaborative feedback)
+  const collaborativeSetTagSelection = useCallback(
+    (blockId: string, subblockId: string, value: any) => {
+      if (isApplyingRemoteChange.current) return
+
+      if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
+        logger.debug('Skipping tag selection - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+          blockId,
+          subblockId,
+        })
+        return
+      }
+
+      // Apply locally first (immediate UI feedback)
+      subBlockStore.setValue(blockId, subblockId, value)
+
+      // Emit immediately using the tag-selection socket event (no debouncing)
+      emitTagSelection(blockId, subblockId, value)
+    },
+    [subBlockStore, emitTagSelection, currentWorkflowId, activeWorkflowId]
+  )
+
   const collaborativeDuplicateBlock = useCallback(
     (sourceId: string) => {
       const sourceBlock = workflowStore.blocks[sourceId]
@@ -1019,6 +1044,7 @@ export function useCollaborativeWorkflow() {
     collaborativeAddEdge,
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,
+    collaborativeSetTagSelection,
 
     // Collaborative loop/parallel operations
     collaborativeUpdateLoopCount,

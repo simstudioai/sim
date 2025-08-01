@@ -1,24 +1,19 @@
 import { useCallback } from 'react'
-import { useSocket } from '@/contexts/socket-context'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 /**
  * Hook for handling immediate tag dropdown selections
- * This bypasses the debounced operation queue system for instant feedback
+ * Uses the collaborative workflow system but with immediate processing
  */
 export function useTagSelection(blockId: string, subblockId: string) {
-  const { emitTagSelection } = useSocket()
-  const subBlockStore = useSubBlockStore()
+  const { collaborativeSetTagSelection } = useCollaborativeWorkflow()
 
   const emitTagSelectionValue = useCallback(
     (value: any) => {
-      // Update local store immediately for instant feedback
-      subBlockStore.setValue(blockId, subblockId, value)
-
-      // Emit to server immediately (no debouncing)
-      emitTagSelection(blockId, subblockId, value)
+      // Use the collaborative system with immediate processing (no debouncing)
+      collaborativeSetTagSelection(blockId, subblockId, value)
     },
-    [blockId, subblockId, emitTagSelection, subBlockStore]
+    [blockId, subblockId, collaborativeSetTagSelection]
   )
 
   return emitTagSelectionValue

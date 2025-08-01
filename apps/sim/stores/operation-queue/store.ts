@@ -59,7 +59,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   hasOperationError: false,
 
   addToQueue: (operation) => {
-    // Handle debouncing for subblock operations
+    // Handle debouncing for regular subblock operations (but not tag selections)
     if (
       operation.operation.operation === 'subblock-update' &&
       operation.operation.target === 'subblock'
