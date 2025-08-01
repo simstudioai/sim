@@ -13,9 +13,9 @@ import {
   Textarea,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getBaseDomain, getEmailDomain } from '@/lib/urls/utils'
 import { AuthSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/components/auth-selector'
 import { SubdomainInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/components/subdomain-input'
+import { SuccessView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/components/success-view'
 import { useChatDeployment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-chat-deployment'
 import { useChatForm } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-chat-form'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components'
@@ -31,6 +31,7 @@ interface ChatDeployProps {
   chatSubmitting: boolean
   setChatSubmitting: (submitting: boolean) => void
   onValidationChange?: (isValid: boolean) => void
+  onPreDeployWorkflow?: () => Promise<void>
 }
 
 interface ExistingChat {
@@ -54,22 +55,15 @@ export function ChatDeploy({
   chatSubmitting,
   setChatSubmitting,
   onValidationChange,
+  onPreDeployWorkflow,
 }: ChatDeployProps) {
-  // Loading and existing chat state
   const [isLoading, setIsLoading] = useState(false)
   const [existingChat, setExistingChat] = useState<ExistingChat | null>(null)
 
-  // Form and deployment hooks
   const { formData, errors, updateField, setError, validateForm, setFormData } = useChatForm()
   const { deployedUrl, deployChat } = useChatDeployment()
-
-  // Refs
   const formRef = useRef<HTMLFormElement>(null)
-
-  // Subdomain validation state
   const [isSubdomainValid, setIsSubdomainValid] = useState(false)
-
-  // Track overall form validity
   const isFormValid =
     isSubdomainValid &&
     Boolean(formData.title.trim()) &&
@@ -79,12 +73,10 @@ export function ChatDeploy({
       Boolean(existingChat)) &&
     (formData.authType !== 'email' || formData.emails.length > 0)
 
-  // Notify parent of validation changes
   useEffect(() => {
     onValidationChange?.(isFormValid)
   }, [isFormValid, onValidationChange])
 
-  // Fetch existing chat data when component mounts
   useEffect(() => {
     if (workflowId) {
       fetchExistingChat()
@@ -106,13 +98,12 @@ export function ChatDeploy({
             const chatDetail = await detailResponse.json()
             setExistingChat(chatDetail)
 
-            // Populate form with existing data
             setFormData({
               subdomain: chatDetail.subdomain || '',
               title: chatDetail.title || '',
               description: chatDetail.description || '',
               authType: chatDetail.authType || 'public',
-              password: '', // Never populate password for security
+              password: '',
               emails: Array.isArray(chatDetail.allowedEmails) ? [...chatDetail.allowedEmails] : [],
               welcomeMessage:
                 chatDetail.customizations?.welcomeMessage || 'Hi there! How can I help you today?',
@@ -141,32 +132,28 @@ export function ChatDeploy({
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
 
-    // Prevent double submission
     if (chatSubmitting) return
 
     setChatSubmitting(true)
 
     try {
-      // Validate form
+      await onPreDeployWorkflow?.()
+
       if (!validateForm()) {
         setChatSubmitting(false)
         return
       }
 
-      // Check subdomain validation
       if (!isSubdomainValid && formData.subdomain !== existingChat?.subdomain) {
         setError('subdomain', 'Please wait for subdomain validation to complete')
         setChatSubmitting(false)
         return
       }
 
-      // Deploy chat
       await deployChat(workflowId, formData, deploymentInfo, existingChat?.id)
 
-      // Success - component will show success state via deployedUrl
       onChatExistsChange?.(true)
     } catch (error: any) {
-      // Handle subdomain conflict specifically
       if (error.message?.includes('subdomain')) {
         setError('subdomain', error.message)
       } else {
@@ -176,21 +163,6 @@ export function ChatDeploy({
       setChatSubmitting(false)
     }
   }
-
-  // Setup form for external submission
-  useEffect(() => {
-    const form = formRef.current
-    if (form) {
-      const handleDOMSubmit = (e: Event) => {
-        e.preventDefault()
-        handleSubmit()
-      }
-      form.addEventListener('submit', handleDOMSubmit)
-      return () => {
-        form.removeEventListener('submit', handleDOMSubmit)
-      }
-    }
-  }, [handleSubmit])
 
   if (isLoading) {
     return <LoadingSkeleton />
@@ -202,9 +174,10 @@ export function ChatDeploy({
 
   return (
     <form
+      id='chat-deploy-form'
       ref={formRef}
       onSubmit={handleSubmit}
-      className='chat-deploy-form -mx-1 space-y-4 overflow-y-auto px-1'
+      className='-mx-1 space-y-4 overflow-y-auto px-1'
     >
       {errors.general && (
         <Alert variant='destructive'>
@@ -214,7 +187,6 @@ export function ChatDeploy({
       )}
 
       <div className='space-y-4'>
-        {/* Subdomain Input */}
         <SubdomainInput
           value={formData.subdomain}
           onChange={(value) => updateField('subdomain', value)}
@@ -222,8 +194,6 @@ export function ChatDeploy({
           disabled={chatSubmitting}
           onValidationChange={setIsSubdomainValid}
         />
-
-        {/* Title Input */}
         <div className='space-y-2'>
           <Label htmlFor='title' className='font-medium text-sm'>
             Chat Title
@@ -238,8 +208,6 @@ export function ChatDeploy({
           />
           {errors.title && <p className='text-destructive text-sm'>{errors.title}</p>}
         </div>
-
-        {/* Description Input */}
         <div className='space-y-2'>
           <Label htmlFor='description' className='font-medium text-sm'>
             Description (Optional)
@@ -253,8 +221,6 @@ export function ChatDeploy({
             disabled={chatSubmitting}
           />
         </div>
-
-        {/* Output Configuration */}
         <div className='space-y-2'>
           <Label className='font-medium text-sm'>Chat Output</Label>
           <Card className='rounded-md border-input shadow-none'>
@@ -274,7 +240,6 @@ export function ChatDeploy({
           </p>
         </div>
 
-        {/* Authentication Selector */}
         <AuthSelector
           authType={formData.authType}
           password={formData.password}
@@ -286,8 +251,6 @@ export function ChatDeploy({
           isExistingChat={!!existingChat}
           error={errors.password || errors.emails}
         />
-
-        {/* Welcome Message */}
         <div className='space-y-2'>
           <Label htmlFor='welcomeMessage' className='font-medium text-sm'>
             Welcome Message
@@ -327,67 +290,6 @@ function LoadingSkeleton() {
       <div className='space-y-2'>
         <Skeleton className='h-5 w-40' />
         <Skeleton className='h-32 w-full rounded-lg' />
-      </div>
-    </div>
-  )
-}
-
-function SuccessView({
-  deployedUrl,
-  existingChat,
-}: {
-  deployedUrl: string
-  existingChat: ExistingChat | null
-}) {
-  const url = new URL(deployedUrl)
-  const hostname = url.hostname
-  const isDevelopmentUrl = hostname.includes('localhost')
-
-  let domainSuffix
-  if (isDevelopmentUrl) {
-    const baseDomain = getBaseDomain()
-    const baseHost = baseDomain.split(':')[0]
-    const port = url.port || (baseDomain.includes(':') ? baseDomain.split(':')[1] : '3000')
-    domainSuffix = `.${baseHost}:${port}`
-  } else {
-    domainSuffix = `.${getEmailDomain()}`
-  }
-
-  const baseDomainForSplit = getEmailDomain()
-  const subdomainPart = isDevelopmentUrl
-    ? hostname.split('.')[0]
-    : hostname.split(`.${baseDomainForSplit}`)[0]
-
-  return (
-    <div className='space-y-4'>
-      <div className='space-y-2'>
-        <Label className='font-medium text-sm'>
-          Chat {existingChat ? 'Update' : 'Deployment'} Successful
-        </Label>
-        <div className='relative flex items-center rounded-md ring-offset-background'>
-          <a
-            href={deployedUrl}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='flex h-10 flex-1 items-center break-all rounded-l-md border border-r-0 p-2 font-medium text-primary text-sm'
-          >
-            {subdomainPart}
-          </a>
-          <div className='flex h-10 items-center whitespace-nowrap rounded-r-md border border-l-0 bg-muted px-3 font-medium text-muted-foreground text-sm'>
-            {domainSuffix}
-          </div>
-        </div>
-        <p className='text-muted-foreground text-xs'>
-          Your chat is now live at{' '}
-          <a
-            href={deployedUrl}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-primary hover:underline'
-          >
-            this URL
-          </a>
-        </p>
       </div>
     </div>
   )

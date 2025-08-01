@@ -64,14 +64,11 @@ export function DeployModal({
   isLoadingDeployedState,
   refetchDeployedState,
 }: DeployModalProps) {
-  // Use registry store for deployment-related functions
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(workflowId)
   )
   const isDeployed = deploymentStatus?.isDeployed || false
   const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
-
-  // Local state
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUndeploying, setIsUndeploying] = useState(false)
   const [deploymentInfo, setDeploymentInfo] = useState<WorkflowDeploymentInfo | null>(null)
@@ -84,7 +81,6 @@ export function DeployModal({
   const [chatExists, setChatExists] = useState(false)
   const [isChatFormValid, setIsChatFormValid] = useState(false)
 
-  // Generate an example input format for the API request
   const getInputFormatExample = () => {
     let inputFormatExample = ''
     try {
@@ -128,7 +124,6 @@ export function DeployModal({
     return inputFormatExample
   }
 
-  // Fetch API keys when modal opens
   const fetchApiKeys = async () => {
     if (!open) return
 
@@ -147,7 +142,6 @@ export function DeployModal({
     }
   }
 
-  // Fetch chat deployment info when modal opens
   const fetchChatDeploymentInfo = async () => {
     if (!open || !workflowId) return
 
@@ -173,10 +167,8 @@ export function DeployModal({
     }
   }
 
-  // Call fetchApiKeys when the modal opens
   useEffect(() => {
     if (open) {
-      // Set loading state immediately when modal opens
       setIsLoading(true)
       fetchApiKeys()
       fetchChatDeploymentInfo()
@@ -184,12 +176,10 @@ export function DeployModal({
     }
   }, [open, workflowId])
 
-  // Fetch deployment info when the modal opens and the workflow is deployed
   useEffect(() => {
     async function fetchDeploymentInfo() {
       if (!open || !workflowId || !isDeployed) {
         setDeploymentInfo(null)
-        // Only reset loading if modal is closed
         if (!open) {
           setIsLoading(false)
         }
@@ -199,7 +189,6 @@ export function DeployModal({
       try {
         setIsLoading(true)
 
-        // Get deployment info
         const response = await fetch(`/api/workflows/${workflowId}/deploy`)
 
         if (!response.ok) {
@@ -228,15 +217,12 @@ export function DeployModal({
     fetchDeploymentInfo()
   }, [open, workflowId, isDeployed, needsRedeployment])
 
-  // Handle form submission for deployment
   const onDeploy = async (data: DeployFormValues) => {
-    // Reset any previous errors
     setApiDeployError(null)
 
     try {
       setIsSubmitting(true)
 
-      // Deploy the workflow with the selected API key
       const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
         method: 'POST',
         headers: {
@@ -244,7 +230,7 @@ export function DeployModal({
         },
         body: JSON.stringify({
           apiKey: data.apiKey,
-          deployChatEnabled: false, // Separate chat deployment
+          deployChatEnabled: false,
         }),
       })
 
@@ -255,7 +241,6 @@ export function DeployModal({
 
       const { isDeployed: newDeployStatus, deployedAt } = await response.json()
 
-      // Update the store with the deployment status
       setDeploymentStatus(
         workflowId,
         newDeployStatus,
@@ -263,13 +248,10 @@ export function DeployModal({
         data.apiKey
       )
 
-      // Reset the needs redeployment flag
       setNeedsRedeployment(false)
       if (workflowId) {
         useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
       }
-
-      // Update the local deployment info
       const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
       const inputFormatExample = getInputFormatExample()
 
@@ -284,10 +266,7 @@ export function DeployModal({
 
       setDeploymentInfo(newDeploymentInfo)
 
-      // Fetch the updated deployed state after deployment
       await refetchDeployedState()
-
-      // No notification on successful deploy
     } catch (error: any) {
       logger.error('Error deploying workflow:', { error })
     } finally {
@@ -295,7 +274,6 @@ export function DeployModal({
     }
   }
 
-  // Handle workflow undeployment
   const handleUndeploy = async () => {
     try {
       setIsUndeploying(true)
@@ -309,13 +287,8 @@ export function DeployModal({
         throw new Error(errorData.error || 'Failed to undeploy workflow')
       }
 
-      // Update deployment status in the store
       setDeploymentStatus(workflowId, false)
-
-      // Reset chat deployment info
       setChatExists(false)
-
-      // Close the modal
       onOpenChange(false)
     } catch (error: any) {
       logger.error('Error undeploying workflow:', { error })
@@ -324,7 +297,6 @@ export function DeployModal({
     }
   }
 
-  // Handle redeployment of workflow
   const handleRedeploy = async () => {
     try {
       setIsSubmitting(true)
@@ -335,7 +307,7 @@ export function DeployModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          deployChatEnabled: false, // Separate chat deployment
+          deployChatEnabled: false,
         }),
       })
 
@@ -346,7 +318,6 @@ export function DeployModal({
 
       const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
 
-      // Update deployment status in the store
       setDeploymentStatus(
         workflowId,
         newDeployStatus,
@@ -354,13 +325,11 @@ export function DeployModal({
         apiKey
       )
 
-      // Reset the needs redeployment flag
       setNeedsRedeployment(false)
       if (workflowId) {
         useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
       }
 
-      // Fetch the updated deployed state after redeployment
       await refetchDeployedState()
     } catch (error: any) {
       logger.error('Error redeploying workflow:', { error })
@@ -369,56 +338,47 @@ export function DeployModal({
     }
   }
 
-  // Custom close handler to ensure we clean up loading states
   const handleCloseModal = () => {
     setIsSubmitting(false)
     setChatSubmitting(false)
     onOpenChange(false)
   }
 
-  // Handle chat form submission
-  const handleChatSubmit = async () => {
-    setChatSubmitting(true)
+  const handleWorkflowPreDeploy = async () => {
+    if (!isDeployed) {
+      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deployApiEnabled: true,
+          deployChatEnabled: false,
+        }),
+      })
 
-    try {
-      // Check if workflow is deployed first
-      if (!isDeployed) {
-        // Deploy workflow first
-        const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            deployApiEnabled: true,
-            deployChatEnabled: false,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to deploy workflow')
-        }
-
-        const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
-
-        // Update the store with the deployment status
-        setDeploymentStatus(
-          workflowId,
-          newDeployStatus,
-          deployedAt ? new Date(deployedAt) : undefined,
-          apiKey
-        )
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to deploy workflow')
       }
 
-      // Trigger form submission in the ChatDeploy component
-      const form = document.querySelector('.chat-deploy-form') as HTMLFormElement
-      if (form) {
-        form.requestSubmit()
-      }
-    } catch (error: any) {
-      logger.error('Error auto-deploying workflow for chat:', { error })
-      setChatSubmitting(false)
+      const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
+
+      setDeploymentStatus(
+        workflowId,
+        newDeployStatus,
+        deployedAt ? new Date(deployedAt) : undefined,
+        apiKey
+      )
+
+      setDeploymentInfo((prev) => (prev ? { ...prev, apiKey } : null))
+    }
+  }
+
+  const handleChatFormSubmit = () => {
+    const form = document.getElementById('chat-deploy-form') as HTMLFormElement
+    if (form) {
+      form.requestSubmit()
     }
   }
 
@@ -513,13 +473,13 @@ export function DeployModal({
                   chatSubmitting={chatSubmitting}
                   setChatSubmitting={setChatSubmitting}
                   onValidationChange={setIsChatFormValid}
+                  onPreDeployWorkflow={handleWorkflowPreDeploy}
                 />
               )}
             </div>
           </div>
         </div>
 
-        {/* Footer buttons */}
         {activeTab === 'api' && !isDeployed && (
           <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
             <Button variant='outline' onClick={handleCloseModal}>
@@ -558,7 +518,7 @@ export function DeployModal({
 
             <Button
               type='button'
-              onClick={handleChatSubmit}
+              onClick={handleChatFormSubmit}
               disabled={chatSubmitting || !isChatFormValid}
               className={cn(
                 'gap-2 font-medium',
