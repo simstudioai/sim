@@ -11,6 +11,7 @@ export interface CopilotToolResponse<T = any> {
 export interface CopilotTool<TParams = any, TResult = any> {
   readonly id: string
   readonly displayName: string
+  readonly requiresInterrupt: boolean
   execute(params: TParams): Promise<CopilotToolResponse<TResult>>
 }
 
@@ -20,6 +21,7 @@ export abstract class BaseCopilotTool<TParams = any, TResult = any>
 {
   abstract readonly id: string
   abstract readonly displayName: string
+  readonly requiresInterrupt: boolean = false
 
   private _logger?: ReturnType<typeof createLogger>
 

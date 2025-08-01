@@ -18,6 +18,7 @@ class SetEnvironmentVariablesTool extends BaseCopilotTool<
 > {
   readonly id = 'set_environment_variables'
   readonly displayName = 'Setting environment variables'
+  readonly requiresInterrupt = true
 
   protected async executeImpl(
     params: SetEnvironmentVariablesParams
