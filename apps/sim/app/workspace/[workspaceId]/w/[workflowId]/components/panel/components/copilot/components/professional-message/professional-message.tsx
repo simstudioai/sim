@@ -31,6 +31,8 @@ import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import type { ToolCallState } from '@/types/tool-call'
 import { useCopilotStore } from '@/stores/copilot/store'
+import { toolRequiresInterrupt } from '@/stores/copilot/constants'
+import { cn } from '@/lib/utils'
 
 interface ProfessionalMessageProps {
   message: CopilotMessage
@@ -196,8 +198,66 @@ const WordWrap = ({ text }: { text: string }) => {
   )
 }
 
+// Interrupt Confirmation Component
+function InterruptConfirmation({ 
+  toolCall, 
+  onConfirm 
+}: { 
+  toolCall: ToolCallState
+  onConfirm: (toolCallId: string, status: 'Accept' | 'Reject') => void 
+}) {
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  const handleConfirm = async (status: 'Accept' | 'Reject') => {
+    if (isProcessing) return
+    
+    setIsProcessing(true)
+    try {
+      await onConfirm(toolCall.id, status)
+    } catch (error) {
+      console.error('Failed to confirm tool:', error)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  return (
+    <div className='mt-2 flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800'>
+      <div className='flex-1 text-sm text-yellow-800 dark:text-yellow-200'>
+        This action requires your approval. Do you want to proceed?
+      </div>
+      <div className='flex gap-2'>
+        <Button
+          size='sm'
+          variant='outline'
+          onClick={() => handleConfirm('Reject')}
+          disabled={isProcessing}
+          className='h-7 px-3 text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20'
+        >
+          <X className='h-3 w-3 mr-1' />
+          Reject
+        </Button>
+        <Button
+          size='sm'
+          onClick={() => handleConfirm('Accept')}
+          disabled={isProcessing}
+          className='h-7 px-3 bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-800'
+        >
+          <Check className='h-3 w-3 mr-1' />
+          Accept
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // Inline Tool Call Component
 function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepNumber?: number }) {
+  // Check if this tool requires interrupt and is in a pending/executing state
+  const requiresInterrupt = toolRequiresInterrupt(tool.name)
+  const showInterruptConfirmation = requiresInterrupt && 
+    (tool.state === 'executing' || tool.state === 'pending')
+
   const getToolIcon = () => {
     const displayName = tool.displayName || tool.name || ''
     const lowerName = displayName.toLowerCase()
@@ -243,7 +303,12 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   }
 
   const getStateIcon = () => {
-    const isWorkflowTool = tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || tool.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+    const isWorkflowTool = tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW
+    
+    // Special handling for tools requiring interrupt
+    if (requiresInterrupt && tool.state === 'executing') {
+      return <Loader2 className='h-3 w-3 animate-spin text-yellow-600' />
+    }
     
     switch (tool.state) {
       case 'executing':
@@ -262,22 +327,56 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
           ? <CheckCircle className='h-3 w-3 text-muted-foreground' />
           : <Search className='h-3 w-3 text-muted-foreground' />
       case 'rejected':
-        return <XCircle className='h-3 w-3 text-muted-foreground' />
+        return <XCircle className='h-3 w-3 text-red-500' />
       case 'aborted':
         return <XCircle className='h-3 w-3 text-muted-foreground' />
       case 'error':
-        return <XCircle className='h-3 w-3 text-muted-foreground' />
+        return <XCircle className='h-3 w-3 text-red-500' />
       default:
         return getToolIcon()
     }
   }
 
+  // API call to confirm tool action
+  const handleConfirmTool = async (toolCallId: string, status: 'Accept' | 'Reject') => {
+    try {
+      const response = await fetch('/api/copilot/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toolCallId,
+          status,
+        }),
+      })
 
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to confirm tool')
+      }
+
+      const result = await response.json()
+      console.log(`Tool ${toolCallId} ${status.toLowerCase()}ed:`, result)
+    } catch (error) {
+      console.error('Error confirming tool:', error)
+      throw error
+    }
+  }
 
   return (
-    <div className='flex items-center gap-2 py-1 text-muted-foreground'>
-      <div className='flex-shrink-0'>{getStateIcon()}</div>
-      <span className='text-sm'>{tool.displayName || tool.name}</span>
+    <div>
+      <div className='flex items-center gap-2 py-1 text-muted-foreground'>
+        <div className='flex-shrink-0'>{getStateIcon()}</div>
+        <span className='text-sm'>{tool.displayName || tool.name}</span>
+      </div>
+      
+      {showInterruptConfirmation && (
+        <InterruptConfirmation 
+          toolCall={tool} 
+          onConfirm={handleConfirmTool} 
+        />
+      )}
     </div>
   )
 }
