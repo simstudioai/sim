@@ -50,6 +50,7 @@ interface SocketContextType {
     value: any,
     operationId?: string
   ) => void
+  emitTagSelection: (blockId: string, subblockId: string, value: any) => void
 
   emitCursorUpdate: (cursor: { x: number; y: number }) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
@@ -77,6 +78,7 @@ const SocketContext = createContext<SocketContextType>({
   leaveWorkflow: () => {},
   emitWorkflowOperation: () => {},
   emitSubblockUpdate: () => {},
+  emitTagSelection: () => {},
   emitCursorUpdate: () => {},
   emitSelectionUpdate: () => {},
   onWorkflowOperation: () => {},
@@ -289,6 +291,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         // Subblock update events
         socketInstance.on('subblock-update', (data) => {
+          eventHandlers.current.subblockUpdate?.(data)
+        })
+
+        // Tag selection events (immediate dropdown selections)
+        socketInstance.on('tag-selection', (data) => {
           eventHandlers.current.subblockUpdate?.(data)
         })
 
@@ -697,6 +704,29 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     [socket, currentWorkflowId]
   )
 
+  // Emit immediate tag/dropdown selections (bypasses operation queue)
+  const emitTagSelection = useCallback(
+    (blockId: string, subblockId: string, value: any) => {
+      // Only emit if socket is connected and we're in a valid workflow room
+      if (socket && currentWorkflowId) {
+        socket.emit('tag-selection', {
+          blockId,
+          subblockId,
+          value,
+          timestamp: Date.now(),
+        })
+      } else {
+        logger.warn('Cannot emit tag selection: no socket connection or workflow room', {
+          hasSocket: !!socket,
+          currentWorkflowId,
+          blockId,
+          subblockId,
+        })
+      }
+    },
+    [socket, currentWorkflowId]
+  )
+
   // Cursor throttling optimized for database connection health
   const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
@@ -776,6 +806,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         leaveWorkflow,
         emitWorkflowOperation,
         emitSubblockUpdate,
+        emitTagSelection,
 
         emitCursorUpdate,
         emitSelectionUpdate,

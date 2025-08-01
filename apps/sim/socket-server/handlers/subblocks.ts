@@ -158,4 +158,119 @@ export function setupSubblocksHandlers(
       })
     }
   })
+
+  // Handle immediate tag/dropdown selections (no database persistence, just broadcast)
+  socket.on('tag-selection', async (data) => {
+    const workflowId = roomManager.getWorkflowIdForSocket(socket.id)
+    const session = roomManager.getUserSession(socket.id)
+
+    if (!workflowId || !session) {
+      logger.debug(`Ignoring tag selection: socket not connected to any workflow room`, {
+        socketId: socket.id,
+        hasWorkflowId: !!workflowId,
+        hasSession: !!session,
+      })
+      return
+    }
+
+    const { blockId, subblockId, value, timestamp } = data
+    const room = roomManager.getWorkflowRoom(workflowId)
+
+    if (!room) {
+      logger.debug(`Ignoring tag selection: workflow room not found`, {
+        socketId: socket.id,
+        workflowId,
+        blockId,
+        subblockId,
+      })
+      return
+    }
+
+    try {
+      const userPresence = room.users.get(socket.id)
+      if (userPresence) {
+        userPresence.lastActivity = Date.now()
+      }
+
+      // First, verify that the workflow still exists in the database
+      const workflowExists = await db
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (workflowExists.length === 0) {
+        logger.warn(`Ignoring tag selection: workflow ${workflowId} no longer exists`, {
+          socketId: socket.id,
+          blockId,
+          subblockId,
+        })
+        roomManager.cleanupUserFromRoom(socket.id, workflowId)
+        return
+      }
+
+      // Persist to database immediately (same logic as subblock-update but without operation tracking)
+      let updateSuccessful = false
+      await db.transaction(async (tx) => {
+        const [block] = await tx
+          .select({ subBlocks: workflowBlocks.subBlocks })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (!block) {
+          // Block was deleted - this is a normal race condition in collaborative editing
+          logger.debug(
+            `Ignoring tag selection for deleted block: ${workflowId}/${blockId}.${subblockId}`
+          )
+          return
+        }
+
+        const subBlocks = (block.subBlocks as any) || {}
+
+        if (!subBlocks[subblockId]) {
+          // Create new subblock with minimal structure
+          subBlocks[subblockId] = {
+            id: subblockId,
+            type: 'unknown', // Will be corrected by next collaborative update
+            value: value,
+          }
+        } else {
+          // Preserve existing id and type, only update value
+          subBlocks[subblockId] = {
+            ...subBlocks[subblockId],
+            value: value,
+          }
+        }
+
+        await tx
+          .update(workflowBlocks)
+          .set({
+            subBlocks: subBlocks,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+
+        updateSuccessful = true
+      })
+
+      // Broadcast to other clients if the update was successful
+      if (updateSuccessful) {
+        socket.to(workflowId).emit('tag-selection', {
+          blockId,
+          subblockId,
+          value,
+          timestamp,
+          senderId: socket.id,
+          userId: session.userId,
+        })
+
+        logger.debug(
+          `Tag selection persisted and broadcast in workflow ${workflowId}: ${blockId}.${subblockId}`
+        )
+      }
+    } catch (error) {
+      logger.error('Error handling tag selection:', error)
+    }
+  })
 }
