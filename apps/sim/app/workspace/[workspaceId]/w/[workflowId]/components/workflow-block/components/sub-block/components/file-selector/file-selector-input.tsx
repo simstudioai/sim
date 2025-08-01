@@ -73,6 +73,7 @@ export function FileSelectorInput({
   const isGoogleCalendar = subBlock.provider === 'google-calendar'
   const isWealthbox = provider === 'wealthbox'
   const isMicrosoftSharePoint = provider === 'microsoft' && subBlock.serviceId === 'sharepoint'
+  const isMicrosoftPlanner = provider === 'microsoft-planner'
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
   // For Discord, we need the bot token and server ID
@@ -425,6 +426,44 @@ export function FileSelectorInput({
               <p>Please select SharePoint credentials first</p>
             </TooltipContent>
           )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Handle Microsoft Planner task selector
+  if (isMicrosoftPlanner) {
+    const credential = (getValue(blockId, 'credential') as string) || ''
+    const planId = (getValue(blockId, 'planId') as string) || ''
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <MicrosoftFileSelector
+                value={selectedFileId}
+                onChange={handleFileChange}
+                provider='microsoft-planner'
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId='microsoft-planner'
+                label={subBlock.placeholder || 'Select task'}
+                disabled={disabled || !credential || !planId}
+                showPreview={true}
+                onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+                planId={planId}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential ? (
+            <TooltipContent side='top'>
+              <p>Please select Microsoft Planner credentials first</p>
+            </TooltipContent>
+          ) : !planId ? (
+            <TooltipContent side='top'>
+              <p>Please enter a Plan ID first</p>
+            </TooltipContent>
+          ) : null}
         </Tooltip>
       </TooltipProvider>
     )

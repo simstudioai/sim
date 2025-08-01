@@ -11,7 +11,7 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
   id: 'microsoft_planner_read_task',
   name: 'Read Microsoft Planner Tasks',
   description:
-    'Read tasks from Microsoft Planner - get all user tasks, all tasks in a plan, or a specific task',
+    'Read tasks from Microsoft Planner - get all user tasks or all tasks from a specific plan',
   version: '1.0',
   oauth: {
     required: true,
@@ -35,13 +35,13 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The ID of a specific task to retrieve',
+      description: 'The ID of the task to get',
     },
   },
   request: {
     url: (params) => {
-      const finalUrl = params.taskId
-        ? `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}`
+      const finalUrl = params.planId
+        ? `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}/tasks`
         : 'https://graph.microsoft.com/v1.0/me/planner/tasks'
 
       logger.info('Microsoft Planner URL:', finalUrl)
@@ -74,39 +74,37 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
 
     const data = await response.json()
     logger.info('Raw response data:', data)
-    logger.info('Retrieved task data:', data)
 
-    let result: MicrosoftPlannerReadResponse
+    // Always dealing with multiple tasks (either from plan or user tasks)
+    const rawTasks = data.value || []
 
-    // If we got a specific task
-    if (params?.taskId) {
-      result = {
-        success: true,
-        output: {
-          task: data,
-          metadata: {
-            taskId: data.id,
-            planId: data.planId,
-            taskUrl: `https://graph.microsoft.com/v1.0/planner/tasks/${data.id}`,
-          },
+    // Filter tasks to only include useful fields
+    const tasks = rawTasks.map((task: any) => ({
+      id: task.id,
+      title: task.title,
+      planId: task.planId,
+      bucketId: task.bucketId,
+      percentComplete: task.percentComplete,
+      priority: task.priority,
+      dueDateTime: task.dueDateTime,
+      createdDateTime: task.createdDateTime,
+      completedDateTime: task.completedDateTime,
+      hasDescription: task.hasDescription,
+      assignments: task.assignments ? Object.keys(task.assignments) : [],
+    }))
+
+    const result: MicrosoftPlannerReadResponse = {
+      success: true,
+      output: {
+        tasks,
+        metadata: {
+          planId: params?.planId || '',
+          userId: params?.planId ? undefined : 'me',
+          planUrl: params?.planId
+            ? `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}`
+            : undefined,
         },
-      }
-    } else {
-      // If we got multiple tasks (either from plan or user tasks)
-      const tasks = data.value || []
-      result = {
-        success: true,
-        output: {
-          tasks,
-          metadata: {
-            planId: params?.planId,
-            userId: params?.planId ? undefined : 'me',
-            planUrl: params?.planId
-              ? `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}`
-              : undefined,
-          },
-        },
-      }
+      },
     }
 
     return result

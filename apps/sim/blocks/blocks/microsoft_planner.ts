@@ -47,14 +47,15 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter the plan ID',
-      condition: { field: 'operation', value: ['create_task'] },
+      condition: { field: 'operation', value: ['create_task', 'read_task'] },
     },
     {
       id: 'taskId',
       title: 'Task ID',
-      type: 'short-input',
+      type: 'file-selector',
       layout: 'full',
-      placeholder: 'Enter the task ID',
+      placeholder: 'Select a task',
+      provider: 'microsoft-planner',
       condition: { field: 'operation', value: ['read_task'] },
     },
     {
@@ -97,29 +98,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       placeholder: 'Enter the bucket ID to organize the task (optional)',
       condition: { field: 'operation', value: ['create_task'] },
     },
-    {
-      id: 'priority',
-      title: 'Priority',
-      type: 'dropdown',
-      layout: 'full',
-      options: [
-        { label: 'Urgent (0)', id: '0' },
-        { label: 'Important (1)', id: '1' },
-        { label: 'Medium (2)', id: '2' },
-        { label: 'Low (3)', id: '3' },
-        { label: 'Later (4)', id: '4' },
-        { label: 'Lowest (5)', id: '5' },
-      ],
-      condition: { field: 'operation', value: ['create_task'] },
-    },
-    {
-      id: 'percentComplete',
-      title: 'Completion %',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter completion percentage (0-100)',
-      condition: { field: 'operation', value: ['create_task'] },
-    },
   ],
   tools: {
     access: ['microsoft_planner_read_task', 'microsoft_planner_create_task'],
@@ -145,8 +123,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
           dueDateTime,
           assigneeUserId,
           bucketId,
-          priority,
-          percentComplete,
           ...rest
         } = params
 
@@ -212,17 +188,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
             createParams.bucketId = bucketId.trim()
           }
 
-          if (priority !== undefined && priority !== '') {
-            createParams.priority = Number.parseInt(priority as string, 10)
-          }
-
-          if (percentComplete?.trim()) {
-            const percent = Number.parseInt(percentComplete.trim(), 10)
-            if (percent >= 0 && percent <= 100) {
-              createParams.percentComplete = percent
-            }
-          }
-
           return createParams
         }
 
@@ -240,8 +205,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
     dueDateTime: { type: 'string', required: false },
     assigneeUserId: { type: 'string', required: false },
     bucketId: { type: 'string', required: false },
-    priority: { type: 'string', required: false },
-    percentComplete: { type: 'string', required: false },
   },
   outputs: {
     task: 'json',

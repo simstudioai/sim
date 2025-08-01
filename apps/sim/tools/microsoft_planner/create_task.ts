@@ -63,18 +63,6 @@ export const createTaskTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The bucket ID to place the task in',
     },
-    priority: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'The priority of the task (0-10, where 0 is highest priority)',
-    },
-    percentComplete: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'The completion percentage of the task (0-100)',
-    },
   },
   request: {
     url: () => 'https://graph.microsoft.com/v1.0/planner/tasks',
@@ -108,14 +96,6 @@ export const createTaskTool: ToolConfig<
 
       if (params.dueDateTime) {
         body.dueDateTime = params.dueDateTime
-      }
-
-      if (params.priority !== undefined) {
-        body.priority = params.priority
-      }
-
-      if (params.percentComplete !== undefined) {
-        body.percentComplete = params.percentComplete
       }
 
       if (params.assigneeUserId) {

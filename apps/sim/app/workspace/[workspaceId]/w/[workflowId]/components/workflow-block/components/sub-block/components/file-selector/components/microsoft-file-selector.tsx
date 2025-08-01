@@ -50,6 +50,7 @@ interface MicrosoftFileSelectorProps {
   serviceId?: string
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: MicrosoftFileInfo | null) => void
+  planId?: string
 }
 
 export function MicrosoftFileSelector({
@@ -62,6 +63,7 @@ export function MicrosoftFileSelector({
   serviceId,
   showPreview = true,
   onFileInfoChange,
+  planId,
 }: MicrosoftFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -76,6 +78,11 @@ export function MicrosoftFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [credentialsLoaded, setCredentialsLoaded] = useState(false)
   const initialFetchRef = useRef(false)
+
+  // Handle Microsoft Planner task selection
+  const [plannerTasks, setPlannerTasks] = useState<any[]>([])
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<any>(null)
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -227,6 +234,74 @@ export function MicrosoftFileSelector({
     [selectedCredentialId, onFileInfoChange, serviceId]
   )
 
+  // Fetch Microsoft Planner tasks when planId and credentials are available
+  const fetchPlannerTasks = useCallback(async () => {
+    if (!selectedCredentialId || !planId || serviceId !== 'microsoft-planner') {
+      logger.info('Skipping task fetch - missing requirements:', {
+        selectedCredentialId: !!selectedCredentialId,
+        planId: !!planId,
+        serviceId,
+      })
+      return
+    }
+
+    logger.info('Fetching Planner tasks with:', {
+      credentialId: selectedCredentialId,
+      planId,
+      serviceId,
+    })
+
+    setIsLoadingTasks(true)
+    try {
+      const queryParams = new URLSearchParams({
+        credentialId: selectedCredentialId,
+        planId: planId,
+      })
+
+      const url = `/api/tools/microsoft_planner/tasks?${queryParams.toString()}`
+      logger.info('Calling API endpoint:', url)
+
+      const response = await fetch(url)
+
+      if (response.ok) {
+        const data = await response.json()
+        logger.info('Received task data:', data)
+        const tasks = data.tasks || []
+
+        // Transform tasks to match file info format for consistency
+        const transformedTasks = tasks.map((task: any) => ({
+          id: task.id,
+          name: task.title,
+          mimeType: 'planner/task',
+          webViewLink: `https://tasks.office.com/planner/task/${task.id}`,
+          modifiedTime: task.createdDateTime,
+          createdTime: task.createdDateTime,
+          planId: task.planId,
+          bucketId: task.bucketId,
+          percentComplete: task.percentComplete,
+          priority: task.priority,
+          dueDateTime: task.dueDateTime,
+        }))
+
+        logger.info('Transformed tasks:', transformedTasks)
+        setPlannerTasks(transformedTasks)
+      } else {
+        const errorText = await response.text()
+        logger.error('API response not ok:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+        })
+        setPlannerTasks([])
+      }
+    } catch (error) {
+      logger.error('Network/fetch error:', error)
+      setPlannerTasks([])
+    } finally {
+      setIsLoadingTasks(false)
+    }
+  }, [selectedCredentialId, planId, serviceId])
+
   // Fetch credentials on initial mount
   useEffect(() => {
     if (!initialFetchRef.current) {
@@ -252,6 +327,24 @@ export function MicrosoftFileSelector({
       return () => clearTimeout(timeoutId)
     }
   }, [searchQuery, selectedCredentialId, fetchAvailableFiles])
+
+  // Fetch planner tasks when credentials and planId change
+  useEffect(() => {
+    if (serviceId === 'microsoft-planner' && selectedCredentialId && planId) {
+      fetchPlannerTasks()
+    }
+  }, [selectedCredentialId, planId, serviceId, fetchPlannerTasks])
+
+  // Handle task selection for planner
+  const handleTaskSelect = (task: any) => {
+    setSelectedFileId(task.id)
+    setSelectedFile(task)
+    setSelectedTask(task)
+    onChange(task.id, task)
+    onFileInfoChange?.(task)
+    setOpen(false)
+    setSearchQuery('')
+  }
 
   // Keep internal selectedFileId in sync with the value prop
   useEffect(() => {
@@ -419,6 +512,9 @@ export function MicrosoftFileSelector({
     if (file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
       return <MicrosoftExcelIcon className={`${iconSize} text-green-600`} />
     }
+    if (file.mimeType === 'planner/task') {
+      return getProviderIcon(provider)
+    }
     // if (file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
     //   return <FileIcon className={`${iconSize} text-blue-600`} />
     // }
@@ -436,12 +532,14 @@ export function MicrosoftFileSelector({
   const getFileTypeTitleCase = () => {
     if (serviceId === 'onedrive') return 'Folders'
     if (serviceId === 'sharepoint') return 'Sites'
+    if (serviceId === 'microsoft-planner') return 'Tasks'
     return 'Excel Files'
   }
 
   const getSearchPlaceholder = () => {
     if (serviceId === 'onedrive') return 'Search OneDrive folders...'
     if (serviceId === 'sharepoint') return 'Search SharePoint sites...'
+    if (serviceId === 'microsoft-planner') return 'Search tasks...'
     return 'Search Excel files...'
   }
 
@@ -458,11 +556,23 @@ export function MicrosoftFileSelector({
         description: 'No SharePoint sites were found.',
       }
     }
+    if (serviceId === 'microsoft-planner') {
+      return {
+        title: 'No tasks found.',
+        description: 'No tasks were found in this plan.',
+      }
+    }
     return {
       title: 'No Excel files found.',
       description: 'No .xlsx files were found in your OneDrive.',
     }
   }
+
+  // Filter tasks based on search query for planner
+  const filteredTasks =
+    serviceId === 'microsoft-planner'
+      ? plannerTasks.filter((task) => task.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      : availableFiles
 
   return (
     <>
@@ -472,7 +582,7 @@ export function MicrosoftFileSelector({
           onOpenChange={(isOpen) => {
             setOpen(isOpen)
             if (!isOpen) {
-              setSearchQuery('') // Clear search when popover closes
+              setSearchQuery('')
             }
           }}
         >
@@ -482,7 +592,7 @@ export function MicrosoftFileSelector({
               role='combobox'
               aria-expanded={open}
               className='h-10 w-full min-w-0 justify-between'
-              disabled={disabled}
+              disabled={disabled || (serviceId === 'microsoft-planner' && !planId)}
             >
               <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
                 {selectedFile ? (
@@ -533,7 +643,7 @@ export function MicrosoftFileSelector({
               <CommandInput placeholder={getSearchPlaceholder()} onValueChange={handleSearch} />
               <CommandList>
                 <CommandEmpty>
-                  {isLoading || isLoadingFiles ? (
+                  {isLoading || isLoadingFiles || isLoadingTasks ? (
                     <div className='flex items-center justify-center p-4'>
                       <RefreshCw className='h-4 w-4 animate-spin' />
                       <span className='ml-2'>Loading...</span>
@@ -545,7 +655,14 @@ export function MicrosoftFileSelector({
                         Connect a {getProviderName(provider)} account to continue.
                       </p>
                     </div>
-                  ) : availableFiles.length === 0 ? (
+                  ) : serviceId === 'microsoft-planner' && !planId ? (
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>Plan ID required.</p>
+                      <p className='text-muted-foreground text-xs'>
+                        Please enter a Plan ID first to see tasks.
+                      </p>
+                    </div>
+                  ) : filteredTasks.length === 0 ? (
                     <div className='p-4 text-center'>
                       <p className='font-medium text-sm'>{getEmptyStateText().title}</p>
                       <p className='text-muted-foreground text-xs'>
@@ -577,17 +694,21 @@ export function MicrosoftFileSelector({
                   </CommandGroup>
                 )}
 
-                {/* Available files - only show if we have credentials and files */}
-                {credentials.length > 0 && selectedCredentialId && availableFiles.length > 0 && (
+                {/* Available files/tasks - only show if we have credentials and items */}
+                {credentials.length > 0 && selectedCredentialId && filteredTasks.length > 0 && (
                   <CommandGroup>
                     <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                       {getFileTypeTitleCase()}
                     </div>
-                    {availableFiles.map((file) => (
+                    {filteredTasks.map((file) => (
                       <CommandItem
                         key={file.id}
                         value={`file-${file.id}-${file.name}`}
-                        onSelect={() => handleFileSelect(file)}
+                        onSelect={() =>
+                          serviceId === 'microsoft-planner'
+                            ? handleTaskSelect(file)
+                            : handleFileSelect(file)
+                        }
                       >
                         <div className='flex items-center gap-2 overflow-hidden'>
                           {getFileIcon(file, 'sm')}
@@ -656,7 +777,9 @@ export function MicrosoftFileSelector({
                     className='flex items-center gap-1 text-primary text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span>Open in OneDrive</span>
+                    <span>
+                      {serviceId === 'microsoft-planner' ? 'Open in Planner' : 'Open in OneDrive'}
+                    </span>
                     <ExternalLink className='h-3 w-3' />
                   </a>
                 ) : (
