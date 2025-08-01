@@ -324,7 +324,7 @@ export default function Logs() {
         fetchLogs(nextPage, true)
       }, 50)
     }
-  }, [isFetchingMore, hasMore, page])
+  }, [fetchLogs, isFetchingMore, hasMore, page])
 
   useEffect(() => {
     if (loading || !hasMore) return
