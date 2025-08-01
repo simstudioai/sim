@@ -400,6 +400,7 @@ export function MicrosoftFileSelector({
     selectedFile,
     isLoadingSelectedFile,
     fetchFileById,
+    serviceId
   ])
 
   // Handle selecting a file from the available files

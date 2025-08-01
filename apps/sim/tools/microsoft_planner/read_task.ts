@@ -40,9 +40,20 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
   },
   request: {
     url: (params) => {
-      const finalUrl = params.planId
-        ? `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}/tasks`
-        : 'https://graph.microsoft.com/v1.0/me/planner/tasks'
+      let finalUrl: string
+      
+      // If taskId is provided, get specific task
+      if (params.taskId) {
+        finalUrl = `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}`
+      }
+      // Else if planId is provided, get tasks from plan
+      else if (params.planId) {
+        finalUrl = `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}/tasks`
+      }
+      // Else get all user tasks
+      else {
+        finalUrl = 'https://graph.microsoft.com/v1.0/me/planner/tasks'
+      }
 
       logger.info('Microsoft Planner URL:', finalUrl)
       return finalUrl

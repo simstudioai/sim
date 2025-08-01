@@ -133,28 +133,19 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
 
         // For read operations
         if (operation === 'read_task') {
-          // No additional parameters needed - will get all user tasks
-          return baseParams
-        }
-
-        if (operation === 'read_task') {
-          if (!planId?.trim()) {
-            throw new Error('Plan ID is required to read tasks from a specific plan.')
+          const readParams: any = { ...baseParams }
+          
+          // If taskId is provided, add it (highest priority - get specific task)
+          if (taskId?.trim()) {
+            readParams.taskId = taskId.trim()
           }
-          return {
-            ...baseParams,
-            planId: planId.trim(),
+          // If no taskId but planId is provided, add planId (get tasks from plan)  
+          else if (planId?.trim()) {
+            readParams.planId = planId.trim()
           }
-        }
-
-        if (operation === 'read_task') {
-          if (!taskId?.trim()) {
-            throw new Error('Task ID is required to read a specific task.')
-          }
-          return {
-            ...baseParams,
-            taskId: taskId.trim(),
-          }
+          // If neither, get all user tasks (baseParams only)
+          
+          return readParams
         }
 
         // For create operation
