@@ -22,7 +22,6 @@ export function useCollaborativeWorkflow() {
     leaveWorkflow,
     emitWorkflowOperation,
     emitSubblockUpdate,
-    emitTagSelection,
     onWorkflowOperation,
     onSubblockUpdate,
     onUserJoined,
@@ -724,7 +723,7 @@ export function useCollaborativeWorkflow() {
     ]
   )
 
-  // Immediate tag selection (bypasses debouncing for instant collaborative feedback)
+  // Immediate tag selection (uses queue but processes immediately, no debouncing)
   const collaborativeSetTagSelection = useCallback(
     (blockId: string, subblockId: string, value: any) => {
       if (isApplyingRemoteChange.current) return
@@ -742,10 +741,22 @@ export function useCollaborativeWorkflow() {
       // Apply locally first (immediate UI feedback)
       subBlockStore.setValue(blockId, subblockId, value)
 
-      // Emit immediately using the tag-selection socket event (no debouncing)
-      emitTagSelection(blockId, subblockId, value)
+      // Use the operation queue but with immediate processing (no debouncing)
+      const operationId = crypto.randomUUID()
+
+      addToQueue({
+        id: operationId,
+        operation: {
+          operation: 'subblock-update',
+          target: 'subblock',
+          payload: { blockId, subblockId, value },
+        },
+        workflowId: activeWorkflowId,
+        userId: session?.user?.id || 'unknown',
+        immediate: true,
+      })
     },
-    [subBlockStore, emitTagSelection, currentWorkflowId, activeWorkflowId]
+    [subBlockStore, addToQueue, currentWorkflowId, activeWorkflowId, session?.user?.id]
   )
 
   const collaborativeDuplicateBlock = useCallback(
