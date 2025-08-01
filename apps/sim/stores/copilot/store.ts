@@ -9,10 +9,16 @@ import {
   COPILOT_TOOL_ERROR_NAMES,
   COPILOT_TOOL_PAST_TENSE,
 } from '@/stores/constants'
-import { COPILOT_TOOL_IDS, toolRequiresInterrupt } from './constants'
+import { COPILOT_TOOL_IDS } from './constants'
+import { toolRegistry } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/lib/tools'
 import type { CopilotMessage, CopilotStore, WorkflowCheckpoint } from './types'
 
 const logger = createLogger('CopilotStore')
+
+// Helper function to check if a tool requires interrupt by name
+function toolRequiresInterrupt(toolName: string): boolean {
+  return toolRegistry.requiresInterrupt(toolName)
+}
 
 // PERFORMANCE OPTIMIZATION: Cached constants for faster lookups
 const TEXT_BLOCK_TYPE = 'text'

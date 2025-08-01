@@ -3,19 +3,17 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
+import type { ToolState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/lib/tools/types'
 
 const logger = createLogger('CopilotConfirmAPI')
-
-// Tool call status types
-type ToolCallStatus = 'Pending' | 'Accepted' | 'Rejected' | 'Error'
 
 // Schema for confirmation request
 const ConfirmationSchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
-  status: z.enum(['Accept', 'Reject'], {
-    errorMap: () => ({ message: 'Status must be either "Accept" or "Reject"' }),
+  status: z.enum(['detecting', 'pending', 'executing', 'completed', 'error', 'rejected', 'applied', 'ready_for_review', 'aborted', 'skipped', 'background'] as const, {
+    errorMap: () => ({ message: 'Invalid tool state' }),
   }),
-  message: z.string().optional(), // Optional message for background moves
+  message: z.string().optional(), // Optional message for background moves or additional context
 })
 
 /**
@@ -23,7 +21,7 @@ const ConfirmationSchema = z.object({
  */
 async function updateToolCallStatus(
   toolCallId: string,
-  status: ToolCallStatus,
+  status: ToolState,
   message?: string
 ): Promise<boolean> {
   const redis = getRedisClient()
@@ -95,18 +93,15 @@ export async function POST(req: NextRequest) {
       message,
     })
 
-    // Map input status to internal status
-    const internalStatus: ToolCallStatus = status === 'Accept' ? 'Accepted' : 'Rejected'
-
     // Update the tool call status in Redis
-    const success = await updateToolCallStatus(toolCallId, internalStatus, message)
+    const updated = await updateToolCallStatus(toolCallId, status, message)
 
-    if (!success) {
+    if (!updated) {
       logger.error(`[${requestId}] Failed to update tool call status`, {
         userId: authenticatedUserId,
         toolCallId,
         status,
-        internalStatus,
+        internalStatus: status,
         message,
       })
       return NextResponse.json(
@@ -120,7 +115,7 @@ export async function POST(req: NextRequest) {
       userId: authenticatedUserId,
       toolCallId,
       status,
-      internalStatus,
+      internalStatus: status,
       duration,
     })
 
@@ -128,7 +123,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}ed`,
       toolCallId,
-      status: internalStatus,
+      status,
     })
   } catch (error) {
     const duration = Date.now() - startTime

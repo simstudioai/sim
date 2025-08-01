@@ -33,13 +33,15 @@ import {
   COPILOT_TOOL_ERROR_NAMES,
   COPILOT_TOOL_PAST_TENSE,
 } from '@/stores/constants'
-import { COPILOT_TOOL_IDS, toolRequiresInterrupt } from '@/stores/copilot/constants'
+import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
+import { toolRequiresConfirmation, toolRequiresInterrupt } from '../../lib/tools/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage } from '@/stores/copilot/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { ToolCallState } from '@/types/tool-call'
+import type { ToolState } from '../../lib/tools/types'
 
 interface ProfessionalMessageProps {
   message: CopilotMessage
@@ -461,7 +463,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
         },
         body: JSON.stringify({
           toolCallId,
-          status: 'Accept',
+          status: 'background' as ToolState,
           message:
             'The user moved workflow execution to the background. Execution is not yet complete',
         }),
@@ -484,7 +486,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   }
 
   // API call to confirm tool action
-  const handleConfirmTool = async (toolCallId: string, status: 'Accept' | 'Reject') => {
+  const handleConfirmTool = async (toolCallId: string, action: 'accept' | 'reject') => {
     if (isProcessing) return
 
     // Hide buttons immediately
@@ -494,7 +496,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
     try {
       // Special handling for run_workflow tool
       if (tool.name === COPILOT_TOOL_IDS.RUN_WORKFLOW) {
-        if (status === 'Reject') {
+        if (action === 'reject') {
           // For rejection, immediately update state to hide buttons and call confirm API
           updatePreviewToolCallState('rejected', toolCallId)
 
@@ -505,7 +507,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
             },
             body: JSON.stringify({
               toolCallId,
-              status,
+              status: 'rejected' as ToolState,
             }),
           })
 
@@ -528,7 +530,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
             },
             body: JSON.stringify({
               toolCallId,
-              status: 'Reject',
+              status: 'rejected' as ToolState,
               message: 'The workflow is already in the middle of an execution. Try again later',
             }),
           })
@@ -628,7 +630,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
               },
               body: JSON.stringify({
                 toolCallId,
-                status,
+                status: 'applied' as ToolState,
                 message: 'Workflow execution finished, check console logs to see output',
               }),
             })
@@ -640,7 +642,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
 
             const confirmResult = await response.json()
             console.log(
-              `Tool ${toolCallId} ${status.toLowerCase()}ed after workflow execution:`,
+              `Tool ${toolCallId} ${action.toLowerCase()}ed after workflow execution:`,
               confirmResult
             )
           } else {
@@ -657,7 +659,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
         }
       } else {
         // For all other tools, immediately update state and call confirm API
-        const newState = status === 'Accept' ? 'applied' : 'rejected'
+        const newState = action === 'accept' ? 'applied' : 'rejected'
         updatePreviewToolCallState(newState, toolCallId)
 
         const response = await fetch('/api/copilot/confirm', {
@@ -667,14 +669,14 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
           },
           body: JSON.stringify({
             toolCallId,
-            status,
+            status: (action === 'accept' ? 'applied' : 'rejected') as ToolState,
           }),
         })
 
         if (!response.ok) {
           const error = await response.json()
           // Don't throw error for rejections - user explicitly chose to reject
-          if (status === 'Reject') {
+          if (action === 'reject') {
             console.log(`Tool ${toolCallId} rejected by user`)
             return
           }
@@ -682,11 +684,11 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
         }
 
         const confirmResult = await response.json()
-        console.log(`Tool ${toolCallId} ${status.toLowerCase()}ed:`, confirmResult)
+        console.log(`Tool ${toolCallId} ${action.toLowerCase()}ed:`, confirmResult)
       }
     } catch (error) {
       // Don't show errors for explicit rejections
-      if (status === 'Reject') {
+      if (action === 'reject') {
         console.log(`Tool ${toolCallId} rejected by user (server error ignored)`)
         return
       }
@@ -707,7 +709,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
       {showInterruptConfirmation && (
         <div className='flex items-center gap-1.5'>
           <Button
-            onClick={() => handleConfirmTool(tool.id, 'Accept')}
+            onClick={() => handleConfirmTool(tool.id, 'accept')}
             disabled={isProcessing}
             size='sm'
             className='h-6 bg-gray-900 px-2 font-medium text-white text-xs hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200'
@@ -716,7 +718,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
             Run
           </Button>
           <Button
-            onClick={() => handleConfirmTool(tool.id, 'Reject')}
+            onClick={() => handleConfirmTool(tool.id, 'reject')}
             disabled={isProcessing}
             size='sm'
             className='h-6 bg-gray-200 px-2 font-medium text-gray-700 text-xs hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
