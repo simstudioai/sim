@@ -5,26 +5,12 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { MAX_TAG_SLOTS } from '@/lib/constants/knowledge'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
-
-export interface DocumentTag {
-  slot: string
-  displayName: string
-  fieldType: string
-  value: string
-}
 
 interface DocumentTagRow {
   id: string
@@ -63,6 +49,8 @@ export function DocumentTagEntry({
 
   // State for dropdown visibility - one for each row
   const [dropdownStates, setDropdownStates] = useState<Record<number, boolean>>({})
+  // State for type dropdown visibility - one for each row
+  const [typeDropdownStates, setTypeDropdownStates] = useState<Record<number, boolean>>({})
 
   // State for managing tag dropdown
   const [activeTagDropdown, setActiveTagDropdown] = useState<{
@@ -84,7 +72,7 @@ export function DocumentTagEntry({
         const tagData = JSON.parse(currentValue)
         if (Array.isArray(tagData) && tagData.length > 0) {
           return tagData.map((tag: any, index: number) => ({
-            id: `tag-${index}`,
+            id: tag.id || `tag-${index}`,
             cells: {
               tagName: tag.tagName || '',
               type: tag.fieldType || 'text',
@@ -100,7 +88,7 @@ export function DocumentTagEntry({
     // Default: just one empty row
     return [
       {
-        id: 'empty-row',
+        id: 'empty-row-0',
         cells: { tagName: '', type: 'text', value: '' },
       },
     ]
@@ -129,7 +117,8 @@ export function DocumentTagEntry({
   const handlePreFillTags = () => {
     if (isPreview || disabled) return
 
-    const existingTagRows = tagDefinitions.map((tagDef) => ({
+    const existingTagRows = tagDefinitions.map((tagDef, index) => ({
+      id: `prefill-${tagDef.id}-${index}`,
       tagName: tagDef.displayName,
       fieldType: tagDef.fieldType,
       value: '',
@@ -192,6 +181,7 @@ export function DocumentTagEntry({
 
     // Store all rows including empty ones - don't auto-remove
     const dataToStore = updatedRows.map((row) => ({
+      id: row.id,
       tagName: row.cells.tagName || '',
       fieldType: row.cells.type || 'text',
       value: row.cells.value || '',
@@ -206,7 +196,8 @@ export function DocumentTagEntry({
 
     // Get current data and add a new empty row
     const currentData = currentValue ? JSON.parse(currentValue) : []
-    const newData = [...currentData, { tagName: '', fieldType: 'text', value: '' }]
+    const newRowId = `tag-${currentData.length}-${Math.random().toString(36).substr(2, 9)}`
+    const newData = [...currentData, { id: newRowId, tagName: '', fieldType: 'text', value: '' }]
     setStoreValue(JSON.stringify(newData))
   }
 
@@ -216,6 +207,7 @@ export function DocumentTagEntry({
 
     // Store all remaining rows including empty ones - don't auto-remove
     const tableDataForStorage = updatedRows.map((row) => ({
+      id: row.id,
       tagName: row.cells.tagName || '',
       fieldType: row.cells.type || 'text',
       value: row.cells.value || '',
@@ -244,8 +236,8 @@ export function DocumentTagEntry({
   const renderHeader = () => (
     <thead>
       <tr className='border-b'>
-        <th className='border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
-        <th className='border-r px-4 py-2 text-center font-medium text-sm'>Type</th>
+        <th className='w-2/5 border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
+        <th className='w-1/5 border-r px-4 py-2 text-center font-medium text-sm'>Type</th>
         <th className='px-4 py-2 text-center font-medium text-sm'>Value</th>
       </tr>
     </thead>
@@ -260,35 +252,70 @@ export function DocumentTagEntry({
       setDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
     }
 
+    const handleDropdownClick = (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!disabled && !isConnecting) {
+        if (!showDropdown) {
+          setShowDropdown(true)
+        }
+      }
+    }
+
+    const handleFocus = () => {
+      if (!disabled && !isConnecting) {
+        setShowDropdown(true)
+      }
+    }
+
+    const handleBlur = () => {
+      // Delay closing to allow dropdown selection
+      setTimeout(() => setShowDropdown(false), 150)
+    }
+
     return (
       <td className='relative border-r p-1'>
         <div className='relative w-full'>
           <Input
             value={cellValue}
             onChange={(e) => handleCellChange(rowIndex, 'tagName', e.target.value)}
-            onFocus={() => setShowDropdown(true)}
-            onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             disabled={disabled || isConnecting}
-            className={cn(isDuplicate && 'border-red-500 bg-red-50')}
+            className={cn(
+              'w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0',
+              isDuplicate && 'border-red-500 bg-red-50'
+            )}
           />
+          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
+          </div>
           {showDropdown && availableTagDefinitions.length > 0 && (
-            <div className='absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover shadow-md'>
-              {availableTagDefinitions
-                .filter((tagDef) =>
-                  tagDef.displayName.toLowerCase().includes(cellValue.toLowerCase())
-                )
-                .map((tagDef) => (
-                  <div
-                    key={tagDef.id}
-                    className='cursor-pointer px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground'
-                    onMouseDown={() => {
-                      handleCellChange(rowIndex, 'tagName', tagDef.displayName)
-                      setShowDropdown(false)
-                    }}
-                  >
-                    {tagDef.displayName}
-                  </div>
-                ))}
+            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
+              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
+                <div
+                  className='allow-scroll max-h-48 overflow-y-auto p-1'
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  {availableTagDefinitions
+                    .filter((tagDef) =>
+                      tagDef.displayName.toLowerCase().includes(cellValue.toLowerCase())
+                    )
+                    .map((tagDef) => (
+                      <div
+                        key={tagDef.id}
+                        className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          handleCellChange(rowIndex, 'tagName', tagDef.displayName)
+                          setShowDropdown(false)
+                        }}
+                      >
+                        <span className='flex-1 truncate'>{tagDef.displayName}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -306,25 +333,77 @@ export function DocumentTagEntry({
     )
     const isReadOnly = !!existingTag
 
+    const showTypeDropdown = typeDropdownStates[rowIndex] || false
+
+    const setShowTypeDropdown = (show: boolean) => {
+      setTypeDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
+    }
+
+    const handleTypeDropdownClick = (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!disabled && !isConnecting && !isReadOnly) {
+        if (!showTypeDropdown) {
+          setShowTypeDropdown(true)
+        }
+      }
+    }
+
+    const handleTypeFocus = () => {
+      if (!disabled && !isConnecting && !isReadOnly) {
+        setShowTypeDropdown(true)
+      }
+    }
+
+    const handleTypeBlur = () => {
+      // Delay closing to allow dropdown selection
+      setTimeout(() => setShowTypeDropdown(false), 150)
+    }
+
+    const typeOptions = [{ value: 'text', label: 'Text' }]
+
     return (
       <td className='border-r p-1'>
-        <Select
-          value={cellValue}
-          onValueChange={(value) => handleCellChange(rowIndex, 'type', value)}
-          disabled={disabled || isConnecting || isReadOnly}
-        >
-          <SelectTrigger
-            className={cn(
-              isReadOnly && 'bg-gray-50 dark:bg-gray-800',
-              'text-foreground' // Ensure proper text color in dark mode
-            )}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value='text'>Text</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className='relative w-full'>
+          <Input
+            value={cellValue}
+            readOnly
+            disabled={disabled || isConnecting || isReadOnly}
+            className='w-full cursor-pointer border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+            onClick={handleTypeDropdownClick}
+            onFocus={handleTypeFocus}
+            onBlur={handleTypeBlur}
+          />
+          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+            <div className='whitespace-pre text-muted-foreground'>
+              {formatDisplayText(cellValue)}
+            </div>
+          </div>
+          {showTypeDropdown && !isReadOnly && (
+            <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
+              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
+                <div
+                  className='allow-scroll max-h-48 overflow-y-auto p-1'
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  {typeOptions.map((option) => (
+                    <div
+                      key={option.value}
+                      className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleCellChange(rowIndex, 'type', option.value)
+                        setShowTypeDropdown(false)
+                      }}
+                    >
+                      <span className='flex-1 truncate'>{option.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </td>
     )
   }
@@ -458,8 +537,14 @@ export function DocumentTagEntry({
       {/* Add Row Button and Tag slots usage indicator */}
       {!isPreview && !disabled && (
         <div className='mt-3 flex items-center justify-between'>
-          <Button variant='outline' size='sm' onClick={handleAddRow} disabled={!canAddMoreTags}>
-            <Plus className='mr-1 h-3 w-3' />
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={handleAddRow}
+            disabled={!canAddMoreTags}
+            className='h-7 px-2 text-xs'
+          >
+            <Plus className='mr-1 h-2.5 w-2.5' />
             Add Tag
           </Button>
 

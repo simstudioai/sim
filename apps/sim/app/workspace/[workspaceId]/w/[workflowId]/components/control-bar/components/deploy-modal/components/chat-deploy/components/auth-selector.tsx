@@ -139,6 +139,7 @@ export function AuthSelector({
                 disabled={disabled}
                 className='pr-28'
                 required={!isExistingChat}
+                autoComplete='new-password'
               />
               <div className='absolute top-0 right-0 flex h-full'>
                 <Button
