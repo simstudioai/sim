@@ -7,11 +7,11 @@ import { createErrorResponse } from './utils'
 
 const logger = createLogger('CopilotMethodsAPI')
 
-// Tool call status types
-type ToolCallStatus = 'Pending' | 'Accepted' | 'Rejected' | 'Error'
+// Tool call status types - should match NotificationStatus from frontend  
+type ToolCallStatus = 'pending' | 'accepted' | 'rejected' | 'error' | 'background'
 
 /**
- * Add a tool call to Redis with 'Pending' status
+ * Add a tool call to Redis with 'pending' status
  */
 async function addToolToRedis(toolCallId: string): Promise<void> {
   if (!toolCallId) {
@@ -27,7 +27,7 @@ async function addToolToRedis(toolCallId: string): Promise<void> {
 
   try {
     const key = `tool_call:${toolCallId}`
-    const status: ToolCallStatus = 'Pending'
+    const status: ToolCallStatus = 'pending'
 
     // Store as JSON object for consistency with confirm API
     const toolCallData = {
@@ -98,13 +98,25 @@ async function pollRedisForTool(
         status = redisValue as ToolCallStatus
       }
 
-      if (status === 'Accepted' || status === 'Rejected' || status === 'Error') {
+      if (status === 'accepted' || status === 'rejected' || status === 'error') {
         logger.info('Tool call status resolved', {
           toolCallId,
           status,
           message,
           duration: Date.now() - startTime,
         })
+
+        // Special logging for set environment variables tool when Redis status is found
+        if (toolCallId && (status === 'accepted' || status === 'rejected')) {
+          logger.info('SET_ENV_VARS: Redis polling found status update', {
+            toolCallId,
+            foundStatus: status,
+            redisMessage: message,
+            pollDuration: Date.now() - startTime,
+            redisKey: `tool_call:${toolCallId}`,
+          })
+        }
+
         return { status, message }
       }
 
@@ -141,7 +153,7 @@ async function interruptHandler(
   logger.info('Starting interrupt handler for tool call', { toolCallId })
 
   try {
-    // Step 1: Add tool to Redis with 'Pending' status
+    // Step 1: Add tool to Redis with 'pending' status
     await addToolToRedis(toolCallId)
 
     // Step 2: Poll Redis for status update
@@ -154,18 +166,23 @@ async function interruptHandler(
 
     const { status, message } = result
 
-    if (status === 'Rejected') {
+    if (status === 'rejected') {
       logger.info('Tool execution rejected by user', { toolCallId, message })
       return { approved: false, rejected: true, message }
     }
 
-    if (status === 'Accepted') {
+    if (status === 'accepted') {
       logger.info('Tool execution approved by user', { toolCallId, message })
       return { approved: true, rejected: false, message }
     }
 
-    if (status === 'Error') {
+    if (status === 'error') {
       logger.error('Tool execution failed with error', { toolCallId, message })
+      return { approved: false, rejected: false, message }
+    }
+
+    if (status === 'background') {
+      logger.info('Tool execution moved to background', { toolCallId, message })
       return { approved: false, rejected: false, message }
     }
 

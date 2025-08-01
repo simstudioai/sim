@@ -53,8 +53,12 @@ export async function notify(toolId: string, toolName: string, toolState: ToolSt
   // Call backend confirm route
   await fetch('/api/copilot/confirm', {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({
-      toolId,
+      toolCallId: toolId,
+      status: notificationStatus,
       toolName,
       toolState,
       stateMessage

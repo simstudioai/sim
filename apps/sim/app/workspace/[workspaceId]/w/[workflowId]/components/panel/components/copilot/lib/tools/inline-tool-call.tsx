@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import type { CopilotToolCall } from './types'
 import { toolRequiresInterrupt } from './utils'
 import { toolRegistry } from './registry'
+import { notifyServerTool } from './notification-utils'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -25,21 +26,35 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
 }
 
 // Function to accept a server tool
-function serverAcceptTool(toolCall: CopilotToolCall): void {
+async function serverAcceptTool(toolCall: CopilotToolCall): Promise<void> {
   console.log('Server tool accepted:', toolCall.name, toolCall.id)
   toolCall.state = 'accepted'
+  
+  try {
+    await notifyServerTool(toolCall.id, toolCall.name, 'accepted')
+  } catch (error) {
+    console.error('Failed to notify server of tool acceptance:', error)
+  }
 }
 
 // Function to accept a client tool
 function clientAcceptTool(toolCall: CopilotToolCall): void {
   console.log('Client tool accepted:', toolCall.name, toolCall.id)
   toolCall.state = 'accepted'
+  // No additional logic yet
 }
 
 // Function to reject any tool
-function rejectTool(toolCall: CopilotToolCall): void {
+async function rejectTool(toolCall: CopilotToolCall): Promise<void> {
   console.log('Tool rejected:', toolCall.name, toolCall.id)
   toolCall.state = 'rejected'
+  
+  try {
+    // Notify server for both client and server tools
+    await notifyServerTool(toolCall.id, toolCall.name, 'rejected')
+  } catch (error) {
+    console.error('Failed to notify server of tool rejection:', error)
+  }
 }
 
 // Function to get tool display name based on state
@@ -84,33 +99,43 @@ function RunSkipButtons({ toolCall, onStateChange }: {
 }) {
   const [isProcessing, setIsProcessing] = useState(false)
   
-  const handleRun = () => {
+  const handleRun = async () => {
     setIsProcessing(true)
     
-    // Check if it's a client tool or server tool
-    const clientTool = toolRegistry.getTool(toolCall.name)
-    
-    if (clientTool) {
-      // Client tool
-      clientAcceptTool(toolCall)
-    } else {
-      // Server tool
-      serverAcceptTool(toolCall)
+    try {
+      // Check if it's a client tool or server tool
+      const clientTool = toolRegistry.getTool(toolCall.name)
+      
+      if (clientTool) {
+        // Client tool
+        clientAcceptTool(toolCall)
+      } else {
+        // Server tool
+        await serverAcceptTool(toolCall)
+      }
+      
+      // Trigger re-render by calling onStateChange if provided
+      onStateChange?.(toolCall.state)
+    } catch (error) {
+      console.error('Error handling run action:', error)
+    } finally {
+      setIsProcessing(false)
     }
-    
-    // Trigger re-render by calling onStateChange if provided
-    onStateChange?.(toolCall.state)
-    setIsProcessing(false)
   }
   
-  const handleSkip = () => {
+  const handleSkip = async () => {
     setIsProcessing(true)
     
-    rejectTool(toolCall)
-    
-    // Trigger re-render by calling onStateChange if provided
-    onStateChange?.(toolCall.state)
-    setIsProcessing(false)
+    try {
+      await rejectTool(toolCall)
+      
+      // Trigger re-render by calling onStateChange if provided
+      onStateChange?.(toolCall.state)
+    } catch (error) {
+      console.error('Error handling skip action:', error)
+    } finally {
+      setIsProcessing(false)
+    }
   }
   
   return (
