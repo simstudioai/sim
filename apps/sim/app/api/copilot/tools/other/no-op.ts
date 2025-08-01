@@ -1,7 +1,9 @@
 import { BaseCopilotTool } from '../base'
 
 // No parameters interface - empty object
-interface NoOpParams {}
+interface NoOpParams {
+  confirmationMessage?: string
+}
 
 interface NoOpResult {
   message: string
@@ -14,8 +16,12 @@ class NoOpTool extends BaseCopilotTool<NoOpParams, NoOpResult> {
   readonly requiresInterrupt = true
 
   protected async executeImpl(params: NoOpParams): Promise<NoOpResult> {
+    const message = params.confirmationMessage 
+      ? `No-op tool executed successfully. ${params.confirmationMessage}`
+      : 'No-op tool executed successfully'
+
     return {
-      message: 'No-op tool executed successfully',
+      message,
       status: 'success'
     }
   }

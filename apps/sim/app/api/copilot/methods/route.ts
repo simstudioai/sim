@@ -29,8 +29,15 @@ async function addToolToRedis(toolCallId: string): Promise<void> {
     const key = `tool_call:${toolCallId}`
     const status: ToolCallStatus = 'Pending'
     
+    // Store as JSON object for consistency with confirm API
+    const toolCallData = {
+      status,
+      message: null,
+      timestamp: new Date().toISOString()
+    }
+    
     // Set with 24 hour expiry (86400 seconds)
-    await redis.set(key, status, 'EX', 86400)
+    await redis.set(key, JSON.stringify(toolCallData), 'EX', 86400)
     
     logger.info('Tool call added to Redis', {
       toolCallId,
@@ -49,7 +56,7 @@ async function addToolToRedis(toolCallId: string): Promise<void> {
  * Poll Redis for tool call status updates
  * Returns when status changes to 'Accepted' or 'Rejected', or times out after 60 seconds
  */
-async function pollRedisForTool(toolCallId: string): Promise<ToolCallStatus | null> {
+async function pollRedisForTool(toolCallId: string): Promise<{ status: ToolCallStatus; message?: string } | null> {
   const redis = getRedisClient()
   if (!redis) {
     logger.warn('pollRedisForTool: Redis client not available')
@@ -69,15 +76,34 @@ async function pollRedisForTool(toolCallId: string): Promise<ToolCallStatus | nu
 
   while (Date.now() - startTime < timeout) {
     try {
-      const status = await redis.get(key) as ToolCallStatus | null
+      const redisValue = await redis.get(key)
+      if (!redisValue) {
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, pollInterval))
+        continue
+      }
+
+      let status: ToolCallStatus | null = null
+      let message: string | undefined = undefined
+      
+      // Try to parse as JSON (new format), fallback to string (old format)
+      try {
+        const parsedData = JSON.parse(redisValue)
+        status = parsedData.status as ToolCallStatus
+        message = parsedData.message || undefined
+      } catch {
+        // Fallback to old format (direct status string)
+        status = redisValue as ToolCallStatus
+      }
       
       if (status === 'Accepted' || status === 'Rejected' || status === 'Error') {
         logger.info('Tool call status resolved', {
           toolCallId,
           status,
+          message,
           duration: Date.now() - startTime,
         })
-        return status
+        return { status, message }
       }
 
       // Wait before next poll
@@ -100,9 +126,9 @@ async function pollRedisForTool(toolCallId: string): Promise<ToolCallStatus | nu
 
 /**
  * Handle tool calls that require user interruption/approval
- * Returns { approved: boolean, rejected: boolean } to distinguish between rejection and timeout
+ * Returns { approved: boolean, rejected: boolean, message?: string } to distinguish between rejection and timeout
  */
-async function interruptHandler(toolCallId: string): Promise<{ approved: boolean; rejected: boolean }> {
+async function interruptHandler(toolCallId: string): Promise<{ approved: boolean; rejected: boolean; message?: string }> {
   if (!toolCallId) {
     logger.error('interruptHandler: No tool call ID provided')
     return { approved: false, rejected: false }
@@ -115,30 +141,32 @@ async function interruptHandler(toolCallId: string): Promise<{ approved: boolean
     await addToolToRedis(toolCallId)
 
     // Step 2: Poll Redis for status update
-    const status = await pollRedisForTool(toolCallId)
+    const result = await pollRedisForTool(toolCallId)
 
-    if (!status) {
+    if (!result) {
       logger.error('Failed to get tool call status or timed out', { toolCallId })
       return { approved: false, rejected: false }
     }
 
+    const { status, message } = result
+
     if (status === 'Rejected') {
-      logger.info('Tool execution rejected by user', { toolCallId })
-      return { approved: false, rejected: true }
+      logger.info('Tool execution rejected by user', { toolCallId, message })
+      return { approved: false, rejected: true, message }
     }
 
     if (status === 'Accepted') {
-      logger.info('Tool execution approved by user', { toolCallId })
-      return { approved: true, rejected: false }
+      logger.info('Tool execution approved by user', { toolCallId, message })
+      return { approved: true, rejected: false, message }
     }
 
     if (status === 'Error') {
-      logger.error('Tool execution failed with error', { toolCallId })
-      return { approved: false, rejected: false }
+      logger.error('Tool execution failed with error', { toolCallId, message })
+      return { approved: false, rejected: false, message }
     }
 
-    logger.warn('Unexpected tool call status', { toolCallId, status })
-    return { approved: false, rejected: false }
+    logger.warn('Unexpected tool call status', { toolCallId, status, message })
+    return { approved: false, rejected: false, message }
   } catch (error) {
     logger.error('Error in interrupt handler', {
       toolCallId,
@@ -240,12 +268,13 @@ export async function POST(req: NextRequest) {
       })
 
       // Handle interrupt flow
-      const { approved, rejected } = await interruptHandler(toolCallId)
+      const { approved, rejected, message } = await interruptHandler(toolCallId)
       
       if (rejected) {
         logger.info(`[${requestId}] Tool execution rejected by user`, {
           methodId,
           toolCallId,
+          message,
         })
         return NextResponse.json(
           createErrorResponse('The user decided to skip running this tool. This was a user decision.'),
@@ -267,7 +296,13 @@ export async function POST(req: NextRequest) {
       logger.info(`[${requestId}] Tool execution approved by user`, {
         methodId,
         toolCallId,
+        message,
       })
+
+      // For noop tool, pass the confirmation message as a parameter
+      if (methodId === 'no_op' && message) {
+        params.confirmationMessage = message
+      }
     }
 
     // Execute the tool directly via registry

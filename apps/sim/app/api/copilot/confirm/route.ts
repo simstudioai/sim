@@ -18,12 +18,13 @@ const ConfirmationSchema = z.object({
   status: z.enum(['Accept', 'Reject'], {
     errorMap: () => ({ message: 'Status must be either "Accept" or "Reject"' }),
   }),
+  message: z.string().optional(), // Optional message for background moves
 })
 
 /**
  * Update tool call status in Redis
  */
-async function updateToolCallStatus(toolCallId: string, status: ToolCallStatus): Promise<boolean> {
+async function updateToolCallStatus(toolCallId: string, status: ToolCallStatus, message?: string): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
     logger.warn('updateToolCallStatus: Redis client not available')
@@ -40,19 +41,26 @@ async function updateToolCallStatus(toolCallId: string, status: ToolCallStatus):
       return false
     }
 
-    // Update the status
-    await redis.set(key, status, 'EX', 86400) // Keep 24 hour expiry
+    // Store both status and message as JSON
+    const toolCallData = {
+      status,
+      message: message || null,
+      timestamp: new Date().toISOString()
+    }
+    await redis.set(key, JSON.stringify(toolCallData), 'EX', 86400) // Keep 24 hour expiry
     
     logger.info('Tool call status updated in Redis', {
       toolCallId,
       key,
       status,
+      message,
     })
     return true
   } catch (error) {
     logger.error('Failed to update tool call status in Redis', {
       toolCallId,
       status,
+      message,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
     return false
@@ -77,19 +85,20 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { toolCallId, status } = ConfirmationSchema.parse(body)
+    const { toolCallId, status, message } = ConfirmationSchema.parse(body)
 
     logger.info(`[${requestId}] Tool call confirmation request`, {
       userId: authenticatedUserId,
       toolCallId,
       status,
+      message,
     })
 
     // Map input status to internal status
     const internalStatus: ToolCallStatus = status === 'Accept' ? 'Accepted' : 'Rejected'
 
     // Update the tool call status in Redis
-    const success = await updateToolCallStatus(toolCallId, internalStatus)
+    const success = await updateToolCallStatus(toolCallId, internalStatus, message)
 
     if (!success) {
       logger.error(`[${requestId}] Failed to update tool call status`, {
@@ -97,6 +106,7 @@ export async function POST(req: NextRequest) {
         toolCallId,
         status,
         internalStatus,
+        message,
       })
       return NextResponse.json(
         { success: false, error: 'Failed to update tool call status or tool call not found' },
@@ -115,7 +125,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Tool call ${toolCallId} has been ${status.toLowerCase()}ed`,
+      message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}ed`,
       toolCallId,
       status: internalStatus,
     })

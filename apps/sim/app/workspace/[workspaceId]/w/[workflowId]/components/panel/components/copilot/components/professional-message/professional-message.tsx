@@ -324,6 +324,10 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   
   // State for processing approval
   const [isProcessing, setIsProcessing] = useState(false)
+  // State for tracking workflow execution (for run_workflow tool)
+  const [isWorkflowExecuting, setIsWorkflowExecuting] = useState(false)
+  // State for processing background move
+  const [isMovingToBackground, setIsMovingToBackground] = useState(false)
 
   const getToolIcon = () => {
     const displayName = tool.displayName || tool.name || ''
@@ -415,6 +419,41 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   const { activeWorkflowId } = useWorkflowRegistry()
   const { getConversationId } = useChatStore()
 
+  // API call to move workflow to background
+  const handleMoveToBackground = async (toolCallId: string) => {
+    if (isMovingToBackground) return
+    
+    setIsMovingToBackground(true)
+    
+    try {
+      // Send confirmation with background message
+      const response = await fetch('/api/copilot/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+                  body: JSON.stringify({
+            toolCallId,
+            status: 'Accept',
+            message: 'The user moved workflow execution to the background. Execution is not yet complete'
+          }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('Failed to move workflow to background:', error)
+      } else {
+        updatePreviewToolCallState('applied', toolCallId)
+        setIsWorkflowExecuting(false) // Stop showing the background button
+        console.log(`Workflow ${toolCallId} moved to background`)
+      }
+    } catch (error) {
+      console.error('Error moving workflow to background:', error)
+    } finally {
+      setIsMovingToBackground(false)
+    }
+  }
+
   // API call to confirm tool action
   const handleConfirmTool = async (toolCallId: string, status: 'Accept' | 'Reject') => {
     if (isProcessing) return
@@ -472,6 +511,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
           console.log('🔍 Final workflow input:', JSON.stringify(workflowInput, null, 2))
           
           // Execute workflow (tool stays in pending state showing spinner)
+          setIsWorkflowExecuting(true)
           const workflowResult = await handleRunWorkflow(workflowInput)
           console.log('Workflow execution started, result:', workflowResult)
           
@@ -509,6 +549,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
           }
           
           // Only update state to 'applied' after successful execution
+          setIsWorkflowExecuting(false)
           updatePreviewToolCallState('applied', toolCallId)
           
           // Now call the confirm API after workflow execution completes
@@ -520,6 +561,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
             body: JSON.stringify({
               toolCallId,
               status,
+              message: 'Workflow execution finished, check console logs to see output'
             }),
           })
 
@@ -533,6 +575,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
         } catch (workflowError) {
           console.error('Workflow execution failed:', workflowError)
           // Update state to error on failure
+          setIsWorkflowExecuting(false)
           updatePreviewToolCallState('error', toolCallId)
           throw workflowError
         }
@@ -603,6 +646,22 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
             className='h-6 px-2 text-xs font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 disabled:opacity-50'
           >
             Skip
+          </Button>
+        </div>
+      )}
+
+      {/* Show move to background option during workflow execution */}
+      {tool.name === COPILOT_TOOL_IDS.RUN_WORKFLOW && isWorkflowExecuting && (
+        <div className='flex items-center gap-1.5'>
+          <span className='text-xs text-muted-foreground'>Executing workflow...</span>
+          <Button
+            onClick={() => handleMoveToBackground(tool.id)}
+            disabled={isMovingToBackground}
+            size="sm"
+            className='h-6 px-2 text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 disabled:opacity-50'
+          >
+            {isMovingToBackground ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
+            Move to background
           </Button>
         </div>
       )}
