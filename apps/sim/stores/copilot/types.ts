@@ -213,6 +213,7 @@ export interface CopilotActions {
     toolCallState: 'applied' | 'rejected' | 'error',
     toolCallId?: string
   ) => void
+  setToolCallState: (toolCall: any, newState: string, options?: any) => void
   sendDocsMessage: (query: string, options?: SendDocsMessageOptions) => Promise<void>
   saveChatMessages: (chatId: string) => Promise<void>
 

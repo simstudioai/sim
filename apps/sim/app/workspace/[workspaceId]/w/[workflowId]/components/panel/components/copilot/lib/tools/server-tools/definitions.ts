@@ -32,7 +32,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.SEARCH_DOCUMENTATION,
     displayConfig: {
       states: {
-        pending: { displayName: 'Searching documentation', icon: 'search' },
         executing: { displayName: 'Searching documentation', icon: 'loader' },
         success: { displayName: 'Searched documentation', icon: 'check' },
         rejected: { displayName: 'Skipped documentation search', icon: 'skip' },
@@ -50,7 +49,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_USER_WORKFLOW,
     displayConfig: {
       states: {
-        pending: { displayName: 'Analyzing workflow', icon: 'search' },
         executing: { displayName: 'Analyzing workflow', icon: 'loader' },
         success: { displayName: 'Analyzed workflow', icon: 'check' },
         rejected: { displayName: 'Skipped workflow analysis', icon: 'skip' },
@@ -68,7 +66,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.BUILD_WORKFLOW,
     displayConfig: {
       states: {
-        pending: { displayName: 'Building workflow', icon: 'wrench' },
+        pending: { displayName: 'Workflow ready for review', icon: 'wrench' },
         executing: { displayName: 'Building workflow', icon: 'loader' },
         success: { displayName: 'Built workflow', icon: 'checkCircle' },
         rejected: { displayName: 'Skipped workflow build', icon: 'skip' },
@@ -86,7 +84,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.EDIT_WORKFLOW,
     displayConfig: {
       states: {
-        pending: { displayName: 'Editing workflow', icon: 'code' },
+        pending: { displayName: 'Workflow changes ready for review', icon: 'code' },
         executing: { displayName: 'Editing workflow', icon: 'loader' },
         success: { displayName: 'Edited workflow', icon: 'checkCircle' },
         rejected: { displayName: 'Skipped workflow edit', icon: 'skip' },
@@ -104,7 +102,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_BLOCKS_AND_TOOLS,
     displayConfig: {
       states: {
-        pending: { displayName: 'Getting block information', icon: 'eye' },
         executing: { displayName: 'Getting block information', icon: 'loader' },
         success: { displayName: 'Retrieved block information', icon: 'check' },
         rejected: { displayName: 'Skipped getting block information', icon: 'skip' },
@@ -122,7 +119,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_BLOCKS_METADATA,
     displayConfig: {
       states: {
-        pending: { displayName: 'Getting block metadata', icon: 'eye' },
         executing: { displayName: 'Getting block metadata', icon: 'loader' },
         success: { displayName: 'Retrieved block metadata', icon: 'check' },
         rejected: { displayName: 'Skipped getting block metadata', icon: 'skip' },
@@ -140,7 +136,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_YAML_STRUCTURE,
     displayConfig: {
       states: {
-        pending: { displayName: 'Analyzing workflow structure', icon: 'search' },
         executing: { displayName: 'Analyzing workflow structure', icon: 'loader' },
         success: { displayName: 'Analyzed workflow structure', icon: 'check' },
         rejected: { displayName: 'Skipped workflow structure analysis', icon: 'skip' },
@@ -158,7 +153,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_WORKFLOW_EXAMPLES,
     displayConfig: {
       states: {
-        pending: { displayName: 'Viewing workflow examples', icon: 'file' },
         executing: { displayName: 'Viewing workflow examples', icon: 'loader' },
         success: { displayName: 'Viewed workflow examples', icon: 'check' },
         rejected: { displayName: 'Skipped workflow examples', icon: 'skip' },
@@ -176,7 +170,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_ENVIRONMENT_VARIABLES,
     displayConfig: {
       states: {
-        pending: { displayName: 'Viewing environment variables', icon: 'edit' },
         executing: { displayName: 'Viewing environment variables', icon: 'loader' },
         success: { displayName: 'Found environment variables', icon: 'check' },
         rejected: { displayName: 'Skipped viewing environment variables', icon: 'skip' },
@@ -227,7 +220,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_WORKFLOW_CONSOLE,
     displayConfig: {
       states: {
-        pending: { displayName: 'Reading workflow console', icon: 'database' },
         executing: { displayName: 'Reading workflow console', icon: 'loader' },
         success: { displayName: 'Read workflow console', icon: 'check' },
         rejected: { displayName: 'Skipped reading workflow console', icon: 'skip' },
@@ -245,7 +237,6 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.SEARCH_ONLINE,
     displayConfig: {
       states: {
-        pending: { displayName: 'Searching online', icon: 'globe' },
         executing: { displayName: 'Searching online', icon: 'loader' },
         success: { displayName: 'Searched online', icon: 'check' },
         rejected: { displayName: 'Skipped online search', icon: 'skip' },

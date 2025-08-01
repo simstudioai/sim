@@ -395,22 +395,95 @@ function handleToolFailure(toolCall: any, error: string): void {
 }
 
 /**
- * Helper function to create a tool call object
+ * Centralized function to set tool call state and handle side effects
+ */
+function setToolCallState(toolCall: any, newState: string, options: {
+  result?: any,
+  error?: string,
+  preserveTerminalStates?: boolean
+} = {}): void {
+  const { result, error, preserveTerminalStates = true } = options
+  
+  // Don't override terminal states for workflow tools and interrupt tools if preserveTerminalStates is true
+  if (preserveTerminalStates && 
+      (WORKFLOW_TOOL_IDS.has(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
+      (toolCall.state === 'applied' || toolCall.state === 'rejected')) {
+    logger.info('Tool call already in terminal state, preserving:', toolCall.id, toolCall.name, toolCall.state)
+    return
+  }
+  
+  const oldState = toolCall.state
+  toolCall.state = newState
+  
+  // Handle state-specific logic
+  switch (newState) {
+    case 'completed':
+    case 'success':
+      toolCall.endTime = Date.now()
+      toolCall.duration = toolCall.endTime - toolCall.startTime
+      if (result !== undefined) {
+        toolCall.result = result
+      }
+      
+      // Special handling for different tool types
+      if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
+          toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
+        toolCall.state = 'ready_for_review'
+      }
+      break
+      
+    case 'error':
+      toolCall.endTime = Date.now()
+      toolCall.duration = toolCall.endTime - toolCall.startTime
+      if (error) {
+        toolCall.error = error
+      }
+      break
+      
+    case 'executing':
+      // Tool is now executing
+      break
+      
+    case 'pending':
+      // Tool is waiting for user confirmation
+      break
+      
+    case 'accepted':
+      // User accepted the tool
+      break
+      
+    case 'rejected':
+      // User rejected the tool
+      break
+  }
+  
+  // Update display name based on new state
+  toolCall.displayName = getToolDisplayNameByState(toolCall)
+  
+  logger.info(`Tool call state changed: ${toolCall.name} (${toolCall.id}) ${oldState} → ${newState}`)
+}
+
+/**
+ * Helper function to create a tool call object with proper initial state
  */
 function createToolCall(id: string, name: string, input: any = {}): any {
-  // Check if tool requires interrupt to determine initial state
-  const requiresInterrupt = toolRequiresInterrupt(name)
-  const initialState = requiresInterrupt ? 'pending' : 'executing'
-  
-  return {
+  const toolCall = {
     id,
     name,
     input,
-    displayName: getToolDisplayName(name),
-    state: initialState,
+    displayName: getToolDisplayName(name), // Will be updated by setToolCallState
+    state: 'pending', // Temporary state, will be set properly below
     startTime: Date.now(),
     timestamp: Date.now(),
   }
+  
+  // Use centralized state management to set initial state
+  const requiresInterrupt = toolRequiresInterrupt(name)
+  const initialState = requiresInterrupt ? 'pending' : 'executing'
+  
+  setToolCallState(toolCall, initialState, { preserveTerminalStates: false })
+  
+  return toolCall
 }
 
 /**
@@ -609,7 +682,8 @@ const sseHandlers: Record<string, SSEHandler> = {
             })()
           : result
 
-      finalizeToolCall(toolCall, true, parsedResult, get)
+      // NEW LOGIC: Use centralized state management
+      setToolCallState(toolCall, 'success', { result: parsedResult })
 
       // Handle workflow tools
       if (
@@ -618,8 +692,15 @@ const sseHandlers: Record<string, SSEHandler> = {
       ) {
         processWorkflowToolResult(toolCall, parsedResult, get)
       }
+      
+      // COMMENTED OUT OLD LOGIC:
+      // finalizeToolCall(toolCall, true, parsedResult, get)
     } else {
-      handleToolFailure(toolCall, result || 'Tool execution failed')
+      // NEW LOGIC: Use centralized state management  
+      setToolCallState(toolCall, 'error', { error: result || 'Tool execution failed' })
+      
+      // COMMENTED OUT OLD LOGIC:
+      // handleToolFailure(toolCall, result || 'Tool execution failed')
     }
 
     // Update both contentBlocks and toolCalls atomically before UI update
@@ -1820,6 +1901,17 @@ export const useCopilotStore = create<CopilotStore>()(
             abortController: null,
           }))
         }
+      },
+
+      // NEW: Set tool call state using centralized function
+      setToolCallState: (toolCall: any, newState: string, options?: any) => {
+        setToolCallState(toolCall, newState, options)
+        
+        // Trigger UI update by updating messages
+        const { messages } = get()
+        set((state) => ({ 
+          messages: [...state.messages] // Force re-render
+        }))
       },
 
       // Update preview tool call state

@@ -12,6 +12,7 @@ import type { CopilotToolCall } from './types'
 import { toolRequiresInterrupt } from './utils'
 import { toolRegistry } from './registry'
 import { notifyServerTool } from './notification-utils'
+import { useCopilotStore } from '@/stores/copilot/store'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -25,33 +26,54 @@ function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   return toolRequiresInterrupt(toolCall.name) && toolCall.state === 'pending'
 }
 
-// Function to accept a server tool
-async function serverAcceptTool(toolCall: CopilotToolCall): Promise<void> {
+// Function to accept a server tool (interrupt required)
+async function serverAcceptTool(
+  toolCall: CopilotToolCall, 
+  setToolCallState: (toolCall: any, state: string, options?: any) => void
+): Promise<void> {
   console.log('Server tool accepted:', toolCall.name, toolCall.id)
-  toolCall.state = 'accepted'
+  
+  // NEW LOGIC: Use centralized state management
+  setToolCallState(toolCall, 'accepted')
   
   try {
+    // Notify server of acceptance - execution happens elsewhere via SSE
     await notifyServerTool(toolCall.id, toolCall.name, 'accepted')
+    console.log('Server notified of tool acceptance')
+    
   } catch (error) {
     console.error('Failed to notify server of tool acceptance:', error)
+    setToolCallState(toolCall, 'error', { error: 'Failed to notify server' })
   }
 }
 
 // Function to accept a client tool
-function clientAcceptTool(toolCall: CopilotToolCall): void {
+function clientAcceptTool(
+  toolCall: CopilotToolCall,
+  setToolCallState: (toolCall: any, state: string, options?: any) => void
+): void {
   console.log('Client tool accepted:', toolCall.name, toolCall.id)
-  toolCall.state = 'accepted'
-  // No additional logic yet
+  
+  // NEW LOGIC: Use centralized state management
+  setToolCallState(toolCall, 'accepted')
+  // Tool execution happens elsewhere - this just updates UI state
 }
 
 // Function to reject any tool
-async function rejectTool(toolCall: CopilotToolCall): Promise<void> {
+async function rejectTool(
+  toolCall: CopilotToolCall,
+  setToolCallState: (toolCall: any, state: string, options?: any) => void
+): Promise<void> {
   console.log('Tool rejected:', toolCall.name, toolCall.id)
-  toolCall.state = 'rejected'
+  
+  // NEW LOGIC: Use centralized state management
+  setToolCallState(toolCall, 'rejected')
   
   try {
     // Notify server for both client and server tools
     await notifyServerTool(toolCall.id, toolCall.name, 'rejected')
+    console.log('Server notified of tool rejection')
+    
   } catch (error) {
     console.error('Failed to notify server of tool rejection:', error)
   }
@@ -98,6 +120,7 @@ function RunSkipButtons({ toolCall, onStateChange }: {
   onStateChange?: (state: any) => void 
 }) {
   const [isProcessing, setIsProcessing] = useState(false)
+  const { setToolCallState } = useCopilotStore()
   
   const handleRun = async () => {
     setIsProcessing(true)
@@ -108,10 +131,10 @@ function RunSkipButtons({ toolCall, onStateChange }: {
       
       if (clientTool) {
         // Client tool
-        clientAcceptTool(toolCall)
+        clientAcceptTool(toolCall, setToolCallState)
       } else {
         // Server tool
-        await serverAcceptTool(toolCall)
+        await serverAcceptTool(toolCall, setToolCallState)
       }
       
       // Trigger re-render by calling onStateChange if provided
@@ -127,7 +150,7 @@ function RunSkipButtons({ toolCall, onStateChange }: {
     setIsProcessing(true)
     
     try {
-      await rejectTool(toolCall)
+      await rejectTool(toolCall, setToolCallState)
       
       // Trigger re-render by calling onStateChange if provided
       onStateChange?.(toolCall.state)

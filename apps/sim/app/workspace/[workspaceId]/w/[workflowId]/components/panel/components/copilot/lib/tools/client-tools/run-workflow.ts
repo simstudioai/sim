@@ -3,7 +3,7 @@
  */
 
 import { BaseTool } from '../base-tool'
-import type { ToolCall, ToolExecuteResult, ToolMetadata, ToolExecutionOptions } from '../types'
+import type { CopilotToolCall, ToolExecuteResult, ToolMetadata, ToolExecutionOptions } from '../types'
 
 interface RunWorkflowParams {
   workflowId?: string
@@ -84,7 +84,7 @@ export class RunWorkflowTool extends BaseTool {
    * Note: The actual workflow execution is typically handled by the component
    * that uses this tool (e.g., via the executeWorkflow callback in options)
    */
-  async execute(toolCall: ToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
+  async execute(toolCall: CopilotToolCall, options?: ToolExecutionOptions): Promise<ToolExecuteResult> {
     try {
       const params = toolCall.parameters as RunWorkflowParams
       
