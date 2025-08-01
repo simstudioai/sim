@@ -1,11 +1,59 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SharepointReadPageResponse, SharepointToolParams } from '@/tools/sharepoint/types'
+import type {
+  SharepointPageContent,
+  SharepointReadPageResponse,
+  SharepointToolParams,
+} from '@/tools/sharepoint/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointReadPage')
 
+// Types for API responses
+interface GraphApiResponse {
+  id?: string
+  name?: string
+  title?: string
+  webUrl?: string
+  pageLayout?: string
+  createdDateTime?: string
+  lastModifiedDateTime?: string
+  canvasLayout?: CanvasLayout
+  value?: GraphApiPageItem[]
+  error?: {
+    message: string
+  }
+}
+
+interface GraphApiPageItem {
+  id: string
+  name: string
+  title?: string
+  webUrl?: string
+  pageLayout?: string
+  createdDateTime?: string
+  lastModifiedDateTime?: string
+}
+
+interface CanvasLayout {
+  horizontalSections?: Array<{
+    layout?: string
+    id?: string
+    emphasis?: string
+    columns?: Array<{
+      webparts?: Array<{
+        id?: string
+        innerHtml?: string
+      }>
+    }>
+    webparts?: Array<{
+      id?: string
+      innerHtml?: string
+    }>
+  }>
+}
+
 // Extract readable text from SharePoint canvas layout
-function extractTextFromCanvasLayout(canvasLayout: any): string {
+function extractTextFromCanvasLayout(canvasLayout: CanvasLayout | null | undefined): string {
   logger.info('Extracting text from canvas layout', {
     hasCanvasLayout: !!canvasLayout,
     hasHorizontalSections: !!canvasLayout?.horizontalSections,
@@ -69,22 +117,22 @@ function extractTextFromCanvasLayout(canvasLayout: any): string {
 }
 
 // Remove OData metadata from objects
-function cleanODataMetadata(obj: any): any {
+function cleanODataMetadata<T>(obj: T): T {
   if (!obj || typeof obj !== 'object') return obj
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => cleanODataMetadata(item))
+    return obj.map((item) => cleanODataMetadata(item)) as T
   }
 
-  const cleaned: any = {}
-  for (const [key, value] of Object.entries(obj)) {
+  const cleaned: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
     // Skip OData metadata keys
     if (key.includes('@odata')) continue
 
     cleaned[key] = cleanODataMetadata(value)
   }
 
-  return cleaned
+  return cleaned as T
 }
 
 export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageResponse> = {
@@ -128,14 +176,16 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       visibility: 'user-or-llm',
       description: 'The name of the page to read (alternative to pageId)',
     },
+    maxPages: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Maximum number of pages to return when listing all pages (default: 10, max: 50)',
+    },
   },
   request: {
     url: (params) => {
-      // Validate that at least pageId or pageName is provided
-      if (!params.pageId && !params.pageName) {
-        throw new Error('Either pageId or pageName must be provided')
-      }
-
       // Use specific site if provided, otherwise use root site
       const siteId = params.siteId || params.siteSelector || 'root'
 
@@ -143,11 +193,9 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       if (params.pageId) {
         // Read specific page by ID
         baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${params.pageId}`
-      } else if (params.pageName) {
-        // Search for page by name - list all pages and filter
-        baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages`
       } else {
-        throw new Error('Either pageId or pageName must be provided')
+        // List all pages (with optional filtering by name)
+        baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages`
       }
 
       const url = new URL(baseUrl)
@@ -168,6 +216,10 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         // Search for exact match first, then with .aspx if needed
         url.searchParams.append('$filter', `name eq '${pageName}' or name eq '${pageNameWithAspx}'`)
         url.searchParams.append('$top', '10') // Get more results to find matches
+      } else if (!params.pageId && !params.pageName) {
+        // When listing all pages, apply maxPages limit
+        const maxPages = Math.min(params.maxPages || 10, 50) // Default 10, max 50
+        url.searchParams.append('$top', maxPages.toString())
       }
 
       // Only expand content when getting a specific page by ID
@@ -194,7 +246,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
     }),
   },
   transformResponse: async (response: Response, params) => {
-    const data = await response.json()
+    const data: GraphApiResponse = await response.json()
 
     if (!response.ok) {
       logger.error('SharePoint API error', {
@@ -214,48 +266,112 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       hasSearchResults: !!data.value,
     })
 
-    let pageData: any
-    let contentData: any = { content: '' }
-
     if (params?.pageId) {
-      // Direct page access
-      pageData = data
-      contentData = {
+      // Direct page access - return single page
+      const pageData = data
+      const contentData = {
         content: extractTextFromCanvasLayout(data.canvasLayout),
-        canvasLayout: data.canvasLayout,
-      }
-    } else {
-      // Search result - take first match
-      if (!data.value || data.value.length === 0) {
-        logger.error('No pages found', {
-          searchName: params?.pageName,
-          siteId: params?.siteId || params?.siteSelector || 'root',
-          totalResults: data.value?.length || 0,
-        })
-        throw new Error(
-          `Page with name '${params?.pageName}' not found. Make sure the page exists and you have access to it. Note: SharePoint page names typically include the .aspx extension.`
-        )
+        canvasLayout: data.canvasLayout as any,
       }
 
-      logger.info('Found pages', {
+      return {
+        success: true,
+        output: {
+          page: {
+            id: pageData.id!,
+            name: pageData.name!,
+            title: pageData.title || pageData.name!,
+            webUrl: pageData.webUrl!,
+            pageLayout: pageData.pageLayout,
+            createdDateTime: pageData.createdDateTime,
+            lastModifiedDateTime: pageData.lastModifiedDateTime,
+          },
+          content: contentData,
+        },
+      }
+    }
+    // Multiple pages or search by name
+    if (!data.value || data.value.length === 0) {
+      logger.error('No pages found', {
         searchName: params?.pageName,
-        foundPages: data.value.map((p: any) => ({ id: p.id, name: p.name, title: p.title })),
-        selectedPage: data.value[0].name,
+        siteId: params?.siteId || params?.siteSelector || 'root',
+        totalResults: data.value?.length || 0,
+      })
+      const errorMessage = params?.pageName
+        ? `Page with name '${params?.pageName}' not found. Make sure the page exists and you have access to it. Note: SharePoint page names typically include the .aspx extension.`
+        : 'No pages found on this SharePoint site.'
+      throw new Error(errorMessage)
+    }
+
+    logger.info('Found pages', {
+      searchName: params?.pageName,
+      foundPages: data.value.map((p: any) => ({ id: p.id, name: p.name, title: p.title })),
+      totalCount: data.value.length,
+    })
+
+    if (params?.pageName) {
+      // Search by name - return single page (first match)
+      const pageData = data.value[0]
+      const siteId = params?.siteId || params?.siteSelector || 'root'
+      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${pageData.id}/microsoft.graph.sitePage?$expand=canvasLayout`
+
+      logger.info('Making API call to get page content for searched page', {
+        pageId: pageData.id,
+        contentUrl,
+        siteId,
       })
 
-      pageData = data.value[0]
+      const contentResponse = await fetch(contentUrl, {
+        headers: {
+          Authorization: `Bearer ${params?.accessToken}`,
+          Accept: 'application/json',
+        },
+      })
 
-      // For search results, we need to make another call to get the content
-      if (pageData.id) {
-        const siteId = params?.siteId || params?.siteSelector || 'root'
-        const contentUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${pageData.id}/microsoft.graph.sitePage?$expand=canvasLayout`
-
-        logger.info('Making second API call to get page content', {
-          pageId: pageData.id,
-          contentUrl,
-          siteId,
+      let contentData: SharepointPageContent = { content: '' }
+      if (contentResponse.ok) {
+        const contentResult = await contentResponse.json()
+        contentData = {
+          content: extractTextFromCanvasLayout(contentResult.canvasLayout),
+          canvasLayout: cleanODataMetadata(contentResult.canvasLayout),
+        }
+      } else {
+        logger.error('Failed to fetch page content', {
+          status: contentResponse.status,
+          statusText: contentResponse.statusText,
         })
+      }
 
+      return {
+        success: true,
+        output: {
+          page: {
+            id: pageData.id,
+            name: pageData.name,
+            title: pageData.title || pageData.name,
+            webUrl: pageData.webUrl,
+            pageLayout: pageData.pageLayout,
+            createdDateTime: pageData.createdDateTime,
+            lastModifiedDateTime: pageData.lastModifiedDateTime,
+          },
+          content: contentData,
+        },
+      }
+    }
+    // List all pages - return multiple pages with content
+    const siteId = params?.siteId || params?.siteSelector || 'root'
+    const pagesWithContent = []
+
+    logger.info('Fetching content for all pages', {
+      totalPages: data.value.length,
+      siteId,
+    })
+
+    // Fetch content for each page
+    for (const pageInfo of data.value) {
+      const contentUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${pageInfo.id}/microsoft.graph.sitePage?$expand=canvasLayout`
+
+      try {
         const contentResponse = await fetch(contentUrl, {
           headers: {
             Authorization: `Bearer ${params?.accessToken}`,
@@ -263,47 +379,68 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
           },
         })
 
-        logger.info('Content API response', {
-          status: contentResponse.status,
-          statusText: contentResponse.statusText,
-          ok: contentResponse.ok,
-        })
-
+        let contentData = { content: '', canvasLayout: null }
         if (contentResponse.ok) {
           const contentResult = await contentResponse.json()
-          logger.info('Content API result', {
-            hasCanvasLayout: !!contentResult.canvasLayout,
-            contentResultKeys: Object.keys(contentResult),
-          })
-
           contentData = {
             content: extractTextFromCanvasLayout(contentResult.canvasLayout),
             canvasLayout: cleanODataMetadata(contentResult.canvasLayout),
           }
         } else {
-          const errorText = await contentResponse.text()
-          logger.error('Failed to fetch page content', {
+          logger.error('Failed to fetch content for page', {
+            pageId: pageInfo.id,
+            pageName: pageInfo.name,
             status: contentResponse.status,
-            statusText: contentResponse.statusText,
-            error: errorText,
           })
         }
+
+        pagesWithContent.push({
+          page: {
+            id: pageInfo.id,
+            name: pageInfo.name,
+            title: pageInfo.title || pageInfo.name,
+            webUrl: pageInfo.webUrl,
+            pageLayout: pageInfo.pageLayout,
+            createdDateTime: pageInfo.createdDateTime,
+            lastModifiedDateTime: pageInfo.lastModifiedDateTime,
+          },
+          content: contentData,
+        })
+      } catch (error) {
+        logger.error('Error fetching content for page', {
+          pageId: pageInfo.id,
+          pageName: pageInfo.name,
+          error: error instanceof Error ? error.message : String(error),
+        })
+
+        // Still add the page without content
+        pagesWithContent.push({
+          page: {
+            id: pageInfo.id,
+            name: pageInfo.name,
+            title: pageInfo.title || pageInfo.name,
+            webUrl: pageInfo.webUrl,
+            pageLayout: pageInfo.pageLayout,
+            createdDateTime: pageInfo.createdDateTime,
+            lastModifiedDateTime: pageInfo.lastModifiedDateTime,
+          },
+          content: { content: 'Failed to fetch content', canvasLayout: null },
+        })
       }
     }
+
+    logger.info('Completed fetching content for all pages', {
+      totalPages: pagesWithContent.length,
+      successfulPages: pagesWithContent.filter(
+        (p) => p.content.content !== 'Failed to fetch content'
+      ).length,
+    })
 
     return {
       success: true,
       output: {
-        page: {
-          id: pageData.id,
-          name: pageData.name,
-          title: pageData.title || pageData.name,
-          webUrl: pageData.webUrl,
-          pageLayout: pageData.pageLayout,
-          createdDateTime: pageData.createdDateTime,
-          lastModifiedDateTime: pageData.lastModifiedDateTime,
-        },
-        content: contentData,
+        pages: pagesWithContent,
+        totalPages: pagesWithContent.length,
       },
     }
   },

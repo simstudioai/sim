@@ -11,13 +11,36 @@ export interface SharepointSite {
 }
 
 export interface SharepointPage {
-  id: string
+  '@odata.type'?: string
+  id?: string
   name: string
   title: string
-  webUrl: string
+  webUrl?: string
   pageLayout?: string
   createdDateTime?: string
   lastModifiedDateTime?: string
+  publishingState?: {
+    level: string
+  }
+  canvasLayout?: {
+    horizontalSections: Array<{
+      layout: string
+      id: string
+      emphasis: string
+      columns?: Array<{
+        id: string
+        width: number
+        webparts: Array<{
+          id: string
+          innerHtml: string
+        }>
+      }>
+      webparts?: Array<{
+        id: string
+        innerHtml: string
+      }>
+    }>
+  }
 }
 
 export interface SharepointPageContent {
@@ -32,7 +55,7 @@ export interface SharepointPageContent {
         innerHtml: string
       }>
     }>
-  }
+  } | null
 }
 
 export interface SharepointListSitesResponse extends ToolResponse {
@@ -48,10 +71,17 @@ export interface SharepointCreatePageResponse extends ToolResponse {
   }
 }
 
+export interface SharepointPageWithContent {
+  page: SharepointPage
+  content: SharepointPageContent
+}
+
 export interface SharepointReadPageResponse extends ToolResponse {
   output: {
-    page: SharepointPage
-    content: SharepointPageContent
+    page?: SharepointPage
+    pages?: SharepointPageWithContent[]
+    content?: SharepointPageContent
+    totalPages?: number
   }
 }
 
@@ -100,6 +130,7 @@ export interface SharepointToolParams {
   hostname?: string
   serverRelativePath?: string
   groupId?: string
+  maxPages?: number
 }
 
 export type SharepointResponse =

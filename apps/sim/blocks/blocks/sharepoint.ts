@@ -70,7 +70,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       title: 'Page Name',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Name for the new page',
+      placeholder: 'Name of the page',
       condition: { field: 'operation', value: ['create_page', 'read_page'] },
     },
 
