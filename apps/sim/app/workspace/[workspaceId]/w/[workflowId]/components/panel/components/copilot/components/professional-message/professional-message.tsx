@@ -212,6 +212,36 @@ function getToolDisplayNameByState(toolCall: any): string {
   const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
   const isInterruptTool = toolRequiresInterrupt(toolName)
   
+
+  
+  // Check if tool is in interrupt state (awaiting approval)
+  if (isInterruptTool && (state === 'executing' || state === 'pending')) {
+    // Custom display for environment variable tool
+    if (toolName === COPILOT_TOOL_IDS.SET_ENVIRONMENT_VARIABLES) {
+      // Extract the environment variable name from parameters or args
+      const params = toolCall.parameters || toolCall.args || {}
+      
+      // The tool expects a 'variables' object with key-value pairs
+      if (params.variables && typeof params.variables === 'object') {
+        const varNames = Object.keys(params.variables)
+        if (varNames.length > 0) {
+          const firstVarName = varNames[0]
+          const truncatedName = firstVarName.length > 15 ? firstVarName.substring(0, 15) + '...' : firstVarName
+          // If multiple variables, indicate that
+          const suffix = varNames.length > 1 ? ` (+${varNames.length - 1} more)` : ''
+          return `Setting environment variable ${truncatedName}${suffix}`
+        }
+      }
+      
+      // Fallback if structure is unexpected
+      return 'Setting environment variables'
+    }
+    // Add more custom interrupt tool displays here as needed
+    
+    // Default for other interrupt tools
+    return getToolDisplayName(toolName)
+  }
+  
   // Check for rejected state first (highest priority)
   if (state === 'rejected') {
     if (isWorkflowTool) {
@@ -258,58 +288,7 @@ function getToolDisplayNameByState(toolCall: any): string {
   }
 }
 
-// Interrupt Confirmation Component
-function InterruptConfirmation({ 
-  toolCall, 
-  onConfirm 
-}: { 
-  toolCall: ToolCallState
-  onConfirm: (toolCallId: string, status: 'Accept' | 'Reject') => void 
-}) {
-  const [isProcessing, setIsProcessing] = useState(false)
 
-  const handleConfirm = async (status: 'Accept' | 'Reject') => {
-    if (isProcessing) return
-    
-    setIsProcessing(true)
-    try {
-      await onConfirm(toolCall.id, status)
-    } catch (error) {
-      console.error('Failed to confirm tool:', error)
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  return (
-    <div className='mt-2 flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800'>
-      <div className='flex-1 text-sm text-yellow-800 dark:text-yellow-200'>
-        This action requires your approval. Do you want to proceed?
-      </div>
-      <div className='flex gap-2'>
-        <Button
-          size='sm'
-          variant='outline'
-          onClick={() => handleConfirm('Reject')}
-          disabled={isProcessing}
-          className='h-7 px-3 text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20'
-        >
-          <X className='h-3 w-3 mr-1' />
-          Reject
-        </Button>
-        <Button
-          size='sm'
-          onClick={() => handleConfirm('Accept')}
-          disabled={isProcessing}
-          className='h-7 px-3 bg-green-600 hover:bg-green-700 text-white dark:bg-green-700 dark:hover:bg-green-800'
-        >
-          <Check className='h-3 w-3 mr-1' />
-          Accept
-        </Button>
-      </div>
-    </div>
-  )
-}
 
 // Inline Tool Call Component
 function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepNumber?: number }) {
@@ -320,6 +299,9 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
 
   // Get access to the copilot store
   const { updatePreviewToolCallState } = useCopilotStore()
+  
+  // State for processing approval
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const getToolIcon = () => {
     const displayName = tool.displayName || tool.name || ''
@@ -408,6 +390,10 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
 
   // API call to confirm tool action
   const handleConfirmTool = async (toolCallId: string, status: 'Accept' | 'Reject') => {
+    if (isProcessing) return
+    
+    setIsProcessing(true)
+    
     // Immediately update the tool state using the store
     const newState = status === 'Accept' ? 'applied' : 'rejected'
     updatePreviewToolCallState(newState, toolCallId)
@@ -444,21 +430,38 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
       }
       console.error('Error confirming tool:', error)
       throw error
+    } finally {
+      setIsProcessing(false)
     }
   }
 
   return (
-    <div>
-      <div className='flex items-center gap-2 py-1 text-muted-foreground'>
+    <div className='flex items-center justify-between gap-2 py-1'>
+      <div className='flex items-center gap-2 text-muted-foreground'>
         <div className='flex-shrink-0'>{getStateIcon()}</div>
         <span className='text-sm'>{getToolDisplayNameByState(tool)}</span>
       </div>
       
       {showInterruptConfirmation && (
-        <InterruptConfirmation 
-          toolCall={tool} 
-          onConfirm={handleConfirmTool} 
-        />
+        <div className='flex items-center gap-1.5'>
+          <Button
+            onClick={() => handleConfirmTool(tool.id, 'Accept')}
+            disabled={isProcessing}
+            size="sm"
+            className='h-6 px-2 text-xs font-medium bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:opacity-50'
+          >
+            {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
+            Run
+          </Button>
+          <Button
+            onClick={() => handleConfirmTool(tool.id, 'Reject')}
+            disabled={isProcessing}
+            size="sm"
+            className='h-6 px-2 text-xs font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 disabled:opacity-50'
+          >
+            Skip
+          </Button>
+        </div>
       )}
     </div>
   )
