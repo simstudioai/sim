@@ -15,6 +15,7 @@ export interface QueuedOperation {
   retryCount: number
   status: 'pending' | 'processing' | 'confirmed' | 'failed'
   userId: string
+  immediate?: boolean // Flag for immediate processing (skips debouncing)
 }
 
 interface OperationQueueState {
@@ -59,10 +60,11 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
   hasOperationError: false,
 
   addToQueue: (operation) => {
-    // Handle debouncing for subblock operations
+    // Handle debouncing for regular subblock operations (but not immediate ones like tag selections)
     if (
       operation.operation.operation === 'subblock-update' &&
-      operation.operation.target === 'subblock'
+      operation.operation.target === 'subblock' &&
+      !operation.immediate
     ) {
       const { blockId, subblockId } = operation.operation.payload
       const debounceKey = `${blockId}-${subblockId}`
@@ -100,7 +102,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         }))
 
         get().processNextOperation()
-      }, 100) // 100ms debounce for subblock operations
+      }, 50) // 50ms debounce for subblock operations - optimized for collaborative editing
 
       subblockDebounceTimeouts.set(debounceKey, timeoutId)
       return

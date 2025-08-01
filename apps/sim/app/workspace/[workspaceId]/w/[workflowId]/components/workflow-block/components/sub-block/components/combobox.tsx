@@ -10,6 +10,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useTagSelection } from '@/hooks/use-tag-selection'
 
 const logger = createLogger('ComboBox')
 
@@ -52,6 +53,8 @@ export function ComboBox({
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
+
+  const emitTagSelection = useTagSelection(blockId, subBlockId)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -330,7 +333,7 @@ export function ComboBox({
   // Environment variable and tag selection handler
   const handleEnvVarSelect = (newValue: string) => {
     if (!isPreview) {
-      setStoreValue(newValue)
+      emitTagSelection(newValue)
     }
   }
 
