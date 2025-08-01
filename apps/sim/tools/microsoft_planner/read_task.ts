@@ -87,7 +87,7 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
     logger.info('Raw response data:', data)
 
     // Handle single task vs multiple tasks response format
-    const rawTasks = params?.taskId ? [data] : (data.value || [])
+    const rawTasks = params?.taskId ? [data] : data.value || []
 
     // Filter tasks to only include useful fields
     const tasks = rawTasks.map((task: any) => ({

@@ -1,5 +1,9 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SharepointCreatePageResponse, SharepointPage, SharepointToolParams } from '@/tools/sharepoint/types'
+import type {
+  SharepointCreatePageResponse,
+  SharepointPage,
+  SharepointToolParams,
+} from '@/tools/sharepoint/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointCreatePage')

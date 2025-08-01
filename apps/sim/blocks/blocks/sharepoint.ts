@@ -102,7 +102,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       mode: 'advanced',
       condition: { field: 'operation', value: 'create_page' },
     },
-
   ],
   tools: {
     access: ['sharepoint_create_page', 'sharepoint_read_page', 'sharepoint_list_sites'],

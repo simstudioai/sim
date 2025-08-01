@@ -130,12 +130,9 @@ export const createTaskTool: ToolConfig<
       try {
         const detailsUrl = `https://graph.microsoft.com/v1.0/planner/tasks/${task.id}/details`
         // Get task details to get the ETag
-        const getDetailsResponse = await fetch(
-          detailsUrl,
-          {
-            headers: { Authorization: `Bearer ${params.accessToken}` },
-          }
-        )
+        const getDetailsResponse = await fetch(detailsUrl, {
+          headers: { Authorization: `Bearer ${params.accessToken}` },
+        })
         const etag = getDetailsResponse.headers.get('ETag')
 
         // Then update with correct ETag

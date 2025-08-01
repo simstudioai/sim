@@ -24,7 +24,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
-import { PlannerTask } from '@/tools/microsoft_planner/types'
+import type { PlannerTask } from '@/tools/microsoft_planner/types'
 
 const logger = createLogger('MicrosoftFileSelector')
 
@@ -204,7 +204,7 @@ export function MicrosoftFileSelector({
           // Change from fileId to siteId for SharePoint
           const sharepointParams = new URLSearchParams({
             credentialId: selectedCredentialId,
-            siteId: fileId,  // Use siteId instead of fileId
+            siteId: fileId, // Use siteId instead of fileId
           })
           endpoint = `/api/tools/sharepoint/site?${sharepointParams.toString()}`
         } else {
@@ -356,7 +356,7 @@ export function MicrosoftFileSelector({
       createdTime: task.createdDateTime,
       modifiedTime: task.createdDateTime,
     }
-    
+
     setSelectedFileId(taskId)
     setSelectedFile(taskAsFileInfo)
     setSelectedTask(task)
@@ -733,12 +733,12 @@ export function MicrosoftFileSelector({
                       const isPlannerTask = isPlanner && 'title' in item
                       const plannerTask = item as PlannerTask
                       const fileInfo = item as MicrosoftFileInfo
-                      
+
                       const displayName = isPlannerTask ? plannerTask.title : fileInfo.name
-                      const dateField = isPlannerTask 
-                        ? plannerTask.createdDateTime 
+                      const dateField = isPlannerTask
+                        ? plannerTask.createdDateTime
                         : fileInfo.createdTime
-                      
+
                       return (
                         <CommandItem
                           key={item.id}
@@ -750,12 +750,17 @@ export function MicrosoftFileSelector({
                           }
                         >
                           <div className='flex items-center gap-2 overflow-hidden'>
-                            {getFileIcon(isPlannerTask ? {
-                              ...fileInfo,
-                              id: plannerTask.id || '',
-                              name: plannerTask.title,
-                              mimeType: 'planner/task'
-                            } : fileInfo, 'sm')}
+                            {getFileIcon(
+                              isPlannerTask
+                                ? {
+                                    ...fileInfo,
+                                    id: plannerTask.id || '',
+                                    name: plannerTask.title,
+                                    mimeType: 'planner/task',
+                                  }
+                                : fileInfo,
+                              'sm'
+                            )}
                             <div className='min-w-0 flex-1'>
                               <span className='truncate font-normal'>{displayName}</span>
                               {dateField && (
