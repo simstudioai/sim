@@ -20,6 +20,23 @@ function toolRequiresInterrupt(toolName: string): boolean {
   return toolRegistry.requiresInterrupt(toolName)
 }
 
+// Helper function to check if a tool supports ready_for_review state
+function toolSupportsReadyForReview(toolName: string): boolean {
+  // Check client tools first
+  const clientTool = toolRegistry.getTool(toolName)
+  if (clientTool) {
+    return clientTool.metadata.displayConfig.states.ready_for_review !== undefined
+  }
+  
+  // Check server tools
+  const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
+  if (serverToolMetadata) {
+    return serverToolMetadata.displayConfig.states.ready_for_review !== undefined
+  }
+  
+  return false
+}
+
 // PERFORMANCE OPTIMIZATION: Cached constants for faster lookups
 const TEXT_BLOCK_TYPE = 'text'
 const TOOL_CALL_BLOCK_TYPE = 'tool_call'
@@ -230,16 +247,15 @@ function getToolDisplayName(toolName: string): string {
 function getToolDisplayNameByState(toolCall: any): string {
   const toolName = toolCall.name
   const state = toolCall.state
-  const isWorkflowTool =
-    toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+  const supportsReadyForReview = toolSupportsReadyForReview(toolName)
 
-  if (state === 'ready_for_review' && isWorkflowTool) {
-    // Special display for workflow tools awaiting review
+  if (state === 'ready_for_review' && supportsReadyForReview) {
+    // Special display for tools with ready_for_review state awaiting review
     const baseText = COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
     return `${baseText} - ready for review`
   }
-  if (state === 'applied' && isWorkflowTool) {
-    // Show completion/done state after accept
+  if (state === 'applied' && supportsReadyForReview) {
+    // Show completion/done state after accept for tools with ready_for_review
     return 'Applied workflow changes'
   }
   if (state === 'completed' || state === 'applied') {
@@ -252,8 +268,8 @@ function getToolDisplayNameByState(toolCall: any): string {
     )
   }
   if (state === 'rejected') {
-    // Special handling for rejected workflow tools
-    return isWorkflowTool
+    // Special handling for rejected tools with ready_for_review
+    return supportsReadyForReview
       ? 'Rejected workflow changes'
       : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
   }
@@ -370,9 +386,9 @@ function processWorkflowToolResult(toolCall: any, result: any, get: () => Copilo
  * Helper function to handle tool execution failure
  */
 function handleToolFailure(toolCall: any, error: string): void {
-  // Don't override terminal states for workflow tools and interrupt tools
+  // Don't override terminal states for tools with ready_for_review and interrupt tools
   if (
-    (WORKFLOW_TOOL_IDS.has(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
+    (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
     (toolCall.state === 'applied' || toolCall.state === 'rejected')
   ) {
     // Tool is already in a terminal state, don't override it
@@ -404,9 +420,9 @@ function setToolCallState(toolCall: any, newState: string, options: {
 } = {}): void {
   const { result, error, preserveTerminalStates = true } = options
   
-  // Don't override terminal states for workflow tools and interrupt tools if preserveTerminalStates is true
+  // Don't override terminal states for tools with ready_for_review and interrupt tools if preserveTerminalStates is true
   if (preserveTerminalStates && 
-      (WORKFLOW_TOOL_IDS.has(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
+      (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
       (toolCall.state === 'applied' || toolCall.state === 'rejected')) {
     logger.info('Tool call already in terminal state, preserving:', toolCall.id, toolCall.name, toolCall.state)
     return
@@ -425,9 +441,8 @@ function setToolCallState(toolCall: any, newState: string, options: {
         toolCall.result = result
       }
       
-      // Special handling for different tool types
-      if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || 
-          toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
+      // Check if tool supports ready_for_review state instead of hard-coding tool names
+      if (toolSupportsReadyForReview(toolCall.name)) {
         toolCall.state = 'ready_for_review'
       }
       break
@@ -501,10 +516,9 @@ function finalizeToolCall(
   if (success) {
     toolCall.result = result
 
-    // For workflow tools and interrupt tools, check if they're already in a terminal state in the store
+    // For tools with ready_for_review and interrupt tools, check if they're already in a terminal state in the store
     if (
-      toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-      toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW ||
+      toolSupportsReadyForReview(toolCall.name) ||
       toolRequiresInterrupt(toolCall.name)
     ) {
       // Get current state from store if get function is available
@@ -550,10 +564,7 @@ function finalizeToolCall(
       }
 
       // Not in terminal state, set appropriate state
-      if (
-        toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-        toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-      ) {
+      if (toolSupportsReadyForReview(toolCall.name)) {
         toolCall.state = 'ready_for_review'
       } else if (toolCall.name === COPILOT_TOOL_IDS.RUN_WORKFLOW) {
         // For run_workflow, check if it's still executing (e.g., moved to background)
@@ -685,11 +696,8 @@ const sseHandlers: Record<string, SSEHandler> = {
       // NEW LOGIC: Use centralized state management
       setToolCallState(toolCall, 'success', { result: parsedResult })
 
-      // Handle workflow tools
-      if (
-        toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-        toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-      ) {
+      // Handle tools with ready_for_review state
+      if (toolSupportsReadyForReview(toolCall.name)) {
         processWorkflowToolResult(toolCall, parsedResult, get)
       }
       
@@ -874,11 +882,8 @@ const sseHandlers: Record<string, SSEHandler> = {
         context.toolCallBuffer.input = JSON.parse(context.toolCallBuffer.partialInput || '{}')
         finalizeToolCall(context.toolCallBuffer, true, context.toolCallBuffer.input, get)
 
-        // Handle workflow tools immediately
-        if (
-          context.toolCallBuffer.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW ||
-          context.toolCallBuffer.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW
-        ) {
+        // Handle tools with ready_for_review state immediately
+        if (toolSupportsReadyForReview(context.toolCallBuffer.name)) {
           processWorkflowToolResult(context.toolCallBuffer, context.toolCallBuffer.input, get)
         }
 
@@ -957,18 +962,58 @@ const sseHandlers: Record<string, SSEHandler> = {
   },
 }
 
-// Cache workflow and interrupt tool IDs for faster lookup
+// Cache workflow tool IDs for diff-related functionality (keep for diff store integration)
 const WORKFLOW_TOOL_IDS = new Set<string>([
   COPILOT_TOOL_IDS.BUILD_WORKFLOW,
   COPILOT_TOOL_IDS.EDIT_WORKFLOW,
 ])
 
+// Cache tools that support ready_for_review state for faster lookup
+function getToolsWithReadyForReview(): Set<string> {
+  const toolsWithReadyForReview = new Set<string>()
+  
+  // For now, just return the known workflow tools since we don't have getAllServerToolMetadata
+  // This can be expanded when the registry provides that method
+  return new Set([
+    COPILOT_TOOL_IDS.BUILD_WORKFLOW,
+    COPILOT_TOOL_IDS.EDIT_WORKFLOW,
+  ])
+  
+  /* TODO: Implement when getAllServerToolMetadata is available
+  Object.keys(toolRegistry.getAllServerToolMetadata?.() || {}).forEach(toolId => {
+    if (toolSupportsReadyForReview(toolId)) {
+      toolsWithReadyForReview.add(toolId)
+    }
+  })
+  
+  // Check all client tools
+  toolRegistry.getAllTools().forEach(tool => {
+    if (toolSupportsReadyForReview(tool.metadata.id)) {
+      toolsWithReadyForReview.add(tool.metadata.id)
+    }
+  })
+  
+  return toolsWithReadyForReview
+  */
+}
+
+// Cache for ready_for_review tools
+let READY_FOR_REVIEW_TOOL_IDS: Set<string> | null = null
+
+// Helper function to get cached ready_for_review tool IDs
+function getReadyForReviewToolIds(): Set<string> {
+  if (!READY_FOR_REVIEW_TOOL_IDS) {
+    READY_FOR_REVIEW_TOOL_IDS = getToolsWithReadyForReview()
+  }
+  return READY_FOR_REVIEW_TOOL_IDS
+}
+
 /**
  * Helper function to preserve terminal states for workflow tools and interrupt tools
  */
 function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any {
-  // Early return if not a workflow tool or interrupt tool
-  if (!WORKFLOW_TOOL_IDS.has(newToolCall.name) && !toolRequiresInterrupt(newToolCall.name)) {
+  // Early return if not a tool with ready_for_review or interrupt tool
+  if (!toolSupportsReadyForReview(newToolCall.name) && !toolRequiresInterrupt(newToolCall.name)) {
     return newToolCall
   }
 
@@ -1004,7 +1049,7 @@ function mergeToolCallsPreservingTerminalStates(
 ): any[] {
   if (
     !existingToolCalls.length ||
-    !newToolCalls.some((tc) => WORKFLOW_TOOL_IDS.has(tc.name) || toolRequiresInterrupt(tc.name))
+    !newToolCalls.some((tc) => toolSupportsReadyForReview(tc.name) || toolRequiresInterrupt(tc.name))
   ) {
     return newToolCalls
   }
@@ -1042,9 +1087,9 @@ function mergeContentBlocksPreservingTerminalStates(
     if (newBlock.type === 'tool_call') {
       const toolCallBlock = newBlock as any
 
-      // Skip if not a workflow tool or interrupt tool
+      // Skip if not a tool with ready_for_review or interrupt tool
       if (
-        !WORKFLOW_TOOL_IDS.has(toolCallBlock.toolCall.name) &&
+        !toolSupportsReadyForReview(toolCallBlock.toolCall.name) &&
         !toolRequiresInterrupt(toolCallBlock.toolCall.name)
       ) {
         return newBlock

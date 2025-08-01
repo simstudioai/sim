@@ -66,7 +66,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.BUILD_WORKFLOW,
     displayConfig: {
       states: {
-        pending: { displayName: 'Workflow ready for review', icon: 'wrench' },
+        ready_for_review: { displayName: 'Workflow ready for review', icon: 'wrench' },
         executing: { displayName: 'Building workflow', icon: 'loader' },
         success: { displayName: 'Built workflow', icon: 'checkCircle' },
         rejected: { displayName: 'Skipped workflow build', icon: 'skip' },
@@ -84,7 +84,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.EDIT_WORKFLOW,
     displayConfig: {
       states: {
-        pending: { displayName: 'Workflow changes ready for review', icon: 'code' },
+        ready_for_review: { displayName: 'Workflow changes ready for review', icon: 'code' },
         executing: { displayName: 'Editing workflow', icon: 'loader' },
         success: { displayName: 'Edited workflow', icon: 'checkCircle' },
         rejected: { displayName: 'Skipped workflow edit', icon: 'skip' },
