@@ -74,4 +74,3 @@ export interface MicrosoftPlannerToolParams {
 }
 
 export type MicrosoftPlannerResponse = MicrosoftPlannerReadResponse | MicrosoftPlannerCreateResponse
-

@@ -10,7 +10,8 @@ const logger = createLogger('MicrosoftPlannerReadTask')
 export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlannerReadResponse> = {
   id: 'microsoft_planner_read_task',
   name: 'Read Microsoft Planner Tasks',
-  description: 'Read tasks from Microsoft Planner - get all user tasks, all tasks in a plan, or a specific task',
+  description:
+    'Read tasks from Microsoft Planner - get all user tasks, all tasks in a plan, or a specific task',
   version: '1.0',
   oauth: {
     required: true,
@@ -39,10 +40,10 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
   },
   request: {
     url: (params) => {
-      const finalUrl = params.taskId 
+      const finalUrl = params.taskId
         ? `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}`
         : 'https://graph.microsoft.com/v1.0/me/planner/tasks'
-      
+
       logger.info('Microsoft Planner URL:', finalUrl)
       return finalUrl
     },
@@ -61,7 +62,7 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
   transformResponse: async (response: Response, params) => {
     logger.info('Raw response URL:', response.url)
     logger.info('Raw response status:', response.status)
-    
+
     if (!response.ok) {
       const errorJson = await response.json().catch(() => ({ error: response.statusText }))
       const errorText =
@@ -100,7 +101,9 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
           metadata: {
             planId: params?.planId,
             userId: params?.planId ? undefined : 'me',
-            planUrl: params?.planId ? `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}` : undefined,
+            planUrl: params?.planId
+              ? `https://graph.microsoft.com/v1.0/planner/plans/${params.planId}`
+              : undefined,
           },
         },
       }

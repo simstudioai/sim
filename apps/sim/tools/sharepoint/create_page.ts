@@ -1,6 +1,6 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { SharepointCreatePageResponse, SharepointToolParams } from '@/tools/sharepoint/types'
 import type { ToolConfig } from '@/tools/types'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SharePointCreatePage')
 
@@ -70,16 +70,16 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
       }
 
       const pageTitle = params.pageTitle || params.pageName
-      
+
       // Basic page structure required by Microsoft Graph API
       const pageData: any = {
         '@odata.type': '#microsoft.graph.sitePage',
         name: params.pageName,
         title: pageTitle,
         publishingState: {
-          level: 'draft'
+          level: 'draft',
         },
-        pageLayout: 'article'
+        pageLayout: 'article',
       }
 
       // Add content if provided using the simple innerHtml approach from the documentation
@@ -87,23 +87,23 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
         pageData.canvasLayout = {
           horizontalSections: [
             {
-              layout: "oneColumn",
-              id: "1",
-              emphasis: "none",
+              layout: 'oneColumn',
+              id: '1',
+              emphasis: 'none',
               columns: [
                 {
-                  id: "1",
+                  id: '1',
                   width: 12,
                   webparts: [
                     {
-                      id: "6f9230af-2a98-4952-b205-9ede4f9ef548",
-                      innerHtml: `<p>${params.pageContent.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</p>`
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
+                      id: '6f9230af-2a98-4952-b205-9ede4f9ef548',
+                      innerHtml: `<p>${params.pageContent.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</p>`,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
         }
       }
 
@@ -118,15 +118,18 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
         status: response.status,
         statusText: response.statusText,
         error: data.error,
-        data
+        data,
       })
-      throw new Error(data.error?.message || `Failed to create SharePoint page: ${response.status} ${response.statusText}`)
+      throw new Error(
+        data.error?.message ||
+          `Failed to create SharePoint page: ${response.status} ${response.statusText}`
+      )
     }
 
     logger.info('SharePoint page created successfully', {
       pageId: data.id,
       pageName: data.name,
-      pageTitle: data.title
+      pageTitle: data.title,
     })
 
     return {

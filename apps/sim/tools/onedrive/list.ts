@@ -9,7 +9,14 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
   oauth: {
     required: true,
     provider: 'onedrive',
-    additionalScopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+    additionalScopes: [
+      'openid',
+      'profile',
+      'email',
+      'Files.Read',
+      'Files.ReadWrite',
+      'offline_access',
+    ],
   },
   params: {
     accessToken: {
@@ -53,12 +60,12 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
     url: (params) => {
       // Use specific folder if provided, otherwise use root
       const folderId = params.folderId || params.folderSelector
-      const baseUrl = folderId 
+      const baseUrl = folderId
         ? `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children`
         : 'https://graph.microsoft.com/v1.0/me/drive/root/children'
-      
+
       const url = new URL(baseUrl)
-      
+
       // Use Microsoft Graph $select parameter
       url.searchParams.append(
         '$select',
@@ -69,12 +76,12 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       if (params.query) {
         url.searchParams.append('$filter', `startswith(name,'${params.query}')`)
       }
-      
+
       // Add pagination
       if (params.pageSize) {
         url.searchParams.append('$top', params.pageSize.toString())
       }
-      
+
       if (params.pageToken) {
         url.searchParams.append('$skip', params.pageToken)
       }

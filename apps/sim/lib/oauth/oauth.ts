@@ -14,9 +14,10 @@ import {
   LinearIcon,
   MicrosoftExcelIcon,
   MicrosoftIcon,
+  MicrosoftOneDriveIcon,
+  MicrosoftPlannerIcon,
   MicrosoftSharepointIcon,
   MicrosoftTeamsIcon,
-  MicrosoftOneDriveIcon,
   NotionIcon,
   OutlookIcon,
   RedditIcon,
@@ -24,7 +25,6 @@ import {
   SupabaseIcon,
   WealthboxIcon,
   xIcon,
-  MicrosoftPlannerIcon,
 } from '@/components/icons'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -171,7 +171,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-planner',
         icon: (props) => MicrosoftPlannerIcon(props),
         baseProviderIcon: (props) => MicrosoftIcon(props),
-        scopes: ['openid', 'profile', 'email', 'Group.ReadWrite.All','Group.Read.All', 'Tasks.ReadWrite', 'offline_access'],
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Group.ReadWrite.All',
+          'Group.Read.All',
+          'Tasks.ReadWrite',
+          'offline_access',
+        ],
       },
       'microsoft-teams': {
         id: 'microsoft-teams',
@@ -215,7 +223,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'offline_access',
         ],
       },
-      'onedrive': {
+      onedrive: {
         id: 'onedrive',
         name: 'OneDrive',
         description: 'Connect to OneDrive and manage files.',
@@ -224,14 +232,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         baseProviderIcon: (props) => MicrosoftIcon(props),
         scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
       },
-      'sharepoint': {
+      sharepoint: {
         id: 'sharepoint',
         name: 'SharePoint',
         description: 'Connect to SharePoint and manage sites.',
         providerId: 'sharepoint',
         icon: (props) => MicrosoftSharepointIcon(props),
         baseProviderIcon: (props) => MicrosoftIcon(props),
-        scopes: ['openid', 'profile', 'email', 'Sites.Read.All', 'Sites.ReadWrite.All', 'offline_access'],
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Sites.Read.All',
+          'Sites.ReadWrite.All',
+          'offline_access',
+        ],
       },
     },
     defaultService: 'microsoft',
@@ -579,12 +594,13 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
       featureType: 'outlook',
     }
   }
-  else if (provider === 'onedrive') {
+  if (provider === 'onedrive') {
     return {
       baseProvider: 'microsoft',
       featureType: 'onedrive',
     }
-  } else if (provider === 'sharepoint') {
+  }
+  if (provider === 'sharepoint') {
     return {
       baseProvider: 'microsoft',
       featureType: 'sharepoint',

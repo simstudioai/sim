@@ -33,31 +33,45 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       layout: 'full',
       provider: 'sharepoint',
       serviceId: 'sharepoint',
-      requiredScopes: ['openid', 'profile', 'email','Files.Read', 'Files.ReadWrite', 'offline_access'],
+      requiredScopes: [
+        'openid',
+        'profile',
+        'email',
+        'Files.Read',
+        'Files.ReadWrite',
+        'offline_access',
+      ],
       placeholder: 'Select Microsoft account',
     },
-    
-     {
+
+    {
       id: 'siteSelector',
       title: 'Select Site',
       type: 'file-selector',
       layout: 'full',
       provider: 'microsoft',
       serviceId: 'sharepoint',
-      requiredScopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+      requiredScopes: [
+        'openid',
+        'profile',
+        'email',
+        'Files.Read',
+        'Files.ReadWrite',
+        'offline_access',
+      ],
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a site',
       mode: 'basic',
       condition: { field: 'operation', value: ['create_page', 'read_page', 'list_sites'] },
     },
 
-     {
+    {
       id: 'pageName',
       title: 'Page Name',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Name for the new page',
-      condition: { field: 'operation', value:  ['create_page', 'read_page'] },
+      condition: { field: 'operation', value: ['create_page', 'read_page'] },
     },
 
     {
@@ -96,7 +110,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       layout: 'full',
       placeholder: 'Search for specific pages (e.g., name contains "report")',
       condition: { field: 'operation', value: 'list_pages' },
-    },  
+    },
   ],
   tools: {
     access: ['sharepoint_create_page', 'sharepoint_read_page', 'sharepoint_list_sites'],

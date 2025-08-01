@@ -70,7 +70,7 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
   request: {
     url: (params) => {
       let baseUrl: string
-      
+
       if (params.groupId) {
         // Access group team site
         baseUrl = `https://graph.microsoft.com/v1.0/groups/${params.groupId}/sites/root`
@@ -82,9 +82,9 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
         // get all sites
         baseUrl = 'https://graph.microsoft.com/v1.0/sites?search=*'
       }
-      
+
       const url = new URL(baseUrl)
-      
+
       // Use Microsoft Graph $select parameter to get site details
       url.searchParams.append(
         '$select',
@@ -120,28 +120,27 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
             description: site.description,
             createdDateTime: site.createdDateTime,
             lastModifiedDateTime: site.lastModifiedDateTime,
-          }))
+          })),
         },
       }
-    } else {
-      // Single site response
-      return {
-        success: true,
-        output: {
-          site: {
-            id: data.id,
-            name: data.name,
-            displayName: data.displayName,
-            webUrl: data.webUrl,
-            description: data.description,
-            createdDateTime: data.createdDateTime,
-            lastModifiedDateTime: data.lastModifiedDateTime,
-            isPersonalSite: data.isPersonalSite,
-            root: data.root,
-            siteCollection: data.siteCollection,
-          },
+    }
+    // Single site response
+    return {
+      success: true,
+      output: {
+        site: {
+          id: data.id,
+          name: data.name,
+          displayName: data.displayName,
+          webUrl: data.webUrl,
+          description: data.description,
+          createdDateTime: data.createdDateTime,
+          lastModifiedDateTime: data.lastModifiedDateTime,
+          isPersonalSite: data.isPersonalSite,
+          root: data.root,
+          siteCollection: data.siteCollection,
         },
-      }
+      },
     }
   },
   transformError: (error) => {

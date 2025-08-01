@@ -7,7 +7,10 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MicrosoftPlannerCreateTask')
 
-export const createTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlannerCreateResponse> = {
+export const createTaskTool: ToolConfig<
+  MicrosoftPlannerToolParams,
+  MicrosoftPlannerCreateResponse
+> = {
   id: 'microsoft_planner_create_task',
   name: 'Create Microsoft Planner Task',
   description: 'Create a new task in Microsoft Planner',
@@ -145,12 +148,23 @@ export const createTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPla
     if (params?.description && task.id) {
       try {
         const detailsUrl = `https://graph.microsoft.com/v1.0/planner/tasks/${task.id}/details`
+        // Get task details to get the ETag
+        const getDetailsResponse = await fetch(
+          `https://graph.microsoft.com/v1.0/planner/tasks/${task.id}/details`,
+          {
+            headers: { Authorization: `Bearer ${params.accessToken}` },
+          }
+        )
+        const detailsData = await getDetailsResponse.json()
+        const etag = getDetailsResponse.headers.get('ETag')
+
+        // Then update with correct ETag
         const detailsResponse = await fetch(detailsUrl, {
           method: 'PATCH',
           headers: {
             Authorization: `Bearer ${params.accessToken}`,
             'Content-Type': 'application/json',
-            'If-Match': '*',
+            'If-Match': etag || '*', // Use actual ETag or '*' if not available
           },
           body: JSON.stringify({
             description: params.description,

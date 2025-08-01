@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { db } from '@/db'
-import { account } from '@/db/schema'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { db } from '@/db'
+import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     // 3. Hostname: sites/{hostname}
     // 4. Server-relative URL: sites/{hostname}:/{server-relative-path}
     // 5. Group team site: groups/{group-id}/sites/root
-    
+
     let endpoint: string
     if (fileId === 'root') {
       endpoint = 'sites/root'
@@ -102,4 +102,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching site from SharePoint`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

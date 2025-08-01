@@ -346,15 +346,15 @@ export function MicrosoftFileSelector({
 
     // Handle OneDrive specifically by checking serviceId
     if (baseProvider === 'microsoft' && serviceId === 'onedrive') {
-      const onedriveService = baseProviderConfig.services['onedrive']
+      const onedriveService = baseProviderConfig.services.onedrive
       if (onedriveService) {
         return onedriveService.icon({ className: 'h-4 w-4' })
       }
     }
 
-    // Handle SharePoint specifically by checking serviceId  
+    // Handle SharePoint specifically by checking serviceId
     if (baseProvider === 'microsoft' && serviceId === 'sharepoint') {
-      const sharepointService = baseProviderConfig.services['sharepoint']
+      const sharepointService = baseProviderConfig.services.sharepoint
       if (sharepointService) {
         return sharepointService.icon({ className: 'h-4 w-4' })
       }
@@ -449,18 +449,18 @@ export function MicrosoftFileSelector({
     if (serviceId === 'onedrive') {
       return {
         title: 'No folders found.',
-        description: 'No folders were found in your OneDrive.'
+        description: 'No folders were found in your OneDrive.',
       }
     }
     if (serviceId === 'sharepoint') {
       return {
         title: 'No sites found.',
-        description: 'No SharePoint sites were found.'
+        description: 'No SharePoint sites were found.',
       }
     }
     return {
       title: 'No Excel files found.',
-      description: 'No .xlsx files were found in your OneDrive.'
+      description: 'No .xlsx files were found in your OneDrive.',
     }
   }
 

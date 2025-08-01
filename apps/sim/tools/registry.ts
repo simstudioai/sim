@@ -83,7 +83,6 @@ import {
   microsoftPlannerCreateTaskTool,
   microsoftPlannerReadTaskTool,
 } from '@/tools/microsoft_planner'
-import { onedriveCreateFolderTool, onedriveUploadTool, onedriveListTool } from '@/tools/onedrive'
 import {
   microsoftTeamsReadChannelTool,
   microsoftTeamsReadChatTool,
@@ -100,7 +99,7 @@ import {
   notionSearchTool,
   notionWriteTool,
 } from '@/tools/notion'
-import { sharepointCreatePageTool, sharepointReadPageTool, sharepointListSitesTool } from '@/tools/sharepoint'
+import { onedriveCreateFolderTool, onedriveListTool, onedriveUploadTool } from '@/tools/onedrive'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
 import { outlookDraftTool, outlookReadTool, outlookSendTool } from '@/tools/outlook'
 import { perplexityChatTool } from '@/tools/perplexity'
@@ -115,6 +114,11 @@ import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdr
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@/tools/reddit'
 import { s3GetObjectTool } from '@/tools/s3'
 import { searchTool as serperSearch } from '@/tools/serper'
+import {
+  sharepointCreatePageTool,
+  sharepointListSitesTool,
+  sharepointReadPageTool,
+} from '@/tools/sharepoint'
 import { slackCanvasTool, slackMessageReaderTool, slackMessageTool } from '@/tools/slack'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {

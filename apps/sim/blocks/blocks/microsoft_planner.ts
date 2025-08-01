@@ -30,7 +30,15 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       layout: 'full',
       provider: 'microsoft-planner',
       serviceId: 'microsoft-planner',
-      requiredScopes: ['openid', 'profile', 'email', 'Group.ReadWrite.All','Group.Read.All', 'Tasks.ReadWrite', 'offline_access'],
+      requiredScopes: [
+        'openid',
+        'profile',
+        'email',
+        'Group.ReadWrite.All',
+        'Group.Read.All',
+        'Tasks.ReadWrite',
+        'offline_access',
+      ],
       placeholder: 'Select Microsoft account',
     },
     {
@@ -205,11 +213,11 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
           }
 
           if (priority !== undefined && priority !== '') {
-            createParams.priority = parseInt(priority as string, 10)
+            createParams.priority = Number.parseInt(priority as string, 10)
           }
 
           if (percentComplete?.trim()) {
-            const percent = parseInt(percentComplete.trim(), 10)
+            const percent = Number.parseInt(percentComplete.trim(), 10)
             if (percent >= 0 && percent <= 100) {
               createParams.percentComplete = percent
             }

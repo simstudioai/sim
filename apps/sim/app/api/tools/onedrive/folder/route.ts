@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { db } from '@/db'
-import { account } from '@/db/schema'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { db } from '@/db'
+import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,4 +80,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching folder from OneDrive`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

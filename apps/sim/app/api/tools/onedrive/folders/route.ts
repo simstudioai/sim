@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { db } from '@/db'
-import { account } from '@/db/schema'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { db } from '@/db'
+import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     // Build URL for OneDrive folders
     let url = `https://graph.microsoft.com/v1.0/me/drive/root/children?$filter=folder ne null&$select=id,name,folder,webUrl,createdDateTime,lastModifiedDateTime&$top=50`
-    
+
     if (query) {
       url += `&$search="${encodeURIComponent(query)}"`
     }
