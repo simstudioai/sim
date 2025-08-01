@@ -8,10 +8,38 @@ import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/
 const nextConfig: NextConfig = {
   devIndicators: false,
   images: {
-    domains: [
-      'avatars.githubusercontent.com',
-      'oaidalleapiprodscus.blob.core.windows.net',
-      'api.stability.ai',
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'api.stability.ai',
+      },
+      // Azure Blob Storage
+      {
+        protocol: 'https',
+        hostname: '*.blob.core.windows.net',
+      },
+      // AWS S3 - various regions and bucket configurations
+      {
+        protocol: 'https',
+        hostname: '*.s3.amazonaws.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.s3.*.amazonaws.com',
+      },
+      // Custom domain for file storage if configured
+      ...(env.NEXT_PUBLIC_BLOB_BASE_URL
+        ? [
+            {
+              protocol: 'https' as const,
+              hostname: new URL(env.NEXT_PUBLIC_BLOB_BASE_URL).hostname,
+            },
+          ]
+        : []),
     ],
   },
   typescript: {

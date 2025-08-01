@@ -10,6 +10,7 @@ interface SubdomainInputProps {
   originalSubdomain?: string
   disabled?: boolean
   onValidationChange?: (isValid: boolean) => void
+  isEditingExisting?: boolean
 }
 
 const getDomainSuffix = (() => {
@@ -23,8 +24,13 @@ export function SubdomainInput({
   originalSubdomain,
   disabled = false,
   onValidationChange,
+  isEditingExisting = false,
 }: SubdomainInputProps) {
-  const { isChecking, error, isValid } = useSubdomainValidation(value, originalSubdomain)
+  const { isChecking, error, isValid } = useSubdomainValidation(
+    value,
+    originalSubdomain,
+    isEditingExisting
+  )
 
   // Notify parent of validation changes
   useEffect(() => {

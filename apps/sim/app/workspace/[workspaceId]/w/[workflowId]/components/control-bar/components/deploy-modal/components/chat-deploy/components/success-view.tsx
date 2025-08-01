@@ -18,9 +18,11 @@ interface ExistingChat {
 interface SuccessViewProps {
   deployedUrl: string
   existingChat: ExistingChat | null
+  onDelete?: () => void
+  onUpdate?: () => void
 }
 
-export function SuccessView({ deployedUrl, existingChat }: SuccessViewProps) {
+export function SuccessView({ deployedUrl, existingChat, onDelete, onUpdate }: SuccessViewProps) {
   const url = new URL(deployedUrl)
   const hostname = url.hostname
   const isDevelopmentUrl = hostname.includes('localhost')
@@ -71,6 +73,10 @@ export function SuccessView({ deployedUrl, existingChat }: SuccessViewProps) {
           </a>
         </p>
       </div>
+
+      {/* Hidden triggers for modal footer buttons */}
+      <button type='button' data-delete-trigger onClick={onDelete} style={{ display: 'none' }} />
+      <button type='button' data-update-trigger onClick={onUpdate} style={{ display: 'none' }} />
     </div>
   )
 }

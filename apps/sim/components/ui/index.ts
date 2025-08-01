@@ -81,6 +81,7 @@ export {
   useFormField,
 } from './form'
 export { formatDisplayText } from './formatted-text'
+export { ImageUpload } from './image-upload'
 export { Input } from './input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp'
 export { OTPInputForm } from './input-otp-form'

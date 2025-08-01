@@ -378,7 +378,13 @@ export function DeployModal({
   const handleChatFormSubmit = () => {
     const form = document.getElementById('chat-deploy-form') as HTMLFormElement
     if (form) {
-      form.requestSubmit()
+      // Check if we're in success view and need to trigger update
+      const updateTrigger = form.querySelector('[data-update-trigger]') as HTMLButtonElement
+      if (updateTrigger) {
+        updateTrigger.click()
+      } else {
+        form.requestSubmit()
+      }
     }
   }
 
@@ -474,6 +480,7 @@ export function DeployModal({
                   setChatSubmitting={setChatSubmitting}
                   onValidationChange={setIsChatFormValid}
                   onPreDeployWorkflow={handleWorkflowPreDeploy}
+                  onDeploymentComplete={handleCloseModal}
                 />
               )}
             </div>
@@ -516,29 +523,57 @@ export function DeployModal({
               Cancel
             </Button>
 
-            <Button
-              type='button'
-              onClick={handleChatFormSubmit}
-              disabled={chatSubmitting || !isChatFormValid}
-              className={cn(
-                'gap-2 font-medium',
-                'bg-[#802FFF] hover:bg-[#7028E6]',
-                'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                'text-white transition-all duration-200',
-                'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+            <div className='flex gap-2'>
+              {chatExists && (
+                <Button
+                  type='button'
+                  onClick={() => {
+                    const form = document.getElementById('chat-deploy-form') as HTMLFormElement
+                    if (form) {
+                      const deleteButton = form.querySelector(
+                        '[data-delete-trigger]'
+                      ) as HTMLButtonElement
+                      if (deleteButton) {
+                        deleteButton.click()
+                      }
+                    }
+                  }}
+                  disabled={chatSubmitting}
+                  className={cn(
+                    'gap-2 font-medium',
+                    'bg-red-500 hover:bg-red-600',
+                    'shadow-[0_0_0_0_rgb(239,68,68)] hover:shadow-[0_0_0_4px_rgba(239,68,68,0.15)]',
+                    'text-white transition-all duration-200',
+                    'disabled:opacity-50 disabled:hover:bg-red-500 disabled:hover:shadow-none'
+                  )}
+                >
+                  Delete
+                </Button>
               )}
-            >
-              {chatSubmitting ? (
-                <>
-                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                  Deploying...
-                </>
-              ) : chatExists ? (
-                'Update'
-              ) : (
-                'Deploy Chat'
-              )}
-            </Button>
+              <Button
+                type='button'
+                onClick={handleChatFormSubmit}
+                disabled={chatSubmitting || !isChatFormValid}
+                className={cn(
+                  'gap-2 font-medium',
+                  'bg-[#802FFF] hover:bg-[#7028E6]',
+                  'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                  'text-white transition-all duration-200',
+                  'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+                )}
+              >
+                {chatSubmitting ? (
+                  <>
+                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                    Deploying...
+                  </>
+                ) : chatExists ? (
+                  'Update'
+                ) : (
+                  'Deploy Chat'
+                )}
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>
