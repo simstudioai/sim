@@ -784,6 +784,10 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
         bucket: 'test-s3-kb-bucket',
         region: 'us-east-1',
       },
+      S3_CHAT_CONFIG: {
+        bucket: 'test-s3-chat-bucket',
+        region: 'us-east-1',
+      },
       BLOB_CONFIG: {
         accountName: 'testaccount',
         accountKey: 'testkey',
@@ -793,6 +797,11 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
         accountName: 'testaccount',
         accountKey: 'testkey',
         containerName: 'test-kb-container',
+      },
+      BLOB_CHAT_CONFIG: {
+        accountName: 'testaccount',
+        accountKey: 'testkey',
+        containerName: 'test-chat-container',
       },
     }))
 
@@ -809,7 +818,7 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
       }),
     }))
   } else if (provider === 'blob') {
-    const baseUrl = presignedUrl.replace('?sas-token-string', '')
+    const baseUrl = 'https://testaccount.blob.core.windows.net/test-container'
     const mockBlockBlobClient = {
       url: baseUrl,
     }
@@ -840,6 +849,11 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
         accountName: 'testaccount',
         accountKey: 'testkey',
         containerName: 'test-kb-container',
+      },
+      BLOB_CHAT_CONFIG: {
+        accountName: 'testaccount',
+        accountKey: 'testkey',
+        containerName: 'test-chat-container',
       },
     }))
 
