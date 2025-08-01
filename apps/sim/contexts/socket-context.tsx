@@ -50,17 +50,13 @@ interface SocketContextType {
     value: any,
     operationId?: string
   ) => void
-  emitBatchSubblockUpdate: (
-    blockId: string,
-    subblockValues: Record<string, any>,
-    operationId?: string
-  ) => void
+
   emitCursorUpdate: (cursor: { x: number; y: number }) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
   // Event handlers for receiving real-time updates
   onWorkflowOperation: (handler: (data: any) => void) => void
   onSubblockUpdate: (handler: (data: any) => void) => void
-  onBatchSubblockUpdate: (handler: (data: any) => void) => void
+
   onCursorUpdate: (handler: (data: any) => void) => void
   onSelectionUpdate: (handler: (data: any) => void) => void
   onUserJoined: (handler: (data: any) => void) => void
@@ -81,12 +77,10 @@ const SocketContext = createContext<SocketContextType>({
   leaveWorkflow: () => {},
   emitWorkflowOperation: () => {},
   emitSubblockUpdate: () => {},
-  emitBatchSubblockUpdate: () => {},
   emitCursorUpdate: () => {},
   emitSelectionUpdate: () => {},
   onWorkflowOperation: () => {},
   onSubblockUpdate: () => {},
-  onBatchSubblockUpdate: () => {},
   onCursorUpdate: () => {},
   onSelectionUpdate: () => {},
   onUserJoined: () => {},
@@ -119,7 +113,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const eventHandlers = useRef<{
     workflowOperation?: (data: any) => void
     subblockUpdate?: (data: any) => void
-    batchSubblockUpdate?: (data: any) => void
+
     cursorUpdate?: (data: any) => void
     selectionUpdate?: (data: any) => void
     userJoined?: (data: any) => void
@@ -296,11 +290,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         // Subblock update events
         socketInstance.on('subblock-update', (data) => {
           eventHandlers.current.subblockUpdate?.(data)
-        })
-
-        // Batch subblock update events
-        socketInstance.on('batch-subblock-update', (data) => {
-          eventHandlers.current.batchSubblockUpdate?.(data)
         })
 
         // Workflow deletion events
@@ -708,29 +697,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     [socket, currentWorkflowId]
   )
 
-  // Emit batch subblock value updates
-  const emitBatchSubblockUpdate = useCallback(
-    (blockId: string, subblockValues: Record<string, any>, operationId?: string) => {
-      // Only emit if socket is connected and we're in a valid workflow room
-      if (socket && currentWorkflowId) {
-        socket.emit('batch-subblock-update', {
-          blockId,
-          subblockValues,
-          timestamp: Date.now(),
-          operationId, // Include operation ID for queue tracking
-        })
-      } else {
-        logger.warn('Cannot emit batch subblock update: no socket connection or workflow room', {
-          hasSocket: !!socket,
-          currentWorkflowId,
-          blockId,
-          subblockCount: Object.keys(subblockValues).length,
-        })
-      }
-    },
-    [socket, currentWorkflowId]
-  )
-
   // Cursor throttling optimized for database connection health
   const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
@@ -764,10 +730,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
   const onSubblockUpdate = useCallback((handler: (data: any) => void) => {
     eventHandlers.current.subblockUpdate = handler
-  }, [])
-
-  const onBatchSubblockUpdate = useCallback((handler: (data: any) => void) => {
-    eventHandlers.current.batchSubblockUpdate = handler
   }, [])
 
   const onCursorUpdate = useCallback((handler: (data: any) => void) => {
@@ -814,12 +776,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         leaveWorkflow,
         emitWorkflowOperation,
         emitSubblockUpdate,
-        emitBatchSubblockUpdate,
+
         emitCursorUpdate,
         emitSelectionUpdate,
         onWorkflowOperation,
         onSubblockUpdate,
-        onBatchSubblockUpdate,
+
         onCursorUpdate,
         onSelectionUpdate,
         onUserJoined,

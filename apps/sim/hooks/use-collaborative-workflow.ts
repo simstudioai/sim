@@ -22,10 +22,8 @@ export function useCollaborativeWorkflow() {
     leaveWorkflow,
     emitWorkflowOperation,
     emitSubblockUpdate,
-    emitBatchSubblockUpdate,
     onWorkflowOperation,
     onSubblockUpdate,
-    onBatchSubblockUpdate,
     onUserJoined,
     onUserLeft,
     onWorkflowDeleted,
@@ -73,13 +71,8 @@ export function useCollaborativeWorkflow() {
 
   // Register emit functions with operation queue store
   useEffect(() => {
-    registerEmitFunctions(
-      emitWorkflowOperation,
-      emitSubblockUpdate,
-      emitBatchSubblockUpdate,
-      currentWorkflowId
-    )
-  }, [emitWorkflowOperation, emitSubblockUpdate, emitBatchSubblockUpdate, currentWorkflowId])
+    registerEmitFunctions(emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId)
+  }, [emitWorkflowOperation, emitSubblockUpdate, currentWorkflowId])
 
   useEffect(() => {
     const handleWorkflowOperation = (data: any) => {
@@ -245,29 +238,6 @@ export function useCollaborativeWorkflow() {
       }
     }
 
-    const handleBatchSubblockUpdate = (data: any) => {
-      const { blockId, subblockValues, userId } = data
-
-      if (isApplyingRemoteChange.current) return
-
-      logger.info(
-        `Received batch subblock update from user ${userId}: ${blockId} (${Object.keys(subblockValues).length} subblocks)`
-      )
-
-      isApplyingRemoteChange.current = true
-
-      try {
-        // Apply all subblock values in batch
-        Object.entries(subblockValues).forEach(([subblockId, value]) => {
-          subBlockStore.setValue(blockId, subblockId, value)
-        })
-      } catch (error) {
-        logger.error('Error applying remote batch subblock update:', error)
-      } finally {
-        isApplyingRemoteChange.current = false
-      }
-    }
-
     const handleUserJoined = (data: any) => {
       logger.info(`User joined: ${data.userName}`)
     }
@@ -373,7 +343,6 @@ export function useCollaborativeWorkflow() {
     // Register event handlers
     onWorkflowOperation(handleWorkflowOperation)
     onSubblockUpdate(handleSubblockUpdate)
-    onBatchSubblockUpdate(handleBatchSubblockUpdate)
     onUserJoined(handleUserJoined)
     onUserLeft(handleUserLeft)
     onWorkflowDeleted(handleWorkflowDeleted)
@@ -387,7 +356,6 @@ export function useCollaborativeWorkflow() {
   }, [
     onWorkflowOperation,
     onSubblockUpdate,
-    onBatchSubblockUpdate,
     onUserJoined,
     onUserLeft,
     onWorkflowDeleted,
@@ -755,43 +723,6 @@ export function useCollaborativeWorkflow() {
     ]
   )
 
-  const collaborativeBatchSetSubblockValues = useCallback(
-    (blockId: string, subblockValues: Record<string, any>) => {
-      if (isApplyingRemoteChange.current) return
-
-      if (!currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
-        logger.debug('Skipping batch subblock update - not in active workflow', {
-          currentWorkflowId,
-          activeWorkflowId,
-          blockId,
-          subblockCount: Object.keys(subblockValues).length,
-        })
-        return
-      }
-
-      // Generate operation ID for queue tracking
-      const operationId = crypto.randomUUID()
-
-      // Add to queue for retry mechanism
-      addToQueue({
-        id: operationId,
-        operation: {
-          operation: 'batch-subblock-update',
-          target: 'block',
-          payload: { blockId, subblockValues },
-        },
-        workflowId: activeWorkflowId || '',
-        userId: session?.user?.id || 'unknown',
-      })
-
-      // Apply locally first (immediate UI feedback)
-      Object.entries(subblockValues).forEach(([subblockId, value]) => {
-        subBlockStore.setValue(blockId, subblockId, value)
-      })
-    },
-    [subBlockStore, currentWorkflowId, activeWorkflowId, addToQueue, session?.user?.id]
-  )
-
   const collaborativeDuplicateBlock = useCallback(
     (sourceId: string) => {
       const sourceBlock = workflowStore.blocks[sourceId]
@@ -809,6 +740,26 @@ export function useCollaborativeWorkflow() {
         ? `${match[1]}${Number.parseInt(match[2]) + 1}`
         : `${sourceBlock.name} 1`
 
+      // Get subblock values from the store
+      const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId] || {}
+
+      // Merge subblock structure with actual values
+      const mergedSubBlocks = sourceBlock.subBlocks
+        ? JSON.parse(JSON.stringify(sourceBlock.subBlocks))
+        : {}
+      Object.entries(subBlockValues).forEach(([subblockId, value]) => {
+        if (mergedSubBlocks[subblockId]) {
+          mergedSubBlocks[subblockId].value = value
+        } else {
+          // Create subblock if it doesn't exist in structure
+          mergedSubBlocks[subblockId] = {
+            id: subblockId,
+            type: 'unknown',
+            value: value,
+          }
+        }
+      })
+
       // Create the complete block data for the socket operation
       const duplicatedBlockData = {
         sourceId,
@@ -817,7 +768,7 @@ export function useCollaborativeWorkflow() {
         name: newName,
         position: offsetPosition,
         data: sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
-        subBlocks: sourceBlock.subBlocks ? JSON.parse(JSON.stringify(sourceBlock.subBlocks)) : {},
+        subBlocks: mergedSubBlocks,
         outputs: sourceBlock.outputs ? JSON.parse(JSON.stringify(sourceBlock.outputs)) : {},
         parentId: sourceBlock.data?.parentId || null,
         extent: sourceBlock.data?.extent || null,
@@ -837,21 +788,6 @@ export function useCollaborativeWorkflow() {
         sourceBlock.data?.extent
       )
 
-      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-      if (activeWorkflowId) {
-        const subBlockValues =
-          useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[sourceId] || {}
-        useSubBlockStore.setState((state) => ({
-          workflowValues: {
-            ...state.workflowValues,
-            [activeWorkflowId]: {
-              ...state.workflowValues[activeWorkflowId],
-              [newId]: JSON.parse(JSON.stringify(subBlockValues)),
-            },
-          },
-        }))
-      }
-
       executeQueuedOperation('duplicate', 'block', duplicatedBlockData, () => {
         workflowStore.addBlock(
           newId,
@@ -861,19 +797,16 @@ export function useCollaborativeWorkflow() {
           sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {}
         )
 
-        const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId]
-        if (subBlockValues && activeWorkflowId) {
-          collaborativeBatchSetSubblockValues(newId, subBlockValues)
+        // Apply subblock values locally for immediate UI feedback
+        // The server will persist these values as part of the block creation
+        if (activeWorkflowId && Object.keys(subBlockValues).length > 0) {
+          Object.entries(subBlockValues).forEach(([subblockId, value]) => {
+            subBlockStore.setValue(newId, subblockId, value)
+          })
         }
       })
     },
-    [
-      executeQueuedOperation,
-      workflowStore,
-      subBlockStore,
-      activeWorkflowId,
-      collaborativeBatchSetSubblockValues,
-    ]
+    [executeQueuedOperation, workflowStore, subBlockStore, activeWorkflowId]
   )
 
   const collaborativeUpdateLoopCount = useCallback(
