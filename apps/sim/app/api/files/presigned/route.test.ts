@@ -204,6 +204,32 @@ describe('/api/files/presigned', () => {
       expect(data.directUploadSupported).toBe(true)
     })
 
+    it('should generate chat S3 presigned URL with chat prefix and direct path', async () => {
+      setupFileApiMocks({
+        cloudEnabled: true,
+        storageProvider: 's3',
+      })
+
+      const { POST } = await import('@/app/api/files/presigned/route')
+
+      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          fileName: 'chat-logo.png',
+          contentType: 'image/png',
+          fileSize: 4096,
+        }),
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.fileInfo.key).toMatch(/^chat\/.*chat-logo\.png$/)
+      expect(data.fileInfo.path).toMatch(/^https:\/\/.*\.s3\..*\.amazonaws\.com\/chat\//)
+      expect(data.directUploadSupported).toBe(true)
+    })
+
     it('should generate Azure Blob presigned URL successfully', async () => {
       setupFileApiMocks({
         cloudEnabled: true,
@@ -225,7 +251,9 @@ describe('/api/files/presigned', () => {
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.presignedUrl).toContain('https://example.com/presigned-url')
+      expect(data.presignedUrl).toContain(
+        'https://testaccount.blob.core.windows.net/test-container'
+      )
       expect(data.presignedUrl).toContain('sas-token-string')
       expect(data.fileInfo).toMatchObject({
         path: expect.stringContaining('/api/files/serve/blob/'),
@@ -240,6 +268,41 @@ describe('/api/files/presigned', () => {
         'x-ms-blob-content-type': 'text/plain',
         'x-ms-meta-originalname': expect.any(String),
         'x-ms-meta-uploadedat': '2024-01-01T00:00:00.000Z',
+      })
+    })
+
+    it('should generate chat Azure Blob presigned URL with chat prefix and direct path', async () => {
+      setupFileApiMocks({
+        cloudEnabled: true,
+        storageProvider: 'blob',
+      })
+
+      const { POST } = await import('@/app/api/files/presigned/route')
+
+      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          fileName: 'chat-logo.png',
+          contentType: 'image/png',
+          fileSize: 4096,
+        }),
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.fileInfo.key).toMatch(/^chat\/.*chat-logo\.png$/)
+      expect(data.fileInfo.path).toContain(
+        'https://testaccount.blob.core.windows.net/test-container'
+      )
+      expect(data.directUploadSupported).toBe(true)
+      expect(data.uploadHeaders).toMatchObject({
+        'x-ms-blob-type': 'BlockBlob',
+        'x-ms-blob-content-type': 'image/png',
+        'x-ms-meta-originalname': expect.any(String),
+        'x-ms-meta-uploadedat': '2024-01-01T00:00:00.000Z',
+        'x-ms-meta-purpose': 'chat',
       })
     })
 

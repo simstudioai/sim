@@ -30,6 +30,7 @@ interface ChatConfig {
   customizations: {
     primaryColor?: string
     logoUrl?: string
+    imageUrl?: string
     welcomeMessage?: string
     headerText?: string
   }
