@@ -5,6 +5,7 @@
 
 import React from 'react'
 import { 
+  Blocks,
   Check,
   CheckCircle,
   Code,
@@ -12,12 +13,20 @@ import {
   Edit,
   Eye,
   FileText,
+  GitBranch,
   Globe,
+  Info,
   Lightbulb,
   Loader2,
   Minus,
+  Network,
   Play,
   Search,
+  Settings,
+  Terminal,
+  TreePalm,
+  Variable,
+  Workflow,
   X,
   XCircle,
   Zap,
@@ -33,6 +42,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   // Tool-specific icons
   edit: Edit,
   loader: Loader2,
+  spinner: Loader2, // Standard spinner icon
   check: Check,
   checkCircle: CheckCircle,
   skip: Minus,
@@ -51,6 +61,16 @@ const ICON_MAP: Record<string, LucideIcon> = {
   lightbulb: Lightbulb,
   eye: Eye,
   x: X,
+  blocks: Blocks, // Blocks icon with missing corner
+  info: Info,
+  terminal: Terminal,
+  tree: TreePalm,
+  variable: Variable,
+  template: FileText, // Using FileText for templates
+  settings: Settings, // Gear/cog icon for configuration
+  workflow: Workflow, // Flowchart icon with boxes and connecting lines
+  network: Network, // Complex network icon with multiple interconnected nodes
+  gitbranch: GitBranch, // Git branching icon showing workflow paths
   
   // Default
   default: Lightbulb
@@ -60,11 +80,24 @@ const ICON_MAP: Record<string, LucideIcon> = {
  * Get the React icon component for a tool state
  */
 export function getToolIcon(toolCall: CopilotToolCall): LucideIcon {
-  const tool = toolRegistry.getTool(toolCall.name)
-  if (!tool) return ICON_MAP.default
+  // Check if it's a client tool
+  const clientTool = toolRegistry.getTool(toolCall.name)
+  if (clientTool) {
+    const iconName = clientTool.getIcon(toolCall)
+    return ICON_MAP[iconName] || ICON_MAP.default
+  }
 
-  const iconName = tool.getIcon(toolCall)
-  return ICON_MAP[iconName] || ICON_MAP.default
+  // For server tools, use server tool metadata
+  const serverToolMetadata = toolRegistry.getServerToolMetadata(toolCall.name)
+  if (serverToolMetadata) {
+    const stateConfig = serverToolMetadata.displayConfig.states[toolCall.state as keyof typeof serverToolMetadata.displayConfig.states]
+    if (stateConfig?.icon) {
+      return ICON_MAP[stateConfig.icon] || ICON_MAP.default
+    }
+  }
+
+  // Fallback to default icon
+  return ICON_MAP.default
 }
 
 /**

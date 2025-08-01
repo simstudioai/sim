@@ -8,11 +8,12 @@
 import React, { useState } from 'react'
 import { Loader2, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { CopilotToolCall } from './types'
+import type { CopilotToolCall, ToolState } from '@/stores/copilot/types'
 import { toolRequiresInterrupt } from './utils'
 import { toolRegistry } from './registry'
 import { notifyServerTool } from './notification-utils'
 import { useCopilotStore } from '@/stores/copilot/store'
+import { renderToolStateIcon } from './utils'
 
 interface InlineToolCallProps {
   toolCall: CopilotToolCall
@@ -210,7 +211,7 @@ export function InlineToolCall({
     <div className='flex items-center justify-between gap-2 py-1'>
       <div className='flex items-center gap-2 text-muted-foreground'>
         <div className='flex-shrink-0'>
-          <Wrench className='h-3 w-3' />
+          {renderToolStateIcon(toolCall, 'h-3 w-3')}
         </div>
         <span className='text-sm'>{displayName}</span>
       </div>

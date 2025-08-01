@@ -14,7 +14,8 @@ export const SERVER_TOOL_IDS = {
   GET_BLOCKS_AND_TOOLS: 'get_blocks_and_tools',
   GET_BLOCKS_METADATA: 'get_blocks_metadata',
   GET_YAML_STRUCTURE: 'get_yaml_structure',
-  GET_WORKFLOW_EXAMPLES: 'get_workflow_examples',
+  GET_EDIT_WORKFLOW_EXAMPLES: 'get_edit_workflow_examples',
+  GET_BUILD_WORKFLOW_EXAMPLES: 'get_build_workflow_examples',
   GET_ENVIRONMENT_VARIABLES: 'get_environment_variables',
   SET_ENVIRONMENT_VARIABLES: 'set_environment_variables',
   GET_WORKFLOW_CONSOLE: 'get_workflow_console',
@@ -32,8 +33,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.SEARCH_DOCUMENTATION,
     displayConfig: {
       states: {
-        executing: { displayName: 'Searching documentation', icon: 'loader' },
-        success: { displayName: 'Searched documentation', icon: 'check' },
+        executing: { displayName: 'Searching documentation', icon: 'spinner' },
+        success: { displayName: 'Searched documentation', icon: 'file' },
         rejected: { displayName: 'Skipped documentation search', icon: 'skip' },
         errored: { displayName: 'Failed to search documentation', icon: 'error' },
       }
@@ -49,8 +50,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_USER_WORKFLOW,
     displayConfig: {
       states: {
-        executing: { displayName: 'Analyzing workflow', icon: 'loader' },
-        success: { displayName: 'Analyzed workflow', icon: 'check' },
+        executing: { displayName: 'Analyzing workflow', icon: 'spinner' },
+        success: { displayName: 'Analyzed workflow', icon: 'workflow' },
         rejected: { displayName: 'Skipped workflow analysis', icon: 'skip' },
         errored: { displayName: 'Failed to analyze workflow', icon: 'error' },
       }
@@ -66,10 +67,10 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.BUILD_WORKFLOW,
     displayConfig: {
       states: {
-        ready_for_review: { displayName: 'Workflow ready for review', icon: 'wrench' },
-        executing: { displayName: 'Building workflow', icon: 'loader' },
-        success: { displayName: 'Built workflow', icon: 'checkCircle' },
-        rejected: { displayName: 'Skipped workflow build', icon: 'skip' },
+        ready_for_review: { displayName: 'Workflow ready for review', icon: 'network' },
+        executing: { displayName: 'Building workflow', icon: 'spinner' },
+        success: { displayName: 'Built workflow', icon: 'network' },
+        rejected: { displayName: 'Rejected workflow changes', icon: 'skip' },
         errored: { displayName: 'Failed to build workflow', icon: 'error' },
       }
     },
@@ -84,10 +85,10 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.EDIT_WORKFLOW,
     displayConfig: {
       states: {
-        ready_for_review: { displayName: 'Workflow changes ready for review', icon: 'code' },
-        executing: { displayName: 'Editing workflow', icon: 'loader' },
-        success: { displayName: 'Edited workflow', icon: 'checkCircle' },
-        rejected: { displayName: 'Skipped workflow edit', icon: 'skip' },
+        ready_for_review: { displayName: 'Workflow changes ready for review', icon: 'network' },
+        executing: { displayName: 'Editing workflow', icon: 'spinner' },
+        success: { displayName: 'Edited workflow', icon: 'network' },
+        rejected: { displayName: 'Rejected workflow changes', icon: 'skip' },
         errored: { displayName: 'Failed to edit workflow', icon: 'error' },
       }
     },
@@ -102,8 +103,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_BLOCKS_AND_TOOLS,
     displayConfig: {
       states: {
-        executing: { displayName: 'Getting block information', icon: 'loader' },
-        success: { displayName: 'Retrieved block information', icon: 'check' },
+        executing: { displayName: 'Getting block information', icon: 'spinner' },
+        success: { displayName: 'Retrieved block information', icon: 'blocks' },
         rejected: { displayName: 'Skipped getting block information', icon: 'skip' },
         errored: { displayName: 'Failed to get block information', icon: 'error' },
       }
@@ -119,8 +120,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_BLOCKS_METADATA,
     displayConfig: {
       states: {
-        executing: { displayName: 'Getting block metadata', icon: 'loader' },
-        success: { displayName: 'Retrieved block metadata', icon: 'check' },
+        executing: { displayName: 'Getting block metadata', icon: 'spinner' },
+        success: { displayName: 'Retrieved block metadata', icon: 'blocks' },
         rejected: { displayName: 'Skipped getting block metadata', icon: 'skip' },
         errored: { displayName: 'Failed to get block metadata', icon: 'error' },
       }
@@ -136,8 +137,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_YAML_STRUCTURE,
     displayConfig: {
       states: {
-        executing: { displayName: 'Analyzing workflow structure', icon: 'loader' },
-        success: { displayName: 'Analyzed workflow structure', icon: 'check' },
+        executing: { displayName: 'Analyzing workflow structure', icon: 'spinner' },
+        success: { displayName: 'Analyzed workflow structure', icon: 'tree' },
         rejected: { displayName: 'Skipped workflow structure analysis', icon: 'skip' },
         errored: { displayName: 'Failed to analyze workflow structure', icon: 'error' },
       }
@@ -149,18 +150,36 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     requiresInterrupt: false
   },
 
-  [SERVER_TOOL_IDS.GET_WORKFLOW_EXAMPLES]: {
-    id: SERVER_TOOL_IDS.GET_WORKFLOW_EXAMPLES,
+  [SERVER_TOOL_IDS.GET_EDIT_WORKFLOW_EXAMPLES]: {
+    id: SERVER_TOOL_IDS.GET_EDIT_WORKFLOW_EXAMPLES,
     displayConfig: {
       states: {
-        executing: { displayName: 'Viewing workflow examples', icon: 'loader' },
-        success: { displayName: 'Viewed workflow examples', icon: 'check' },
+        executing: { displayName: 'Viewing workflow examples', icon: 'spinner' },
+        success: { displayName: 'Viewed workflow examples', icon: 'gitbranch' },
         rejected: { displayName: 'Skipped workflow examples', icon: 'skip' },
         errored: { displayName: 'Failed to view workflow examples', icon: 'error' },
       }
     },
     schema: {
-      name: SERVER_TOOL_IDS.GET_WORKFLOW_EXAMPLES,
+      name: SERVER_TOOL_IDS.GET_EDIT_WORKFLOW_EXAMPLES,
+      description: 'Get workflow examples'
+    },
+    requiresInterrupt: false
+  },
+
+
+  [SERVER_TOOL_IDS.GET_BUILD_WORKFLOW_EXAMPLES]: {
+    id: SERVER_TOOL_IDS.GET_BUILD_WORKFLOW_EXAMPLES,
+    displayConfig: {
+      states: {
+        executing: { displayName: 'Viewing workflow examples', icon: 'spinner' },
+        success: { displayName: 'Viewed workflow examples', icon: 'gitbranch' },
+        rejected: { displayName: 'Skipped workflow examples', icon: 'skip' },
+        errored: { displayName: 'Failed to view workflow examples', icon: 'error' },
+      }
+    },
+    schema: {
+      name: SERVER_TOOL_IDS.GET_BUILD_WORKFLOW_EXAMPLES,
       description: 'Get workflow examples'
     },
     requiresInterrupt: false
@@ -170,8 +189,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_ENVIRONMENT_VARIABLES,
     displayConfig: {
       states: {
-        executing: { displayName: 'Viewing environment variables', icon: 'loader' },
-        success: { displayName: 'Found environment variables', icon: 'check' },
+        executing: { displayName: 'Viewing environment variables', icon: 'spinner' },
+        success: { displayName: 'Found environment variables', icon: 'settings' },
         rejected: { displayName: 'Skipped viewing environment variables', icon: 'skip' },
         errored: { displayName: 'Failed to get environment variables', icon: 'error' },
       }
@@ -188,9 +207,9 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     displayConfig: {
       states: {
         pending: { displayName: 'Set environment variables', icon: 'edit' },
-        executing: { displayName: 'Setting environment variables', icon: 'loader' },
+        executing: { displayName: 'Setting environment variables', icon: 'spinner' },
         accepted: { displayName: 'Setting environment variables', icon: 'edit' },
-        success: { displayName: 'Set environment variables', icon: 'check' },
+        success: { displayName: 'Set environment variables', icon: 'settings' },
         rejected: { displayName: 'Skipped setting environment variables', icon: 'skip' },
         errored: { displayName: 'Failed to set environment variables', icon: 'error' },
         background: { displayName: 'Setting environment variables in background', icon: 'background' },
@@ -220,8 +239,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.GET_WORKFLOW_CONSOLE,
     displayConfig: {
       states: {
-        executing: { displayName: 'Reading workflow console', icon: 'loader' },
-        success: { displayName: 'Read workflow console', icon: 'check' },
+        executing: { displayName: 'Reading workflow console', icon: 'spinner' },
+        success: { displayName: 'Read workflow console', icon: 'terminal' },
         rejected: { displayName: 'Skipped reading workflow console', icon: 'skip' },
         errored: { displayName: 'Failed to read workflow console', icon: 'error' },
       }
@@ -237,8 +256,8 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
     id: SERVER_TOOL_IDS.SEARCH_ONLINE,
     displayConfig: {
       states: {
-        executing: { displayName: 'Searching online', icon: 'loader' },
-        success: { displayName: 'Searched online', icon: 'check' },
+        executing: { displayName: 'Searching online', icon: 'spinner' },
+        success: { displayName: 'Searched online', icon: 'globe' },
         rejected: { displayName: 'Skipped online search', icon: 'skip' },
         errored: { displayName: 'Failed to search online', icon: 'error' },
       }

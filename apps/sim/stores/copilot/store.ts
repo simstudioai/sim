@@ -243,38 +243,40 @@ function getToolDisplayName(toolName: string): string {
 
 /**
  * Helper function to get appropriate tool display name based on state
+ * Uses the tool registry as the single source of truth
  */
 function getToolDisplayNameByState(toolCall: any): string {
   const toolName = toolCall.name
   const state = toolCall.state
-  const supportsReadyForReview = toolSupportsReadyForReview(toolName)
-
-  if (state === 'ready_for_review' && supportsReadyForReview) {
-    // Special display for tools with ready_for_review state awaiting review
-    const baseText = COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
-    return `${baseText} - ready for review`
+  
+  // Check if it's a client tool
+  const clientTool = toolRegistry.getTool(toolName)
+  if (clientTool) {
+    // Use client tool's display name logic
+    return clientTool.getDisplayName(toolCall)
   }
-  if (state === 'applied' && supportsReadyForReview) {
-    // Show completion/done state after accept for tools with ready_for_review
-    return 'Applied workflow changes'
+  
+  // For server tools, use server tool metadata
+  const serverToolMetadata = toolRegistry.getServerToolMetadata(toolName)
+  if (serverToolMetadata) {
+    // Check if there's a dynamic display name function
+    if (serverToolMetadata.displayConfig.getDynamicDisplayName) {
+      const dynamicName = serverToolMetadata.displayConfig.getDynamicDisplayName(
+        state, 
+        toolCall.input || toolCall.parameters || {}
+      )
+      if (dynamicName) return dynamicName
+    }
+    
+    // Use state-specific display config
+    const stateConfig = serverToolMetadata.displayConfig.states[state as keyof typeof serverToolMetadata.displayConfig.states]
+    if (stateConfig) {
+      return stateConfig.displayName
+    }
   }
-  if (state === 'completed' || state === 'applied') {
-    // Regular tools and non-workflow applied states use past tense
-    return COPILOT_TOOL_PAST_TENSE[toolName] || getToolDisplayName(toolName)
-  }
-  if (state === 'error') {
-    return (
-      COPILOT_TOOL_ERROR_NAMES[toolName] || `Errored ${getToolDisplayName(toolName).toLowerCase()}`
-    )
-  }
-  if (state === 'rejected') {
-    // Special handling for rejected tools with ready_for_review
-    return supportsReadyForReview
-      ? 'Rejected workflow changes'
-      : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
-  }
-  // For executing, aborted, etc. - use present tense
-  return getToolDisplayName(toolName)
+  
+  // Fallback to tool name if no specific display logic found
+  return toolName
 }
 
 /**
