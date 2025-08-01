@@ -144,11 +144,13 @@ export function KnowledgeTagFilters({
   }
 
   if (isPreview) {
+    const appliedFilters = filters.filter((f) => f.tagName.trim() && f.tagValue.trim()).length
+
     return (
       <div className='space-y-1'>
         <Label className='font-medium text-muted-foreground text-xs'>Tag Filters</Label>
         <div className='text-muted-foreground text-sm'>
-          {filters.length > 0 ? `${filters.length} filter(s) applied` : 'No filters'}
+          {appliedFilters > 0 ? `${appliedFilters} filter(s) applied` : 'No filters'}
         </div>
       </div>
     )
@@ -359,7 +361,7 @@ export function KnowledgeTagFilters({
           {/* Filter count indicator */}
           {(() => {
             const appliedFilters = filters.filter(
-              (f) => f.tagName.trim() || f.tagValue.trim()
+              (f) => f.tagName.trim() && f.tagValue.trim()
             ).length
             return (
               <div className='text-muted-foreground text-xs'>

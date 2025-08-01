@@ -77,9 +77,19 @@ export function DocumentTagEntry({
     return TAG_SLOTS[0] // Fallback to first slot if all are used
   }
 
-  const handleRemoveTag = (index: number) => {
+  const handleRemoveTag = async (index: number) => {
     const updatedTags = tags.filter((_, i) => i !== index)
     onTagsChange(updatedTags)
+
+    // Persist the changes if onSave is provided
+    if (onSave) {
+      try {
+        await onSave(updatedTags)
+      } catch (error) {
+        // Handle error silently - the UI will show the optimistic update
+        // but the user can retry if needed
+      }
+    }
   }
 
   // Open modal to edit tag
@@ -110,8 +120,12 @@ export function DocumentTagEntry({
     if (!editForm.displayName.trim()) return
 
     try {
+      // Calculate slot once at the beginning
+      const targetSlot =
+        editingTagIndex !== null ? tags[editingTagIndex].slot : getNextAvailableSlot()
+
       if (editingTagIndex !== null) {
-        // Editing existing tag
+        // Editing existing tag - use existing slot
         const updatedTags = [...tags]
         updatedTags[editingTagIndex] = {
           ...updatedTags[editingTagIndex],
@@ -121,10 +135,9 @@ export function DocumentTagEntry({
         }
         onTagsChange(updatedTags)
       } else {
-        // Creating new tag - calculate slot once
-        const newSlot = getNextAvailableSlot()
+        // Creating new tag - use calculated slot
         const newTag: DocumentTag = {
-          slot: newSlot,
+          slot: targetSlot,
           displayName: editForm.displayName,
           fieldType: editForm.fieldType,
           value: editForm.value,
@@ -140,9 +153,6 @@ export function DocumentTagEntry({
 
       if (!existingDefinition) {
         // Use the same slot for both tag and definition
-        const targetSlot =
-          editingTagIndex !== null ? tags[editingTagIndex].slot : getNextAvailableSlot()
-
         const newDefinition: TagDefinitionInput = {
           displayName: editForm.displayName,
           fieldType: editForm.fieldType,
@@ -174,7 +184,7 @@ export function DocumentTagEntry({
             : [
                 ...tags,
                 {
-                  slot: getNextAvailableSlot(),
+                  slot: targetSlot,
                   displayName: editForm.displayName,
                   fieldType: editForm.fieldType,
                   value: editForm.value,
