@@ -42,6 +42,9 @@ async function getWorkflowConsole(
 
   logger.info('Fetching workflow console logs', { workflowId, limit, includeDetails })
 
+  // Limit the number of entries to prevent large payloads that break streaming
+  const effectiveLimit = Math.min(limit, 20) // Cap at 20 entries for streaming safety
+
   // Get recent execution logs for the workflow
   const executionLogs = await db
     .select({
@@ -62,16 +65,19 @@ async function getWorkflowConsole(
     .from(workflowExecutionLogs)
     .where(eq(workflowExecutionLogs.workflowId, workflowId))
     .orderBy(desc(workflowExecutionLogs.startedAt))
-    .limit(Math.min(limit, 100))
+    .limit(effectiveLimit)
 
-  // Format the response
+  // Format the response with size-conscious trimming
   const formattedEntries = executionLogs.map((log) => {
     const entry: any = {
       id: log.id,
       executionId: log.executionId,
       level: log.level,
       message: log.message,
-      trigger: log.trigger,
+      // Truncate trigger data if it's too large to prevent streaming issues
+      trigger: typeof log.trigger === 'string' && log.trigger.length > 100 
+        ? log.trigger.substring(0, 100) + '...' 
+        : log.trigger,
       startedAt: log.startedAt,
       endedAt: log.endedAt,
       durationMs: log.totalDurationMs,
@@ -82,11 +88,22 @@ async function getWorkflowConsole(
       type: 'execution',
     }
 
-    if (log.metadata) {
-      entry.metadata = log.metadata
+    // Only include metadata if details are requested and it's not too large
+    if (includeDetails && log.metadata) {
+      const metadataStr = typeof log.metadata === 'string' ? log.metadata : JSON.stringify(log.metadata)
+      if (metadataStr.length <= 500) { // Limit metadata size
+        entry.metadata = log.metadata
+      }
     }
 
     return entry
+  })
+
+  // Log the result size for monitoring
+  const resultSize = JSON.stringify(formattedEntries).length
+  logger.info('Workflow console result prepared', { 
+    entryCount: formattedEntries.length, 
+    resultSizeKB: Math.round(resultSize / 1024) 
   })
 
   return {

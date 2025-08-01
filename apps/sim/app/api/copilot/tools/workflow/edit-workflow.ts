@@ -305,7 +305,7 @@ async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowRes
     operationCount: operations.length,
   })
 
-  // Get current workflow YAML directly by calling the function
+  // Get current workflow state as JSON
   const { getUserWorkflowTool } = await import('./get-user-workflow')
 
   const getUserWorkflowResult = await getUserWorkflowTool.execute({
@@ -314,14 +314,91 @@ async function editWorkflow(params: EditWorkflowParams): Promise<EditWorkflowRes
   })
 
   if (!getUserWorkflowResult.success || !getUserWorkflowResult.data) {
-    throw new Error('Failed to get current workflow YAML')
+    throw new Error('Failed to get current workflow state')
   }
 
-  const currentYaml = getUserWorkflowResult.data
+  const workflowStateJson = getUserWorkflowResult.data
 
-  logger.info('Retrieved current workflow YAML', {
+  logger.info('Retrieved current workflow state', {
+    jsonLength: workflowStateJson.length,
+    jsonPreview: workflowStateJson.substring(0, 200),
+  })
+
+  // Parse the JSON to get the workflow state object
+  const workflowState = JSON.parse(workflowStateJson)
+
+  // Extract subblock values from the workflow state (same logic as get-user-workflow.ts)
+  const subBlockValues: Record<string, Record<string, any>> = {}
+  Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
+    subBlockValues[blockId] = {}
+    Object.entries((block as any).subBlocks || {}).forEach(([subBlockId, subBlock]) => {
+      if ((subBlock as any).value !== undefined) {
+        subBlockValues[blockId][subBlockId] = (subBlock as any).value
+      }
+    })
+  })
+
+  logger.info('Extracted subblock values', {
+    blockCount: Object.keys(subBlockValues).length,
+    totalSubblocks: Object.values(subBlockValues).reduce((sum, blockValues) => sum + Object.keys(blockValues).length, 0),
+  })
+
+  // Convert workflow state to YAML format using the same endpoint as the UI
+  const blocks = getAllBlocks()
+  const blockRegistry = blocks.reduce(
+    (acc, block) => {
+      const blockType = block.type
+      acc[blockType] = {
+        ...block,
+        id: blockType,
+        subBlocks: block.subBlocks || [],
+        outputs: block.outputs || {},
+      } as any
+      return acc
+    },
+    {} as Record<string, BlockConfig>
+  )
+
+  // Convert to YAML using sim-agent
+  const yamlResponse = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(SIM_AGENT_API_KEY && { 'x-api-key': SIM_AGENT_API_KEY }),
+    },
+    body: JSON.stringify({
+      workflowState,
+      subBlockValues, // Now using the properly extracted subblock values
+      blockRegistry,
+      utilities: {
+        generateLoopBlocks: generateLoopBlocks.toString(),
+        generateParallelBlocks: generateParallelBlocks.toString(),
+        resolveOutputType: resolveOutputType.toString(),
+      },
+    }),
+  })
+
+  if (!yamlResponse.ok) {
+    const errorText = await yamlResponse.text()
+    throw new Error(`Sim agent API error: ${yamlResponse.statusText}`)
+  }
+
+  const yamlResult = await yamlResponse.json()
+
+  if (!yamlResult.success || !yamlResult.yaml) {
+    throw new Error(yamlResult.error || 'Failed to generate YAML')
+  }
+
+  const currentYaml = yamlResult.yaml
+
+  if (!currentYaml || currentYaml.trim() === '') {
+    throw new Error('Generated YAML is empty')
+  }
+
+  logger.info('Successfully converted workflow to YAML', {
+    workflowId,
+    blockCount: Object.keys(workflowState.blocks).length,
     yamlLength: currentYaml.length,
-    yamlPreview: currentYaml.substring(0, 200),
   })
 
   // Apply operations to generate modified YAML

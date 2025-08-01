@@ -353,7 +353,17 @@ export async function POST(req: NextRequest) {
 
                 if (line.startsWith('data: ') && line.length > 6) {
                   try {
-                    const event = JSON.parse(line.slice(6))
+                    const jsonStr = line.slice(6)
+                    
+                    // Check if the JSON string is unusually large (potential streaming issue)
+                    if (jsonStr.length > 50000) { // 50KB limit
+                      logger.warn(`[${requestId}] Large SSE event detected`, {
+                        size: jsonStr.length,
+                        preview: jsonStr.substring(0, 100) + '...'
+                      })
+                    }
+                    
+                    const event = JSON.parse(jsonStr)
 
                     // Log different event types comprehensively
                     switch (event.type) {
@@ -392,6 +402,7 @@ export async function POST(req: NextRequest) {
                           toolName: event.toolName,
                           success: event.success,
                           result: `${JSON.stringify(event.result).substring(0, 200)}...`,
+                          resultSize: JSON.stringify(event.result).length,
                         })
                         break
 
@@ -423,7 +434,19 @@ export async function POST(req: NextRequest) {
                         logger.debug(`[${requestId}] Unknown event type: ${event.type}`, event)
                     }
                   } catch (e) {
-                    logger.warn(`[${requestId}] Failed to parse SSE event: "${line}"`, e)
+                    // Enhanced error handling for large payloads and parsing issues
+                    const lineLength = line.length
+                    const isLargePayload = lineLength > 10000
+                    
+                    if (isLargePayload) {
+                      logger.error(`[${requestId}] Failed to parse large SSE event (${lineLength} chars)`, {
+                        error: e,
+                        preview: line.substring(0, 200) + '...',
+                        size: lineLength
+                      })
+                    } else {
+                      logger.warn(`[${requestId}] Failed to parse SSE event: "${line.substring(0, 200)}..."`, e)
+                    }
                   }
                 } else if (line.trim() && line !== 'data: [DONE]') {
                   logger.debug(`[${requestId}] Non-SSE line from sim agent: "${line}"`)
