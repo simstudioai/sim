@@ -252,10 +252,7 @@ export function ChatDeploy({
             deployedUrl={deployedUrl}
             existingChat={existingChat}
             onDelete={() => setShowDeleteConfirmation(true)}
-            onUpdate={() => {
-              console.log('Update clicked, existingChat:', existingChat)
-              setShowSuccessView(false)
-            }}
+            onUpdate={() => setShowSuccessView(false)}
           />
         </div>
 
