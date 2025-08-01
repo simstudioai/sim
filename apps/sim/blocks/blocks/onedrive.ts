@@ -26,7 +26,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         { label: 'List Files', id: 'list' },
       ],
     },
-    // Google Drive Credentials
+    // One Drive Credentials
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -34,14 +34,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       layout: 'full',
       provider: 'onedrive',
       serviceId: 'onedrive',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: ['openid', 'profile', 'email','Files.Read', 'Files.ReadWrite', 'offline_access'],
       placeholder: 'Select Microsoft account',
     },
     // Upload Fields
@@ -61,7 +54,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       placeholder: 'Content to upload to the file',
       condition: { field: 'operation', value: 'upload' },
     },
-
+    
     {
       id: 'folderSelector',
       title: 'Select Parent Folder',
@@ -69,14 +62,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       layout: 'full',
       provider: 'microsoft',
       serviceId: 'onedrive',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a parent folder',
       mode: 'basic',
@@ -92,7 +78,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       condition: { field: 'operation', value: 'upload' },
     },
     {
-      id: 'fileName',
+      id: 'folderName',
       title: 'Folder Name',
       type: 'short-input',
       layout: 'full',
@@ -106,14 +92,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       layout: 'full',
       provider: 'microsoft',
       serviceId: 'onedrive',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a parent folder',
       mode: 'basic',
@@ -137,14 +116,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       layout: 'full',
       provider: 'microsoft',
       serviceId: 'onedrive',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'Files.Read',
-        'Files.ReadWrite',
-        'offline_access',
-      ],
+      requiredScopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
       mimeType: 'application/vnd.microsoft.graph.folder',
       placeholder: 'Select a folder to list files from',
       mode: 'basic',
@@ -184,8 +156,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         switch (params.operation) {
           case 'upload':
             return 'onedrive_upload'
-          // case 'get_content':
-          //   return 'google_drive_get_content'
           case 'create_folder':
             return 'onedrive_create_folder'
           case 'list':
@@ -211,18 +181,18 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Microsoft account credential' },
     // Upload and Create Folder operation inputs
-    fileName: { type: 'string', required: false },
-    content: { type: 'string', required: false },
+    fileName: { type: 'string', description: 'File name' },
+    content: { type: 'string', description: 'File content' },
     // Get Content operation inputs
     // fileId: { type: 'string', required: false },
     // List operation inputs
-    folderSelector: { type: 'string', required: false },
-    manualFolderId: { type: 'string', required: false },
-    query: { type: 'string', required: false },
-    pageSize: { type: 'number', required: false },
+    folderSelector: { type: 'string', description: 'Folder selector' },
+    manualFolderId: { type: 'string', description: 'Manual folder ID' },
+    query: { type: 'string', description: 'Search query' },
+    pageSize: { type: 'number', description: 'Results per page' },
   },
   outputs: {
     file: 'json',

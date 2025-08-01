@@ -1,6 +1,27 @@
 import type { OneDriveListResponse, OneDriveToolParams } from '@/tools/onedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
+interface MicrosoftGraphDriveItem {
+  id: string
+  name: string
+  file?: {
+    mimeType: string
+  }
+  folder?: {
+    childCount: number
+  }
+  webUrl: string
+  createdDateTime: string
+  lastModifiedDateTime: string
+  size?: number
+  '@microsoft.graph.downloadUrl'?: string
+  parentReference?: {
+    id: string
+    driveId: string
+    path: string
+  }
+}
+
 export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
   id: 'onedrive_list',
   name: 'List OneDrive Files',
@@ -82,11 +103,17 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
         url.searchParams.append('$top', params.pageSize.toString())
       }
 
+      // Remove the $skip logic entirely. Instead, use the full nextLink URL if provided
+      let finalUrl: string
       if (params.pageToken) {
-        url.searchParams.append('$skip', params.pageToken)
+        // pageToken should contain the full @odata.nextLink URL
+        finalUrl = params.pageToken
+      } else {
+        // Construct the initial request URL
+        finalUrl = url.toString()
       }
 
-      return url.toString()
+      return finalUrl
     },
     method: 'GET',
     headers: (params) => ({
@@ -103,7 +130,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
     return {
       success: true,
       output: {
-        files: data.value.map((item: any) => ({
+        files: data.value.map((item: MicrosoftGraphDriveItem) => ({
           id: item.id,
           name: item.name,
           mimeType: item.file?.mimeType || (item.folder ? 'application/folder' : 'unknown'),
@@ -114,7 +141,8 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
           modifiedTime: item.lastModifiedDateTime,
           parents: item.parentReference ? [item.parentReference.id] : [],
         })),
-        nextPageToken: data['@odata.nextLink'] ? 'has_more' : undefined,
+        // Use the actual @odata.nextLink URL as the continuation token
+        nextPageToken: data['@odata.nextLink'] || undefined,
       },
     }
   },

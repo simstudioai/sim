@@ -11,6 +11,21 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveFoldersAPI')
 
+interface MicrosoftGraphDriveItem {
+  id: string
+  name: string
+  folder?: {
+    childCount: number
+  }
+  file?: {
+    mimeType: string
+  }
+  webUrl: string
+  createdDateTime: string
+  lastModifiedDateTime: string
+  size?: number
+}
+
 /**
  * Get folders from Microsoft OneDrive
  */
@@ -69,8 +84,8 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json()
     const folders = (data.value || [])
-      .filter((item: any) => item.folder) // Only folders
-      .map((folder: any) => ({
+      .filter((item: MicrosoftGraphDriveItem) => item.folder) // Only folders
+      .map((folder: MicrosoftGraphDriveItem) => ({
         id: folder.id,
         name: folder.name,
         mimeType: 'application/vnd.microsoft.graph.folder',

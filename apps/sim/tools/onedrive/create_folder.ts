@@ -18,7 +18,7 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
       visibility: 'hidden',
       description: 'The access token for the OneDrive API',
     },
-    fileName: {
+    folderName: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',

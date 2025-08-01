@@ -6,6 +6,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account } from '@/db/schema'
+import type { PlannerTask } from '@/tools/microsoft_planner/types'
 
 const logger = createLogger('MicrosoftPlannerTasksAPI')
 
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
     const tasks = data.value || []
 
     // Filter tasks to only include useful fields (matching our read_task tool)
-    const filteredTasks = tasks.map((task: any) => ({
+    const filteredTasks = tasks.map((task: PlannerTask) => ({
       id: task.id,
       title: task.title,
       planId: task.planId,

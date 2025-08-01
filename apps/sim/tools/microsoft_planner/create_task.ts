@@ -2,6 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type {
   MicrosoftPlannerCreateResponse,
   MicrosoftPlannerToolParams,
+  PlannerTask,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -85,7 +86,7 @@ export const createTaskTool: ToolConfig<
         throw new Error('Task title is required')
       }
 
-      const body: any = {
+      const body: PlannerTask = {
         planId: params.planId,
         title: params.title,
       }
@@ -130,12 +131,11 @@ export const createTaskTool: ToolConfig<
         const detailsUrl = `https://graph.microsoft.com/v1.0/planner/tasks/${task.id}/details`
         // Get task details to get the ETag
         const getDetailsResponse = await fetch(
-          `https://graph.microsoft.com/v1.0/planner/tasks/${task.id}/details`,
+          detailsUrl,
           {
             headers: { Authorization: `Bearer ${params.accessToken}` },
           }
         )
-        const detailsData = await getDetailsResponse.json()
         const etag = getDetailsResponse.headers.get('ETag')
 
         // Then update with correct ETag

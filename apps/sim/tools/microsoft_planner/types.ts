@@ -1,5 +1,46 @@
 import type { ToolResponse } from '@/tools/types'
 
+export interface PlannerIdentitySet {
+  user?: {
+    displayName?: string
+    id?: string
+  }
+  application?: {
+    displayName?: string
+    id?: string
+  }
+}
+
+export interface PlannerAssignment {
+  '@odata.type': string
+  assignedDateTime?: string
+  orderHint?: string
+  assignedBy?: PlannerIdentitySet
+}
+
+export interface PlannerReference {
+  alias?: string
+  lastModifiedBy?: PlannerIdentitySet
+  lastModifiedDateTime?: string
+  previewPriority?: string
+  type?: string
+}
+
+export interface PlannerChecklistItem {
+  '@odata.type': string
+  isChecked?: boolean
+  title?: string
+  orderHint?: string
+  lastModifiedBy?: PlannerIdentitySet
+  lastModifiedDateTime?: string
+}
+
+export interface PlannerContainer {
+  containerId?: string
+  type?: string
+  url?: string
+}
+
 export interface PlannerTask {
   id?: string
   planId: string
@@ -13,18 +54,18 @@ export interface PlannerTask {
   hasDescription?: boolean
   previewType?: string
   completedDateTime?: string
-  completedBy?: any
+  completedBy?: PlannerIdentitySet
   referenceCount?: number
   checklistItemCount?: number
   activeChecklistItemCount?: number
   conversationThreadId?: string
   priority?: number
-  assignments?: Record<string, any>
+  assignments?: Record<string, PlannerAssignment>
   bucketId?: string
   details?: {
     description?: string
-    references?: Record<string, any>
-    checklist?: Record<string, any>
+    references?: Record<string, PlannerReference>
+    checklist?: Record<string, PlannerChecklistItem>
   }
 }
 
@@ -33,7 +74,7 @@ export interface PlannerPlan {
   title: string
   owner?: string
   createdDateTime?: string
-  container?: any
+  container?: PlannerContainer
 }
 
 export interface MicrosoftPlannerMetadata {

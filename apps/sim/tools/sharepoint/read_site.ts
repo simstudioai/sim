@@ -1,4 +1,4 @@
-import type { SharepointToolParams } from '@/tools/sharepoint/types'
+import type { SharepointSite, SharepointToolParams } from '@/tools/sharepoint/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 export interface SharepointReadSiteResponse extends ToolResponse {
@@ -112,7 +112,7 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       return {
         success: true,
         output: {
-          sites: data.value.map((site: any) => ({
+          sites: data.value.map((site: SharepointSite) => ({
             id: site.id,
             name: site.name,
             displayName: site.displayName,

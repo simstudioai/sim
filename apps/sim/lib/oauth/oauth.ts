@@ -523,6 +523,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'sharepoint'
   } else if (provider === 'microsoft-planner') {
     return 'microsoft-planner'
+  } else if (provider === 'onedrive') {
+    return 'onedrive'
   } else if (provider === 'github') {
     return 'github'
   } else if (provider === 'supabase') {

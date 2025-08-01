@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
-    const fileId = searchParams.get('fileId') // This will be the site ID
+    const siteId = searchParams.get('siteId')
 
-    if (!credentialId || !fileId) {
+    if (!credentialId || !siteId) {
       return NextResponse.json({ error: 'Credential ID and Site ID are required' }, { status: 400 })
     }
 
@@ -54,17 +54,17 @@ export async function GET(request: NextRequest) {
     // 5. Group team site: groups/{group-id}/sites/root
 
     let endpoint: string
-    if (fileId === 'root') {
+    if (siteId === 'root') {
       endpoint = 'sites/root'
-    } else if (fileId.includes(':')) {
+    } else if (siteId.includes(':')) {
       // Server-relative URL format
-      endpoint = `sites/${fileId}`
-    } else if (fileId.includes('groups/')) {
+      endpoint = `sites/${siteId}`
+    } else if (siteId.includes('groups/')) {
       // Group team site format
-      endpoint = fileId
+      endpoint = siteId
     } else {
       // Standard site ID or hostname
-      endpoint = `sites/${fileId}`
+      endpoint = `sites/${siteId}`
     }
 
     const response = await fetch(
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     }
 
     logger.info(`[${requestId}] Successfully fetched SharePoint site: ${transformedSite.name}`)
-    return NextResponse.json({ file: transformedSite }, { status: 200 })
+    return NextResponse.json({ site: transformedSite }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching site from SharePoint`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

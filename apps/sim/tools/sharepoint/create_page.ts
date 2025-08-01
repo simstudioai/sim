@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SharepointCreatePageResponse, SharepointToolParams } from '@/tools/sharepoint/types'
+import type { SharepointCreatePageResponse, SharepointPage, SharepointToolParams } from '@/tools/sharepoint/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointCreatePage')
@@ -72,7 +72,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
       const pageTitle = params.pageTitle || params.pageName
 
       // Basic page structure required by Microsoft Graph API
-      const pageData: any = {
+      const pageData: SharepointPage = {
         '@odata.type': '#microsoft.graph.sitePage',
         name: params.pageName,
         title: pageTitle,

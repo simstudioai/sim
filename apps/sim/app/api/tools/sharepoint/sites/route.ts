@@ -6,6 +6,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { account } from '@/db/schema'
+import type { SharepointSite } from '@/tools/sharepoint/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
-    const sites = (data.value || []).map((site: any) => ({
+    const sites = (data.value || []).map((site: SharepointSite) => ({
       id: site.id,
       name: site.displayName || site.name,
       mimeType: 'application/vnd.microsoft.graph.site',

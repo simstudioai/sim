@@ -25,7 +25,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         { label: 'List Sites', id: 'list_sites' },
       ],
     },
-    // Google Drive Credentials
+    // Sharepoint Credentials
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -100,17 +100,9 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       layout: 'full',
       placeholder: 'Enter site ID (leave empty for root site)',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: 'create_page' },
     },
 
-    {
-      id: 'query',
-      title: 'Search Query',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Search for specific pages (e.g., name contains "report")',
-      condition: { field: 'operation', value: 'list_pages' },
-    },
   ],
   tools: {
     access: ['sharepoint_create_page', 'sharepoint_read_page', 'sharepoint_list_sites'],
@@ -144,19 +136,18 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Microsoft account credential' },
     // Create Page operation inputs
-    pageName: { type: 'string', required: false },
-    pageContent: { type: 'string', required: false },
-    pageTitle: { type: 'string', required: false },
+    pageName: { type: 'string', description: 'Page name' },
+    pageContent: { type: 'string', description: 'Page content' },
+    pageTitle: { type: 'string', description: 'Page title' },
     // Read Page operation inputs
-    pageId: { type: 'string', required: false },
+    pageId: { type: 'string', description: 'Page ID' },
     // List operation inputs
-    siteSelector: { type: 'string', required: false },
-    manualSiteId: { type: 'string', required: false },
-    query: { type: 'string', required: false },
-    pageSize: { type: 'number', required: false },
+    siteSelector: { type: 'string', description: 'Site selector' },
+    manualSiteId: { type: 'string', description: 'Manual site ID' },
+    pageSize: { type: 'number', description: 'Results per page' },
   },
   outputs: {
     sites: 'json',

@@ -2,6 +2,19 @@ import { MicrosoftPlannerIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { MicrosoftPlannerResponse } from '@/tools/microsoft_planner/types'
 
+interface MicrosoftPlannerBlockParams {
+  credential: string
+  accessToken?: string
+  planId?: string
+  taskId?: string
+  title?: string
+  description?: string
+  dueDateTime?: string
+  assigneeUserId?: string
+  bucketId?: string
+  [key: string]: string | number | boolean | undefined
+}
+
 export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
   type: 'microsoft_planner',
   name: 'Microsoft Planner',
@@ -133,7 +146,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
 
         // For read operations
         if (operation === 'read_task') {
-          const readParams: any = { ...baseParams }
+          const readParams: MicrosoftPlannerBlockParams = { ...baseParams }
 
           // If taskId is provided, add it (highest priority - get specific task)
           if (taskId?.trim()) {
@@ -157,7 +170,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
             throw new Error('Task title is required to create a task.')
           }
 
-          const createParams: any = {
+          const createParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
             planId: planId.trim(),
             title: title.trim(),
@@ -187,15 +200,15 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
-    planId: { type: 'string', required: false },
-    taskId: { type: 'string', required: false },
-    title: { type: 'string', required: false },
-    description: { type: 'string', required: false },
-    dueDateTime: { type: 'string', required: false },
-    assigneeUserId: { type: 'string', required: false },
-    bucketId: { type: 'string', required: false },
+    operation: { type: 'string', description: 'Operation to perform' },
+    credential: { type: 'string', description: 'Microsoft account credential' },
+    planId: { type: 'string', description: 'Plan ID' },
+    taskId: { type: 'string', description: 'Task ID' },
+    title: { type: 'string', description: 'Task title' },
+    description: { type: 'string', description: 'Task description' },
+    dueDateTime: { type: 'string', description: 'Due date' },
+    assigneeUserId: { type: 'string', description: 'Assignee user ID' },
+    bucketId: { type: 'string', description: 'Bucket ID' },
   },
   outputs: {
     task: 'json',

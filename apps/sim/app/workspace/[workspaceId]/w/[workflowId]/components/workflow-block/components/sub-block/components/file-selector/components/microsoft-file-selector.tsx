@@ -24,6 +24,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { PlannerTask } from '@/tools/microsoft_planner/types'
 
 const logger = createLogger('MicrosoftFileSelector')
 
@@ -39,6 +40,9 @@ export interface MicrosoftFileInfo {
   size?: string
   owners?: { displayName: string; emailAddress: string }[]
 }
+
+// Union type for items that can be displayed in the file selector
+type SelectableItem = MicrosoftFileInfo | PlannerTask
 
 interface MicrosoftFileSelectorProps {
   value: string
@@ -80,9 +84,9 @@ export function MicrosoftFileSelector({
   const initialFetchRef = useRef(false)
 
   // Handle Microsoft Planner task selection
-  const [plannerTasks, setPlannerTasks] = useState<any[]>([])
+  const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([])
   const [isLoadingTasks, setIsLoadingTasks] = useState(false)
-  const [selectedTask, setSelectedTask] = useState<any>(null)
+  const [selectedTask, setSelectedTask] = useState<PlannerTask | null>(null)
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -197,7 +201,12 @@ export function MicrosoftFileSelector({
         if (serviceId === 'onedrive') {
           endpoint = `/api/tools/onedrive/folder?${queryParams.toString()}`
         } else if (serviceId === 'sharepoint') {
-          endpoint = `/api/tools/sharepoint/site?${queryParams.toString()}`
+          // Change from fileId to siteId for SharePoint
+          const sharepointParams = new URLSearchParams({
+            credentialId: selectedCredentialId,
+            siteId: fileId,  // Use siteId instead of fileId
+          })
+          endpoint = `/api/tools/sharepoint/site?${sharepointParams.toString()}`
         } else {
           endpoint = `/api/auth/oauth/microsoft/file?${queryParams.toString()}`
         }
@@ -269,7 +278,7 @@ export function MicrosoftFileSelector({
         const tasks = data.tasks || []
 
         // Transform tasks to match file info format for consistency
-        const transformedTasks = tasks.map((task: any) => ({
+        const transformedTasks = tasks.map((task: PlannerTask) => ({
           id: task.id,
           name: task.title,
           mimeType: 'planner/task',
@@ -336,12 +345,23 @@ export function MicrosoftFileSelector({
   }, [selectedCredentialId, planId, serviceId, fetchPlannerTasks])
 
   // Handle task selection for planner
-  const handleTaskSelect = (task: any) => {
-    setSelectedFileId(task.id)
-    setSelectedFile(task)
+  const handleTaskSelect = (task: PlannerTask) => {
+    const taskId = task.id || ''
+    // Convert PlannerTask to MicrosoftFileInfo format for compatibility
+    const taskAsFileInfo: MicrosoftFileInfo = {
+      id: taskId,
+      name: task.title,
+      mimeType: 'planner/task',
+      webViewLink: `https://tasks.office.com/planner/task/${taskId}`,
+      createdTime: task.createdDateTime,
+      modifiedTime: task.createdDateTime,
+    }
+    
+    setSelectedFileId(taskId)
+    setSelectedFile(taskAsFileInfo)
     setSelectedTask(task)
-    onChange(task.id, task)
-    onFileInfoChange?.(task)
+    onChange(taskId, taskAsFileInfo)
+    onFileInfoChange?.(taskAsFileInfo)
     setOpen(false)
     setSearchQuery('')
   }
@@ -389,7 +409,10 @@ export function MicrosoftFileSelector({
       selectedCredentialId &&
       credentialsLoaded &&
       !selectedFile &&
-      !isLoadingSelectedFile
+      !isLoadingSelectedFile &&
+      serviceId !== 'microsoft-planner' &&
+      serviceId !== 'sharepoint' &&
+      serviceId !== 'onedrive'
     ) {
       fetchFileById(value)
     }
@@ -570,9 +593,13 @@ export function MicrosoftFileSelector({
   }
 
   // Filter tasks based on search query for planner
-  const filteredTasks =
+  const filteredTasks: SelectableItem[] =
     serviceId === 'microsoft-planner'
-      ? plannerTasks.filter((task) => task.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      ? plannerTasks.filter((task) => {
+          const title = task.title || ''
+          const query = searchQuery || ''
+          return title.toLowerCase().includes(query.toLowerCase())
+        })
       : availableFiles
 
   return (
@@ -701,30 +728,47 @@ export function MicrosoftFileSelector({
                     <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                       {getFileTypeTitleCase()}
                     </div>
-                    {filteredTasks.map((file) => (
-                      <CommandItem
-                        key={file.id}
-                        value={`file-${file.id}-${file.name}`}
-                        onSelect={() =>
-                          serviceId === 'microsoft-planner'
-                            ? handleTaskSelect(file)
-                            : handleFileSelect(file)
-                        }
-                      >
-                        <div className='flex items-center gap-2 overflow-hidden'>
-                          {getFileIcon(file, 'sm')}
-                          <div className='min-w-0 flex-1'>
-                            <span className='truncate font-normal'>{file.name}</span>
-                            {file.modifiedTime && (
-                              <div className='text-muted-foreground text-xs'>
-                                Modified {new Date(file.modifiedTime).toLocaleDateString()}
-                              </div>
-                            )}
+                    {filteredTasks.map((item) => {
+                      const isPlanner = serviceId === 'microsoft-planner'
+                      const isPlannerTask = isPlanner && 'title' in item
+                      const plannerTask = item as PlannerTask
+                      const fileInfo = item as MicrosoftFileInfo
+                      
+                      const displayName = isPlannerTask ? plannerTask.title : fileInfo.name
+                      const dateField = isPlannerTask 
+                        ? plannerTask.createdDateTime 
+                        : fileInfo.createdTime
+                      
+                      return (
+                        <CommandItem
+                          key={item.id}
+                          value={`file-${item.id}-${displayName}`}
+                          onSelect={() =>
+                            isPlannerTask
+                              ? handleTaskSelect(plannerTask)
+                              : handleFileSelect(fileInfo)
+                          }
+                        >
+                          <div className='flex items-center gap-2 overflow-hidden'>
+                            {getFileIcon(isPlannerTask ? {
+                              ...fileInfo,
+                              id: plannerTask.id || '',
+                              name: plannerTask.title,
+                              mimeType: 'planner/task'
+                            } : fileInfo, 'sm')}
+                            <div className='min-w-0 flex-1'>
+                              <span className='truncate font-normal'>{displayName}</span>
+                              {dateField && (
+                                <div className='text-muted-foreground text-xs'>
+                                  Modified {new Date(dateField).toLocaleDateString()}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        {file.id === selectedFileId && <Check className='ml-auto h-4 w-4' />}
-                      </CommandItem>
-                    ))}
+                          {item.id === selectedFileId && <Check className='ml-auto h-4 w-4' />}
+                        </CommandItem>
+                      )
+                    })}
                   </CommandGroup>
                 )}
 
