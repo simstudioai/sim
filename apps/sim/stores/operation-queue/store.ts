@@ -43,16 +43,23 @@ let emitWorkflowOperation:
 let emitSubblockUpdate:
   | ((blockId: string, subblockId: string, value: any, operationId?: string) => void)
   | null = null
-let currentWorkflowId: string | null = null
+let emitBatchSubblockUpdate:
+  | ((blockId: string, subblockValues: Record<string, any>, operationId?: string) => void)
+  | null = null
 
 export function registerEmitFunctions(
   workflowEmit: (operation: string, target: string, payload: any, operationId?: string) => void,
   subblockEmit: (blockId: string, subblockId: string, value: any, operationId?: string) => void,
+  batchSubblockEmit: (
+    blockId: string,
+    subblockValues: Record<string, any>,
+    operationId?: string
+  ) => void,
   workflowId: string | null
 ) {
   emitWorkflowOperation = workflowEmit
   emitSubblockUpdate = subblockEmit
-  currentWorkflowId = workflowId
+  emitBatchSubblockUpdate = batchSubblockEmit
 }
 
 export const useOperationQueueStore = create<OperationQueueState>((set, get) => ({
@@ -102,7 +109,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         }))
 
         get().processNextOperation()
-      }, 150) // 150ms debounce for subblock operations
+      }, 100) // 100ms debounce for subblock operations
 
       subblockDebounceTimeouts.set(debounceKey, timeoutId)
       return
@@ -332,6 +339,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     if (op === 'subblock-update' && target === 'subblock') {
       if (emitSubblockUpdate) {
         emitSubblockUpdate(payload.blockId, payload.subblockId, payload.value, nextOperation.id)
+      }
+    } else if (op === 'batch-subblock-update' && target === 'block') {
+      if (emitBatchSubblockUpdate) {
+        emitBatchSubblockUpdate(payload.blockId, payload.subblockValues, nextOperation.id)
       }
     } else {
       if (emitWorkflowOperation) {
