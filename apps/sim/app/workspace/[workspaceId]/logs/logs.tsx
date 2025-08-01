@@ -67,7 +67,6 @@ export default function Logs() {
     setHasMore,
     isFetchingMore,
     setIsFetchingMore,
-    buildQueryParams,
     initializeFromURL,
     timeRange,
     level,
@@ -81,7 +80,7 @@ export default function Logs() {
   // Set workspace ID in store when component mounts or workspaceId changes
   useEffect(() => {
     setWorkspaceId(workspaceId)
-  }, [workspaceId, setWorkspaceId])
+  }, [workspaceId])
 
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
@@ -107,10 +106,10 @@ export default function Logs() {
 
   // Update store when debounced search query changes
   useEffect(() => {
-    if (debouncedSearchQuery !== storeSearchQuery) {
+    if (isInitialized.current && debouncedSearchQuery !== storeSearchQuery) {
       setStoreSearchQuery(debouncedSearchQuery)
     }
-  }, [debouncedSearchQuery, storeSearchQuery, setStoreSearchQuery])
+  }, [debouncedSearchQuery, storeSearchQuery])
 
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
@@ -119,21 +118,21 @@ export default function Logs() {
     setIsSidebarOpen(true)
   }
 
-  const handleNavigateNext = () => {
+  const handleNavigateNext = useCallback(() => {
     if (selectedLogIndex < logs.length - 1) {
       const nextIndex = selectedLogIndex + 1
       setSelectedLogIndex(nextIndex)
       setSelectedLog(logs[nextIndex])
     }
-  }
+  }, [selectedLogIndex, logs])
 
-  const handleNavigatePrev = () => {
+  const handleNavigatePrev = useCallback(() => {
     if (selectedLogIndex > 0) {
       const prevIndex = selectedLogIndex - 1
       setSelectedLogIndex(prevIndex)
       setSelectedLog(logs[prevIndex])
     }
-  }
+  }, [selectedLogIndex, logs])
 
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false)
@@ -150,56 +149,51 @@ export default function Logs() {
     }
   }, [selectedLogIndex])
 
-  const fetchLogs = useCallback(
-    async (pageNum: number, append = false) => {
-      try {
-        if (pageNum === 1) {
-          setLoading(true)
-        } else {
-          setIsFetchingMore(true)
-        }
-
-        const queryParams = buildQueryParams(pageNum, LOGS_PER_PAGE)
-        const response = await fetch(`/api/logs?${queryParams}`)
-
-        if (!response.ok) {
-          throw new Error(`Error fetching logs: ${response.statusText}`)
-        }
-
-        const data: LogsResponse = await response.json()
-
-        setHasMore(data.data.length === LOGS_PER_PAGE && data.page < data.totalPages)
-
-        setLogs(data.data, append)
-
-        setError(null)
-      } catch (err) {
-        logger.error('Failed to fetch logs:', { err })
-        setError(err instanceof Error ? err.message : 'An unknown error occurred')
-      } finally {
-        if (pageNum === 1) {
-          setLoading(false)
-        } else {
-          setIsFetchingMore(false)
-        }
+  const fetchLogs = useCallback(async (pageNum: number, append = false) => {
+    try {
+      if (pageNum === 1) {
+        setLoading(true)
+      } else {
+        setIsFetchingMore(true)
       }
-    },
-    [setLogs, setLoading, setError, setHasMore, setIsFetchingMore, buildQueryParams]
-  )
+
+      // Get fresh query params by calling buildQueryParams from store
+      const { buildQueryParams: getCurrentQueryParams } = useFilterStore.getState()
+      const queryParams = getCurrentQueryParams(pageNum, LOGS_PER_PAGE)
+      const response = await fetch(`/api/logs?${queryParams}`)
+
+      if (!response.ok) {
+        throw new Error(`Error fetching logs: ${response.statusText}`)
+      }
+
+      const data: LogsResponse = await response.json()
+
+      setHasMore(data.data.length === LOGS_PER_PAGE && data.page < data.totalPages)
+
+      setLogs(data.data, append)
+
+      setError(null)
+    } catch (err) {
+      logger.error('Failed to fetch logs:', { err })
+      setError(err instanceof Error ? err.message : 'An unknown error occurred')
+    } finally {
+      if (pageNum === 1) {
+        setLoading(false)
+      } else {
+        setIsFetchingMore(false)
+      }
+    }
+  }, [])
 
   const handleRefresh = async () => {
     if (isRefreshing) return
 
     setIsRefreshing(true)
 
-    const minLoadingTime = new Promise((resolve) => setTimeout(resolve, 1000))
-
     try {
-      const logsResponse = await fetchLogs(1)
-      await minLoadingTime
+      await fetchLogs(1)
       setError(null)
     } catch (err) {
-      await minLoadingTime
       setError(err instanceof Error ? err.message : 'An unknown error occurred')
     } finally {
       setIsRefreshing(false)
@@ -250,30 +244,57 @@ export default function Logs() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [initializeFromURL])
 
+  // Single useEffect to handle both initial load and filter changes
   useEffect(() => {
     // Only fetch logs after initialization
-    if (isInitialized.current) {
-      fetchLogs(1)
-    }
-  }, [fetchLogs])
-
-  // Refetch when filters change (but not on initial load)
-  useEffect(() => {
-    // Only fetch when initialized and filters change
     if (!isInitialized.current) {
       return
     }
 
-    // Reset pagination and fetch from beginning when filters change
+    // Reset pagination and fetch from beginning
     setPage(1)
     setHasMore(true)
 
-    // Fetch logs with new filters
-    const fetchWithNewFilters = async () => {
+    // Inline fetch logic to avoid circular dependency
+    const fetchWithFilters = async () => {
       try {
         setLoading(true)
-        const queryParams = buildQueryParams(1, LOGS_PER_PAGE)
-        const response = await fetch(`/api/logs?${queryParams}`)
+
+        // Build query params inline to avoid dependency issues
+        const params = new URLSearchParams()
+        params.set('includeWorkflow', 'true')
+        params.set('limit', LOGS_PER_PAGE.toString())
+        params.set('offset', '0') // Always start from page 1
+        params.set('workspaceId', workspaceId)
+
+        // Add filters
+        if (level !== 'all') params.set('level', level)
+        if (triggers.length > 0) params.set('triggers', triggers.join(','))
+        if (workflowIds.length > 0) params.set('workflowIds', workflowIds.join(','))
+        if (folderIds.length > 0) params.set('folderIds', folderIds.join(','))
+        if (searchQuery.trim()) params.set('search', searchQuery.trim())
+
+        // Add time range filter
+        if (timeRange !== 'All time') {
+          const now = new Date()
+          let startDate: Date
+          switch (timeRange) {
+            case 'Past 30 minutes':
+              startDate = new Date(now.getTime() - 30 * 60 * 1000)
+              break
+            case 'Past hour':
+              startDate = new Date(now.getTime() - 60 * 60 * 1000)
+              break
+            case 'Past 24 hours':
+              startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+              break
+            default:
+              startDate = new Date(0)
+          }
+          params.set('startDate', startDate.toISOString())
+        }
+
+        const response = await fetch(`/api/logs?${params.toString()}`)
 
         if (!response.ok) {
           throw new Error(`Error fetching logs: ${response.statusText}`)
@@ -291,21 +312,8 @@ export default function Logs() {
       }
     }
 
-    fetchWithNewFilters()
-  }, [
-    timeRange,
-    level,
-    workflowIds,
-    folderIds,
-    searchQuery,
-    triggers,
-    setPage,
-    setHasMore,
-    setLoading,
-    setLogs,
-    setError,
-    buildQueryParams,
-  ])
+    fetchWithFilters()
+  }, [workspaceId, timeRange, level, workflowIds, folderIds, searchQuery, triggers])
 
   const loadMoreLogs = useCallback(() => {
     if (!isFetchingMore && hasMore) {
@@ -316,7 +324,7 @@ export default function Logs() {
         fetchLogs(nextPage, true)
       }, 50)
     }
-  }, [fetchLogs, isFetchingMore, hasMore, page, setPage, setIsFetchingMore])
+  }, [isFetchingMore, hasMore, page])
 
   useEffect(() => {
     if (loading || !hasMore) return
@@ -398,15 +406,7 @@ export default function Logs() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [
-    logs,
-    selectedLogIndex,
-    isSidebarOpen,
-    selectedLog,
-    handleNavigateNext,
-    handleNavigatePrev,
-    setIsSidebarOpen,
-  ])
+  }, [logs, selectedLogIndex, isSidebarOpen, selectedLog, handleNavigateNext, handleNavigatePrev])
 
   return (
     <div className='flex h-[100vh] min-w-0 flex-col pl-64'>

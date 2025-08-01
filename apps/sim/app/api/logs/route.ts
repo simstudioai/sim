@@ -77,7 +77,6 @@ export async function GET(request: NextRequest) {
 
       const baseQuery = db
         .select({
-          // Select all log fields
           id: workflowExecutionLogs.id,
           workflowId: workflowExecutionLogs.workflowId,
           executionId: workflowExecutionLogs.executionId,
@@ -98,8 +97,14 @@ export async function GET(request: NextRequest) {
           totalTokens: workflowExecutionLogs.totalTokens,
           metadata: workflowExecutionLogs.metadata,
           createdAt: workflowExecutionLogs.createdAt,
-          // Also select workflow folder for filtering
+          workflowName: workflow.name,
+          workflowDescription: workflow.description,
+          workflowColor: workflow.color,
           workflowFolderId: workflow.folderId,
+          workflowUserId: workflow.userId,
+          workflowWorkspaceId: workflow.workspaceId,
+          workflowCreatedAt: workflow.createdAt,
+          workflowUpdatedAt: workflow.updatedAt,
         })
         .from(workflowExecutionLogs)
         .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
@@ -281,7 +286,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Transform to clean log format
+      // Transform to clean log format with workflow data included
       const enhancedLogs = logs.map((log) => {
         const blockExecutions = blockExecutionsByExecution[log.executionId] || []
 
@@ -308,6 +313,19 @@ export async function GET(request: NextRequest) {
                 models: (log.metadata as any)?.models || {},
               }
 
+        // Build workflow object from joined data
+        const workflow = {
+          id: log.workflowId,
+          name: log.workflowName,
+          description: log.workflowDescription,
+          color: log.workflowColor,
+          folderId: log.workflowFolderId,
+          userId: log.workflowUserId,
+          workspaceId: log.workflowWorkspaceId,
+          createdAt: log.workflowCreatedAt,
+          updatedAt: log.workflowUpdatedAt,
+        }
+
         return {
           id: log.id,
           workflowId: log.workflowId,
@@ -317,6 +335,7 @@ export async function GET(request: NextRequest) {
           duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
           trigger: log.trigger,
           createdAt: log.startedAt.toISOString(),
+          workflow: params.includeWorkflow ? workflow : undefined,
           metadata: {
             totalDuration: log.totalDurationMs,
             cost: costSummary,
@@ -332,30 +351,6 @@ export async function GET(request: NextRequest) {
           },
         }
       })
-
-      if (params.includeWorkflow) {
-        const workflowIds = [...new Set(logs.map((log) => log.workflowId))]
-        const workflowConditions = inArray(workflow.id, workflowIds)
-
-        const workflowData = await db.select().from(workflow).where(workflowConditions)
-        const workflowMap = new Map(workflowData.map((w) => [w.id, w]))
-
-        const logsWithWorkflow = enhancedLogs.map((log) => ({
-          ...log,
-          workflow: workflowMap.get(log.workflowId) || null,
-        }))
-
-        return NextResponse.json(
-          {
-            data: logsWithWorkflow,
-            total: Number(count),
-            page: Math.floor(params.offset / params.limit) + 1,
-            pageSize: params.limit,
-            totalPages: Math.ceil(Number(count) / params.limit),
-          },
-          { status: 200 }
-        )
-      }
 
       // Include block execution data if requested
       if (params.includeBlocks) {
