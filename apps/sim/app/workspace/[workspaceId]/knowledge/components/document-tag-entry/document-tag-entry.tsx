@@ -109,8 +109,6 @@ export function DocumentTagEntry({
   const saveTagFromModal = async () => {
     if (!editForm.displayName.trim()) return
 
-    console.log('Saving tag from modal:', editForm, 'editingTagIndex:', editingTagIndex)
-
     try {
       if (editingTagIndex !== null) {
         // Editing existing tag
@@ -132,7 +130,6 @@ export function DocumentTagEntry({
           value: editForm.value,
         }
         const newTags = [...tags, newTag]
-        console.log('Adding new tag:', newTag, 'New tags array:', newTags)
         onTagsChange(newTags)
       }
 
@@ -153,20 +150,15 @@ export function DocumentTagEntry({
         }
 
         if (saveTagDefinitions) {
-          console.log('Saving tag definition:', newDefinition)
           await saveTagDefinitions([newDefinition])
-          console.log('Tag definition saved successfully')
         } else {
           throw new Error('Cannot save tag definitions without a document ID')
         }
-        console.log('Refreshing tag definitions...')
         await refreshTagDefinitions()
-        console.log('Tag definitions refreshed')
       }
 
       // Save the actual document tags if onSave is provided
       if (onSave) {
-        console.log('Saving document tags...')
         const updatedTags =
           editingTagIndex !== null
             ? tags.map((tag, index) =>
@@ -189,7 +181,6 @@ export function DocumentTagEntry({
                 },
               ]
         await onSave(updatedTags)
-        console.log('Document tags saved successfully')
       }
 
       setModalOpen(false)
