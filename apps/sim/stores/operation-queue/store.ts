@@ -102,7 +102,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
         }))
 
         get().processNextOperation()
-      }, 100) // 100ms debounce for subblock operations
+      }, 50) // 50ms debounce for subblock operations - optimized for collaborative editing
 
       subblockDebounceTimeouts.set(debounceKey, timeoutId)
       return
