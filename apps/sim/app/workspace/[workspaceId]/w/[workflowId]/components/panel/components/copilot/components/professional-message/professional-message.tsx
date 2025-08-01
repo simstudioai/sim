@@ -316,8 +316,9 @@ function getToolDisplayNameByState(toolCall: any): string {
 function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepNumber?: number }) {
   // Check if this tool requires interrupt and is in a pending/executing state
   const requiresInterrupt = toolRequiresInterrupt(tool.name)
+  const [buttonsHidden, setButtonsHidden] = useState(false)
   const showInterruptConfirmation = requiresInterrupt && 
-    (tool.state === 'executing' || tool.state === 'pending')
+    (tool.state === 'executing' || tool.state === 'pending') && !buttonsHidden
 
   // Get access to the copilot store
   const { updatePreviewToolCallState } = useCopilotStore()
@@ -328,6 +329,8 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   const [isWorkflowExecuting, setIsWorkflowExecuting] = useState(false)
   // State for processing background move
   const [isMovingToBackground, setIsMovingToBackground] = useState(false)
+  // Track if we already sent confirmation via background move
+  const [backgroundConfirmationSent, setBackgroundConfirmationSent] = useState(false)
 
   const getToolIcon = () => {
     const displayName = tool.displayName || tool.name || ''
@@ -419,33 +422,36 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   const { activeWorkflowId } = useWorkflowRegistry()
   const { getConversationId } = useChatStore()
 
-  // API call to move workflow to background
+    // API call to move workflow to background
   const handleMoveToBackground = async (toolCallId: string) => {
     if (isMovingToBackground) return
     
+    // Hide buttons when moving to background
+    setButtonsHidden(true)
     setIsMovingToBackground(true)
     
     try {
-      // Send confirmation with background message
+      // Send early confirmation with background message to copilot
       const response = await fetch('/api/copilot/confirm', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-                  body: JSON.stringify({
-            toolCallId,
-            status: 'Accept',
-            message: 'The user moved workflow execution to the background. Execution is not yet complete'
-          }),
+        body: JSON.stringify({
+          toolCallId,
+          status: 'Accept',
+          message: 'The user moved workflow execution to the background. Execution is not yet complete'
+        }),
       })
 
       if (!response.ok) {
         const error = await response.json()
         console.error('Failed to move workflow to background:', error)
       } else {
-        updatePreviewToolCallState('applied', toolCallId)
-        setIsWorkflowExecuting(false) // Stop showing the background button
-        console.log(`Workflow ${toolCallId} moved to background`)
+        // Mark that we sent background confirmation
+        setBackgroundConfirmationSent(true)
+        // Don't change isWorkflowExecuting - keep showing as executing
+        console.log(`Workflow ${toolCallId} moved to background - still executing`)
       }
     } catch (error) {
       console.error('Error moving workflow to background:', error)
@@ -458,13 +464,15 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
   const handleConfirmTool = async (toolCallId: string, status: 'Accept' | 'Reject') => {
     if (isProcessing) return
     
+    // Hide buttons immediately
+    setButtonsHidden(true)
     setIsProcessing(true)
     
     try {
       // Special handling for run_workflow tool
       if (tool.name === COPILOT_TOOL_IDS.RUN_WORKFLOW) {
         if (status === 'Reject') {
-          // For rejection, immediately update state and call confirm API
+          // For rejection, immediately update state to hide buttons and call confirm API
           updatePreviewToolCallState('rejected', toolCallId)
           
           const response = await fetch('/api/copilot/confirm', {
@@ -548,33 +556,44 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
             console.log('Manual execution completed')
           }
           
-          // Only update state to 'applied' after successful execution
+          // Workflow execution completed
           setIsWorkflowExecuting(false)
-          updatePreviewToolCallState('applied', toolCallId)
           
-          // Now call the confirm API after workflow execution completes
-          const response = await fetch('/api/copilot/confirm', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              toolCallId,
-              status,
-              message: 'Workflow execution finished, check console logs to see output'
-            }),
-          })
-
-          if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.error || 'Failed to confirm tool after workflow execution')
+          // Only update tool state if not moved to background
+          if (!backgroundConfirmationSent) {
+            updatePreviewToolCallState('applied', toolCallId)
+          } else {
+            console.log('Workflow completed but was moved to background - keeping executing state')
           }
+          
+          // Only send confirmation if we haven't already sent it via background move
+          if (!backgroundConfirmationSent) {
+            // Now call the confirm API after workflow execution completes
+            const response = await fetch('/api/copilot/confirm', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                toolCallId,
+                status,
+                message: 'Workflow execution finished, check console logs to see output'
+              }),
+            })
 
-          const confirmResult = await response.json()
-          console.log(`Tool ${toolCallId} ${status.toLowerCase()}ed after workflow execution:`, confirmResult)
+            if (!response.ok) {
+              const error = await response.json()
+              throw new Error(error.error || 'Failed to confirm tool after workflow execution')
+            }
+
+            const confirmResult = await response.json()
+            console.log(`Tool ${toolCallId} ${status.toLowerCase()}ed after workflow execution:`, confirmResult)
+          } else {
+            console.log(`Tool ${toolCallId} execution completed - confirmation already sent via background move`)
+          }
         } catch (workflowError) {
           console.error('Workflow execution failed:', workflowError)
-          // Update state to error on failure
+          // Workflow execution failed - always update state
           setIsWorkflowExecuting(false)
           updatePreviewToolCallState('error', toolCallId)
           throw workflowError
@@ -651,9 +670,9 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
       )}
 
       {/* Show move to background option during workflow execution */}
-      {tool.name === COPILOT_TOOL_IDS.RUN_WORKFLOW && isWorkflowExecuting && (
+      {tool.name === COPILOT_TOOL_IDS.RUN_WORKFLOW && isWorkflowExecuting && !backgroundConfirmationSent && (
         <div className='flex items-center gap-1.5'>
-          <span className='text-xs text-muted-foreground'>Executing workflow...</span>
+          <span className='text-xs text-muted-foreground'></span>
           <Button
             onClick={() => handleMoveToBackground(tool.id)}
             disabled={isMovingToBackground}

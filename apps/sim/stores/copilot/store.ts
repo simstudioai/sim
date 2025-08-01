@@ -416,6 +416,14 @@ function finalizeToolCall(toolCall: any, success: boolean, result?: any, get?: (
       // Not in terminal state, set appropriate state
       if (toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW) {
         toolCall.state = 'ready_for_review'
+      } else if (toolCall.name === COPILOT_TOOL_IDS.RUN_WORKFLOW) {
+        // For run_workflow, check if it's still executing (e.g., moved to background)
+        // If the current state is 'executing', preserve it
+        if (toolCall.state === 'executing') {
+          // Keep executing state - workflow was moved to background
+          return
+        }
+        toolCall.state = 'completed'
       } else {
         toolCall.state = 'completed'
       }
