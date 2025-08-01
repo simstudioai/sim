@@ -41,7 +41,7 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
   request: {
     url: (params) => {
       let finalUrl: string
-      
+
       // If taskId is provided, get specific task
       if (params.taskId) {
         finalUrl = `https://graph.microsoft.com/v1.0/planner/tasks/${params.taskId}`

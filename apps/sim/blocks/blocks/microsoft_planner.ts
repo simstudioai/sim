@@ -134,17 +134,17 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         // For read operations
         if (operation === 'read_task') {
           const readParams: any = { ...baseParams }
-          
+
           // If taskId is provided, add it (highest priority - get specific task)
           if (taskId?.trim()) {
             readParams.taskId = taskId.trim()
           }
-          // If no taskId but planId is provided, add planId (get tasks from plan)  
+          // If no taskId but planId is provided, add planId (get tasks from plan)
           else if (planId?.trim()) {
             readParams.planId = planId.trim()
           }
           // If neither, get all user tasks (baseParams only)
-          
+
           return readParams
         }
 
