@@ -33,6 +33,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseDomain, getEmailDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
+import { ImageSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/image-selector/image-selector'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components'
 import type { OutputConfig } from '@/stores/panel/chat/types'
 
@@ -68,6 +69,7 @@ const chatSchema = z.object({
   customizations: z.object({
     primaryColor: z.string(),
     welcomeMessage: z.string(),
+    imageUrl: z.string().optional(),
   }),
   authType: z.enum(['public', 'password', 'email']),
   password: z.string().optional(),
@@ -145,6 +147,9 @@ export function ChatDeploy({
 
   // Welcome message state
   const [welcomeMessage, setWelcomeMessage] = useState('Hi there! How can I help you today?')
+
+  // Image URL state
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
 
   // Expose a method to handle external submission requests
   useEffect(() => {
@@ -238,6 +243,11 @@ export function ChatDeploy({
             // Set welcome message if it exists
             if (chatDetail.customizations?.welcomeMessage) {
               setWelcomeMessage(chatDetail.customizations.welcomeMessage)
+            }
+
+            // Set image URL if it exists
+            if (chatDetail.customizations?.imageUrl) {
+              setImageUrl(chatDetail.customizations.imageUrl)
             }
           } else {
             logger.error('Failed to fetch chat details')
@@ -524,6 +534,7 @@ export function ChatDeploy({
         customizations: {
           primaryColor: '#802FFF',
           welcomeMessage: welcomeMessage.trim(),
+          ...(imageUrl && { imageUrl }),
         },
         authType: authType,
       }
@@ -1189,7 +1200,7 @@ export function ChatDeploy({
             </div>
           </div>
 
-          {/* Welcome Message Section - Add this before the form closing div */}
+          {/* Welcome Message Section */}
           <div className='space-y-2'>
             <Label htmlFor='welcomeMessage' className='font-medium text-sm'>
               Welcome Message
@@ -1206,6 +1217,15 @@ export function ChatDeploy({
               This message will be displayed when users first open the chat
             </p>
           </div>
+
+          {/* Image Selector Section */}
+          <ImageSelector
+            value={imageUrl}
+            onChange={setImageUrl}
+            disabled={isDeploying}
+            label='Chat Logo'
+            placeholder='Upload a logo for your chat'
+          />
         </div>
       </form>
 

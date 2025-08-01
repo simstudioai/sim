@@ -6,7 +6,14 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
 import { getBlobServiceClient } from '@/lib/uploads/blob/blob-client'
 import { getS3Client, sanitizeFilenameForMetadata } from '@/lib/uploads/s3/s3-client'
-import { BLOB_CONFIG, BLOB_KB_CONFIG, S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
+import {
+  BLOB_CHAT_CONFIG,
+  BLOB_CONFIG,
+  BLOB_KB_CONFIG,
+  S3_CHAT_CONFIG,
+  S3_CONFIG,
+  S3_KB_CONFIG,
+} from '@/lib/uploads/setup'
 import { createErrorResponse, createOptionsResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('PresignedUploadAPI')
@@ -17,7 +24,7 @@ interface PresignedUrlRequest {
   fileSize: number
 }
 
-type UploadType = 'general' | 'knowledge-base'
+type UploadType = 'general' | 'knowledge-base' | 'chat'
 
 class PresignedUrlError extends Error {
   constructor(
@@ -72,7 +79,11 @@ export async function POST(request: NextRequest) {
 
     const uploadTypeParam = request.nextUrl.searchParams.get('type')
     const uploadType: UploadType =
-      uploadTypeParam === 'knowledge-base' ? 'knowledge-base' : 'general'
+      uploadTypeParam === 'knowledge-base'
+        ? 'knowledge-base'
+        : uploadTypeParam === 'chat'
+          ? 'chat'
+          : 'general'
 
     if (!isUsingCloudStorage()) {
       throw new StorageConfigError(
@@ -118,14 +129,19 @@ async function handleS3PresignedUrl(
   uploadType: UploadType
 ) {
   try {
-    const config = uploadType === 'knowledge-base' ? S3_KB_CONFIG : S3_CONFIG
+    const config =
+      uploadType === 'knowledge-base'
+        ? S3_KB_CONFIG
+        : uploadType === 'chat'
+          ? S3_CHAT_CONFIG
+          : S3_CONFIG
 
     if (!config.bucket || !config.region) {
       throw new StorageConfigError(`S3 configuration missing for ${uploadType} uploads`)
     }
 
     const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-    const prefix = uploadType === 'knowledge-base' ? 'kb/' : ''
+    const prefix = uploadType === 'knowledge-base' ? 'kb/' : uploadType === 'chat' ? 'chat/' : ''
     const uniqueKey = `${prefix}${Date.now()}-${uuidv4()}-${safeFileName}`
 
     const sanitizedOriginalName = sanitizeFilenameForMetadata(fileName)
@@ -137,6 +153,8 @@ async function handleS3PresignedUrl(
 
     if (uploadType === 'knowledge-base') {
       metadata.purpose = 'knowledge-base'
+    } else if (uploadType === 'chat') {
+      metadata.purpose = 'chat'
     }
 
     const command = new PutObjectCommand({
@@ -156,14 +174,22 @@ async function handleS3PresignedUrl(
       )
     }
 
-    const servePath = `/api/files/serve/s3/${encodeURIComponent(uniqueKey)}`
+    // For chat images, use direct S3 URLs since they need to be permanently accessible
+    // For other files, use serve path for access control
+    const finalPath =
+      uploadType === 'chat'
+        ? `https://${config.bucket}.s3.${config.region}.amazonaws.com/${uniqueKey}`
+        : `/api/files/serve/s3/${encodeURIComponent(uniqueKey)}`
 
     logger.info(`Generated ${uploadType} S3 presigned URL for ${fileName} (${uniqueKey})`)
+    logger.info(`Presigned URL: ${presignedUrl}`)
+    logger.info(`Final path: ${finalPath}`)
 
     return NextResponse.json({
       presignedUrl,
+      uploadUrl: presignedUrl, // Make sure we're returning the uploadUrl field
       fileInfo: {
-        path: servePath,
+        path: finalPath,
         key: uniqueKey,
         name: fileName,
         size: fileSize,
@@ -187,7 +213,12 @@ async function handleBlobPresignedUrl(
   uploadType: UploadType
 ) {
   try {
-    const config = uploadType === 'knowledge-base' ? BLOB_KB_CONFIG : BLOB_CONFIG
+    const config =
+      uploadType === 'knowledge-base'
+        ? BLOB_KB_CONFIG
+        : uploadType === 'chat'
+          ? BLOB_CHAT_CONFIG
+          : BLOB_CONFIG
 
     if (
       !config.accountName ||
@@ -198,7 +229,7 @@ async function handleBlobPresignedUrl(
     }
 
     const safeFileName = fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
-    const prefix = uploadType === 'knowledge-base' ? 'kb/' : ''
+    const prefix = uploadType === 'knowledge-base' ? 'kb/' : uploadType === 'chat' ? 'chat/' : ''
     const uniqueKey = `${prefix}${Date.now()}-${uuidv4()}-${safeFileName}`
 
     const blobServiceClient = getBlobServiceClient()
@@ -231,7 +262,12 @@ async function handleBlobPresignedUrl(
 
     const presignedUrl = `${blockBlobClient.url}?${sasToken}`
 
-    const servePath = `/api/files/serve/blob/${encodeURIComponent(uniqueKey)}`
+    // For chat images, use direct Blob URLs since they need to be permanently accessible
+    // For other files, use serve path for access control
+    const finalPath =
+      uploadType === 'chat'
+        ? blockBlobClient.url
+        : `/api/files/serve/blob/${encodeURIComponent(uniqueKey)}`
 
     logger.info(`Generated ${uploadType} Azure Blob presigned URL for ${fileName} (${uniqueKey})`)
 
@@ -244,12 +280,14 @@ async function handleBlobPresignedUrl(
 
     if (uploadType === 'knowledge-base') {
       uploadHeaders['x-ms-meta-purpose'] = 'knowledge-base'
+    } else if (uploadType === 'chat') {
+      uploadHeaders['x-ms-meta-purpose'] = 'chat'
     }
 
     return NextResponse.json({
       presignedUrl,
       fileInfo: {
-        path: servePath,
+        path: finalPath,
         key: uniqueKey,
         name: fileName,
         size: fileSize,

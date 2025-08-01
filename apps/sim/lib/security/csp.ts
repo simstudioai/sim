@@ -51,6 +51,19 @@ export const cspDirectives: CSPDirectives = {
     'https://cdn.discordapp.com',
     'https://*.githubusercontent.com',
     'https://*.public.blob.vercel-storage.com',
+    'https://*.s3.amazonaws.com',
+    'https://s3.amazonaws.com',
+    ...(env.S3_BUCKET_NAME && env.AWS_REGION
+      ? [`https://${env.S3_BUCKET_NAME}.s3.${env.AWS_REGION}.amazonaws.com`]
+      : []),
+    ...(env.S3_KB_BUCKET_NAME && env.AWS_REGION
+      ? [`https://${env.S3_KB_BUCKET_NAME}.s3.${env.AWS_REGION}.amazonaws.com`]
+      : []),
+    ...(env.S3_CHAT_BUCKET_NAME && env.AWS_REGION
+      ? [`https://${env.S3_CHAT_BUCKET_NAME}.s3.${env.AWS_REGION}.amazonaws.com`]
+      : []),
+    'https://*.amazonaws.com',
+    'https://*.blob.core.windows.net',
   ],
 
   'media-src': ["'self'", 'blob:'],
