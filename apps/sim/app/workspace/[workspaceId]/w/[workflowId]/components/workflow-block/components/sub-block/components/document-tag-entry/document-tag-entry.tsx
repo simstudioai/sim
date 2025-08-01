@@ -131,6 +131,41 @@ export function DocumentTagEntry({
     setStoreValue(jsonString)
   }
 
+  // Shared helper function for updating rows and generating JSON
+  const updateRowsAndGenerateJson = (rowIndex: number, column: string, value: string) => {
+    const updatedRows = [...rows].map((row, idx) => {
+      if (idx === rowIndex) {
+        const newCells = { ...row.cells, [column]: value }
+
+        // Auto-select type when existing tag is selected
+        if (column === 'tagName' && value) {
+          const tagDef = tagDefinitions.find(
+            (def) => def.displayName.toLowerCase() === value.toLowerCase()
+          )
+          if (tagDef) {
+            newCells.type = tagDef.fieldType
+          }
+        }
+
+        return {
+          ...row,
+          cells: newCells,
+        }
+      }
+      return row
+    })
+
+    // Store all rows including empty ones - don't auto-remove
+    const dataToStore = updatedRows.map((row) => ({
+      id: row.id,
+      tagName: row.cells.tagName || '',
+      fieldType: row.cells.type || 'text',
+      value: row.cells.value || '',
+    }))
+
+    return dataToStore.length > 0 ? JSON.stringify(dataToStore) : ''
+  }
+
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
     if (isPreview || disabled) return
 
@@ -158,78 +193,14 @@ export function DocumentTagEntry({
       }
     }
 
-    const updatedRows = [...rows].map((row, idx) => {
-      if (idx === rowIndex) {
-        const newCells = { ...row.cells, [column]: value }
-
-        // Auto-select type when existing tag is selected
-        if (column === 'tagName' && value) {
-          const tagDef = tagDefinitions.find(
-            (def) => def.displayName.toLowerCase() === value.toLowerCase()
-          )
-          if (tagDef) {
-            newCells.type = tagDef.fieldType
-          }
-        }
-
-        return {
-          ...row,
-          cells: newCells,
-        }
-      }
-      return row
-    })
-
-    // No auto-add rows - user will manually add them with plus button
-
-    // Store all rows including empty ones - don't auto-remove
-    const dataToStore = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      fieldType: row.cells.type || 'text',
-      value: row.cells.value || '',
-    }))
-
-    const jsonString = dataToStore.length > 0 ? JSON.stringify(dataToStore) : ''
+    const jsonString = updateRowsAndGenerateJson(rowIndex, column, value)
     setStoreValue(jsonString)
   }
 
-  // Special handler for tag dropdown selections that uses immediate emission
   const handleTagDropdownSelection = (rowIndex: number, column: string, value: string) => {
     if (isPreview || disabled) return
 
-    const updatedRows = [...rows].map((row, idx) => {
-      if (idx === rowIndex) {
-        const newCells = { ...row.cells, [column]: value }
-
-        // Auto-select type when existing tag is selected
-        if (column === 'tagName' && value) {
-          const tagDef = tagDefinitions.find(
-            (def) => def.displayName.toLowerCase() === value.toLowerCase()
-          )
-          if (tagDef) {
-            newCells.type = tagDef.fieldType
-          }
-        }
-
-        return {
-          ...row,
-          cells: newCells,
-        }
-      }
-      return row
-    })
-
-    // Store all rows including empty ones - don't auto-remove
-    const dataToStore = updatedRows.map((row) => ({
-      id: row.id,
-      tagName: row.cells.tagName || '',
-      fieldType: row.cells.type || 'text',
-      value: row.cells.value || '',
-    }))
-
-    const jsonString = dataToStore.length > 0 ? JSON.stringify(dataToStore) : ''
-
+    const jsonString = updateRowsAndGenerateJson(rowIndex, column, value)
     emitTagSelection(jsonString)
   }
 

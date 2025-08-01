@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
+import { useTagSelection } from '@/hooks/use-tag-selection'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface TagFilter {
@@ -43,6 +44,9 @@ export function KnowledgeTagFilters({
   isConnecting = false,
 }: KnowledgeTagFiltersProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
+
+  // Hook for immediate tag/dropdown selections
+  const emitTagSelection = useTagSelection(blockId, subBlock.id)
 
   // Get the knowledge base ID from other sub-blocks
   const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
@@ -120,6 +124,30 @@ export function KnowledgeTagFilters({
     }))
 
     updateFilters(updatedFilters)
+  }
+
+  const handleTagDropdownSelection = (rowIndex: number, column: string, value: string) => {
+    if (isPreview || disabled) return
+
+    const updatedRows = [...rows].map((row, idx) => {
+      if (idx === rowIndex) {
+        return {
+          ...row,
+          cells: { ...row.cells, [column]: value },
+        }
+      }
+      return row
+    })
+
+    // Convert back to TagFilter format - keep all rows, even empty ones
+    const updatedFilters = updatedRows.map((row) => ({
+      id: row.id,
+      tagName: row.cells.tagName || '',
+      tagValue: row.cells.value || '',
+    }))
+
+    const jsonValue = updatedFilters.length > 0 ? JSON.stringify(updatedFilters) : null
+    emitTagSelection(jsonValue)
   }
 
   const handleAddRow = () => {
@@ -336,7 +364,8 @@ export function KnowledgeTagFilters({
         <TagDropdown
           visible={activeTagDropdown.showTags}
           onSelect={(newValue) => {
-            handleCellChange(activeTagDropdown.rowIndex, 'value', newValue)
+            // Use immediate emission for tag dropdown selections
+            handleTagDropdownSelection(activeTagDropdown.rowIndex, 'value', newValue)
             setActiveTagDropdown(null)
           }}
           blockId={blockId}
