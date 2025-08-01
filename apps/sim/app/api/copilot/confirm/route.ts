@@ -10,7 +10,7 @@ import { apiKey as apiKeyTable } from '@/db/schema'
 const logger = createLogger('CopilotConfirmAPI')
 
 // Tool call status types
-type ToolCallStatus = 'Pending' | 'Accepted' | 'Rejected'
+type ToolCallStatus = 'Pending' | 'Accepted' | 'Rejected' | 'Error'
 
 // Schema for confirmation request
 const ConfirmationSchema = z.object({

@@ -421,13 +421,32 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
     
     setIsProcessing(true)
     
-    // Immediately update the tool state using the store
-    const newState = status === 'Accept' ? 'applied' : 'rejected'
-    updatePreviewToolCallState(newState, toolCallId)
-
     try {
       // Special handling for run_workflow tool
-      if (tool.name === COPILOT_TOOL_IDS.RUN_WORKFLOW && status === 'Accept') {
+      if (tool.name === COPILOT_TOOL_IDS.RUN_WORKFLOW) {
+        if (status === 'Reject') {
+          // For rejection, immediately update state and call confirm API
+          updatePreviewToolCallState('rejected', toolCallId)
+          
+          const response = await fetch('/api/copilot/confirm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              toolCallId,
+              status,
+            }),
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            console.log(`Tool ${toolCallId} rejected by user`)
+          }
+          return
+        }
+        
+        // For acceptance, show spinner during workflow execution
         console.log('Executing workflow via run_workflow tool...')
         console.log('🔍 Full tool object:', JSON.stringify(tool, null, 2))
         
@@ -438,7 +457,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
         const chatInput = params.workflow_input
         console.log('🔍 Chat input extracted:', chatInput)
         
-        // Execute the workflow
+        // Execute the workflow and wait for completion
         try {
           // Get conversation ID for the current workflow to ensure proper chat execution
           const conversationId = activeWorkflowId ? getConversationId(activeWorkflowId) : undefined
@@ -452,37 +471,100 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
           
           console.log('🔍 Final workflow input:', JSON.stringify(workflowInput, null, 2))
           
-          await handleRunWorkflow(workflowInput)
-          console.log('Workflow execution completed successfully')
+          // Execute workflow (tool stays in pending state showing spinner)
+          const workflowResult = await handleRunWorkflow(workflowInput)
+          console.log('Workflow execution started, result:', workflowResult)
+          
+          // For chat executions, we need to wait for the execution to actually complete
+          // We'll monitor the isExecuting state from the workflow execution hook
+          if (workflowResult && 'stream' in workflowResult) {
+            console.log('Chat execution started, waiting for completion...')
+            // Wait for the execution to complete by consuming the stream
+            await new Promise<void>((resolve, reject) => {
+              // For now, consume the stream to wait for completion
+              if (workflowResult.stream) {
+                const reader = workflowResult.stream.getReader()
+                const pump = async (): Promise<void> => {
+                  try {
+                    while (true) {
+                      const { done } = await reader.read()
+                      if (done) {
+                        resolve()
+                        break
+                      }
+                    }
+                  } catch (error) {
+                    reject(error)
+                  }
+                }
+                pump()
+              } else {
+                // No stream, resolve immediately
+                resolve()
+              }
+            })
+            console.log('Chat execution completed')
+          } else {
+            console.log('Manual execution completed')
+          }
+          
+          // Only update state to 'applied' after successful execution
+          updatePreviewToolCallState('applied', toolCallId)
+          
+          // Now call the confirm API after workflow execution completes
+          const response = await fetch('/api/copilot/confirm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              toolCallId,
+              status,
+            }),
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Failed to confirm tool after workflow execution')
+          }
+
+          const confirmResult = await response.json()
+          console.log(`Tool ${toolCallId} ${status.toLowerCase()}ed after workflow execution:`, confirmResult)
         } catch (workflowError) {
           console.error('Workflow execution failed:', workflowError)
-          // Don't throw here - we still want to call the confirm API
+          // Update state to error on failure
+          updatePreviewToolCallState('error', toolCallId)
+          throw workflowError
         }
-      }
+      } else {
+        // For all other tools, immediately update state and call confirm API
+        const newState = status === 'Accept' ? 'applied' : 'rejected'
+        updatePreviewToolCallState(newState, toolCallId)
+        
+        const response = await fetch('/api/copilot/confirm', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            toolCallId,
+            status,
+          }),
+        })
 
-      const response = await fetch('/api/copilot/confirm', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          toolCallId,
-          status,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        // Don't throw error for rejections - user explicitly chose to reject
-        if (status === 'Reject') {
-          console.log(`Tool ${toolCallId} rejected by user`)
-          return
+        if (!response.ok) {
+          const error = await response.json()
+          // Don't throw error for rejections - user explicitly chose to reject
+          if (status === 'Reject') {
+            console.log(`Tool ${toolCallId} rejected by user`)
+            return
+          }
+          throw new Error(error.error || 'Failed to confirm tool')
         }
-        throw new Error(error.error || 'Failed to confirm tool')
-      }
 
-      const result = await response.json()
-      console.log(`Tool ${toolCallId} ${status.toLowerCase()}ed:`, result)
+        const confirmResult = await response.json()
+        console.log(`Tool ${toolCallId} ${status.toLowerCase()}ed:`, confirmResult)
+      }
     } catch (error) {
       // Don't show errors for explicit rejections
       if (status === 'Reject') {

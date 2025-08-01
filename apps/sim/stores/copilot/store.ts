@@ -1630,7 +1630,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Send implicit feedback
       sendImplicitFeedback: async (
         implicitFeedback: string,
-        toolCallState?: 'applied' | 'rejected'
+        toolCallState?: 'applied' | 'rejected' | 'error'
       ) => {
         const { workflowId, currentChat, mode } = get()
 
@@ -1699,7 +1699,7 @@ export const useCopilotStore = create<CopilotStore>()(
       },
 
       // Update preview tool call state
-      updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected', toolCallId?: string) => {
+      updatePreviewToolCallState: (toolCallState: 'applied' | 'rejected' | 'error', toolCallId?: string) => {
         const { messages } = get()
 
         // If toolCallId is provided, update specific tool call (for interrupt tools)

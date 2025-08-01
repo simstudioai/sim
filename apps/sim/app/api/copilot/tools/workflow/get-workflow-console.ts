@@ -38,12 +38,12 @@ async function getWorkflowConsole(
   params: GetWorkflowConsoleParams
 ): Promise<WorkflowConsoleResult> {
   const logger = createLogger('GetWorkflowConsole')
-  const { workflowId, limit = 50, includeDetails = false } = params
+  const { workflowId, limit = 10, includeDetails = false } = params
 
   logger.info('Fetching workflow console logs', { workflowId, limit, includeDetails })
 
   // Limit the number of entries to prevent large payloads that break streaming
-  const effectiveLimit = Math.min(limit, 20) // Cap at 20 entries for streaming safety
+  const effectiveLimit = Math.min(limit, 10) // Cap at 10 entries for streaming safety
 
   // Get recent execution logs for the workflow
   const executionLogs = await db

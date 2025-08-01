@@ -8,7 +8,7 @@ import { getRedisClient } from '@/lib/redis'
 const logger = createLogger('CopilotMethodsAPI')
 
 // Tool call status types
-type ToolCallStatus = 'Pending' | 'Accepted' | 'Rejected'
+type ToolCallStatus = 'Pending' | 'Accepted' | 'Rejected' | 'Error'
 
 /**
  * Add a tool call to Redis with 'Pending' status
@@ -57,7 +57,7 @@ async function pollRedisForTool(toolCallId: string): Promise<ToolCallStatus | nu
   }
 
   const key = `tool_call:${toolCallId}`
-  const timeout = 60000 // 60 seconds
+  const timeout = 300000 // 5 minutes
   const pollInterval = 1000 // 1 second
   const startTime = Date.now()
 
@@ -71,7 +71,7 @@ async function pollRedisForTool(toolCallId: string): Promise<ToolCallStatus | nu
     try {
       const status = await redis.get(key) as ToolCallStatus | null
       
-      if (status === 'Accepted' || status === 'Rejected') {
+      if (status === 'Accepted' || status === 'Rejected' || status === 'Error') {
         logger.info('Tool call status resolved', {
           toolCallId,
           status,
@@ -130,6 +130,11 @@ async function interruptHandler(toolCallId: string): Promise<{ approved: boolean
     if (status === 'Accepted') {
       logger.info('Tool execution approved by user', { toolCallId })
       return { approved: true, rejected: false }
+    }
+
+    if (status === 'Error') {
+      logger.error('Tool execution failed with error', { toolCallId })
+      return { approved: false, rejected: false }
     }
 
     logger.warn('Unexpected tool call status', { toolCallId, status })
