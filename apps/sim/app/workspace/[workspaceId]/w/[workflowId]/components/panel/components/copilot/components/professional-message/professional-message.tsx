@@ -8,12 +8,14 @@ import {
   Code,
   Copy,
   Database,
+  Edit,
   Eye,
   FileText,
   Globe,
   History,
   Lightbulb,
   Loader2,
+  Minus,
   RotateCcw,
   Search,
   Settings,
@@ -208,10 +210,17 @@ function getToolDisplayNameByState(toolCall: any): string {
   const toolName = toolCall.name
   const state = toolCall.state
   const isWorkflowTool = toolName === COPILOT_TOOL_IDS.BUILD_WORKFLOW || toolName === COPILOT_TOOL_IDS.EDIT_WORKFLOW
+  const isInterruptTool = toolRequiresInterrupt(toolName)
   
   // Check for rejected state first (highest priority)
   if (state === 'rejected') {
-    return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
+    if (isWorkflowTool) {
+      return 'Rejected workflow changes'
+    } else if (isInterruptTool) {
+      return `Skipped ${getToolDisplayName(toolName).toLowerCase()}`
+    } else {
+      return `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
+    }
   }
   
   // Check if error is actually a rejection by examining the error message
@@ -219,8 +228,15 @@ function getToolDisplayNameByState(toolCall: any): string {
     const errorMessage = typeof toolCall.error === 'string' ? toolCall.error : toolCall.error.message || ''
     if (errorMessage.toLowerCase().includes('rejected') || 
         errorMessage.toLowerCase().includes('not approved') ||
-        errorMessage.toLowerCase().includes('denied')) {
-      return isWorkflowTool ? 'Rejected workflow changes' : `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
+        errorMessage.toLowerCase().includes('denied') ||
+        errorMessage.toLowerCase().includes('skip')) {
+      if (isWorkflowTool) {
+        return 'Rejected workflow changes'
+      } else if (isInterruptTool) {
+        return `Skipped ${getToolDisplayName(toolName).toLowerCase()}`
+      } else {
+        return `Rejected ${getToolDisplayName(toolName).toLowerCase()}`
+      }
     }
   }
   
@@ -333,7 +349,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
       return <FileText className='h-3 w-3 text-muted-foreground' />
     }
     if (lowerName.includes('environment') || lowerName.includes('variable')) {
-      return <Settings className='h-3 w-3 text-muted-foreground' />
+      return <Edit className='h-3 w-3 text-muted-foreground' />
     }
     if (lowerName.includes('tool') || lowerName.includes('method')) {
       return <Zap className='h-3 w-3 text-muted-foreground' />
@@ -351,6 +367,7 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
 
   const getStateIcon = () => {
     const isWorkflowTool = tool.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW
+    const isInterruptTool = toolRequiresInterrupt(tool.name)
     
     // Special handling for tools requiring interrupt
     if (requiresInterrupt && tool.state === 'executing') {
@@ -363,18 +380,23 @@ function InlineToolCall({ tool, stepNumber }: { tool: ToolCallState | any; stepN
       case 'completed':
         return isWorkflowTool 
           ? <CheckCircle className='h-3 w-3 text-muted-foreground' />
-          : <Search className='h-3 w-3 text-muted-foreground' />
+          : getToolIcon() // Use the actual tool icon instead of Search
       case 'ready_for_review':
         // For workflow tools, ready_for_review means complete with diff ready
         return isWorkflowTool 
           ? <CheckCircle className='h-3 w-3 text-muted-foreground' />
-          : <Search className='h-3 w-3 text-muted-foreground' />
+          : getToolIcon() // Use the actual tool icon instead of Search
       case 'applied':
         return isWorkflowTool 
           ? <CheckCircle className='h-3 w-3 text-muted-foreground' />
-          : <Search className='h-3 w-3 text-muted-foreground' />
+          : getToolIcon() // Use the actual tool icon instead of Search
       case 'rejected':
-        return <XCircle className='h-3 w-3 text-red-500' />
+        // Gray dash for interrupt tools, red X for workflow tools
+        return isInterruptTool 
+          ? <div className='h-3 w-3 rounded-full border border-gray-400 flex items-center justify-center'>
+              <Minus className='h-2 w-2 text-gray-500' />
+            </div>
+          : <XCircle className='h-3 w-3 text-red-500' />
       case 'aborted':
         return <XCircle className='h-3 w-3 text-muted-foreground' />
       case 'error':

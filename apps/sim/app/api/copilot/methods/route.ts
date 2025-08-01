@@ -100,12 +100,12 @@ async function pollRedisForTool(toolCallId: string): Promise<ToolCallStatus | nu
 
 /**
  * Handle tool calls that require user interruption/approval
- * Returns true if approved, false if rejected or error
+ * Returns { approved: boolean, rejected: boolean } to distinguish between rejection and timeout
  */
-async function interruptHandler(toolCallId: string): Promise<boolean> {
+async function interruptHandler(toolCallId: string): Promise<{ approved: boolean; rejected: boolean }> {
   if (!toolCallId) {
     logger.error('interruptHandler: No tool call ID provided')
-    return false
+    return { approved: false, rejected: false }
   }
 
   logger.info('Starting interrupt handler for tool call', { toolCallId })
@@ -119,27 +119,27 @@ async function interruptHandler(toolCallId: string): Promise<boolean> {
 
     if (!status) {
       logger.error('Failed to get tool call status or timed out', { toolCallId })
-      return false
+      return { approved: false, rejected: false }
     }
 
     if (status === 'Rejected') {
       logger.info('Tool execution rejected by user', { toolCallId })
-      return false
+      return { approved: false, rejected: true }
     }
 
     if (status === 'Accepted') {
       logger.info('Tool execution approved by user', { toolCallId })
-      return true
+      return { approved: true, rejected: false }
     }
 
     logger.warn('Unexpected tool call status', { toolCallId, status })
-    return false
+    return { approved: false, rejected: false }
   } catch (error) {
     logger.error('Error in interrupt handler', {
       toolCallId,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
-    return false
+    return { approved: false, rejected: false }
   }
 }
 
@@ -234,17 +234,28 @@ export async function POST(req: NextRequest) {
         toolCallId,
       })
 
-      // Handle interrupt flow - returns true if approved, false if rejected/error
-      const approved = await interruptHandler(toolCallId)
+      // Handle interrupt flow
+      const { approved, rejected } = await interruptHandler(toolCallId)
       
-      if (!approved) {
-        logger.info(`[${requestId}] Tool execution not approved`, {
+      if (rejected) {
+        logger.info(`[${requestId}] Tool execution rejected by user`, {
           methodId,
           toolCallId,
         })
         return NextResponse.json(
-          createErrorResponse('Tool execution was not approved or timed out'),
-          { status: 403 }
+          createErrorResponse('The user decided to skip running this tool. This was a user decision.'),
+          { status: 200 } // Changed to 200 - user rejection is a valid response
+        )
+      }
+      
+      if (!approved) {
+        logger.warn(`[${requestId}] Tool execution timed out`, {
+          methodId,
+          toolCallId,
+        })
+        return NextResponse.json(
+          createErrorResponse('Tool execution request timed out'),
+          { status: 408 } // 408 Request Timeout
         )
       }
 
