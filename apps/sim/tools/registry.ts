@@ -96,6 +96,7 @@ import {
   notionSearchTool,
   notionWriteTool,
 } from '@/tools/notion'
+import { sharepointCreatePageTool, sharepointReadPageTool, sharepointListSitesTool } from '@/tools/sharepoint'
 import { imageTool, embeddingsTool as openAIEmbeddings } from '@/tools/openai'
 import { outlookDraftTool, outlookReadTool, outlookSendTool } from '@/tools/outlook'
 import { perplexityChatTool } from '@/tools/perplexity'
@@ -297,4 +298,7 @@ export const tools: Record<string, ToolConfig> = {
   hunter_email_verifier: hunterEmailVerifierTool,
   hunter_companies_find: hunterCompaniesFindTool,
   hunter_email_count: hunterEmailCountTool,
+  sharepoint_create_page: sharepointCreatePageTool,
+  sharepoint_read_page: sharepointReadPageTool,
+  sharepoint_list_sites: sharepointListSitesTool,
 }

@@ -484,6 +484,22 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'sharepoint',
+          clientId: env.MICROSOFT_CLIENT_ID as string,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+          authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+          tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+          userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+          scopes: ['openid', 'profile', 'email', 'Sites.Read.All', 'Sites.ReadWrite.All', 'offline_access'],
+          responseType: 'code',
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          pkce: true,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/sharepoint`,
+        },
+
+        {
           providerId: 'wealthbox',
           clientId: env.WEALTHBOX_CLIENT_ID as string,
           clientSecret: env.WEALTHBOX_CLIENT_SECRET as string,

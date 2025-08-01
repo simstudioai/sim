@@ -7,7 +7,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   name: 'OneDrive',
   description: 'Create, upload, and list files',
   longDescription:
-    'Integrate OneDrive functionality to manage files and folders. Upload new files, get content from existing files, create new folders, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.',
+    'Integrate OneDrive functionality to manage files and folders. Upload new files, create new folders, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.',
   docsLink: 'https://docs.sim.ai/tools/onedrive',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -77,48 +77,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       mode: 'advanced',
       condition: { field: 'operation', value: 'upload' },
     },
-    // Get Content Fields
-    // {
-    //   id: 'fileId',
-    //   title: 'Select File',
-    //   type: 'file-selector',
-    //   layout: 'full',
-    //   provider: 'google-drive',
-    //   serviceId: 'google-drive',
-    //   requiredScopes: [],
-    //   placeholder: 'Select a file',
-    //   condition: { field: 'operation', value: 'get_content' },
-    // },
-    // // Manual File ID input (shown only when no file is selected)
-    // {
-    //   id: 'fileId',
-    //   title: 'Or Enter File ID Manually',
-    //   type: 'short-input',
-    //   layout: 'full',
-    //   placeholder: 'ID of the file to get content from',
-    //   condition: {
-    //     field: 'operation',
-    //     value: 'get_content',
-    //     and: {
-    //       field: 'fileId',
-    //       value: '',
-    //     },
-    //   },
-    // },
-    // Export format for Google Workspace files
-    // {
-    //   id: 'mimeType',
-    //   title: 'Export Format',
-    //   type: 'dropdown',
-    //   layout: 'full',
-    //   options: [
-    //     { label: 'Plain Text', id: 'text/plain' },
-    //     { label: 'HTML', id: 'text/html' },
-    //   ],
-    //   placeholder: 'Optional: Choose export format for Google Workspace files',
-    //   condition: { field: 'operation', value: 'get_content' },
-    // },
-    // Create Folder Fields
     {
       id: 'fileName',
       title: 'Folder Name',

@@ -144,9 +144,14 @@ export function MicrosoftFileSelector({
       }
 
       // Route to correct endpoint based on service
-      const endpoint = serviceId === 'onedrive' 
-        ? `/api/tools/onedrive/folders?${queryParams.toString()}`
-        : `/api/auth/oauth/microsoft/files?${queryParams.toString()}`
+      let endpoint: string
+      if (serviceId === 'onedrive') {
+        endpoint = `/api/tools/onedrive/folders?${queryParams.toString()}`
+      } else if (serviceId === 'sharepoint') {
+        endpoint = `/api/tools/sharepoint/sites?${queryParams.toString()}`
+      } else {
+        endpoint = `/api/auth/oauth/microsoft/files?${queryParams.toString()}`
+      }
 
       const response = await fetch(endpoint)
 
@@ -181,9 +186,14 @@ export function MicrosoftFileSelector({
         })
 
         // Route to correct endpoint based on service
-        const endpoint = serviceId === 'onedrive'
-          ? `/api/tools/onedrive/folder?${queryParams.toString()}`
-          : `/api/auth/oauth/microsoft/file?${queryParams.toString()}`
+        let endpoint: string
+        if (serviceId === 'onedrive') {
+          endpoint = `/api/tools/onedrive/folder?${queryParams.toString()}`
+        } else if (serviceId === 'sharepoint') {
+          endpoint = `/api/tools/sharepoint/site?${queryParams.toString()}`
+        } else {
+          endpoint = `/api/auth/oauth/microsoft/file?${queryParams.toString()}`
+        }
 
         const response = await fetch(endpoint)
 
@@ -342,6 +352,14 @@ export function MicrosoftFileSelector({
       }
     }
 
+    // Handle SharePoint specifically by checking serviceId  
+    if (baseProvider === 'microsoft' && serviceId === 'sharepoint') {
+      const sharepointService = baseProviderConfig.services['sharepoint']
+      if (sharepointService) {
+        return sharepointService.icon({ className: 'h-4 w-4' })
+      }
+    }
+
     // For compound providers, find the specific service
     if (providerName.includes('-')) {
       for (const service of Object.values(baseProviderConfig.services)) {
@@ -416,11 +434,15 @@ export function MicrosoftFileSelector({
   }
 
   const getFileTypeTitleCase = () => {
-    return serviceId === 'onedrive' ? 'Folders' : 'Excel Files'
+    if (serviceId === 'onedrive') return 'Folders'
+    if (serviceId === 'sharepoint') return 'Sites'
+    return 'Excel Files'
   }
 
   const getSearchPlaceholder = () => {
-    return serviceId === 'onedrive' ? 'Search OneDrive folders...' : 'Search Excel files...'
+    if (serviceId === 'onedrive') return 'Search OneDrive folders...'
+    if (serviceId === 'sharepoint') return 'Search SharePoint sites...'
+    return 'Search Excel files...'
   }
 
   const getEmptyStateText = () => {
@@ -428,6 +450,12 @@ export function MicrosoftFileSelector({
       return {
         title: 'No folders found.',
         description: 'No folders were found in your OneDrive.'
+      }
+    }
+    if (serviceId === 'sharepoint') {
+      return {
+        title: 'No sites found.',
+        description: 'No SharePoint sites were found.'
       }
     }
     return {

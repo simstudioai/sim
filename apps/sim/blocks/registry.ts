@@ -38,6 +38,7 @@ import { MemoryBlock } from '@/blocks/blocks/memory'
 import { MicrosoftExcelBlock } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
+import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { NotionBlock } from '@/blocks/blocks/notion'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
@@ -107,6 +108,7 @@ export const registry: Record<string, BlockConfig> = {
   mem0: Mem0Block,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_teams: MicrosoftTeamsBlock,
+  sharepoint: SharepointBlock,
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
