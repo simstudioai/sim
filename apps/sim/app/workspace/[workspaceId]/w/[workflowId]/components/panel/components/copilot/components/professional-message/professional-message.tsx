@@ -80,7 +80,7 @@ const SmoothStreamingText = memo(
     const contentRef = useRef(content)
     const timeoutRef = useRef<NodeJS.Timeout | null>(null)
     const indexRef = useRef(0)
-    const displayedLengthRef = useRef(0)
+    const streamingStartTimeRef = useRef<number | null>(null)
     const isAnimatingRef = useRef(false)
 
     useEffect(() => {
@@ -90,52 +90,72 @@ const SmoothStreamingText = memo(
       if (content.length === 0) {
         setDisplayedContent('')
         indexRef.current = 0
-        displayedLengthRef.current = 0
+        streamingStartTimeRef.current = null
         return
       }
 
-      // If content increased and we're streaming, animate the new characters
-      if (isStreaming && content.length > displayedLengthRef.current) {
-        const animateText = () => {
-          const currentContent = contentRef.current
-          const currentIndex = indexRef.current
-
-          if (currentIndex < currentContent.length) {
-            // Add characters in small chunks for smoother appearance
-            const chunkSize = Math.min(3, currentContent.length - currentIndex)
-            const newDisplayed = currentContent.slice(0, currentIndex + chunkSize)
-
-            setDisplayedContent(newDisplayed)
-            indexRef.current = currentIndex + chunkSize
-            displayedLengthRef.current = newDisplayed.length
-
-            // Consistent fast speed for all characters
-            const delay = 3 // Consistent fast delay in ms for all characters
-
-            timeoutRef.current = setTimeout(animateText, delay)
-          } else {
-            // Animation complete
-            isAnimatingRef.current = false
-          }
+      if (isStreaming) {
+        // Start timing when streaming begins
+        if (streamingStartTimeRef.current === null) {
+          streamingStartTimeRef.current = Date.now()
         }
 
-        // Only start new animation if not already animating
-        if (!isAnimatingRef.current) {
-          // Clear any existing animation
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current)
+        // Calculate where animation should be based on elapsed time
+        const CHARS_PER_SECOND = 333 // ~3ms per character
+        const elapsedTime = Date.now() - streamingStartTimeRef.current
+        const expectedPosition = Math.floor((elapsedTime / 1000) * CHARS_PER_SECOND)
+        
+        // Show content up to where it should be, but don't exceed available content
+        const targetPosition = Math.min(expectedPosition, content.length)
+        
+        if (targetPosition > indexRef.current) {
+          // We need to catch up - show content immediately up to target position
+          setDisplayedContent(content.slice(0, targetPosition))
+          indexRef.current = targetPosition
+        }
+
+        // Continue animation if there's more content to show
+        if (indexRef.current < content.length) {
+          const animateText = () => {
+            const currentContent = contentRef.current
+            const currentIndex = indexRef.current
+
+            if (currentIndex < currentContent.length) {
+              // Add characters in small chunks for smoother appearance
+              const chunkSize = Math.min(3, currentContent.length - currentIndex)
+              const newDisplayed = currentContent.slice(0, currentIndex + chunkSize)
+
+              setDisplayedContent(newDisplayed)
+              indexRef.current = currentIndex + chunkSize
+
+              // Consistent fast speed for all characters
+              const delay = 3 // Consistent fast delay in ms for all characters
+
+              timeoutRef.current = setTimeout(animateText, delay)
+            } else {
+              // Animation complete
+              isAnimatingRef.current = false
+            }
           }
 
-          isAnimatingRef.current = true
-          // Start or continue animation from where we left off
-          animateText()
+          // Only start new animation if not already animating
+          if (!isAnimatingRef.current) {
+            // Clear any existing animation
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current)
+            }
+
+            isAnimatingRef.current = true
+            // Continue animation from current position
+            animateText()
+          }
         }
-      } else if (!isStreaming) {
-        // Not streaming, show all content immediately
+      } else {
+        // Not streaming, show all content immediately and reset timing
         setDisplayedContent(content)
         indexRef.current = content.length
-        displayedLengthRef.current = content.length
         isAnimatingRef.current = false
+        streamingStartTimeRef.current = null
       }
 
       // Cleanup on unmount

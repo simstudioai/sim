@@ -48,6 +48,7 @@ export function Panel() {
   const {
     chats,
     isLoadingChats,
+    isSendingMessage,
     selectChat,
     currentChat,
     error: copilotError,
@@ -202,31 +203,13 @@ export function Panel() {
     </div>
   )
 
-  // Handle tab clicks with on-demand data loading
+  // Handle tab clicks - no loading, just switch tabs
   const handleTabClick = async (tab: 'chat' | 'console' | 'variables' | 'copilot') => {
     setActiveTab(tab)
     if (!isOpen) {
       togglePanel()
     }
-
-    // Load copilot data on-demand when copilot tab is accessed
-    if (tab === 'copilot') {
-      // Load if needed - use smart caching instead of forcing refresh
-      if (!isLoadingChats && activeWorkflowId) {
-        // Check if we need to load data for this workflow
-        if (
-          activeWorkflowId !== copilotWorkflowId ||
-          !copilotWorkflowId ||
-          !areChatsFresh(activeWorkflowId)
-        ) {
-          try {
-            await ensureCopilotDataLoaded()
-          } catch (error) {
-            console.error('Failed to load copilot data:', error)
-          }
-        }
-      }
-    }
+    // Removed copilot data loading - store should persist across tab switches
   }
 
   const handleClosePanel = () => {
@@ -276,32 +259,18 @@ export function Panel() {
     }
   }, [isResizing, handleResize, handleResizeEnd])
 
-  // Auto-load copilot data when needed
+  // Only auto-load copilot data when workflow changes, not when switching tabs
   useEffect(() => {
-    // Auto-load copilot data if panel is open with copilot tab active and we need data
-    // Only load if tab was not clicked (prevent duplicate with handleTabClick)
-    if (isOpen && activeTab === 'copilot' && activeWorkflowId && !isLoadingChats) {
-      // Check if we need to load data for this workflow using smart caching
-      if (
-        lastLoadedWorkflowRef.current !== activeWorkflowId ||
-        copilotWorkflowId !== activeWorkflowId ||
-        !copilotWorkflowId ||
-        !areChatsFresh(activeWorkflowId)
-      ) {
+    // Only load when the active workflow changes, not when switching panel tabs
+    if (activeWorkflowId && activeWorkflowId !== lastLoadedWorkflowRef.current) {
+      // This is a real workflow change, not just a tab switch
+      if (copilotWorkflowId !== activeWorkflowId || !copilotWorkflowId) {
         ensureCopilotDataLoaded().catch((error) => {
-          console.error('Failed to auto-load copilot data:', error)
+          console.error('Failed to auto-load copilot data on workflow change:', error)
         })
       }
     }
-  }, [
-    isOpen,
-    activeTab,
-    activeWorkflowId,
-    isLoadingChats,
-    copilotWorkflowId,
-    ensureCopilotDataLoaded,
-    areChatsFresh,
-  ])
+  }, [activeWorkflowId, copilotWorkflowId, ensureCopilotDataLoaded])
 
   return (
     <>
@@ -505,19 +474,23 @@ export function Panel() {
 
           {/* Panel Content Area - Resizable */}
           <div className='flex-1 overflow-hidden px-3'>
-            {activeTab === 'chat' ? (
+            {/* Keep all tabs mounted but hidden to preserve state and animations */}
+            <div style={{ display: activeTab === 'chat' ? 'block' : 'none', height: '100%' }}>
               <Chat
                 panelWidth={panelWidth}
                 chatMessage={chatMessage}
                 setChatMessage={setChatMessage}
               />
-            ) : activeTab === 'console' ? (
+            </div>
+            <div style={{ display: activeTab === 'console' ? 'block' : 'none', height: '100%' }}>
               <Console panelWidth={panelWidth} />
-            ) : activeTab === 'copilot' ? (
+            </div>
+            <div style={{ display: activeTab === 'copilot' ? 'block' : 'none', height: '100%' }}>
               <Copilot ref={copilotRef} panelWidth={panelWidth} />
-            ) : (
+            </div>
+            <div style={{ display: activeTab === 'variables' ? 'block' : 'none', height: '100%' }}>
               <Variables />
-            )}
+            </div>
           </div>
         </div>
       )}

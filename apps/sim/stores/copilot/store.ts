@@ -1562,23 +1562,49 @@ export const useCopilotStore = create<CopilotStore>()(
               chatsLoadedForWorkflow: workflowId,
             })
 
-            // Auto-select the most recent chat if there are any chats for this workflow
-            // Since chats are filtered by workflow ID, any existing currentChat would be stale
+            // Smart chat selection logic
             if (data.chats.length > 0) {
-              const mostRecentChat = data.chats[0]
-              set({
-                currentChat: mostRecentChat,
-                messages: ensureToolCallDisplayNames(mostRecentChat.messages || []),
-              })
-              logger.info(
-                `Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`
-              )
+              const { currentChat } = get()
+              // Check if current chat still exists in the loaded chats for this workflow
+              const currentChatStillExists = currentChat && 
+                data.chats.some((chat: CopilotChat) => chat.id === currentChat.id)
+              
+              if (currentChatStillExists) {
+                // Preserve the current chat but update it with latest data from DB
+                const updatedCurrentChat = data.chats.find((chat: CopilotChat) => chat.id === currentChat.id)
+                if (updatedCurrentChat) {
+                  set({
+                    currentChat: updatedCurrentChat,
+                    messages: ensureToolCallDisplayNames(updatedCurrentChat.messages || []),
+                  })
+                  logger.info(
+                    `Preserved current chat selection: ${updatedCurrentChat.title || 'Untitled'} (${updatedCurrentChat.messages?.length || 0} messages)`
+                  )
+                  
+                  // Load checkpoints for the preserved chat
+                  try {
+                    await get().loadMessageCheckpoints(updatedCurrentChat.id)
+                  } catch (checkpointError) {
+                    logger.error('Failed to load checkpoints for preserved chat:', checkpointError)
+                  }
+                }
+              } else {
+                // Only auto-select most recent chat if no current chat or current chat is stale
+                const mostRecentChat = data.chats[0]
+                set({
+                  currentChat: mostRecentChat,
+                  messages: ensureToolCallDisplayNames(mostRecentChat.messages || []),
+                })
+                logger.info(
+                  `Auto-selected most recent chat for workflow ${workflowId}: ${mostRecentChat.title || 'Untitled'}`
+                )
 
-              // Load checkpoints for the auto-selected chat
-              try {
-                await get().loadMessageCheckpoints(mostRecentChat.id)
-              } catch (checkpointError) {
-                logger.error('Failed to load checkpoints for auto-selected chat:', checkpointError)
+                // Load checkpoints for the auto-selected chat
+                try {
+                  await get().loadMessageCheckpoints(mostRecentChat.id)
+                } catch (checkpointError) {
+                  logger.error('Failed to load checkpoints for auto-selected chat:', checkpointError)
+                }
               }
             } else {
               // Ensure we clear everything if there are no chats for this workflow
