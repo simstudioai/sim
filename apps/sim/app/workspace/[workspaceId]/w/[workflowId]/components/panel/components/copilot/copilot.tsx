@@ -84,6 +84,18 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     }
   }, [messages])
 
+  // Auto-scroll to bottom when chat loads in
+  useEffect(() => {
+    if (isInitialized && messages.length > 0 && scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector(
+        '[data-radix-scroll-area-viewport]'
+      )
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    }
+  }, [isInitialized, messages.length])
+
   // Cleanup on component unmount (page refresh, navigation, etc.)
   useEffect(() => {
     return () => {
