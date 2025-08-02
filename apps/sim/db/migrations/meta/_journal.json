@@ -442,13 +442,6 @@
       "when": 1753558819517,
       "tag": "0063_lame_sandman",
       "breakpoints": true
-    },
-    {
-      "idx": 64,
-      "version": "7",
-      "when": 1753923500000,
-      "tag": "0065_tired_susan_delgado",
-      "breakpoints": true
     }
   ]
 }
