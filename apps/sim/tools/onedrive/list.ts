@@ -61,7 +61,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
     query: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'A query to filter the files',
     },
     pageSize: {
@@ -69,12 +69,6 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       required: false,
       visibility: 'user-only',
       description: 'The number of files to return',
-    },
-    pageToken: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'The page token to use for pagination',
     },
   },
   request: {
@@ -104,16 +98,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
       }
 
       // Remove the $skip logic entirely. Instead, use the full nextLink URL if provided
-      let finalUrl: string
-      if (params.pageToken) {
-        // pageToken should contain the full @odata.nextLink URL
-        finalUrl = params.pageToken
-      } else {
-        // Construct the initial request URL
-        finalUrl = url.toString()
-      }
-
-      return finalUrl
+      return url.toString()
     },
     method: 'GET',
     headers: (params) => ({
