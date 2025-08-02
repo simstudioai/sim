@@ -1791,25 +1791,39 @@ export const useCopilotStore = create<CopilotStore>()(
           // Find the last streaming message and mark any executing tool calls as aborted
           const lastMessage = messages[messages.length - 1]
           if (lastMessage && lastMessage.role === 'assistant') {
-            // Mark any executing tool calls as aborted
+            // Mark any active tool calls as terminated based on their current state
             const updatedToolCalls =
-              lastMessage.toolCalls?.map((toolCall) =>
-                toolCall.state === 'executing'
-                  ? {
-                      ...toolCall,
-                      state: 'aborted' as const,
-                      endTime: Date.now(),
-                      error: 'Operation was interrupted by user action',
-                      displayName: getToolDisplayNameByState({ ...toolCall, state: 'aborted' }),
-                    }
-                  : toolCall
-              ) || []
+              lastMessage.toolCalls?.map((toolCall) => {
+                if (toolCall.state === 'executing') {
+                  // Executing tools become aborted
+                  return {
+                    ...toolCall,
+                    state: 'aborted' as const,
+                    endTime: Date.now(),
+                    error: 'Operation was interrupted by user action',
+                    displayName: getToolDisplayNameByState({ ...toolCall, state: 'aborted' }),
+                  }
+                } else if (toolCall.state === 'pending') {
+                  // Pending tools become rejected/skipped
+                  return {
+                    ...toolCall,
+                    state: 'rejected' as const,
+                    endTime: Date.now(),
+                    error: 'Operation was cancelled due to page refresh or user action',
+                    displayName: getToolDisplayNameByState({ ...toolCall, state: 'rejected' }),
+                  }
+                }
+                // Leave other states unchanged
+                return toolCall
+              }) || []
 
-            // Update content blocks to reflect aborted tool calls
+            // Update content blocks to reflect terminated tool calls
             const updatedContentBlocks =
-              lastMessage.contentBlocks?.map((block) =>
-                block.type === 'tool_call' && block.toolCall.state === 'executing'
-                  ? {
+              lastMessage.contentBlocks?.map((block) => {
+                if (block.type === 'tool_call') {
+                  if (block.toolCall.state === 'executing') {
+                    // Executing tools become aborted
+                    return {
                       ...block,
                       toolCall: {
                         ...block.toolCall,
@@ -1822,11 +1836,31 @@ export const useCopilotStore = create<CopilotStore>()(
                         }),
                       },
                     }
-                  : block
-              ) || []
+                  } else if (block.toolCall.state === 'pending') {
+                    // Pending tools become rejected/skipped
+                    return {
+                      ...block,
+                      toolCall: {
+                        ...block.toolCall,
+                        state: 'rejected' as const,
+                        endTime: Date.now(),
+                        error: 'Operation was cancelled due to page refresh or user action',
+                        displayName: getToolDisplayNameByState({
+                          ...block.toolCall,
+                          state: 'rejected',
+                        }),
+                      },
+                    }
+                  }
+                }
+                // Leave other blocks unchanged
+                return block
+              }) || []
 
-            const abortedCount = updatedToolCalls.filter(
-              (tc) => tc.state === 'aborted' && typeof tc.error === 'string' && tc.error.includes('interrupted')
+            const terminatedToolsCount = updatedToolCalls.filter(
+              (tc) => (tc.state === 'aborted' || tc.state === 'rejected') && 
+                      typeof tc.error === 'string' && 
+                      (tc.error.includes('interrupted') || tc.error.includes('cancelled'))
             ).length
 
             // Check if the assistant message has any meaningful content
@@ -1855,7 +1889,7 @@ export const useCopilotStore = create<CopilotStore>()(
             logger.info('Preserved assistant message after abort to show what was attempted')
 
             logger.info(
-              `Message streaming aborted successfully. ${abortedCount > 0 ? `Marked ${abortedCount} tool calls as interrupted.` : 'No tool calls were running.'}`
+              `Message streaming aborted successfully. ${terminatedToolsCount > 0 ? `Terminated ${terminatedToolsCount} tool calls (pending → rejected, executing → aborted).` : 'No tool calls were running.'}`
             )
 
             // Save the cleaned state to database immediately

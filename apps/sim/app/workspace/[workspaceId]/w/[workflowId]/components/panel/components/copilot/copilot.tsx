@@ -28,6 +28,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const [showCheckpoints, setShowCheckpoints] = useState(false)
   const scannedChatRef = useRef<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const lastWorkflowIdRef = useRef<string | null>(null)
 
   const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -52,15 +53,19 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     chatsLoadedForWorkflow,
   } = useCopilotStore()
 
-  // Initialize the component - mark as ready once we have workflow ID and chats are loaded
+  // Initialize the component - only on mount and genuine workflow changes
   useEffect(() => {
-    if (activeWorkflowId && !isLoadingChats && chatsLoadedForWorkflow === activeWorkflowId) {
-      setIsInitialized(true)
-    } else if (activeWorkflowId && chatsLoadedForWorkflow !== activeWorkflowId) {
-      // Reset initialization if workflow changes
+    // If workflow actually changed, reset initialization
+    if (activeWorkflowId && activeWorkflowId !== lastWorkflowIdRef.current) {
       setIsInitialized(false)
+      lastWorkflowIdRef.current = activeWorkflowId
     }
-  }, [activeWorkflowId, isLoadingChats, chatsLoadedForWorkflow])
+    
+    // Set as initialized once we have the workflow and chats are ready
+    if (activeWorkflowId && !isLoadingChats && chatsLoadedForWorkflow === activeWorkflowId && !isInitialized) {
+      setIsInitialized(true)
+    }
+  }, [activeWorkflowId, isLoadingChats, chatsLoadedForWorkflow, isInitialized])
 
   // Clear any existing preview when component mounts or workflow changes
   useEffect(() => {
@@ -78,6 +83,17 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       }
     }
   }, [messages])
+
+  // Cleanup on component unmount (page refresh, navigation, etc.)
+  useEffect(() => {
+    return () => {
+      // Abort any active message streaming and terminate active tools
+      if (isSendingMessage) {
+        abortMessage()
+        logger.info('Aborted active message streaming due to component unmount')
+      }
+    }
+  }, [isSendingMessage, abortMessage])
 
   // Watch for completed preview_workflow tool calls in the new format
   useEffect(() => {
