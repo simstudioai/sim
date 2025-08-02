@@ -12,6 +12,7 @@ import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useTagSelection } from '@/hooks/use-tag-selection'
 
 const logger = createLogger('LongInput')
 
@@ -78,6 +79,8 @@ export function LongInput({
       logger.debug('Wand streaming ended, value persisted', { blockId, subBlockId })
     },
   })
+
+  const emitTagSelection = useTagSelection(blockId, subBlockId)
 
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
@@ -428,7 +431,7 @@ export function LongInput({
             if (onChange) {
               onChange(newValue)
             } else if (!isPreview) {
-              setStoreValue(newValue)
+              emitTagSelection(newValue)
             }
           }}
           searchTerm={searchTerm}
@@ -445,7 +448,7 @@ export function LongInput({
             if (onChange) {
               onChange(newValue)
             } else if (!isPreview) {
-              setStoreValue(newValue)
+              emitTagSelection(newValue)
             }
           }}
           blockId={blockId}

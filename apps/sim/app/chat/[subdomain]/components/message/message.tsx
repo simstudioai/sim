@@ -56,7 +56,7 @@ export const ClientChatMessage = memo(
           <div className='mx-auto max-w-3xl'>
             <div className='flex justify-end'>
               <div className='max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 dark:bg-gray-600'>
-                <div className='whitespace-pre-wrap break-words text-base text-gray-800 leading-relaxed dark:text-gray-100'>
+                <div className='whitespace-pre-wrap break-words text-gray-800 text-lg leading-relaxed dark:text-gray-100'>
                   {isJsonObject ? (
                     <pre>{JSON.stringify(message.content, null, 2)}</pre>
                   ) : (
@@ -103,7 +103,7 @@ export const ClientChatMessage = memo(
                   if (item.type === 'text' && item.content.trim()) {
                     return (
                       <div key={`text-${index}`}>
-                        <div className='break-words text-base'>
+                        <div className='break-words text-lg'>
                           <EnhancedMarkdownRenderer content={item.content} />
                         </div>
                       </div>
@@ -115,7 +115,7 @@ export const ClientChatMessage = memo(
             ) : (
               /* Fallback for empty content or no inline content */
               <div>
-                <div className='break-words text-base'>
+                <div className='break-words text-lg'>
                   {isJsonObject ? (
                     <pre className='text-gray-800 dark:text-gray-100'>
                       {JSON.stringify(cleanTextContent, null, 2)}
