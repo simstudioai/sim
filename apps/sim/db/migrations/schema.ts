@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   boolean,
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -17,6 +18,13 @@ import {
   uuid,
   vector,
 } from 'drizzle-orm/pg-core'
+
+// Custom type for PostgreSQL tsvector
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return 'tsvector'
+  },
+})
 
 export const permissionType = pgEnum('permission_type', ['admin', 'write', 'read'])
 
@@ -993,8 +1001,8 @@ export const docsEmbeddings = pgTable(
     embedding: vector({ dimensions: 1536 }).notNull(),
     embeddingModel: text('embedding_model').default('text-embedding-3-small').notNull(),
     metadata: jsonb().default({}).notNull(),
-    // TODO: failed to parse database type 'tsvector'
-    chunkTextTsv: unknown('chunk_text_tsv').generatedAlwaysAs(
+    // tsvector column for full-text search
+    chunkTextTsv: tsvector('chunk_text_tsv').generatedAlwaysAs(
       sql`to_tsvector('english'::regconfig, chunk_text)`
     ),
     createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
@@ -1110,8 +1118,8 @@ export const embedding = pgTable(
     endOffset: integer('end_offset').notNull(),
     createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().notNull(),
-    // TODO: failed to parse database type 'tsvector'
-    contentTsv: unknown('content_tsv').generatedAlwaysAs(
+    // tsvector column for full-text search
+    contentTsv: tsvector('content_tsv').generatedAlwaysAs(
       sql`to_tsvector('english'::regconfig, content)`
     ),
     enabled: boolean().default(true).notNull(),
