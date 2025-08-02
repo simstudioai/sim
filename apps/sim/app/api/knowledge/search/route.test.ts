@@ -1,5 +1,7 @@
 /**
  * Tests for knowledge search API route
+ * Focuses on route-specific functionality: authentication, validation, API contract, error handling
+ * Search logic is tested in utils.test.ts
  *
  * @vitest-environment node
  */
@@ -54,6 +56,15 @@ vi.mock('@/providers/utils', () => ({
 const mockCheckKnowledgeBaseAccess = vi.fn()
 vi.mock('@/app/api/knowledge/utils', () => ({
   checkKnowledgeBaseAccess: mockCheckKnowledgeBaseAccess,
+}))
+
+const mockHandleTagOnlySearch = vi.fn()
+const mockHandleVectorOnlySearch = vi.fn()
+const mockHandleTagAndVectorSearch = vi.fn()
+vi.mock('./utils', () => ({
+  handleTagOnlySearch: mockHandleTagOnlySearch,
+  handleVectorOnlySearch: mockHandleVectorOnlySearch,
+  handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
 }))
 
 mockConsoleLogger()
@@ -111,6 +122,10 @@ describe('Knowledge Search API Route', () => {
       }
     })
 
+    mockHandleTagOnlySearch.mockClear()
+    mockHandleVectorOnlySearch.mockClear()
+    mockHandleTagAndVectorSearch.mockClear()
+
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
     })
@@ -141,7 +156,6 @@ describe('Knowledge Search API Route', () => {
     it('should perform search successfully with single knowledge base', async () => {
       mockGetUserId.mockResolvedValue('user-123')
 
-      // Mock knowledge base access check to return success
       mockCheckKnowledgeBaseAccess.mockResolvedValue({
         hasAccess: true,
         knowledgeBase: {
@@ -152,7 +166,9 @@ describe('Knowledge Search API Route', () => {
         },
       })
 
-      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
+      mockDbChain.limit.mockResolvedValue([])
+
+      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -177,7 +193,12 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.results[0].similarity).toBe(0.8) // 1 - 0.2
       expect(data.data.query).toBe(validSearchData.query)
       expect(data.data.knowledgeBaseIds).toEqual(['kb-123'])
-      expect(mockDbChain.select).toHaveBeenCalled()
+      expect(mockHandleVectorOnlySearch).toHaveBeenCalledWith({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        queryVector: JSON.stringify(mockEmbedding),
+        distanceThreshold: expect.any(Number),
+      })
     })
 
     it('should perform search successfully with multiple knowledge bases', async () => {
@@ -193,12 +214,13 @@ describe('Knowledge Search API Route', () => {
 
       mockGetUserId.mockResolvedValue('user-123')
 
-      // Mock knowledge base access check to return success for both KBs
       mockCheckKnowledgeBaseAccess
         .mockResolvedValueOnce({ hasAccess: true, knowledgeBase: multiKbs[0] })
         .mockResolvedValueOnce({ hasAccess: true, knowledgeBase: multiKbs[1] })
 
-      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
+      mockDbChain.limit.mockResolvedValue([])
+
+      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -216,6 +238,12 @@ describe('Knowledge Search API Route', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.knowledgeBaseIds).toEqual(['kb-123', 'kb-456'])
+      expect(mockHandleVectorOnlySearch).toHaveBeenCalledWith({
+        knowledgeBaseIds: ['kb-123', 'kb-456'],
+        topK: 10,
+        queryVector: JSON.stringify(mockEmbedding),
+        distanceThreshold: expect.any(Number),
+      })
     })
 
     it('should handle workflow-based authentication', async () => {
@@ -226,7 +254,6 @@ describe('Knowledge Search API Route', () => {
 
       mockGetUserId.mockResolvedValue('user-123')
 
-      // Mock knowledge base access check to return success
       mockCheckKnowledgeBaseAccess.mockResolvedValue({
         hasAccess: true,
         knowledgeBase: {
@@ -237,7 +264,9 @@ describe('Knowledge Search API Route', () => {
         },
       })
 
-      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults) // Search results
+      mockDbChain.limit.mockResolvedValue([])
+
+      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -289,7 +318,6 @@ describe('Knowledge Search API Route', () => {
     it('should return not found for non-existent knowledge base', async () => {
       mockGetUserId.mockResolvedValue('user-123')
 
-      // Mock knowledge base access check to return no access
       mockCheckKnowledgeBaseAccess.mockResolvedValue({
         hasAccess: false,
         notFound: true,
@@ -665,38 +693,13 @@ describe('Knowledge Search API Route', () => {
         },
       })
 
-      // Reset all mocks before setting up specific behavior
-      Object.values(mockDbChain).forEach((fn) => {
-        if (typeof fn === 'function') {
-          fn.mockClear().mockReturnThis()
-        }
-      })
+      // Mock tag definitions queries for filter mapping and display mapping
+      mockDbChain.limit
+        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for filter mapping
+        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for display mapping
 
-      // Mock the complete database call chain for tag-only search
-      // The route makes 3 database calls:
-      // 1. Tag definitions for filter mapping
-      // 2. Tag-only search query
-      // 3. Tag definitions for display mapping
-
-      // Create a fresh mock for each database call
-      const mockTagDefsQuery1 = {
-        ...mockDbChain,
-        limit: vi.fn().mockResolvedValue(mockTagDefinitions),
-      }
-      const mockTagSearchQuery = {
-        ...mockDbChain,
-        limit: vi.fn().mockResolvedValue(mockTaggedResults),
-      }
-      const mockTagDefsQuery2 = {
-        ...mockDbChain,
-        limit: vi.fn().mockResolvedValue(mockTagDefinitions),
-      }
-
-      // Chain the mocks in sequence
-      mockDbChain.select
-        .mockReturnValueOnce(mockTagDefsQuery1) // First tag definitions query
-        .mockReturnValueOnce(mockTagSearchQuery) // Tag-only search
-        .mockReturnValueOnce(mockTagDefsQuery2) // Second tag definitions query
+      // Mock the tag-only search handler
+      mockHandleTagOnlySearch.mockResolvedValue(mockTaggedResults)
 
       const req = createMockRequest('POST', tagOnlyData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -714,6 +717,11 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.query).toBe('') // Empty query
       expect(data.data.cost).toBeUndefined() // No cost for tag-only search
       expect(mockFetch).not.toHaveBeenCalled() // No embedding API call
+      expect(mockHandleTagOnlySearch).toHaveBeenCalledWith({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        filters: { category: 'api' }, // Note: When no tag definitions are found, it uses the original filter key
+      })
     })
 
     it('should perform query + tag combination search', async () => {
@@ -737,18 +745,13 @@ describe('Knowledge Search API Route', () => {
         },
       })
 
-      // Reset all mocks before setting up specific behavior
-      Object.values(mockDbChain).forEach((fn) => {
-        if (typeof fn === 'function') {
-          fn.mockClear().mockReturnThis()
-        }
-      })
-
-      // Mock multiple database calls for query+tag combination
+      // Mock tag definitions queries for filter mapping and display mapping
       mockDbChain.limit
         .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for filter mapping
-        .mockResolvedValueOnce(mockSearchResults) // Vector search with tag filters
         .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for display mapping
+
+      // Mock the tag + vector search handler
+      mockHandleTagAndVectorSearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -773,6 +776,13 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.query).toBe('test search')
       expect(data.data.cost).toBeDefined() // Cost included for vector search
       expect(mockFetch).toHaveBeenCalled() // Embedding API called
+      expect(mockHandleTagAndVectorSearch).toHaveBeenCalledWith({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        filters: { category: 'api' }, // Note: When no tag definitions are found, it uses the original filter key
+        queryVector: JSON.stringify(mockEmbedding),
+        distanceThreshold: 1, // Single KB uses threshold of 1.0
+      })
     })
 
     it('should validate that either query or filters are provided', async () => {
