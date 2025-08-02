@@ -225,7 +225,7 @@ function validateMessagesForLLM(messages: CopilotMessage[]): any[] {
         const hasContent = msg.content && msg.content.trim().length > 0
         const hasCompletedTools = msg.toolCalls?.some(
           (tc) =>
-            tc.state === 'completed' || tc.state === 'applied' || tc.state === 'ready_for_review'
+            tc.state === 'completed' || tc.state === 'accepted' || tc.state === 'rejected' || tc.state === 'ready_for_review'
         )
         return hasContent || hasCompletedTools
       }
@@ -391,7 +391,7 @@ function handleToolFailure(toolCall: any, error: string): void {
   // Don't override terminal states for tools with ready_for_review and interrupt tools
   if (
     (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-    (toolCall.state === 'applied' || toolCall.state === 'rejected')
+    (toolCall.state === 'accepted' || toolCall.state === 'rejected')
   ) {
     // Tool is already in a terminal state, don't override it
     logger.info(
@@ -425,7 +425,7 @@ function setToolCallState(toolCall: any, newState: string, options: {
   // Don't override terminal states for tools with ready_for_review and interrupt tools if preserveTerminalStates is true
   if (preserveTerminalStates && 
       (toolSupportsReadyForReview(toolCall.name) || toolRequiresInterrupt(toolCall.name)) &&
-      (toolCall.state === 'applied' || toolCall.state === 'rejected')) {
+      (toolCall.state === 'accepted' || toolCall.state === 'rejected')) {
     logger.info('Tool call already in terminal state, preserving:', toolCall.id, toolCall.name, toolCall.state)
     return
   }
@@ -546,7 +546,7 @@ function finalizeToolCall(
             const blockToolCall = toolBlock?.toolCall
             if (
               blockToolCall &&
-              (blockToolCall.state === 'applied' || blockToolCall.state === 'rejected')
+              (blockToolCall.state === 'accepted' || blockToolCall.state === 'rejected')
             ) {
               // Don't override terminal states, just update result and timing
               toolCall.state = blockToolCall.state
@@ -555,7 +555,7 @@ function finalizeToolCall(
             }
           } else if (
             currentToolCall &&
-            (currentToolCall.state === 'applied' || currentToolCall.state === 'rejected')
+            (currentToolCall.state === 'accepted' || currentToolCall.state === 'rejected')
           ) {
             // Don't override terminal states, just update result and timing
             toolCall.state = currentToolCall.state
@@ -1025,7 +1025,7 @@ function preserveToolTerminalState(newToolCall: any, existingToolCall: any): any
   // Early return if no existing tool call or no terminal state
   if (
     !existingToolCall ||
-    (existingToolCall.state !== 'applied' && existingToolCall.state !== 'rejected')
+    (existingToolCall.state !== 'accepted' && existingToolCall.state !== 'rejected')
   ) {
     return newToolCall
   }
@@ -1891,7 +1891,7 @@ export const useCopilotStore = create<CopilotStore>()(
       // Send implicit feedback
       sendImplicitFeedback: async (
         implicitFeedback: string,
-        toolCallState?: 'applied' | 'rejected' | 'errored'
+        toolCallState?: 'accepted' | 'rejected' | 'errored'
       ) => {
         const { workflowId, currentChat, mode } = get()
 
@@ -1972,7 +1972,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
       // Update preview tool call state
       updatePreviewToolCallState: (
-        toolCallState: 'applied' | 'rejected' | 'errored',
+        toolCallState: 'accepted' | 'rejected' | 'errored',
         toolCallId?: string
       ) => {
         const { messages } = get()

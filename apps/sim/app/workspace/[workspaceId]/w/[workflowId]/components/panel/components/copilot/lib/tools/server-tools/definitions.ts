@@ -95,6 +95,7 @@ export const SERVER_TOOL_METADATA: Record<ServerToolId, ToolMetadata> = {
         rejected: { displayName: 'Rejected workflow changes', icon: 'skip' },
         errored: { displayName: 'Failed to edit workflow', icon: 'error' },
         aborted: { displayName: 'Workflow edit aborted', icon: 'x' },
+        accepted: { displayName: 'Edited workflow', icon: 'network' },
       }
     },
     schema: {

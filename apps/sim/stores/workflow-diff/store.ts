@@ -280,10 +280,10 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             // Clear the diff
             get().clearDiff()
 
-            // Update copilot tool call state to 'applied'
+            // Update copilot tool call state to 'accepted'
             try {
               const { useCopilotStore } = await import('@/stores/copilot/store')
-              useCopilotStore.getState().updatePreviewToolCallState('applied')
+              useCopilotStore.getState().updatePreviewToolCallState('accepted')
             } catch (error) {
               logger.warn('Failed to update copilot tool call state after accept:', error)
             }
