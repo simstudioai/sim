@@ -2,6 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { LoadingAgent } from '@/components/ui/loading-agent'
 import { createLogger } from '@/lib/logs/console/logger'
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
@@ -26,6 +27,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [showCheckpoints, setShowCheckpoints] = useState(false)
   const scannedChatRef = useRef<string | null>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
 
   const { activeWorkflowId } = useWorkflowRegistry()
 
@@ -47,7 +49,18 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     clearMessages,
     setMode,
     setInputValue,
+    chatsLoadedForWorkflow,
   } = useCopilotStore()
+
+  // Initialize the component - mark as ready once we have workflow ID and chats are loaded
+  useEffect(() => {
+    if (activeWorkflowId && !isLoadingChats && chatsLoadedForWorkflow === activeWorkflowId) {
+      setIsInitialized(true)
+    } else if (activeWorkflowId && chatsLoadedForWorkflow !== activeWorkflowId) {
+      // Reset initialization if workflow changes
+      setIsInitialized(false)
+    }
+  }, [activeWorkflowId, isLoadingChats, chatsLoadedForWorkflow])
 
   // Clear any existing preview when component mounts or workflow changes
   useEffect(() => {
@@ -131,44 +144,56 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   return (
     <>
       <div className='flex h-full flex-col overflow-hidden'>
-        {/* Messages area or Checkpoint Panel */}
-        {showCheckpoints ? (
-          <CheckpointPanel />
-        ) : (
-          <ScrollArea ref={scrollAreaRef} className='flex-1 overflow-hidden' hideScrollbar={true}>
-            <div className='space-y-1'>
-              {messages.length === 0 ? (
-                <div className='flex h-full items-center justify-center p-4'>
-                  <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
-                </div>
-              ) : (
-                messages.map((message) => (
-                  <ProfessionalMessage
-                    key={message.id}
-                    message={message}
-                    isStreaming={
-                      isSendingMessage && message.id === messages[messages.length - 1]?.id
-                    }
-                  />
-                ))
-              )}
+        {/* Show loading state until fully initialized */}
+        {!isInitialized ? (
+          <div className='flex h-full w-full items-center justify-center'>
+            <div className='flex flex-col items-center gap-3'>
+              <LoadingAgent size='md' />
+              <p className='text-muted-foreground text-sm'>Loading chat history...</p>
             </div>
-          </ScrollArea>
-        )}
+          </div>
+        ) : (
+          <>
+            {/* Messages area or Checkpoint Panel */}
+            {showCheckpoints ? (
+              <CheckpointPanel />
+            ) : (
+              <ScrollArea ref={scrollAreaRef} className='flex-1 overflow-hidden' hideScrollbar={true}>
+                <div className='space-y-1'>
+                  {messages.length === 0 ? (
+                    <div className='flex h-full items-center justify-center p-4'>
+                      <CopilotWelcome onQuestionClick={handleSubmit} mode={mode} />
+                    </div>
+                  ) : (
+                    messages.map((message) => (
+                      <ProfessionalMessage
+                        key={message.id}
+                        message={message}
+                        isStreaming={
+                          isSendingMessage && message.id === messages[messages.length - 1]?.id
+                        }
+                      />
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            )}
 
-        {/* Input area with integrated mode selector */}
-        {!showCheckpoints && (
-          <ProfessionalInput
-            onSubmit={handleSubmit}
-            onAbort={abortMessage}
-            disabled={!activeWorkflowId}
-            isLoading={isSendingMessage}
-            isAborting={isAborting}
-            mode={mode}
-            onModeChange={setMode}
-            value={inputValue}
-            onChange={setInputValue}
-          />
+            {/* Input area with integrated mode selector */}
+            {!showCheckpoints && (
+              <ProfessionalInput
+                onSubmit={handleSubmit}
+                onAbort={abortMessage}
+                disabled={!activeWorkflowId}
+                isLoading={isSendingMessage}
+                isAborting={isAborting}
+                mode={mode}
+                onModeChange={setMode}
+                value={inputValue}
+                onChange={setInputValue}
+              />
+            )}
+          </>
         )}
       </div>
     </>
