@@ -299,9 +299,9 @@ describe('workflow store', () => {
       // Add an agent block
       addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
 
-      // Initially should be in basic mode (advancedMode: false or undefined)
+      // Initially should be in basic mode (advancedMode: false)
       let state = useWorkflowStore.getState()
-      expect(state.blocks.agent1?.advancedMode).toBeUndefined()
+      expect(state.blocks.agent1?.advancedMode).toBe(false)
 
       // Toggle to advanced mode
       toggleBlockAdvancedMode('agent1')
@@ -407,7 +407,7 @@ describe('workflow store', () => {
       addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
 
       // Toggle modes without any subblock values set
-      expect(useWorkflowStore.getState().blocks.agent1?.advancedMode).toBeUndefined()
+      expect(useWorkflowStore.getState().blocks.agent1?.advancedMode).toBe(false)
       expect(() => toggleBlockAdvancedMode('agent1')).not.toThrow()
 
       // Verify the mode changed
@@ -420,6 +420,183 @@ describe('workflow store', () => {
 
       // Try to toggle a block that doesn't exist
       expect(() => toggleBlockAdvancedMode('non-existent')).not.toThrow()
+    })
+  })
+
+  describe('addBlock with blockProperties', () => {
+    it('should create a block with default properties when no blockProperties provided', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      addBlock('agent1', 'agent', 'Test Agent', { x: 100, y: 200 })
+
+      const state = useWorkflowStore.getState()
+      const block = state.blocks.agent1
+
+      expect(block).toBeDefined()
+      expect(block.id).toBe('agent1')
+      expect(block.type).toBe('agent')
+      expect(block.name).toBe('Test Agent')
+      expect(block.position).toEqual({ x: 100, y: 200 })
+      expect(block.enabled).toBe(true)
+      expect(block.horizontalHandles).toBe(true)
+      expect(block.isWide).toBe(false)
+      expect(block.height).toBe(0)
+    })
+
+    it('should create a block with custom blockProperties for regular blocks', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      addBlock(
+        'agent1',
+        'agent',
+        'Test Agent',
+        { x: 100, y: 200 },
+        { someData: 'test' },
+        undefined,
+        undefined,
+        {
+          enabled: false,
+          horizontalHandles: false,
+          isWide: true,
+          advancedMode: true,
+          height: 300,
+        }
+      )
+
+      const state = useWorkflowStore.getState()
+      const block = state.blocks.agent1
+
+      expect(block).toBeDefined()
+      expect(block.enabled).toBe(false)
+      expect(block.horizontalHandles).toBe(false)
+      expect(block.isWide).toBe(true)
+      expect(block.advancedMode).toBe(true)
+      expect(block.height).toBe(300)
+    })
+
+    it('should create a loop block with custom blockProperties', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      addBlock(
+        'loop1',
+        'loop',
+        'Test Loop',
+        { x: 0, y: 0 },
+        { loopType: 'for', count: 5 },
+        undefined,
+        undefined,
+        {
+          enabled: false,
+          horizontalHandles: false,
+          isWide: true,
+          advancedMode: true,
+          height: 250,
+        }
+      )
+
+      const state = useWorkflowStore.getState()
+      const block = state.blocks.loop1
+
+      expect(block).toBeDefined()
+      expect(block.enabled).toBe(false)
+      expect(block.horizontalHandles).toBe(false)
+      expect(block.isWide).toBe(true)
+      expect(block.advancedMode).toBe(true)
+      expect(block.height).toBe(250)
+    })
+
+    it('should create a parallel block with custom blockProperties', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      addBlock(
+        'parallel1',
+        'parallel',
+        'Test Parallel',
+        { x: 0, y: 0 },
+        { count: 3 },
+        undefined,
+        undefined,
+        {
+          enabled: false,
+          horizontalHandles: false,
+          isWide: true,
+          advancedMode: true,
+          height: 400,
+        }
+      )
+
+      const state = useWorkflowStore.getState()
+      const block = state.blocks.parallel1
+
+      expect(block).toBeDefined()
+      expect(block.enabled).toBe(false)
+      expect(block.horizontalHandles).toBe(false)
+      expect(block.isWide).toBe(true)
+      expect(block.advancedMode).toBe(true)
+      expect(block.height).toBe(400)
+    })
+
+    it('should handle partial blockProperties (only some properties provided)', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      addBlock(
+        'agent1',
+        'agent',
+        'Test Agent',
+        { x: 100, y: 200 },
+        undefined,
+        undefined,
+        undefined,
+        {
+          isWide: true,
+          // Only isWide provided, others should use defaults
+        }
+      )
+
+      const state = useWorkflowStore.getState()
+      const block = state.blocks.agent1
+
+      expect(block).toBeDefined()
+      expect(block.enabled).toBe(true) // default
+      expect(block.horizontalHandles).toBe(true) // default
+      expect(block.isWide).toBe(true) // custom
+      expect(block.advancedMode).toBe(false) // default
+      expect(block.height).toBe(0) // default
+    })
+
+    it('should handle blockProperties with parent relationships', () => {
+      const { addBlock } = useWorkflowStore.getState()
+
+      // First add a parent loop block
+      addBlock('loop1', 'loop', 'Parent Loop', { x: 0, y: 0 })
+
+      // Then add a child block with custom properties
+      addBlock(
+        'agent1',
+        'agent',
+        'Child Agent',
+        { x: 50, y: 50 },
+        { parentId: 'loop1' },
+        'loop1',
+        'parent',
+        {
+          enabled: false,
+          isWide: true,
+          advancedMode: true,
+          height: 200,
+        }
+      )
+
+      const state = useWorkflowStore.getState()
+      const childBlock = state.blocks.agent1
+
+      expect(childBlock).toBeDefined()
+      expect(childBlock.enabled).toBe(false)
+      expect(childBlock.isWide).toBe(true)
+      expect(childBlock.advancedMode).toBe(true)
+      expect(childBlock.height).toBe(200)
+      expect(childBlock.data?.parentId).toBe('loop1')
+      expect(childBlock.data?.extent).toBe('parent')
     })
   })
 })

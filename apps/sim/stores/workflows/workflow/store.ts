@@ -95,7 +95,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         position: Position,
         data?: Record<string, any>,
         parentId?: string,
-        extent?: 'parent'
+        extent?: 'parent',
+        blockProperties?: {
+          enabled?: boolean
+          horizontalHandles?: boolean
+          isWide?: boolean
+          advancedMode?: boolean
+          height?: number
+        }
       ) => {
         const blockConfig = getBlock(type)
         // For custom nodes like loop and parallel that don't use BlockConfig
@@ -116,10 +123,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 position,
                 subBlocks: {},
                 outputs: {},
-                enabled: true,
-                horizontalHandles: true,
-                isWide: false,
-                height: 0,
+                enabled: blockProperties?.enabled ?? true,
+                horizontalHandles: blockProperties?.horizontalHandles ?? true,
+                isWide: blockProperties?.isWide ?? false,
+                advancedMode: blockProperties?.advancedMode ?? false,
+                height: blockProperties?.height ?? 0,
                 data: nodeData,
               },
             },
@@ -165,10 +173,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               position,
               subBlocks,
               outputs,
-              enabled: true,
-              horizontalHandles: true,
-              isWide: false,
-              height: 0,
+              enabled: blockProperties?.enabled ?? true,
+              horizontalHandles: blockProperties?.horizontalHandles ?? true,
+              isWide: blockProperties?.isWide ?? false,
+              advancedMode: blockProperties?.advancedMode ?? false,
+              height: blockProperties?.height ?? 0,
               data: nodeData,
             },
           },

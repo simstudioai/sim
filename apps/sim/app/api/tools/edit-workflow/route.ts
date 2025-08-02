@@ -175,6 +175,7 @@ export async function POST(request: NextRequest) {
         enabled: true,
         horizontalHandles: true,
         isWide: false,
+        advancedMode: false,
         height: 0,
         data: block.data || {},
       }

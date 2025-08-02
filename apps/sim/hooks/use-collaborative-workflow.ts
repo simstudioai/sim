@@ -148,7 +148,7 @@ export function useCollaborativeWorkflow() {
               workflowStore.setBlockWide(payload.id, payload.isWide)
               break
             case 'update-advanced-mode':
-              workflowStore.toggleBlockAdvancedMode(payload.id)
+              workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
             case 'toggle-handles': {
               const currentBlock = workflowStore.blocks[payload.id]
@@ -433,6 +433,7 @@ export function useCollaborativeWorkflow() {
           enabled: true,
           horizontalHandles: true,
           isWide: false,
+          advancedMode: false,
           height: 0,
           parentId,
           extent,
@@ -504,6 +505,7 @@ export function useCollaborativeWorkflow() {
         enabled: true,
         horizontalHandles: true,
         isWide: false,
+        advancedMode: false,
         height: 0, // Default height, will be set by the UI
         parentId,
         extent,
@@ -811,6 +813,7 @@ export function useCollaborativeWorkflow() {
         enabled: sourceBlock.enabled ?? true,
         horizontalHandles: sourceBlock.horizontalHandles ?? true,
         isWide: sourceBlock.isWide ?? false,
+        advancedMode: sourceBlock.advancedMode ?? false,
         height: sourceBlock.height || 0,
       }
 
@@ -821,7 +824,14 @@ export function useCollaborativeWorkflow() {
         offsetPosition,
         sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
         sourceBlock.data?.parentId,
-        sourceBlock.data?.extent
+        sourceBlock.data?.extent,
+        {
+          enabled: sourceBlock.enabled,
+          horizontalHandles: sourceBlock.horizontalHandles,
+          isWide: sourceBlock.isWide,
+          advancedMode: sourceBlock.advancedMode,
+          height: sourceBlock.height,
+        }
       )
 
       executeQueuedOperation('duplicate', 'block', duplicatedBlockData, () => {
@@ -830,7 +840,16 @@ export function useCollaborativeWorkflow() {
           sourceBlock.type,
           newName,
           offsetPosition,
-          sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {}
+          sourceBlock.data ? JSON.parse(JSON.stringify(sourceBlock.data)) : {},
+          sourceBlock.data?.parentId,
+          sourceBlock.data?.extent,
+          {
+            enabled: sourceBlock.enabled,
+            horizontalHandles: sourceBlock.horizontalHandles,
+            isWide: sourceBlock.isWide,
+            advancedMode: sourceBlock.advancedMode,
+            height: sourceBlock.height,
+          }
         )
 
         // Apply subblock values locally for immediate UI feedback

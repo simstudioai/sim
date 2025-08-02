@@ -9,7 +9,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-// Mock database operations
 const mockDb = {
   select: vi.fn(),
   insert: vi.fn(),
@@ -17,7 +16,6 @@ const mockDb = {
   transaction: vi.fn(),
 }
 
-// Mock schema objects
 const mockWorkflowBlocks = {
   workflowId: 'workflowId',
   id: 'id',
@@ -52,7 +50,6 @@ const mockWorkflowSubflows = {
   config: 'config',
 }
 
-// Setup mocks before running tests
 vi.doMock('@/db', () => ({
   db: mockDb,
 }))
@@ -76,7 +73,6 @@ vi.doMock('@/lib/logs/console/logger', () => ({
   })),
 }))
 
-// Test data
 const mockWorkflowId = 'test-workflow-123'
 
 const mockBlocksFromDb = [
@@ -91,7 +87,7 @@ const mockBlocksFromDb = [
     horizontalHandles: true,
     isWide: false,
     height: 150,
-    subBlocks: { input: { id: 'input', type: 'short-input', value: 'test' } },
+    subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
     outputs: { result: { type: 'string' } },
     data: { parentId: null, extent: null, width: 350 },
     parentId: null,
@@ -158,7 +154,7 @@ const mockWorkflowState: WorkflowState = {
       type: 'starter',
       name: 'Start Block',
       position: { x: 100, y: 100 },
-      subBlocks: { input: { id: 'input', type: 'short-input', value: 'test' } },
+      subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
       outputs: { result: { type: 'string' } },
       enabled: true,
       horizontalHandles: true,
@@ -215,7 +211,6 @@ describe('Database Helpers', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    // Import the module after mocks are set up
     dbHelpers = await import('@/lib/workflows/db-helpers')
   })
 
@@ -225,10 +220,8 @@ describe('Database Helpers', () => {
 
   describe('loadWorkflowFromNormalizedTables', () => {
     it('should successfully load workflow data from normalized tables', async () => {
-      // Reset all mocks first
       vi.clearAllMocks()
 
-      // Mock each database query call separately since Promise.all makes 3 separate calls
       let callCount = 0
       mockDb.select.mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
@@ -266,7 +259,7 @@ describe('Database Helpers', () => {
         horizontalHandles: true,
         isWide: false,
         height: 150,
-        subBlocks: { input: { id: 'input', type: 'short-input', value: 'test' } },
+        subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
         outputs: { result: { type: 'string' } },
         data: { parentId: null, extent: null, width: 350 },
         parentId: null,
@@ -775,6 +768,470 @@ describe('Database Helpers', () => {
       expect(result.success).toBe(true)
       expect(Object.keys(result.jsonBlob.blocks)).toHaveLength(1000)
       expect(result.jsonBlob.edges).toHaveLength(999)
+    })
+  })
+
+  describe('advancedMode persistence comparison with isWide', () => {
+    it('should load advancedMode property exactly like isWide from database', async () => {
+      const testBlocks = [
+        {
+          id: 'block-advanced-wide',
+          workflowId: mockWorkflowId,
+          type: 'agent',
+          name: 'Advanced Wide Block',
+          positionX: 100,
+          positionY: 100,
+          enabled: true,
+          horizontalHandles: true,
+          isWide: true,
+          advancedMode: true,
+          height: 200,
+          subBlocks: {},
+          outputs: {},
+          data: {},
+          parentId: null,
+          extent: null,
+        },
+        {
+          id: 'block-basic-narrow',
+          workflowId: mockWorkflowId,
+          type: 'agent',
+          name: 'Basic Narrow Block',
+          positionX: 200,
+          positionY: 100,
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          advancedMode: false,
+          height: 150,
+          subBlocks: {},
+          outputs: {},
+          data: {},
+          parentId: null,
+          extent: null,
+        },
+        {
+          id: 'block-advanced-narrow',
+          workflowId: mockWorkflowId,
+          type: 'agent',
+          name: 'Advanced Narrow Block',
+          positionX: 300,
+          positionY: 100,
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          advancedMode: true,
+          height: 180,
+          subBlocks: {},
+          outputs: {},
+          data: {},
+          parentId: null,
+          extent: null,
+        },
+      ]
+
+      vi.clearAllMocks()
+
+      let callCount = 0
+      mockDb.select.mockImplementation(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            callCount++
+            if (callCount === 1) return Promise.resolve(testBlocks)
+            if (callCount === 2) return Promise.resolve([])
+            if (callCount === 3) return Promise.resolve([])
+            return Promise.resolve([])
+          }),
+        }),
+      }))
+
+      const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+
+      expect(result).toBeDefined()
+
+      // Test all combinations of isWide and advancedMode
+      const advancedWideBlock = result?.blocks['block-advanced-wide']
+      expect(advancedWideBlock?.isWide).toBe(true)
+      expect(advancedWideBlock?.advancedMode).toBe(true)
+
+      const basicNarrowBlock = result?.blocks['block-basic-narrow']
+      expect(basicNarrowBlock?.isWide).toBe(false)
+      expect(basicNarrowBlock?.advancedMode).toBe(false)
+
+      const advancedNarrowBlock = result?.blocks['block-advanced-narrow']
+      expect(advancedNarrowBlock?.isWide).toBe(false)
+      expect(advancedNarrowBlock?.advancedMode).toBe(true)
+    })
+
+    it('should handle null/undefined advancedMode same way as isWide', async () => {
+      const blocksWithMissingProperties = [
+        {
+          id: 'block-null-props',
+          workflowId: mockWorkflowId,
+          type: 'agent',
+          name: 'Block with null properties',
+          positionX: 100,
+          positionY: 100,
+          enabled: true,
+          horizontalHandles: true,
+          isWide: null,
+          advancedMode: null,
+          height: 150,
+          subBlocks: {},
+          outputs: {},
+          data: {},
+          parentId: null,
+          extent: null,
+        },
+        {
+          id: 'block-undefined-props',
+          workflowId: mockWorkflowId,
+          type: 'agent',
+          name: 'Block with undefined properties',
+          positionX: 200,
+          positionY: 100,
+          enabled: true,
+          horizontalHandles: true,
+          isWide: undefined,
+          advancedMode: undefined,
+          height: 150,
+          subBlocks: {},
+          outputs: {},
+          data: {},
+          parentId: null,
+          extent: null,
+        },
+      ]
+
+      vi.clearAllMocks()
+
+      let callCount = 0
+      mockDb.select.mockImplementation(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            callCount++
+            if (callCount === 1) return Promise.resolve(blocksWithMissingProperties)
+            return Promise.resolve([])
+          }),
+        }),
+      }))
+
+      const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+
+      expect(result).toBeDefined()
+
+      // Both isWide and advancedMode should handle null/undefined consistently
+      const nullPropsBlock = result?.blocks['block-null-props']
+      expect(nullPropsBlock?.isWide).toBeNull()
+      expect(nullPropsBlock?.advancedMode).toBeNull()
+
+      const undefinedPropsBlock = result?.blocks['block-undefined-props']
+      expect(undefinedPropsBlock?.isWide).toBeUndefined()
+      expect(undefinedPropsBlock?.advancedMode).toBeUndefined()
+    })
+  })
+
+  describe('end-to-end advancedMode persistence verification', () => {
+    it('should persist advancedMode through complete duplication and save cycle', async () => {
+      // Simulate the exact user workflow:
+      // 1. Create a block with advancedMode: true
+      // 2. Duplicate the block
+      // 3. Save workflow state (this was causing the bug)
+      // 4. Reload from database (simulate refresh)
+      // 5. Verify advancedMode is still true
+
+      const originalBlock = {
+        id: 'agent-original',
+        workflowId: mockWorkflowId,
+        type: 'agent',
+        name: 'Agent 1',
+        positionX: 100,
+        positionY: 100,
+        enabled: true,
+        horizontalHandles: true,
+        isWide: true,
+        advancedMode: true, // User sets this to advanced mode
+        height: 200,
+        subBlocks: {
+          systemPrompt: {
+            id: 'systemPrompt',
+            type: 'textarea',
+            value: 'You are a helpful assistant',
+          },
+          userPrompt: { id: 'userPrompt', type: 'textarea', value: 'Help the user' },
+          model: { id: 'model', type: 'select', value: 'gpt-4o' },
+        },
+        outputs: {},
+        data: {},
+        parentId: null,
+        extent: null,
+      }
+
+      const duplicatedBlock = {
+        id: 'agent-duplicate',
+        workflowId: mockWorkflowId,
+        type: 'agent',
+        name: 'Agent 2',
+        positionX: 200,
+        positionY: 100,
+        enabled: true,
+        horizontalHandles: true,
+        isWide: true,
+        advancedMode: true, // Should be copied from original
+        height: 200,
+        subBlocks: {
+          systemPrompt: {
+            id: 'systemPrompt',
+            type: 'textarea',
+            value: 'You are a helpful assistant',
+          },
+          userPrompt: { id: 'userPrompt', type: 'textarea', value: 'Help the user' },
+          model: { id: 'model', type: 'select', value: 'gpt-4o' },
+        },
+        outputs: {},
+        data: {},
+        parentId: null,
+        extent: null,
+      }
+
+      // Step 1 & 2: Mock loading both original and duplicated blocks from database
+      vi.clearAllMocks()
+
+      let callCount = 0
+      mockDb.select.mockImplementation(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            callCount++
+            if (callCount === 1) return Promise.resolve([originalBlock, duplicatedBlock])
+            if (callCount === 2) return Promise.resolve([]) // edges
+            if (callCount === 3) return Promise.resolve([]) // subflows
+            return Promise.resolve([])
+          }),
+        }),
+      }))
+
+      // Step 3: Load workflow state (simulates app loading after duplication)
+      const loadedState = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+      expect(loadedState).toBeDefined()
+      expect(loadedState?.blocks['agent-original'].advancedMode).toBe(true)
+      expect(loadedState?.blocks['agent-duplicate'].advancedMode).toBe(true)
+
+      // Step 4: Test the critical saveWorkflowToNormalizedTables function
+      // This was the function that was dropping advancedMode!
+      const workflowState = {
+        blocks: loadedState!.blocks,
+        edges: loadedState!.edges,
+        loops: {},
+        parallels: {},
+        deploymentStatuses: {},
+        hasActiveWebhook: false,
+      }
+
+      // Mock the transaction for save operation
+      const mockTransaction = vi.fn().mockImplementation(async (callback) => {
+        const mockTx = {
+          delete: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(undefined),
+          }),
+          insert: vi.fn().mockImplementation((_table) => ({
+            values: vi.fn().mockImplementation((values) => {
+              // Verify that advancedMode is included in the insert values
+              if (Array.isArray(values)) {
+                values.forEach((blockInsert) => {
+                  if (blockInsert.id === 'agent-original') {
+                    expect(blockInsert.advancedMode).toBe(true)
+                  }
+                  if (blockInsert.id === 'agent-duplicate') {
+                    expect(blockInsert.advancedMode).toBe(true)
+                  }
+                })
+              }
+              return Promise.resolve()
+            }),
+          })),
+        }
+        return await callback(mockTx)
+      })
+
+      mockDb.transaction = mockTransaction
+
+      // Step 5: Save workflow state (this should preserve advancedMode)
+      const saveResult = await dbHelpers.saveWorkflowToNormalizedTables(
+        mockWorkflowId,
+        workflowState
+      )
+      expect(saveResult.success).toBe(true)
+
+      // Step 6: Verify the JSON blob also preserves advancedMode
+      expect(saveResult.jsonBlob?.blocks['agent-original'].advancedMode).toBe(true)
+      expect(saveResult.jsonBlob?.blocks['agent-duplicate'].advancedMode).toBe(true)
+
+      // Verify the database insert was called with the correct values
+      expect(mockTransaction).toHaveBeenCalled()
+    })
+
+    it('should handle mixed advancedMode states correctly', async () => {
+      // Test scenario: one block in advanced mode, one in basic mode
+      const basicBlock = {
+        id: 'agent-basic',
+        workflowId: mockWorkflowId,
+        type: 'agent',
+        name: 'Basic Agent',
+        positionX: 100,
+        positionY: 100,
+        enabled: true,
+        horizontalHandles: true,
+        isWide: false,
+        advancedMode: false, // Basic mode
+        height: 150,
+        subBlocks: { model: { id: 'model', type: 'select', value: 'gpt-4o' } },
+        outputs: {},
+        data: {},
+        parentId: null,
+        extent: null,
+      }
+
+      const advancedBlock = {
+        id: 'agent-advanced',
+        workflowId: mockWorkflowId,
+        type: 'agent',
+        name: 'Advanced Agent',
+        positionX: 200,
+        positionY: 100,
+        enabled: true,
+        horizontalHandles: true,
+        isWide: true,
+        advancedMode: true, // Advanced mode
+        height: 200,
+        subBlocks: {
+          systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System prompt' },
+          userPrompt: { id: 'userPrompt', type: 'textarea', value: 'User prompt' },
+          model: { id: 'model', type: 'select', value: 'gpt-4o' },
+        },
+        outputs: {},
+        data: {},
+        parentId: null,
+        extent: null,
+      }
+
+      vi.clearAllMocks()
+
+      let callCount = 0
+      mockDb.select.mockImplementation(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            callCount++
+            if (callCount === 1) return Promise.resolve([basicBlock, advancedBlock])
+            return Promise.resolve([])
+          }),
+        }),
+      }))
+
+      const loadedState = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+      expect(loadedState).toBeDefined()
+
+      // Verify mixed states are preserved
+      expect(loadedState?.blocks['agent-basic'].advancedMode).toBe(false)
+      expect(loadedState?.blocks['agent-advanced'].advancedMode).toBe(true)
+
+      // Verify other properties are also preserved correctly
+      expect(loadedState?.blocks['agent-basic'].isWide).toBe(false)
+      expect(loadedState?.blocks['agent-advanced'].isWide).toBe(true)
+    })
+
+    it('should preserve advancedMode during workflow state round-trip', async () => {
+      // Test the complete round-trip: save to DB → load from DB
+      const testWorkflowState = {
+        blocks: {
+          'block-1': {
+            id: 'block-1',
+            type: 'agent',
+            name: 'Test Agent',
+            position: { x: 100, y: 100 },
+            subBlocks: {
+              systemPrompt: { id: 'systemPrompt', type: 'long-input' as const, value: 'System' },
+              model: { id: 'model', type: 'dropdown' as const, value: 'gpt-4o' },
+            },
+            outputs: {},
+            enabled: true,
+            horizontalHandles: true,
+            isWide: true,
+            advancedMode: true,
+            height: 200,
+            data: {},
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+        deploymentStatuses: {},
+        hasActiveWebhook: false,
+      }
+
+      // Mock successful save
+      const mockTransaction = vi.fn().mockImplementation(async (callback) => {
+        const mockTx = {
+          delete: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(undefined),
+          }),
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockResolvedValue(undefined),
+          }),
+        }
+        return await callback(mockTx)
+      })
+
+      mockDb.transaction = mockTransaction
+
+      // Save the state
+      const saveResult = await dbHelpers.saveWorkflowToNormalizedTables(
+        mockWorkflowId,
+        testWorkflowState
+      )
+      expect(saveResult.success).toBe(true)
+
+      // Mock loading the saved state back
+      vi.clearAllMocks()
+      let callCount = 0
+      mockDb.select.mockImplementation(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            callCount++
+            if (callCount === 1) {
+              return Promise.resolve([
+                {
+                  id: 'block-1',
+                  workflowId: mockWorkflowId,
+                  type: 'agent',
+                  name: 'Test Agent',
+                  positionX: 100,
+                  positionY: 100,
+                  enabled: true,
+                  horizontalHandles: true,
+                  isWide: true,
+                  advancedMode: true, // This should be preserved
+                  height: 200,
+                  subBlocks: {
+                    systemPrompt: { id: 'systemPrompt', type: 'textarea', value: 'System' },
+                    model: { id: 'model', type: 'select', value: 'gpt-4o' },
+                  },
+                  outputs: {},
+                  data: {},
+                  parentId: null,
+                  extent: null,
+                },
+              ])
+            }
+            return Promise.resolve([])
+          }),
+        }),
+      }))
+
+      // Load the state back
+      const loadedState = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+      expect(loadedState).toBeDefined()
+      expect(loadedState?.blocks['block-1'].advancedMode).toBe(true)
+      expect(loadedState?.blocks['block-1'].isWide).toBe(true)
     })
   })
 })
