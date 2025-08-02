@@ -828,6 +828,10 @@ export class Executor {
                 executed: true,
                 executionTime: 0,
               })
+
+              // Create a block log for the starter block if it has files
+              // This ensures files are captured in trace spans and execution logs
+              this.createStartedBlockWithFilesLog(initBlock, starterOutput, context)
             } else {
               // API workflow: spread the raw data directly (no wrapping)
               const starterOutput = { ...this.workflowInput }
@@ -893,6 +897,7 @@ export class Executor {
           executed: true,
           executionTime: 0,
         })
+        this.createStartedBlockWithFilesLog(initBlock, blockOutput, context)
       }
       // Ensure the starting block is in the active execution path
       context.activeExecutionPath.add(initBlock.id)
@@ -1815,5 +1820,30 @@ export class Executor {
 
     // Fallback to string conversion
     return String(error)
+  }
+
+  /**
+   * Creates a block log for the starter block if it contains files.
+   * This ensures files are captured in trace spans and execution logs.
+   */
+  private createStartedBlockWithFilesLog(
+    initBlock: SerializedBlock,
+    blockOutput: any,
+    context: ExecutionContext
+  ): void {
+    if (blockOutput.files && Array.isArray(blockOutput.files) && blockOutput.files.length > 0) {
+      const starterBlockLog: BlockLog = {
+        blockId: initBlock.id,
+        blockName: initBlock.metadata?.name || 'Start',
+        blockType: initBlock.metadata?.id || 'start',
+        startedAt: new Date().toISOString(),
+        endedAt: new Date().toISOString(),
+        success: true,
+        input: this.workflowInput,
+        output: blockOutput,
+        durationMs: 0,
+      }
+      context.blockLogs.push(starterBlockLog)
+    }
   }
 }
