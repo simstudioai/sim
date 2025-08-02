@@ -442,13 +442,6 @@
       "when": 1753558819517,
       "tag": "0063_lame_sandman",
       "breakpoints": true
-    },
-    {
-      "idx": 64,
-      "version": "7",
-      "when": 1753835879903,
-      "tag": "0064_old_norman_osborn",
-      "breakpoints": true
     }
   ]
 }
