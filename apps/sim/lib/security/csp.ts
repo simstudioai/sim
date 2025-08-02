@@ -74,13 +74,10 @@ export const buildTimeCSPDirectives: CSPDirectives = {
   'connect-src': [
     "'self'",
     env.NEXT_PUBLIC_APP_URL || '',
-    env.NEXT_PUBLIC_SIM_AGENT_URL ||
-      (env.NODE_ENV === 'development' ? 'http://localhost:8000' : 'https://sim-agent.vercel.app'),
     env.OLLAMA_URL || 'http://localhost:11434',
     env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002',
     env.NEXT_PUBLIC_SOCKET_URL?.replace('http://', 'ws://').replace('https://', 'wss://') ||
       'ws://localhost:3002',
-    'http://localhost:8000',
     'https://*.up.railway.app',
     'wss://*.up.railway.app',
     'https://api.browser-use.com',
