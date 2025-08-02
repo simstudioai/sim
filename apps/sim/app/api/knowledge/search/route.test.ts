@@ -1,5 +1,7 @@
 /**
  * Tests for knowledge search API route
+ * Focuses on route-specific functionality: authentication, validation, API contract, error handling
+ * Search logic is tested in utils.test.ts
  *
  * @vitest-environment node
  */
@@ -56,6 +58,27 @@ vi.mock('@/app/api/knowledge/utils', () => ({
   checkKnowledgeBaseAccess: mockCheckKnowledgeBaseAccess,
 }))
 
+const mockHandleTagOnlySearch = vi.fn()
+const mockHandleVectorOnlySearch = vi.fn()
+const mockHandleTagAndVectorSearch = vi.fn()
+const mockGetQueryStrategy = vi.fn()
+const mockGenerateSearchEmbedding = vi.fn()
+vi.mock('./utils', () => ({
+  handleTagOnlySearch: mockHandleTagOnlySearch,
+  handleVectorOnlySearch: mockHandleVectorOnlySearch,
+  handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
+  getQueryStrategy: mockGetQueryStrategy,
+  generateSearchEmbedding: mockGenerateSearchEmbedding,
+  APIError: class APIError extends Error {
+    public status: number
+    constructor(message: string, status: number) {
+      super(message)
+      this.name = 'APIError'
+      this.status = status
+    }
+  },
+}))
+
 mockConsoleLogger()
 
 describe('Knowledge Search API Route', () => {
@@ -65,6 +88,10 @@ describe('Knowledge Search API Route', () => {
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
+    leftJoin: vi.fn().mockReturnThis(),
+    groupBy: vi.fn().mockReturnThis(),
+    having: vi.fn().mockReturnThis(),
   }
 
   const mockGetUserId = vi.fn()
@@ -107,6 +134,17 @@ describe('Knowledge Search API Route', () => {
       }
     })
 
+    mockHandleTagOnlySearch.mockClear()
+    mockHandleVectorOnlySearch.mockClear()
+    mockHandleTagAndVectorSearch.mockClear()
+    mockGetQueryStrategy.mockClear().mockReturnValue({
+      useParallel: false,
+      distanceThreshold: 1.0,
+      parallelLimit: 15,
+      singleQueryOptimized: true,
+    })
+    mockGenerateSearchEmbedding.mockClear().mockResolvedValue([0.1, 0.2, 0.3, 0.4, 0.5])
+
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
     })
@@ -137,13 +175,19 @@ describe('Knowledge Search API Route', () => {
     it('should perform search successfully with single knowledge base', async () => {
       mockGetUserId.mockResolvedValue('user-123')
 
-      // Mock knowledge base access check to return success
       mockCheckKnowledgeBaseAccess.mockResolvedValue({
         hasAccess: true,
-        knowledgeBase: mockKnowledgeBases[0],
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
       })
 
-      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
+      mockDbChain.limit.mockResolvedValue([])
+
+      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -168,7 +212,12 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.results[0].similarity).toBe(0.8) // 1 - 0.2
       expect(data.data.query).toBe(validSearchData.query)
       expect(data.data.knowledgeBaseIds).toEqual(['kb-123'])
-      expect(mockDbChain.select).toHaveBeenCalled()
+      expect(mockHandleVectorOnlySearch).toHaveBeenCalledWith({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        queryVector: JSON.stringify(mockEmbedding),
+        distanceThreshold: expect.any(Number),
+      })
     })
 
     it('should perform search successfully with multiple knowledge bases', async () => {
@@ -184,12 +233,13 @@ describe('Knowledge Search API Route', () => {
 
       mockGetUserId.mockResolvedValue('user-123')
 
-      // Mock knowledge base access check to return success for both KBs
       mockCheckKnowledgeBaseAccess
         .mockResolvedValueOnce({ hasAccess: true, knowledgeBase: multiKbs[0] })
         .mockResolvedValueOnce({ hasAccess: true, knowledgeBase: multiKbs[1] })
 
-      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
+      mockDbChain.limit.mockResolvedValue([])
+
+      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -207,6 +257,12 @@ describe('Knowledge Search API Route', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.knowledgeBaseIds).toEqual(['kb-123', 'kb-456'])
+      expect(mockHandleVectorOnlySearch).toHaveBeenCalledWith({
+        knowledgeBaseIds: ['kb-123', 'kb-456'],
+        topK: 10,
+        queryVector: JSON.stringify(mockEmbedding),
+        distanceThreshold: expect.any(Number),
+      })
     })
 
     it('should handle workflow-based authentication', async () => {
@@ -217,13 +273,19 @@ describe('Knowledge Search API Route', () => {
 
       mockGetUserId.mockResolvedValue('user-123')
 
-      // Mock knowledge base access check to return success
       mockCheckKnowledgeBaseAccess.mockResolvedValue({
         hasAccess: true,
-        knowledgeBase: mockKnowledgeBases[0],
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
       })
 
-      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults) // Search results
+      mockDbChain.limit.mockResolvedValue([])
+
+      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -275,7 +337,6 @@ describe('Knowledge Search API Route', () => {
     it('should return not found for non-existent knowledge base', async () => {
       mockGetUserId.mockResolvedValue('user-123')
 
-      // Mock knowledge base access check to return no access
       mockCheckKnowledgeBaseAccess.mockResolvedValue({
         hasAccess: false,
         notFound: true,
@@ -340,7 +401,12 @@ describe('Knowledge Search API Route', () => {
       // Mock knowledge base access check to return success
       mockCheckKnowledgeBaseAccess.mockResolvedValue({
         hasAccess: true,
-        knowledgeBase: mockKnowledgeBases[0],
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
       })
 
       mockDbChain.limit.mockResolvedValueOnce(mockSearchResults) // Search results
@@ -366,12 +432,10 @@ describe('Knowledge Search API Route', () => {
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
 
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-        text: () => Promise.resolve('Invalid API key'),
-      })
+      // Mock generateSearchEmbedding to throw an error
+      mockGenerateSearchEmbedding.mockRejectedValueOnce(
+        new Error('OpenAI API error: 401 Unauthorized - Invalid API key')
+      )
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -383,14 +447,11 @@ describe('Knowledge Search API Route', () => {
     })
 
     it.concurrent('should handle missing OpenAI API key', async () => {
-      vi.doMock('@/lib/env', () => ({
-        env: {
-          OPENAI_API_KEY: undefined,
-        },
-      }))
-
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
+
+      // Mock generateSearchEmbedding to throw missing API key error
+      mockGenerateSearchEmbedding.mockRejectedValueOnce(new Error('OPENAI_API_KEY not configured'))
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -404,15 +465,9 @@ describe('Knowledge Search API Route', () => {
     it.concurrent('should handle database errors during search', async () => {
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
-      mockDbChain.limit.mockRejectedValueOnce(new Error('Database error'))
 
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: [{ embedding: mockEmbedding }],
-          }),
-      })
+      // Mock the search handler to throw a database error
+      mockHandleVectorOnlySearch.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -427,13 +482,10 @@ describe('Knowledge Search API Route', () => {
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
 
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: [], // Empty data array
-          }),
-      })
+      // Mock generateSearchEmbedding to throw invalid response format error
+      mockGenerateSearchEmbedding.mockRejectedValueOnce(
+        new Error('Invalid response format from OpenAI embeddings API')
+      )
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -451,7 +503,12 @@ describe('Knowledge Search API Route', () => {
         // Mock knowledge base access check to return success
         mockCheckKnowledgeBaseAccess.mockResolvedValue({
           hasAccess: true,
-          knowledgeBase: mockKnowledgeBases[0],
+          knowledgeBase: {
+            id: 'kb-123',
+            userId: 'user-123',
+            name: 'Test KB',
+            deletedAt: null,
+          },
         })
 
         mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
@@ -499,7 +556,12 @@ describe('Knowledge Search API Route', () => {
         // Mock knowledge base access check to return success
         mockCheckKnowledgeBaseAccess.mockResolvedValue({
           hasAccess: true,
-          knowledgeBase: mockKnowledgeBases[0],
+          knowledgeBase: {
+            id: 'kb-123',
+            userId: 'user-123',
+            name: 'Test KB',
+            deletedAt: null,
+          },
         })
 
         mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
@@ -556,7 +618,12 @@ describe('Knowledge Search API Route', () => {
         // Mock knowledge base access check to return success
         mockCheckKnowledgeBaseAccess.mockResolvedValue({
           hasAccess: true,
-          knowledgeBase: mockKnowledgeBases[0],
+          knowledgeBase: {
+            id: 'kb-123',
+            userId: 'user-123',
+            name: 'Test KB',
+            deletedAt: null,
+          },
         })
 
         mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
@@ -579,6 +646,352 @@ describe('Knowledge Search API Route', () => {
         expect(data.data.cost.tokens.prompt).toBe(1042)
         expect(calculateCost).toHaveBeenCalledWith('text-embedding-3-small', 1042, 0, false)
       })
+    })
+  })
+
+  describe('Optional Query Search', () => {
+    const mockTagDefinitions = [
+      { tagSlot: 'tag1', displayName: 'category' },
+      { tagSlot: 'tag2', displayName: 'priority' },
+    ]
+
+    const mockTaggedResults = [
+      {
+        id: 'chunk-1',
+        content: 'Tagged content 1',
+        documentId: 'doc-1',
+        chunkIndex: 0,
+        tag1: 'api',
+        tag2: 'high',
+        distance: 0,
+        knowledgeBaseId: 'kb-123',
+      },
+      {
+        id: 'chunk-2',
+        content: 'Tagged content 2',
+        documentId: 'doc-2',
+        chunkIndex: 1,
+        tag1: 'docs',
+        tag2: 'medium',
+        distance: 0,
+        knowledgeBaseId: 'kb-123',
+      },
+    ]
+
+    it('should perform tag-only search without query', async () => {
+      const tagOnlyData = {
+        knowledgeBaseIds: 'kb-123',
+        filters: {
+          category: 'api',
+        },
+        topK: 10,
+      }
+
+      mockGetUserId.mockResolvedValue('user-123')
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
+      })
+
+      // Mock tag definitions queries for filter mapping and display mapping
+      mockDbChain.limit
+        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for filter mapping
+        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for display mapping
+
+      // Mock the tag-only search handler
+      mockHandleTagOnlySearch.mockResolvedValue(mockTaggedResults)
+
+      const req = createMockRequest('POST', tagOnlyData)
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      if (response.status !== 200) {
+        console.log('Tag-only search test error:', data)
+      }
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.data.results).toHaveLength(2)
+      expect(data.data.results[0].similarity).toBe(1) // Perfect similarity for tag-only
+      expect(data.data.query).toBe('') // Empty query
+      expect(data.data.cost).toBeUndefined() // No cost for tag-only search
+      expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled() // No embedding API call
+      expect(mockHandleTagOnlySearch).toHaveBeenCalledWith({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        filters: { category: 'api' }, // Note: When no tag definitions are found, it uses the original filter key
+      })
+    })
+
+    it('should perform query + tag combination search', async () => {
+      const combinedData = {
+        knowledgeBaseIds: 'kb-123',
+        query: 'test search',
+        filters: {
+          category: 'api',
+        },
+        topK: 10,
+      }
+
+      mockGetUserId.mockResolvedValue('user-123')
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
+      })
+
+      // Mock tag definitions queries for filter mapping and display mapping
+      mockDbChain.limit
+        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for filter mapping
+        .mockResolvedValueOnce(mockTagDefinitions) // Tag definitions for display mapping
+
+      // Mock the tag + vector search handler
+      mockHandleTagAndVectorSearch.mockResolvedValue(mockSearchResults)
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [{ embedding: mockEmbedding }],
+          }),
+      })
+
+      const req = createMockRequest('POST', combinedData)
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      if (response.status !== 200) {
+        console.log('Query+tag combination test error:', data)
+      }
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.data.results).toHaveLength(2)
+      expect(data.data.query).toBe('test search')
+      expect(data.data.cost).toBeDefined() // Cost included for vector search
+      expect(mockGenerateSearchEmbedding).toHaveBeenCalled() // Embedding API called
+      expect(mockHandleTagAndVectorSearch).toHaveBeenCalledWith({
+        knowledgeBaseIds: ['kb-123'],
+        topK: 10,
+        filters: { category: 'api' }, // Note: When no tag definitions are found, it uses the original filter key
+        queryVector: JSON.stringify(mockEmbedding),
+        distanceThreshold: 1, // Single KB uses threshold of 1.0
+      })
+    })
+
+    it('should validate that either query or filters are provided', async () => {
+      const emptyData = {
+        knowledgeBaseIds: 'kb-123',
+        topK: 10,
+      }
+
+      const req = createMockRequest('POST', emptyData)
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('Invalid request data')
+      expect(data.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message:
+              'Please provide either a search query or tag filters to search your knowledge base',
+          }),
+        ])
+      )
+    })
+
+    it('should validate that empty query with empty filters fails', async () => {
+      const emptyFiltersData = {
+        knowledgeBaseIds: 'kb-123',
+        query: '',
+        filters: {},
+        topK: 10,
+      }
+
+      const req = createMockRequest('POST', emptyFiltersData)
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('Invalid request data')
+    })
+
+    it('should handle empty tag values gracefully', async () => {
+      // This simulates what happens when the frontend sends empty tag values
+      // The tool transformation should filter out empty values, resulting in no filters
+      const emptyTagValueData = {
+        knowledgeBaseIds: 'kb-123',
+        query: '',
+        topK: 10,
+        // This would result in no filters after tool transformation
+      }
+
+      const req = createMockRequest('POST', emptyTagValueData)
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('Invalid request data')
+      expect(data.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message:
+              'Please provide either a search query or tag filters to search your knowledge base',
+          }),
+        ])
+      )
+    })
+
+    it('should handle null values from frontend gracefully', async () => {
+      // This simulates the exact scenario the user reported
+      // Null values should be transformed to undefined and then trigger validation
+      const nullValuesData = {
+        knowledgeBaseIds: 'kb-123',
+        topK: null,
+        query: null,
+        filters: null,
+      }
+
+      const req = createMockRequest('POST', nullValuesData)
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('Invalid request data')
+      expect(data.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message:
+              'Please provide either a search query or tag filters to search your knowledge base',
+          }),
+        ])
+      )
+    })
+
+    it('should perform query-only search (existing behavior)', async () => {
+      const queryOnlyData = {
+        knowledgeBaseIds: 'kb-123',
+        query: 'test search query',
+        topK: 10,
+      }
+
+      mockGetUserId.mockResolvedValue('user-123')
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
+      })
+
+      mockDbChain.limit.mockResolvedValueOnce(mockSearchResults)
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [{ embedding: mockEmbedding }],
+          }),
+      })
+
+      const req = createMockRequest('POST', queryOnlyData)
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.data.results).toHaveLength(2)
+      expect(data.data.query).toBe('test search query')
+      expect(data.data.cost).toBeDefined() // Cost included for vector search
+      expect(mockGenerateSearchEmbedding).toHaveBeenCalled() // Embedding API called
+    })
+
+    it('should handle tag-only search with multiple knowledge bases', async () => {
+      const multiKbTagData = {
+        knowledgeBaseIds: ['kb-123', 'kb-456'],
+        filters: {
+          category: 'docs',
+          priority: 'high',
+        },
+        topK: 10,
+      }
+
+      mockGetUserId.mockResolvedValue('user-123')
+      mockCheckKnowledgeBaseAccess
+        .mockResolvedValueOnce({
+          hasAccess: true,
+          knowledgeBase: {
+            id: 'kb-123',
+            userId: 'user-123',
+            name: 'Test KB',
+            deletedAt: null,
+          },
+        })
+        .mockResolvedValueOnce({
+          hasAccess: true,
+          knowledgeBase: { id: 'kb-456', userId: 'user-123', name: 'Test KB 2' },
+        })
+
+      // Reset all mocks before setting up specific behavior
+      Object.values(mockDbChain).forEach((fn) => {
+        if (typeof fn === 'function') {
+          fn.mockClear().mockReturnThis()
+        }
+      })
+
+      // Create fresh mocks for multiple database calls needed for multi-KB tag search
+      const mockTagDefsQuery1 = {
+        ...mockDbChain,
+        limit: vi.fn().mockResolvedValue(mockTagDefinitions),
+      }
+      const mockTagSearchQuery = {
+        ...mockDbChain,
+        limit: vi.fn().mockResolvedValue(mockTaggedResults),
+      }
+      const mockTagDefsQuery2 = {
+        ...mockDbChain,
+        limit: vi.fn().mockResolvedValue(mockTagDefinitions),
+      }
+      const mockTagDefsQuery3 = {
+        ...mockDbChain,
+        limit: vi.fn().mockResolvedValue(mockTagDefinitions),
+      }
+
+      // Chain the mocks for: tag defs, search, display mapping KB1, display mapping KB2
+      mockDbChain.select
+        .mockReturnValueOnce(mockTagDefsQuery1)
+        .mockReturnValueOnce(mockTagSearchQuery)
+        .mockReturnValueOnce(mockTagDefsQuery2)
+        .mockReturnValueOnce(mockTagDefsQuery3)
+
+      const req = createMockRequest('POST', multiKbTagData)
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.data.knowledgeBaseIds).toEqual(['kb-123', 'kb-456'])
+      expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled() // No embedding for tag-only
     })
   })
 })

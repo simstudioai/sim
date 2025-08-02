@@ -14,8 +14,8 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     },
     query: {
       type: 'string',
-      required: true,
-      description: 'Search query text',
+      required: false,
+      description: 'Search query text (optional when using tag filters)',
     },
     topK: {
       type: 'number',
@@ -58,7 +58,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
           // Group filters by tag name for OR logic within same tag
           const groupedFilters: Record<string, string[]> = {}
           tagFilters.forEach((filter: any) => {
-            if (filter.tagName && filter.tagValue) {
+            if (filter.tagName && filter.tagValue && filter.tagValue.trim().length > 0) {
               if (!groupedFilters[filter.tagName]) {
                 groupedFilters[filter.tagName] = []
               }
@@ -92,8 +92,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       const result = await response.json()
 
       if (!response.ok) {
-        const errorMessage =
-          result.error?.message || result.message || 'Failed to perform vector search'
+        const errorMessage = result.error || result.message || 'Failed to perform search'
         throw new Error(errorMessage)
       }
 
@@ -117,12 +116,13 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
           totalResults: 0,
           cost: undefined,
         },
-        error: `Vector search failed: ${error.message || 'Unknown error'}`,
+        error: error.message || 'Failed to perform vector search',
       }
     }
   },
   transformError: async (error): Promise<KnowledgeSearchResponse> => {
-    const errorMessage = `Vector search failed: ${error.message || 'Unknown error'}`
+    const errorMessage = error.message || 'Failed to perform search'
+
     return {
       success: false,
       output: {
