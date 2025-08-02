@@ -24,6 +24,9 @@ export abstract class BaseTool implements Tool {
    */
   protected async notify(toolCallId: string, state: ToolState, message?: string): Promise<ToolConfirmResponse> {
     try {
+      // Map ToolState to NotificationStatus for API
+      const notificationStatus = state === 'errored' ? 'error' : state
+      
       const response = await fetch('/api/copilot/confirm', {
         method: 'POST',
         headers: {
@@ -31,7 +34,7 @@ export abstract class BaseTool implements Tool {
         },
         body: JSON.stringify({
           toolCallId,
-          status: state,
+          status: notificationStatus,
           message,
         }),
       })

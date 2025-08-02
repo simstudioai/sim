@@ -677,6 +677,12 @@ const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
+    // Don't process results for interrupt tools that are still pending
+    if (toolRequiresInterrupt(toolCall.name) && toolCall.state === 'pending') {
+      logger.warn('Tool requires interrupt but got result while pending, ignoring:', toolCall.name, toolCall.id)
+      return
+    }
+
     // Ensure tool call is in context for updates
     if (!context.toolCalls.find((tc) => tc.id === toolCallId)) {
       context.toolCalls.push(toolCall)
@@ -811,6 +817,12 @@ const sseHandlers: Record<string, SSEHandler> = {
   tool_execution: (data, context, get, set) => {
     const toolCall = context.toolCalls.find((tc) => tc.id === data.toolCallId)
     if (toolCall) {
+      // Don't override pending state for tools that require interrupt
+      if (toolRequiresInterrupt(toolCall.name) && toolCall.state === 'pending') {
+        logger.info('Tool requires interrupt, keeping pending state:', toolCall.name, toolCall.id)
+        return
+      }
+      
       toolCall.state = 'executing'
 
       // Update both contentBlocks and toolCalls atomically before UI update

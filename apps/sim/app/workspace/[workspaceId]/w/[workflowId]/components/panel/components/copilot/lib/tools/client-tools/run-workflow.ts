@@ -131,8 +131,7 @@ export class RunWorkflowTool extends BaseTool {
       const { setIsExecuting } = useExecutionStore.getState()
       setIsExecuting(true)
 
-      // Start execution
-      options?.onStateChange?.('executing')
+      // Note: toolCall.state is already set to 'executing' by clientAcceptTool
       
       // Use the standalone execution utility with full logging support
       // This works for both deployed and non-deployed workflows
@@ -148,14 +147,12 @@ export class RunWorkflowTool extends BaseTool {
 
       // Check if execution was successful
       if (result && (!('success' in result) || result.success !== false)) {
-        // Only notify if THIS tool wasn't moved to background
-        if (!options?.context?.movedToBackgroundToolIds?.has(toolCall.id)) {
-          await this.notify(
-            toolCall.id,
-            'success',
-            'Workflow execution completed successfully'
-          )
-        }
+        // Notify server of success
+        await this.notify(
+          toolCall.id,
+          'success',
+          'Workflow execution completed successfully'
+        )
         
         options?.onStateChange?.('success')
         
@@ -171,6 +168,7 @@ export class RunWorkflowTool extends BaseTool {
         // Execution failed
         const errorMessage = (result as any)?.error || 'Workflow execution failed'
         
+        // Notify server of error
         await this.notify(
           toolCall.id,
           'errored',

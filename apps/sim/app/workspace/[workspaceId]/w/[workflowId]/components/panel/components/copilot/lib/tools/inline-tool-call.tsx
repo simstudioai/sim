@@ -52,6 +52,7 @@ async function serverAcceptTool(
 async function clientAcceptTool(
   toolCall: CopilotToolCall,
   setToolCallState: (toolCall: any, state: string, options?: any) => void,
+  onStateChange?: (state: any) => void,
   context?: Record<string, any>
 ): Promise<void> {
   console.log('Client tool accepted:', toolCall.name, toolCall.id)
@@ -59,7 +60,8 @@ async function clientAcceptTool(
   console.log('Setting state to executing...')
   setToolCallState(toolCall, 'executing')
   
-  console.log('Returning early to test state change')
+  // Trigger UI update immediately with explicit state
+  onStateChange?.('executing')
   
   try {
     // Get the tool and execute it directly
@@ -145,21 +147,11 @@ function RunSkipButtons({ toolCall, onStateChange, context }: {
 }) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [buttonsHidden, setButtonsHidden] = useState(false)
-  const [isMovingToBackground, setIsMovingToBackground] = useState(false)
-  const [hasStartedExecution, setHasStartedExecution] = useState(false)
   const { setToolCallState } = useCopilotStore()
-  
-  // Check if this tool supports background execution
-  const clientTool = toolRegistry.getTool(toolCall.name)
-  const allowsBackground = clientTool?.metadata?.allowBackgroundExecution || false
-  
-  // Show background button only after user clicks run and tool supports background
-  const showBackgroundButton = allowsBackground && hasStartedExecution && toolCall.state === 'executing'
   
   const handleRun = async () => {
     setIsProcessing(true)
     setButtonsHidden(true) // Hide run/skip buttons immediately
-    setHasStartedExecution(true) // Mark that user clicked run
     
     try {
       // Check if it's a client tool or server tool
@@ -167,14 +159,15 @@ function RunSkipButtons({ toolCall, onStateChange, context }: {
       
       if (clientTool) {
         // Client tool - execute immediately
-        await clientAcceptTool(toolCall, setToolCallState, context)
+        await clientAcceptTool(toolCall, setToolCallState, onStateChange, context)
+        // Trigger re-render after tool execution completes
+        onStateChange?.(toolCall.state)
       } else {
         // Server tool
         await serverAcceptTool(toolCall, setToolCallState)
+        // Trigger re-render by calling onStateChange if provided  
+        onStateChange?.(toolCall.state)
       }
-      
-      // Trigger re-render by calling onStateChange if provided
-      onStateChange?.(toolCall.state)
     } catch (error) {
       console.error('Error handling run action:', error)
     } finally {
@@ -196,50 +189,6 @@ function RunSkipButtons({ toolCall, onStateChange, context }: {
     } finally {
       setIsProcessing(false)
     }
-  }
-  
-  const handleMoveToBackground = async () => {
-    setIsMovingToBackground(true)
-    
-    try {
-      // Move the tool execution to background
-      setToolCallState(toolCall, 'background')
-      
-      // Notify the backend about background state
-      await notifyServerTool(toolCall.id, toolCall.name, 'background')
-      
-      // Set a flag to prevent THIS tool from notifying again when it completes
-      if (context) {
-        if (!context.movedToBackgroundToolIds) {
-          context.movedToBackgroundToolIds = new Set()
-        }
-        context.movedToBackgroundToolIds.add(toolCall.id)
-      }
-      
-      // Trigger re-render
-      onStateChange?.(toolCall.state)
-    } catch (error) {
-      console.error('Error moving to background:', error)
-    } finally {
-      setIsMovingToBackground(false)
-    }
-  }
-  
-  // If showing background button, only show that
-  if (showBackgroundButton) {
-    return (
-      <div className='flex items-center gap-1.5'>
-        <Button
-          onClick={handleMoveToBackground}
-          disabled={isMovingToBackground}
-          size='sm'
-          className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-700 disabled:opacity-50'
-        >
-          {isMovingToBackground ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
-          Move to Background
-        </Button>
-      </div>
-    )
   }
   
   // If buttons are hidden, show nothing
@@ -277,12 +226,18 @@ export function InlineToolCall({
   context 
 }: InlineToolCallProps) {
   const [, forceUpdate] = useState({})
+  const { setToolCallState } = useCopilotStore()
   
   if (!toolCall) {
     return null
   }
 
   const showButtons = shouldShowRunSkipButtons(toolCall)
+  
+  // Check if we should show background button (when in executing state)
+  const clientTool = toolRegistry.getTool(toolCall.name)
+  const allowsBackground = clientTool?.metadata?.allowBackgroundExecution || false
+  const showBackgroundButton = allowsBackground && toolCall.state === 'executing' && !showButtons
   
   const handleStateChange = (state: any) => {
     // Force component re-render
@@ -303,6 +258,41 @@ export function InlineToolCall({
       </div>
       
       {showButtons && <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} context={context} />}
+      
+      {showBackgroundButton && (
+        <div className='flex items-center gap-1.5'>
+          <Button
+            onClick={async () => {
+              try {
+                console.log('Moving to background:', toolCall.id)
+                
+                // Set tool state to background
+                setToolCallState(toolCall, 'background')
+                
+                // Notify the backend about background state
+                await notifyServerTool(toolCall.id, toolCall.name, 'background')
+                
+                // Track that this tool was moved to background
+                if (context) {
+                  if (!context.movedToBackgroundToolIds) {
+                    context.movedToBackgroundToolIds = new Set()
+                  }
+                  context.movedToBackgroundToolIds.add(toolCall.id)
+                }
+                
+                // Trigger re-render
+                onStateChange?.(toolCall.state)
+              } catch (error) {
+                console.error('Error moving to background:', error)
+              }
+            }}
+            size='sm'
+            className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-700'
+          >
+            Move to Background
+          </Button>
+        </div>
+      )}
     </div>
   )
 } 
