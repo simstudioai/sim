@@ -2,8 +2,6 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { TAG_SLOTS } from '@/lib/constants/knowledge'
-import { retryWithExponentialBackoff } from '@/lib/documents/utils'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { getUserId } from '@/app/api/auth/oauth/utils'
@@ -12,6 +10,8 @@ import { db } from '@/db'
 import { knowledgeBaseTagDefinitions } from '@/db/schema'
 import { calculateCost } from '@/providers/utils'
 import {
+  generateSearchEmbedding,
+  getQueryStrategy,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
@@ -19,16 +19,6 @@ import {
 } from './utils'
 
 const logger = createLogger('VectorSearchAPI')
-
-class APIError extends Error {
-  public status: number
-
-  constructor(message: string, status: number) {
-    super(message)
-    this.name = 'APIError'
-    this.status = status
-  }
-}
 
 const VectorSearchSchema = z
   .object({
@@ -66,72 +56,6 @@ const VectorSearchSchema = z
       message: 'Please provide either a search query or tag filters to search your knowledge base',
     }
   )
-
-async function generateSearchEmbedding(query: string): Promise<number[]> {
-  const openaiApiKey = env.OPENAI_API_KEY
-  if (!openaiApiKey) {
-    throw new Error('OPENAI_API_KEY not configured')
-  }
-
-  try {
-    const embedding = await retryWithExponentialBackoff(
-      async () => {
-        const response = await fetch('https://api.openai.com/v1/embeddings', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            input: query,
-            model: 'text-embedding-3-small',
-            encoding_format: 'float',
-          }),
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          const error = new APIError(
-            `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
-            response.status
-          )
-          throw error
-        }
-
-        const data = await response.json()
-
-        if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
-          throw new Error('Invalid response format from OpenAI embeddings API')
-        }
-
-        return data.data[0].embedding
-      },
-      {
-        maxRetries: 5,
-        initialDelayMs: 1000,
-        maxDelayMs: 30000,
-        backoffMultiplier: 2,
-      }
-    )
-
-    return embedding
-  } catch (error) {
-    logger.error('Failed to generate search embedding:', error)
-    throw new Error(
-      `Embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
-  }
-}
-
-function getQueryStrategy(kbCount: number, topK: number) {
-  const useParallel = kbCount > 4 || (kbCount > 2 && topK > 50)
-  const distanceThreshold = kbCount > 3 ? 0.8 : 1.0
-
-  return {
-    useParallel,
-    distanceThreshold,
-  }
-}
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)

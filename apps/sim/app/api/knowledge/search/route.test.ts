@@ -61,10 +61,22 @@ vi.mock('@/app/api/knowledge/utils', () => ({
 const mockHandleTagOnlySearch = vi.fn()
 const mockHandleVectorOnlySearch = vi.fn()
 const mockHandleTagAndVectorSearch = vi.fn()
+const mockGetQueryStrategy = vi.fn()
+const mockGenerateSearchEmbedding = vi.fn()
 vi.mock('./utils', () => ({
   handleTagOnlySearch: mockHandleTagOnlySearch,
   handleVectorOnlySearch: mockHandleVectorOnlySearch,
   handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
+  getQueryStrategy: mockGetQueryStrategy,
+  generateSearchEmbedding: mockGenerateSearchEmbedding,
+  APIError: class APIError extends Error {
+    public status: number
+    constructor(message: string, status: number) {
+      super(message)
+      this.name = 'APIError'
+      this.status = status
+    }
+  },
 }))
 
 mockConsoleLogger()
@@ -125,6 +137,13 @@ describe('Knowledge Search API Route', () => {
     mockHandleTagOnlySearch.mockClear()
     mockHandleVectorOnlySearch.mockClear()
     mockHandleTagAndVectorSearch.mockClear()
+    mockGetQueryStrategy.mockClear().mockReturnValue({
+      useParallel: false,
+      distanceThreshold: 1.0,
+      parallelLimit: 15,
+      singleQueryOptimized: true,
+    })
+    mockGenerateSearchEmbedding.mockClear().mockResolvedValue([0.1, 0.2, 0.3, 0.4, 0.5])
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
@@ -413,12 +432,10 @@ describe('Knowledge Search API Route', () => {
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
 
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-        text: () => Promise.resolve('Invalid API key'),
-      })
+      // Mock generateSearchEmbedding to throw an error
+      mockGenerateSearchEmbedding.mockRejectedValueOnce(
+        new Error('OpenAI API error: 401 Unauthorized - Invalid API key')
+      )
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -430,14 +447,11 @@ describe('Knowledge Search API Route', () => {
     })
 
     it.concurrent('should handle missing OpenAI API key', async () => {
-      vi.doMock('@/lib/env', () => ({
-        env: {
-          OPENAI_API_KEY: undefined,
-        },
-      }))
-
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
+
+      // Mock generateSearchEmbedding to throw missing API key error
+      mockGenerateSearchEmbedding.mockRejectedValueOnce(new Error('OPENAI_API_KEY not configured'))
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -451,15 +465,9 @@ describe('Knowledge Search API Route', () => {
     it.concurrent('should handle database errors during search', async () => {
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
-      mockDbChain.limit.mockRejectedValueOnce(new Error('Database error'))
 
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: [{ embedding: mockEmbedding }],
-          }),
-      })
+      // Mock the search handler to throw a database error
+      mockHandleVectorOnlySearch.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -474,13 +482,10 @@ describe('Knowledge Search API Route', () => {
       mockGetUserId.mockResolvedValue('user-123')
       mockDbChain.limit.mockResolvedValueOnce(mockKnowledgeBases)
 
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: [], // Empty data array
-          }),
-      })
+      // Mock generateSearchEmbedding to throw invalid response format error
+      mockGenerateSearchEmbedding.mockRejectedValueOnce(
+        new Error('Invalid response format from OpenAI embeddings API')
+      )
 
       const req = createMockRequest('POST', validSearchData)
       const { POST } = await import('@/app/api/knowledge/search/route')
@@ -716,7 +721,7 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.results[0].similarity).toBe(1) // Perfect similarity for tag-only
       expect(data.data.query).toBe('') // Empty query
       expect(data.data.cost).toBeUndefined() // No cost for tag-only search
-      expect(mockFetch).not.toHaveBeenCalled() // No embedding API call
+      expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled() // No embedding API call
       expect(mockHandleTagOnlySearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
@@ -775,7 +780,7 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.results).toHaveLength(2)
       expect(data.data.query).toBe('test search')
       expect(data.data.cost).toBeDefined() // Cost included for vector search
-      expect(mockFetch).toHaveBeenCalled() // Embedding API called
+      expect(mockGenerateSearchEmbedding).toHaveBeenCalled() // Embedding API called
       expect(mockHandleTagAndVectorSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
@@ -917,7 +922,7 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.results).toHaveLength(2)
       expect(data.data.query).toBe('test search query')
       expect(data.data.cost).toBeDefined() // Cost included for vector search
-      expect(mockFetch).toHaveBeenCalled() // Embedding API called
+      expect(mockGenerateSearchEmbedding).toHaveBeenCalled() // Embedding API called
     })
 
     it('should handle tag-only search with multiple knowledge bases', async () => {
@@ -986,7 +991,7 @@ describe('Knowledge Search API Route', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.knowledgeBaseIds).toEqual(['kb-123', 'kb-456'])
-      expect(mockFetch).not.toHaveBeenCalled() // No embedding for tag-only
+      expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled() // No embedding for tag-only
     })
   })
 })
