@@ -61,7 +61,7 @@ export const listTool: ToolConfig<OneDriveToolParams, OneDriveListResponse> = {
     query: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'A query to filter the files',
     },
     pageSize: {

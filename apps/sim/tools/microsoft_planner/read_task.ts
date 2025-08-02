@@ -28,13 +28,13 @@ export const readTaskTool: ToolConfig<MicrosoftPlannerToolParams, MicrosoftPlann
     planId: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'The ID of the plan to get tasks from (if not provided, gets all user tasks)',
     },
     taskId: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'The ID of the task to get',
     },
   },

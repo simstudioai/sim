@@ -167,19 +167,19 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
     pageId: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'The ID of the page to read',
     },
     pageName: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'The name of the page to read (alternative to pageId)',
     },
     maxPages: {
       type: 'number',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description:
         'Maximum number of pages to return when listing all pages (default: 10, max: 50)',
     },

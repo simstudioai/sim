@@ -54,16 +54,10 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       visibility: 'user-only',
       description: 'Select the SharePoint site',
     },
-    siteId: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'The ID of the SharePoint site (internal use)',
-    },
     groupId: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'The group ID for accessing a group team site',
     },
   },
