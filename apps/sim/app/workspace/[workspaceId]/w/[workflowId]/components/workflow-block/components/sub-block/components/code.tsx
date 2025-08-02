@@ -98,7 +98,6 @@ export function Code({
   const isCollapsed =
     (useSubBlockStore((state) => state.getValue(blockId, collapsedStateKey)) as boolean) ?? false
 
-  // Use collaborative subblock operations to persist collapse state
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const setCollapsedValue = (blockId: string, subblockId: string, value: any) => {
     collaborativeSetSubblockValue(blockId, subblockId, value)
